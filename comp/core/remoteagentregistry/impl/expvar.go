@@ -426,17 +426,16 @@ func collectRemoteExpvarValuesAt(ra *remoteAgentRegistry, cache *remoteExpvarCac
 		}
 	}
 	for _, response := range responses {
-		if response.agent.SanitizedDisplayName == "" {
+		// Failed scrapes leave existing counter and gauge state untouched.
+		if !response.success {
 			continue
 		}
 		identity := remoteAgentIdentity(response.agent)
-		if response.success {
-			successfulAgents[identity] = struct{}{}
-			// Gauges are the latest successful snapshot, unlike counters which are accumulated.
-			for key := range cache.gauges {
-				if key.agentIdentity == identity {
-					delete(cache.gauges, key)
-				}
+		successfulAgents[identity] = struct{}{}
+		// Gauges are the latest successful snapshot, unlike counters which are accumulated.
+		for key := range cache.gauges {
+			if key.agentIdentity == identity {
+				delete(cache.gauges, key)
 			}
 		}
 		for _, series := range response.series {
@@ -486,9 +485,7 @@ func collectRemoteExpvarValuesAt(ra *remoteAgentRegistry, cache *remoteExpvarCac
 			delete(cache.counters, key)
 			continue
 		}
-		if state.initialized {
-			addValue(key.agentName, key.mappingID, state.total)
-		}
+		addValue(key.agentName, key.mappingID, state.total)
 	}
 	for key, value := range cache.gauges {
 		if _, registered := activeAgents[key.agentIdentity]; !registered {
@@ -526,15 +523,14 @@ func remoteAgentIdentity(agent remoteagentregistry.RegisteredAgent) string {
 	return identity
 }
 
-func (s *remoteCounterState) observe(raw int64) bool {
+func (s *remoteCounterState) observe(raw int64) {
 	if !s.initialized {
 		s.initialized = true
 		s.lastRaw = raw
 		s.total = raw
-		return true
+		return
 	}
 
-	changed := raw != s.lastRaw
 	if raw >= s.lastRaw {
 		s.total = saturatingAdd(s.total, raw-s.lastRaw)
 	} else {
@@ -543,7 +539,6 @@ func (s *remoteCounterState) observe(raw int64) bool {
 		s.total = saturatingAdd(s.total, raw)
 	}
 	s.lastRaw = raw
-	return changed
 }
 
 func addRetiredExpvarTotal(totals map[string]map[string]int64, agentName, mappingID string, value int64) {

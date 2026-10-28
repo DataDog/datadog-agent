@@ -102,10 +102,6 @@ func TestHandlerProjectsLateCoreLeafOnEveryRequest(t *testing.T) {
 	first := read()
 	assert.NotContains(t, first, "remote_agents")
 	assert.Equal(t, json.Number("5"), first[name].(map[string]any)["Packets"])
-	before := ReadRoot(name, source)
-	assert.Empty(t, before.Core)
-	assert.Equal(t, float64(5), before.RemoteByAgent["agent-data-plane"]["Packets"])
-	assert.Equal(t, float64(5), before.Combined["Packets"])
 
 	root := expvar.NewMap(name)
 	local := new(expvar.Int)
@@ -113,10 +109,6 @@ func TestHandlerProjectsLateCoreLeafOnEveryRequest(t *testing.T) {
 	root.Set("Packets", local)
 	assert.Equal(t, json.Number("13"), read()[name].(map[string]any)["Packets"])
 	assert.Equal(t, "8", root.Get("Packets").String(), "the Core expvar stays separate")
-	views := ReadRoot(name, source)
-	assert.Equal(t, float64(8), views.Core["Packets"])
-	assert.Equal(t, float64(5), views.RemoteByAgent["agent-data-plane"]["Packets"])
-	assert.Equal(t, float64(13), views.Combined["Packets"])
 
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/other", nil))

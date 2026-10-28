@@ -10,7 +10,6 @@ package expvarcompat
 import (
 	"bytes"
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"math"
 	"net/http"
@@ -75,66 +74,6 @@ func MergeJSON(body []byte, remote map[string]any) ([]byte, error) {
 		return nil, err
 	}
 	return append(result, '\n'), nil
-}
-
-// RootViews holds independent Core and per-agent remote values, as well as
-// their combined view. No subtraction from a cached total is necessary.
-// These maps are decoded for status templates; /debug/vars uses MergeJSON to
-// preserve integer precision in the check's metrics.
-type RootViews struct {
-	Core          map[string]any
-	RemoteByAgent map[string]map[string]any
-	Combined      map[string]any
-}
-
-// ReadRoot takes one snapshot of the local expvar and the mapped RAR telemetry
-// for a root. Status providers can render Core, ADP, and total independently.
-func ReadRoot(name string, source Source) RootViews {
-	views := RootViews{
-		Core:          make(map[string]any),
-		RemoteByAgent: make(map[string]map[string]any),
-		Combined:      make(map[string]any),
-	}
-	snapshot := make(map[string]any)
-	if local := expvar.Get(name); local != nil {
-		var root map[string]any
-		if err := decode([]byte(local.String()), &root); err == nil && root != nil {
-			snapshot[name] = root
-			views.Core = statusView(root)
-		}
-	}
-	var remote map[string]any
-	if source != nil {
-		remote = source()
-		for agentName, raw := range remote {
-			roots, ok := raw.(map[string]any)
-			if !ok {
-				continue
-			}
-			if root, ok := roots[name].(map[string]any); ok {
-				views.RemoteByAgent[agentName] = statusView(root)
-			}
-		}
-	}
-	merge(snapshot, remote)
-	if root, ok := snapshot[name].(map[string]any); ok {
-		views.Combined = statusView(root)
-	}
-	return views
-}
-
-func statusView(root map[string]any) map[string]any {
-	// Status templates expect the float64 numbers produced by json.Unmarshal;
-	// json.Number("0") would be truthy in a template and display empty counters.
-	encoded, err := json.Marshal(root)
-	if err != nil {
-		return make(map[string]any)
-	}
-	var view map[string]any
-	if err := json.Unmarshal(encoded, &view); err != nil {
-		return make(map[string]any)
-	}
-	return view
 }
 
 func decode(body []byte, out any) error {
