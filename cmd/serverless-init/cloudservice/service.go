@@ -19,10 +19,9 @@ import (
 )
 
 // TraceAgent represents a trace agent that can process trace payloads, be flushed, and stopped.
-// Process takes a v1 payload (see cmd/serverless-init/trace.Processor).
 // This interface avoids an import cycle with pkg/serverless/trace.
 type TraceAgent interface {
-	Process(*api.PayloadV1)
+	Process(*api.Payload)
 	Flush()
 	Stop()
 }

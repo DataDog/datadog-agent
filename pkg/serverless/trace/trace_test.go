@@ -59,7 +59,7 @@ func newTestServerlessTraceAgent(t *testing.T) (*serverlessTraceAgent, *config.A
 	t.Cleanup(cancel)
 	ta := traceagent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	ta.SpanModifier = &spanModifier{ddOrigin: "lambda"}
-	return &serverlessTraceAgent{ta: ta, cancel: cancel}, cfg
+	return &serverlessTraceAgent{ta: ta, conf: cfg, cancel: cancel}, cfg
 }
 
 func setupTraceAgentTest(t *testing.T) {
@@ -359,42 +359,96 @@ func (m *mockTraceWriterV1) WriteChunksV1(pkg *writer.SampledChunksV1) {
 	m.payloads = append(m.payloads, pkg)
 }
 
-// TestServerlessTraceAgentProcessRoutesThroughV1 verifies that
-// ServerlessTraceAgent.Process submits payloads to the agent's v1 processing
-// path (ProcessV1 / TraceWriterV1) rather than the legacy path, matching the
-// default convert-traces behavior used for receiver-ingested traces.
-func TestServerlessTraceAgentProcessRoutesThroughV1(t *testing.T) {
-	sta, _ := newTestServerlessTraceAgent(t)
-	mockWriter := &mockTraceWriterV1{}
-	sta.ta.TraceWriterV1 = mockWriter
-
-	// Build a payload the same way SubmitSpan does for inferred spans: a pb
-	// tracer payload with a single kept chunk, converted to the v1 format.
+// newInferredSpanPayload builds a payload the same way SubmitSpan does for
+// inferred spans: a legacy tracer payload holding a single kept chunk whose
+// first span carries error information.
+func newInferredSpanPayload(sta *serverlessTraceAgent) (*api.Payload, *pb.TraceChunk) {
 	tc := testutil.RandomTraceChunk(2, 1)
 	tc.Priority = int32(sampler.PriorityUserKeep)
-	tp := testutil.TracerPayloadWithChunk(tc)
-
-	sta.Process(&api.PayloadV1{
+	tc.Origin = "cloudrun"
+	if tc.Spans[0].Meta == nil {
+		tc.Spans[0].Meta = map[string]string{}
+	}
+	tc.Spans[0].Error = 1
+	tc.Spans[0].Meta["error.msg"] = "task failed"
+	return &api.Payload{
 		Source:        sta.ta.Receiver.Stats.GetTagStats(info.Tags{}),
-		TracerPayload: api.ConvertToIdx(tp, ""),
-	})
+		TracerPayload: testutil.TracerPayloadWithChunk(tc),
+	}, tc
+}
 
-	require.NotEmpty(t, mockWriter.payloads, "no payloads were written through the v1 writer")
-	got := mockWriter.payloads[0].TracerPayload
+// TestServerlessTraceAgentProcessRoutesThroughV1 verifies that
+// ServerlessTraceAgent.Process converts payloads to the v1 format and submits
+// them to the agent's v1 processing path (ProcessV1 / TraceWriterV1) rather
+// than the legacy path, matching the default convert-traces behavior used for
+// receiver-ingested traces.
+func TestServerlessTraceAgentProcessRoutesThroughV1(t *testing.T) {
+	sta, _ := newTestServerlessTraceAgent(t)
+	legacyWriter := &mockTraceWriter{}
+	v1Writer := &mockTraceWriterV1{}
+	sta.ta.TraceWriter = legacyWriter
+	sta.ta.TraceWriterV1 = v1Writer
+
+	p, tc := newInferredSpanPayload(sta)
+	sta.Process(p)
+
+	assert.Empty(t, legacyWriter.payloads, "payload must not go through the legacy writer")
+	require.NotEmpty(t, v1Writer.payloads, "no payloads were written through the v1 writer")
+	got := v1Writer.payloads[0].TracerPayload
 	require.NotNil(t, got)
-	require.NotEmpty(t, got.Chunks)
-	require.NotEmpty(t, got.Chunks[0].Spans)
-	// The submitted spans must be the converted v1 spans of the original chunk.
-	assert.Equal(t, tc.Spans[0].SpanID, got.Chunks[0].Spans[0].SpanID())
-	assert.Equal(t, len(tc.Spans), len(got.Chunks[0].Spans))
+	require.Len(t, got.Chunks, 1)
+	chunk := got.Chunks[0]
+	assert.Equal(t, "cloudrun", chunk.Origin())
+	assert.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
+	require.Len(t, chunk.Spans, len(tc.Spans))
+
+	var errSpan *idx.InternalSpan
+	for _, sp := range chunk.Spans {
+		if sp.SpanID() == tc.Spans[0].SpanID {
+			errSpan = sp
+		}
+		// The payload was generated in-process, not converted from a wire
+		// payload, so it must not carry the conversion debug attribute.
+		_, ok := sp.GetAttributeAsString("_dd.convertedv1")
+		assert.False(t, ok, "in-process spans must not be tagged _dd.convertedv1")
+	}
+	require.NotNil(t, errSpan, "converted chunk is missing the original span")
+	assert.True(t, errSpan.Error())
+	errMsg, ok := errSpan.GetAttributeAsString("error.msg")
+	assert.True(t, ok)
+	assert.Equal(t, "task failed", errMsg)
+}
+
+// TestServerlessTraceAgentProcessDisableConvertTraces verifies that the
+// disable-convert-traces feature flag falls back to the legacy processing path
+// (Process / TraceWriter), as it does for receiver-ingested traces.
+func TestServerlessTraceAgentProcessDisableConvertTraces(t *testing.T) {
+	sta, cfg := newTestServerlessTraceAgent(t)
+	cfg.Features["disable-convert-traces"] = struct{}{}
+	legacyWriter := &mockTraceWriter{}
+	v1Writer := &mockTraceWriterV1{}
+	sta.ta.TraceWriter = legacyWriter
+	sta.ta.TraceWriterV1 = v1Writer
+
+	p, tc := newInferredSpanPayload(sta)
+	sta.Process(p)
+
+	assert.Empty(t, v1Writer.payloads, "payload must not go through the v1 writer")
+	require.NotEmpty(t, legacyWriter.payloads, "no payloads were written through the legacy writer")
+	got := legacyWriter.payloads[0].TracerPayload
+	require.NotNil(t, got)
+	require.Len(t, got.Chunks, 1)
+	assert.Equal(t, "cloudrun", got.Chunks[0].Origin)
+	require.Len(t, got.Chunks[0].Spans, len(tc.Spans))
+	assert.Equal(t, tc.Spans[0].SpanID, got.Chunks[0].Spans[0].SpanID)
 }
 
 // TestServerlessTraceAgentProcessAndFlushThroughV1 is an integration-style
 // companion to TestServerlessTraceAgentProcessRoutesThroughV1: it starts a
 // real serverless trace agent (synchronous flushing mode), replaces only its
-// v1 trace writer with a mock, submits a converted payload via Process (the
-// path SubmitSpan uses for inferred spans), and verifies that a serverless
-// Flush drains the v1 writer synchronously.
+// v1 trace writer with a mock, submits a payload via Process (the path
+// SubmitSpan uses for inferred spans), and verifies that a serverless Flush
+// drains the v1 writer synchronously.
 func TestServerlessTraceAgentProcessAndFlushThroughV1(t *testing.T) {
 	setupTraceAgentTest(t)
 
@@ -424,22 +478,13 @@ func TestServerlessTraceAgentProcessAndFlushThroughV1(t *testing.T) {
 	sta.ta.TraceWriterV1 = mockWriter
 	defer func() { sta.ta.TraceWriterV1 = realWriter }()
 
-	// Build a payload the same way SubmitSpan does for inferred spans.
-	tc := testutil.RandomTraceChunk(2, 1)
-	tc.Priority = int32(sampler.PriorityUserKeep)
-	tp := testutil.TracerPayloadWithChunk(tc)
-
-	sta.Process(&api.PayloadV1{
-		Source:        sta.ta.Receiver.Stats.GetTagStats(info.Tags{}),
-		TracerPayload: api.ConvertToIdx(tp, ""),
-	})
+	p, tc := newInferredSpanPayload(sta)
+	sta.Process(p)
 
 	require.NotEmpty(t, mockWriter.payloads, "no payloads were written through the v1 writer")
 	got := mockWriter.payloads[0].TracerPayload
 	require.NotEmpty(t, got.Chunks)
-	require.NotEmpty(t, got.Chunks[0].Spans)
-	assert.Equal(t, tc.Spans[0].SpanID, got.Chunks[0].Spans[0].SpanID())
-	assert.Equal(t, len(tc.Spans), len(got.Chunks[0].Spans))
+	require.Len(t, got.Chunks[0].Spans, len(tc.Spans))
 
 	// The serverless Flush (invoked on invocation end / Stop by the
 	// extension) must reach the v1 writer's synchronous flush.

@@ -42,8 +42,7 @@ import (
 type ServerlessTraceAgent interface {
 	Stop()
 	Flush()
-	// Process submits a v1 payload to the trace agent for processing.
-	Process(p *api.PayloadV1)
+	Process(p *api.Payload)
 	SetTags(map[string]string)
 	UpdateRuntimeTags(map[string]string)
 	SetTargetTPS(float64)
@@ -160,6 +159,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			go ta.Run()
 			return &serverlessTraceAgent{
 				ta:          ta,
+				conf:        tc,
 				cancel:      cancel,
 				stopTimeout: stopTimeout,
 			}
@@ -186,6 +186,7 @@ func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc 
 
 type serverlessTraceAgent struct {
 	ta          *agent.Agent
+	conf        *config.AgentConfig
 	cancel      context.CancelFunc
 	stopTimeout time.Duration
 }
@@ -195,9 +196,30 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
-// Process processes a v1 payload in the trace agent.
-func (t *serverlessTraceAgent) Process(p *api.PayloadV1) {
-	t.ta.ProcessV1(p)
+// Process processes a payload in the trace agent.
+//
+// Like the receiver, the payload is converted to the v1 (string-indexed)
+// format and processed by the v1 path unless the disable-convert-traces
+// feature is set, in which case the legacy path is used. An empty
+// originPayloadVersion skips the _dd.convertedv1 debug attribute, since
+// these payloads are generated in-process rather than received on the wire.
+//
+// TODO(v1): once the legacy processing path is removed, callers should build
+// v1 payloads directly and this conversion should be dropped.
+func (t *serverlessTraceAgent) Process(p *api.Payload) {
+	if t.conf.HasFeature("disable-convert-traces") {
+		t.ta.Process(p)
+		return
+	}
+	t.ta.ProcessV1(&api.PayloadV1{
+		Source:                 p.Source,
+		TracerPayload:          api.ConvertToIdx(p.TracerPayload, ""),
+		ClientComputedTopLevel: p.ClientComputedTopLevel,
+		ClientComputedStats:    p.ClientComputedStats,
+		ClientDroppedP0s:       p.ClientDroppedP0s,
+		ProcessTags:            p.ProcessTags,
+		ContainerTags:          p.ContainerTags,
+	})
 }
 
 type taggable interface {
@@ -362,7 +384,7 @@ type noopTraceAgent struct{}
 
 func (t noopTraceAgent) Stop()                                    {}
 func (t noopTraceAgent) Flush()                                   {}
-func (t noopTraceAgent) Process(*api.PayloadV1)                   {}
+func (t noopTraceAgent) Process(*api.Payload)                     {}
 func (t noopTraceAgent) SetTags(map[string]string)                {}
 func (t noopTraceAgent) UpdateRuntimeTags(map[string]string)      {}
 func (t noopTraceAgent) SetTargetTPS(float64)                     {}
