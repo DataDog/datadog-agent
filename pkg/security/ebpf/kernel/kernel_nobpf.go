@@ -141,3 +141,9 @@ func (k *Version) HasTaskStorageInTracingPrograms() bool {
 func (k *Version) HasTaskStorageInTracePointPrograms() bool {
 	return false
 }
+
+// HaveBPFLSMProgramType returns true if the kernel supports BPF_PROG_TYPE_LSM programs
+// here it's not, since we are built without eBPF support
+func (k *Version) HaveBPFLSMProgramType() bool {
+	return false
+}
