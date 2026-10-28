@@ -107,7 +107,6 @@ var bpfMapNames = []string{
 	"raw_packet_even",
 	"raw_packet_rout",
 	"register_netdev",
-	"sampling_ignore",
 	"secprofs_syscal",
 	"security_profil",
 	"selinux_enforce",

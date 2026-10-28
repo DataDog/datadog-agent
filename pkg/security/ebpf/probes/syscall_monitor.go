@@ -9,18 +9,24 @@
 package probes
 
 import (
-	"runtime"
-
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// SyscallUsageTickerFunctionName is the program that periodically sends the syscalls sampled per process
-const SyscallUsageTickerFunctionName = "syscall_usage_ticker"
+const (
+	// SyscallUsageSysEnterFunctionName is the program that samples the syscalls used per process
+	SyscallUsageSysEnterFunctionName = "sys_enter_syscall_usage"
+	// SyscallUsageTickerFunctionName is the program that periodically sends the syscalls sampled per process
+	SyscallUsageTickerFunctionName = "syscall_usage_ticker"
+)
+
+// SyscallUsageFunctionNames returns the programs of the workload profiles v2 syscall sampler
+func SyscallUsageFunctionNames() []string {
+	return []string{SyscallUsageSysEnterFunctionName, SyscallUsageTickerFunctionName}
+}
 
 // syscallMonitorProbes holds the list of probes used to track syscall events
 
@@ -30,6 +36,12 @@ func getSyscallMonitorProbes() []*manager.Probe {
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "sys_enter",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: SyscallUsageSysEnterFunctionName,
 			},
 		},
 		{
@@ -47,14 +59,16 @@ func getSyscallMonitorProbes() []*manager.Probe {
 
 // SyscallUsageSelectors returns the probes that send the syscalls sampled for workload profiles v2
 func SyscallUsageSelectors() []manager.ProbesSelector {
-	return []manager.ProbesSelector{
-		&manager.ProbeSelector{
+	var selectors []manager.ProbesSelector
+	for _, funcName := range SyscallUsageFunctionNames() {
+		selectors = append(selectors, &manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: SyscallUsageTickerFunctionName,
+				EBPFFuncName: funcName,
 			},
-		},
+		})
 	}
+	return selectors
 }
 
 func getSyscallTableMap() *manager.Map {
@@ -99,22 +113,4 @@ func getSyscallTableMap() *manager.Map {
 		},
 	}
 	return m
-}
-
-// getSamplingIgnoredSyscallsMap returns the bitmap of high-frequency, low-signal syscalls the
-// v2 syscall sampler fast-exits on to avoid per-syscall overhead.
-func getSamplingIgnoredSyscallsMap() *manager.Map {
-	var ignored [64]byte // SYSCALL_ENCODING_TABLE_SIZE
-	for _, id := range utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH) {
-		if id >= 0 && id < len(ignored)*8 {
-			ignored[id/8] |= 1 << (id % 8)
-		}
-	}
-
-	return &manager.Map{
-		Name: "sampling_ignored_syscalls",
-		Contents: []ebpf.MapKV{
-			{Key: uint32(0), Value: ignored},
-		},
-	}
 }

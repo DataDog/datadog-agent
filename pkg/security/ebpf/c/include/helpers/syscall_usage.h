@@ -72,13 +72,13 @@ static __attribute__((always_inline)) int is_syscall_usage_period_empty(struct s
 }
 
 // send_syscall_usage_event sends the syscalls used by the process since the previous event, and
-// starts a new period
-static __attribute__((always_inline)) void send_syscall_usage_event(void *ctx, u32 tgid, struct syscall_usage_t *usage, u64 reason, u32 slot) {
+// starts a new period. It returns 1 when it tried to send an event.
+static __attribute__((always_inline)) int send_syscall_usage_event(void *ctx, u32 tgid, struct syscall_usage_t *usage, u64 reason, u32 slot) {
     usage->new_syscalls = 0;
     usage->last_sent = bpf_ktime_get_ns();
 
     if (usage->excluded || is_syscall_usage_period_empty(usage)) {
-        return;
+        return 0;
     }
 
     struct pid_cache_t *pid_entry = get_pid_cache(tgid);
@@ -87,12 +87,12 @@ static __attribute__((always_inline)) void send_syscall_usage_event(void *ctx, u
         __builtin_memset(usage->seen, 0, sizeof(usage->seen));
         __builtin_memset(usage->period, 0, sizeof(usage->period));
         usage->cookie = pid_entry ? pid_entry->cookie : 0;
-        return;
+        return 0;
     }
 
     struct syscall_monitor_event_t *event = bpf_map_lookup_elem(&syscall_usage_event, &slot);
     if (event == NULL) {
-        return;
+        return 0;
     }
     __builtin_memset(event, 0, sizeof(*event));
 
@@ -104,7 +104,7 @@ static __attribute__((always_inline)) void send_syscall_usage_event(void *ctx, u
     u64 cgroup_id = event->cgroup.path_key.ino;
     if (bpf_map_lookup_elem(&excluded_cgroups, &cgroup_id) != NULL) {
         usage->excluded = 1;
-        return;
+        return 0;
     }
 
     __builtin_memcpy(event->syscalls, usage->period, sizeof(event->syscalls));
@@ -112,15 +112,21 @@ static __attribute__((always_inline)) void send_syscall_usage_event(void *ctx, u
 
     event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
     event->event_reason = reason;
-    send_event_ptr(ctx, EVENT_SYSCALLS, event);
+    if (send_event_ptr(ctx, EVENT_SYSCALLS, event) != 0) {
+        // the event was dropped: put the syscalls back so that the next tick sends them again
+        u64 *period = (u64 *)usage->period;
+        u64 *dropped = (u64 *)event->syscalls;
+#pragma unroll
+        for (int i = 0; i < SYSCALL_ENCODING_TABLE_SIZE / sizeof(u64); i++) {
+            period[i] |= dropped[i];
+        }
+        usage->new_syscalls = 1;
+    }
+    return 1;
 }
 
 // flush_syscall_usage is the last chance to report the syscalls of a process before its exit or exec
 static __attribute__((always_inline)) void flush_syscall_usage(void *ctx, u32 tgid, u64 reason) {
-    if (!is_event_sampling_syscalls_enabled()) {
-        return;
-    }
-
     struct syscall_usage_t *usage = bpf_map_lookup_elem(&syscall_usage, &tgid);
     if (usage == NULL) {
         return;

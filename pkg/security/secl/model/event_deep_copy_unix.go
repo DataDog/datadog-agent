@@ -1351,8 +1351,6 @@ func deepCopySysCtlEvent(fieldToCopy SysCtlEvent, c deepCopyContext) SysCtlEvent
 func deepCopySyscallsEvent(fieldToCopy SyscallsEvent, c deepCopyContext) SyscallsEvent {
 	copied := SyscallsEvent{}
 	copied.EventReason = fieldToCopy.EventReason
-	copied.SampleCookie = fieldToCopy.SampleCookie
-	copied.SyscallID = fieldToCopy.SyscallID
 	copied.Syscalls = deepCopySyscallArr(fieldToCopy.Syscalls, c)
 	return copied
 }

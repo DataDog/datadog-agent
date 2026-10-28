@@ -161,7 +161,6 @@ func AllMaps() []*manager.Map {
 	return []*manager.Map{
 		// Syscall table map
 		getSyscallTableMap(),
-		getSamplingIgnoredSyscallsMap(),
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},

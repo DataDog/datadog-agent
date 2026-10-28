@@ -464,11 +464,6 @@ type RuntimeSecurityConfig struct {
 	// default_value: 60
 	EventSamplingBindThreshold int
 
-	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
-	// visibility: private
-	// default_value: true
-	EventSamplingSyscallsEnabled bool
-
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
 	// default_value: false
@@ -543,6 +538,11 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
+
+	// description: SecurityProfileV2MaxSyscallsEventsPerSecond is the maximum number of events sent per second to report the syscalls of running processes. 0 disables the limit.
+	// visibility: private
+	// default_value: 1024
+	SecurityProfileV2MaxSyscallsEventsPerSecond int
 
 	// description: SecurityProfileV2ProfileReportingDelayTimeBased, when true, delays a v2 profile's reporting of out-of-profile events by SecurityProfileV2ProfileReportingDelayDuration after the profile is created instead of waiting for the first persistence.
 	// visibility: private
@@ -1071,7 +1071,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
 		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
 		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
-		EventSamplingSyscallsEnabled:  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
 		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
@@ -1092,6 +1091,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
+		SecurityProfileV2MaxSyscallsEventsPerSecond:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_syscalls_events_per_second"),
 		SecurityProfileV2ProfileReportingDelayTimeBased: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.profile_reporting_delay.time_based"),
 		SecurityProfileV2ProfileReportingDelayDuration:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"),
 		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
@@ -1290,12 +1290,15 @@ func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventTyp
 		enabled = c.EventSamplingConnectEnabled
 	case model.BindEventType:
 		enabled = c.EventSamplingBindEnabled
-	case model.SyscallsEventType:
-		enabled = c.EventSamplingSyscallsEnabled
 	default:
 		return false
 	}
-	return enabled && c.SecurityProfileV2Enabled && slices.Contains(c.SecurityProfileV2EventTypes, eventType)
+	return enabled && c.SecurityProfileV2EnabledFor(eventType)
+}
+
+// SecurityProfileV2EnabledFor reports whether security profile V2 collects eventType
+func (c *RuntimeSecurityConfig) SecurityProfileV2EnabledFor(eventType model.EventType) bool {
+	return c.SecurityProfileV2Enabled && slices.Contains(c.SecurityProfileV2EventTypes, eventType)
 }
 
 // sanitize ensures that the configuration is properly setup
@@ -1328,6 +1331,10 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)
 		}
+	}
+
+	if c.SecurityProfileV2MaxSyscallsEventsPerSecond < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.max_syscalls_events_per_second: %d, must not be negative", c.SecurityProfileV2MaxSyscallsEventsPerSecond)
 	}
 
 	if c.SecurityProfileV2ProfileReportingDelayDuration < 0 {

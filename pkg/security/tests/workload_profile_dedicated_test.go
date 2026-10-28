@@ -13,6 +13,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -126,7 +127,6 @@ func TestWorkloadProfileDedicatedSyscalls(t *testing.T) {
 
 	tagger := NewFakeManualTagger()
 	opts := workloadProfileTestOpts(t.TempDir(), tagger)
-	opts.eventSamplingSyscallsEnabled = true
 	opts.workloadProfileEventTypes = []string{"exec", "open", "dns", "bind", "connect", "capabilities", "syscalls"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
@@ -174,17 +174,23 @@ func TestWorkloadProfileDedicatedSyscalls(t *testing.T) {
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedSyscallsReporting)
 
 // TestWorkloadProfileDedicatedSyscallsReporting checks that the syscalls of a process land on its process node when they
-// are reported while it runs, and when it execs. The report on exit is checked by TestWorkloadProfileDedicatedSyscalls.
+// are reported while it runs, and when it execs, and that a syscall used again is refreshed. The report on exit is
+// checked by TestWorkloadProfileDedicatedSyscalls.
 func TestWorkloadProfileDedicatedSyscallsReporting(t *testing.T) {
 	skipIfNoWorkloadProfileEnv(t)
 	checkKernelCompatibility(t, "Missing bpf_for_each_map_elem helper", func(kv *kernel.Version) bool {
 		return !kv.HasBPFForEachMapElemHelper()
 	})
 
+	const (
+		refreshPeriod   = time.Second
+		syscallInterval = 3 * time.Second
+	)
+
 	tagger := NewFakeManualTagger()
 	opts := workloadProfileTestOpts(t.TempDir(), tagger)
-	opts.eventSamplingSyscallsEnabled = true
 	opts.workloadProfileEventTypes = []string{"exec", "syscalls"}
+	opts.securityProfileSampleRefreshPeriod = refreshPeriod
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
@@ -237,6 +243,34 @@ func TestWorkloadProfileDedicatedSyscallsReporting(t *testing.T) {
 			}
 			return nil
 		})
+	})
+
+	t.Run("refresh", func(t *testing.T) {
+		dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "latest")
+
+		// the second round uses no new syscall and the process exits after the profile checks: only the refresh can
+		// report the second prctl
+		args := []string{"prctl-setname", "first", ";", "sleep", strconv.Itoa(int(syscallInterval.Seconds())), ";", "prctl-setname", "second", ";", "sleep", "60"}
+		cmd := dockerInstance.Command(workloadProfileSyscallTester, args, nil)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}()
+
+		p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+			firstSeen, lastSeen, found := profileSyscallSeenTimes(p, workloadProfileSyscallTester, model.SysPrctl, "latest")
+			return found && lastSeen.Sub(firstSeen) >= refreshPeriod
+		})
+		if err != nil {
+			if p == nil {
+				t.Fatal(err)
+			}
+			firstSeen, lastSeen, found := profileSyscallSeenTimes(p, workloadProfileSyscallTester, model.SysPrctl, "latest")
+			t.Fatalf("the second prctl should refresh the last seen timestamp of the syscall (found: %v, first seen: %s, last seen: %s): %v", found, firstSeen, lastSeen, err)
+		}
 	})
 }
 

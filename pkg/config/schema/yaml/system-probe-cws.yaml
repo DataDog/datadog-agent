@@ -418,14 +418,6 @@ properties:
             node_type: setting
             type: integer
             default: 80
-      syscalls:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
   event_server:
     node_type: section
     type: object
@@ -768,6 +760,14 @@ properties:
             node_type: setting
             type: integer
             default: 2560
+          max_syscalls_events_per_second:
+            node_type: setting
+            type: integer
+            default: 1024
+            description: |
+              Maximum number of events sent per second to report the syscalls
+              of running processes. The syscalls of a process that execs or
+              exits are always reported. 0 disables the limit.
           profile_reporting_delay:
             node_type: section
             type: object

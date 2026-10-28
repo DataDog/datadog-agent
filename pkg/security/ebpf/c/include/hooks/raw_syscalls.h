@@ -101,18 +101,6 @@ static __attribute__((always_inline)) void monitor_syscall(struct _tracepoint_ra
     }
 }
 
-// Workload profiles v2 syscall sampler. It runs on every syscall of the host and only records the
-// syscall in the process bitmap: syscall_usage_ticker and the exec/exit hooks send the events.
-static __attribute__((always_inline)) void sample_syscall(struct _tracepoint_raw_syscalls_sys_enter *args, u32 pid) {
-    // Fast-exit high-frequency, low-signal syscalls (read/write/futex/poll/...). Userspace
-    // seeds them into profiles so a KILL-default seccomp profile stays valid.
-    if (is_sampling_ignored_syscall(args->id)) {
-        return;
-    }
-
-    record_syscall_usage(pid, args->id);
-}
-
 SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -126,10 +114,14 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
         monitor_syscall(args, pid);
     }
 
-    if (is_event_sampling_syscalls_enabled()) {
-        sample_syscall(args, pid);
-    }
+    return 0;
+}
 
+// Workload profiles v2 syscall sampler. It runs on every syscall of the host and only records the
+// syscall in the process bitmap: syscall_usage_ticker and the exec/exit hooks send the events.
+SEC("tracepoint/raw_syscalls/sys_enter")
+int sys_enter_syscall_usage(struct _tracepoint_raw_syscalls_sys_enter *args) {
+    record_syscall_usage(bpf_get_current_pid_tgid() >> 32, args->id);
     return 0;
 }
 
@@ -137,6 +129,8 @@ struct syscall_usage_ticker_ctx_t {
     struct bpf_perf_event_data *ctx;
     u64 now;
     u64 refresh_period;
+    u64 max_events;
+    u64 sent;
 };
 
 static long for_each_syscall_usage_cb(struct bpf_map *map, const void *key, void *value, void *callback_ctx) {
@@ -151,7 +145,11 @@ static long for_each_syscall_usage_cb(struct bpf_map *map, const void *key, void
     u64 elapsed = ticker_ctx->now - usage->last_sent;
     if ((usage->new_syscalls && elapsed >= SYSCALL_USAGE_NEW_SYSCALL_FLUSH_DELAY) ||
         (ticker_ctx->refresh_period > 0 && elapsed >= ticker_ctx->refresh_period)) {
-        send_syscall_usage_event(ticker_ctx->ctx, *(u32 *)key, usage, SYSCALL_MONITOR_REASON_PERIOD, SYSCALL_USAGE_EVENT_TICKER_SLOT);
+        ticker_ctx->sent += send_syscall_usage_event(ticker_ctx->ctx, *(u32 *)key, usage, SYSCALL_MONITOR_REASON_PERIOD, SYSCALL_USAGE_EVENT_TICKER_SLOT);
+        if (ticker_ctx->max_events > 0 && ticker_ctx->sent >= ticker_ctx->max_events) {
+            // the entries left are still due on the next tick, and keep their syscalls until then
+            return 1;
+        }
     }
 
     return 0;
@@ -166,11 +164,14 @@ int syscall_usage_ticker(struct bpf_perf_event_data *ctx) {
 
     u64 sample_refresh_period_ns = 0;
     LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
+    u64 max_events = 0;
+    LOAD_CONSTANT("syscall_usage_max_events_per_tick", max_events);
 
     struct syscall_usage_ticker_ctx_t ticker_ctx = {
         .ctx = ctx,
         .now = bpf_ktime_get_ns(),
         .refresh_period = sample_refresh_period_ns,
+        .max_events = max_events,
     };
 
     bpf_for_each_map_elem(&syscall_usage, &for_each_syscall_usage_cb, &ticker_ctx, 0);

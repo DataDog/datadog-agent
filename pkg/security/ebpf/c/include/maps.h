@@ -60,7 +60,6 @@ BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
 BPF_HASH_MAP(security_profiles, u64, struct security_profile_t, 1) // max entries will be overriden at runtime
 BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 BPF_LRU_MAP(excluded_cgroups, u64, u8, 1) // host/systemd cgroup inodes the v2 syscall sampler skips; populated by userspace; max entries overridden at runtime
-BPF_ARRAY_MAP(sampling_ignored_syscalls, struct security_profile_syscalls_t, 1) // syscalls the v2 syscall sampler skips; populated by userspace
 BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 1) // max entries updated at runtime; preallocated (written only from userspace)

@@ -145,7 +145,6 @@ enum CREDENTIAL_SOURCE {
 #define SYSCALL_MONITOR_REASON_PERIOD 1
 #define SYSCALL_MONITOR_REASON_EXIT 2
 #define SYSCALL_MONITOR_REASON_EXECVE 3
-#define SYSCALL_MONITOR_REASON_SAMPLE 4
 
 // minimum delay between two syscall usage events of a process that used a syscall for the first time
 #define SYSCALL_USAGE_NEW_SYSCALL_FLUSH_DELAY 1000000000 // 1s
@@ -272,12 +271,6 @@ static __attribute__((always_inline)) u64 is_raw_syscall_kill_enabled() {
 static __attribute__((always_inline)) u64 is_security_profile_v2_enabled() {
     u64 enabled;
     LOAD_CONSTANT("security_profile_v2_enabled", enabled);
-    return enabled;
-};
-
-static __attribute__((always_inline)) u64 is_event_sampling_syscalls_enabled() {
-    u64 enabled;
-    LOAD_CONSTANT("event_sampling_syscalls_enabled", enabled);
     return enabled;
 };
 

@@ -450,6 +450,27 @@ func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) b
 	})) > 0
 }
 
+// profileSyscallSeenTimes returns the seen timestamps of a syscall node, for the image tag, under the process node of argv0
+func profileSyscallSeenTimes(p *profile.Profile, argv0 string, syscall model.Syscall, imageTag string) (firstSeen time.Time, lastSeen time.Time, found bool) {
+	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+
+	for _, node := range walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return node.Process.Argv0 == argv0
+	}) {
+		syscallNode, ok := node.Syscalls[int(syscall)]
+		if !ok {
+			continue
+		}
+		if first, last, ok := syscallNode.GetSeenTimes(imageTagID); ok {
+			return time.Unix(0, first), time.Unix(0, last), true
+		}
+	}
+	return time.Time{}, time.Time{}, false
+}
+
 // profileFileSeenTimes returns the seen timestamps of a file node, for the image tag, under the process node of execBasename
 func profileFileSeenTimes(p *profile.Profile, execBasename string, basename string, imageTag string) (firstSeen time.Time, lastSeen time.Time, found bool) {
 	imageTagID := p.ActivityTree.GetImageTagID(imageTag)

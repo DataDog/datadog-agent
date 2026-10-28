@@ -466,9 +466,11 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
-	if p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) && !p.kernelVersion.HasBPFForEachMapElemHelper() {
-		seclog.Warnf("The syscalls event sampling feature of CWS requires a kernel with support for the bpf_for_each_map_elem helper, disabling it")
-		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled = false
+	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) && !p.kernelVersion.HasBPFForEachMapElemHelper() {
+		seclog.Warnf("The syscalls event type of workload profiles requires a kernel with support for the bpf_for_each_map_elem helper, removing it from runtime_security_config.security_profile.v2.event_types")
+		p.config.RuntimeSecurity.SecurityProfileV2EventTypes = slices.DeleteFunc(slices.Clone(p.config.RuntimeSecurity.SecurityProfileV2EventTypes), func(eventType model.EventType) bool {
+			return eventType == model.SyscallsEventType
+		})
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && p.config.Probe.CapabilitiesMonitoringPeriod < 1*time.Second {
@@ -2742,10 +2744,10 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if needRawSyscalls || p.isSyscallMonitorEnabled() || p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if needRawSyscalls || p.isSyscallMonitorEnabled() {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 	}
-	if p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		activatedProbes = append(activatedProbes, probes.SyscallUsageSelectors()...)
 	}
 
@@ -3480,12 +3482,12 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
-			Name:  "sample_entry_ttl_ns",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout.Nanoseconds()),
+			Name:  "syscall_usage_max_events_per_tick",
+			Value: uint64(p.config.RuntimeSecurity.SecurityProfileV2MaxSyscallsEventsPerSecond),
 		},
 		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType)),
+			Name:  "sample_entry_ttl_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout.Nanoseconds()),
 		},
 		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
@@ -3600,7 +3602,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType),
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
-		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType),
+		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3667,8 +3669,8 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
 	}
 
-	if !p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SyscallUsageTickerFunctionName)
+	if !p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SyscallUsageFunctionNames()...)
 	}
 
 	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
@@ -3684,10 +3686,10 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if p.isSyscallMonitorEnabled() || p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if p.isSyscallMonitorEnabled() {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}
-	if p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallUsageSelectors()...)
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)

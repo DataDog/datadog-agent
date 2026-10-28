@@ -14,17 +14,6 @@ static __always_inline u8 syscall_mask_contains(char syscalls[SYSCALL_ENCODING_T
     return (syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) > 0;
 }
 
-static __always_inline u8 is_sampling_ignored_syscall(long syscall_id) {
-    // syscall_mask_contains wraps around past the end of the mask
-    if ((unsigned long)syscall_id >= SYSCALL_ENCODING_TABLE_SIZE * 8) {
-        return 0;
-    }
-
-    u32 key = 0;
-    struct security_profile_syscalls_t *ignored = bpf_map_lookup_elem(&sampling_ignored_syscalls, &key);
-    return ignored != NULL && syscall_mask_contains(ignored->syscalls, syscall_id);
-}
-
 static __always_inline void syscall_monitor_entry_insert(struct syscall_monitor_entry_t *entry, long syscall_id) {
     u16 index = ((unsigned long)syscall_id) / 8;
     u8 bit = 1 << (((unsigned long)syscall_id) % 8);
