@@ -443,7 +443,7 @@ func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity
 	}
 
 	process, ok := entity.(*workloadmeta.Process)
-	if !ok {
+	if !ok || !hasPromotableProcessTag(process) {
 		return nil
 	}
 
@@ -462,6 +462,23 @@ func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity
 		Entity:     container,
 		IsComplete: c.entityCompleteness[container.EntityID],
 	})
+}
+
+// hasPromotableProcessTag reports whether the process has a promotable tag.
+// Processes without one are ignored when promoting tags, so they cannot change
+// the tags of their container.
+func hasPromotableProcessTag(process *workloadmeta.Process) bool {
+	if process.Service == nil {
+		return false
+	}
+	for _, metadata := range process.Service.TracerMetadata {
+		for tagKey, value := range metadata.Tags() {
+			if value != "" && slices.Contains(promotableProcessTagKeys, tagKey) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // addPromotedProcessTags adds the promotable process tags on which every

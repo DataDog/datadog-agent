@@ -5091,6 +5091,77 @@ func TestProcessEventsRetagsProcessContainer(t *testing.T) {
 	assert.NotContains(t, containerLowCardTags(t, <-collectorCh, containerID), "training_run_id:run-1")
 }
 
+func TestProcessEventsRetagsOnlyAffectedContainers(t *testing.T) {
+	const (
+		containerID      = "container-id"
+		otherContainerID = "other-container-id"
+	)
+
+	tests := []struct {
+		name             string
+		process          *workloadmeta.Process
+		expectedRetagged []string
+	}{
+		{
+			name:             "process with promotable tags",
+			process:          newProcessWithTags(1, containerID, "training_run_id:run-1"),
+			expectedRetagged: []string{containerID},
+		},
+		{
+			name:    "process without promotable tags",
+			process: newProcessWithTags(1, containerID, "foo:bar"),
+		},
+		{
+			name:             "process in another container",
+			process:          newProcessWithTags(1, otherContainerID, "training_run_id:run-1"),
+			expectedRetagged: []string{otherContainerID},
+		},
+		{
+			name:    "process in a container missing from the store",
+			process: newProcessWithTags(1, "missing-container-id", "training_run_id:run-1"),
+		},
+		{
+			name:    "process outside a container",
+			process: newProcessWithTags(1, "", "training_run_id:run-1"),
+		},
+	}
+
+	for _, test := range tests {
+		for eventName, eventType := range map[string]workloadmeta.EventType{"set": workloadmeta.EventTypeSet, "unset": workloadmeta.EventTypeUnset} {
+			t.Run(test.name+"/"+eventName, func(t *testing.T) {
+				store := newProcessTagPromotionStore(t)
+				for _, id := range []string{containerID, otherContainerID} {
+					store.Set(&workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+					})
+				}
+
+				cfg := configmock.New(t)
+				cfg.SetInTest("gpu.tracing.enabled", true)
+				collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+				collectorCh := make(chan []*types.TagInfo, 1)
+				collector.tagProcessor = &fakeProcessor{collectorCh}
+
+				collector.processEvents(workloadmeta.EventBundle{
+					Events: []workloadmeta.Event{{Type: eventType, Entity: test.process}},
+					Ch:     make(chan struct{}),
+				})
+				close(collectorCh)
+
+				var retagged []string
+				for tagInfos := range collectorCh {
+					for _, tagInfo := range tagInfos {
+						if tagInfo.Source == containerSource {
+							retagged = append(retagged, tagInfo.EntityID.GetID())
+						}
+					}
+				}
+				assert.ElementsMatch(t, test.expectedRetagged, retagged)
+			})
+		}
+	}
+}
+
 func newProcessTagPromotionStore(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -5103,7 +5174,9 @@ func newProcessWithTags(pid int32, containerID string, processTags string) *work
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.Itoa(int(pid))},
 		Pid:      pid,
-		Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	}
+	if containerID != "" {
+		process.Owner = &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}
 	}
 	if processTags != "" {
 		process.Service = &workloadmeta.Service{
