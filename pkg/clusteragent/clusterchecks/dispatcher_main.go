@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -58,6 +59,7 @@ type dispatcher struct {
 	extraTags                        []string
 	clcRunnersClient                 clusteragent.CLCRunnerClientInterface
 	advancedDispatching              atomic.Bool
+	advancedDispatchingOffReason     atomic.Pointer[string]
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
@@ -184,12 +186,14 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
+		d.setAdvancedDispatchingOffReason("disabled by cluster_checks.advanced_dispatching_enabled")
 		return d
 	}
 
 	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
 	if err != nil {
 		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+		d.setAdvancedDispatchingOffReason(fmt.Sprintf("the cluster check runners client is unavailable: %v", err))
 	} else {
 		d.advancedDispatching.Store(true)
 	}
@@ -431,7 +435,12 @@ func (d *dispatcher) UpdateAdvancedDispatchingMode() {
 func (d *dispatcher) disableAdvancedDispatching() {
 	if d.advancedDispatching.CompareAndSwap(true, false) {
 		log.Info("Node agents detected in cluster check pool, disabling advanced dispatching")
+		d.setAdvancedDispatchingOffReason("node agents joined the cluster checks pool")
 	}
+}
+
+func (d *dispatcher) setAdvancedDispatchingOffReason(reason string) {
+	d.advancedDispatchingOffReason.Store(&reason)
 }
 
 // run is the main management goroutine for the dispatcher
