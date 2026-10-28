@@ -155,8 +155,9 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 
 FIPS_TAGS = set(["goexperiment.systemcrypto", "requirefips"])
 
-# Tags that select non-FIPS dependencies; always removed from FIPS builds.
-NONFIPS_ONLY_TAGS = set(["rcx509_nonfips"])
+# Tags always removed from FIPS builds: the Remote Config x509 client does not
+# support the FIPS flavor yet.
+FIPS_EXCLUDED_TAGS = set(["rc_x509", "rcx509_nonfips"])
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = set([

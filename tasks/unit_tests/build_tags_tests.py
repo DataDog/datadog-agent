@@ -85,14 +85,16 @@ class TestCodegenPayloadData(unittest.TestCase):
     def test_base_excludes_requirefips(self):
         self.assertNotIn("requirefips", _payload()["flavor_specific_tags"]["base"])
 
-    def test_rc_x509_is_enabled_for_supported_agent_flavors_but_not_iot(self):
-        for flavor in (AgentFlavor.base, AgentFlavor.fips, AgentFlavor.heroku, AgentFlavor.recorder):
+    def test_rc_x509_is_enabled_for_supported_agent_flavors_but_not_iot_or_fips(self):
+        for flavor in (AgentFlavor.base, AgentFlavor.heroku, AgentFlavor.recorder):
             with self.subTest(flavor=flavor.name):
                 tags = build_tags.get_default_build_tags(build="agent", flavor=flavor, platform="linux")
                 self.assertIn("rc_x509", tags)
 
-        iot_tags = build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.iot, platform="linux")
-        self.assertNotIn("rc_x509", iot_tags)
+        for flavor in (AgentFlavor.iot, AgentFlavor.fips):
+            with self.subTest(flavor=flavor.name):
+                tags = build_tags.get_default_build_tags(build="agent", flavor=flavor, platform="linux")
+                self.assertNotIn("rc_x509", tags)
 
     def test_rcx509_nonfips_is_set_only_for_non_fips_flavors(self):
         for flavor in (AgentFlavor.base, AgentFlavor.heroku, AgentFlavor.recorder):
@@ -104,6 +106,7 @@ class TestCodegenPayloadData(unittest.TestCase):
         for build in ("agent", "lint", "unit-tests"):
             with self.subTest(flavor="fips", build=build):
                 tags = build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.fips, platform="linux")
+                self.assertNotIn("rc_x509", tags)
                 self.assertNotIn("rcx509_nonfips", tags)
 
     def test_rcx509_nonfips_is_excluded_on_windows(self):

@@ -46,7 +46,7 @@ AGENT_TAGS = _data.AGENT_TAGS
 AGENT_RECORDER_TAGS = _data.AGENT_RECORDER_TAGS
 AGENT_HEROKU_TAGS = _data.AGENT_HEROKU_TAGS
 FIPS_TAGS = _data.FIPS_TAGS
-NONFIPS_ONLY_TAGS = _data.NONFIPS_ONLY_TAGS
+FIPS_EXCLUDED_TAGS = _data.FIPS_EXCLUDED_TAGS
 CLUSTER_AGENT_TAGS = _data.CLUSTER_AGENT_TAGS
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = _data.CLUSTER_AGENT_CLOUDFOUNDRY_TAGS
 DOGSTATSD_TAGS = _data.DOGSTATSD_TAGS
@@ -117,7 +117,7 @@ build_tags = {
         .difference(UNIT_TEST_EXCLUDED_TAGS),
     },
     AgentFlavor.fips: {
-        "agent": AGENT_TAGS.union(FIPS_TAGS).difference(NONFIPS_ONLY_TAGS),
+        "agent": AGENT_TAGS.union(FIPS_TAGS).difference(FIPS_EXCLUDED_TAGS),
         "dogstatsd": DOGSTATSD_TAGS.union(FIPS_TAGS),
         "process-agent": PROCESS_AGENT_TAGS.union(FIPS_TAGS),
         "security-agent": SECURITY_AGENT_TAGS.union(FIPS_TAGS),
@@ -136,11 +136,11 @@ build_tags = {
         "lint": AGENT_TAGS.union(FIPS_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDED_TAGS)
-        .difference(NONFIPS_ONLY_TAGS),
+        .difference(FIPS_EXCLUDED_TAGS),
         "unit-tests": AGENT_TAGS.union(FIPS_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDED_TAGS)
-        .difference(NONFIPS_ONLY_TAGS),
+        .difference(FIPS_EXCLUDED_TAGS),
         "otel-agent": OTEL_AGENT_TAGS.union(FIPS_TAGS),
     },
     AgentFlavor.heroku: {
