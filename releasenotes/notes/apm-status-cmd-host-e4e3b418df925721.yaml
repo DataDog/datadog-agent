@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ``datadog-agent status`` now queries the APM debug endpoint on ``cmd_host`` instead of a hardcoded ``localhost``.
