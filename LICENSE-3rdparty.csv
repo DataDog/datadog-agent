@@ -328,6 +328,7 @@ core,github.com/DataDog/rshell/builtins/free,Apache-2.0,"Copyright 2026-present 
 core,github.com/DataDog/rshell/builtins/grep,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/head,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/help,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/boundedreplace,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/diskstats,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/flagparser,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/loopctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
