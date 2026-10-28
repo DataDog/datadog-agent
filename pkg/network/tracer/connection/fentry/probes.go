@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -34,8 +35,9 @@ const (
 	udpSendPageReturn = "udp_sendpage_exit"
 
 	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
-	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
-	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
+	tcpRecvMsgReturn          = "tcp_recvmsg_exit"
+	tcpRecvMsgNoAddrLenReturn = "tcp_recvmsg_exit_no_addr_len"
+	tcpRecvMsgPre5190Return   = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close(); it cleans protocol
@@ -150,6 +152,7 @@ var programs = map[string]struct{}{
 	__skbFreeDatagramLocked:    {},
 	skbConsumeUDP:              {},
 	tcpRecvMsgPre5190Return:    {},
+	tcpRecvMsgNoAddrLenReturn:  {},
 	udpRecvMsgPre5190Return:    {},
 	udpv6RecvMsgPre5190Return:  {},
 	// Protocol classification
@@ -216,8 +219,16 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 	hasSendPage := util.HasTCPSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
+		n, err := ddbtf.GetKernelFuncArgCount("tcp_recvmsg")
+		if err != nil {
+			return nil, fmt.Errorf("could not determine tcp_recvmsg signature: %w", err)
+		}
+		tcpRecvMsgProbe, err := selectTCPRecvMsgReturn(n)
+		if err != nil {
+			return nil, err
+		}
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, tcpRecvMsgProbe)
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
@@ -298,6 +309,30 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 		return errors.New("missing desired UDP receive kernel functions")
 	}
 	return nil
+}
+
+// selectTCPRecvMsgReturn picks the fexit/tcp_recvmsg variant matching the
+// kernel's tcp_recvmsg signature, given its parameter count from the kernel BTF.
+// Since fexit programs read the return value from the slot after the last
+// argument, the declared argument count must match exactly.
+//
+// The signature is detected from the kernel BTF rather than the kernel version,
+// because the removal of addr_len was backported within a version series:
+// upstream v7.0 and Ubuntu 7.0.0-28 still have it, while Ubuntu 7.0.0-38 does
+// not. A count with no matching variant returns ErrorUnsupported instead of
+// guessing: a variant declaring fewer arguments than the kernel would load and
+// silently read an argument as the return value.
+func selectTCPRecvMsgReturn(paramCount int) (string, error) {
+	switch paramCount {
+	case 6: // tcp_recvmsg(sk, msg, len, nonblock, flags, addr_len), pre-5.19
+		return tcpRecvMsgPre5190Return, nil
+	case 5: // tcp_recvmsg(sk, msg, len, flags, addr_len)
+		return tcpRecvMsgReturn, nil
+	case 4: // tcp_recvmsg(sk, msg, len, flags)
+		return tcpRecvMsgNoAddrLenReturn, nil
+	default:
+		return "", fmt.Errorf("%w: no fexit variant for tcp_recvmsg with %d parameters", ErrorUnsupported, paramCount)
+	}
 }
 
 func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {
