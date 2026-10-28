@@ -206,6 +206,42 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	})
 }
 
+// centos7BaseRepo points the CentOS 7 base/updates/extras repos at the versioned vault archive, with the CERN
+// and kernel.org vault mirrors as ordered fallbacks. Same content as main's Host.ConfigureYumMirrors.
+const centos7BaseRepo = `[base]
+name=CentOS-7 - Base
+baseurl=http://vault.centos.org/7.9.2009/os/$basearch/
+        https://linuxsoft.cern.ch/centos-vault/7.9.2009/os/$basearch/
+        https://archive.kernel.org/centos-vault/7.9.2009/os/$basearch/
+failovermethod=priority
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+skip_if_unavailable=1
+timeout=30
+
+[updates]
+name=CentOS-7 - Updates
+baseurl=http://vault.centos.org/7.9.2009/updates/$basearch/
+        https://linuxsoft.cern.ch/centos-vault/7.9.2009/updates/$basearch/
+        https://archive.kernel.org/centos-vault/7.9.2009/updates/$basearch/
+failovermethod=priority
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+skip_if_unavailable=1
+timeout=30
+
+[extras]
+name=CentOS-7 - Extras
+baseurl=http://vault.centos.org/7.9.2009/extras/$basearch/
+        https://linuxsoft.cern.ch/centos-vault/7.9.2009/extras/$basearch/
+        https://archive.kernel.org/centos-vault/7.9.2009/extras/$basearch/
+failovermethod=priority
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+skip_if_unavailable=1
+timeout=30
+`
+
 func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	var arch string
 	if *architecture == "arm64" {
@@ -247,6 +283,11 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 			ExecuteWithoutError(t, VMclient, "sudo sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo")
 			ExecuteWithoutError(t, VMclient, "sudo sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo")
 			ExecuteWithoutError(t, VMclient, "sudo sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo")
+			// The /centos/7/ path on vault.centos.org now returns HTTP 403, so point base/updates/extras at
+			// the versioned vault archive with fallback mirrors, like main's Host.ConfigureYumMirrors.
+			_, err := fileManager.WriteFile("/etc/yum.repos.d/CentOS-Base.repo", []byte(centos7BaseRepo))
+			require.NoError(t, err)
+			ExecuteWithoutError(t, VMclient, "sudo yum clean all")
 		})
 	}
 	is.T().Run("install rhel", func(t *testing.T) {
