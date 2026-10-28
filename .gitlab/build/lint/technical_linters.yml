@@ -4,15 +4,6 @@
   tags: ["arch:amd64", "specific:true"]
   needs: []
 
-lint_most:
-  stage: lint
-  extends: [.bazel:runner:linux-amd64]
-  tags: ["arch:amd64", "specific:true"]
-  needs: []
-  script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - experimental/aiuto/technical_linters.sh
-
 lint_licenses:
   extends: [.lint, .bazel:defs:cache:progressive]
   script:
@@ -22,6 +13,15 @@ lint_rust_licenses:
   extends: [.lint, .rust_internal_registry]
   script:
     - dda inv -- -e lint-rust-licenses
+
+lint_most:
+  stage: lint
+  extends: [.bazel:runner:linux-amd64]
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - experimental/aiuto/technical_linters.sh
 
 validate_modules:
   extends: .lint
