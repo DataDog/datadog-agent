@@ -15,14 +15,19 @@ struct syscall_monitor_key_t {
 
 // syscall_usage_t is the per-process (tgid) state of the v2 syscall sampler. Each flag gets its
 // own field: the hot path and the ticker write them concurrently without atomics.
+// 200 bytes, so that a map element (with its 56 bytes header and key) fills 4 cache lines.
 struct syscall_usage_t {
+    u32 excluded;
+    u32 padding;
+    u8 period[SYSCALL_ENCODING_TABLE_SIZE];
+    u8 seen[SYSCALL_ENCODING_TABLE_SIZE];
     u64 cookie;
     u64 last_sent;
     u32 new_syscalls;
-    u32 excluded;
-    u8 seen[SYSCALL_ENCODING_TABLE_SIZE];
-    u8 period[SYSCALL_ENCODING_TABLE_SIZE];
+    u8 pad[44];
 };
+
+_Static_assert(sizeof(struct syscall_usage_t) == 200, "syscall_usage_t must stay 200 bytes");
 
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
