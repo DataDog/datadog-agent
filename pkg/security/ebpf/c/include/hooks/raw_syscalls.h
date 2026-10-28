@@ -122,7 +122,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                 u32 refresh_needed = 0;
                 enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
                 if (state == SAMPLED) {
-                    event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+                    event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE | EVENT_FLAGS_SAVED_BY_AD;
                     event->event_reason = SYSCALL_MONITOR_REASON_SAMPLE;
                     __builtin_memset(event->syscalls, 0, sizeof(event->syscalls));
                     event->syscall_id = args->id;

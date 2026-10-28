@@ -12,6 +12,10 @@ type ResourceType string
 const (
 	// ResourceTypeHostAPTConfig is used to represent the APT configuration on a host.
 	ResourceTypeHostAPTConfig ResourceType = "host_apt_config"
+	// ResourceTypeDockerContainer is used to represent a Docker container.
+	ResourceTypeDockerContainer ResourceType = "docker_container"
+	// ResourceTypeKubernetesCluster is used to represent a Kubernetes cluster.
+	ResourceTypeKubernetesCluster ResourceType = "kubernetes_cluster"
 	// ResourceTypeDbCassandra is used to represent a Cassandra database.
 	ResourceTypeDbCassandra ResourceType = "db_cassandra"
 	// ResourceTypeDbMongodb is used to represent a MongoDB database.
