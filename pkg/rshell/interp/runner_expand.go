@@ -337,7 +337,7 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 			if !isGlobPatternPanic(rec) {
 				panic(rec)
 			}
-			c.r.expandErr(fmt.Errorf("invalid glob pattern in expansion"))
+			c.r.expandErr(errors.New("invalid glob pattern in expansion"))
 			ok = false
 		}
 	}()

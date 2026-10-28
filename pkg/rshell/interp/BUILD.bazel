@@ -117,6 +117,7 @@ dd_agent_go_test(
         "comments_vuln_hunt_test.go",
         "expansion_limits_test.go",
         "glob_bench_test.go",
+        "glob_pattern_panic_test.go",
         "glob_readdir_limit_test.go",
         "globbing_vuln_hunt_test.go",
         "internal_errors_test.go",
