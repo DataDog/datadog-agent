@@ -17,27 +17,21 @@ import (
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 )
 
-func TestTelemetryTracksStateEntriesNotPolls(t *testing.T) {
+func TestTelemetryReportsStateTransitions(t *testing.T) {
 	tel := telemetrymock.New(t)
 	report := newTelemetryReporter(tel)
 	counts := map[string]float64{}
-	for _, step := range []struct {
-		state phonehome.State
-		entry bool
-	}{
-		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonStartupJitter}, true},
-		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized}, true},
-		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized, NextCheck: "not-a-metric-label"}, false},
-		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonMissingEnrollmentScope}, true},
-		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized}, true},
-		{phonehome.State{State: phonehome.StateBlocked, Reason: phonehome.ReasonLegacyAttemptRequiresReconciliation}, true},
-		{phonehome.State{State: phonehome.StateHandedOff, Reason: phonehome.ReasonSupervisorStartAcknowledged}, true},
+	for _, state := range []phonehome.State{
+		{State: phonehome.StateWaiting, Reason: phonehome.ReasonStartupJitter, NextCheck: "not-a-metric-label"},
+		{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized},
+		{State: phonehome.StateWaiting, Reason: phonehome.ReasonMissingEnrollmentScope},
+		{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized},
+		{State: phonehome.StateBlocked, Reason: phonehome.ReasonLegacyAttemptRequiresReconciliation},
+		{State: phonehome.StateHandedOff, Reason: phonehome.ReasonSupervisorStartAcknowledged},
 	} {
-		report(step.state)
-		current := string(step.state.State) + "/" + string(step.state.Reason)
-		if step.entry {
-			counts[current]++
-		}
+		report(state)
+		current := string(state.State) + "/" + string(state.Reason)
+		counts[current]++
 		metrics, err := tel.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 		gauges, counters := map[string]float64{}, map[string]float64{}

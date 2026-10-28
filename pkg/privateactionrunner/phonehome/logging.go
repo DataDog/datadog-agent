@@ -12,14 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// The controller reports serially; NextCheck changes are not transitions.
+// Receives state/reason transitions from the controller's emitter.
 func newStateLogger(bypass bool) func(State) {
-	var previous State
 	return func(s State) {
-		if s.State == previous.State && s.Reason == previous.Reason {
-			return
-		}
-		previous = s
 		// Log handoffs at the operation, not when connectivity restores the same status.
 		if s.State == phonehomedef.StateHandedOff {
 			return

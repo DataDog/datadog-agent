@@ -69,7 +69,7 @@ func TestStateLoggingLevelsAndDeduplication(t *testing.T) {
 	} {
 		t.Run(string(tc.reason), func(t *testing.T) {
 			output := captureLogs(t)
-			report := newStateLogger(false)
+			report := newStateEmitter(func(State) {}, newStateLogger(false))
 			s := State{State: phonehomedef.StateWaiting, Reason: tc.reason}
 			report(s)
 			first := output.String()

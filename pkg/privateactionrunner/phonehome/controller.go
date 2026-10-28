@@ -58,12 +58,28 @@ func Status() *State {
 
 func publish(s State) { status.Lock(); defer status.Unlock(); status.value = &s }
 
+// The controller emits serially; status must stay fresh even without a transition.
+func newStateEmitter(report, logState func(State)) func(State) {
+	var previous State
+	observed := false
+	return func(s State) {
+		publish(s)
+		if observed && s.State == previous.State && s.Reason == previous.Reason {
+			return
+		}
+		previous, observed = s, true
+		report(s)
+		logState(s)
+	}
+}
+
 func Enabled(cfg model.Reader) bool {
 	return runtime.GOOS != "windows" && cfg.GetBool(par.Enabled)
 }
 
 // Run watches supervisor registrations and authorizes each new lifecycle's initial startup.
 // It never retries an ambiguous Start or stops a child.
+// Status updates on every observation; report receives state/reason transitions.
 func Run(ctx context.Context, cfg model.Reader, source Source, report func(State)) {
 	if !Enabled(cfg) {
 		return
@@ -72,12 +88,7 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	// Intentional ungated modes take precedence over gate-specific configuration warnings.
 	bypass := runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent ||
 		(err == nil && mode != deployment.Split)
-	logState := newStateLogger(bypass)
-	emit := func(s State) {
-		publish(s)
-		report(s)
-		logState(s)
-	}
+	emit := newStateEmitter(report, newStateLogger(bypass))
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}

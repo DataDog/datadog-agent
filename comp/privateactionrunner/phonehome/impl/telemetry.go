@@ -10,7 +10,7 @@ import (
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 )
 
-// The controller calls this serially; collection uses the telemetry registry's synchronization.
+// The controller reports transitions serially; collection uses the telemetry registry's synchronization.
 func newTelemetryReporter(tel telemetry.Component) func(phonehome.State) {
 	state := tel.NewGauge("par_phone_home", "state", []string{"state", "reason"},
 		"Current PAR startup-gate state, not enrollment or runtime health.")
@@ -18,9 +18,6 @@ func newTelemetryReporter(tel telemetry.Component) func(phonehome.State) {
 		"Entries into a PAR startup-gate state/reason, including the initial observation.")
 	var previous phonehome.State
 	return func(s phonehome.State) {
-		if s.State == previous.State && s.Reason == previous.Reason {
-			return
-		}
 		if previous.State != "" {
 			state.Set(0, string(previous.State), string(previous.Reason))
 		}
