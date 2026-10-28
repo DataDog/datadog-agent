@@ -66,4 +66,5 @@ install_windows_testsuites(
         "//pkg/network:network_test_npm": "pkg/network/testsuite.exe",
         "//pkg/system-probe/config:config_test": "pkg/system-probe/config/testsuite.exe",
     },
+    tags = ["manual"],
 )
