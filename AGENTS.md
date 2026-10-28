@@ -227,6 +227,11 @@ See the marketplace README for installation instructions.
 
 Area-specific review rules live in `codereview_guideline.md` files co-located with the code they cover (e.g. `bazel/codereview_guideline.md` for Bazel changes). When reviewing a PR, search the repo for `codereview_guideline.md` files and load every one that is relevant to the changed files. Always load the one at the root of the repository in addition.
 
+## Engineering principles
+
+- **Keep ownership and lifetime clear.** When introducing or changing resources or background work, make clear who owns their cleanup and what makes that cleanup safe. Rely on the relevant API’s guarantees; requesting cancellation does not necessarily mean work has finished. For Fx components, see [the lifecycle guidance](doc/architecture/components/fx.md#lifecycle) for hook ordering, startup failure, and shutdown behavior.
+- **Check changes from the consumer’s side.** When changing shared behavior, inspect how affected callers or downstream consumers use it. For example, changing when data arrives or what an empty result means can break consumers without changing any types. Check that those differences are intended. For component APIs, the [component guidelines](doc/guidelines/components.md#documentation) spell out the ownership, blocking, callback, and channel guarantees consumers may rely on.
+
 ## Security Considerations
 
 ### Sensitive Data
