@@ -10,8 +10,8 @@ import "strconv"
 
 // team: action-platform
 
-// Component owns the core phone-home lifecycle.
-type Component interface{}
+// Component exposes startup-gate progress, not enrollment or action readiness.
+type Component interface{ Status() *State }
 
 // StateName identifies a phone-home startup state.
 type StateName string
@@ -36,7 +36,6 @@ const (
 // Phone-home startup reasons.
 const (
 	ReasonExistingProcessLeftUntouched        Reason = "existing_process_left_untouched"
-	ReasonExplicitSupervisorSocketRequired    Reason = "explicit_supervisor_socket_required"
 	ReasonLaunchOutcomeUnknownRequiresReview  Reason = "launch_outcome_unknown_requires_review"
 	ReasonLegacyAttemptRequiresReconciliation Reason = "legacy_attempt_requires_reconciliation"
 	ReasonPreviousProcessExitRequiresReview   Reason = "previous_process_exit_requires_review"
@@ -49,7 +48,6 @@ const (
 	ReasonRCUnchecked                         Reason = "rc_unchecked"
 	ReasonStartupJitter                       Reason = "startup_jitter"
 	ReasonSupervisorConnectionFailed          Reason = "supervisor_connection_failed"
-	ReasonSupervisorMustBeOnDemandNoRestart   Reason = "supervisor_must_be_on_demand_no_restart"
 	ReasonSupervisorStartAcknowledged         Reason = "supervisor_start_acknowledged"
 	ReasonSupervisorUnavailable               Reason = "supervisor_unavailable"
 	ReasonUnsupportedConfiguration            Reason = "unsupported_configuration"
@@ -63,6 +61,10 @@ const (
 	ReasonPARScopeUnchecked                   Reason = "par_scope_unchecked"
 	ReasonPARScopeWaitingForRCOrDemand        Reason = "par_scope_waiting_for_rc_or_demand"
 	ReasonScopePresent                        Reason = "scope_present"
+	ReasonSupervisorRegistrationChangePending Reason = "supervisor_registration_change_pending"
+	ReasonSupervisorRegistrationUnavailable   Reason = "supervisor_registration_unavailable"
+	ReasonInvalidSupervisorSocket             Reason = "invalid_supervisor_socket"
+	ReasonUnsupportedSupervisorPolicy         Reason = "unsupported_supervisor_policy"
 )
 
 // DiscoveryHTTPReason preserves the status code for unexpected discovery responses.
