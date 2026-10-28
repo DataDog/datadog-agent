@@ -59,6 +59,7 @@ dd_agent_go_test(
     srcs = [
         "director_proof_test.go",
         "protocol_test.go",
+        "verify_ro_suffix_nonwindows_test.go",
         "verify_test.go",
     ],
     embed = [":privilegedhelper"],
@@ -72,7 +73,69 @@ dd_agent_go_test(
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/structpb",
         "@org_golang_google_protobuf//types/known/timestamppb",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/rshell/allowedpaths",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 filegroup(

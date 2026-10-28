@@ -89,17 +89,17 @@ func TestSubshellTotalVarStorageDoubleCount(t *testing.T) {
 // by newOverlayEnviron AND charged again as a full "new" write (oldBytes=0),
 // causing the delta to be inflated by len(prev.Str) and incorrectly hitting the
 // cap even when real memory use was well within bounds.
+//
+// The parent keeps its copy while the subshell runs, so the override itself is
+// charged once on top of it: 3 × 340 KiB fits, while charging any of the three
+// values twice would not.
 func TestNonBackgroundSubshellVarOverrideTracking(t *testing.T) {
-	// 512 KiB in parent; override with the same 512 KiB value inside a ( ) subshell.
-	// Real subshell memory = 512 KiB — well within the 1 MiB cap.
-	// Before the fix: totalBytes seed = 512 KiB, delta = +512 KiB (oldBytes=0),
-	// sum = 1 MiB, then Y=z would push it over → cap hit.
-	value512K := strings.Repeat("x", 512*1024)
-	script := fmt.Sprintf("X=%s\n( X=%s; Y=z; echo OK )\necho DONE\n", value512K, value512K)
+	value340K := strings.Repeat("x", 340*1024)
+	script := fmt.Sprintf("X=%s\n( X=%s; Y=%s; echo OK )\necho DONE\n", value340K, value340K, value340K)
 
 	stdout, _, code := runScript(t, script, "")
 
-	assert.Contains(t, stdout, "OK", "subshell override should succeed: real storage is 512 KiB, within the 1 MiB cap")
+	assert.Contains(t, stdout, "OK", "subshell override should succeed: live storage is 1020 KiB, within the 1 MiB cap")
 	assert.Contains(t, stdout, "DONE")
 	assert.Equal(t, 0, code)
 }

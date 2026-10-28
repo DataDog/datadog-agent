@@ -13,10 +13,13 @@ dd_agent_go_test(
     name = "cut_test",
     srcs = [
         "cut_bench_test.go",
+        "cut_cancel_test.go",
         "cut_unix_vuln_hunt_test.go",
         "cut_vuln_hunt_test.go",
     ],
+    embed = [":cut"],
     deps = [
+        "//pkg/rshell/builtins",
         "//pkg/rshell/builtins/testutil",
         "//pkg/rshell/internal/interpoption",
         "//pkg/rshell/interp",

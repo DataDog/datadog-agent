@@ -133,8 +133,8 @@ func TestCheckRemoteIndependentOfLocalState(t *testing.T) {
 	require.NoError(t, os.WriteFile(file, []byte("unchanged"), 0600))
 	if runtime.GOOS != "windows" {
 		require.NoError(t, os.Symlink(filepath.Join(local, "outside"), link))
-		// Literal suffix directories change execution's interpretation, but
-		// must not change a remote check based on the embedding host's state.
+		// A local literal suffix directory must not change a remote check
+		// based on the embedding host's state.
 		require.NoError(t, os.Mkdir(root+":rw", 0700))
 		require.NoError(t, os.Chmod(root, 0000))
 		t.Cleanup(func() { _ = os.Chmod(root, 0700) })

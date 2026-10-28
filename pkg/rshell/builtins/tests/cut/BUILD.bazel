@@ -3,6 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "cut_test",
     srcs = [
+        "cut_deadline_test.go",
         "cut_fuzz_test.go",
         "cut_gnu_compat_test.go",
         "cut_pentest_test.go",

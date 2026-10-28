@@ -49,14 +49,17 @@ func TestParseAllowedPathsPreservesNestedModesForDescriptorValidation(t *testing
 	}, rules)
 }
 
-func TestParseAllowedPathsPreservesExistingLiteralSuffixPath(t *testing.T) {
+func TestParseAllowedPathsIgnoresExistingLiteralSuffixPath(t *testing.T) {
 	if os.PathSeparator == '\\' {
 		t.Skip("colons are not valid in Windows path components")
 	}
-	literal := filepath.Join(t.TempDir(), "literal:rw")
-	require.NoError(t, os.Mkdir(literal, 0o700))
+	dir := t.TempDir()
+	for suffix, mode := range map[string]accessMode{":ro": accessReadOnly, ":rw": accessReadWrite} {
+		base := filepath.Join(dir, "literal")
+		require.NoError(t, os.WriteFile(base+suffix, nil, 0o600))
 
-	rules, err := parseAllowedPaths([]string{literal})
-	require.NoError(t, err)
-	require.Equal(t, pathRule{path: literal, mode: accessReadOnly}, rules[0])
+		rules, err := parseAllowedPaths([]string{base + suffix})
+		require.NoError(t, err)
+		require.Equal(t, pathRule{path: base, mode: mode}, rules[0], suffix)
+	}
 }

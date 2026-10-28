@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
@@ -45,12 +46,25 @@ func runPrivilegedHelper(ctx context.Context, args []string, stderr io.Writer) i
 	flags.StringVar(&policyPath, "credential", policyPath, "deprecated alias for --policy")
 	idleTimeout := flags.Duration("idle-timeout", 30*time.Second, "exit after this long without a connection")
 	userName := flags.String("user", "dd-agent", "unprivileged effective user")
+	socketPath := flags.String("socket", "", "create and serve this Unix socket, owned by --user with mode 0600, instead of a systemd-activated one; the path must be clean and must not go through symlinks (such as /var/run), and every directory above it must be owned by root and not writable by others unless sticky; implies --idle-timeout=0")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "privileged-helper does not accept positional arguments")
 		return 2
+	}
+	if *socketPath != "" {
+		// Nothing restarts a helper that owns its socket on the next
+		// connection, as systemd socket activation does, so it must not exit
+		// when idle.
+		idleTimeoutSet := false
+		flags.Visit(func(f *flag.Flag) { idleTimeoutSet = idleTimeoutSet || f.Name == "idle-timeout" })
+		if idleTimeoutSet && *idleTimeout != 0 {
+			fmt.Fprintln(stderr, "privileged-helper --socket requires --idle-timeout=0")
+			return 2
+		}
+		*idleTimeout = 0
 	}
 	if os.Getuid() != 0 {
 		fmt.Fprintln(stderr, "privileged-helper requires real uid 0")
@@ -71,10 +85,25 @@ func runPrivilegedHelper(ctx context.Context, args []string, stderr io.Writer) i
 		fmt.Fprintf(stderr, "resolving credentials for %s: %v\n", *userName, err)
 		return 1
 	}
-	listener, err := inheritedListener()
-	if err != nil {
-		fmt.Fprintf(stderr, "loading systemd socket: %v\n", err)
-		return 1
+	var listener net.Listener
+	if *socketPath != "" {
+		// Created last, once the helper is ready to serve, so that the socket
+		// existing means a working helper is behind it.
+		var lock *os.File
+		groups := append([]int{credentials.primaryGID}, credentials.supplementaryGIDs...)
+		listener, lock, err = createListener(*socketPath, credentials.uid, groups)
+		if err != nil {
+			fmt.Fprintf(stderr, "creating socket: %v\n", err)
+			return 1
+		}
+		// Held until the helper exits, so no other helper starts on this path.
+		defer lock.Close()
+	} else {
+		listener, err = inheritedListener()
+		if err != nil {
+			fmt.Fprintf(stderr, "loading systemd socket: %v\n", err)
+			return 1
+		}
 	}
 	defer listener.Close()
 	if err := setProcessGroups(credentials.primaryGID, credentials.supplementaryGIDs); err != nil {
@@ -250,6 +279,194 @@ func inheritedListener() (net.Listener, error) {
 		return nil, err
 	}
 	return listener, nil
+}
+
+// createListener creates the helper socket at path, owned by uid and the
+// first of groups with mode 0600, while the helper still runs as root, and
+// returns it with the lock that keeps other helpers off path. The caller holds
+// the lock for as long as it serves.
+//
+// The socket is the only access control in front of the helper, so every
+// directory above it must be one that only root (the helper's effective UID)
+// can change: anyone else able to rename an entry on the way could swap in a
+// socket they listen on. Every one of them must also let uid, or one of
+// groups, through, so the helper's client can reach the socket. A stale socket
+// is replaced; a socket that is still being served, or any other file, is not.
+//
+// The helper does not remove the socket when it exits, so that the
+// socket-facing process, which serves as --user, never regains root for it.
+// Removing it, and the lock file, is the supervisor's job, for example with
+// systemd's RuntimeDirectory=.
+func createListener(path string, uid int, groups []int) (*net.UnixListener, *os.File, error) {
+	if !filepath.IsAbs(path) {
+		return nil, nil, fmt.Errorf("socket path %q is not absolute", path)
+	}
+	// The checks below must examine the directories the kernel resolves. A
+	// path that is not clean could differ: the kernel resolves ".." after
+	// following a symlink, which filepath.Clean cannot see.
+	if path != filepath.Clean(path) {
+		return nil, nil, fmt.Errorf("socket path %q is not clean", path)
+	}
+	dir := filepath.Dir(path)
+	if err := requireTrustedAncestors(dir); err != nil {
+		return nil, nil, err
+	}
+	if err := requireTraversable(dir, uid, groups); err != nil {
+		return nil, nil, err
+	}
+	// Serializes the stale check, the bind and the chown across helpers:
+	// otherwise two of them can both find the old socket stale, and the
+	// second unlinks the socket the first just bound.
+	lock, err := lockSocketPath(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := removeStaleSocket(path); err != nil {
+		lock.Close()
+		return nil, nil, err
+	}
+	// The socket is created owner-only, so nobody can connect before it is
+	// handed to uid.
+	oldUmask := syscall.Umask(0o177)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	syscall.Umask(oldUmask)
+	if err != nil {
+		lock.Close()
+		return nil, nil, fmt.Errorf("listen on %s: %w", path, err)
+	}
+	if err := os.Lchown(path, uid, groups[0]); err != nil {
+		// Still root here, so closing the listener unlinks the socket.
+		listener.Close()
+		lock.Close()
+		return nil, nil, fmt.Errorf("chown %s: %w", path, err)
+	}
+	listener.SetUnlinkOnClose(false)
+	return listener, lock, nil
+}
+
+// lockSocketPath takes an exclusive lock on path + ".lock", a root-owned
+// file next to the socket, and fails at once if another helper holds it. The
+// kernel releases the lock when its holder exits, however it exits.
+func lockSocketPath(path string) (*os.File, error) {
+	lockPath := path + ".lock"
+	lock, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", lockPath, err)
+	}
+	info, err := lock.Stat()
+	if err != nil {
+		lock.Close()
+		return nil, fmt.Errorf("inspect %s: %w", lockPath, err)
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); !ok || !info.Mode().IsRegular() || int(stat.Uid) != os.Geteuid() {
+		lock.Close()
+		return nil, fmt.Errorf("%s is not a regular file owned by uid %d", lockPath, os.Geteuid())
+	}
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		lock.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, fmt.Errorf("another helper is serving %s", path)
+		}
+		return nil, fmt.Errorf("lock %s: %w", lockPath, err)
+	}
+	return lock, nil
+}
+
+// requireTraversable reports an error unless uid, or one of groups, may
+// search dir and every directory above it, as the kernel decides for a
+// process with those credentials.
+func requireTraversable(dir string, uid int, groups []int) error {
+	for {
+		info, err := os.Stat(dir)
+		if err != nil {
+			return fmt.Errorf("inspect socket directory %s: %w", dir, err)
+		}
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			return fmt.Errorf("socket directory %s has no ownership information", dir)
+		}
+		perm := info.Mode().Perm()
+		var searchable bool
+		switch {
+		case uid == 0:
+			searchable = perm&0o111 != 0
+		case int(stat.Uid) == uid:
+			searchable = perm&0o100 != 0
+		case slices.Contains(groups, int(stat.Gid)):
+			searchable = perm&0o010 != 0
+		default:
+			searchable = perm&0o001 != 0
+		}
+		if !searchable {
+			return fmt.Errorf("socket directory %s cannot be searched by uid %d (mode %#o)", dir, uid, perm)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+		dir = parent
+	}
+}
+
+// removeStaleSocket removes a socket at path that nothing serves anymore. It
+// refuses to replace a socket that accepts connections, or anything that is
+// not a socket.
+func removeStaleSocket(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", path, err)
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		return fmt.Errorf("%s exists and is not a socket", path)
+	}
+	conn, err := net.DialTimeout("unix", path, time.Second)
+	if err == nil {
+		conn.Close()
+		return fmt.Errorf("%s is already being served", path)
+	}
+	if !errors.Is(err, syscall.ECONNREFUSED) {
+		return fmt.Errorf("check whether %s is being served: %w", path, err)
+	}
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("remove stale socket: %w", err)
+	}
+	return nil
+}
+
+// requireTrustedAncestors reports an error unless dir and every directory
+// above it is owned by root or the current effective UID and not writable by
+// group or others. Directories above dir may instead be sticky, like /tmp: a
+// sticky directory only lets owners rename or remove their own entries, and
+// the directory below it is itself checked. dir cannot be sticky: the socket
+// is owned by --user, who could then remove and replace it.
+func requireTrustedAncestors(dir string) error {
+	for socketDir := true; ; socketDir = false {
+		info, err := os.Lstat(dir)
+		if err != nil {
+			return fmt.Errorf("inspect socket directory %s: %w", dir, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("socket directory %s is not a directory", dir)
+		}
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			return fmt.Errorf("socket directory %s has no ownership information", dir)
+		}
+		if stat.Uid != 0 && int(stat.Uid) != os.Geteuid() {
+			return fmt.Errorf("socket directory %s is owned by uid %d, not root", dir, stat.Uid)
+		}
+		if info.Mode().Perm()&0o022 != 0 && (socketDir || info.Mode()&os.ModeSticky == 0) {
+			return fmt.Errorf("socket directory %s is writable by group or others (mode %#o)", dir, info.Mode().Perm())
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+		dir = parent
+	}
 }
 
 type workerCommandFactory func(context.Context) (*exec.Cmd, error)

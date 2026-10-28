@@ -98,6 +98,7 @@ dd_agent_go_test(
     srcs = [
         "allowed_commands_test.go",
         "allowed_paths_internal_test.go",
+        "allowed_paths_ro_suffix_nonwindows_test.go",
         "allowed_paths_test.go",
         "builtin_ip_pentest_test.go",
         "builtin_logrotate_unix_test.go",
@@ -125,6 +126,7 @@ dd_agent_go_test(
         "journal_vacuum_integration_test.go",
         "line_continuation_vuln_hunt_test.go",
         "logic_ops_vuln_hunt_test.go",
+        "memory_accounting_test.go",
         "negation_vuln_hunt_test.go",
         "parser_lexer_vuln_hunt_test.go",
         "pipe_vuln_hunt_test.go",
@@ -149,6 +151,7 @@ dd_agent_go_test(
         "timeout_test.go",
         "tracing_test.go",
         "validate_test.go",
+        "var_budget_test.go",
         "var_size_test.go",
         "write_outcome_budget_test.go",
         "write_outcome_resolution_test.go",

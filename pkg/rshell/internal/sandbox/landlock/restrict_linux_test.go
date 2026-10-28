@@ -10,6 +10,7 @@ package landlock
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	ll "github.com/landlock-lsm/go-landlock/landlock/syscall"
@@ -55,6 +56,23 @@ func TestOpenRulesSupportsExactFileAndOptionalDirectory(t *testing.T) {
 	require.Equal(t, uint64(ll.AccessFSReadFile), rules[0].allowedAccess)
 	require.Equal(t, "/dev/null", rules[1].path)
 	require.Equal(t, devNullAccess, rules[1].allowedAccess)
+}
+
+func TestOpenRulesSkipsOnlyOptionalMissingExactFile(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing-file")
+
+	rules, err := openRules(nil, []TrustedPath{
+		{Path: missing, Kind: TrustedPathFile, Access: TrustedPathReadOnly, Optional: true},
+	})
+	require.NoError(t, err)
+	defer closeOpenedRules(rules)
+	require.Len(t, rules, 1)
+	require.Equal(t, "/dev/null", rules[0].path)
+
+	_, err = openRules(nil, []TrustedPath{
+		{Path: missing, Kind: TrustedPathFile, Access: TrustedPathReadOnly},
+	})
+	require.ErrorIs(t, err, syscall.ENOENT)
 }
 
 func TestOpenRulesRejectsRemoveGrantForExactFile(t *testing.T) {

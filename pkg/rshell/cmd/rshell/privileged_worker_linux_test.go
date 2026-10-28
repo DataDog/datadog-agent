@@ -162,7 +162,7 @@ func TestTrustedPathsForCommands(t *testing.T) {
 		trustedReadOnlyFile("/proc/sys/kernel/hostname"),
 		trustedReadOnlyFile("/proc/sys/kernel/osrelease"),
 		trustedReadOnlyFile("/proc/sys/kernel/version"),
-		trustedReadOnlyFile("/proc/sys/kernel/arch"),
+		{Path: "/proc/sys/kernel/arch", Kind: sandboxlandlock.TrustedPathFile, Access: sandboxlandlock.TrustedPathReadOnly, Optional: true},
 	}, paths)
 }
 

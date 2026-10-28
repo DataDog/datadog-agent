@@ -14,7 +14,6 @@ package landlock
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -86,9 +85,9 @@ func parseAllowedPaths(allowedPaths []string) ([]pathRule, error) {
 	return rules, nil
 }
 
-// parseAllowedPath matches the interpreter's POSIX :ro/:rw suffix behavior.
-// If a literal suffixed path already exists (or cannot be proven absent), the
-// suffix is part of the path and the entry remains read-only. The Linux
+// parseAllowedPath matches the interpreter's :ro/:rw suffix behavior: a
+// terminal suffix is always an access mode, never filename text, and parsing
+// never consults the filesystem. The Linux
 // implementation subsequently opens the selected target once with O_PATH and
 // uses that same descriptor for validation and Landlock rule creation.
 func parseAllowedPath(configuredPath string) (string, accessMode, error) {
@@ -108,9 +107,6 @@ func parseAllowedPath(configuredPath string) (string, accessMode, error) {
 	} {
 		if !strings.HasSuffix(configuredPath, suffix.text) || len(configuredPath) <= len(suffix.text) {
 			continue
-		}
-		if _, err := os.Lstat(configuredPath); err == nil || !errors.Is(err, os.ErrNotExist) {
-			return filepath.Clean(configuredPath), accessReadOnly, nil
 		}
 		return filepath.Clean(strings.TrimSuffix(configuredPath, suffix.text)), suffix.mode, nil
 	}

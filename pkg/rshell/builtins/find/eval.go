@@ -75,17 +75,17 @@ func evaluate(ec *evalContext, e *expr) evalResult {
 
 	case exprName:
 		name := baseName(ec.relPath)
-		return evalResult{matched: matchGlob(e.strVal, name)}
+		return ec.globResult(matchGlob(ec.ctx, e.strVal, name))
 
 	case exprIName:
 		name := baseName(ec.relPath)
-		return evalResult{matched: matchGlobFold(e.strVal, name)}
+		return ec.globResult(matchGlobFold(ec.ctx, e.strVal, name))
 
 	case exprPath:
-		return evalResult{matched: matchPathGlob(e.strVal, ec.printPath)}
+		return ec.globResult(matchPathGlob(ec.ctx, e.strVal, ec.printPath))
 
 	case exprIPath:
-		return evalResult{matched: matchPathGlobFold(e.strVal, ec.printPath)}
+		return ec.globResult(matchPathGlobFold(ec.ctx, e.strVal, ec.printPath))
 
 	case exprType:
 		return evalResult{matched: matchType(ec.info, e.strVal)}
@@ -138,6 +138,17 @@ func evaluate(ec *evalContext, e *expr) evalResult {
 	default:
 		return evalResult{matched: false}
 	}
+}
+
+// globResult wraps a glob match result. A cancelled context makes the
+// matcher return false early, so the result is not trusted: the walk stops
+// and find fails instead of acting on a partial match.
+func (ec *evalContext) globResult(matched bool) evalResult {
+	if ec.ctx.Err() != nil {
+		ec.failed = true
+		return evalResult{quit: true}
+	}
+	return evalResult{matched: matched}
 }
 
 // evalEmpty returns true if the file is an empty regular file or empty directory.

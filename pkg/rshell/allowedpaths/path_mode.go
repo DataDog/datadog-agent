@@ -14,6 +14,11 @@ const (
 	pathModeReadWrite
 )
 
+// parseAllowedPathMode strips a terminal ":ro" or ":rw" access suffix. The
+// suffix is always access metadata, never filename text: a path whose real
+// name ends in one of these suffixes cannot be configured. Parsing never
+// consults the filesystem, so files a script creates cannot change which roots
+// a later sandbox opens or their access modes.
 func parseAllowedPathMode(path string) (string, pathMode) {
 	path, mode, _ := splitAllowedPathMode(path)
 	return path, mode

@@ -8,6 +8,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -19,7 +20,11 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -193,4 +198,162 @@ func signedIntegrationRequestForAction(t *testing.T, privateKey ed25519.PrivateK
 			KeyType: privilegedhelper.KeyTypeED25519, KeyID: "key-1", Signature: ed25519.Sign(privateKey, digest[:]),
 		}},
 	}}
+}
+
+// TestPrivilegedHelperOwnSocketRootIntegration runs the helper with --socket
+// as root, so the socket is created for another user and the helper really
+// drops privileges, which unit tests cannot do.
+func TestPrivilegedHelperOwnSocketRootIntegration(t *testing.T) {
+	if os.Getenv("RSHELL_ROOT_INTEGRATION") != "1" {
+		t.Skip("set RSHELL_ROOT_INTEGRATION=1 to run")
+	}
+	if os.Getuid() != 0 {
+		t.Fatal("root integration test must run with real uid 0")
+	}
+	binary := os.Getenv("RSHELL_BINARY")
+	if binary == "" {
+		t.Fatal("RSHELL_BINARY is required")
+	}
+	nobody, err := user.Lookup("nobody")
+	require.NoError(t, err)
+
+	dir, err := os.MkdirTemp("", "rsh")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(dir)) })
+	require.NoError(t, os.Chmod(dir, 0o755))
+	socket := filepath.Join(dir, "h.sock")
+
+	start := func() (*exec.Cmd, *bytes.Buffer) {
+		var stderr bytes.Buffer
+		command := exec.Command(binary, "privileged-helper", "--user=nobody", "--socket="+socket)
+		command.Stderr = &stderr
+		return command, &stderr
+	}
+	waitServing := func(_ *exec.Cmd, stderr *bytes.Buffer) {
+		require.Eventually(t, func() bool {
+			conn, err := net.Dial("unix", socket)
+			if err != nil {
+				return false
+			}
+			conn.Close()
+			return true
+		}, 10*time.Second, 50*time.Millisecond, "helper did not serve its socket: %s", stderr)
+	}
+	stop := func(command *exec.Cmd) {
+		_ = command.Process.Kill()
+		_ = command.Wait()
+	}
+
+	first, firstStderr := start()
+	require.NoError(t, first.Start())
+	t.Cleanup(func() { stop(first) })
+	waitServing(first, firstStderr)
+
+	var stat syscall.Stat_t
+	require.NoError(t, syscall.Lstat(socket, &stat))
+	require.Equal(t, uint32(syscall.S_IFSOCK), stat.Mode&syscall.S_IFMT)
+	require.Equal(t, uint32(0o600), stat.Mode&0o777)
+	require.Equal(t, nobody.Uid, strconv.Itoa(int(stat.Uid)), "the socket belongs to --user")
+	status, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", first.Process.Pid))
+	require.NoError(t, err)
+	require.Regexp(t, `(?m)^Uid:\s+0\s+`+nobody.Uid+`\s`, string(status), "the helper keeps real uid 0 and serves as --user")
+
+	// A second helper must not take over a socket that is still served.
+	second, secondStderr := start()
+	err = second.Run()
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	require.Regexp(t, "another helper is serving|already being served", secondStderr.String())
+
+	// The helper cannot unlink the socket after dropping privileges, so it is
+	// left for the supervisor; the next start replaces it.
+	stop(first)
+	_, err = os.Lstat(socket)
+	require.NoError(t, err)
+	third, thirdStderr := start()
+	require.NoError(t, third.Start())
+	t.Cleanup(func() { stop(third) })
+	waitServing(third, thirdStderr)
+}
+
+// TestPrivilegedHelperConcurrentSocketStartsRootIntegration starts many
+// helpers on the same --socket path at once, over a stale socket. Exactly one
+// may serve: without the startup lock, two can both find the stale socket
+// stale, and the later one unlinks the socket the earlier one just bound.
+func TestPrivilegedHelperConcurrentSocketStartsRootIntegration(t *testing.T) {
+	if os.Getenv("RSHELL_ROOT_INTEGRATION") != "1" {
+		t.Skip("set RSHELL_ROOT_INTEGRATION=1 to run")
+	}
+	if os.Getuid() != 0 {
+		t.Fatal("root integration test must run with real uid 0")
+	}
+	binary := os.Getenv("RSHELL_BINARY")
+	if binary == "" {
+		t.Fatal("RSHELL_BINARY is required")
+	}
+	const starters = 20
+	for iteration := 0; iteration < 60; iteration++ {
+		dir, err := os.MkdirTemp("", "rsh")
+		require.NoError(t, err)
+		require.NoError(t, os.Chmod(dir, 0o755))
+		socket := filepath.Join(dir, "h.sock")
+		// Start from a stale socket, as after a crash: every starter then
+		// finds it stale, which is what makes them race to replace it.
+		stale, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+		require.NoError(t, err)
+		stale.SetUnlinkOnClose(false)
+		require.NoError(t, stale.Close())
+
+		var (
+			mu        sync.Mutex
+			processes []*os.Process
+		)
+		exited := make(chan struct{}, starters)
+		release := make(chan struct{})
+		var ready sync.WaitGroup
+		for range starters {
+			command := exec.Command(binary, "privileged-helper", "--user=nobody", "--socket="+socket)
+			ready.Add(1)
+			go func() {
+				ready.Done()
+				<-release
+				if err := command.Start(); err != nil {
+					exited <- struct{}{}
+					return
+				}
+				mu.Lock()
+				processes = append(processes, command.Process)
+				mu.Unlock()
+				_ = command.Wait()
+				exited <- struct{}{}
+			}()
+		}
+		ready.Wait()
+		close(release)
+
+		// Every starter but one exits; the survivor keeps serving.
+		for i := 0; i < starters-1; i++ {
+			select {
+			case <-exited:
+			case <-time.After(20 * time.Second):
+				t.Fatalf("iteration %d: only %d of %d starters exited", iteration, i, starters-1)
+			}
+		}
+		select {
+		case <-exited:
+			t.Fatalf("iteration %d: every starter exited, none serves", iteration)
+		case <-time.After(500 * time.Millisecond):
+		}
+		conn, err := net.Dial("unix", socket)
+		require.NoError(t, err, "iteration %d: the surviving helper's socket must be reachable", iteration)
+		conn.Close()
+
+		mu.Lock()
+		for _, process := range processes {
+			_ = process.Kill()
+		}
+		mu.Unlock()
+		<-exited
+		require.NoError(t, os.RemoveAll(dir))
+	}
 }

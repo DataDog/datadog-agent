@@ -168,18 +168,23 @@ var internalPerPackageSymbols = map[string][]string{
 		"strconv.ParseInt", // 🟢 string-to-int conversion with base/bit-size; pure function, no I/O.
 	},
 	"procsyskernel": {
+		"errors.Is",           // 🟢 detects a missing sys/kernel/arch (os.ErrNotExist) before falling back to uname(2); pure function, no I/O.
 		"fmt.Errorf",          // 🟢 error formatting; pure function, no I/O.
 		"io.LimitReader",      // 🟢 wraps a reader with a byte cap; pure wrapper, no I/O by itself.
 		"io.ReadAll",          // 🟠 reads all data from a reader; bounded by io.LimitReader.
 		"os.ModeCharDevice",   // 🟢 file mode constant; pure constant.
 		"os.O_RDONLY",         // 🟢 read-only file flag; pure constant.
 		"os.OpenFile",         // 🟠 opens kernel pseudo-files for reading; bypasses AllowedPaths by design.
+		"os.ErrNotExist",      // 🟢 sentinel error for a missing kernel pseudo-file; read-only constant, no I/O.
 		"path/filepath.Base",  // 🟢 returns the last element of a path; validates name is a plain basename.
 		"path/filepath.Clean", // 🟢 normalises path before use; pure function, no I/O.
 		"path/filepath.Join",  // 🟢 joins path elements; pure function, no I/O.
 		"strings.Contains",    // 🟢 checks for ".." traversal in procPath; pure function, no I/O.
 		"strings.TrimRight",   // 🟢 trims trailing characters; pure function, no I/O.
 		"syscall.O_NONBLOCK",  // 🟢 non-blocking open flag; prevents FIFO hang. Pure constant.
+		"golang.org/x/sys/unix.ByteSliceToString", // 🟢 (linux) converts uname(2)'s NUL-terminated machine field to a Go string; pure function, no I/O.
+		"golang.org/x/sys/unix.Uname",             // 🟠 (linux) read-only uname(2) fallback for the machine name on kernels < 6.1 without sys/kernel/arch; no write or exec capability.
+		"golang.org/x/sys/unix.Utsname",           // 🟢 (linux) struct type carrying uname(2) data; pure data type.
 	},
 	"procnetroute": {
 		"bufio.NewScanner", // 🟢 line-by-line reading of /proc/net/route; no write capability.
@@ -529,6 +534,8 @@ var internalAllowedSymbols = []string{
 	"golang.org/x/sys/unix.KinfoProc",            // 🟢 procinfo (darwin): struct type carrying per-process kinfo_proc data from sysctl; read-only data, no exec capability.
 	"golang.org/x/sys/unix.Major",                // 🟢 procfd (linux): extracts the major device number from a raw dev_t; pure function, no I/O.
 	"golang.org/x/sys/unix.Minor",                // 🟢 procfd (linux): extracts the minor device number from a raw dev_t; pure function, no I/O.
+	"golang.org/x/sys/unix.Uname",                // 🟠 procsyskernel (linux): read-only uname(2) fallback for the machine name when sys/kernel/arch is absent (kernels < 6.1); no write or exec capability.
+	"golang.org/x/sys/unix.Utsname",              // 🟢 procsyskernel (linux): struct type carrying uname(2) data; pure data type.
 	"golang.org/x/sys/unix.MNT_LOCAL",            // 🟢 diskstats (darwin): flag constant indicating a local-only filesystem; pure constant.
 	"golang.org/x/sys/unix.MNT_NOWAIT",           // 🟢 diskstats (darwin): flag constant: do not block on remote FS for getfsstat; pure constant.
 	"golang.org/x/sys/unix.S_IFBLK",              // 🟢 procfd (linux): file-type bitmask constant for block devices; pure constant.

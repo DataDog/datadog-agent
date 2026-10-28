@@ -86,13 +86,20 @@ type PathAccess struct {
 // not exist or cannot be opened are silently skipped — the sandbox operates
 // with whatever paths are available at construction time.
 //
+// A terminal ":ro" or ":rw" is always the access mode (see
+// parseAllowedPathMode), so a path whose real name ends in one of these
+// suffixes is never granted. When such a path exists, a warning says so.
+//
 // Diagnostic messages about skipped paths are collected into warnings. The
 // caller is responsible for writing them to the appropriate output stream.
 func New(paths []string) (sb *Sandbox, warnings []byte, err error) {
 	var buf bytes.Buffer
 	roots := make([]root, 0, len(paths))
-	for _, p := range paths {
-		p, mode := resolveAllowedPathMode(p)
+	for _, raw := range paths {
+		p, mode, suffix := splitAllowedPathMode(raw)
+		if suffix {
+			warnLiteralSuffixPath(&buf, raw, p)
+		}
 		abs, err := filepath.Abs(p)
 		if err != nil {
 			fmt.Fprintf(&buf, "AllowedPaths: skipping %q: %v\n", p, err)
@@ -130,6 +137,22 @@ func New(paths []string) (sb *Sandbox, warnings []byte, err error) {
 		roots = append(roots, root{absPath: abs, canonicalAbsPath: canonical, mode: mode, root: r, writeRoot: writeRoot, identity: identity})
 	}
 	return &Sandbox{roots: roots, readOnly: true}, buf.Bytes(), nil
+}
+
+// warnLiteralSuffixPath reports a configured entry whose full text, suffix
+// included, names an existing path. The warning is informational only: it
+// never changes which roots are opened, so files a script creates can add a
+// warning but cannot change the policy. Windows is excluded because a
+// trailing ":ro"/":rw" there is NTFS alternate data stream syntax.
+func warnLiteralSuffixPath(buf *bytes.Buffer, raw, stripped string) {
+	if filepath.Separator != '/' {
+		return
+	}
+	if _, err := os.Lstat(raw); err != nil {
+		return
+	}
+	fmt.Fprintf(buf, "AllowedPaths: existing path %q is not granted; the %q suffix is read as the access mode for %q (paths ending in :ro or :rw cannot be allowed)\n",
+		raw, raw[len(stripped):], stripped)
 }
 
 func canonicalForOpenedRoot(abs string, r *os.Root) (string, error) {

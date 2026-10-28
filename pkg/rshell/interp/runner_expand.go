@@ -128,13 +128,21 @@ func (r *Runner) cmdSubst(w io.Writer, cs *syntax.CmdSubst) error {
 				return nil
 			}
 		}
-		_, err = io.Copy(w, io.LimitReader(f, maxCmdSubstOutput))
+		var buf bytes.Buffer
+		_, err = io.Copy(&buf, io.LimitReader(f, maxCmdSubstOutput))
 		var exitCode uint8
 		if err != nil {
 			exitCode = 1
 		}
 		r.lastExpandExit = exitStatus{code: exitCode}
 		r.lastExit = r.lastExpandExit
+		if err != nil {
+			return err
+		}
+		if err := r.chargeSplitSubstOutput(cs, buf.Bytes()); err != nil {
+			return err
+		}
+		_, err = w.Write(buf.Bytes())
 		return err
 	}
 
@@ -148,6 +156,7 @@ func (r *Runner) cmdSubst(w io.Writer, cs *syntax.CmdSubst) error {
 	// escape the subshell — only the diagnostic is suppressed.
 	r2.inLoop = r.inLoop
 	r2.stmts(r.ectx, cs.Stmts)
+	r2.releaseVarStorage()
 	r2.exit.exiting = false
 	r.lastExpandExit = r2.exit
 	r.lastExit = r.lastExpandExit
@@ -164,6 +173,9 @@ func (r *Runner) cmdSubst(w io.Writer, cs *syntax.CmdSubst) error {
 		r.exit.exiting = true
 		r.exit.limitExit = true
 		return nil
+	}
+	if err := r.chargeSplitSubstOutput(cs, buf.Bytes()); err != nil {
+		return err
 	}
 	_, err := w.Write(buf.Bytes())
 	return err
@@ -287,6 +299,41 @@ type fieldCollector struct {
 	maxFields int
 	fields    []string
 	bytes     int64
+
+	// The expander builds every field of a word (of one brace alternative)
+	// before yielding the first, so the field cap must be enforced on an
+	// upper bound before expansion rather than on the yielded fields alone.
+	// wordSources bounds the fields the current word's literal parts and
+	// unquoted parameters can produce; splitSubsts are its unquoted command
+	// substitutions, whose output is only known once they run and is charged
+	// to substSources by cmdSubst.
+	wordSources  int
+	splitSubsts  []splitSubst
+	substSources int
+}
+
+// splitSubst is an unquoted command substitution of the word being expanded,
+// with what the static estimate assumed about its neighbours, so that its
+// output can be charged with the same field continuation the expander uses.
+type splitSubst struct {
+	cs *syntax.CmdSubst
+	// inBrace marks a substitution inside a brace alternative. Only the
+	// largest alternative's sources are counted, so its output is charged
+	// in full, without continuation credits.
+	inBrace bool
+	// openBefore is whether a field is open before the substitution, as far
+	// as the static walk knows; prev is the index of an immediately
+	// preceding substitution, whose actual output decides that instead.
+	openBefore bool
+	prev       int
+	// deferredNext is whether the part after the substitution starts a new
+	// field unless the substitution leaves one open. The static walk does
+	// not count it; it is charged with the substitution's output, which runs
+	// before the expander reaches that part.
+	deferredNext bool
+
+	// ran and openAfter record the substitution's output once it has run.
+	ran, openAfter bool
 }
 
 func (r *Runner) newFieldCollector(maxFields int) *fieldCollector {
@@ -331,7 +378,15 @@ func isGlobPatternPanic(rec any) bool {
 	return strings.HasPrefix(s, "regexp: Compile(")
 }
 
+func (c *fieldCollector) fieldLimitError() error {
+	return &expansionLimitError{message: fmt.Sprintf(
+		"expansion exceeds maximum field count (%d)", c.maxFields)}
+}
+
 func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
+	previous := c.r.activeFields
+	c.r.activeFields = c
+	defer func() { c.r.activeFields = previous }()
 	defer func() {
 		if rec := recover(); rec != nil {
 			if !isGlobPatternPanic(rec) {
@@ -341,6 +396,7 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 			ok = false
 		}
 	}()
+	ifs := c.r.fieldSplitIFS()
 	for _, word := range words {
 		if c.r.stop(c.r.ectx) {
 			return false
@@ -351,6 +407,13 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 		if err := c.r.checkWordExpansionSize(&estimatedWord, remaining,
 			fmt.Sprintf("expansion exceeds maximum command size (%d bytes)", MaxExpandedBytesPerCommand)); err != nil {
 			c.r.expandErr(err)
+			return false
+		}
+		c.splitSubsts = c.splitSubsts[:0]
+		c.wordSources = c.r.wordFieldSources(estimatedWord.Parts, ifs, &c.splitSubsts)
+		c.substSources = 0
+		if c.wordSources > c.maxFields-len(c.fields) {
+			c.r.expandErr(c.fieldLimitError())
 			return false
 		}
 
@@ -365,9 +428,11 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 			if c.r.stop(c.r.ectx) {
 				return false
 			}
+			// A yield means the current brace alternative has been fully
+			// expanded; later alternatives run their substitutions afresh.
+			c.substSources = 0
 			if len(c.fields) >= c.maxFields {
-				c.r.expandErr(&expansionLimitError{message: fmt.Sprintf(
-					"expansion exceeds maximum field count (%d)", c.maxFields)})
+				c.r.expandErr(c.fieldLimitError())
 				return false
 			}
 			fieldBytes := int64(len(field))
@@ -385,6 +450,182 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 		}
 	}
 	return true
+}
+
+// fieldSplitIFS returns the IFS value the expander splits with, mirroring
+// mvdan.cc/sh/v3/expand's default when IFS is unset.
+func (r *Runner) fieldSplitIFS() string {
+	if vr := r.lookupVar("IFS"); vr.IsSet() {
+		return vr.String()
+	}
+	return " \t\n"
+}
+
+// wordFieldSources returns an upper bound on the number of fields one brace
+// alternative of a word with these parts can produce, not counting the output
+// of unquoted command substitutions, which are appended to splitSubsts.
+//
+// Every field the expander emits starts with a distinct "source": either an
+// unsplit part (a literal or a quoted part) or a run of non-IFS characters in
+// a split value, unless it continues the field the preceding part left open,
+// since adjacent parts concatenate. Counting sources therefore bounds the
+// field count without expanding the word. The one field an all-empty word can
+// still produce requires a quoted part, which is itself a source.
+func (r *Runner) wordFieldSources(parts []syntax.WordPart, ifs string, splitSubsts *[]splitSubst) int {
+	sources, _ := r.partsFieldSources(parts, ifs, false, false, splitSubsts)
+	return sources
+}
+
+// partsFieldSources counts the field sources of parts, given whether a field
+// is already open before them, and reports whether one is open after them.
+// When that is unknown it reports false, which can only overcount the
+// sources that follow.
+func (r *Runner) partsFieldSources(parts []syntax.WordPart, ifs string, open, inBrace bool, splitSubsts *[]splitSubst) (int, bool) {
+	sources := 0
+	// afterSubst is the index of the substitution the previous part was, or
+	// -1 when the previous part was something else.
+	afterSubst := -1
+	for _, part := range parts {
+		counted := false
+		switch part := part.(type) {
+		case *syntax.ParamExp:
+			if part.Param != nil {
+				value := r.lookupVar(part.Param.Value).String()
+				n, closes, opens := splitFieldSources(value, ifs)
+				if n > 0 && open && !closes {
+					n-- // the first run continues the open field
+				}
+				counted = n > 0 && !closes
+				sources += n
+				if value != "" {
+					open = opens
+				}
+			}
+		case *syntax.CmdSubst:
+			*splitSubsts = append(*splitSubsts, splitSubst{
+				cs: part, inBrace: inBrace, openBefore: open, prev: afterSubst,
+			})
+			afterSubst = len(*splitSubsts) - 1
+			open = false
+			continue
+		case *syntax.BraceExp:
+			// FieldsSeq expands each alternative as a separate word, so only
+			// the largest alternative is built at once.
+			largest, allOpen := 0, true
+			for _, elem := range part.Elems {
+				n, elemOpen := r.partsFieldSources(elem.Parts, ifs, open, true, splitSubsts)
+				largest = max(largest, n)
+				allOpen = allOpen && elemOpen
+			}
+			sources += largest
+			open = allOpen
+		default:
+			counted = !open
+			if !open {
+				sources++
+			}
+			open = true
+		}
+		if afterSubst >= 0 && !inBrace && counted {
+			(*splitSubsts)[afterSubst].deferredNext = true
+			sources--
+		}
+		afterSubst = -1
+	}
+	return sources, open
+}
+
+// splitFieldSources counts the runs of non-IFS characters in s and reports
+// whether s starts with an IFS character (closing any open field) and whether
+// it ends inside a run (leaving a field open).
+func splitFieldSources(s, ifs string) (sources int, closes, opens bool) {
+	if ifs == "" {
+		return min(len(s), 1), false, s != ""
+	}
+	inField := false
+	for i, c := range s {
+		isIFS := strings.ContainsRune(ifs, c)
+		if i == 0 {
+			closes = isIFS
+		}
+		if !isIFS && !inField {
+			sources++
+		}
+		inField = !isIFS
+	}
+	return sources, closes, inField
+}
+
+// chargeSplitSubstOutput charges the output of an unquoted command
+// substitution against the field budget of the word being expanded, before
+// the expander splits it into fields.
+func (r *Runner) chargeSplitSubstOutput(cs *syntax.CmdSubst, out []byte) error {
+	c := r.activeFields
+	if c == nil {
+		return nil
+	}
+	idx := -1
+	for i := range c.splitSubsts {
+		if c.splitSubsts[i].cs == cs {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return nil
+	}
+	c.substSources += c.substFieldSources(idx, normalizeSubstOutput(out), r.fieldSplitIFS())
+	if c.wordSources+c.substSources > c.maxFields-len(c.fields) {
+		return c.fieldLimitError()
+	}
+	return nil
+}
+
+// normalizeSubstOutput returns the text the expander splits for a command
+// substitution's output, mirroring mvdan.cc/sh/v3/expand: NUL bytes are
+// removed and trailing newlines trimmed. Removing a NUL can join the bytes of
+// a multi-byte IFS character, so counting the raw output could undercount.
+func normalizeSubstOutput(out []byte) string {
+	end := len(out)
+	for end > 0 && (out[end-1] == '\n' || out[end-1] == 0) {
+		end--
+	}
+	var sb strings.Builder
+	sb.Grow(end)
+	for _, b := range out[:end] {
+		if b != 0 {
+			sb.WriteByte(b)
+		}
+	}
+	return sb.String()
+}
+
+// substFieldSources counts the field sources the idx-th substitution's
+// normalized output adds, with the field continuation the expander applies
+// across adjacent parts: a first run continues a field left open before it,
+// and a deferred next part is a new source only if the output does not leave
+// a field open.
+func (c *fieldCollector) substFieldSources(idx int, out, ifs string) int {
+	s := &c.splitSubsts[idx]
+	n, closes, opens := splitFieldSources(out, ifs)
+	if s.inBrace {
+		return n
+	}
+	before := s.openBefore
+	if s.prev >= 0 && c.splitSubsts[s.prev].ran {
+		before = c.splitSubsts[s.prev].openAfter
+	}
+	if n > 0 && before && !closes {
+		n--
+	}
+	after := before
+	if out != "" {
+		after = opens
+	}
+	s.ran, s.openAfter = true, after
+	if s.deferredNext && !after {
+		n++
+	}
+	return n
 }
 
 func (r *Runner) fields(words ...*syntax.Word) []string {

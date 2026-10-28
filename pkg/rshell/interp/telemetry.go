@@ -82,7 +82,13 @@ func truncateTelemetryTag(text string, limit int) string {
 func commandFlagsTag(flags []string) string {
 	var b strings.Builder
 	for _, flag := range flags {
-		if b.Len()+len(flag)+2 > maxCommandFlagsTagBytes {
+		// Each flag adds its trailing comma; only the first also adds the
+		// leading one.
+		need := len(flag) + 1
+		if b.Len() == 0 {
+			need++
+		}
+		if b.Len()+need > maxCommandFlagsTagBytes {
 			break
 		}
 		if b.Len() == 0 {

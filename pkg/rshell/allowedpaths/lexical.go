@@ -21,9 +21,8 @@ type LexicalPolicy struct {
 }
 
 type lexicalRoot struct {
-	path    string
-	mode    pathMode
-	literal string // possible POSIX literal directory ending in :ro/:rw
+	path string
+	mode pathMode
 }
 
 // NewLexicalPolicy parses absolute grants without accessing the filesystem.
@@ -35,21 +34,14 @@ type lexicalRoot struct {
 func NewLexicalPolicy(paths []string) (*LexicalPolicy, error) {
 	p := &LexicalPolicy{roots: make([]lexicalRoot, 0, len(paths))}
 	for _, raw := range paths {
-		path, mode, suffix := splitAllowedPathMode(raw)
+		path, mode := parseAllowedPathMode(raw)
 		if !filepath.IsAbs(path) || strings.ContainsRune(path, 0) {
 			return nil, fmt.Errorf("AllowedPaths: %q must be an absolute path without NUL bytes", raw)
 		}
 		if strings.ContainsRune(path[len(filepath.VolumeName(path)):], ':') {
 			return nil, fmt.Errorf("AllowedPaths: %q has an invalid access suffix (expected :ro or :rw)", raw)
 		}
-		root := lexicalRoot{path: filepath.Clean(path), mode: mode}
-		if suffix && filepath.Separator == '/' {
-			// Execution preserves an existing literal POSIX path with this
-			// suffix as read-only. We cannot discover that remotely. Retain
-			// this possible interpretation so it never causes a false denial.
-			root.literal = filepath.Clean(raw)
-		}
-		p.roots = append(p.roots, root)
+		p.roots = append(p.roots, lexicalRoot{path: filepath.Clean(path), mode: mode})
 	}
 	return p, nil
 }
@@ -76,13 +68,6 @@ func (p *LexicalPolicy) CheckPath(path, cwd string, operation PathOperation) err
 			return best.mode == pathModeReadWrite && candidate.mode == pathModeReadOnly
 		})
 	if !found {
-		if !write {
-			for _, candidate := range p.roots {
-				if candidate.literal != "" && isWithinRoot(candidate.literal, abs) {
-					return nil // literal-suffix interpretation needs remote metadata
-				}
-			}
-		}
 		return fmt.Errorf("%s %s: no matching path grant", operation, path)
 	}
 	if write && root.mode != pathModeReadWrite {

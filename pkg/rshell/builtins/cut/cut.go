@@ -199,7 +199,7 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 			delimByte:     delimByte,
 			onlyDelimited: *onlyDelimited,
 			complement:    *complement,
-			outDelim:      outDelim,
+			outDelim:      []byte(outDelim),
 			outDelimSet:   outDelimSet,
 		}
 
@@ -241,7 +241,7 @@ type cutConfig struct {
 	delimByte     byte
 	onlyDelimited bool
 	complement    bool
-	outDelim      string
+	outDelim      []byte // converted once; may be megabytes long
 	outDelimSet   bool
 }
 
@@ -366,12 +366,16 @@ func processFile(ctx context.Context, callCtx *builtins.CallContext, file string
 		line := sc.Bytes()
 		// Strip trailing newline for processing; we always add one back.
 		raw := stripNewline(line)
+		var err error
 		switch cfg.mode {
 		case modeBytes, modeChars:
 			// GNU coreutils treats -c identically to -b (byte-wise selection).
-			processBytes(callCtx, raw, cfg)
+			err = processBytes(ctx, callCtx, raw, cfg)
 		case modeFields:
-			processFields(callCtx, raw, cfg)
+			err = processFields(ctx, callCtx, raw, cfg)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	return sc.Err()
@@ -387,6 +391,10 @@ func stripNewline(b []byte) []byte {
 	return b
 }
 
+// cancelCheckInterval is how many bytes the per-byte selection loops process
+// between context checks. It must be a power of two.
+const cancelCheckInterval = 1 << 10
+
 // inRanges checks whether pos (1-based) falls within any of the sorted ranges.
 func inRanges(pos int, ranges [][2]int) bool {
 	for _, r := range ranges {
@@ -400,21 +408,27 @@ func inRanges(pos int, ranges [][2]int) bool {
 	return false
 }
 
-// processBytes selects bytes from a line.
-func processBytes(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
+// processBytes selects bytes from a line. A single line can be up to
+// MaxLineBytes long, so the loops check ctx within the line.
+func processBytes(ctx context.Context, callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) error {
 	n := len(raw)
 	if n == 0 {
 		callCtx.Out("\n")
-		return
+		return nil
 	}
 
 	if cfg.complement {
 		// Select bytes NOT in ranges.
 		if cfg.outDelimSet {
-			processBytesComplementWithOutDelim(callCtx, raw, cfg)
+			if err := processBytesComplementWithOutDelim(ctx, callCtx, raw, cfg); err != nil {
+				return err
+			}
 		} else {
 			start := -1
 			for i := range n {
+				if i&(cancelCheckInterval-1) == 0 && ctx.Err() != nil {
+					return ctx.Err()
+				}
 				if !inRanges(i+1, cfg.ranges) {
 					if start < 0 {
 						start = i
@@ -432,10 +446,15 @@ func processBytes(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
 		}
 	} else {
 		if cfg.outDelimSet {
-			processBytesWithOutDelim(callCtx, raw, cfg)
+			if err := processBytesWithOutDelim(ctx, callCtx, raw, cfg); err != nil {
+				return err
+			}
 		} else {
 			start := -1
 			for i := range n {
+				if i&(cancelCheckInterval-1) == 0 && ctx.Err() != nil {
+					return ctx.Err()
+				}
 				if inRanges(i+1, cfg.ranges) {
 					if start < 0 {
 						start = i
@@ -453,14 +472,18 @@ func processBytes(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
 		}
 	}
 	callCtx.Stdout.Write(newline) //nolint:errcheck
+	return nil
 }
 
 // processBytesWithOutDelim outputs selected byte ranges with the output
 // delimiter inserted between non-contiguous ranges.
-func processBytesWithOutDelim(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
+func processBytesWithOutDelim(ctx context.Context, callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) error {
 	n := len(raw)
 	first := true
 	for _, r := range cfg.ranges {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		start := r[0]
 		end := r[1]
 		if start > n {
@@ -470,28 +493,35 @@ func processBytesWithOutDelim(callCtx *builtins.CallContext, raw []byte, cfg *cu
 			end = n
 		}
 		if !first {
-			callCtx.Out(cfg.outDelim)
+			_, _ = callCtx.Stdout.Write(cfg.outDelim)
 		}
 		_, _ = callCtx.Stdout.Write(raw[start-1 : end])
 		first = false
 	}
+	return nil
 }
 
 // processBytesComplementWithOutDelim outputs complemented byte ranges with output delimiter.
-func processBytesComplementWithOutDelim(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
+func processBytesComplementWithOutDelim(ctx context.Context, callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) error {
 	compRanges := complementRanges(cfg.ranges, len(raw))
 	first := true
 	for _, r := range compRanges {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if !first {
-			callCtx.Out(cfg.outDelim)
+			_, _ = callCtx.Stdout.Write(cfg.outDelim)
 		}
 		_, _ = callCtx.Stdout.Write(raw[r[0]-1 : r[1]])
 		first = false
 	}
+	return nil
 }
 
-// processFields selects fields from a line.
-func processFields(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
+// processFields selects fields from a line. A line of up to MaxLineBytes can
+// hold about a million fields, each of which may emit a long output
+// delimiter, so the loop checks ctx at every field.
+func processFields(ctx context.Context, callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) error {
 	hasDelim := false
 	for _, b := range raw {
 		if b == cfg.delimByte {
@@ -501,11 +531,11 @@ func processFields(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
 	}
 	if !hasDelim {
 		if cfg.onlyDelimited {
-			return
+			return nil
 		}
 		callCtx.Stdout.Write(raw)     //nolint:errcheck
 		callCtx.Stdout.Write(newline) //nolint:errcheck
-		return
+		return nil
 	}
 
 	nFields := 1
@@ -523,6 +553,9 @@ func processFields(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
 		if i < len(raw) && raw[i] != cfg.delimByte {
 			continue
 		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		fieldIdx++
 		fieldNum := fieldIdx
 
@@ -535,7 +568,7 @@ func processFields(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
 
 		if selected {
 			if !firstOutput {
-				callCtx.Out(cfg.outDelim)
+				callCtx.Stdout.Write(cfg.outDelim) //nolint:errcheck
 			}
 			callCtx.Stdout.Write(raw[fieldStart:i]) //nolint:errcheck
 			firstOutput = false
@@ -544,6 +577,7 @@ func processFields(callCtx *builtins.CallContext, raw []byte, cfg *cutConfig) {
 		fieldStart = i + 1
 	}
 	callCtx.Stdout.Write(newline) //nolint:errcheck
+	return nil
 }
 
 // complementRanges returns the complement of the given sorted, merged ranges

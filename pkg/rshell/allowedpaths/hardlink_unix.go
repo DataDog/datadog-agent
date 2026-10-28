@@ -8,7 +8,9 @@
 package allowedpaths
 
 import (
+	"errors"
 	"io/fs"
+	"os"
 	"syscall"
 )
 
@@ -22,4 +24,19 @@ func fileLinkCount(info fs.FileInfo) (uint64, bool) {
 		return 0, false
 	}
 	return uint64(stat.Nlink), true
+}
+
+// errLinkCountUnavailable reports that the platform stat structure carried no
+// link count, so inode aliasing cannot be ruled out.
+var errLinkCountUnavailable = errors.New("cannot determine hard link count")
+
+// openFileLinkCount returns the link count of an already-open file from the
+// FileInfo its descriptor's fstat(2) produced. It fails rather than guessing
+// when the count is unavailable, so write guards fail closed.
+func openFileLinkCount(_ *os.File, info fs.FileInfo) (uint64, error) {
+	links, ok := fileLinkCount(info)
+	if !ok {
+		return 0, errLinkCountUnavailable
+	}
+	return links, nil
 }

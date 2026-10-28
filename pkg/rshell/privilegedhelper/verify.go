@@ -274,11 +274,12 @@ type pathPolicy struct {
 
 func parsePathPolicy(value string) pathPolicy {
 	policy := pathPolicy{value: value}
+	// Strip exactly one terminal access suffix, matching allowedpaths and
+	// Landlock: "/x:ro:rw" grants read-write on the directory "/x:ro".
 	if strings.HasSuffix(value, ":rw") {
 		policy.value = strings.TrimSuffix(value, ":rw")
 		policy.readWrite = true
-	}
-	if strings.HasSuffix(value, ":ro") {
+	} else if strings.HasSuffix(value, ":ro") {
 		policy.value = strings.TrimSuffix(value, ":ro")
 	}
 	policy.value = path.Clean(policy.value)
@@ -312,6 +313,12 @@ func intersectPaths(requested, configured []string) []string {
 			}
 			if req.readWrite && cfg.readWrite {
 				narrower += ":rw"
+			} else if strings.HasSuffix(narrower, ":ro") || strings.HasSuffix(narrower, ":rw") {
+				// Downstream parsers always treat a terminal suffix as an
+				// access mode, so a read-only directory literally named
+				// "x:rw" must keep an explicit ":ro" or it becomes a
+				// read-write grant on "x".
+				narrower += ":ro"
 			}
 			narrowerPolicy := parsePathPolicy(narrower)
 			existing := -1

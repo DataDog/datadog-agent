@@ -88,3 +88,10 @@ func (p *ProcProvider) ListOpenFiles(ctx context.Context, pids []int, filter pro
 func (p *ProcProvider) ReadKernelFile(name string) (string, error) {
 	return procsyskernel.ReadFile(p.path, name)
 }
+
+// ReadMachine returns the machine hardware name for uname -m. It reads
+// sys/kernel/arch and, on Linux kernels older than 6.1 that lack that file,
+// falls back to uname(2).
+func (p *ProcProvider) ReadMachine() (string, error) {
+	return procsyskernel.ReadMachine(p.path)
+}

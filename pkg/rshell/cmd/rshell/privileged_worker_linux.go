@@ -235,10 +235,14 @@ func trustedPathsForCommands(allowedCommands []string) []sandboxlandlock.Trusted
 			"/proc/sys/kernel/hostname",
 			"/proc/sys/kernel/osrelease",
 			"/proc/sys/kernel/version",
-			"/proc/sys/kernel/arch",
 		} {
 			trusted = append(trusted, trustedReadOnlyFile(path))
 		}
+		// arch only exists since Linux 6.1 (absent on e.g. RHEL 9); uname
+		// falls back to uname(2) without it.
+		arch := trustedReadOnlyFile("/proc/sys/kernel/arch")
+		arch.Optional = true
+		trusted = append(trusted, arch)
 	}
 	return trusted
 }

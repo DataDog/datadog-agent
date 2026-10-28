@@ -225,6 +225,12 @@ type runnerState struct {
 
 	lastExpandExit exitStatus // used to surface exit statuses while expanding fields
 
+	// activeFields is the field collector currently expanding a word on this
+	// runner, if any. cmdSubst uses it to charge the output of unquoted
+	// command substitutions against the field budget before the expander
+	// splits it. Subshells do not inherit it.
+	activeFields *fieldCollector
+
 	// startTime is captured once at the beginning of Run() and passed to
 	// all builtin invocations so they share a consistent time reference.
 	startTime time.Time
@@ -569,9 +575,10 @@ func (r *Runner) Reset() {
 	// count against the user-visible MaxTotalVarsBytes cap. Those values are
 	// small and bounded; only the variables that a script itself creates or
 	// modifies should count. ALLOWED_PATHS is operator-configured and
-	// typically a few hundred bytes, so this is safe.
+	// typically a few hundred bytes, so this is safe. This also starts the
+	// run-wide budget that subshells and pipeline stages share.
 	if ov, ok := r.writeEnv.(*overlayEnviron); ok {
-		ov.totalBytes = 0
+		ov.resetAccounting()
 	}
 
 	r.didReset = true
@@ -700,7 +707,10 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) (retErr error) {
 	r.fileRemovalCount = &atomic.Int64{}
 	r.expansionByteCount = &atomic.Int64{}
 	r.fillExpandConfig(ctx)
-	if err := validateNode(node, r.remediationMode); err != nil {
+	if err := validateNode(ctx, node, r.remediationMode); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
+			return ctxErr
+		}
 		fmt.Fprintln(r.stderr, err)
 		return ExitStatus(2)
 	}
@@ -1103,6 +1113,15 @@ func (r *Runner) subshell(background bool) *Runner {
 	r2.fillExpandConfig(r.ectx)
 	r2.didReset = true
 	return r2
+}
+
+// releaseVarStorage returns a finished subshell's variable storage to the
+// run-wide budget shared with its parent and siblings. Call it once the
+// subshell from [Runner.subshell] has stopped running.
+func (r *Runner) releaseVarStorage() {
+	if ov, ok := r.writeEnv.(*overlayEnviron); ok {
+		ov.release()
+	}
 }
 
 // classifyRunOutcome maps the error Run() is about to return to a stable,

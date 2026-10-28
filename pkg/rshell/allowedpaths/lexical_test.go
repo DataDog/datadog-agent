@@ -42,17 +42,29 @@ func TestLexicalPolicyMatchesSandboxGrants(t *testing.T) {
 	}
 }
 
-func TestLexicalPolicySuffixUncertainty(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("literal suffix paths are a POSIX execution compatibility rule")
-	}
+func TestLexicalPolicySuffixIsAlwaysAccessMode(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "remote")
 	policy, err := NewLexicalPolicy([]string{root + ":rw"})
 	require.NoError(t, err)
-	assert.NoError(t, policy.CheckPath(root+"/file", "", PathWrite))
-	assert.NoError(t, policy.CheckPath(root+":rw/file", "", PathRead), "the remote literal root might exist")
-	assert.Error(t, policy.CheckPath(root+":rw/file", "", PathWrite), "literal suffix roots never grant writes")
+	assert.NoError(t, policy.CheckPath(filepath.Join(root, "file"), "", PathWrite))
 	assert.Error(t, policy.CheckPath(root+":rw-other/file", "", PathRead))
 	assert.Error(t, policy.CheckPath("relative", "", PathRead))
-	assert.Error(t, policy.CheckPath(root+"/file", "", PathOperation("invalid")))
+	assert.Error(t, policy.CheckPath(filepath.Join(root, "file"), "", PathOperation("invalid")))
+
+	roPolicy, err := NewLexicalPolicy([]string{root + ":ro"})
+	require.NoError(t, err)
+	assert.NoError(t, roPolicy.CheckPath(filepath.Join(root, "file"), "", PathRead))
+	assert.Error(t, roPolicy.CheckPath(filepath.Join(root, "file"), "", PathWrite))
+}
+
+func TestLexicalPolicyLiteralSuffixPathIsNotGranted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("colons are not valid in Windows path components")
+	}
+	root := filepath.Join(t.TempDir(), "remote")
+	for _, suffix := range []string{":ro", ":rw"} {
+		policy, err := NewLexicalPolicy([]string{root + suffix})
+		require.NoError(t, err)
+		assert.Error(t, policy.CheckPath(root+suffix+"/file", "", PathRead), suffix)
+	}
 }

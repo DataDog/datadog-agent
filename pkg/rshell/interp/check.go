@@ -165,7 +165,10 @@ func checkScriptPolicy(ctx context.Context, script string, policy checkPolicy, s
 		result.Issues = []CheckIssue{{Code: CheckParseError, Message: err.Error()}}
 		return result, ctx.Err()
 	}
-	if err := validateNode(program, policy.remediationMode); err != nil {
+	if err := validateNode(ctx, program, policy.remediationMode); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
+			return nil, ctxErr
+		}
 		result.Status = CheckDenied
 		result.Issues = []CheckIssue{{Code: CheckUnsupportedSyntax, Message: err.Error()}}
 		return result, ctx.Err()

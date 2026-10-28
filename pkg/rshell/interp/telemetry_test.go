@@ -88,3 +88,20 @@ func TestCommandFlagsTag(t *testing.T) {
 	assert.LessOrEqual(t, len(got), maxCommandFlagsTagBytes)
 	assert.Equal(t, strings.Repeat(",--flag", strings.Count(got, "--flag"))+",", got)
 }
+
+// TestCommandFlagsTagExactFit covers a flag list whose complete value is
+// exactly maxCommandFlagsTagBytes: the last flag must be kept, and one more
+// byte must drop it.
+func TestCommandFlagsTagExactFit(t *testing.T) {
+	flags := make([]string, 0, 341)
+	for range 340 {
+		flags = append(flags, "-e")
+	}
+	flags = append(flags, "-n")
+	want := strings.Repeat(",-e", 340) + ",-n,"
+	require.Len(t, want, maxCommandFlagsTagBytes)
+	assert.Equal(t, want, commandFlagsTag(flags))
+
+	flags[len(flags)-1] = "-nn"
+	assert.Equal(t, strings.Repeat(",-e", 340)+",", commandFlagsTag(flags))
+}

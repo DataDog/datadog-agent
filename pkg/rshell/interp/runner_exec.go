@@ -210,6 +210,11 @@ func (r *Runner) callExpr(ctx context.Context, cm *syntax.CallExpr, redirs []*sy
 	type restoreVar struct {
 		name string
 		vr   expand.Variable
+		// env and snap, when the environment is an overlay, are that
+		// overlay and its own binding before the assignment, restored
+		// exactly instead of vr.
+		env  *overlayEnviron
+		snap bindingSnapshot
 	}
 	type inlineAssignment struct {
 		name string
@@ -222,6 +227,10 @@ func (r *Runner) callExpr(ctx context.Context, cm *syntax.CallExpr, redirs []*sy
 		isCd := fields[0] == "cd" && r.exit.ok()
 		for _, restore := range restores {
 			if isCd && (restore.name == "PWD" || restore.name == "OLDPWD") {
+				continue
+			}
+			if restore.env != nil {
+				restore.env.restoreBinding(restore.snap)
 				continue
 			}
 			r.setVarRestore(restore.name, restore.vr)
@@ -238,9 +247,16 @@ func (r *Runner) callExpr(ctx context.Context, cm *syntax.CallExpr, redirs []*sy
 		func() {
 			// Earlier assignments are visible while expanding later values,
 			// but redirects expand against the original environment.
+			// The temporary overlay's storage is returned to the shared
+			// budget on every exit; the assignments are charged again when
+			// they are installed for the command.
 			previousEnv := r.writeEnv
-			r.writeEnv = newOverlayEnviron(previousEnv, false)
-			defer func() { r.writeEnv = previousEnv }()
+			tempEnv := newOverlayEnviron(previousEnv, false)
+			r.writeEnv = tempEnv
+			defer func() {
+				tempEnv.release()
+				r.writeEnv = previousEnv
+			}()
 
 			for _, as := range cm.Assigns {
 				name := as.Name.Value
@@ -267,7 +283,11 @@ func (r *Runner) callExpr(ctx context.Context, cm *syntax.CallExpr, redirs []*sy
 		seenRestore := map[string]bool{}
 		for _, assignment := range assignments {
 			if !seenRestore[assignment.name] {
-				restores = append(restores, restoreVar{assignment.name, assignment.prev})
+				restore := restoreVar{name: assignment.name, vr: assignment.prev}
+				if ov, ok := r.writeEnv.(*overlayEnviron); ok {
+					restore.env, restore.snap = ov, ov.snapshotBinding(assignment.name)
+				}
+				restores = append(restores, restore)
 				seenRestore[assignment.name] = true
 			}
 			r.setVar(assignment.name, assignment.vr)
@@ -288,6 +308,7 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 		// clear the flag that suppresses nested pipeline spans.
 		r2.inPipeline = false
 		r2.stmts(ctx, cm.Stmts)
+		r2.releaseVarStorage()
 		r.exit = r2.exit
 		if !r.exit.limitExit {
 			r.exit.exiting = false
@@ -375,6 +396,9 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 						}()
 						rLeft.exit.fatal(errors.New("internal error"))
 					}
+					// Release the producer's storage before closing the
+					// pipe, so a consumer that has seen EOF can reuse it.
+					rLeft.releaseVarStorage()
 					pw.Close()
 					wg.Done()
 				}()
@@ -382,6 +406,7 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 				rLeft.exit.exiting = false
 			}()
 			rRight.stmt(ctx, cm.Y)
+			rRight.releaseVarStorage()
 			r.exit = rRight.exit
 			if !r.exit.limitExit {
 				r.exit.exiting = false

@@ -95,8 +95,9 @@ func (r *root) openWriteFile(relPath string, flag int, perm os.FileMode) (*os.Fi
 // Only regular files are considered. Directories always have a link count of
 // at least two (".", plus each subdirectory's ".."), and are never valid
 // write-open targets anyway; devices, FIFOs and sockets have no content that
-// a second name could alias in the sense this guard protects. Platforms that
-// cannot report a link count (Windows, see fileLinkCount) are not gated.
+// a second name could alias in the sense this guard protects. If the link
+// count cannot be determined the write is refused: an unknown count must not
+// be treated as proof that the file has a single name.
 func checkWriteTargetLinks(f *os.File, relPath string) (regular bool, err error) {
 	info, err := f.Stat()
 	if err != nil {
@@ -105,8 +106,11 @@ func checkWriteTargetLinks(f *os.File, relPath string) (regular bool, err error)
 	if !info.Mode().IsRegular() {
 		return false, nil
 	}
-	links, ok := fileLinkCount(info)
-	if !ok || links <= 1 {
+	links, err := openFileLinkCount(f, info)
+	if err != nil {
+		return true, &os.PathError{Op: "open", Path: relPath, Err: err}
+	}
+	if links <= 1 {
 		return true, nil
 	}
 	return true, &os.PathError{Op: "open", Path: relPath, Err: ErrMultiplyLinkedWriteTarget}

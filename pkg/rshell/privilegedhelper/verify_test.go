@@ -213,6 +213,25 @@ func TestIntersectPathsCollapsesDuplicateModes(t *testing.T) {
 	)
 }
 
+func TestIntersectPathsKeepsReadOnlySuffixOnSuffixedDirectoryNames(t *testing.T) {
+	require.Equal(t,
+		[]string{"/p/tenant:rw:ro"},
+		intersectPaths([]string{"/p/tenant:rw:ro"}, []string{"/p:ro"}),
+	)
+	require.Equal(t,
+		[]string{"/p/tenant:ro:ro"},
+		intersectPaths([]string{"/p/tenant:ro:rw"}, []string{"/p:ro"}),
+	)
+	require.Equal(t,
+		[]string{"/p/tenant:ro:rw"},
+		intersectPaths([]string{"/p/tenant:ro:rw"}, []string{"/p:rw"}),
+	)
+	require.Equal(t,
+		[]string{"/p/tenant"},
+		intersectPaths([]string{"/p/tenant:rw"}, []string{"/p:ro"}),
+	)
+}
+
 func TestNormalizeEffectivePaths(t *testing.T) {
 	require.Equal(t,
 		[]string{"/:rw"},

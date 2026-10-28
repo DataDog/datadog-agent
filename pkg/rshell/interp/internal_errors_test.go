@@ -266,7 +266,7 @@ func TestExpandErrStorageExhaustedAborts(t *testing.T) {
 
 	// expandEnv.Set wraps the error with the variable name before it reaches
 	// expandErr, producing "name: variable storage limit exceeded (N bytes total)".
-	storageErr := fmt.Errorf("UNSET_VAR: %w", &errTotalVarStorageExceeded{total: 1048577})
+	storageErr := fmt.Errorf("UNSET_VAR: %w", &errTotalVarStorageExceeded{total: varStorage{values: 1048577}})
 	r.expandErr(storageErr)
 
 	assert.True(t, r.exit.exiting, "expandErr must set exiting=true for storage-cap errors so the script aborts")

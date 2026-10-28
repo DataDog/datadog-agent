@@ -6,6 +6,7 @@
 package interp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,9 +21,14 @@ import (
 // so that disallowed features are caught early with a clear error message.
 // remediationMode allows file-target output redirections (>, >>, 2>, &>, &>>)
 // to pass validation; they are still gated by the sandbox at runtime.
-func validateNode(node syntax.Node, remediationMode bool) error {
+// Brace analysis for tilde validation returns ctx.Err() if ctx is done before
+// it finishes.
+func validateNode(ctx context.Context, node syntax.Node, remediationMode bool) error {
 	var err error
 	hdocWords := make(map[*syntax.Word]bool)
+	// literalWords are words that undergo tilde expansion but never brace
+	// expansion: assignment values and heredoc delimiters.
+	literalWords := make(map[*syntax.Word]bool)
 	syntax.Walk(node, func(n syntax.Node) bool {
 		if err != nil {
 			return false
@@ -44,6 +50,9 @@ func validateNode(node syntax.Node, remediationMode bool) error {
 			err = validateAssign(n)
 			if err != nil {
 				return false
+			}
+			if n.Value != nil {
+				literalWords[n.Value] = true
 			}
 
 		// Blocked command-level nodes.
@@ -110,16 +119,17 @@ func validateNode(node syntax.Node, remediationMode bool) error {
 			if n.Hdoc != nil {
 				hdocWords[n.Hdoc] = true
 			}
+			if (n.Op == syntax.Hdoc || n.Op == syntax.DashHdoc) && n.Word != nil {
+				literalWords[n.Word] = true
+			}
 
 		// Blocked tilde expansion (prevents host user info disclosure via os/user.Lookup).
 		// Heredoc bodies are excluded since they don't undergo tilde expansion.
 		case *syntax.Word:
-			if !hdocWords[n] && len(n.Parts) > 0 {
-				if lit, ok := n.Parts[0].(*syntax.Lit); ok {
-					if strings.HasPrefix(lit.Value, "~") {
-						err = errors.New("tilde expansion is not supported")
-						return false
-					}
+			if !hdocWords[n] {
+				err = validateWordTilde(ctx, n, literalWords[n])
+				if err != nil {
+					return false
 				}
 			}
 
@@ -154,6 +164,143 @@ var blockedSpecialParams = map[string]bool{
 	"5": true, "6": true, "7": true, "8": true, "9": true,
 	"@": true, // $@ - all positional parameters as separate words
 	"*": true, // $* - all positional parameters as a single word
+}
+
+// maxBraceTildeDepth bounds the brace nesting depth that tilde validation
+// will analyse. Deeper nesting in a word that also contains a "~" is rejected
+// rather than analysed, keeping validation linear in the script size.
+const maxBraceTildeDepth = 64
+
+var errTildeNotSupported = errors.New("tilde expansion is not supported")
+
+// validateWordTilde rejects w if any field produced from it could begin with
+// an unquoted "~" and therefore undergo tilde expansion. Brace expansion runs
+// before tilde expansion, so a "~" inside a brace element (e.g. "{~root/,x}")
+// or after a brace expansion with an empty element (e.g. "{,}~root") ends up
+// at the start of a field even though the word itself does not start with
+// one. literal words (assignment values, heredoc delimiters) never undergo
+// brace expansion, so only their leading "~" matters.
+func validateWordTilde(ctx context.Context, w *syntax.Word, literal bool) error {
+	if len(w.Parts) == 0 {
+		return nil
+	}
+	if lit, ok := w.Parts[0].(*syntax.Lit); ok && strings.HasPrefix(lit.Value, "~") {
+		return errTildeNotSupported
+	}
+	if literal {
+		return nil
+	}
+	// Brace expansion only rearranges literal text, so a "~" can reach the
+	// start of a field only if one appears in an unquoted literal part. The
+	// same pass measures brace nesting, which bounds the cost of SplitBraces
+	// and of the analysis below.
+	hasTilde, depth := false, 0
+	maxDepth := 0
+	for _, part := range w.Parts {
+		lit, ok := part.(*syntax.Lit)
+		if !ok {
+			continue
+		}
+		for i := 0; i < len(lit.Value); i++ {
+			switch lit.Value[i] {
+			case '\\':
+				i++
+			case '~':
+				hasTilde = true
+			case '{':
+				depth++
+				maxDepth = max(maxDepth, depth)
+			case '}':
+				depth = max(depth-1, 0)
+			}
+		}
+	}
+	if !hasTilde {
+		return nil
+	}
+	if maxDepth > maxBraceTildeDepth {
+		return fmt.Errorf("tilde expansion is not supported (brace nesting exceeds %d)", maxBraceTildeDepth)
+	}
+	split := *w // SplitBraces replaces the Parts slice, so work on a copy
+	if !syntax.SplitBraces(&split) {
+		return nil
+	}
+	a := braceTildeAnalyzer{ctx: ctx}
+	mayStartWithTilde, _ := a.parts(split.Parts)
+	if a.err != nil {
+		return a.err
+	}
+	if mayStartWithTilde {
+		return errTildeNotSupported
+	}
+	return nil
+}
+
+// braceTildeAnalyzer walks a brace-split word once, visiting each part a
+// single time, and checks for cancellation as it goes.
+type braceTildeAnalyzer struct {
+	ctx   context.Context
+	steps int
+	err   error
+}
+
+// parts reports whether the brace expansion of parts can yield a field whose
+// first part is a literal starting with "~" (mayStartWithTilde), and whether
+// it can yield no parts at all, leaving the start position to whatever
+// follows (mayBeEmpty). mayBeEmpty is only meaningful when mayStartWithTilde
+// is false.
+func (a *braceTildeAnalyzer) parts(parts []syntax.WordPart) (mayStartWithTilde, mayBeEmpty bool) {
+	for _, part := range parts {
+		if a.steps++; a.steps%1024 == 0 {
+			if a.err = a.ctx.Err(); a.err != nil {
+				return false, false
+			}
+		}
+		switch part := part.(type) {
+		case *syntax.Lit:
+			if part.Value == "" {
+				continue
+			}
+			return strings.HasPrefix(part.Value, "~"), false
+		case *syntax.BraceExp:
+			if part.Sequence {
+				return charSequenceMayYieldTilde(part), false
+			}
+			elemMayBeEmpty := false
+			for _, elem := range part.Elems {
+				tilde, empty := a.parts(elem.Parts)
+				if tilde || a.err != nil {
+					return tilde, false
+				}
+				elemMayBeEmpty = elemMayBeEmpty || empty
+			}
+			if !elemMayBeEmpty {
+				return false, false
+			}
+		default:
+			// Any other part (quotes, expansions) occupies the start of the
+			// field, so a later literal "~" is not a tilde prefix.
+			return false, false
+		}
+	}
+	return false, true
+}
+
+// charSequenceMayYieldTilde reports whether a sequence brace expansion such
+// as "{a..~}" can produce a literal "~" element.
+func charSequenceMayYieldTilde(br *syntax.BraceExp) bool {
+	if len(br.Elems) < 2 {
+		return false
+	}
+	from, to := br.Elems[0].Lit(), br.Elems[1].Lit()
+	if from == "" || to == "" {
+		return false
+	}
+	lo, hi := from[0], to[0]
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	return lo <= '~' && '~' <= hi
 }
 
 func validateParamExp(pe *syntax.ParamExp) error {

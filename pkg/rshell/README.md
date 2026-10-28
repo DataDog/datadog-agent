@@ -160,9 +160,8 @@ if err != nil {
 Malformed configuration is an error. Path grants reserve colons for one terminal
 `:ro`/`:rw` suffix and Windows volume prefixes. Matching uses execution's lexical
 containment and most-specific access-mode rules; read-only aliases cannot widen
-writes. On POSIX, execution can interpret an existing literal suffix directory
-as a read-only root; the preview preserves that possibility without inspecting
-local metadata. `$ALLOWED_PATHS` is indeterminate when grants are configured,
+writes. A terminal `:ro`/`:rw` is always an access mode, so a directory whose
+real name ends in one cannot be granted. `$ALLOWED_PATHS` is indeterminate when grants are configured,
 because the target determines which roots actually open. Use the same rshell
 version and platform conventions on the checking service and target; this API
 does not translate Windows paths or builtin availability for a different OS.
@@ -187,6 +186,22 @@ Policy is layered and default-deny:
 | Writes and remediation commands | Disabled | `WithMode(ModeRemediation)` plus a matching `:rw` path or capability grant |
 | Systemd | All units and actions denied | Exact unit/action grants through `AllowedSystemServices`; `systemctl` also requires remediation mode |
 
+A terminal `:ro` or `:rw` on an `AllowedPaths` entry is always the access mode,
+never part of the directory name, on every platform: `/srv/app:rw` always means
+`/srv/app`, read-write. A directory whose real name ends in `:ro` or `:rw`
+therefore cannot be allowed. Suffix parsing never consults the filesystem, so
+files created by a script cannot change which roots a later runner opens or
+their modes. If an entry's full text, suffix included, names an existing path on
+Linux or macOS, the runner warns:
+
+```
+AllowedPaths: existing path "/srv/app:rw" is not granted; the ":rw" suffix is read as the access mode for "/srv/app" (paths ending in :ro or :rw cannot be allowed)
+```
+
+The warning is informational and does not fail runner construction, so a
+planted file cannot prevent later runs. The privileged helper's Landlock policy
+applies the same rule.
+
 The Linux Private Action Runner integration adds a separate production boundary:
 the socket-facing privileged helper verifies the signed task, then dispatches it
 to a fresh one-shot worker. That worker derives Landlock rules from the verified
@@ -202,7 +217,7 @@ Sed selects the longest regex match at the leftmost position, including for in-p
 
 For simple commands, rshell expands only enough words to identify the command, then applies command, elevation, and mode policy before expanding the remaining arguments, inline assignments, or redirects. A rejected command therefore cannot trigger command substitutions or redirect side effects through its unused arguments. Once a command is authorized, redirects retain normal shell semantics: they are established before execution and remain effective even if the command later exits nonzero.
 
-Shell expansion is bounded independently of the execution timeout: a command may receive at most 16,384 expanded arguments totaling 10 MiB, and one `Run` may produce at most 64 MiB of expanded argument, assignment, redirect, and heredoc text across all loops, subshells, and pipeline stages. Individual variable values remain capped at 1 MiB and heredocs at 10 MiB.
+Shell expansion is bounded independently of the execution timeout: a command may receive at most 16,384 expanded arguments totaling 10 MiB, and one `Run` may produce at most 64 MiB of expanded argument, assignment, redirect, and heredoc text across all loops, subshells, and pipeline stages. The argument cap is enforced before an unquoted variable or command substitution is field-split, not after the fields are built. Individual variable values remain capped at 1 MiB and heredocs at 10 MiB. The variables a script holds at once are capped at 1 MiB of values plus 1 MiB of names and fixed per-variable overhead (about 16k variables), shared by every concurrently running subshell and pipeline stage; a subshell that overrides or clears an inherited variable is still charged for the copy its parent holds.
 
 Redirect targets undergo shell expansion and must resolve to exactly one field; ambiguous targets fail before the file is opened. Quoting preserves literal spaces and wildcard characters.
 

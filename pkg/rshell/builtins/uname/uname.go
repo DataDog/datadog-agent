@@ -31,7 +31,7 @@
 //	-n  sys/kernel/hostname
 //	-r  sys/kernel/osrelease
 //	-v  sys/kernel/version
-//	-m  sys/kernel/arch
+//	-m  sys/kernel/arch (Linux >= 6.1), falling back to uname(2) when absent
 //
 // Exit codes:
 //
@@ -65,7 +65,7 @@ var kernelFiles = [...]struct {
 	{"n", "nodename", "hostname"},
 	{"r", "kernel-release", "osrelease"},
 	{"v", "kernel-version", "version"},
-	{"m", "machine", "arch"}, // Available since Linux 2.6 (2003); last 2.6 LTS (2.6.32) EOL Feb 2016.
+	{"m", "machine", "arch"}, // Only present since Linux 6.1; see ProcProvider.ReadMachine.
 }
 
 func makeFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
@@ -128,7 +128,13 @@ func makeFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 			if ctx.Err() != nil {
 				return builtins.Result{Code: 1}
 			}
-			val, err := callCtx.Proc.ReadKernelFile(entry.file)
+			var val string
+			var err error
+			if entry.short == "m" {
+				val, err = callCtx.Proc.ReadMachine()
+			} else {
+				val, err = callCtx.Proc.ReadKernelFile(entry.file)
+			}
 			if err != nil {
 				callCtx.Errf("uname: cannot read %s: %s\n", entry.file, err)
 				return builtins.Result{Code: 1}

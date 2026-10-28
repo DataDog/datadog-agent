@@ -1,8 +1,39 @@
 # Privileged helper
 
-The `rshell privileged-helper` mode is the Linux-only, socket-activated
-execution boundary for selectively elevated Private Action Runner tasks. It is
-not enabled by the normal rshell CLI.
+The `rshell privileged-helper` mode is the Linux-only execution boundary for
+selectively elevated Private Action Runner tasks. It is not enabled by the
+normal rshell CLI.
+
+The helper serves one Unix socket, which only the `dd-agent` account can
+connect to. It either inherits it from systemd socket activation (fd 3 with
+`LISTEN_PID` and `LISTEN_FDS=1`), or, with `--socket=PATH`, creates it itself
+once its policy and account are loaded, before dropping privileges: owned by
+`--user` and its primary group, with mode `0600`.
+
+With `--socket`:
+
+- `PATH` must be absolute and clean (no `.`, `..` or repeated slashes), and
+  must not go through symlinks: under `/var/run`, which is usually a symlink to
+  `/run`, use `/run` directly.
+- Every directory above `PATH` must be owned by root and not writable by group
+  or others, so nobody else can swap in a socket of their own, and must let
+  `--user` or one of its groups search it, so the client can reach the socket. Directories
+  further up may instead be sticky, like `/tmp`; the socket's own directory may
+  not, since `--user` owns the socket.
+- The helper holds an exclusive lock on `PATH.lock`, a root-owned file next to
+  the socket, for as long as it runs, so only one helper serves `PATH`; a
+  second one refuses to start. The kernel releases the lock however the helper
+  exits.
+- An existing socket at `PATH` is replaced only if nothing accepts connections
+  on it. A socket that is still being served, or any other file, makes the
+  helper refuse to start.
+- The helper does not remove the socket when it exits, so that the
+  socket-facing process, which serves as `--user`, never regains root for it.
+  Removing it, and the lock file, is the supervisor's job, for example by
+  placing them in a systemd `RuntimeDirectory=`. A socket that fails to start
+  is removed before the helper exits.
+- `--idle-timeout` defaults to `0`, and a non-zero value is rejected: nothing
+  would start the helper again on the next connection.
 
 The helper must start with real UID 0. It loads its trust policy, resolves the
 `dd-agent` UID and complete group set, permanently switches its real, effective,
@@ -221,7 +252,7 @@ corresponding command is in the verified effective command allowlist:
 | `rshell:ps` | `/proc` hierarchy |
 | `rshell:ss`, `rshell:ip` | `/proc/net` hierarchy |
 | `rshell:df` | exact file `/proc/self/mountinfo` |
-| `rshell:uname` | exact files `/proc/sys/kernel/{ostype,hostname,osrelease,version,arch}` |
+| `rshell:uname` | exact files `/proc/sys/kernel/{ostype,hostname,osrelease,version}`, plus `/proc/sys/kernel/arch` when present (Linux < 6.1, e.g. RHEL 9, lacks it; `uname -m` then uses `uname(2)`) |
 
 The complete fixed set is granted for an allowed builtin because shell
 expansion can choose its flags at runtime. Systemd-aware builtins similarly use
