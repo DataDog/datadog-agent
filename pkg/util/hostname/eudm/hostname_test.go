@@ -16,7 +16,7 @@ func TestFormatHostname(t *testing.T) {
 	for _, tc := range []struct{ name, serial, want string }{
 		{"MacBook Pro", "C02ABC123", "MacBook-Pro-c02abc123"},
 		{"MacBook Pro", "C02ABC456", "MacBook-Pro-c02abc456"},
-		{"  Alice’s MacBook  ", " abc-123 ", "Alice-s-MacBook-abc-123"},
+		{"  Alice’s MacBook  ", " abc-123 ", "Alices-MacBook-abc-123"},
 		{"EC2AMAZ-TEST", "VMware-56 4d ab", "EC2AMAZ-TEST-vmware-56-4d-ab"},
 		// Long VM serials must not shorten the name, so host:<name>* still matches.
 		{"DESKTOP-4F7K2LQ", "VMware-56 4d ab 12 34 56 78 90-ab cd ef 12 34 56 78 90", "DESKTOP-4F7K2LQ-vmware-56-4d-ab-12-34-56-78-90-ab-cd-ef-12-34-56-78-90"},
@@ -57,4 +57,20 @@ func TestFormatHostnameWithoutSerial(t *testing.T) {
 		_, err := formatHostname(name, "", false)
 		require.Error(t, err)
 	}
+}
+
+func TestFormatHostnameApostrophes(t *testing.T) {
+	for _, name := range []string{"Jack's MacBook", "Jack’s MacBook", "'Jack’s' MacBook’"} {
+		t.Run(name, func(t *testing.T) {
+			got, err := formatHostname(name, "ABC123", false)
+			require.NoError(t, err)
+			require.Equal(t, "Jacks-MacBook", got)
+
+			got, err = formatHostname(name, "ABC123", true)
+			require.NoError(t, err)
+			require.Equal(t, "Jacks-MacBook-abc123", got)
+		})
+	}
+	_, err := formatHostname("'’", "", false)
+	require.Error(t, err)
 }
