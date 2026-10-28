@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1212,6 +1213,43 @@ func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 			assert.Nil(t, out)
 		})
 	}
+}
+
+func TestRunCommandAppliesDefaultMaxExecutionTime(t *testing.T) {
+	original := defaultMaxExecutionTime
+	defaultMaxExecutionTime = 200 * time.Millisecond
+	t.Cleanup(func() { defaultMaxExecutionTime = original })
+
+	// An assignment-only loop needs no allowed command and never ends on
+	// its own, so only a deadline can stop it.
+	task := makeTask("while X=1; do Y=1; done", nil)
+
+	start := time.Now()
+	out, err := newDefaultRunCommandHandler().Run(context.Background(), task, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Nil(t, out)
+	assert.Less(t, time.Since(start), 10*time.Second)
+}
+
+func TestRunCommandTaskDeadlineTakesPrecedenceOverDefault(t *testing.T) {
+	original := defaultMaxExecutionTime
+	defaultMaxExecutionTime = 50 * time.Millisecond
+	t.Cleanup(func() { defaultMaxExecutionTime = original })
+
+	// The task deadline is longer than the default: the run must last until
+	// the task deadline, not stop at the default.
+	const taskTimeout = 500 * time.Millisecond
+	task := makeTask("while X=1; do Y=1; done", nil)
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), taskTimeout)
+	defer cancel()
+
+	_, err := newDefaultRunCommandHandler().Run(ctx, task, nil)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.GreaterOrEqual(t, time.Since(start), taskTimeout)
 }
 
 func mockStatFn(existing map[string]bool) func(string) (os.FileInfo, error) {
