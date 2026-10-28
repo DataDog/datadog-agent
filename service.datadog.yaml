@@ -50,12 +50,10 @@ extensions:
     workday_team: "Agent Delivery"
     conductor:
       slack: "datadog-agent-pipelines"
+      # Leave ci_pipeline unset: Agent builds use the root .gitlab-ci.yml,
+      # including when Conductor selects DDCI as the build provider.
       targets:
         - name: "beta-build-full"
-          # For now, this config is mandatory, even if the target is not a ci_pipeline CNAB object.
-          # Setting this to a placeholder value for now, the intended pipeline that will be triggered will
-          # be the one that is defined in the main .gitlab-ci.yml file.
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           schedule: "10 3 * * SUN-THU"
           parent_environments: ["prod", "staging"]
@@ -70,7 +68,6 @@ extensions:
           # production on Saturday and Sunday. This way, the full pipeline does not show as "failed" on
           # days that we know no deployment should go out, and we do not have 3 deployments trying to happen
           # on Monday.
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           schedule: "10 3 * * FRI-SAT"
           parent_environments: ["staging"]
@@ -78,7 +75,6 @@ extensions:
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-deploy"
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-validate"
         - name: "beta-build-publish-image"
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           build_only: true
           slack: "agent-nightly-deployment-expansion"
@@ -86,12 +82,11 @@ extensions:
           options:
             disable_failure_notifications: true
         - name: "conductor-sandbox"
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           # Create and push to this branch to test changes with conductor if needed without merging to main
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
-          branch: "7.83.x"
+          branch: "7.84.x"
           schedule: "30 2 * * *"
           build_only: true
           parent_environments: ["staging"]
@@ -109,98 +104,6 @@ extensions:
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml
----
-schema-version: v2.1
-dd-service: datadog-cluster-agent
-team: container-platform
-contacts:
-  - type: slack
-    # #container-platform
-    contact: https://dd.slack.com/archives/C0702JHC7G8
-  - type: email
-    contact: team-containerplatform@datadoghq.com
-links:
-  - name: datadog-agent
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/datadog-agent
-  - name: internal-chart
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-cluster-agent
-  - name: internal-chart-with-operator
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
-  - name: internal-image
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/images/tree/master/datadog-cluster-agent
-  - name: deployment
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/k8s-datadog-agent-ops
-  - name: Runbook
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks
-  - name: On Call documentation
-    type: doc
-    provider: confluence
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/837812317/Combined+Agent+On-call
-  - name: Cluster-Agent documentation
-    type: doc
-    provider: confluence
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2530706500/Agent+Components+in+Kubernetes#Datadog-Cluster-Agent
-tags:
-  - team:container-platform
-  - service:datadog-cluster-agent
-  - app:datadog-cluster-agent
----
-schema-version: v2.1
-dd-service: datadog-agent-cluster-worker
-team: container-platform
-contacts:
-  - type: slack
-    # #container-platform
-    contact: https://dd.slack.com/archives/C0702JHC7G8
-  - type: email
-    contact: team-containerplatform@datadoghq.com
-links:
-  - name: datadog-agent
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/datadog-agent
-  - name: internal-chart
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-cluster-worker
-  - name: internal-chart-with-operator
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
-  - name: internal-image
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/images/tree/master/datadog-agent-cluster-worker
-  - name: deployment
-    type: repo
-    provider: github
-    url: https://github.com/ddoghq/k8s-datadog-agent-ops
-  - name: Runbook
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks
-  - name: On Call documentation
-    provider: confluence
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/837812317/Combined+Agent+On-call
-  - name: Datadog-Agent-Cluster-Worker documentation
-    provider: confluence
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2530706500/Agent+Components+in+Kubernetes#Datadog-Agent-Cluster-Worker
-tags:
-  - team:container-platform
-  - service:datadog-agent-cluster-worker
-  - app:datadog-agent-cluster-worker
 ---
 apiVersion: v3
 kind: service

@@ -85,10 +85,89 @@ func TestFindContainerID(t *testing.T) {
 			input:  "/kubepods/besteffort/pod8bbdd97b-f902-4e16-8235-4ac18307cef6/09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
 			output: "09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
 		},
+		{ // containerd service
+			input:  "/runtime.slice/containerd.service",
+			output: "",
+		},
+		{ // pod slice
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice",
+			output: "",
+		},
+		{ // nested container cgroup
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice/cri-containerd-7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17.scope/init.scope",
+			output: "7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17",
+		},
+		{ // nested containers: the innermost wins
+			input:  "/docker/0123456789012345678901234567890123456789012345678901234567890123/docker/aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
+			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
+		},
 	}
 
 	for _, test := range testCases {
 		containerID := FindContainerID(CGroupID(test.input))
 		assert.Equal(t, test.output, string(containerID))
+	}
+}
+
+func TestFindPodUID(t *testing.T) {
+	testCases := []testCase{
+		{
+			input:  "/kubepods/besteffort/pod48d25824-cbe2-4fdc-9928-5bb49e05473d/09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{
+			input:  "/kubepods/pod48D25824-CBE2-4FDC-9928-5BB49E05473D/docker/0123456789012345678901234567890123456789012345678901234567890123",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{
+			input:  "/ecs/409b8b89ccd746bdb9b5e03418406d96/409b8b89ccd746bdb9b5e03418406d96-3057940393/kubepods/besteffort/podc00eb3e2-d6c0-4eb6-9e58-fe539629263f/7022ec9d5774c69f38feddd6460373c4681ef72a4e03bc6f2d374387e9bde981",
+			output: "c00eb3e2-d6c0-4eb6-9e58-fe539629263f",
+		},
+		{
+			input:  "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-f9176c6a-2a34-4ce2-86af-60d16888ed8e.scope",
+			output: "",
+		},
+		{
+			input:  "/kubepods/notapod48d25824-cbe2-4fdc-9928-5bb49e05473d/scope",
+			output: "",
+		},
+		{
+			input:  "/kubepods/pod48d25824-cbe2-4fdc-9928-5bb49e05473d0/scope",
+			output: "",
+		},
+		{ // systemd, guaranteed QoS class: no QoS segment in the slice name
+			input:  "/kubepods.slice/kubepods-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{ // the deepest pod wins, like FindContainerID does for container IDs
+			input:  "/kubepods.slice/kubepods-burstable-pod11111111_1111_1111_1111_111111111111.slice/kubepods-burstable-pod22222222_2222_2222_2222_222222222222.slice",
+			output: "22222222-2222-2222-2222-222222222222",
+		},
+		{ // truncated UID: the last group is shorter than 12 hex chars
+			input:  "/kubepods/besteffort/pod48d25824-cbe2-4fdc-9928-5bb49e0547/scope",
+			output: "",
+		},
+		{ // a bare UUID with no pod prefix is not a pod UID, even though a Garden
+			// container ID has exactly that shape
+			input:  "/kubepods/besteffort/48d25824-cbe2-4fdc-9928-5bb49e05473d/scope",
+			output: "",
+		},
+		{ // uppercase and underscore-escaped at once
+			input:  "/kubepods.slice/kubepods-burstable-pod48D25824_CBE2_4FDC_9928_5BB49E05473D.slice",
+			output: "48d25824-cbe2-4fdc-9928-5bb49e05473d",
+		},
+		{
+			input:  "",
+			output: "",
+		},
+	}
+
+	for _, test := range testCases {
+		podUID := FindPodUID(CGroupID(test.input))
+		assert.Equal(t, test.output, podUID)
 	}
 }

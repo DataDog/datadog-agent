@@ -680,7 +680,7 @@ func (m *Manager) evictUnusedNodes() {
 			profile.Unlock()
 			continue
 		}
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
@@ -694,7 +694,7 @@ func (m *Manager) evictUnusedNodes() {
 }
 
 // HandleSampleRefresh is a no-op in V1
-func (m *Manager) HandleSampleRefresh(_ uint32) {}
+func (m *Manager) HandleSampleRefresh(_ uint64) {}
 
 // GetNodesInProcessCache returns a map with ImageProcessKey as key and bool as value for all filepaths in the process cache
 func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]bool {

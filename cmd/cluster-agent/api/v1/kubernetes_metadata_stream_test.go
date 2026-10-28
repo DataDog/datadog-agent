@@ -9,10 +9,12 @@ package v1
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -689,6 +691,12 @@ func TestProcessKueueWorkloadEvents(t *testing.T) {
 				},
 				QueueName:        "gpu",
 				ClusterQueueName: "team-a-gpu",
+				PodTemplateLabels: map[string]string{
+					"team": "ccm-allocation",
+				},
+				PodTemplateAnnotations: map[string]string{
+					"workload-owner": "gpu-monitoring",
+				},
 				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 				},
@@ -709,6 +717,12 @@ func TestProcessKueueWorkloadEvents(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"cost-center": "1234",
 	}, entry.annotations)
+	assert.Equal(t, map[string]string{
+		"team": "ccm-allocation",
+	}, entry.podTemplateLabels)
+	assert.Equal(t, map[string]string{
+		"workload-owner": "gpu-monitoring",
+	}, entry.podTemplateAnnotations)
 	assert.Equal(t, []kueuePodSetAssignmentEntry{
 		{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 	}, entry.podSetAssignments)
@@ -747,11 +761,12 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 	}
 	current := map[string]kueueWorkloadEntry{
 		"team-a/job-a": {
-			namespace:        "team-a",
-			name:             "job-a",
-			queueName:        "gpu",
-			clusterQueueName: "team-a-gpu",
-			labels:           map[string]string{"team": "new"},
+			namespace:         "team-a",
+			name:              "job-a",
+			queueName:         "gpu",
+			clusterQueueName:  "team-a-gpu",
+			labels:            map[string]string{"team": "new"},
+			podTemplateLabels: map[string]string{"team": "ccm-allocation"},
 			podSetAssignments: []kueuePodSetAssignmentEntry{
 				{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 			},
@@ -762,11 +777,12 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 
 	assert.ElementsMatch(t, []*pb.KueueWorkload{
 		{
-			Namespace:    "team-a",
-			Name:         "job-a",
-			Queue:        "gpu",
-			ClusterQueue: "team-a-gpu",
-			Labels:       map[string]string{"team": "new"},
+			Namespace:         "team-a",
+			Name:              "job-a",
+			Queue:             "gpu",
+			ClusterQueue:      "team-a-gpu",
+			Labels:            map[string]string{"team": "new"},
+			PodTemplateLabels: map[string]string{"team": "ccm-allocation"},
 			PodSetAssignments: []*pb.KueuePodSetAssignment{
 				{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 			},
@@ -851,6 +867,99 @@ func TestFullStateResponse(t *testing.T) {
 	}
 
 	assert.True(t, proto.Equal(expected, resp))
+}
+
+func TestMetadataUpdatesSince(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	ch := srv.subscribeToNamespaceEvents("node1")
+	events := append(testNamespaceSetEvents(), testKueueWorkloadEvent("first", workloadmeta.EventTypeSet))
+	srv.processWmetaEvents(events)
+	assertNotified(t, "node1", ch)
+
+	initial, version := srv.buildMetadataSnapshotWithVersion()
+	assert.Equal(t, uint64(1), version)
+	assert.Equal(t, "first", initial.kueueWorkloads["ns1/job"].uid)
+	updates, version, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok)
+	require.Len(t, updates, 1)
+	assert.Equal(t, uint64(1), version)
+	assert.False(t, updates[0].IsFullState)
+	assert.Len(t, updates[0].NamespaceMetadata, 1)
+	require.Len(t, updates[0].KueueWorkloads, 1)
+	first := updates[0]
+
+	// Identical state neither advances the journal nor wakes subscribers.
+	srv.processWmetaEvents(events)
+	updates, version, ok = srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	assert.Empty(t, updates)
+	assert.Equal(t, uint64(1), version)
+	assertNotNotified(t, "node1", ch)
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("second", workloadmeta.EventTypeSet)})
+	fastUpdates, fastVersion, ok := srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	require.Len(t, fastUpdates, 1)
+	assert.Equal(t, uint64(2), fastVersion)
+
+	// A slow client coalesces notifications, but must still see the deletion
+	// followed by recreation. A fast client's cursor is independent.
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("second", workloadmeta.EventTypeUnset)})
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("third", workloadmeta.EventTypeSet)})
+	slowUpdates, slowVersion, ok := srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	require.Len(t, slowUpdates, 3)
+	assert.Equal(t, uint64(4), slowVersion)
+	assert.Same(t, fastUpdates[0], slowUpdates[0], "clients share the same precomputed response")
+	assert.Equal(t, "second", slowUpdates[0].KueueWorkloads[0].Uid)
+	assert.Equal(t, pb.KubeMetadataEventType_UNSET, slowUpdates[1].KueueWorkloads[0].Type)
+	assert.Equal(t, "third", slowUpdates[2].KueueWorkloads[0].Uid)
+	assert.Equal(t, "first", first.KueueWorkloads[0].Uid, "published responses remain immutable")
+
+	fastUpdates, fastVersion, ok = srv.metadataUpdatesSince(fastVersion)
+	require.True(t, ok)
+	require.Len(t, fastUpdates, 2)
+	assert.Equal(t, slowVersion, fastVersion)
+	assert.Same(t, slowUpdates[1], fastUpdates[0])
+	assert.Same(t, slowUpdates[2], fastUpdates[1])
+}
+
+func TestMetadataUpdatesSinceHistoryOverflow(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	for i := 1; i <= metadataHistorySize; i++ {
+		srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent(strconv.Itoa(i), workloadmeta.EventTypeSet)})
+	}
+	updates, version, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok, "the oldest retained cursor is still valid")
+	require.Len(t, updates, metadataHistorySize)
+	assert.Equal(t, uint64(metadataHistorySize), version)
+	first := updates[0]
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("latest", workloadmeta.EventTypeSet)})
+	_, _, ok = srv.metadataUpdatesSince(0)
+	assert.False(t, ok, "an overwritten cursor must request a full state")
+	updates, version, ok = srv.metadataUpdatesSince(1)
+	require.True(t, ok)
+	require.Len(t, updates, metadataHistorySize)
+	assert.Equal(t, uint64(metadataHistorySize+1), version)
+	assert.Equal(t, "2", updates[0].KueueWorkloads[0].Uid)
+	assert.Equal(t, "latest", updates[len(updates)-1].KueueWorkloads[0].Uid)
+	assert.Equal(t, "1", first.KueueWorkloads[0].Uid, "overwriting history cannot mutate in-flight responses")
+}
+
+func testKueueWorkloadEvent(uid string, eventType workloadmeta.EventType) workloadmeta.Event {
+	return workloadmeta.Event{
+		Type: eventType,
+		Entity: &workloadmeta.KubernetesKueueWorkload{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "ns1/job"},
+			EntityMeta: workloadmeta.EntityMeta{
+				Namespace: "ns1",
+				Name:      "job",
+				UID:       uid,
+				Labels:    map[string]string{"team": "example"},
+			},
+		},
+	}
 }
 
 func testNamespaceSetEvents() []workloadmeta.Event {

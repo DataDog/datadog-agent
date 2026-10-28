@@ -83,7 +83,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 			sample: metricSample,
 			host:   context.Host,
 			tags:   context.Tags(),
-		})
+		}, uint64(contextKey))
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
@@ -197,6 +197,12 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
 	if math.IsInf(bucket.UpperBound, 1) {
 		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
+		return
+	}
+
+	// mirror the +Inf case: the open-ended bottom bucket collapses to its upper bound
+	if math.IsInf(bucket.LowerBound, -1) {
+		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.UpperBound, bucket.UpperBound, uint(bucket.Value))
 		return
 	}
 
@@ -316,7 +322,8 @@ func (cs *CheckSampler) releaseMetrics() {
 	for i := 0; i < int(metrics.NumMetricTypes); i++ {
 		mtype := metrics.MetricType(i).String()
 		tlmChecksContextsByMtype.Delete(idString, mtype)
-		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindStruct)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindData)
 	}
 }
 

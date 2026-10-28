@@ -12,6 +12,22 @@ update every minute (see `inventories_min_interval`).
 
 The `Set` method from the component allow the rest of the codebase to add any information to the payload.
 
+## Embedding capabilities
+
+`Capabilities` is an optional internal Fx dependency, not a YAML or environment setting. Without it, each payload
+retains the standard full-agent metadata refresh.
+
+`NewServerlessCapabilities` sets `SkipFullAgentMetadataRefresh`, which skips **all** collectors in `refreshMetadata()`:
+core Agent, security Agent, process Agent, trace Agent, system-probe, Fleet, and application monitoring. Skipping
+collection drops both cross-process enrichment and locally derived fields, for example `config_site`,
+`feature_logs_enabled`, `fleet_policies_applied`, Fleet's `config_id`, and the application-monitoring file fields.
+Serverless-init does not need them and injects `dd_site` explicitly.
+
+What remains available: construction-time metadata (versions, startup time, installation information, infrastructure
+mode), values supplied through `Set`, and optional configuration payloads controlled by
+`inventories_configuration_enabled`. The capability skips collection rather than filtering the payload, and does not
+affect the metadata runner, its scheduling, or explicit `Submit()` calls.
+
 ## Agent Configuration
 
 The agent configurations are scrubbed from any sensitive information (same logic than for the flare). The `Format`
@@ -118,17 +134,17 @@ The payload is a JSON dict with the following fields
     as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
     agent itself based on the load).
   - `file_configuration` - **string**: the Agent configuration specified by the configuration file (scrubbed), as a YAML string.
-    Only the settings written in the configuration file are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings written in the configuration file are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `environment_variable_configuration` - **string**: the Agent configuration specified by the environment variables (scrubbed), as a YAML string.
-    Only the settings written in the environment variables are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings written in the environment variables are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `agent_runtime_configuration` - **string**: the Agent configuration set by the agent itself (scrubbed), as a YAML string.
-    Only the settings set by the agent itself are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings set by the agent itself are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `remote_configuration` - **string**: the Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
-    Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings currently used by Remote Configuration are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `fleet_policies_configuration` - **string**: the Agent configuration specified by the Fleet Automation Policies (scrubbed), as a YAML string.
-    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
+    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applied by the agent since they can be overridden by other sources.
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
-    Only the settings set in the CLI are included, they cannot be overriden by any other sources.
+    Only the settings set in the CLI are included, they cannot be overridden by any other sources.
   - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.

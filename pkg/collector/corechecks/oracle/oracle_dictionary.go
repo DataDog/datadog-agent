@@ -8,8 +8,9 @@
 package oracle
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,20 +23,20 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 	 * we must retrieve `sql_fulltext` from `v$sql`.
 	 */
 	var err error
-	var sql string
+	var query string
 	switch c.driver {
 	case common.Godror:
-		sql = fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
-		err = c.db.Get(SQLStatement, sql, value)
+		query = fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
+		err = c.db.Get(SQLStatement, query, value)
 		reconnectOnConnectionError(c, &c.db, err)
-		if err != nil && strings.Contains(err.Error(), "no rows") {
+		if errors.Is(err, sql.ErrNoRows) {
 			log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)
 			err = nil
 		}
 	case common.GoOra:
 		var sqlFullText go_ora.Clob
-		sql = fmt.Sprintf("BEGIN SELECT /* DD */ sql_fulltext INTO :sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1; END;", key)
-		_, err = c.connection.Exec(sql, go_ora.Out{Dest: &sqlFullText, Size: 8000}, value)
+		query = fmt.Sprintf("BEGIN SELECT /* DD */ sql_fulltext INTO :sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1; END;", key)
+		_, err = c.connection.Exec(query, go_ora.Out{Dest: &sqlFullText, Size: 8000}, value)
 		if err == nil && sqlFullText.String != "" {
 			*SQLStatement = sqlFullText.String
 		} else if err != nil {

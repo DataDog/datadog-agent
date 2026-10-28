@@ -63,7 +63,7 @@
 .agent_variables: &agent_variables
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
-  IMAGE_VERSION: tmpl-v27
+  IMAGE_VERSION: tmpl-v28
 
 .cluster_agent_variables: &cluster_agent_variables
   IMAGE_NAME: datadog-cluster-agent
@@ -95,6 +95,26 @@ publish_internal_container_image-jmx:
     TMPL_ADP_VERSION: 0.1.7
     RELEASE_TAG_SUFFIX: "-jmx"
     TMPL_SRC_IMAGE_SUFFIX: "-7-jmx"
+
+publish_internal_container_image-recorder-jmx:
+  extends: .docker_trigger_base
+  rules:
+    - if: '$CI_COMMIT_BRANCH && $ANOMALY_DETECTION_RECORDER != null'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true
+    - when: never
+  needs:
+    - job: docker_build_agent7_recorder_full
+      artifacts: false
+    - job: docker_build_agent7_recorder_full_arm64
+      artifacts: false
+  variables:
+    <<: *agent_variables
+    TMPL_ADP_VERSION: 0.1.7
+    RELEASE_TAG_SUFFIX: "-recorder-jmx"
+    TMPL_SRC_IMAGE_SUFFIX: "-7-recorder-full"
 
 publish_internal_container_image-fips:
   extends: .docker_trigger_base

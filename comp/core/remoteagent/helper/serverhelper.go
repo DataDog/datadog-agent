@@ -527,8 +527,11 @@ func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, r
 // registerWithAgent handles the registration logic with the Core Agent
 func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Duration, error) {
 	registerReq := &pbcore.RegisterRemoteAgentRequest{
-		Flavor:         s.agentFlavor,
-		DisplayName:    s.displayName,
+		Flavor: s.agentFlavor,
+		// Suffixed so a remote agent registering under this component and under
+		// configstreamconsumer shows up as two distinct, clearly-labeled entries in
+		// `agent status` rather than looking like a duplicate registration.
+		DisplayName:    s.displayName + " (remoteagent)",
 		ApiEndpointUri: s.registeredAPIURI,
 		Services:       s.services,
 	}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ import yaml
 from invoke.context import Context
 
 import tasks
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, is_bazel_workspace
 from tasks.libs.common.utils import _resolve_target_platform, agent_working_directory
 
 
@@ -96,7 +97,7 @@ class GoModule:
     """A Go module abstraction.
 
     See:
-        Documentation can be found in <docs/dev/modules.md>.
+        Documentation can be found at https://datadoghq.dev/datadog-agent/how-to/go/modules/.
 
     Args:
         test_targets: Directories to unit test.
@@ -242,16 +243,34 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        output = bazel(
-            "run",
-            "//internal/tools/modparser",
-            "--",
-            "-path",
-            os.path.abspath(self.path),
-            "-prefix",
-            AGENT_MODULE_PATH_PREFIX,
-            capture_output=True,
-        )
+        # Pre-Bazel branches still ship the modparser source, so fall back to `go run` there
+        if is_bazel_workspace():
+            output = bazel(
+                "run",
+                "//internal/tools/modparser",
+                "--",
+                "-path",
+                os.path.abspath(self.path),
+                "-prefix",
+                AGENT_MODULE_PATH_PREFIX,
+                capture_output=True,
+            )
+        else:
+            modparser_path = os.path.join(os.getcwd(), "internal", "tools", "modparser")
+            if not os.path.isdir(modparser_path):
+                raise Exception(f"Cannot find go.mod parser in {modparser_path}")
+            output = subprocess.check_output(
+                [
+                    "go",
+                    "run",
+                    ".",
+                    "-path",
+                    os.path.abspath(self.path),
+                    "-prefix",
+                    AGENT_MODULE_PATH_PREFIX,
+                ],
+                cwd=modparser_path,
+            ).decode("utf-8")
 
         # Remove github.com/DataDog/datadog-agent/ from each line
         return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]

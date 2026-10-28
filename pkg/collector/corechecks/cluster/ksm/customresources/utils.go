@@ -27,6 +27,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	extension "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 )
@@ -135,6 +136,18 @@ func toSnakeCase(s string) string {
 
 func labelConflictSuffix(label string, count int) string {
 	return fmt.Sprintf("%s_conflict%d", label, count)
+}
+
+// objectOwnerRef returns the lowercased kind and name of obj's first owner
+// reference. Works for any Kubernetes object since they all embed
+// metav1.ObjectMeta. ok is false when obj has no owner references.
+func objectOwnerRef(obj metav1.Object) (kind, name string, ok bool) {
+	owners := obj.GetOwnerReferences()
+	if len(owners) == 0 {
+		return "", "", false
+	}
+	owner := owners[0]
+	return strings.ToLower(owner.Kind), owner.Name, true
 }
 
 // mergeKeyValues merges label keys and values slice pairs into a single slice pair.

@@ -1,0 +1,21 @@
+---
+features:
+  - |
+    Add ``logs_config.unreliable_mount.enabled`` for log files on mounts with
+    stale page-cache or file-handle behavior during rotation, such as CIFS/SMB
+    and Azure Files. The profile applies to all file log sources on the Agent
+    and requires an Agent restart when changed. On Linux, fingerprint reads use
+    ``O_DIRECT``, including sources with their own checksum settings. Other
+    platforms keep buffered fingerprint reads. Normal log tailing is unchanged.
+
+    The profile defaults the global fingerprint strategy to ``line_checksum``
+    with one line and a 4096-byte window. Explicit checksum settings, including
+    ``disabled``, are preserved. ``logs_config.unreliable_mount.rotation_drain_timeout``
+    replaces ``close_timeout`` for rotated files and defaults to 60 seconds.
+    Scan frequency is unchanged. Consider raising ``logs_config.file_scan_period``
+    to reduce uncached reads, which fetch the whole fingerprint window each scan.
+
+    Failed fingerprints prevent new tailers from starting. Active tailers keep
+    collecting, but cannot check fingerprint rotation until a later read succeeds.
+    Failures appear in the Agent log and status; status clears on recovery. Linux
+    does not silently retry failed direct reads using buffered I/O.

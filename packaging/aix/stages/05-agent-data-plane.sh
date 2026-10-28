@@ -28,6 +28,11 @@ ADP_AIX_BUILD_PROFILE=${ADP_AIX_BUILD_PROFILE:-aix-optimized-release}
 CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/saluki-target}
 export CARGO_TARGET_DIR
 
+# Workaround for a saluki release-build check: its Makefile derives APP_BUILD_TIME
+# from CI_PIPELINE_CREATED_AT, which is never forwarded over ssh to the AIX host,
+# so it defaults to a placeholder that aborts the release build. Stamp it here.
+# TODO: remove once the pinned saluki includes the fix (DataDog/saluki#2345).
+export CI_PIPELINE_CREATED_AT="${CI_PIPELINE_CREATED_AT:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}"
 if [ "${ADP_AIX_BUILD_COMMAND+x}" != x ]; then
     ADP_AIX_BUILD_COMMAND="make build-adp-aix"
 fi

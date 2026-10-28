@@ -397,10 +397,32 @@ func tagsFromDimensions(dims map[string]string) []string {
 	return tags
 }
 
+func consumeGCPServerlessSource(consumer Consumer, src source.Source) {
+	c, ok := consumer.(TagSetConsumer)
+	if !ok {
+		return
+	}
+	suffix := "cloudrun"
+	if src.Kind == source.GCPCloudFunctionsKind {
+		suffix = "cloudrunfunctions"
+	}
+	// Revision is useful on application metrics but is not part of the approved
+	// running-metric identity. Keep the running series keyed by four dimensions.
+	dims := src.SourceIdentifier.Dimensions
+	tags := make([]string, 0, 4)
+	for _, key := range []string{"instance", "service_name", "project_id", "location"} {
+		if dims[key] == "" {
+			return
+		}
+		tags = append(tags, key+":"+dims[key])
+	}
+	c.ConsumeTagSet(suffix, tags)
+}
+
 // resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
 func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
-	if !hasSource {
+	if !hasSource && !attributes.IsGCPServerless(res.Attributes()) {
 		var err error
 		src, err = fallbackSourceProvider.Source(ctx)
 		if err != nil {
@@ -542,13 +564,18 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 			ilm := ilms.At(j)
 			metricsArray := ilm.Metrics()
 
+			// slices.Concat, not append: attributeTags is shared by every scope and has
+			// spare capacity, so appending would make the scopes share one array. Consumers
+			// may retain Dimensions.Tags(), so each scope needs its own. The unmodified case
+			// stays shared, but Clip drops the spare capacity so a later append copies
+			// instead of writing into the array the other scopes are reading.
 			var additionalTags []string
 			if t.cfg.InstrumentationScopeMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
+				additionalTags = slices.Concat(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope()))
 			} else if t.cfg.InstrumentationLibraryMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
+				additionalTags = slices.Concat(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope()))
 			} else {
-				additionalTags = attributeTags
+				additionalTags = slices.Clip(attributeTags)
 			}
 
 			scopeName := ilm.Scope().Name()
@@ -625,14 +652,19 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeTagSet("fargate", []string{src.Tag()})
 				}
 			case source.AzureContainerAppsKind:
-				dims := src.SourceIdentifier.Dimensions
-				if c, ok := consumer.(TagSetConsumer); ok && attributes.IsAzureContainerAppsIdentified(dims) {
-					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(dims))
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
 			case source.AzureAppServiceKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
 					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
+			case source.AzureFunctionsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurefunctions", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.GCPCloudRunKind, source.GCPCloudFunctionsKind:
+				consumeGCPServerlessSource(consumer, src)
 			}
 		}
 	}

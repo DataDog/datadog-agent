@@ -68,15 +68,13 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-:: Check 8.3 short names are enabled, or fail with instructions
-:: TODO(agent-build): remove once https://github.com/bazelbuild/bazel/pull/29921 (or equivalent) is in effect
+:: Check 8.3 short names are enabled, or warn with instructions
 set "more_than_8dot3_chars=%TEMP%\123456789.1234"
 2>nul del /f /q "!more_than_8dot3_chars!"
 >"!more_than_8dot3_chars!" type nul
 for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
-  >&2 echo 🔴 For `bazel` to work properly, please enable 8.3 short names on %%~di:
+  >&2 echo 🟡 For `bazel` to spawn processes from long paths, please enable 8.3 short names on %%~di:
   >&2 echo     fsutil 8dot3name set %%~di 0
-  exit /b 2
 )
 
 :: Check symlink creation privilege (required by rules_python bootstrap on Windows)

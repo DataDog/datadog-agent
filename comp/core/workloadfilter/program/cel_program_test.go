@@ -10,7 +10,7 @@ package program
 import (
 	"testing"
 
-	"github.com/google/cel-go/cel"
+	"cel.dev/cel-go/cel"
 	"github.com/stretchr/testify/require"
 
 	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"

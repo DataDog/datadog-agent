@@ -6,11 +6,38 @@
 package packages
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
+
+func TestPreStopExperimentRejectsInvalidMSI(t *testing.T) {
+	for _, corrupt := range []bool{false, true} {
+		t.Run(fmt.Sprintf("corrupt=%t", corrupt), func(t *testing.T) {
+			paths.SetupTestPaths(t)
+			t.Setenv("DD_FIPS_MODE", "true")
+			if corrupt {
+				dir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+				require.NoError(t, os.MkdirAll(dir, 0700))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog-fips-agent-7.83.2-1-x86_64.msi"), nil, 0600))
+			}
+			err := RunHook(HookContext{
+				Context: context.Background(),
+				Package: "datadog-agent",
+				Hook:    "preStopExperiment",
+			})
+			require.ErrorContains(t, err, "invalid rollback MSI")
+		})
+	}
+}
 
 // TestGetenvAgentUserKeepRightsFallback verifies getenv() falls back to the registry-stored
 // DDAGENTUSER_KEEP_RIGHTS value when not provided on the command line.

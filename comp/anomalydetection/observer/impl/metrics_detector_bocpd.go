@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -460,30 +459,28 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 	}
 	deviation := (p.Value - state.baselineMean) / state.baselineStddev
 
-	triggerType := "short-run posterior mass"
-	triggerValue := shortRunMass
+	trigger := observer.BOCPDTriggerShortRunMass
 	triggerThreshold := b.config.CPMassThreshold
 	if cpProb >= b.config.CPThreshold {
-		triggerType = "changepoint probability"
-		triggerValue = cpProb
+		trigger = observer.BOCPDTriggerChangePointProbability
 		triggerThreshold = b.config.CPThreshold
 	}
 
-	displayName := source.String()
 	return &observer.Anomaly{
 		Type:         observer.AnomalyTypeMetric,
 		Source:       source,
 		DetectorName: b.Name(),
-		Title:        "BOCPD changepoint detected: " + displayName,
-		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
-			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
-		Timestamp: p.Timestamp,
+		Timestamp:    p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
-			BaselineMean:   state.baselineMean,
-			BaselineStddev: state.baselineStddev,
-			Threshold:      triggerThreshold,
-			CurrentValue:   p.Value,
-			DeviationSigma: deviation,
+			BaselineMean:         state.baselineMean,
+			BaselineStddev:       state.baselineStddev,
+			Threshold:            triggerThreshold,
+			CurrentValue:         p.Value,
+			DeviationSigma:       deviation,
+			BOCPDTrigger:         trigger,
+			BOCPDChangePointProb: cpProb,
+			BOCPDShortRunMass:    shortRunMass,
+			BOCPDShortRunLength:  b.config.ShortRunLength,
 		},
 	}
 }

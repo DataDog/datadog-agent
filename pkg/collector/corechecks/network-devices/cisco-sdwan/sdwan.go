@@ -7,6 +7,8 @@
 package ciscosdwan
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -27,34 +29,42 @@ const (
 	// CheckName is the name of the check
 	CheckName            = "cisco_sdwan"
 	defaultCheckInterval = 1 * time.Minute
+	// rateLimitBurst paces requests strictly. It is not configurable so the rate limiter
+	// implementation can change without breaking the check configuration.
+	rateLimitBurst = 1
 )
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	VManageEndpoint                 string `yaml:"vmanage_endpoint"`
-	Username                        string `yaml:"username"`
-	Password                        string `yaml:"password"`
-	Namespace                       string `yaml:"namespace"`
-	MaxAttempts                     int    `yaml:"max_attempts"`
-	MaxPages                        int    `yaml:"max_pages"`
-	MaxCount                        int    `yaml:"max_count"`
-	LookbackTimeWindowMinutes       int    `yaml:"lookback_time_window_minutes"`
-	UseHTTP                         bool   `yaml:"use_http"`
-	Insecure                        bool   `yaml:"insecure"`
-	CAFile                          string `yaml:"ca_file"`
-	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval           int    `yaml:"min_collection_interval"`
-	CollectHardwareMetrics          *bool  `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics         *bool  `yaml:"collect_interface_metrics"`
-	CollectTunnelMetrics            *bool  `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics *bool  `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics           *bool  `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics    *bool  `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
+	VManageEndpoint                 string  `yaml:"vmanage_endpoint"`
+	Username                        string  `yaml:"username"`
+	Password                        string  `yaml:"password"`
+	Namespace                       string  `yaml:"namespace"`
+	MaxAttempts                     int     `yaml:"max_attempts"`
+	MaxPages                        int     `yaml:"max_pages"`
+	MaxCount                        int     `yaml:"max_count"`
+	LookbackTimeWindowMinutes       int     `yaml:"lookback_time_window_minutes"`
+	MaxRequestsPerSecond            float64 `yaml:"max_requests_per_second"`
+	UseHTTP                         bool    `yaml:"use_http"`
+	Insecure                        bool    `yaml:"insecure"`
+	CAFile                          string  `yaml:"ca_file"`
+	SendNDMMetadata                 *bool   `yaml:"send_ndm_metadata"`
+	MinCollectionInterval           int     `yaml:"min_collection_interval"`
+	CollectHardwareMetrics          *bool   `yaml:"collect_hardware_metrics"`
+	CollectInterfaceMetrics         *bool   `yaml:"collect_interface_metrics"`
+	CollectTunnelMetrics            *bool   `yaml:"collect_tunnel_metrics"`
+	CollectControlConnectionMetrics *bool   `yaml:"collect_control_connection_metrics"`
+	CollectOMPPeerMetrics           *bool   `yaml:"collect_omp_peer_metrics"`
+	CollectDeviceCountersMetrics    *bool   `yaml:"collect_device_counters_metrics"`
+	CollectBFDSessionStatus         *bool   `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus           *bool   `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics *bool   `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates        *bool   `yaml:"collect_bgp_neighbor_states"`
 }
+
+// newClient creates the Cisco SD-WAN API client.
+// Useful for mocking
+var newClient = client.NewClient
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
 type CiscoSdwanCheck struct {
@@ -62,6 +72,9 @@ type CiscoSdwanCheck struct {
 	interval      time.Duration
 	config        checkCfg
 	metricsSender *report.SDWanSender
+	// ctx is cancelled when the check is stopped or unscheduled, to interrupt API requests
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // Run executes the check
@@ -72,20 +85,20 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	// Create Cisco SD-WAN API client
-	client, err := client.NewClient(c.config.VManageEndpoint, c.config.Username, c.config.Password, c.config.UseHTTP, clientOptions...)
+	client, err := newClient(c.config.VManageEndpoint, c.config.Username, c.config.Password, c.config.UseHTTP, clientOptions...)
 	if err != nil {
 		return err
 	}
 
-	devices, err := client.GetDevices()
+	devices, err := client.GetDevices(c.ctx)
 	if err != nil {
 		log.Warnf("Error getting devices from Cisco SD-WAN API: %s", err)
 	}
-	vEdgeInterfaces, err := client.GetVEdgeInterfaces()
+	vEdgeInterfaces, err := client.GetVEdgeInterfaces(c.ctx)
 	if err != nil {
 		log.Warnf("Error getting vEdge interfaces from Cisco SD-WAN API: %s", err)
 	}
-	cEdgeInterfaces, err := client.GetCEdgeInterfaces()
+	cEdgeInterfaces, err := client.GetCEdgeInterfaces(c.ctx)
 	if err != nil {
 		log.Warnf("Error getting cEdge interfaces from Cisco SD-WAN API: %s", err)
 	}
@@ -99,7 +112,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	c.metricsSender.SetDeviceTags(deviceTags)
 
 	if *c.config.CollectHardwareMetrics {
-		deviceStats, err := client.GetDeviceHardwareMetrics()
+		deviceStats, err := client.GetDeviceHardwareMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting device metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -113,7 +126,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectInterfaceMetrics {
-		interfaceStats, err := client.GetInterfacesMetrics()
+		interfaceStats, err := client.GetInterfacesMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting interface metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -121,7 +134,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectTunnelMetrics {
-		appRouteStats, err := client.GetApplicationAwareRoutingMetrics()
+		appRouteStats, err := client.GetApplicationAwareRoutingMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting application-aware routing metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -129,7 +142,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectControlConnectionMetrics {
-		controlConnectionsState, err := client.GetControlConnectionsState()
+		controlConnectionsState, err := client.GetControlConnectionsState(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting control-connection states from Cisco SD-WAN API: %s", err)
 		}
@@ -137,7 +150,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectOMPPeerMetrics {
-		ompPeersState, err := client.GetOMPPeersState()
+		ompPeersState, err := client.GetOMPPeersState(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting OMP peer states from Cisco SD-WAN API: %s", err)
 		}
@@ -145,7 +158,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectDeviceCountersMetrics {
-		deviceCounters, err := client.GetDevicesCounters()
+		deviceCounters, err := client.GetDevicesCounters(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
 		}
@@ -154,7 +167,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectBFDSessionStatus {
-		bfdSessionsState, err := client.GetBFDSessionsState()
+		bfdSessionsState, err := client.GetBFDSessionsState(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
 		}
@@ -163,7 +176,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectHardwareStatus {
-		hardwareStates, err := client.GetHardwareStates()
+		hardwareStates, err := client.GetHardwareStates(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting hardware states from Cisco SD-WAN API: %s", err)
 		}
@@ -172,7 +185,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectCloudApplicationsMetrics {
-		cloudApplications, err := client.GetCloudExpressMetrics()
+		cloudApplications, err := client.GetCloudExpressMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting cloud application metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -181,7 +194,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectBGPNeighborStates {
-		bgpNeighbors, err := client.GetBGPNeighbors()
+		bgpNeighbors, err := client.GetBGPNeighbors(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting BGP neighbors from Cisco SD-WAN API: %s", err)
 		}
@@ -249,6 +262,13 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		c.interval = time.Second * time.Duration(c.config.MinCollectionInterval)
 	}
 
+	if c.config.MaxRequestsPerSecond < 0 {
+		return fmt.Errorf("max_requests_per_second must be positive, got %v", c.config.MaxRequestsPerSecond)
+	}
+	if c.config.MaxRequestsPerSecond > 0 && c.config.MaxRequestsPerSecond*c.interval.Seconds() < 1 {
+		return fmt.Errorf("max_requests_per_second must allow at least one request per check interval (%s), got %v", c.interval, c.config.MaxRequestsPerSecond)
+	}
+
 	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
 
 	return nil
@@ -270,6 +290,9 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		clientOptions = append(clientOptions, client.WithMaxAttempts(c.config.MaxAttempts))
 	}
 
+	// Retrying a request must not outlast a check run
+	clientOptions = append(clientOptions, client.WithMaxRetryDuration(c.interval))
+
 	if c.config.MaxPages > 0 {
 		clientOptions = append(clientOptions, client.WithMaxPages(c.config.MaxPages))
 	}
@@ -282,12 +305,27 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(c.config.LookbackTimeWindowMinutes)))
 	}
 
+	if c.config.MaxRequestsPerSecond > 0 {
+		// A rate limiter wait must not outlast a check run
+		clientOptions = append(clientOptions, client.WithRateLimit(c.config.MaxRequestsPerSecond, rateLimitBurst, c.interval))
+	}
+
 	return clientOptions, nil
 }
 
 // Interval returns the scheduling time for the check
 func (c *CiscoSdwanCheck) Interval() time.Duration {
 	return c.interval
+}
+
+// Stop interrupts the API requests of a running check
+func (c *CiscoSdwanCheck) Stop() {
+	c.cancel()
+}
+
+// Cancel interrupts the API requests of a running check when it is unscheduled
+func (c *CiscoSdwanCheck) Cancel() {
+	c.cancel()
 }
 
 // IsHASupported returns true if the check supports HA
@@ -305,8 +343,11 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &CiscoSdwanCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		interval:  defaultCheckInterval,
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }

@@ -105,6 +105,12 @@ const (
 	KubeAppPartOf = "kube_app_part_of"
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
+	// DynamoGraphDeployment is the name of the DynamoGraphDeployment that owns a Kubernetes pod
+	DynamoGraphDeployment = "dynamo_graph_deployment"
+	// InferenceWorkload is the name of the inference workload that owns a Kubernetes pod
+	InferenceWorkload = "inference_workload"
+	// InferenceWorkloadComponent is the role of a pod in an inference workload
+	InferenceWorkloadComponent = "inference_workload_component"
 	// KueueLocalQueue is the tag for the admitted Kueue local queue name from pod labels
 	KueueLocalQueue = "kueue_local_queue"
 	// KueueClusterQueue is the tag for the admitted Kueue cluster queue name from pod labels
@@ -151,6 +157,12 @@ const (
 	GPUType = "gpu_type"
 	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
 	GPUSlicingMode = "gpu_slicing_mode"
+	// GPUSharingMode is the tag for the mechanism through which the GPU is
+	// shared between workloads (none, kai_fraction)
+	GPUSharingMode = "gpu_sharing_mode"
+	// GPUMIGProfile is the tag for the MIG profile of the GPU (e.g. 1g.35gb, 1g.24gb_me).
+	// Only set on MIG devices.
+	GPUMIGProfile = "gpu_mig_profile"
 	// GPUParentGPUUUID is the tag for the parent GPU UUID
 	GPUParentGPUUUID = "gpu_parent_uuid"
 	// GPUPCIBusID is the tag for the PCI bus ID of the GPU
@@ -159,6 +171,20 @@ const (
 	GPUFabricClusterUUID = "gpu_fabric_cluster_uuid"
 	// GPUFabricCliqueID is the tag for the NVLink fabric clique ID of the GPU
 	GPUFabricCliqueID = "gpu_fabric_clique_id"
+	// GPUChassisSerial is the tag for the serial number of the chassis (rack) containing the GPU
+	GPUChassisSerial = "gpu_chassis_serial"
+	// GPUSlotNumber is the tag for the chassis slot containing the GPU
+	GPUSlotNumber = "gpu_slot_number"
+	// GPUTrayIndex is the tag for the compute tray containing the GPU
+	GPUTrayIndex = "gpu_tray_index"
+	// GPUModuleID is the tag for the module ID of the GPU within its node
+	GPUModuleID = "gpu_module_id"
+	// GPUBoardSerial is the tag for the board serial number of the GPU
+	GPUBoardSerial = "gpu_board_serial"
+	// GPUNUMANode is the tag for the NUMA node closest to the GPU
+	GPUNUMANode = "gpu_numa_node"
+	// GPUFabricGUID is the tag for the NVLink fabric GUID of the GPU
+	GPUFabricGUID = "gpu_fabric_guid"
 	// GPUNVLinkVersion is the tag for the GPU's NVLink version.
 	GPUNVLinkVersion = "gpu_nvlink_version"
 	// GPUNVLinkCapable is the tag indicating whether the GPU has one or more NVLink links.

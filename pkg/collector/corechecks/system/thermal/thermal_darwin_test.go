@@ -54,11 +54,11 @@ func TestRunSubmitsAllMetricsWhenEverySensorAvailable(t *testing.T) {
 	check, mockSender := newTestCheck(t)
 	require.NoError(t, check.Run())
 
-	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.cpu", 61.5, "", []string{"macos", "smc", "cpu"})
-	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.gpu", 48.25, "", []string{"macos", "smc", "gpu"})
-	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.ssd", 39.0, "", []string{"macos", "smc", "ssd"})
-	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.battery", 31.75, "", []string{"macos", "smc", "battery"})
-	mockSender.AssertMetric(t, "Gauge", "system.thermal.pressure_level", 2.0, "", []string{"macos", "pressure_level:heavy"})
+	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.cpu", 61.5, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.gpu", 48.25, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.ssd", 39.0, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.battery", 31.75, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "system.thermal.pressure_level", 2.0, "", []string{"pressure_level:heavy"})
 
 	mockSender.AssertNumberOfCalls(t, "Gauge", 5)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
@@ -86,7 +86,7 @@ func TestRunSkipsOnlyUnavailableSensors(t *testing.T) {
 	check, mockSender := newTestCheck(t)
 	require.NoError(t, check.Run())
 
-	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.cpu", 55.0, "", []string{"macos", "smc", "cpu"})
+	mockSender.AssertMetric(t, "Gauge", "system.thermal.temperature.cpu", 55.0, "", nil)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
@@ -99,7 +99,7 @@ func TestRunSubmitsPressureLevelWithoutTemperatures(t *testing.T) {
 	check, mockSender := newTestCheck(t)
 	require.NoError(t, check.Run())
 
-	mockSender.AssertMetric(t, "Gauge", "system.thermal.pressure_level", 0.0, "", []string{"macos", "pressure_level:nominal"})
+	mockSender.AssertMetric(t, "Gauge", "system.thermal.pressure_level", 0.0, "", []string{"pressure_level:nominal"})
 	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
 }
 

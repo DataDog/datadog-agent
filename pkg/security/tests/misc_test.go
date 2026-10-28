@@ -42,7 +42,7 @@ func TestOsOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Create("test-origin")
@@ -67,7 +67,7 @@ func TestHostname(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Create("test-hostname")

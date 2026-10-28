@@ -6,6 +6,7 @@
 package lsof
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"unsafe"
@@ -21,7 +22,7 @@ const (
 	PROCESS_VM_READ           = 0x0010
 )
 
-func openFiles(pid int) (Files, error) {
+func openFiles(_ context.Context, pid int) (Files, error) {
 	handle, err := windows.OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, false, uint32(pid))
 	if err != nil {
 		return nil, err

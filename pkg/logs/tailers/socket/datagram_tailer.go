@@ -6,8 +6,8 @@
 package socket
 
 import (
+	"errors"
 	"net"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
@@ -195,5 +195,5 @@ func extractIP(addr net.Addr) string {
 
 // isClosedConn returns true if the error is related to a closed connection.
 func isClosedConn(err error) bool {
-	return strings.Contains(err.Error(), "use of closed network connection")
+	return errors.Is(err, net.ErrClosed)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -40,7 +41,7 @@ const (
 // Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
 // configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
 // signing identity dequeued tasks need to pass verification.
-// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, coreSplitEnabled, systemServiceOperatorPolicy
+// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -55,6 +56,9 @@ datadog:
 agents:
   useHostNetwork: true
   containers:
+    agent:
+      envDict:
+        DD_PRIVATE_ACTION_RUNNER_URN: "urn:dd:apps:on-prem-runner:us1:42:core-only-runner"
     privateActionRunner:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
@@ -88,7 +92,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 			}
 
 			// 2. Provision EC2 VM
-			host, err := ec2.NewVM(awsEnv, name)
+			host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.UbuntuKindDefault))
 			if err != nil {
 				return fmt.Errorf("ec2.NewVM: %w", err)
 			}

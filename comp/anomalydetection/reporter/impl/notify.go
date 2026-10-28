@@ -21,6 +21,7 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -159,12 +160,16 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		if meta == nil {
 			continue
 		}
-		context := storage.GetContext(contributor.Handle.Ref)
+		contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+		var context *observerdef.MetricContext
+		if hasContext {
+			context = &contextValue
+		}
 		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
 		compactDisplay := fullDisplay
-		if len(meta.Tags) > 0 {
+		if meta.Tags.Len() > 0 {
 			compactMeta := *meta
-			compactMeta.Tags = nil
+			compactMeta.Tags = tagset.CompositeTags{}
 			compactDisplay = scorerContributorDisplayName(&compactMeta, context, contributor.Handle.Aggregate)
 			if logDerivedContributorName(meta.Namespace, context) != "" {
 				compactDisplay += " — {...}"
@@ -195,11 +200,22 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 // pattern when no example is available. Other metrics retain their series name.
 func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
 	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
-		tags := scorerContributorTags(meta)
-		if len(tags) == 0 {
+		if meta.Tags.Len() == 0 && meta.Host == "" {
 			return name
 		}
-		return name + " — {" + strings.Join(tags, ",") + "}"
+		var b strings.Builder
+		b.WriteString(name)
+		b.WriteString(" — {")
+		if meta.Host != "" && !meta.Tags.Find(func(tag string) bool { return tag == "host:"+meta.Host }) {
+			b.WriteString("host:")
+			b.WriteString(meta.Host)
+			if meta.Tags.Len() > 0 {
+				b.WriteByte(',')
+			}
+		}
+		b.WriteString(meta.Tags.Join(","))
+		b.WriteByte('}')
+		return b.String()
 	}
 	return observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
@@ -208,21 +224,6 @@ func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observe
 		Tags:      meta.Tags,
 		Aggregate: aggregate,
 	}.DisplayName()
-}
-
-func scorerContributorTags(meta *observerdef.SeriesMeta) []string {
-	if meta.Host == "" {
-		return meta.Tags
-	}
-	hostTag := "host:" + meta.Host
-	for _, tag := range meta.Tags {
-		if tag == hostTag {
-			return meta.Tags
-		}
-	}
-	tags := make([]string, 0, len(meta.Tags)+1)
-	tags = append(tags, hostTag)
-	return append(tags, meta.Tags...)
 }
 
 // logDerivedContributorName returns the human-readable name for a log-derived
@@ -295,7 +296,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	}
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
-	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+	return s.forwarder.SendEventPlatformEvent(epMsg, eventplatform.EventTypeEventManagement)
 }
 
 // sendEpisodeEvent sends a v2 change event for a scorer EpisodeStarted or EpisodeEnded
@@ -376,7 +377,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	}
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
-	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+	return s.forwarder.SendEventPlatformEvent(epMsg, eventplatform.EventTypeEventManagement)
 }
 
 func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observerdef.StorageReader, direction string) string {
@@ -435,14 +436,14 @@ func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 			hasMetric = true
 		}
 		// Propagate dimensional tags from the source series.
-		for _, t := range a.Source.Tags {
+		a.Source.Tags.ForEach(func(t string) {
 			for _, prefix := range []string{"service:", "env:", "host:"} {
 				if strings.HasPrefix(t, prefix) {
 					dimensionSet[t] = struct{}{}
 					break
 				}
 			}
-		}
+		})
 		if a.Source.Host != "" {
 			dimensionSet["host:"+a.Source.Host] = struct{}{}
 		}
@@ -500,18 +501,18 @@ func buildChangeAttributes(c observerdef.ActiveCorrelation) map[string]any {
 func extractImpactedServices(c observerdef.ActiveCorrelation) []map[string]any {
 	seen := make(map[string]bool)
 	for _, m := range c.Members {
-		for _, tag := range m.Tags {
+		m.Tags.ForEach(func(tag string) {
 			if strings.HasPrefix(tag, "service:") {
 				seen[strings.TrimPrefix(tag, "service:")] = true
 			}
-		}
+		})
 	}
 	for _, a := range c.Anomalies {
-		for _, tag := range a.Source.Tags {
+		a.Source.Tags.ForEach(func(tag string) {
 			if strings.HasPrefix(tag, "service:") {
 				seen[strings.TrimPrefix(tag, "service:")] = true
 			}
-		}
+		})
 	}
 	names := make([]string, 0, len(seen))
 	for svc := range seen {
@@ -572,14 +573,15 @@ func buildNewValue(c observerdef.ActiveCorrelation) map[string]any {
 func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]any {
 	var metricAnomalies, logAnomalies []any
 	for _, a := range c.Anomalies {
+		title, description := observerdef.FormatAnomaly(a)
 		entry := map[string]any{
 			"source":    a.Source.DisplayName(),
 			"detector":  a.DetectorName,
-			"title":     a.Title,
+			"title":     title,
 			"timestamp": a.Timestamp,
 		}
-		if a.Description != "" {
-			entry["description"] = a.Description
+		if description != "" {
+			entry["description"] = description
 		}
 		if a.Score != nil {
 			entry["score"] = *a.Score
@@ -656,10 +658,13 @@ func BuildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.Sto
 		} else if a.DebugInfo != nil {
 			display := anomalyDisplayKey(a)
 			anomalyLines = append(anomalyLines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
-		} else if a.Description != "" {
-			anomalyLines = append(anomalyLines, "- "+a.Description)
 		} else {
-			anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
+			_, description := observerdef.FormatAnomaly(a)
+			if description != "" {
+				anomalyLines = append(anomalyLines, "- "+description)
+			} else {
+				anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
+			}
 		}
 	}
 

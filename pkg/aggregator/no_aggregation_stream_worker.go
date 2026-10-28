@@ -212,11 +212,12 @@ func (w *noAggregationStreamWorker) run() {
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 							tags := tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							if w.observerHandle != nil {
+								// The observer derives the key from these resolved tags.
 								w.observerHandle.ObserveMetric(resolvedMetricView{
 									sample: &sample,
 									host:   sample.Host,
 									tags:   tags,
-								})
+								}, 0)
 							}
 
 							// if the value is a rate, we have to account for the 10s interval

@@ -8,7 +8,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_chmod(void *ctx, const char *path, umode_t mode) {
+static __always_inline int trace__sys_chmod(void *ctx, const char *path, umode_t mode) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHMOD)) {
         return 0;
     }
@@ -42,26 +42,28 @@ HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char *, filename, umode_t, mode
     return trace__sys_chmod(ctx, filename, mode);
 }
 
-int __attribute__((always_inline)) sys_chmod_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
+static __always_inline int sys_chmod_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CHMOD);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
 
     struct chmod_event_t *event = SPAN_FILL_EVENT(struct chmod_event_t, EVENT_CHMOD);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
     event->file = syscall->setattr.file;
     event->mode = syscall->setattr.mode;
+
+    pop_syscall(EVENT_CHMOD);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
@@ -70,10 +72,12 @@ int __attribute__((always_inline)) sys_chmod_ret_impl(void *ctx, int retval, enu
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_CHMOD);
     return 0;
 }
 
-int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
+static __always_inline int sys_chmod_ret(void *ctx, int retval) {
     return sys_chmod_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

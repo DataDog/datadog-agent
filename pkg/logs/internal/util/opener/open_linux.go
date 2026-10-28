@@ -17,6 +17,12 @@ func OpenLogFile(path string) (*os.File, error) {
 	return privilegedlogsclient.Open(path)
 }
 
+// OpenLogFileNoFollow opens a file with the privileged logs client without
+// following symbolic links in any path component.
+func OpenLogFileNoFollow(path string) (*os.File, error) {
+	return privilegedlogsclient.OpenNoFollow(path)
+}
+
 // StatLogFile stats a log file with the privileged logs client
 func StatLogFile(path string) (os.FileInfo, error) {
 	return privilegedlogsclient.Stat(path)

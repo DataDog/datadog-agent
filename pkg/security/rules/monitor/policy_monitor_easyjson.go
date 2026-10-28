@@ -1097,7 +1097,7 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 				in.Delim('[')
 				if out.Actions == nil {
 					if !in.IsDelim(']') {
-						out.Actions = make([]RuleAction, 0, 1)
+						out.Actions = make([]RuleAction, 0, 0)
 					} else {
 						out.Actions = []RuleAction{}
 					}
@@ -1725,6 +1725,18 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor5(
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		switch key {
+		case "status":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Status = ActionStatus(in.String())
+			}
+		case "message":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Message = string(in.String())
+			}
 		case "filter":
 			if in.IsNull() {
 				in.Skip()
@@ -1837,70 +1849,49 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor5(
 	out.RawByte('{')
 	first := true
 	_ = first
+	{
+		const prefix string = ",\"status\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Status))
+	}
+	if in.Message != "" {
+		const prefix string = ",\"message\":"
+		out.RawString(prefix)
+		out.String(string(in.Message))
+	}
 	if in.Filter != nil {
 		const prefix string = ",\"filter\":"
-		first = false
-		out.RawString(prefix[1:])
+		out.RawString(prefix)
 		out.String(string(*in.Filter))
 	}
 	if in.Set != nil {
 		const prefix string = ",\"set\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.Set).MarshalEasyJSON(out)
 	}
 	if in.Kill != nil {
 		const prefix string = ",\"kill\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.Kill).MarshalEasyJSON(out)
 	}
 	if in.Hash != nil {
 		const prefix string = ",\"hash\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.Hash).MarshalEasyJSON(out)
 	}
 	if in.CoreDump != nil {
 		const prefix string = ",\"coredump\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.CoreDump).MarshalEasyJSON(out)
 	}
 	if in.Log != nil {
 		const prefix string = ",\"log\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.Log).MarshalEasyJSON(out)
 	}
 	if in.NetworkFilter != nil {
 		const prefix string = ",\"network_filter\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.NetworkFilter).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')

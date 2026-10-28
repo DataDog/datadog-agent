@@ -7,6 +7,8 @@ package cspm
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,9 +38,6 @@ func testContainerizedHostBenchmarks(t *testing.T, d distro) {
 		vmOS = *d.containerOS
 	}
 	vmOpts := []ec2.VMOption{ec2.WithOS(vmOS)}
-	if d.latestAMI {
-		vmOpts = append(vmOpts, ec2.WithLatestAMI())
-	}
 	e2e.Run(t, &containerBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-container-"+d.name),
 		e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(
@@ -86,6 +85,36 @@ func (s *containerBenchmarksSuite) check(args string) []event {
 	return parseEvents(s.T(), s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd))
 }
 
+// fipsCheck runs compliance check with libgcrypt forced into FIPS mode and a
+// memory lock limit of zero, as on a FIPS host in system-probe, whose seccomp
+// profile denies mlock.
+func (s *containerBenchmarksSuite) fipsCheck(args string) []event {
+	cmd := fmt.Sprintf("ulimit -l 0 && LIBGCRYPT_FORCE_FIPS_MODE=1 %s compliance check %s 2>/dev/null", securityAgent, args)
+	return parseEvents(s.T(), s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd))
+}
+
+// oscapTempDirs counts the entries of /tmp in the agent container named after
+// OpenSCAP, which an oscap-io process that dies leaves behind.
+func (s *containerBenchmarksSuite) oscapTempDirs() int {
+	out := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", "ls -A /tmp | grep -c '^oscap' || true")
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	require.NoErrorf(s.T(), err, "counting the oscap entries of /tmp: %q", out)
+	return n
+}
+
+// TestFIPSWithoutLockedMemory checks that the probe rules give the results of a
+// normal run in libgcrypt's FIPS mode with no memory to lock, and that those
+// runs leave nothing in /tmp.
+func (s *containerBenchmarksSuite) TestFIPSWithoutLockedMemory() {
+	before := s.oscapTempDirs()
+	for _, p := range probesFor(s.distro, false) {
+		want := checkRule(s.T(), s.distro, s.check, p.rule).Result
+		got := checkRule(s.T(), s.distro, s.fipsCheck, p.rule).Result
+		assert.Equalf(s.T(), want, got, "%s in FIPS mode without locked memory", p.rule)
+	}
+	assert.Equal(s.T(), before, s.oscapTempDirs(), "oscap entries in /tmp")
+}
+
 // TestBundledContent checks the agent image ships this distro's benchmark content.
 func (s *containerBenchmarksSuite) TestBundledContent() {
 	listing := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", "ls /etc/datadog-agent/compliance.d/")
@@ -114,8 +143,11 @@ func (s *containerBenchmarksSuite) TestDeterminism() {
 // fakeintake provisioner redirects compliance_config.endpoints, and findings ride the logs
 // pipeline, so a --report run lands them in fakeintake.
 func (s *containerBenchmarksSuite) TestReporting() {
-	cmd := securityAgent + " compliance check --report 2>/dev/null"
-	s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd)
+	// Bound reporting when fakeintake is unreachable and preserve stderr for diagnosis.
+	output, err := s.Env().Docker.Client.ExecuteCommandWithErr(s.Env().Agent.ContainerName,
+		"timeout", "--kill-after=10s", "2m", securityAgent, "compliance", "check", "--report")
+	require.NoErrorf(s.T(), err,
+		"compliance reporting failed (2m deadline, forced kill after another 10s); check container-to-fakeintake connectivity; output: %s", output)
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		findings, err := s.Env().FakeIntake.Client().GetComplianceFindings()
 		require.NoError(c, err)

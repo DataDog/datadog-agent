@@ -170,9 +170,7 @@ func (d *emitOnSeriesDetector) Detect(series observerdef.Series) observerdef.Det
 	}
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{{
-			Title:       "detected",
-			Description: "detected from series",
-			Timestamp:   series.Points[len(series.Points)-1].Timestamp,
+			Timestamp: series.Points[len(series.Points)-1].Timestamp,
 		}},
 	}
 }
@@ -198,8 +196,8 @@ func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 
 func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
-		{Source: observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
-		{Source: observerdef.SeriesDescriptor{Name: "mem", Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
+		{Source: observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage}, SourceRef: &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
+		{Source: observerdef.SeriesDescriptor{Name: "mem", Aggregate: observerdef.AggregateAverage}, SourceRef: &observerdef.QueryHandle{Ref: 2, Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
 	}
 
 	e := newEngine(engineConfig{
@@ -220,27 +218,27 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
 }
 
-func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T) {
+func TestAdvanceEnrichesAnomalyContextWithoutOverwritingEvidence(t *testing.T) {
 	ctx := &observerdef.MetricContext{
 		Pattern: "error <*> timeout",
-		Example: "very long example line that should still be attached as context without replacing the detector description",
+		Example: "very long example line that should still be attached as context",
 		Source:  "log_metrics_extractor",
 	}
 	storage := newTimeSeriesStorage()
 	// Add a series and store context on it via SetContext.
 	addRes := storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
-	storage.SetContext(addRes.Ref, ctx)
+	storage.SetContext(addRes.Ref, *ctx)
 
 	anomalies := []observerdef.Anomaly{{
 		Source: observerdef.SeriesDescriptor{
 			Namespace: "log_metrics_extractor",
 			Name:      "log.pattern.abc.count",
-			Tags:      []string{"observer_source:source-a", "service:api"},
+			Tags:      testCompositeTags([]string{"observer_source:source-a", "service:api"}),
 			Aggregate: observerdef.AggregateCount,
 		},
 		SourceRef:    &observerdef.QueryHandle{Ref: addRes.Ref, Aggregate: observerdef.AggregateCount},
 		DetectorName: "test",
-		Description:  "detector-authored description",
+		DebugInfo:    &observerdef.AnomalyDebugInfo{CurrentValue: 7},
 		Timestamp:    99,
 	}}
 	e := newEngine(engineConfig{
@@ -257,10 +255,15 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 	anomalyEvents := sink.eventsOfKind(eventAnomalyCreated)
 	require.Len(t, anomalyEvents, 1)
 	got := anomalyEvents[0].anomalyCreated.anomaly
-	assert.Equal(t, "detector-authored description", got.Description)
+	require.NotNil(t, got.DebugInfo)
+	assert.Equal(t, float64(7), got.DebugInfo.CurrentValue)
 	require.NotNil(t, got.Context)
 	assert.Equal(t, "error <*> timeout", got.Context.Pattern)
 	assert.Equal(t, "log_metrics_extractor", got.Context.Source)
+	assert.Contains(t, got.Context.Example, "very long example line")
+
+	storage.SetContext(addRes.Ref, observerdef.MetricContext{Pattern: "later", Example: "later log"})
+	assert.Equal(t, "error <*> timeout", got.Context.Pattern, "an emitted anomaly must keep its context snapshot")
 	assert.Contains(t, got.Context.Example, "very long example line")
 }
 
@@ -270,10 +273,10 @@ func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	addRes := storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
 	// Store context directly on the series.
-	storage.SetContext(addRes.Ref, &observerdef.MetricContext{Pattern: "p2", Example: "e2", Source: "second"})
+	storage.SetContext(addRes.Ref, observerdef.MetricContext{Pattern: "p2", Example: "e2", Source: "second"})
 
 	anomaly := observerdef.Anomaly{
-		Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
+		Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: testCompositeTags([]string{"service:api"})},
 		SourceRef: &observerdef.QueryHandle{Ref: addRes.Ref, Aggregate: observerdef.AggregateAverage},
 		Timestamp: 1,
 	}
@@ -321,7 +324,7 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 
 	var anomaly observerdef.Anomaly
 	for _, meta := range e.storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
-		if len(meta.Tags) == 2 && containsTag(meta.Tags, "observer_source:source-a") && containsTag(meta.Tags, "service:api") {
+		if meta.Tags.Len() == 2 && meta.Tags.Find(func(tag string) bool { return tag == "observer_source:source-a" }) && meta.Tags.Find(func(tag string) bool { return tag == "service:api" }) {
 			anomaly = observerdef.Anomaly{
 				Source: observerdef.SeriesDescriptor{
 					Namespace: extractor.Name(),
@@ -366,8 +369,8 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	assert.Equal(t, "log_metrics_extractor", anomaly.Source.Namespace)
 	assert.Equal(t, observerdef.AggregateCount, anomaly.Source.Aggregate)
 	assert.Contains(t, anomaly.Source.Name, "log.pattern.")
-	assert.Contains(t, anomaly.Source.Tags, "observer_source:source-a")
-	assert.Contains(t, anomaly.Source.Tags, "service:api")
+	assert.True(t, anomaly.Source.Tags.Find(func(tag string) bool { return tag == "observer_source:source-a" }))
+	assert.True(t, anomaly.Source.Tags.Find(func(tag string) bool { return tag == "service:api" }))
 	require.NotNil(t, anomaly.SourceRef)
 	assert.Equal(t, observerdef.AggregateCount, anomaly.SourceRef.Aggregate)
 
@@ -375,15 +378,6 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
 	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
 	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
-}
-
-func containsTag(tags []string, want string) bool {
-	for _, tag := range tags {
-		if tag == want {
-			return true
-		}
-	}
-	return false
 }
 
 func TestNewEnginePanicsOnDuplicateExtractorNames(t *testing.T) {
@@ -618,74 +612,104 @@ func (r *countingReporter) Report(_ reporterdef.ReportOutput) bool {
 	return true
 }
 
-func TestAnomalyDedupKeyIncludesTitle(t *testing.T) {
-	anomalies := []observerdef.Anomaly{
-		{
-			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
-			DetectorName: "test_detector",
-			Title:        "Spike detected",
-			Description:  "CPU spike",
-			Timestamp:    100,
-		},
-		{
-			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
-			DetectorName: "test_detector",
-			Title:        "Trend change detected",
-			Description:  "CPU trend shift",
-			Timestamp:    100,
-		},
+func TestAdvanceRejectsAnomaliesWithoutSourceRef(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1, 100, nil).Ref
+	valid := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: observerdef.AggregateAverage},
+		SourceRef:    &observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
+		DetectorName: "test",
+		Timestamp:    100,
 	}
-
+	invalid := valid
+	invalid.SourceRef = nil
+	invalid.Source.Name = "not.stored"
+	correlator := &recordingCorrelator{}
 	e := newEngine(engineConfig{
-		storage:             newTimeSeriesStorage(),
+		storage:             storage,
+		detectors:           []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{invalid, valid}}},
+		correlators:         []observerdef.Correlator{correlator},
 		trackAnomalyHistory: true,
-		detectors: []observerdef.Detector{
-			&anomalyDetector{name: "test_detector", anomalies: anomalies},
-		},
+		baseline:            BaselineConfig{Enabled: true, DurationSec: 10},
 	})
+	sink := &collectingSink{}
+	e.Subscribe(sink)
 
 	e.Advance(100)
+	assert.Equal(t, 1, e.baseline.detectors["test"].windowAnomalyCount)
+	assert.Len(t, e.baseline.detectors["test"].pendingHashes, 1)
+	e.Advance(110)
 
-	sv := e.StateView()
-	raw := sv.Anomalies()
-	assert.Len(t, raw, 2,
-		"two anomalies with same Source+detector+timestamp but different titles should both survive dedup")
+	assert.Equal(t, []observerdef.Anomaly{valid}, e.RawAnomalies())
+	assert.Equal(t, []observerdef.Anomaly{valid}, correlator.received)
+	assert.Len(t, sink.eventsOfKind(eventAnomalyCreated), 1)
 }
 
-func TestLogAnomaliesWithDifferentTitlesDoNotCollide(t *testing.T) {
-	anomalies := []observerdef.Anomaly{
-		{
-			Type:         observerdef.AnomalyTypeLog,
-			Source:       observerdef.SeriesDescriptor{Name: "logs"},
-			DetectorName: "log_detector",
-			Title:        "Error pattern A detected",
-			Description:  "Pattern A",
-			Timestamp:    100,
-		},
-		{
-			Type:         observerdef.AnomalyTypeLog,
-			Source:       observerdef.SeriesDescriptor{Name: "logs"},
-			DetectorName: "log_detector",
-			Title:        "Error pattern B detected",
-			Description:  "Pattern B",
-			Timestamp:    100,
-		},
+func TestAnomalyDedupUsesSeriesRefAndAggregate(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	first := storage.AddWithKeyAndHost("ns", "cpu", "host-a", 1, 100, nil, testStorageKeyForIdentity("ns", "cpu", "host-a", nil)).Ref
+	second := storage.AddWithKeyAndHost("ns", "cpu", "host-b", 1, 100, nil, testStorageKeyForIdentity("ns", "cpu", "host-b", nil)).Ref
+	e := newEngine(engineConfig{storage: storage})
+	anomaly := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu"},
+		SourceRef:    &observerdef.QueryHandle{Ref: first, Aggregate: observerdef.AggregateAverage},
+		DetectorName: "test",
+		Timestamp:    100,
 	}
+	require.True(t, e.acceptAnomaly(anomaly))
+	assert.False(t, e.acceptAnomaly(anomaly))
 
+	// Display fields do not change the identity of an existing storage handle.
+	anomaly.Source.Name = "display alias"
+	assert.False(t, e.acceptAnomaly(anomaly))
+	anomaly.SourceRef = &observerdef.QueryHandle{Ref: first, Aggregate: observerdef.AggregateSum}
+	assert.True(t, e.acceptAnomaly(anomaly), "aggregates of one series must not collide")
+	anomaly.SourceRef = &observerdef.QueryHandle{Ref: second, Aggregate: observerdef.AggregateAverage}
+	assert.True(t, e.acceptAnomaly(anomaly), "different series must not collide")
+
+	e.removeAnomalyDedupSourceRefs([]observerdef.SeriesRef{first})
+	assert.Equal(t, 1, e.anomalyDeduper.live.Len(), "eviction must remove every aggregate of a series, including ref zero")
+	assert.False(t, e.acceptAnomaly(anomaly), "evicting another series must retain this series' dedup state")
+}
+
+func TestAnomalyDedupKeyDistinguishesDetectors(t *testing.T) {
+	anomalies := []observerdef.Anomaly{
+		{Source: observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage}, SourceRef: &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage}, DetectorName: "scanmw", Timestamp: 100},
+		{Source: observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage}, SourceRef: &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage}, DetectorName: "scanwelch", Timestamp: 100},
+	}
 	e := newEngine(engineConfig{
-		storage:             newTimeSeriesStorage(),
-		trackAnomalyHistory: true,
-		detectors: []observerdef.Detector{
-			&anomalyDetector{name: "log_detector", anomalies: anomalies},
-		},
+		storage: newTimeSeriesStorage(), trackAnomalyHistory: true,
+		detectors: []observerdef.Detector{&anomalyDetector{name: "test_detector", anomalies: anomalies}},
 	})
-
 	e.Advance(100)
+	assert.Len(t, e.StateView().Anomalies(), 2, "different detectors on one source and timestamp must survive dedup")
+}
 
-	sv := e.StateView()
-	raw := sv.Anomalies()
-	assert.Len(t, raw, 2,
-		"two log anomalies with same Source but different titles should both survive dedup")
+func TestAnomalyFingerprintUsesSourceAndTime(t *testing.T) {
+	base := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: observerdef.AggregateAverage},
+		DetectorName: "scanmw", Timestamp: 100,
+	}
+	assert.Equal(t, base.Source.Key()+"|100", anomalyFingerprint(base))
+	otherAggregate := base
+	otherAggregate.Source.Aggregate = observerdef.AggregateCount
+	assert.NotEqual(t, anomalyFingerprint(base), anomalyFingerprint(otherAggregate))
+	otherTime := base
+	otherTime.Timestamp++
+	assert.NotEqual(t, anomalyFingerprint(base), anomalyFingerprint(otherTime))
+}
+
+func TestLogDerivedAnomaliesWithDifferentSourcesDoNotCollide(t *testing.T) {
+	anomalies := []observerdef.Anomaly{
+		{Source: observerdef.SeriesDescriptor{Namespace: "log_pattern_extractor", Name: "pattern.a.count", Aggregate: observerdef.AggregateCount}, SourceRef: &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateCount}, DetectorName: "log_detector", Timestamp: 100},
+		{Source: observerdef.SeriesDescriptor{Namespace: "log_pattern_extractor", Name: "pattern.b.count", Aggregate: observerdef.AggregateCount}, SourceRef: &observerdef.QueryHandle{Ref: 2, Aggregate: observerdef.AggregateCount}, DetectorName: "log_detector", Timestamp: 100},
+	}
+	e := newEngine(engineConfig{
+		storage: newTimeSeriesStorage(), trackAnomalyHistory: true,
+		detectors: []observerdef.Detector{&anomalyDetector{name: "log_detector", anomalies: anomalies}},
+	})
+	e.Advance(100)
+	assert.Len(t, e.StateView().Anomalies(), 2, "different log-derived sources must survive dedup")
 }
 
 func TestAnomalyDedupIsConsistentAcrossHistoryAndEvents(t *testing.T) {
@@ -694,14 +718,14 @@ func TestAnomalyDedupIsConsistentAcrossHistoryAndEvents(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
 			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+			SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 			DetectorName: "test_detector",
-			Title:        "Spike",
 			Timestamp:    100,
 		},
 		{
 			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+			SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 			DetectorName: "test_detector",
-			Title:        "Spike",
 			Timestamp:    100,
 		},
 	}
@@ -898,6 +922,4 @@ func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
 	seriesB := storage.GetSeries("shared_tags_extractor", "metric.b", []string{"env:test", "observer_source:source-a"}, AggregateAverage)
 	require.NotNil(t, seriesB)
 
-	assert.Nil(t, storage.GetSeries("shared_tags_extractor", "metric.a", []string{"env:test", "observer_source:source-a", "observer_source:source-a"}, AggregateAverage))
-	assert.Nil(t, storage.GetSeries("shared_tags_extractor", "metric.b", []string{"env:test", "observer_source:source-a", "observer_source:source-a"}, AggregateAverage))
 }

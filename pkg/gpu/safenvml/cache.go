@@ -8,12 +8,10 @@
 package safenvml
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -60,6 +58,7 @@ type deviceCache struct {
 	allMigDevices      []Device
 	uuidToDevice       map[string]Device
 	pciBusIDToDevice   map[string]Device
+	indexToDevice      map[int]Device
 	smVersionSet       map[uint32]struct{}
 	lib                SafeNVML
 	initialized        bool
@@ -127,10 +126,20 @@ func (c *deviceCache) Refresh() error {
 	uuidToDevice := make(map[string]Device)
 	pciBusIDToDevice := make(map[string]Device)
 	smVersionSet := make(map[uint32]struct{})
+	indexToDevice := make(map[int]Device)
 
 	for i := range count {
 		nvmlDev, err := lib.DeviceGetHandleByIndex(i)
-		if err != nil {
+		if IsGPULost(err) {
+			// lost GPUs are included in the previous cache, so grab it from there and rely on
+			// the DeviceInfo caches
+			var ok bool
+			nvmlDev, ok = c.indexToDevice[i]
+			if !ok {
+				log.Warnf("lost GPU at index %d not found in previous cache", i)
+				continue
+			}
+		} else if err != nil {
 			log.Warnf("error getting device by index %d: %s", i, err)
 			continue
 		}
@@ -144,13 +153,9 @@ func (c *deviceCache) Refresh() error {
 		}
 
 		uuidToDevice[dev.UUID] = dev
-		pciInfo, err := dev.GetPciInfo()
-		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("error getting PCI information for device %s: %s", dev.UUID, err)
-			}
-		} else {
-			pciBusIDToDevice[gpuutil.PCIInfoToBusID(pciInfo)] = dev
+		indexToDevice[i] = dev
+		if dev.PCIBusID != "" {
+			pciBusIDToDevice[dev.PCIBusID] = dev
 		}
 		allDevices = append(allDevices, dev)
 		allPhysicalDevices = append(allPhysicalDevices, dev)
@@ -174,12 +179,10 @@ func (c *deviceCache) Refresh() error {
 	// ErrNVMLReleased. Committing that prefix would make the workloadmeta pull
 	// unset the devices that never got built.
 	//
-	// Keyed on the release flag rather than on the device count on purpose:
-	// per-device faults (a bad handle, unreadable PCI info) must keep their
-	// skip-and-cache-the-rest behaviour, which TestDeviceCachePartialFailure
-	// pins. Partial degradation beats failing the whole refresh there.
+	// Only an NVML release aborts the refresh. Other per-device errors skip
+	// the affected device and keep the rest.
 	if nvmlReleased.Load() {
-		return errors.New("NVML was released while refreshing; keeping the previous cache")
+		return fmt.Errorf("NVML was released while refreshing; keeping the previous cache: %w", ErrNVMLReleased)
 	}
 
 	// on success, set the new data in the cache
@@ -188,6 +191,7 @@ func (c *deviceCache) Refresh() error {
 	c.allMigDevices = allMigDevices
 	c.uuidToDevice = uuidToDevice
 	c.pciBusIDToDevice = pciBusIDToDevice
+	c.indexToDevice = indexToDevice
 	c.smVersionSet = smVersionSet
 	c.initialized = true
 	c.lib = lib
@@ -219,11 +223,11 @@ func (c *deviceCache) GetByIndex(index int) (Device, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if index < 0 || index >= len(c.allDevices) {
-		return nil, fmt.Errorf("index %d out of range", index)
+	device, found := c.indexToDevice[index]
+	if !found {
+		return nil, fmt.Errorf("device at index %d not found", index)
 	}
-
-	return c.allDevices[index], nil
+	return device, nil
 }
 
 func (c *deviceCache) GetByPCIBusID(pciBusID string) (Device, error) {
@@ -301,6 +305,7 @@ func (c *deviceCache) Invalidate() {
 	c.allMigDevices = nil
 	c.uuidToDevice = nil
 	c.pciBusIDToDevice = nil
+	c.indexToDevice = nil
 	c.smVersionSet = nil
 	// Drop the captured library too: after a deliberate NVML shutdown the
 	// captured wrapper wraps a nil library, and Refresh must re-acquire the

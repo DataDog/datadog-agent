@@ -7,10 +7,9 @@ package sysprobefunctional
 
 import (
 	"flag"
+	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -67,27 +66,21 @@ func (v *vmSuite) TestSystemProbeNPMSuite() {
 	t.Log("IIS Installed, continuing")
 
 	t.Log("Creating sites")
-	// figure out where we're being executed from.  These paths should be in
-	// native path separators (i.e. not windows paths if executing in ci/on linux)
-
-	_, srcfile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	exPath := filepath.Dir(srcfile)
-
+	assetsDir, err := fs.Sub(embeddedAssets, "assets")
+	require.NoError(t, err)
 	sites := []windows.IISSiteDefinition{
 		{
 			Name:        "TestSite1",
 			BindingPort: "*:8081:",
-			AssetsDir:   path.Join(exPath, "assets"),
+			AssetsDir:   assetsDir,
 		},
 		{
 			Name:        "TestSite2",
 			BindingPort: "*:8082:",
-			AssetsDir:   path.Join(exPath, "assets"),
+			AssetsDir:   assetsDir,
 		},
 	}
 
-	t.Logf("AssetsDir: %s", sites[0].AssetsDir)
 	err = windows.CreateIISSite(vm, sites)
 	require.NoError(t, err)
 	t.Log("Sites created, continuing")

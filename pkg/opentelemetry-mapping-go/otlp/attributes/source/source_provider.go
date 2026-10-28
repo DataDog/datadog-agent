@@ -30,10 +30,23 @@ const (
 	HostnameKind Kind = "host"
 	// AWSECSFargateKind is a serverless source on AWS ECS Fargate.
 	AWSECSFargateKind Kind = "task_arn"
+	// AWSLambdaKind is a serverless source on AWS Lambda.
+	AWSLambdaKind Kind = "aws_lambda"
 	// AzureContainerAppsKind is a serverless source on Azure Container Apps.
 	AzureContainerAppsKind Kind = "azure_container_apps"
 	// AzureAppServiceKind is a serverless source on Azure App Service.
 	AzureAppServiceKind Kind = "azure_app_service"
+	// AzureFunctionsKind is a serverless source on Azure Functions.
+	AzureFunctionsKind Kind = "azure_functions"
+	// GCPCloudRunKind is a serverless source on a Cloud Run service.
+	GCPCloudRunKind Kind = "gcp_cloud_run"
+	// GCPCloudFunctionsKind is a serverless source on Cloud Functions v2 / Cloud Run functions.
+	// Canonical gcp_cloud_functions resources map here without generation detection.
+	GCPCloudFunctionsKind Kind = "gcp_cloud_functions"
+	// GCPCloudRunJobsKind is a serverless source on Cloud Run Jobs.
+	GCPCloudRunJobsKind Kind = "gcp_cloud_run_jobs"
+	// GKEAutopilotKind is a serverless source on GKE Autopilot.
+	GKEAutopilotKind Kind = "gke_autopilot"
 )
 
 // Source represents a telemetry source.

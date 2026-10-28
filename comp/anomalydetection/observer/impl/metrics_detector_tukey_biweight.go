@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -408,27 +407,20 @@ func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *o
 	// (g) Score is |z|, capped at 50 to keep downstream UI / scoring sane.
 	score := math.Min(zAbs, 50)
 
-	direction := "above"
-	if z < 0 {
-		direction = "below"
-	}
-
-	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
 		Type:                observer.AnomalyTypeMetric,
 		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
 		DetectorName:        d.Name(),
-		Title:               "Tukey biweight: " + seriesName,
 		SamplingIntervalSec: medianPointInterval(points),
-		Description: fmt.Sprintf("%s biweight baseline (z=%.2f, mu=%.4f, sigma=%.4f, n=%d)",
-			direction, z, mu, sigma, n),
-		Timestamp: dataTime,
-		Score:     &score,
+		Timestamp:           dataTime,
+		Score:               &score,
 		DebugInfo: &observer.AnomalyDebugInfo{
-			BaselineMedian: mu,
-			BaselineMAD:    sigma,
-			CurrentValue:   latest,
-			DeviationSigma: zAbs,
+			BaselineMedian:           mu,
+			BaselineMAD:              sigma,
+			CurrentValue:             latest,
+			DeviationSigma:           zAbs,
+			TukeyBiweightSampleCount: n,
+			TukeyBiweightZScore:      z,
 		},
 	}
 	return anomaly, true

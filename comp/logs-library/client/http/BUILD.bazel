@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "http",
     srcs = [
+        "blocking_destination.go",
         "destination.go",
         "sync_destination.go",
         "test_utils.go",
@@ -14,7 +15,6 @@ go_library(
     deps = [
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl",
-        "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/logs-library/client",
         "//comp/logs-library/metrics",
@@ -32,6 +32,7 @@ go_library(
 dd_agent_go_test(
     name = "http_test",
     srcs = [
+        "blocking_destination_test.go",
         "destination_test.go",
         "worker_pool_test.go",
     ],
@@ -45,6 +46,7 @@ dd_agent_go_test(
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/logs/message",
         "//pkg/util/fxutil",
         "//pkg/util/log",

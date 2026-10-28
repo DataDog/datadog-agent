@@ -147,6 +147,7 @@ func TestApproximateSize_LegacyShallowSemantics(t *testing.T) {
 		{"imds_only", Stats{IMDSNodes: 2}},
 		{"syscall_only", Stats{SyscallNodes: 4}},
 		{"flow_only", Stats{FlowNodes: 7}},
+		{"connect_only", Stats{ConnectNodes: 3}},
 		{"capability_only", Stats{CapabilityNodes: 6}},
 	}
 	for _, tt := range tests {
@@ -244,7 +245,7 @@ func TestSizeBytes_EvictUnusedNodes_RecomputesToZero(t *testing.T) {
 	populateRichTree(t, tree, tagID)
 	require.Greater(t, tree.Stats.SizeBytes, int64(0))
 
-	tree.EvictUnusedNodes(time.Now().Add(24*time.Hour), nil, "test-image", "v1")
+	tree.EvictUnusedNodes(time.Now().Add(24*time.Hour), nil, "test-image")
 
 	assert.Empty(t, tree.ProcessNodes, "every process node should have been evicted")
 	tree.recomputeSizeBytes()

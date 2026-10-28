@@ -17,7 +17,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -41,7 +40,8 @@ import (
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Submitter interface {
-	Submit(start time.Time, name string, messages *types.Payload)
+	// Submit sends collected data to Datadog without blocking the check on the network.
+	Submit(start time.Time, name string, payload *types.Payload)
 }
 
 var _ Submitter = &CheckSubmitter{}
@@ -78,7 +78,6 @@ type CheckSubmitter struct {
 	agentStartTime int64
 
 	stopHeartbeat chan struct{}
-	clock         clock.Clock
 
 	statsd statsd.ClientInterface
 
@@ -176,7 +175,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		agentStartTime: time.Now().Unix(),
 
 		stopHeartbeat: make(chan struct{}),
-		clock:         clock.New(),
 
 		statsd: statsd,
 
@@ -194,10 +192,10 @@ func printStartMessage(log log.Component, hostname string, processAPIEndpoints [
 	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s", hostname, eps)
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
-func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
+// Submit sends collected data to Datadog without blocking the check on the network.
+func (s *CheckSubmitter) Submit(start time.Time, name string, payload *types.Payload) {
 	results := s.resultsQueue[name]
-	s.messagesToResultsQueue(start, name, messages.Message, results)
+	s.messagesToResultsQueue(start, name, payload.Messages, results)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -213,7 +211,7 @@ func (s *CheckSubmitter) Start() error {
 	}
 
 	if flavor.GetFlavor() == flavor.ProcessAgent {
-		heartbeatTicker := s.clock.Ticker(15 * time.Second)
+		heartbeatTicker := time.NewTicker(15 * time.Second)
 		s.wg.Add(1)
 		go func() {
 			defer heartbeatTicker.Stop()
@@ -226,10 +224,10 @@ func (s *CheckSubmitter) Start() error {
 	go func() {
 		defer s.wg.Done()
 
-		queueSizeTicker := s.clock.Ticker(10 * time.Second)
+		queueSizeTicker := time.NewTicker(10 * time.Second)
 		defer queueSizeTicker.Stop()
 
-		queueLogTicker := s.clock.Ticker(time.Minute)
+		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
 		for {
@@ -427,7 +425,7 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	return slices.Contains(s.dropCheckPayloads, check)
 }
 
-func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
+func (s *CheckSubmitter) heartbeat(heartbeatTicker *time.Ticker) {
 	agentVersion, _ := version.Agent()
 	tags := []string{
 		"version:" + agentVersion.GetNumberAndPre(),

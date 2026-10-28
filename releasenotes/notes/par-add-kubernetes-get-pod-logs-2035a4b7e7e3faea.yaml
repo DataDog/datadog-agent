@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add the ``getPodLogs`` Kubernetes private action.

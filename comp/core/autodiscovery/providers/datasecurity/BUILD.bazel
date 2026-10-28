@@ -26,7 +26,10 @@ go_library(
 
 dd_agent_go_test(
     name = "datasecurity_test",
-    srcs = ["data_security_test.go"],
+    srcs = [
+        "checkconfig_test.go",
+        "data_security_test.go",
+    ],
     embed = [":datasecurity"],
     deps = [
         "//comp/core/autodiscovery/def",

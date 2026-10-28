@@ -88,6 +88,8 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 			ephemeralContainerStatuses = convertContainerStatuses(pod.Status.EphemeralContainers)
 		}
 
+		podContainers = orderPodContainers(pod.Spec.Containers, podContainers)
+
 		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
 
 		podOwners := pod.Owners()
@@ -172,6 +174,32 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 	return events
 }
 
+// orderPodContainers retains spec order, including containers without runtime status.
+// Otherwise a sidecar can become the first container while the main container starts.
+func orderPodContainers(specs []kubelet.ContainerSpec, containers []workloadmeta.OrchestratorContainer) []workloadmeta.OrchestratorContainer {
+	byName := make(map[string]workloadmeta.OrchestratorContainer, len(containers))
+	for _, container := range containers {
+		byName[container.Name] = container
+	}
+	ordered := make([]workloadmeta.OrchestratorContainer, 0, len(specs))
+	for _, spec := range specs {
+		container, found := byName[spec.Name]
+		if !found {
+			image, _ := workloadmeta.NewContainerImage("", spec.Image)
+			container = workloadmeta.OrchestratorContainer{Name: spec.Name, Image: image}
+		}
+		ordered = append(ordered, container)
+		delete(byName, spec.Name)
+	}
+	// Preserve status-only containers if the spec is incomplete.
+	for _, container := range containers {
+		if _, found := byName[container.Name]; found {
+			ordered = append(ordered, container)
+		}
+	}
+	return ordered
+}
+
 func parsePodContainers(
 	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
@@ -253,8 +281,10 @@ func parsePodContainers(
 		var allocatedResources []workloadmeta.ContainerAllocatedResource
 		for _, resource := range container.ResolvedAllocatedResources {
 			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
-				Name: resource.Name,
-				ID:   resource.ID,
+				Name:       resource.Name,
+				ID:         resource.ID,
+				PoolName:   resource.PoolName,
+				CdiDevices: resource.CdiDevices,
 			})
 		}
 
@@ -342,9 +372,27 @@ func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityCont
 	}
 
 	return &workloadmeta.PodSecurityContext{
-		RunAsUser:  spec.SecurityContext.RunAsUser,
-		RunAsGroup: spec.SecurityContext.RunAsGroup,
-		FsGroup:    spec.SecurityContext.FsGroup,
+		RunAsUser:      spec.SecurityContext.RunAsUser,
+		RunAsGroup:     spec.SecurityContext.RunAsGroup,
+		FsGroup:        spec.SecurityContext.FsGroup,
+		RunAsNonRoot:   copyBoolPtr(spec.SecurityContext.RunAsNonRoot),
+		SeccompProfile: seccompProfileFromSpec(spec.SecurityContext.SeccompProfile),
+	}
+}
+
+// seccompProfileFromSpec maps a kubelet seccomp profile spec to its
+// workloadmeta representation, or nil when unset.
+func seccompProfileFromSpec(sp *kubelet.SeccompProfileSpec) *workloadmeta.SeccompProfile {
+	if sp == nil {
+		return nil
+	}
+	localhostProfile := ""
+	if sp.LocalhostProfile != nil {
+		localhostProfile = *sp.LocalhostProfile
+	}
+	return &workloadmeta.SeccompProfile{
+		Type:             workloadmeta.SeccompProfileType(sp.Type),
+		LocalhostProfile: localhostProfile,
 	}
 }
 
@@ -366,26 +414,26 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 		privileged = *spec.SecurityContext.Privileged
 	}
 
-	var seccompProfile *workloadmeta.SeccompProfile
-	if spec.SecurityContext.SeccompProfile != nil {
-		localhostProfile := ""
-		if spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
-			localhostProfile = *spec.SecurityContext.SeccompProfile.LocalhostProfile
-		}
-
-		spType := workloadmeta.SeccompProfileType(spec.SecurityContext.SeccompProfile.Type)
-
-		seccompProfile = &workloadmeta.SeccompProfile{
-			Type:             spType,
-			LocalhostProfile: localhostProfile,
-		}
-	}
+	seccompProfile := seccompProfileFromSpec(spec.SecurityContext.SeccompProfile)
 
 	return &workloadmeta.ContainerSecurityContext{
-		Capabilities:   caps,
-		Privileged:     privileged,
-		SeccompProfile: seccompProfile,
+		Capabilities:             caps,
+		Privileged:               privileged,
+		SeccompProfile:           seccompProfile,
+		RunAsNonRoot:             copyBoolPtr(spec.SecurityContext.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(spec.SecurityContext.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(spec.SecurityContext.ReadOnlyRootFilesystem),
 	}
+}
+
+// copyBoolPtr returns a fresh *bool with the same value as src, or nil if src
+// is nil, so callers can't accidentally alias the kubelet spec's storage.
+func copyBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
 }
 
 func extractReadinessProbe(spec *kubelet.ContainerSpec) *workloadmeta.ContainerProbe {

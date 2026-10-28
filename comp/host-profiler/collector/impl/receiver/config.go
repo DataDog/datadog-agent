@@ -9,6 +9,7 @@ package receiver
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -48,6 +49,12 @@ func errSymbolEndpointsSiteRequired() error {
 func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
 }
+func errSymbolUploaderReportIntervalInvalid() error {
+	return fmt.Errorf("symbol_uploader.report.interval must be positive and at most %s", symboluploader.MaxReportInterval)
+}
+func errSymbolUploaderReportMaxInvalid() error {
+	return fmt.Errorf("symbol_uploader.report.max_paths_per_report must be positive and at most %d", symboluploader.MaxReportMaxPathsPerReport)
+}
 
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the confmap.Validator interface.
@@ -77,6 +84,12 @@ func (c *Config) Validate() error {
 				return errSymbolEndpointsAPIKeyRequired()
 			}
 		}
+		if c.SymbolUploader.Report.Interval <= 0 || c.SymbolUploader.Report.Interval > symboluploader.MaxReportIntervalSeconds {
+			return errSymbolUploaderReportIntervalInvalid()
+		}
+		if c.SymbolUploader.Report.MaxPathsPerReport <= 0 || c.SymbolUploader.Report.MaxPathsPerReport > symboluploader.MaxReportMaxPathsPerReport {
+			return errSymbolUploaderReportMaxInvalid()
+		}
 	}
 	return nil
 }
@@ -90,6 +103,9 @@ func defaultConfig(profilerName string) component.Config {
 	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
+	cfg.SendErrorFrames = false
+	// 19Hz avoids lockstep sampling with periodic activity
+	cfg.SamplesPerSecond = 19
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{

@@ -129,7 +129,7 @@ Each issue module exposes four identity fields. Get them wrong and either the re
 - **The agent never derives this value at runtime.** Each module defines its own `const IssueType` next to `IssueName` (following the same format rule above) and sets it explicitly in `BuildIssue`, exactly like `IssueName`. `store.ReportIssue` passes it through unmodified — it is not validated, backfilled, or overwritten. Any default derivation from `IssueName` for issues that omit it is the backend's responsibility, not the agent's — do not add that logic here to avoid duplicating it.
 - Export as `const IssueType` in the issue file (or `module.go` when a module exists) and alias it as a package-private `const issueType = IssueType` in the `BuildIssue` file
 - Path A modules also implement `Template.IssueType() string` (mirroring `IssueName() string`) returning the same const — the runner's minimal-fallback proto uses it when `BuildIssue` errors
-- Preserved across the full lifecycle: `store.ReportIssue`, `ResolveIssue`, `ResolveAllIssues`, and `loadFromDisk`'s resolved-tombstone reconstruction all carry it through unchanged, same as `IssueName`
+- Preserved across the full lifecycle: `store.ReportIssue`, `ResolveIssue`, `ResolveAllIssues`, and `restorePersistedState`'s resolved-tombstone reconstruction all carry it through unchanged, same as `IssueName`
 
 ### `Title` — human sentence, instance-specific
 
@@ -208,9 +208,11 @@ Use when the condition can only change at restart (filesystem layout, config sch
 
 Use when the condition can change while the agent is running (connectivity, remote endpoint). Return a `*runnerdef.BuiltInPeriodicHealthCheck` with an explicit `Interval`. Use `Interval: 0` to fall back to the scheduler's default.
 
-### `IssueNames` — never set it
+### `IssueNames` — usually leave it unset
 
-`IssueNames` on `BuiltInHealthCheck` is populated automatically by `Registry.RegisterModule` from `module.IssueName()`. Module authors must not touch it.
+`Registry.RegisterModule` appends the owning module's own `module.IssueName()` to `IssueNames` — it does not overwrite the slice. Most modules should still leave `IssueNames` unset and let that auto-append handle it; setting it to your own module's name is redundant.
+
+The one sanctioned exception: pre-populate `IssueNames` with *other* modules' issue names when `Fn` also reports under names owned by template-only modules that contribute no check of their own (see `comp/healthplatform/issues/docker` — the shared check reports both `docker_socket_permission` and `docker_socket_unavailable`, so `dockerPermissionsModule.BuiltInPeriodicHealthCheck` pre-seeds `SocketUnavailableIssueName` so `bundle.go`'s restart-resolution seeding covers both names). Without this, a persisted issue under the second name would never resolve after a restart.
 
 ---
 
@@ -390,7 +392,7 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 | Varying `IssueName` per instance | Breaks registry lookup and UI aggregation |
 | Gating `RegisterModuleFactory` on a config value in `init()` | Config is not available at init time |
 | Gating the entire check at registration time rather than inside `Fn` | Stale issues from a prior run are never resolved when the check is disabled |
-| Setting `IssueNames` on `BuiltInHealthCheck` | Overwritten by `RegisterModule`; no effect but signals misunderstanding |
+| Pre-populating `IssueNames` with your own module's `IssueName()` | Redundant — `RegisterModule` appends it automatically |
 | Leaving `issue.IssueType` unset in `BuildIssue` | The agent does not backfill it from `IssueName`; the field ships empty |
 | Computing `IssueType` at runtime instead of a fixed const | Duplicates logic that belongs to the backend; drifts silently if the naming rule ever changes |
 | Indexing `context` without a default | Silently embeds empty strings in titles/descriptions |

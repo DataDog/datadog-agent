@@ -8,7 +8,7 @@ package replayimpl
 import (
 	"fmt"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/h2non/filetype"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"

@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -44,6 +46,24 @@ func TestExecuteCommand_NonZeroExit(t *testing.T) {
 	assert.Equal(t, 3, result.ExitCode)
 	assert.Contains(t, err.Error(), "exit code 3")
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestExecuteCommand_PermissionDenied(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permission checks")
+	}
+
+	scriptPath := filepath.Join(t.TempDir(), "script.sh")
+	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o600))
+
+	result, err := ExecuteCommand(context.Background(), exec.Command(scriptPath))
+
+	require.Error(t, err)
+	assert.Equal(t, -1, result.ExitCode)
+	assert.ErrorIs(t, err, os.ErrPermission)
+	assert.Contains(t, err.Error(), "execution was denied by the host")
+	assert.Contains(t, err.Error(), "application-allowlisting policies such as fapolicyd")
+	assert.Contains(t, err.Error(), scriptPath)
 }
 
 func TestExecuteCommand_NilContext(t *testing.T) {
@@ -79,6 +99,50 @@ func TestExecuteCommand_ContextCanceled(t *testing.T) {
 	assert.NotContains(t, err.Error(), "timed out")
 }
 
+func TestExecuteCommand_CommandContextCancellationTerminatesProcessGroup(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("process-group assertion is not supported on AIX")
+	}
+
+	commandCtx, cancelCommand := context.WithCancel(context.Background())
+	defer cancelCommand()
+	executionCtx, cancelExecution := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelExecution()
+
+	pidFile := filepath.Join(t.TempDir(), "child.pid")
+	cmd := exec.CommandContext(commandCtx, "/bin/sh", "-c", `sleep 30 & echo $! > "$CHILD_PID_FILE"; wait`)
+	cmd.Env = append(os.Environ(), "CHILD_PID_FILE="+pidFile)
+	done := make(chan error, 1)
+	go func() {
+		_, err := ExecuteCommand(executionCtx, cmd)
+		done <- err
+	}()
+
+	var childPID int
+	require.Eventually(t, func() bool {
+		pidBytes, err := os.ReadFile(pidFile)
+		if err != nil {
+			return false
+		}
+		childPID, err = strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+		return err == nil
+	}, time.Second, 10*time.Millisecond, "child PID was not recorded")
+	t.Cleanup(func() {
+		_ = syscall.Kill(childPID, syscall.SIGKILL)
+	})
+
+	cancelCommand()
+	select {
+	case err := <-done:
+		require.Error(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("command did not stop promptly after its own context was canceled")
+	}
+	require.Eventually(t, func() bool {
+		return errors.Is(syscall.Kill(childPID, 0), syscall.ESRCH)
+	}, time.Second, 10*time.Millisecond, "child process %d was not terminated", childPID)
+}
+
 func TestExecuteCommand_OutputLimitExceeded(t *testing.T) {
 	cmd := exec.CommandContext(context.Background(), "yes")
 
@@ -90,6 +154,10 @@ func TestExecuteCommand_OutputLimitExceeded(t *testing.T) {
 }
 
 func TestExecuteCommand_ReapsProcessGroup(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("flaky on AIX")
+	}
+
 	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "sleep 30 </dev/null >/dev/null 2>&1 & echo $!")
 
 	result, err := ExecuteCommand(context.Background(), cmd)

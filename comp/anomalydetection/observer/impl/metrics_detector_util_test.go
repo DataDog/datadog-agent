@@ -157,7 +157,9 @@ func (s *seriesListOnlyStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.
 	return nil
 }
 
-func (*seriesListOnlyStorage) GetContext(observer.SeriesRef) *observer.MetricContext { return nil }
+func (*seriesListOnlyStorage) GetContext(observer.SeriesRef) (observer.MetricContext, bool) {
+	return observer.MetricContext{}, false
+}
 
 func (s *seriesListOnlyStorage) GetSeriesRange(observer.SeriesRef, int64, int64, observer.Aggregate) *observer.Series {
 	return nil
@@ -165,10 +167,6 @@ func (s *seriesListOnlyStorage) GetSeriesRange(observer.SeriesRef, int64, int64,
 
 func (s *seriesListOnlyStorage) ForEachPoint(observer.SeriesRef, int64, int64, observer.Aggregate, func(*observer.Series, observer.Point)) bool {
 	return false
-}
-
-func (s *seriesListOnlyStorage) PointCount(observer.SeriesRef) int {
-	return 0
 }
 
 func (s *seriesListOnlyStorage) PointCountUpTo(observer.SeriesRef, int64) int {

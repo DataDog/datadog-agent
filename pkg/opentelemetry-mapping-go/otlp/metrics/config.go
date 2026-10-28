@@ -30,6 +30,7 @@ type translatorConfig struct {
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 	InferDeltaInterval                   bool
+	GaugeInterval                        bool
 
 	originProduct OriginProduct
 
@@ -151,7 +152,7 @@ const (
 )
 
 // WithHistogramMode sets the histograms mode.
-// The default mode is HistogramModeOff.
+// The default mode is HistogramModeDistributions.
 func WithHistogramMode(mode HistogramMode) TranslatorOption {
 	return func(t *translatorConfig) error {
 		switch mode {
@@ -249,6 +250,16 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InferDeltaInterval = true
+		return nil
+	}
+}
+
+// WithGaugeInterval uses the positive integer datapoint attribute datadog.gauge.interval
+// as the reporting interval in seconds for number metrics mapped to Datadog gauges.
+// By default the interval is set to 0. The attribute is retained as a metric tag.
+func WithGaugeInterval() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.GaugeInterval = true
 		return nil
 	}
 }

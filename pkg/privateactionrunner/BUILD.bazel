@@ -1,1 +1,10 @@
+load("@rules_go//go:def.bzl", "go_library")
+
 # gazelle:ignore
+
+go_library(
+    name = "privateactionrunner",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner",
+    visibility = ["//visibility:public"],
+)

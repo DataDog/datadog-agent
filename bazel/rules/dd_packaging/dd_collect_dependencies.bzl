@@ -1,6 +1,6 @@
 """dd_collect_dependencies — collect transitive DdPackagingInfo for installation."""
 
-load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo")
+load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 
 _CollectedPackagingInfo = provider(
@@ -27,7 +27,21 @@ def _get_deps(ctx, attr_names):
 _WALKED_ATTRS = ["dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps", "data"]
 
 def _collect_dd_packaging_aspect_impl(target, ctx):
-    direct = target[DdPackagingInfo].installed_files if DdPackagingInfo in target else []
+    if DdPackagingInfo in target:
+        direct = target[DdPackagingInfo].installed_files
+    elif PackageFilegroupInfo in target:
+        # A plain pkg_filegroup/pkg_files reached through data, e.g. a
+        # component declaring static assets it needs installed alongside
+        # it, without going through the dd_cc_packaged wrapper.
+        direct = [target[PackageFilegroupInfo]]
+    elif PackageFilesInfo in target:
+        direct = [PackageFilegroupInfo(
+            pkg_files = ((target[PackageFilesInfo], target.label),),
+            pkg_dirs = (),
+            pkg_symlinks = (),
+        )]
+    else:
+        direct = []
     transitive = [
         dep[_CollectedPackagingInfo].pkg_filegroups
         for dep in _get_deps(ctx, _WALKED_ATTRS)
@@ -49,8 +63,9 @@ _collect_dd_packaging_aspect = aspect(
         - embed, deps: go_library/go_binary edges, so a walk can start from a
           real Go binary
         - cdeps: go_library/go_binary -> cc_library edges (the cgo boundary)
-        - data: cc_library -> _dd_cc_packaged_rule edges (a runtime, dlopen'd
-          dependency rather than a link-time one)
+        - data: a runtime dependency; either a cc_library -> _dd_cc_packaged_rule
+          edge (a dlopen'd dependency), or a plain pkg_filegroup/pkg_files
+          target declaring loose files a component needs installed alongside it
     """,
     attr_aspects = _WALKED_ATTRS,
 )

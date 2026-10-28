@@ -62,12 +62,10 @@ const (
 
 // Annotations written by the webhook.
 const (
-	// AppliedTarget is the JSON of the target that was applied to the pod.
-	// Example value: {"name":"python","podSelector":{"matchLabels":{"language":"python"}},"ddTraceVersions":{"python ":"3"}}
-	AppliedTarget = "internal.apm.datadoghq.com/applied-target"
-	// AppliedPolicy is the compact JSON of the remote-config policy that was applied to the pod.
-	// Example value: {"name":"python","version":3,"ddTraceVersions":{"python":"3"}}
-	AppliedPolicy = "internal.apm.datadoghq.com/applied-policy"
+	// AppliedConfig is the JSON of the configuration selected for injection.
+	AppliedConfig = "internal.apm.datadoghq.com/applied-config"
+	// InjectionSource identifies the configuration source that selected the libraries.
+	InjectionSource = "internal.apm.datadoghq.com/injection-source"
 	// InjectionError is set by the webhook when there was an error during mutation.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
 	InjectionError = "internal.apm.datadoghq.com/injection-error"
@@ -81,9 +79,12 @@ const (
 	// regardless of the configured or requested mode. For "auto" mode, this reflects the resolved mode.
 	// Example value: csi
 	EffectiveInjectionMode = "internal.apm.datadoghq.com/effective-injection-mode"
+	// AutoInjectionModeReason is set with the reason why the "auto" mode picked the effective injection mode.
+	// Example value: the cluster runs OpenShift
+	AutoInjectionModeReason = "internal.apm.datadoghq.com/auto-injection-mode-reason"
 	// CSIDriverStatus is set with the observed state of the Datadog CSI driver at
-	// injection time. It is only present when CSI driver detection is active
-	// (i.e. CSIDriverWatcher is non-nil). See the CSIDriverStatus* constants below.
+	// injection time. It is set whenever the CSIDriverWatcher exists, which is the
+	// case when auto instrumentation is enabled. See the CSIDriverStatus* constants below.
 	CSIDriverStatus = "internal.apm.datadoghq.com/csi-driver-status"
 	// InjectionStatus is set with the overall outcome of the APM injection attempt.
 	// See the InjectionStatus* constants below for possible values.
@@ -119,6 +120,9 @@ const (
 	InjectionStatusSkipped = "skipped"
 	// InjectionStatusError means a fatal error prevented the injector from running.
 	InjectionStatusError = "error"
+	// InjectionStatusBlocked means a remote-config policy denied injection.
+	// The applied-config annotation names that policy.
+	InjectionStatusBlocked = "blocked"
 )
 
 // LibraryAnnotationFormat is a helper type to format an annotation with a language.

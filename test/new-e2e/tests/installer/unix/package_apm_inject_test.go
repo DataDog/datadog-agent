@@ -13,11 +13,12 @@ import (
 	"strings"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
+
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 const (
@@ -60,12 +61,12 @@ func (s *packageApmInjectSuite) SetupTest() {
 }
 
 func (s *packageApmInjectSuite) TestInstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -100,7 +101,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) TestUninstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	s.Purge()
 
@@ -115,7 +116,7 @@ func (s *packageApmInjectSuite) TestUninstall() {
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -127,7 +128,7 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 }
 
 func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -139,7 +140,7 @@ func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDocker() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=docker", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -165,7 +166,7 @@ func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -174,7 +175,7 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 }
 
 func (s *packageApmInjectSuite) TestSystemdReload() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript()
 	defer s.Purge()
 
@@ -195,7 +196,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -238,7 +239,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// OCI install
 	s.RunInstallScript(
@@ -277,7 +278,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
 	pinnedApmLibraryPythonVersion := pinnedApmLibraryPythonVersion()
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:"+prevApmLibraryPythonVersion,
@@ -293,7 +294,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, "root", "root")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 
 	traceID := rand.Uint64()
@@ -340,7 +341,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	s.assertSocketPath()
 	s.assertDockerdNotInstrumented()
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer apm instrument docker")
 	assert.NoError(s.T(), err)
@@ -351,7 +352,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 }
 
 func (s *packageApmInjectSuite) TestPackagePinning() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
 
@@ -372,7 +373,7 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 }
 
 func (s *packageApmInjectSuite) TestUninstrument() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -403,7 +404,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -443,13 +444,13 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.Env().RemoteHost.MustExecute("sudo systemctl stop docker")
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
-	s.host.InstallDocker() // Restart docker cleanly
+	s.host.PrepareDocker() // Restart docker cleanly
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
@@ -496,7 +497,7 @@ func (s *packageApmInjectSuite) TestAppArmor() {
 		assert.Equal(s.T(), string(baseBefore)+"\n"+appArmorLegacyInclude, string(baseAfter))
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
-	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
+	// isc-dhcp-client (dhclient) is baked into the Debian/Ubuntu e2e AMI.
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
 	assert.Contains(s.T(), res, "not injecting")
 
@@ -589,8 +590,17 @@ func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]in
 	assert.Equal(s.T(), expectedConfigs, actualStableConfig["apm_configuration_default"])
 }
 
+func (s *packageApmInjectSuite) injectionPython() string {
+	if s.os.Flavor == e2eos.Suse {
+		// Python 3.11 is pre-baked into the AMI. Keep the system Python 3.6
+		// unchanged: zypper's susecloud plugin depends on its cloudregister module.
+		return "/usr/bin/python3.11"
+	}
+	return "python3"
+}
+
 func (s *packageApmInjectSuite) assertSocketPath() {
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.Contains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'") // this is an env var set by the injector
 }
 
@@ -608,7 +618,7 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		// prints a "cannot be preloaded ... ignored" warning for it on every exec.
 		assert.NotContains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 	}
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
 }
 
@@ -728,17 +738,16 @@ __attribute__((constructor)) static void crash(void) {
 }
 `
 
-// installGCC installs the C compiler used by buildCrashyInjectorSO.
-func (s *packageApmInjectSuite) installGCC() {
+// requireGCC checks for the C compiler used by buildCrashyInjectorSO, which
+// ami-builder bakes into the Debian/Ubuntu e2e AMIs.
+func (s *packageApmInjectSuite) requireGCC() {
 	s.T().Helper()
-	host := s.Env().RemoteHost
 	switch s.os.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
-		host.MustExecute("sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev")
-	case e2eos.Suse:
-		host.MustExecute("sudo zypper --non-interactive install -y gcc glibc-devel")
+		out, err := s.Env().RemoteHost.Execute("command -v gcc")
+		require.NoErrorf(s.T(), err, "gcc is missing from the %s e2e AMI; bake it in ami-builder rather than installing it at test time.\n%s", s.os, out)
 	default:
-		s.T().Skipf("test does not know how to install gcc on %s", s.os.Flavor)
+		s.T().Skipf("test does not build shared libraries on %s", s.os.Flavor)
 	}
 }
 
@@ -753,7 +762,7 @@ func (s *packageApmInjectSuite) installGCC() {
 // the lib).
 func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst, src string) {
 	s.T().Helper()
-	s.installGCC()
+	s.requireGCC()
 	host := s.Env().RemoteHost
 	host.MustExecute("sudo tee /tmp/crashy.c >/dev/null <<'CRASHY_EOF'\n" + src + "CRASHY_EOF")
 	host.MustExecute("sudo gcc -shared -fPIC -o " + dst + " /tmp/crashy.c")

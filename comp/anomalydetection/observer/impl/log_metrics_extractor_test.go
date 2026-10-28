@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
@@ -45,16 +46,16 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
-		assert.Equal(t, []string{"service:api"}, m.Tags)
+		assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:api"}), m.Tags)
 	}
 
 	if m, ok := got["log.field.duration_ms"]; assert.True(t, ok) {
 		assert.Equal(t, float64(45), m.Value)
-		assert.Equal(t, []string{"service:api"}, m.Tags)
+		assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:api"}), m.Tags)
 	}
 	if m, ok := got["log.field.status"]; assert.True(t, ok) {
 		assert.Equal(t, float64(200), m.Value)
-		assert.Equal(t, []string{"service:api"}, m.Tags)
+		assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:api"}), m.Tags)
 	}
 }
 
@@ -69,7 +70,7 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	res := a.ProcessLog(log)
 	assert.Len(t, res.Metrics, 1)
 	assert.Equal(t, float64(1), res.Metrics[0].Value)
-	assert.Equal(t, []string{"service:web"}, res.Metrics[0].Tags)
+	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:web"}), res.Metrics[0].Tags)
 
 	// Compute expected metric name (hash of signature).
 	sig := logSignature("Request completed in 45ms", 0)
@@ -136,7 +137,7 @@ func TestLogMetricsExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotNil(t, res.Metrics[0].Context)
+	require.True(t, res.Metrics[0].HasContext)
 
 	ctx := res.Metrics[0].Context
 	assert.Equal(t, "log_metrics_extractor", ctx.Source)
@@ -159,8 +160,8 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
 	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotNil(t, resA.Metrics[0].Context)
-	require.NotNil(t, resB.Metrics[0].Context)
+	require.True(t, resA.Metrics[0].HasContext)
+	require.True(t, resB.Metrics[0].HasContext)
 
 	ctxA := resA.Metrics[0].Context
 	ctxB := resB.Metrics[0].Context

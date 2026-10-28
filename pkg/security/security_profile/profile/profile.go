@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -70,8 +71,11 @@ type Profile struct {
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
-	selector cgroupModel.WorkloadSelector
-	tags     []string
+	// SecurityContexts holds the declared SecurityContexts observed for this
+	// image, keyed by workload-template slot.
+	SecurityContexts map[securitycontext.Key]*securitycontext.SecurityContext
+	selector         cgroupModel.WorkloadSelector
+	tags             []string
 
 	versionContexts map[string]*VersionContext
 
@@ -90,6 +94,20 @@ type Profile struct {
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
+	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
+	observedRollups bool
+	seededSyscalls  []uint32
+
+	baseMountNSByCgroup map[uint64]baseMountNSPin
+}
+
+// baseMountNSPin is a workload's base mount namespace. A pin is provisional when it was
+// derived from the namespace of the event itself because the workload's root process was
+// not resolvable: that event may come from a process that has setns'd away from the base,
+// so the value is replaced as soon as an authoritative one is available.
+type baseMountNSPin struct {
+	nsID          uint32
+	authoritative bool
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -98,6 +116,20 @@ func (p *Profile) IsEnabled() bool {
 	defer p.Unlock()
 
 	return p.isEnabled
+}
+
+// SaveSecurityContext stores sc under key. Zero-value keys and nil values
+// are dropped. Last write wins per key.
+func (p *Profile) SaveSecurityContext(key securitycontext.Key, sc *securitycontext.SecurityContext) {
+	if sc == nil || key.IsZero() {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	if p.SecurityContexts == nil {
+		p.SecurityContexts = make(map[securitycontext.Key]*securitycontext.SecurityContext, 1)
+	}
+	p.SecurityContexts[key] = sc
 }
 
 // Disable disables the profile and drops its activity tree to free the memory it held.
@@ -142,6 +174,21 @@ func WithWorkloadSelector(selector cgroupModel.WorkloadSelector) Opts {
 func WithEventTypes(eventTypes []model.EventType) Opts {
 	return func(p *Profile) {
 		p.eventTypes = eventTypes
+	}
+}
+
+// WithObservedRollups makes the encoder derive per-version syscall/capability
+// lists from the activity tree (V2 only; V1 keeps the backend-supplied list).
+func WithObservedRollups() Opts {
+	return func(p *Profile) {
+		p.observedRollups = true
+	}
+}
+
+// WithSeededSyscalls sets syscall ids to union into the profile's reported syscall lists.
+func WithSeededSyscalls(ids []uint32) Opts {
+	return func(p *Profile) {
+		p.seededSyscalls = ids
 	}
 }
 
@@ -304,6 +351,64 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	defer p.Unlock()
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
+}
+
+// PinBaseMountNamespace records the base mount namespace of the workload identified by
+// cgroupInode and reports whether the caller should seed the mount table for it. It
+// returns true only on the first pin and when a provisional pin is replaced by a
+// differing authoritative one, so callers can gate the cost of seeding on it.
+func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authoritative bool) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	if nsID == 0 {
+		return false
+	}
+	if p.baseMountNSByCgroup == nil {
+		p.baseMountNSByCgroup = make(map[uint64]baseMountNSPin)
+	}
+
+	if cur, pinned := p.baseMountNSByCgroup[cgroupInode]; pinned {
+		if cur.authoritative || !authoritative {
+			return false
+		}
+		if cur.nsID == nsID {
+			// the provisional pin guessed right, so promote it without seeding again
+			p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: true}
+			return false
+		}
+		// Correcting a wrong guess only stops new mounts from the superseded namespace
+		// counting as base. Mounts already seeded under it keep their flag: nodes are
+		// deduped across namespaces, so they cannot be attributed back to a single one.
+		p.ActivityTree.RemoveBaseMountNamespaceID(cur.nsID)
+	}
+
+	p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: authoritative}
+	p.ActivityTree.AddBaseMountNamespaceID(nsID)
+	return true
+}
+
+// RemoveBaseMountNamespace drops the base mount namespace recorded for the workload
+// identified by cgroupInode from the tree's base-namespace set.
+func (p *Profile) RemoveBaseMountNamespace(cgroupInode uint64) {
+	p.Lock()
+	defer p.Unlock()
+
+	pin, ok := p.baseMountNSByCgroup[cgroupInode]
+	if !ok {
+		return
+	}
+	delete(p.baseMountNSByCgroup, cgroupInode)
+	p.ActivityTree.RemoveBaseMountNamespaceID(pin.nsID)
+}
+
+// InsertMount inserts a mount into the profile's deduplicated mount table
+func (p *Profile) InsertMount(mnt *model.Mount, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
+	return p.ActivityTree.InsertMount(mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
 }
 
 // ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
@@ -520,7 +625,20 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	return ctx, ok
 }
 
-// GetVersions returns the number of versions stored in the profile (debug purpose only)
+// UpdateVersionContextLastSeen refreshes an existing version's last seen timestamp.
+// It returns false if the version has already been evicted.
+func (p *Profile) UpdateVersionContextLastSeen(imageTag string, nowTimestamp uint64) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	ctx, ok := p.versionContexts[imageTag]
+	if ok {
+		ctx.LastSeenNano = nowTimestamp
+	}
+	return ok
+}
+
+// GetVersions returns the versions stored in the profile (debug purpose only)
 func (p *Profile) GetVersions() []string {
 	p.Lock()
 	defer p.Unlock()
@@ -578,22 +696,29 @@ func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteri
 	return globalState // AutoLearning or StableEventType
 }
 
-// PrepareNewVersion prepares a new version of the profile
-func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
+// PrepareNewVersion creates a version context or refreshes its last seen timestamp.
+// It evicts the least recently seen versions to enforce maxImageTags, retaining at
+// least one version and never evicting the version being observed.
+func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
 	p.Lock()
 	defer p.Unlock()
 
-	// prepare new profile context to be inserted
-	newProfileCtx := &VersionContext{
-		EventTypeState: make(map[model.EventType]*EventTypeState),
-		FirstSeenNano:  nowTimestamp,
-		LastSeenNano:   nowTimestamp,
-		Tags:           tags,
+	ctx, ok := p.versionContexts[imageTag]
+	if !ok {
+		ctx = &VersionContext{
+			EventTypeState: make(map[model.EventType]*EventTypeState),
+			FirstSeenNano:  nowTimestamp,
+			Tags:           slices.Clone(tags),
+		}
+		p.versionContexts[imageTag] = ctx
 	}
+	ctx.LastSeenNano = nowTimestamp
 
-	// add the new profile context to the list
-	evictedVersions := p.makeRoomForNewVersion(maxImageTags)
-	p.versionContexts[newImageTag] = newProfileCtx
+	// Also trim profiles loaded from disk with more versions than the current limit.
+	var evictedVersions []string
+	for len(p.versionContexts) > max(1, maxImageTags) {
+		evictedVersions = append(evictedVersions, p.evictProfileVersion(imageTag))
+	}
 	return evictedVersions
 }
 
@@ -605,21 +730,7 @@ func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
 	p.versionContexts[version] = ctx
 }
 
-func (p *Profile) makeRoomForNewVersion(maxImageTags int) []string {
-	evictedVersions := []string{}
-	// if we reached the max number of versions, we should evict the surplus
-	surplus := len(p.versionContexts) - maxImageTags + 1
-	for surplus > 0 {
-		evictedVersion := p.evictProfileVersion()
-		if evictedVersion != "" {
-			evictedVersions = append(evictedVersions, evictedVersion)
-		}
-		surplus--
-	}
-	return evictedVersions
-}
-
-func (p *Profile) evictProfileVersion() string {
+func (p *Profile) evictProfileVersion(retainedImageTag string) string {
 	if len(p.versionContexts) <= 0 {
 		return "" // should not happen
 	}
@@ -627,10 +738,12 @@ func (p *Profile) evictProfileVersion() string {
 	oldest := uint64(math.MaxUint64)
 	oldestImageTag := ""
 
-	// select the oldest image tag
-	// TODO: not 100% sure to select the first or the lastSeenNano
+	// Select the least recently seen image tag other than the current version.
 	for imageTag, profileCtx := range p.versionContexts {
-		if profileCtx.LastSeenNano < oldest {
+		if imageTag == retainedImageTag {
+			continue
+		}
+		if oldestImageTag == "" || profileCtx.LastSeenNano < oldest {
 			oldest = profileCtx.LastSeenNano
 			oldestImageTag = imageTag
 		}
@@ -683,7 +796,30 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.ActivityTree.ComputeSyscallsList()
+	return unionSyscalls(p.ActivityTree.ComputeSyscallsList(), p.seededSyscalls)
+}
+
+// unionSyscalls returns base ∪ extra, deduplicated and sorted.
+func unionSyscalls(base, extra []uint32) []uint32 {
+	if len(extra) == 0 {
+		return base
+	}
+	seen := make(map[uint32]struct{}, len(base)+len(extra))
+	out := make([]uint32, 0, len(base)+len(extra))
+	for _, s := range base {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	for _, s := range extra {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // MatchesSelector is used to control how an event should be added to a profile

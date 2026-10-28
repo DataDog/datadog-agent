@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix Oracle custom queries staying stuck with ``sql: database is closed`` after
+    a connection loss when the check is connected to a PDB. The custom queries
+    connection is now reset on check teardown, and the check reconnects when a
+    custom query fails with a connection error, so custom queries recover on their
+    own without restarting the Agent.

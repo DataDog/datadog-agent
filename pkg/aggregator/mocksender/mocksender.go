@@ -77,7 +77,7 @@ type MockSender struct {
 	mock.Mock
 	senderManager sender.SenderManager
 	checkTags     []string
-	infraTagger   *infratags.Tagger
+	infraTagger   *infratags.MetricTagger
 }
 
 // GetSenderManager returns the instance of sender.SenderManager

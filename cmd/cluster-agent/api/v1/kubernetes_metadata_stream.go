@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -32,6 +34,17 @@ const (
 	// prevent the client from treating an idle stream as dead.
 	keepAliveInterval   = 9 * time.Minute
 	wmetaSubscriberName = "kube-metadata-stream"
+	// Keep a bounded history of shared diffs. Streams that fall behind receive
+	// a full state instead, so coalesced notifications cannot lose deletions.
+	metadataHistorySize = 128
+)
+
+var metadataStreamHistoryResyncs = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+	"metadata_streaming",
+	"history_resyncs",
+	nil,
+	"Number of full metadata states successfully sent because an agent fell behind the retained version history",
+	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
 
 type podServiceEntry struct {
@@ -69,14 +82,16 @@ type kueuePodSetAssignmentEntry struct {
 }
 
 type kueueWorkloadEntry struct {
-	namespace         string
-	name              string
-	queueName         string
-	clusterQueueName  string
-	labels            map[string]string
-	annotations       map[string]string
-	uid               string
-	podSetAssignments []kueuePodSetAssignmentEntry
+	namespace              string
+	name                   string
+	queueName              string
+	clusterQueueName       string
+	labels                 map[string]string
+	annotations            map[string]string
+	uid                    string
+	podSetAssignments      []kueuePodSetAssignmentEntry
+	podTemplateLabels      map[string]string
+	podTemplateAnnotations map[string]string
 }
 
 type metadataSnapshot struct {
@@ -92,8 +107,11 @@ type KubeMetadataStreamServer struct {
 	store *controllers.MetaBundleStore
 	wmeta workloadmeta.Component
 
-	metadataMutex sync.RWMutex
-	metadata      metadataSnapshot
+	metadataMutex   sync.RWMutex
+	metadata        metadataSnapshot
+	metadataVersion uint64
+	// Responses are immutable after publication and shared by all streams.
+	metadataHistory [metadataHistorySize]*pb.KubeMetadataStreamResponse
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
@@ -159,8 +177,8 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
-	lastSentMetadataState := srv.buildMetadataSnapshot()
-	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
+	metadata, lastSentMetadataVersion := srv.buildMetadataSnapshotWithVersion()
+	initialResp := fullStateResponse(lastSentPodServicesState, metadata)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
 		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
@@ -194,46 +212,38 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState: false,
 				Mappings:    podServiceMappingsDiff,
 			}
-			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
-				tracer.ResourceName("sendDiff"),
-				tracer.Tag(ext.SpanKind, ext.SpanKindServer),
-				tracer.Tag("node_name", nodeName),
-				tracer.Tag("event_type", "pod_services"),
-			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending pod-service metadata diff for node %s: %s", nodeName, err)
-				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
-			sendSpan.Finish()
 			lastSentPodServicesState = currentPodServiceMappingsState
 			ticker.Reset(keepAliveInterval)
 
 		case <-namespacesNotifyCh:
-			currentMetadataState := srv.buildMetadataSnapshot()
-			metadataDiff := computeMetadataDiff(lastSentMetadataState, currentMetadataState)
-			if metadataDiff.isEmpty() {
-				continue
+			updates, version, ok := srv.metadataUpdatesSince(lastSentMetadataVersion)
+			if !ok {
+				// A full state replaces all client caches, including pod-service
+				// mappings. Refresh their baseline along with the metadata cursor.
+				lastSentPodServicesState = srv.buildPodServiceMappingsSnapshot(nodeName)
+				metadata, currentVersion := srv.buildMetadataSnapshotWithVersion()
+				updates = []*pb.KubeMetadataStreamResponse{fullStateResponse(lastSentPodServicesState, metadata)}
+				version = currentVersion
 			}
-			resp := metadataDiff.response(false)
-			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
-				tracer.ResourceName("sendDiff"),
-				tracer.Tag(ext.SpanKind, ext.SpanKindServer),
-				tracer.Tag("node_name", nodeName),
-				tracer.Tag("event_type", "metadata"),
-			)
-			if err := grpc.DoWithTimeout(func() error {
-				return stream.Send(resp)
-			}, streamSendTimeout); err != nil {
-				log.Warnf("Error sending metadata diff for node %s: %s", nodeName, err)
-				sendSpan.Finish(tracer.WithError(err))
-				return err
+			for _, resp := range updates {
+				if err := grpc.DoWithTimeout(func() error {
+					return stream.Send(resp)
+				}, streamSendTimeout); err != nil {
+					log.Warnf("Error sending metadata update for node %s: %s", nodeName, err)
+					return err
+				}
+				if !ok {
+					metadataStreamHistoryResyncs.Inc()
+				}
+				ticker.Reset(keepAliveInterval)
 			}
-			sendSpan.Finish()
-			lastSentMetadataState = currentMetadataState
-			ticker.Reset(keepAliveInterval)
+			lastSentMetadataVersion = version
 
 		case <-ticker.C:
 			// Send empty keepalive
@@ -257,6 +267,8 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	srv.metadataMutex.Lock()
 	defer srv.metadataMutex.Unlock()
 
+	// Snapshot and compare once per bundle, not once per connected agent.
+	previous := srv.metadata.clone()
 	changed := false
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
@@ -282,8 +294,32 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	}
 
 	if changed {
-		srv.notifyNamespaceSubscribers()
+		diff := computeMetadataDiff(previous, srv.metadata)
+		if !diff.isEmpty() {
+			srv.metadataVersion++
+			srv.metadataHistory[srv.metadataVersion%metadataHistorySize] = diff.response(false)
+			srv.notifyNamespaceSubscribers()
+		}
 	}
+}
+
+// metadataUpdatesSince returns shared, ordered diffs up to the current version.
+// A false result means the cursor is too old and needs a full-state resync.
+func (srv *KubeMetadataStreamServer) metadataUpdatesSince(version uint64) ([]*pb.KubeMetadataStreamResponse, uint64, bool) {
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+
+	if srv.metadataVersion-version > metadataHistorySize {
+		return nil, srv.metadataVersion, false
+	}
+	if version == srv.metadataVersion {
+		return nil, version, true
+	}
+	updates := make([]*pb.KubeMetadataStreamResponse, 0, srv.metadataVersion-version)
+	for next := version + 1; next <= srv.metadataVersion; next++ {
+		updates = append(updates, srv.metadataHistory[next%metadataHistorySize])
+	}
+	return updates, srv.metadataVersion, true
 }
 
 func (s *metadataSnapshot) processNamespaceEvent(eventType workloadmeta.EventType, metadata *workloadmeta.KubernetesMetadata) bool {
@@ -360,14 +396,16 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 	switch eventType {
 	case workloadmeta.EventTypeSet:
 		s.kueueWorkloads[key] = kueueWorkloadEntry{
-			namespace:         workload.Namespace,
-			name:              workload.Name,
-			queueName:         workload.QueueName,
-			clusterQueueName:  workload.ClusterQueueName,
-			labels:            workload.Labels,
-			annotations:       workload.Annotations,
-			uid:               workload.UID,
-			podSetAssignments: kueuePodSetAssignmentEntries(workload.PodSetAssignments),
+			namespace:              workload.Namespace,
+			name:                   workload.Name,
+			queueName:              workload.QueueName,
+			clusterQueueName:       workload.ClusterQueueName,
+			labels:                 workload.Labels,
+			annotations:            workload.Annotations,
+			uid:                    workload.UID,
+			podSetAssignments:      kueuePodSetAssignmentEntries(workload.PodSetAssignments),
+			podTemplateLabels:      workload.PodTemplateLabels,
+			podTemplateAnnotations: workload.PodTemplateAnnotations,
 		}
 		return true
 	case workloadmeta.EventTypeUnset:
@@ -399,8 +437,8 @@ func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
 		for _, ch := range channels {
 			select {
 			// Non-blocking send: if a signal is already pending, we drop it.
-			// This is safe because the consumer re-reads the full state from
-			// the store on each signal.
+			// The consumer replays shared diffs since its last version, or
+			// resyncs the full state if those diffs are no longer retained.
 			case ch <- struct{}{}:
 			default:
 			}
@@ -459,14 +497,23 @@ func (srv *KubeMetadataStreamServer) buildKueueWorkloadsSnapshot() map[string]ku
 }
 
 func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
+	snapshot, _ := srv.buildMetadataSnapshotWithVersion()
+	return snapshot
+}
+
+func (srv *KubeMetadataStreamServer) buildMetadataSnapshotWithVersion() (metadataSnapshot, uint64) {
 	srv.metadataMutex.RLock()
 	defer srv.metadataMutex.RUnlock()
 
+	return srv.metadata.clone(), srv.metadataVersion
+}
+
+func (s metadataSnapshot) clone() metadataSnapshot {
 	snapshot := newMetadataSnapshot()
-	maps.Copy(snapshot.namespaces, srv.metadata.namespaces)
-	maps.Copy(snapshot.kueueQueues, srv.metadata.kueueQueues)
-	maps.Copy(snapshot.kueueResourceFlavors, srv.metadata.kueueResourceFlavors)
-	maps.Copy(snapshot.kueueWorkloads, srv.metadata.kueueWorkloads)
+	maps.Copy(snapshot.namespaces, s.namespaces)
+	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
+	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
+	maps.Copy(snapshot.kueueWorkloads, s.kueueWorkloads)
 	return snapshot
 }
 
@@ -695,15 +742,17 @@ func protoKueueResourceFlavor(entry kueueResourceFlavorEntry, eventType pb.KubeM
 
 func protoKueueWorkload(entry kueueWorkloadEntry, eventType pb.KubeMetadataEventType) *pb.KueueWorkload {
 	return &pb.KueueWorkload{
-		Namespace:         entry.namespace,
-		Name:              entry.name,
-		Queue:             entry.queueName,
-		ClusterQueue:      entry.clusterQueueName,
-		Labels:            entry.labels,
-		Annotations:       entry.annotations,
-		Uid:               entry.uid,
-		PodSetAssignments: protoKueuePodSetAssignments(entry.podSetAssignments),
-		Type:              eventType,
+		Namespace:              entry.namespace,
+		Name:                   entry.name,
+		Queue:                  entry.queueName,
+		ClusterQueue:           entry.clusterQueueName,
+		Labels:                 entry.labels,
+		Annotations:            entry.annotations,
+		Uid:                    entry.uid,
+		PodSetAssignments:      protoKueuePodSetAssignments(entry.podSetAssignments),
+		PodTemplateLabels:      entry.podTemplateLabels,
+		PodTemplateAnnotations: entry.podTemplateAnnotations,
+		Type:                   eventType,
 	}
 }
 
@@ -748,7 +797,9 @@ func kueueWorkloadEqual(left, right kueueWorkloadEntry) bool {
 		left.uid == right.uid &&
 		maps.Equal(left.labels, right.labels) &&
 		maps.Equal(left.annotations, right.annotations) &&
-		kueuePodSetAssignmentsEqual(left.podSetAssignments, right.podSetAssignments)
+		kueuePodSetAssignmentsEqual(left.podSetAssignments, right.podSetAssignments) &&
+		maps.Equal(left.podTemplateLabels, right.podTemplateLabels) &&
+		maps.Equal(left.podTemplateAnnotations, right.podTemplateAnnotations)
 }
 
 func kueuePodSetAssignmentsEqual(left, right []kueuePodSetAssignmentEntry) bool {

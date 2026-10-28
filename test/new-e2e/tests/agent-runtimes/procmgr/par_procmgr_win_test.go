@@ -7,12 +7,10 @@ package procmgr
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -53,25 +51,13 @@ func (s *parProcmgrWindowsSuite) TestPARSupervisedByProcmgrAndLegacySCMStopped()
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
 	require.NoError(s.T(), err)
 
-	parBin := filepath.Join(installRoot, "bin", "agent", "privateactionrunner.exe")
-	exists, err := host.FileExists(parBin)
-	require.NoError(s.T(), err)
-	if !exists {
-		s.T().Skip("privateactionrunner.exe not installed; skipping PAR procmgr test")
-	}
+	skipUnlessHostPath(s.T(), host, agentBin(installRoot, "privateactionrunner.exe"),
+		"privateactionrunner.exe not installed; skipping PAR procmgr test")
+	requireHostPath(s.T(), host, processesDConfig(installRoot, parProcmgrConfigFileName),
+		"fleet PAR processes.d config should exist at %s")
 
-	cfg := filepath.Join(installRoot, "processes.d", parProcmgrConfigFileName)
-	exists, err = host.FileExists(cfg)
-	require.NoError(s.T(), err)
-	require.True(s.T(), exists, "fleet PAR processes.d config should exist at %s", cfg)
-
-	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, parProcessName))
-		assert.NoError(ct, err)
-		assert.Contains(ct, out, "State")
-		assert.Contains(ct, out, "Running")
-	}, 120*time.Second, 3*time.Second)
+	cli := agentBin(installRoot, "dd-procmgr.exe")
+	_ = waitProcmgrRunning(s.T(), host, cli, parProcessName, 2*time.Minute)
 
 	out, err := host.Execute(fmt.Sprintf(
 		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,

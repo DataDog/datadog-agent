@@ -20,7 +20,7 @@ fn list_empty_when_no_processes() {
 }
 
 #[test]
-fn list_shows_running_and_created_mix() {
+fn list_shows_running_and_skipped_mix() {
     let env = TestEnv::new()
         .with_process("sleeper")
         .with_process("sleeper_idle");
@@ -32,7 +32,7 @@ fn list_shows_running_and_created_mix() {
     let list = procmgr.require_list();
     list.assert_len(2);
     list.assert_process_state("sleeper", ProcessExpect::Running);
-    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Skipped);
 }
 
 #[test]

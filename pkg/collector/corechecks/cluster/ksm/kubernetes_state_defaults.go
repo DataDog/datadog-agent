@@ -55,6 +55,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_pod_spec_volumes_persistentvolumeclaims_readonly":                                    "pod.volumes.persistentvolumeclaims_readonly",
 		"kube_pod_status_unschedulable":                                                            "pod.unschedulable",
 		"kube_pod_tolerations":                                                                     "pod.tolerations",
+		"kube_node_spec_taint":                                                                     "node.taint",
 		"kube_poddisruptionbudget_status_current_healthy":                                          "pdb.pods_healthy",
 		"kube_poddisruptionbudget_status_desired_healthy":                                          "pdb.pods_desired",
 		"kube_poddisruptionbudget_status_pod_disruptions_allowed":                                  "pdb.disruptions_allowed",
@@ -90,6 +91,17 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
 		"kube_ingress_path":                                                                        "ingress.path",
+		// DRA accelerator allocation/pooling observability. `resourceclaim.count`
+		// carries a `state` tag (pending/allocated/in_use), so the pending
+		// count is a filter on it rather than its own metric. There is no entry
+		// for kube_resourceclaim_created: it is a creation timestamp turned
+		// into `resourceclaim.pending.age` by a transformer, the same way
+		// kube_pod_created becomes pod.age.
+		"kube_resourceclaim_status":            "resourceclaim.count",
+		"kube_resourceclaim_devices_allocated": "resourceclaim.devices.allocated",
+		"kube_resourceslice_devices_total":     "resourceslice.devices",
+		"kube_resourceslice_capacity":          "resourceslice.capacity",
+		"kube_devicetaintrule_info":            "dra.device_taint_rule",
 	}
 }
 
@@ -169,6 +181,10 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		"kube_persistentvolume_info": {
 			LabelsToMatch: getLabelToMatchForKind("persistentvolume"),
 			LabelsToGet:   []string{"storageclass"},
+		},
+		"kube_horizontalpodautoscaler_ownerref": {
+			LabelsToMatch: getLabelToMatchForKind("horizontalpodautoscaler"),
+			LabelsToGet:   []string{"ownerref_kind", "ownerref_name"},
 		},
 		"kube_persistentvolumeclaim_info": {
 			LabelsToMatch: getLabelToMatchForKind("persistentvolumeclaim"),

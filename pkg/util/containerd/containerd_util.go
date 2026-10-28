@@ -421,23 +421,32 @@ func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }
 
+// unpackedSnapshotter returns the snapshotter holding img unpacked. It asks
+// nydus first and then the default snapshotter, since a node running nydus
+// can hold an image in either.
+func unpackedSnapshotter(ctx context.Context, img containerd.Image) (string, error) {
+	if unpacked, err := img.IsUnpacked(ctx, "nydus"); err == nil && unpacked {
+		return "nydus", nil
+	}
+	unpacked, err := img.IsUnpacked(ctx, defaults.DefaultSnapshotter)
+	if err != nil {
+		return "", fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
+	}
+	if !unpacked {
+		return "", fmt.Errorf("unable to scan image named: %s, image is not unpacked for snapshotter %s", img.Name(), defaults.DefaultSnapshotter)
+	}
+	return defaults.DefaultSnapshotter, nil
+}
+
 // MountsWithSnapshotter is like Mounts but also returns the snapshotter name
 // backing the mounts, so callers that need to talk to the same SnapshotService
 // (e.g. to verify the snapshot's parent chain) don't have to re-probe.
 func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error) {
-	snapshotter := "nydus"
 	ctx = namespaces.WithNamespace(ctx, namespace)
 
-	// Checking if image is already unpacked
-	imgUnpacked, err := img.IsUnpacked(ctx, snapshotter)
+	snapshotter, err := unpackedSnapshotter(ctx, img)
 	if err != nil {
-		snapshotter = defaults.DefaultSnapshotter
-		if imgUnpacked, err = img.IsUnpacked(ctx, snapshotter); err != nil {
-			return nil, "", nil, fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
-		}
-	}
-	if !imgUnpacked {
-		return nil, "", nil, fmt.Errorf("unable to scan image named: %s, image is not unpacked for snapshotter %s", img.Name(), snapshotter)
+		return nil, "", nil, err
 	}
 
 	// Getting image id
