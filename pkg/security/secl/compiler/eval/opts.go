@@ -6,6 +6,8 @@
 // Package eval holds eval related files
 package eval
 
+import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
+
 // MacroStore represents a store of SECL Macros
 type MacroStore struct {
 	macros []*Macro
@@ -143,4 +145,9 @@ func (o *Opts) AddVariable(name string, variable SECLVariable) *Opts {
 func (o *Opts) WithTelemetry(telemetry *Telemetry) *Opts {
 	o.Telemetry = telemetry
 	return o
+}
+
+// passes returns the compilation passes run over the trees of the rules.
+func (o *Opts) passes() []pass.Pass {
+	return nil
 }

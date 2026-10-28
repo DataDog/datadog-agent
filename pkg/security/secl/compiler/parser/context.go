@@ -15,7 +15,7 @@ import (
 // rules use it.
 //
 // A cached tree is shared by every rule built from the same expression, which
-// is safe since the compilation doesn't mutate the tree.
+// is safe since the compilation passes run over a copy of it.
 //
 // A ParsingContext with a cache isn't safe for concurrent use.
 type ParsingContext struct {

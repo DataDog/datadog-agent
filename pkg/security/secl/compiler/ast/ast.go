@@ -41,6 +41,10 @@ type Node interface {
 	// token of the node.
 	Position() Position
 
+	// copy returns a shallow copy of the node, see Copy.
+	copy() Node
+	// editChildren replaces each child of the node, see EditChildren.
+	editChildren(edit func(Node) Node)
 	// node closes the union.
 	node()
 }

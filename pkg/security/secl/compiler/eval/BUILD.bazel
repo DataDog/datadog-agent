@@ -53,6 +53,7 @@ go_library(
     deps = [
         "//pkg/security/secl/compiler/ast",
         "//pkg/security/secl/compiler/parser",
+        "//pkg/security/secl/compiler/pass",
         "//pkg/security/secl/utils",
         "@com_github_charlievieth_strcase//:strcase",
         "@com_github_jellydator_ttlcache_v3//:ttlcache",
