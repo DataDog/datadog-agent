@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``datadog-cluster-agent clusterchecks`` command now prints one line per
+    check instance with its average execution time, last run and status, and
+    one line per unassigned configuration. Use ``--verbose`` to print the full
+    check configurations as before, or ``--json`` to print the dispatching
+    state as JSON. The command no longer prints the Cluster Agent's internal
+    logs when ``DD_LOG_LEVEL`` is set in its environment; use ``--log_level``
+    to show them for debugging.
