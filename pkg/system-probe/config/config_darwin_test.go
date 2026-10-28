@@ -8,6 +8,7 @@
 package config
 
 import (
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,7 @@ func TestNotableEventsModuleEnablement(t *testing.T) {
 			mock.NewSystemProbe(t)
 			coreConfig.SetInTest("notable_events.enabled", test.enabled)
 
-			cfg, err := New("/doesnotexist", "")
+			cfg, err := New("/doesnotexist", "", &schemanoopimpl.SchemaNoop{})
 			require.NoError(t, err)
 			assert.Equal(t, test.enabled, cfg.ModuleIsEnabled(types.NotableEventsModule))
 		})

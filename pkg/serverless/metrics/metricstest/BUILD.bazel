@@ -14,6 +14,7 @@ go_library(
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/schema/fx-noop",
         "//comp/core/secrets/def",
         "//comp/core/secrets/mock",
         "//comp/core/tagger/def",

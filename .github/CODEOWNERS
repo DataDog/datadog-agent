@@ -508,6 +508,7 @@
 /comp/core/gui @DataDog/fleet-remediation
 /comp/core/profiler @DataDog/fleet-remediation
 /comp/core/remoteflags @DataDog/fleet-remediation
+/comp/core/schema @DataDog/fleet-automation
 /comp/core/secrets @DataDog/fleet-automation
 /comp/core/settings @DataDog/fleet-automation
 /comp/core/status @DataDog/fleet-remediation

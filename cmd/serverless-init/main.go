@@ -28,6 +28,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -61,6 +62,7 @@ import (
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -259,7 +261,7 @@ func main() {
 	// resolved here, so metricTags below is snapshotted from this pre-secrets
 	// view. The second LoadDatadog in setup() resolves them for the config,
 	// but the already-snapshotted metricTags keep the raw values.
-	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}); err != nil {
+	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
 
@@ -328,6 +330,7 @@ func main() {
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(coreconfig.NewParams("")),
 		coreconfig.Module(),
+		schemanoopfx.Module(),
 		logscompressionfx.Module(),
 		metricscompressionfx.Module(),
 		filterlistfx.Module(),
@@ -460,7 +463,7 @@ func setup(
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp)
+	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp, &schemanoopimpl.SchemaNoop{})
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}

@@ -41,6 +41,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/delegatedauth/mock",
+        "//comp/core/schema/noop-impl",
         "//comp/core/secrets/mock",
         "//pkg/config/model",
         "//pkg/config/setup",

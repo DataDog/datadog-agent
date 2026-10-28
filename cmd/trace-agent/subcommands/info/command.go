@@ -19,6 +19,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -49,6 +50,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		secretsnoopfx.Module(),
 		delegatedauthnoopfx.Module(),
 		coreconfig.Module(),
+		schemanoopfx.Module(),
 		nooptagger.Module(),
 		ipcfx.ModuleReadOnly(),
 		logfx.Module(),

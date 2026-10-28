@@ -59,6 +59,7 @@ dd_agent_go_test(
     embed = [":config"],
     gotags_sets = [["bpf"]],
     deps = [
+        "//comp/core/schema/noop-impl",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/system-probe/config/types",

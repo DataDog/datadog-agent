@@ -18,6 +18,7 @@ go_library(
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/log/fx",
+        "//comp/core/schema/fx-noop",
         "//comp/core/secrets/fx-noop",
         "//pkg/config/setup",
         "//pkg/util/fxutil",

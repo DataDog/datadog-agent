@@ -35,6 +35,8 @@ use (
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
+	comp/core/schema/def
+	comp/core/schema/noop-impl
 	comp/core/secrets/def
 	comp/core/secrets/fx
 	comp/core/secrets/impl

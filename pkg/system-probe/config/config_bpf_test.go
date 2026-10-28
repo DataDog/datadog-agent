@@ -8,6 +8,7 @@
 package config
 
 import (
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"os"
 	"strconv"
 	"testing"
@@ -40,7 +41,7 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 			defer os.Unsetenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
 
-			cfg, err := New("", "")
+			cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 			require.NoError(t, err)
 			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(types.EventMonitorModule))
 		})
@@ -53,12 +54,12 @@ func TestDynamicInstrumentation(t *testing.T) {
 	os.Setenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED", "true")
 	defer os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 
-	cfg, err := New("", "")
+	cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 	require.NoError(t, err)
 	assert.Equal(t, true, cfg.ModuleIsEnabled(types.DynamicInstrumentationModule))
 
 	os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
-	cfg, err = New("", "")
+	cfg, err = New("", "", &schemanoopimpl.SchemaNoop{})
 	require.NoError(t, err)
 	assert.Equal(t, false, cfg.ModuleIsEnabled(types.DynamicInstrumentationModule))
 
@@ -123,7 +124,7 @@ func TestNPMEnabled(t *testing.T) {
 			}
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(te.csm))
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_NETWORK_MONITORING_ENABLED", strconv.FormatBool(te.csmNpm))
-			cfg, err := New("", "")
+			cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 			require.NoError(t, err)
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(types.NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v, eudm: %v", te.npm, te.usm, te.ccm, te.eudm)
 		})

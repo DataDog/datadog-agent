@@ -102,6 +102,7 @@ import (
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
+	schemafx "github.com/DataDog/datadog-agent/comp/core/schema/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
@@ -430,7 +431,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
 			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithSchema(schemafx.Module())),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {

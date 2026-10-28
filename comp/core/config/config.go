@@ -18,6 +18,8 @@ import (
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -46,6 +48,8 @@ type dependencies struct {
 	Params        Params
 	Secret        secrets.Component
 	DelegatedAuth delegatedauth.Component
+	// Schema validates the configuration against its schema once loaded
+	Schema schema.Component
 	// When active, the snapshot has populated the global builder and we skip loading datadog.yaml.
 	Cfgstream configstreamconsumer.Component `optional:"true"`
 }
@@ -72,6 +76,7 @@ func NewServerlessConfig(path string) (Component, error) {
 		Params:        NewParams(path, options...),
 		Secret:        &secretnooptypes.SecretNoop{},
 		DelegatedAuth: &delegatedauthnooptypes.DelegatedAuthNoop{},
+		Schema:        &schemanoopimpl.SchemaNoop{},
 	}
 	return newConfig(d)
 }
@@ -106,7 +111,7 @@ func newConfig(deps dependencies) (*cfg, error) {
 		return &cfg{Config: config}, nil
 	}
 
-	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
+	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Schema, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			loadError = e.Error()

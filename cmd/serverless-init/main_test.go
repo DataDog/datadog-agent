@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	agentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
@@ -156,7 +157,7 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
 
 	configmock.New(t)
-	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t))
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	bundle := metricstest.New(t, fakeTagger)
 	metricAgent := metrics.New(bundle.Demux, metrics.Tags{})

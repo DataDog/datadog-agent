@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -20,7 +21,7 @@ import (
 
 func TestLoaderCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		cfg, err := config.NewConfig()
 		require.NoError(t, err)
