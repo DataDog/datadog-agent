@@ -265,6 +265,7 @@ func TestPARDiscoveryFencesLateResponseAndCancels(t *testing.T) {
 type sourceFunc func(time.Time) Observation
 
 func (f sourceFunc) Read(now time.Time) Observation { return f(now) }
+func (sourceFunc) Release()                         {}
 
 func TestPARDiscoveryRechecksAtHTTPDispatch(t *testing.T) {
 	f := newScopeFixture(t)

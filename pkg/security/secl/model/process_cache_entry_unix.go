@@ -97,10 +97,12 @@ func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }
 
+const cloneNewNS = 0x20000
+
 // SetExecParent set the parent of the exec entry
 func (pc *ProcessCacheEntry) SetExecParent(parent *ProcessCacheEntry) {
-	pc.setAncestor(parent)
 	pc.IsExec = true
+	pc.setAncestor(parent)
 	pc.IsExecExec = pc.Parent != nil && pc.Parent.IsExec
 }
 
@@ -154,7 +156,7 @@ func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
 		pc.NetNS = parent.NetNS
 	}
 
-	if pc.MntNS == 0 {
+	if pc.MntNS == 0 && (pc.IsExec || pc.ForkFlags&cloneNewNS == 0) {
 		pc.MntNS = parent.MntNS
 	}
 }

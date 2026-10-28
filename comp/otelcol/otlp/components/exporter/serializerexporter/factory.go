@@ -274,8 +274,8 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 			return nil, fmt.Errorf("feature gate %s needs the agent serializer", nativeOTelHistogramsGate.ID())
 		}
 		if domains := agentSerializer.SketchesV2Domains(); len(domains) > 0 {
-			return nil, fmt.Errorf("feature gate %s needs the v3 sketches intake for every metrics destination, but these use v2: %s; "+
-				"list them in serializer_experimental_use_v3_api.sketches.endpoints and do not use zlib compression",
+			return nil, fmt.Errorf("feature gate %s needs the v3 distributions intake for every metrics destination, but these use v2: %s; "+
+				"set them to true in use_v3_api.distributions.endpoints, and do not use zlib compression or Observability Pipelines Worker for metrics",
 				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
 		}
 		newTranslator = minimalTranslatorFromConfig

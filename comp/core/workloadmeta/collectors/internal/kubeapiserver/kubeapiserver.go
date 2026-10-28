@@ -331,7 +331,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue Workload resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, c.config)
 				if err != nil {
 					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
 					continue

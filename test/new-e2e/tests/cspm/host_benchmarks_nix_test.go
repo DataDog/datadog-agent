@@ -433,9 +433,9 @@ func (s *hostBenchmarksSuite) TestReporting() {
 				// `compliance check --report`. A mismatch means the startup
 				// resolution broke, not that the payload was mangled.
 				assert.Truef(c,
-					strings.HasPrefix(f.HostCCRID, "arn:aws:ec2:") && strings.HasSuffix(f.HostCCRID, wantCCRIDSuffix),
-					"finding %s reached fakeintake with host_ccrid %q, want the EC2 ARN of instance %s",
-					f.RuleID, f.HostCCRID, instanceID)
+					strings.HasPrefix(f.CCRID, "arn:aws:ec2:") && strings.HasSuffix(f.CCRID, wantCCRIDSuffix),
+					"finding %s reached fakeintake with ccrid %q, want the EC2 ARN of instance %s",
+					f.RuleID, f.CCRID, instanceID)
 				break
 			}
 		}
