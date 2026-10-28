@@ -84,6 +84,8 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	if !Enabled(cfg) {
 		return
 	}
+	// The packaged core SysV/Upstart launchers do not start procmgr. Do not infer this from a missing socket.
+	legacyInit := os.Getenv("DD_INTERNAL_PAR_LEGACY_INIT") == "true"
 	mode, err := deployment.Resolve(cfg)
 	// Intentional ungated modes take precedence over gate-specific configuration warnings.
 	bypass := runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent ||
@@ -91,6 +93,10 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	emit := newStateEmitter(report, newStateLogger(bypass))
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
+	}
+	if legacyInit {
+		emit(State{State: phonehomedef.StateNotApplicable, Reason: phonehomedef.ReasonLegacyInit})
+		return
 	}
 	if bypass || err != nil || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})

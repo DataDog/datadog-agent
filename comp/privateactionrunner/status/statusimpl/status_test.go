@@ -113,6 +113,7 @@ func TestPhoneHomeStartupStatus(t *testing.T) {
 		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonMissingEnrollmentScope, NextCheck: "2026-10-23T10:01:00Z"}, "waiting", "missing_enrollment_scope"},
 		{phonehome.State{State: phonehome.StateBlocked, Reason: phonehome.ReasonLaunchOutcomeUnknownRequiresReview}, "blocked", "launch_outcome_unknown_requires_review"},
 		{phonehome.State{State: phonehome.StateHandedOff, Reason: phonehome.ReasonSupervisorStartAcknowledged}, "handed_off", "supervisor_start_acknowledged"},
+		{phonehome.State{State: phonehome.StateNotApplicable, Reason: phonehome.ReasonLegacyInit}, "not_applicable", "legacy_init"},
 	} {
 		t.Run(tc.wireState, func(t *testing.T) {
 			state := tc.state

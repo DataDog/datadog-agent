@@ -5,3 +5,6 @@ enhancements:
     for Remote Configuration to be enabled for the organization and for the
     API key to have the required Remote Configuration and PAR enrollment
     permissions. ``datadog-agent status`` reports the startup state and reason.
+    When core Agent is launched by the packaged SysV or Upstart scripts, this
+    gate reports ``not_applicable (legacy_init)`` instead of waiting for a
+    process manager that those launchers do not start.

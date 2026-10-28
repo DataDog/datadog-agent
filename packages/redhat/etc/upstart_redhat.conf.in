@@ -10,6 +10,8 @@ normal exit 0
 console output
 
 script
+  # This launcher does not start procmgr; core must not wait for split PAR registrations.
+  export DD_INTERNAL_PAR_LEGACY_INIT=true
   # Logging to console from the agent is disabled since the agent already logs using file or
   # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
   # to log panic/crashes.

@@ -16,6 +16,8 @@ env DD_LOG_TO_CONSOLE=false
 setuid dd-agent
 
 script
+  # This launcher does not start procmgr; core must not wait for split PAR registrations.
+  export DD_INTERNAL_PAR_LEGACY_INIT=true
   exec {install_dir}/bin/agent/agent run -p {install_dir}/run/agent.pid
 end script
 
