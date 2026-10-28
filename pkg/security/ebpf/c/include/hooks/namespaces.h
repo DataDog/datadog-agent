@@ -1,6 +1,7 @@
 #ifndef _HOOKS_NAMESPACES_H_
 #define _HOOKS_NAMESPACES_H_
 
+#include "constants/offsets/filesystem.h"
 #include "constants/offsets/netns.h"
 #include "maps.h"
 
@@ -14,11 +15,11 @@ int hook_switch_task_namespaces(ctx_t *ctx) {
     u64 nsproxy_mnt_ns_offset;
     LOAD_CONSTANT("nsproxy_mnt_ns_offset", nsproxy_mnt_ns_offset);
 
-    void *mnt_ns;
+    void *mnt_ns = NULL;
     bpf_probe_read(&mnt_ns, sizeof(mnt_ns), (void *)new_ns + nsproxy_mnt_ns_offset);
     if (mnt_ns != NULL) {
         u32 inum = 0;
-        bpf_probe_read(&inum, sizeof(inum), (void *)mnt_ns + get_ns_common_inum_offset());
+        bpf_probe_read(&inum, sizeof(inum), (void *)mnt_ns + get_mnt_namespace_ns() + get_ns_common_inum_offset());
 
         u32 pid = bpf_get_current_pid_tgid() >> 32;
         bpf_map_update_elem(&mntns_cache, &pid, &inum, BPF_ANY);
