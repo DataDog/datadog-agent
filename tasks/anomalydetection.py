@@ -91,7 +91,7 @@ def build_scorer(ctx):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    ctx.run("go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
+    ctx.run("go build -C internal/anomalydetection/scorer -o ../../../bin/anomalydetection-scorer .")
 
 
 @task
@@ -106,7 +106,7 @@ def _build_testbench(ctx, *, env: dict[str, str] | None = None):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
     ctx.run(
-        "go build -C internal/qbranch/anomalydetection-testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench .",
+        "go build -C internal/anomalydetection/testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench .",
         env=env or {},
     )
 
@@ -133,6 +133,7 @@ def launch_testbench(
     timeout: int = 0,
     logs_only: bool = False,
     retain_parquet: bool = False,
+    allowed_types: str = "",
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -152,6 +153,7 @@ def launch_testbench(
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
         retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
+        allowed_types: Comma-separated allowed metric types (passed as --allowed_types).
     """
     if build:
         print("Building anomalydetection-testbench...")
@@ -169,6 +171,8 @@ def launch_testbench(
         flags += " --logs-only"
     if retain_parquet:
         flags += " --retain-parquet"
+    if allowed_types:
+        flags += f" --allowed_types {shlex.quote(allowed_types)}"
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:
@@ -216,7 +220,7 @@ def launch_testbench(
             "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"
         )
         ctx.run(
-            f"bin/anomalydetection-testbench --scenarios-dir {scenarios_dir}{flags} & ( cd internal/qbranch/anomalydetection-testbench/ui && npm install && npm run dev ) &"
+            f"bin/anomalydetection-testbench --scenarios-dir {scenarios_dir}{flags} & ( cd internal/anomalydetection/testbench/ui && npm install && npm run dev ) &"
         )
 
 

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The ``kubernetes_state_core`` check now collects the metrics of the
+    CronJobs, PodDisruptionBudgets and HorizontalPodAutoscalers of Kubernetes
+    clusters that only serve them through the ``batch/v1beta1``,
+    ``policy/v1beta1`` and ``autoscaling/v2beta2`` API versions. Since Agent
+    7.61.0, these metrics were missing on such clusters.

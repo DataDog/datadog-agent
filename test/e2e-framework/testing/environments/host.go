@@ -119,7 +119,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 }
 
 func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
-	if agent == nil || host == nil {
+	if agent == nil || agent.Client == nil || host == nil || host.Host == nil {
 		return "", errors.New("Agent or RemoteHost component is not initialized, cannot generate flare")
 	}
 	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached

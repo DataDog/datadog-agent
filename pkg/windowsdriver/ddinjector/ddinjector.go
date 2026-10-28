@@ -18,17 +18,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
 	// ddInjectorDeviceName is the device name for the APM injector driver
 	ddInjectorDeviceName = `\\.\DDInjector`
+
+	// ddInjectorServiceName is the driver service; its image path locates the driver binary.
+	ddInjectorServiceName = "ddinjector"
 )
 
 // maxKnownVersion is the highest counter contract version this agent knows how
 // to decode. Bump this (and add the corresponding gauges) when teaching the
 // agent about a new counter version.
-const maxKnownVersion = CountersVersion2
+const maxKnownVersion = CountersVersion3
 
 // capabilitiesErrorLogLimit throttles the capabilities-query fallback log so an
 // older driver without the capabilities IOCTL does not spam the log on every
@@ -69,6 +73,16 @@ type InjectorCounters struct {
 	BootRecoveryCrashBootsDetected  telemetry.SimpleGauge
 	BootRecoveryDriverSelfDisabled  telemetry.SimpleGauge
 	BootRecoveryStabilityTimerFired telemetry.SimpleGauge
+
+	// v3 fields (skip-list sources and signature policy). Populated only when
+	// the driver negotiates counter version >= 3; otherwise they are reset to 0.
+	ProcessesAutomaticallyAddedToSkipList telemetry.SimpleGauge
+	ProcessesSkippedDefault               telemetry.SimpleGauge
+	ProcessesSkippedCustom                telemetry.SimpleGauge
+	ProcessesSkippedCrashRecovery         telemetry.SimpleGauge
+	ProcessesSkippedSignaturePolicy       telemetry.SimpleGauge
+	ProcessesSignaturePolicyUnknown       telemetry.SimpleGauge
+	ProcessesSkippedShortName             telemetry.SimpleGauge
 }
 
 // Injector represents an opened instance to the ddinjector driver.
@@ -127,17 +141,21 @@ func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	if negotiated == 0 {
 		clearV1Gauges(counters)
 		clearV2Gauges(counters)
+		clearV3Gauges(counters)
 		return nil
 	}
 
-	// A V2 buffer has the V1 counters at its head, so always read into the
-	// widest known struct and tell the driver only how much we expect for the
-	// negotiated version. This keeps a single read/validate path regardless of
-	// version.
-	raw := DDInjectorCountersV2{}
+	// Each counter version is an exact binary prefix of the next one, so always
+	// read into the widest known struct and tell the driver only how much we
+	// expect for the negotiated version. This keeps a single read/validate path
+	// regardless of version.
+	raw := DDInjectorCountersV3{}
 	expectedSize := uint32(DDInjectorCountersV1Size)
-	if negotiated == CountersVersion2 {
+	switch negotiated {
+	case CountersVersion2:
 		expectedSize = uint32(DDInjectorCountersV2Size)
+	case CountersVersion3:
+		expectedSize = uint32(DDInjectorCountersV3Size)
 	}
 
 	request := NewCounterRequest(negotiated)
@@ -152,13 +170,18 @@ func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 		return fmt.Errorf("ddinjector returned %d bytes, expected at least %d", bytesReturned, expectedSize)
 	}
 
-	// The V1 counters occupy the head of the buffer, so reinterpret it to
-	// populate the V1 gauges without depending on cgo nested-field naming.
+	// The V1 and V2 counters occupy the head of the buffer, so reinterpret it to
+	// populate their gauges without depending on cgo nested-field naming.
 	populateV1Gauges(counters, (*DDInjectorCountersV1)(unsafe.Pointer(&raw)))
-	if negotiated == CountersVersion2 {
-		populateV2Gauges(counters, &raw)
+	if negotiated >= CountersVersion2 {
+		populateV2Gauges(counters, (*DDInjectorCountersV2)(unsafe.Pointer(&raw)))
 	} else {
 		clearV2Gauges(counters)
+	}
+	if negotiated >= CountersVersion3 {
+		populateV3Gauges(counters, &raw)
+	} else {
+		clearV3Gauges(counters)
 	}
 	return nil
 }
@@ -193,6 +216,17 @@ func populateV2Gauges(counters *InjectorCounters, raw *DDInjectorCountersV2) {
 	counters.BootRecoveryStabilityTimerFired.Set(float64(raw.BootRecoveryStabilityTimerFired))
 }
 
+// populateV3Gauges sets the V3 counter gauges from a raw V3 counter struct.
+func populateV3Gauges(counters *InjectorCounters, raw *DDInjectorCountersV3) {
+	counters.ProcessesAutomaticallyAddedToSkipList.Set(float64(raw.v3.ProcessesAutomaticallyAddedToSkipList))
+	counters.ProcessesSkippedDefault.Set(float64(raw.v3.ProcessesSkippedDefault))
+	counters.ProcessesSkippedCustom.Set(float64(raw.v3.ProcessesSkippedCustom))
+	counters.ProcessesSkippedCrashRecovery.Set(float64(raw.v3.ProcessesSkippedCrashRecovery))
+	counters.ProcessesSkippedSignaturePolicy.Set(float64(raw.v3.ProcessesSkippedSignaturePolicy))
+	counters.ProcessesSignaturePolicyUnknown.Set(float64(raw.v3.ProcessesSignaturePolicyUnknown))
+	counters.ProcessesSkippedShortName.Set(float64(raw.v3.ProcessesSkippedShortName))
+}
+
 // clearV1Gauges resets V1 gauges when the driver supports no counter version
 // the agent can decode.
 func clearV1Gauges(counters *InjectorCounters) {
@@ -215,13 +249,43 @@ func clearV1Gauges(counters *InjectorCounters) {
 	counters.PeInjectionContextCleanedup.Set(0)
 }
 
-// clearV2Gauges resets V2 gauges when the current driver contract is V1-only.
+// clearV2Gauges resets V2 gauges when the current driver contract is older than V2.
 func clearV2Gauges(counters *InjectorCounters) {
 	counters.CrashesDuringInjection.Set(0)
 	counters.CrashesPostInjection.Set(0)
 	counters.BootRecoveryCrashBootsDetected.Set(0)
 	counters.BootRecoveryDriverSelfDisabled.Set(0)
 	counters.BootRecoveryStabilityTimerFired.Set(0)
+}
+
+// clearV3Gauges resets V3 gauges when the current driver contract is older than V3.
+func clearV3Gauges(counters *InjectorCounters) {
+	counters.ProcessesAutomaticallyAddedToSkipList.Set(0)
+	counters.ProcessesSkippedDefault.Set(0)
+	counters.ProcessesSkippedCustom.Set(0)
+	counters.ProcessesSkippedCrashRecovery.Set(0)
+	counters.ProcessesSkippedSignaturePolicy.Set(0)
+	counters.ProcessesSignaturePolicyUnknown.Set(0)
+	counters.ProcessesSkippedShortName.Set(0)
+}
+
+// DriverVersion returns the file version of the installed ddinjector driver binary.
+func DriverVersion() (string, error) {
+	driverPath, err := winutil.QueryDriverImagePath(ddInjectorServiceName)
+	if err != nil {
+		return "", fmt.Errorf("failed to locate the ddinjector driver: %w", err)
+	}
+	info, err := winutil.GetFileVersionInfoStrings(driverPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read the ddinjector version resource: %w", err)
+	}
+	if info.FileVersionNumeric != "" {
+		return info.FileVersionNumeric, nil
+	}
+	if info.FileVersion != "" {
+		return info.FileVersion, nil
+	}
+	return "", errors.New("ddinjector version resource carries no file version")
 }
 
 // Close closes the handle to ddinjector.

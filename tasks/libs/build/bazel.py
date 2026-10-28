@@ -87,6 +87,15 @@ def package_from_path(path: str) -> str:
     return result
 
 
+def is_bazel_workspace() -> bool:
+    """Whether the current directory is a Bazel workspace.
+
+    Branches that predate the Bazel migration (e.g. Agent 6, handled by release tasks running from main) have no
+    `MODULE.bazel`, so Bazel targets cannot be used there.
+    """
+    return os.path.exists("MODULE.bazel")
+
+
 def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 

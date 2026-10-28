@@ -598,6 +598,21 @@ func isContainerRuntimePrefix(basename string) bool {
 	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
 }
 
+func IsContainerRuntime(entry *model.ProcessContext) bool {
+	if entry == nil {
+		return false
+	}
+	if isContainerRuntimePrefix(entry.FileEvent.BasenameStr) {
+		return true
+	}
+	if entry.FileEvent.IsFileless() {
+		if ancestor := GetNextAncestorBinaryOrArgv0(entry); ancestor != nil && isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr) {
+			return true
+		}
+	}
+	return false
+}
+
 // FindRootProcess returns the process this entry would be rooted on in the tree
 // (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
 // runtime processes via isValidRootNode), or nil if there is none.
@@ -633,19 +648,11 @@ func FindRootProcess(entry *model.ProcessContext) *model.ProcessContext {
 // isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
 func isValidRootNode(entry *model.ProcessContext) bool {
 	// an ancestor is required
-	ancestor := GetNextAncestorBinaryOrArgv0(entry)
-	if ancestor == nil {
+	if GetNextAncestorBinaryOrArgv0(entry) == nil {
 		return false
 	}
 
-	if entry.FileEvent.IsFileless() {
-		// a fileless node is a valid root node only if not having runc as parent
-		// ex: runc -> exec(fileless) -> init.sh; exec(fileless) is not a valid root node
-		return !(isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr) || isContainerRuntimePrefix(entry.FileEvent.BasenameStr))
-	}
-
-	// container runtime prefixes are not valid root nodes
-	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
+	return !IsContainerRuntime(entry)
 }
 
 // GetNextAncestorBinaryOrArgv0 returns the first ancestor with a different binary, or a different argv0 in the case of busybox processes
@@ -1311,13 +1318,17 @@ type ImageProcessKey struct {
 
 // EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
 // and returns the total number of nodes evicted
-func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string) int {
 	totalEvicted := 0
 
-	// Resolve once here so every node uses the same ID without querying the registry repeatedly.
-	// If the tag is not registered (e.g. no events have been seen for it), ID is 0 and the
-	// process-cache protection path is a no-op — consistent with nodes having no entry for that tag.
-	profileImageTagID := at.GetImageTagID(profileImageTag)
+	// A profile is shared by all the tags of an image: the process cache is looked up with the tag of each
+	// seen entry of a node, so map the IDs back to their tags once for the whole tree.
+	imageTags := make(map[uint64]string, len(at.imageTagIDs))
+	for i, entry := range at.imageTagIDs {
+		if entry.inUse {
+			imageTags[uint64(i)+1] = entry.tag
+		}
+	}
 
 	// Iterate through all process nodes and evict unused nodes
 	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
@@ -1326,7 +1337,7 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			continue
 		}
 
-		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		at.Stats.SizeBytes -= removedBytes
 
