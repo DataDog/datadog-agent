@@ -40,8 +40,6 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 func TestDisabledPARDoesNotRegisterBackgroundWork(t *testing.T) {
 	lc := &lifecycle{}
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": false})
-	component := NewComponent(Requires{Config: cfg, Lifecycle: lc}).Comp
-	require.NotNil(t, component)
-	require.Nil(t, component.Status())
+	require.NotNil(t, NewComponent(Requires{Config: cfg, Lifecycle: lc}).Comp)
 	require.Empty(t, lc.hooks)
 }

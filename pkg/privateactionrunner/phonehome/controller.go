@@ -17,16 +17,13 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	grpcstatus "google.golang.org/grpc/status"
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -61,8 +58,7 @@ func Enabled(cfg model.Reader) bool {
 	return runtime.GOOS != "windows" && cfg.GetBool(par.Enabled)
 }
 
-// Run watches supervisor registrations and authorizes each new lifecycle's initial startup.
-// It never retries an ambiguous Start or stops a child.
+// Run hands off at most once to the existing PAR startup path. It never retries enrollment or stops a child.
 func Run(ctx context.Context, cfg model.Reader, source Source) {
 	if !Enabled(cfg) {
 		return
@@ -72,13 +68,13 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	}
 	mode, err := deployment.Resolve(cfg)
 	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || mode != deployment.Split ||
-		!filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+		!filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}
-	socket := supervisorSocketPath()
+	socket := os.Getenv("DD_PM_SOCKET_PATH")
 	if !filepath.IsAbs(socket) {
-		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonInvalidSupervisorSocket})
+		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonExplicitSupervisorSocketRequired})
 		return
 	}
 	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -91,23 +87,13 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	c.run(ctx)
 }
 
-func supervisorSocketPath() string {
-	if socket := os.Getenv("DD_PM_SOCKET_PATH"); socket != "" {
-		return socket
-	}
-	// Match dd-procmgrd's Unix default in pkg/procmgr/rust/client/src/lib.rs.
-	return "/var/run/datadog-procmgrd/dd-procmgrd.sock"
-}
-
 type controller struct {
-	cfg           model.Reader
-	source        Source
-	pm            pb.ProcessManagerClient
-	emit          func(State)
-	now           func() time.Time
-	attempted     bool
-	generation    [2]string
-	handoffReason phonehomedef.Reason
+	cfg       model.Reader
+	source    Source
+	pm        pb.ProcessManagerClient
+	emit      func(State)
+	now       func() time.Time
+	attempted bool
 }
 
 func (c *controller) run(ctx context.Context) {
@@ -140,61 +126,33 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	if ctx.Err() != nil || !Enabled(c.cfg) {
 		return 0
 	}
-	if c.attempted && c.generation == [2]string{} {
-		return 0 // An ambiguous Start is not evidence that re-arming is safe.
+	if c.attempted {
+		return 0
 	}
 	rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	var children [2]*pb.ProcessDetail
-	for i, name := range []string{controlProcess, executorProcess} {
+	var control *pb.ProcessDetail
+	for _, name := range []string{controlProcess, executorProcess} {
 		p, err := c.pm.Describe(rpcCtx, &pb.DescribeRequest{NameOrUuid: name})
 		if err != nil || p.GetDetail() == nil {
 			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorUnavailable, pollInterval)
 		}
-		children[i] = p.Detail
-	}
-	generation := [2]string{children[0].Uuid, children[1].Uuid}
-	if generation[0] == "" || generation[1] == "" {
-		return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationUnavailable, pollInterval)
-	}
-	// A restart between the two Describe calls must not become a mixed baseline.
-	confirmed, err := c.pm.Describe(rpcCtx, &pb.DescribeRequest{NameOrUuid: generation[0]})
-	if err != nil || confirmed.GetDetail().GetUuid() != generation[0] {
-		return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationChangePending, pollInterval)
-	}
-	if c.generation != [2]string{} {
-		if generation == c.generation {
-			c.emit(State{State: phonehomedef.StateHandedOff, Reason: c.handoffReason})
-			return pollInterval // Child crashes/restarts belong to the existing supervisor lifecycle.
+		if p.Detail.AutoStart || p.Detail.RestartPolicy != "never" {
+			return set(phonehomedef.StateBlocked, phonehomedef.ReasonSupervisorMustBeOnDemandNoRestart, 0)
 		}
-		if generation[0] == c.generation[0] || generation[1] == c.generation[1] {
-			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationChangePending, pollInterval)
-		}
-		c.attempted = false
-		c.generation = [2]string{}
-	}
-	for i, child := range children {
-		// The control plane may recover after a crash, but only core owns its initial launch.
-		restartAllowed := child.RestartPolicy == "never" || (i == 0 && child.RestartPolicy == "on-failure")
-		if child.AutoStart || !restartAllowed {
-			return set(phonehomedef.StateBlocked, phonehomedef.ReasonUnsupportedSupervisorPolicy, 0)
-		}
-	}
-	for _, child := range children {
-		switch child.State {
+		switch p.Detail.State {
 		case pb.ProcessState_STARTING, pb.ProcessState_RUNNING, pb.ProcessState_STOPPING:
-			return c.handoff(generation, phonehomedef.ReasonExistingProcessLeftUntouched)
-		}
-	}
-	for _, child := range children {
-		switch child.State {
+			return set(phonehomedef.StateHandedOff, phonehomedef.ReasonExistingProcessLeftUntouched, 0)
 		case pb.ProcessState_SKIPPED, pb.ProcessState_STOPPED, pb.ProcessState_CREATED:
 		default:
 			return set(phonehomedef.StateBlocked, phonehomedef.ReasonPreviousProcessExitRequiresReview, 0)
 		}
+		if name == controlProcess {
+			control = p.Detail
+		}
 	}
 	// Old recovery experiments may hold credentials: require deliberate reconciliation before migration.
-	if _, err := os.Stat(enrollment.GetIdentityFilePath(c.cfg) + ".phone-home"); !os.IsNotExist(err) {
+	if _, err := os.Stat(c.cfg.GetString(par.IdentityFilePath) + ".phone-home"); !os.IsNotExist(err) {
 		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, 0)
 	}
 	gate := c.source.Read(c.now())
@@ -204,27 +162,15 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	if ctx.Err() != nil || !Enabled(c.cfg) {
 		return 0
 	}
-	// Recheck after supervisor/config inspection, immediately before Start.
+	// Recheck after supervisor/config inspection, immediately before the only Start RPC.
 	if gate = c.source.Read(c.now()); !gate.Ready {
 		return set(phonehomedef.StateWaiting, gate.Reason, pollInterval)
 	}
 	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer startCancel()
 	c.attempted = true
-	if _, err := c.pm.Start(startCtx, &pb.StartRequest{NameOrUuid: children[0].Uuid}); err != nil {
-		if grpcstatus.Code(err) == codes.NotFound {
-			// The supervisor resolves the UUID before spawning: this response proves no start.
-			c.attempted = false
-			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationChangePending, pollInterval)
-		}
+	if _, err := c.pm.Start(startCtx, &pb.StartRequest{NameOrUuid: control.Uuid}); err != nil {
 		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLaunchOutcomeUnknownRequiresReview, 0)
 	}
-	return c.handoff(generation, phonehomedef.ReasonSupervisorStartAcknowledged)
-}
-
-func (c *controller) handoff(generation [2]string, reason phonehomedef.Reason) time.Duration {
-	c.generation, c.handoffReason = generation, reason
-	c.source.Release()
-	c.emit(State{State: phonehomedef.StateHandedOff, Reason: reason})
-	return pollInterval
+	return set(phonehomedef.StateHandedOff, phonehomedef.ReasonSupervisorStartAcknowledged, 0)
 }

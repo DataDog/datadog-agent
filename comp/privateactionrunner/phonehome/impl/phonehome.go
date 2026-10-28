@@ -24,17 +24,10 @@ type Requires struct {
 }
 
 type Provides struct{ Comp phonehome.Component }
-type component struct{ cfg config.Component }
-
-func (c *component) Status() *phonehome.State {
-	if !engine.Enabled(c.cfg) {
-		return nil
-	}
-	return engine.Status()
-}
+type component struct{}
 
 func NewComponent(r Requires) Provides {
-	c := &component{cfg: r.Config}
+	c := &component{}
 	if !engine.Enabled(r.Config) {
 		return Provides{Comp: c}
 	}
