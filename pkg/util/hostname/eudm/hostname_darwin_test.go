@@ -40,3 +40,27 @@ func TestGetComputerNameWithoutSerial(t *testing.T) {
 		})
 	}
 }
+
+func TestGetComputerNameApostrophes(t *testing.T) {
+	old := collectSystemInfo
+	t.Cleanup(func() { collectSystemInfo = old })
+	for _, name := range []string{"Jack's MacBook", "Jack’s MacBook", "'Jack’s' MacBook’"} {
+		t.Run(name, func(t *testing.T) {
+			collectSystemInfo = func() (*systeminfo.SystemInfo, error) {
+				return &systeminfo.SystemInfo{ComputerName: name, SerialNumber: "ABC123"}, nil
+			}
+			got, err := Get(false)
+			require.NoError(t, err)
+			require.Equal(t, "Jacks-MacBook", got)
+
+			got, err = Get(true)
+			require.NoError(t, err)
+			require.Equal(t, "Jacks-MacBook-abc123", got)
+		})
+	}
+	collectSystemInfo = func() (*systeminfo.SystemInfo, error) {
+		return &systeminfo.SystemInfo{ComputerName: "'’"}, nil
+	}
+	_, err := Get(false)
+	require.Error(t, err)
+}

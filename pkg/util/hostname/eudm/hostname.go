@@ -30,8 +30,6 @@ func formatHostname(name, serial string, useSerial bool) (string, error) {
 		}
 		suffix = "-" + serial
 	}
-	// Match Apple's Computer Name to hostname conversion by stripping apostrophes.
-	name = strings.ReplaceAll(strings.ReplaceAll(name, "'", ""), "’", "")
 	name = normalize(name)
 	if name == "" {
 		return "", errors.New("device name is empty after normalization")

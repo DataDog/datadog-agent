@@ -104,8 +104,8 @@ With serial appending enabled, the final hostname combines a name and serial on 
 - **macOS:** `<Computer-Name>-<serial-number>`, using the configured Computer Name from SystemConfiguration and
   the hardware serial from IOKit.
 
-This also applies to VMs. Device-name casing is preserved, and straight (`'`) and curly (`’`)
-apostrophes are removed from the device name to match Bonjour naming. The serial suffix is lowercased;
+This also applies to VMs. Device-name casing is preserved. On macOS, straight (`'`) and curly (`’`)
+apostrophes are removed from the Computer Name to match Bonjour naming. The serial suffix is lowercased;
 runs of other non-ASCII-alphanumeric characters become a hyphen and
 leading/trailing hyphens are removed. Only the name is truncated if necessary to keep the result within 253 characters;
 the serial is preserved. When serial appending is disabled, only the device name is normalized and truncated,

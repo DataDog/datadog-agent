@@ -5,9 +5,15 @@
 
 package eudm
 
-import "github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
+import (
+	"strings"
 
-// deviceName uses the configured Computer Name, which network changes do not affect.
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
+)
+
+// deviceName uses the configured Computer Name instead of a network-derived hostname.
 func deviceName(info *systeminfo.SystemInfo) (string, error) {
-	return info.ComputerName, nil
+	name := info.ComputerName
+	// Match Apple's Computer Name to hostname conversion by stripping apostrophes.
+	return strings.ReplaceAll(strings.ReplaceAll(name, "'", ""), "’", ""), nil
 }
