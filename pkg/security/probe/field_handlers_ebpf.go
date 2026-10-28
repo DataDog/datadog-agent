@@ -427,7 +427,7 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
-	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext, f); pkg != nil {
+	if pkg := fh.resolvers.SBOMResolver.LookupPackage(ev.ProcessContext, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
 		f.PkgEpoch = pkg.Epoch
@@ -773,7 +773,7 @@ func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanCont
 func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 	// nothing to do once the lookup ran, when the kernel already filled the ids
 	// in, or when it captured no labels snapshot for this event
-	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 {
+	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 || fh.resolvers.GoLabelsCtxResolver == nil {
 		return
 	}
 	ev.GoLabels.Resolved = true

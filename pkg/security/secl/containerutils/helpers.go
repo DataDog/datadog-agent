@@ -32,7 +32,8 @@ func init() {
 	podUIDPattern = regexp.MustCompile(`pod([0-9a-fA-F]{8}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{12})`)
 }
 
-// FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
+// FindContainerID returns the last container ID found in s, which is the
+// innermost container of a nested cgroup path.
 func FindContainerID(s CGroupID) ContainerID {
 	matches := containerIDPattern.FindAllIndex([]byte(s), -1)
 

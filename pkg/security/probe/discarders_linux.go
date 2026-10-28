@@ -491,7 +491,7 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 			MountID:              inodeEntry.PathKey.MountID,
 		}
 
-		path, err := resolver.Resolve(inodeEntry.PathKey, false)
+		path, err := resolver.Resolve(inodeEntry.PathKey, false, dentry.CallerDiscarder)
 		if err == nil {
 			record.FilePath = path
 		}

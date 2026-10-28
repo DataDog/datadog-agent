@@ -36,7 +36,6 @@ from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.e2e_internet_access import (
     REGISTRY_PATH,
     REPO_ROOT,
-    TREE_SITTER_DEPS,
     Registry,
     normalize_paths,
     scan,
@@ -958,14 +957,6 @@ def e2e_internet_access(_, path=None):
     Args:
         path: File or directory to check (repeatable). Runs a full scan when omitted or when the registry is included.
     """
-    try:
-        import tree_sitter_go  # noqa: F401
-    except ImportError:
-        deps = " ".join(f"--dep {dep}" for dep in TREE_SITTER_DEPS)
-        raise Exit(
-            color_message(f"Run this task with: dda inv {deps} linter.e2e-internet-access", Color.RED), code=1
-        ) from None
-
     scope = select_scope(normalize_paths(path or [], REPO_ROOT))
     registry = Registry.parse((REPO_ROOT / REGISTRY_PATH).read_text())
     errors = registry.errors + registry.check(scan(REPO_ROOT, scope), scope)

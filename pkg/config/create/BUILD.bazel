@@ -17,6 +17,7 @@ dd_agent_go_test(
     srcs = ["new_test.go"],
     embed = [":create"],
     deps = [
+        "//pkg/config/model",
         "//pkg/config/nodetreemodel",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

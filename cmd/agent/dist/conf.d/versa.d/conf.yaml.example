@@ -71,6 +71,33 @@ instances:
     #
     # max_count: 2000
 
+    ## @param client_timeout - integer - optional - default: 10
+    ## Timeout in seconds for each HTTP request (and each retry) to the Versa API.
+    #
+    # client_timeout: 10
+
+    ## @param endpoint_overrides - mapping - optional
+    ## Override max_count, max_pages and client_timeout for specific endpoints, for example to
+    ## give slow Analytics queries a longer timeout or a smaller page size.
+    ## Unset values inherit the instance-wide settings. max_pages only applies to
+    ## Analytics endpoints and director_interface_metrics.
+    ##
+    ## Supported endpoints: organizations, appliances, interfaces, director_status,
+    ## director_interface_metrics, sla_metrics, link_status_metrics, link_usage_metrics,
+    ## site_metrics, applications_by_appliance_metrics, top_user_metrics, tunnel_metrics,
+    ## qos_metrics, dia_metrics, interface_metrics
+    ##
+    ## Each endpoint supports:
+    ##   max_count - integer - Max number of resources to query per request.
+    ##   max_pages - integer - Max number of pages to request.
+    ##   timeout - integer - Timeout in seconds for each HTTP request.
+    #
+    # endpoint_overrides:
+    #   sla_metrics:
+    #     max_count: 500
+    #     max_pages: 20
+    #     timeout: 60
+
     ## @param lookback_time_window_minutes - integer - optional - default: 30
     ## The time window to query when polling Versa metrics where available.
     ## Some metrics must be pulled with a minimum of a 1 day lookback.

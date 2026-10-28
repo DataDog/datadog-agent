@@ -42,6 +42,7 @@ import (
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
+	ndmrcconfigfx "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
 	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
@@ -164,6 +165,8 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
+	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+	phonehomefx "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/fx"
 	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
@@ -309,6 +312,7 @@ func run(log log.Component,
 	_ systemprobemetadata.Component,
 	_ securityagentmetadata.Component,
 	_ status.Component,
+	_ phonehome.Component,
 	collector collector.Component,
 	_ cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
@@ -495,6 +499,7 @@ func getSharedFxOption() fx.Option {
 		rctelemetryreporterfx.Module(),
 		rcprotocoltestfx.Module(),
 		rcservicefx.Module(),
+		phonehomefx.Module(),
 		rcservicemrffx.Module(),
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),
@@ -503,6 +508,7 @@ func getSharedFxOption() fx.Option {
 		adfx.Module(),
 		fx.Supply(autodiscovery.Params{PreloadConfigsOnStart: true}),
 		networkpathrcproviderfx.Module(),
+		ndmrcconfigfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -592,7 +598,7 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
 		logondurationfx.Module(),
-		healthplatform.Bundle(),
+		healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
 		tracetelemetryfx.Module(),
 		dataplanepreflightmodefx.Module(),
 	)
