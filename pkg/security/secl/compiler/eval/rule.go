@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
@@ -44,6 +45,10 @@ type Rule struct {
 type RuleEvaluator struct {
 	Eval      BoolEvalFnc
 	EventType EventType
+
+	// tree is the parsed tree after the compilation passes. It is compiled for the
+	// rule, and again for each of its partials.
+	tree *ast.Rule
 
 	fieldValues map[Field][]FieldValue
 	fields      []Field
@@ -201,8 +206,10 @@ func (r *Rule) Parse(parsingContext *parser.ParsingContext) error {
 	return nil
 }
 
-// NewRuleEvaluator returns a new evaluator for a rule
+// NewRuleEvaluator returns a new evaluator for a parsed rule: it runs the
+// compilation passes over the tree and compiles the result.
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
+	rule = pass.Run(rule, opts.passes()...).(*ast.Rule)
 	state := NewState(model, "", opts.MacroStore)
 
 	eval, _, err := compileExpr(rule.Root, opts, state)
@@ -267,6 +274,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventType:   eventType,
+		tree:        rule,
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
 		registers:   state.registers,
@@ -326,14 +334,14 @@ func (r *Rule) genPartials(field Field) error {
 	}
 
 	state := NewState(r.Model, field, partialMacroEvaluatorGetter(macroPartial))
-	pEval, _, err := compileExpr(r.ast.Root, r.Opts, state)
+	pEval, _, err := compileExpr(r.evaluator.tree.Root, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
 	}
 
 	pEvalBool, ok := pEval.(*BoolEvaluator)
 	if !ok {
-		return NewTypeError(r.ast.Pos, reflect.Bool)
+		return NewTypeError(r.evaluator.tree.Pos, reflect.Bool)
 	}
 
 	if pEvalBool.EvalFnc == nil {

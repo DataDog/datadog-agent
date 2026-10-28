@@ -11,10 +11,14 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 )
 
-// Compile builds the evaluator of a node, of a concrete type depending on the node.
+// Compile runs the compilation passes over a node, and builds its evaluator, of a
+// concrete type depending on the node.
 func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	node = pass.Run(node, opts.passes()...)
+
 	switch node := node.(type) {
 	case *ast.Rule:
 		return compileExpr(node.Root, opts, state)

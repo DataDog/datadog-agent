@@ -10,8 +10,9 @@ import (
 )
 
 // ParsingContext parses the expressions of a rule set, optionally caching the
-// trees of its rules. Sharing a cached tree between rules relies on the AST
-// being immutable. A ParsingContext with a cache isn't safe for concurrent use.
+// trees of its rules. Sharing a cached tree between rules is safe since the
+// compilation passes run over a copy of it. A ParsingContext with a cache isn't
+// safe for concurrent use.
 type ParsingContext struct {
 	ruleCache map[string]*ast.Rule
 }

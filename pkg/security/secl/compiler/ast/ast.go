@@ -24,6 +24,11 @@ func (p Position) String() string {
 type Node interface {
 	// Position returns the position of the first token of the node.
 	Position() Position
+
+	// copy returns a shallow copy of the node, see Copy.
+	copy() Node
+	// editChildren replaces each child of the node, see EditChildren.
+	editChildren(edit func(Node) Node)
 }
 
 // Meta is embedded in every node of the tree.
