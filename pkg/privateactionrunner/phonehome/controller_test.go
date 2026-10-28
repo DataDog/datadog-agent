@@ -82,7 +82,11 @@ func newFixture(t *testing.T) *fixture {
 		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "on-failure"},
 		executor: &pb.ProcessDetail{Uuid: "executor", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 	}}
-	f.c = &controller{cfg: cfg, source: NewSource(cfg, f.rc), pm: f.pm, now: time.Now, emit: func(s State) { f.state = s }}
+	logState := newStateLogger(false)
+	f.c = &controller{cfg: cfg, source: NewSource(cfg, f.rc), pm: f.pm, now: time.Now, emit: func(s State) {
+		f.state = s
+		logState(s)
+	}}
 	return f
 }
 
