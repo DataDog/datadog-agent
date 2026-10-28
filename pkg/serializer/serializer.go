@@ -7,6 +7,7 @@
 package serializer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -352,13 +354,31 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
 }
 
+// scrubbedJSON formats a JSON payload for logging. The scrubbing only happens when the payload is formatted, so it costs
+// nothing when the log level is disabled.
+type scrubbedJSON []byte
+
+// String scrubs the payload by key name, as the plain text scrubbing applied to log lines does not recognize JSON keys,
+// and compacts it to keep the log on a single line.
+func (p scrubbedJSON) String() string {
+	scrubbed, err := scrubber.ScrubJSON(p)
+	if err != nil {
+		return "<unable to scrub payload>"
+	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, scrubbed); err != nil {
+		return string(scrubbed)
+	}
+	return compacted.String()
+}
+
 func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
 	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
+	s.logger.Debugf("Sending metadata payload, content: %v", scrubbedJSON(payload))
 
 	if mustSplit {
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
