@@ -32,7 +32,7 @@ const schemaIndexExpressionColumn = "c.hidden_column = 'YES' AND c.virtual_colum
 const localColumnValuesQuery = `SELECT TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID')),
 c.owner, c.table_name, c.column_name,
 CASE WHEN ` + schemaIndexExpressionColumn + ` THEN 'YES' ELSE 'NO' END, c.data_default
-FROM dba_tab_cols c WHERE /*RELATIONS*/`
+FROM dba_tab_cols c WHERE /*RELATIONS*/ AND c.default_length > 0`
 
 type schemaContainerSession interface {
 	schemaQueryer

@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	utilcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -101,6 +103,9 @@ func (c *Check) runSchemaWorker(ctx context.Context, pool *sqlx.DB, run *Check) 
 	cancel()
 	defer conn.Close()
 	run.schemaQueryer = conn
+	if !c.config.AgentSQLTrace.Enabled {
+		run.schemaPool = pool
+	}
 	return run.schemaCollection(ctx)
 }
 
@@ -127,7 +132,6 @@ func (c *Check) Cancel() {
 	c.stopSchemaWorker(true)
 }
 
-// Stop cancels schema collection when the runner stops the check.
 func (c *Check) Stop() {
 	c.stopSchemaWorker(true)
 }
@@ -162,6 +166,7 @@ func (c *Check) newSchemaCollectionRun() (*Check, error) {
 			ConnectionConfig: config.ConnectionConfig{QueryTimeout: c.config.QueryTimeout},
 		}},
 		tags:                   slices.Clone(c.tags),
+		driver:                 c.driver,
 		cdbName:                c.cdbName,
 		dbHostname:             c.dbHostname,
 		dbInstanceIdentifier:   c.dbInstanceIdentifier,
@@ -175,4 +180,210 @@ func (c *Check) newSchemaCollectionRun() (*Check, error) {
 			sender.EventPlatformEvent(payload, "dbm-metadata")
 		},
 	}, nil
+}
+
+const (
+	schemaWindowWorkers      = 4
+	schemaWindowBufferBytes  = 4 << 20
+	schemaWindowBufferEvents = 64
+)
+
+type schemaWindowEvent struct {
+	done    bool
+	encoded []byte
+	credit  int64
+}
+
+func schemaOrderedWindows(ctx context.Context, count, workerCount int, process func(context.Context, int, int, func(schemaEvent) error) error, emit func(schemaEvent) error) error {
+	return schemaOrderedWindowsBuffered(ctx, count, workerCount, schemaWindowBufferBytes, process, emit)
+}
+
+func schemaOrderedWindowsBuffered(ctx context.Context, count, workerCount int, bufferBytes int64, process func(context.Context, int, int, func(schemaEvent) error) error, emit func(schemaEvent) error) (err error) {
+	if workerCount < 1 || workerCount > schemaWindowWorkers {
+		return errors.New("invalid schema window worker count")
+	}
+	if bufferBytes <= 0 {
+		return errors.New("schema window buffer must be positive")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	failures := make([]error, workerCount)
+	output := make([]chan schemaWindowEvent, workerCount)
+	// Separate allowances let the first worker progress even when later queues are full.
+	credits := make([]*semaphore.Weighted, workerCount)
+	defer func() {
+		cancel()
+		workers.Wait()
+		for worker, queue := range output {
+			for value := range queue {
+				if value.credit > 0 {
+					credits[worker].Release(value.credit)
+				}
+			}
+		}
+		err = errors.Join(err, errors.Join(failures...))
+	}()
+	for worker := range output {
+		credits[worker] = semaphore.NewWeighted(bufferBytes)
+		output[worker] = make(chan schemaWindowEvent, schemaWindowBufferEvents)
+		workers.Add(1)
+		go func(worker int) {
+			defer workers.Done()
+			defer close(output[worker])
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					failures[worker] = fmt.Errorf("schema window worker panic: %v", recovered)
+				}
+				if failures[worker] != nil {
+					cancel()
+				}
+			}()
+			send := func(value schemaWindowEvent) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				select {
+				case output[worker] <- value:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			for window := worker; window < count; window += len(output) {
+				if err := ctx.Err(); err != nil {
+					failures[worker] = err
+					return
+				}
+				if err := process(ctx, worker, window, func(event schemaEvent) error {
+					encoded, err := json.Marshal(event)
+					if err != nil {
+						return err
+					}
+					// Allow oversized events through to avoid blocking their worker forever.
+					credit := min(int64(cap(encoded)), bufferBytes)
+					if err := credits[worker].Acquire(ctx, credit); err != nil {
+						return err
+					}
+					if err := send(schemaWindowEvent{encoded: encoded, credit: credit}); err != nil {
+						credits[worker].Release(credit)
+						return err
+					}
+					return nil
+				}); err != nil {
+					failures[worker] = err
+					return
+				}
+				if err := send(schemaWindowEvent{done: true}); err != nil {
+					failures[worker] = err
+					return
+				}
+			}
+		}(worker)
+	}
+	for window := 0; window < count; window++ {
+		for {
+			select {
+			case value, ok := <-output[window%len(output)]:
+				if !ok {
+					return errors.New("schema window ended before completion")
+				}
+				if value.done {
+					goto nextWindow
+				}
+				if err := ctx.Err(); err != nil {
+					if value.credit > 0 {
+						credits[window%len(output)].Release(value.credit)
+					}
+					return err
+				}
+				if err := func() error {
+					defer credits[window%len(output)].Release(value.credit)
+					var event schemaEvent
+					if err := json.Unmarshal(value.encoded, &event); err != nil {
+						return err
+					}
+					return emit(event)
+				}(); err != nil {
+					return err
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	nextWindow:
+	}
+	return nil
+}
+
+func (c *Check) schemaWindowCheck(queryer schemaQueryer) *Check {
+	return &Check{
+		config:                 c.config,
+		driver:                 c.driver,
+		tags:                   c.tags,
+		cdbName:                c.cdbName,
+		dbHostname:             c.dbHostname,
+		dbInstanceIdentifier:   c.dbInstanceIdentifier,
+		dbVersion:              c.dbVersion,
+		agentVersion:           c.agentVersion,
+		logPrompt:              c.logPrompt,
+		clock:                  c.clock,
+		schemaPayloadChunkSize: c.schemaPayloadChunkSize,
+		schemaQueryer:          queryer,
+	}
+}
+
+func (c *Check) schemaTableWindows(ctx context.Context, keys []tableKey, selected map[tableKey]struct{}, owners map[ownerKey]string, container map[int64]string, truncated map[int64]struct{}, emit func(schemaEvent) error) (int, error) {
+	workerCount := 1
+	if c.schemaPool != nil {
+		workerCount = min(schemaWindowWorkers, (len(keys)+schemaConstraintPageSize-1)/schemaConstraintPageSize)
+	}
+	if workerCount == 1 || len(keys) <= schemaConstraintPageSize {
+		total := 0
+		err := forEachTablePage(keys, schemaConstraintPageSize, func(window []tableKey) error {
+			count, err := c.schemaTableWindow(ctx, window, selected, owners, container, truncated, emit)
+			total += count
+			return err
+		})
+		return total, err
+	}
+	queryers := []schemaQueryer{c.schemaQueryer}
+	for len(queryers) < workerCount {
+		acquireCtx, cancel := context.WithTimeout(ctx, c.config.QueryTimeoutDuration())
+		conn, err := c.schemaPool.Connx(acquireCtx)
+		cancel()
+		if err != nil {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
+			break
+		}
+		defer conn.Close()
+		queryers = append(queryers, conn)
+	}
+	return c.schemaTableWindowsOnConnections(ctx, keys, selected, owners, container, truncated, queryers, emit)
+}
+
+func (c *Check) schemaTableWindowsOnConnections(ctx context.Context, keys []tableKey, selected map[tableKey]struct{}, owners map[ownerKey]string, container map[int64]string, truncated map[int64]struct{}, queryers []schemaQueryer, emit func(schemaEvent) error) (int, error) {
+	workers := make([]*Check, len(queryers))
+	for i, queryer := range queryers {
+		workers[i] = c.schemaWindowCheck(queryer)
+	}
+	var windows [][]tableKey
+	if err := forEachTablePage(keys, schemaConstraintPageSize, func(window []tableKey) error {
+		windows = append(windows, window)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	totals := make([]int, len(workers))
+	err := schemaOrderedWindows(ctx, len(windows), len(workers), func(ctx context.Context, worker, window int, emit func(schemaEvent) error) error {
+		count, err := workers[worker].schemaTableWindow(ctx, windows[window], selected, owners, container, truncated, emit)
+		totals[worker] += count
+		return err
+	}, emit)
+	total := 0
+	for _, count := range totals {
+		total += count
+	}
+	return total, err
 }

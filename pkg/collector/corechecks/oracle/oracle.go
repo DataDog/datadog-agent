@@ -104,6 +104,7 @@ type Check struct {
 	schemasLastRun                          time.Time
 	lastSnapshotID                          int64
 	schemaQueryer                           schemaQueryer
+	schemaPool                              *sqlx.DB
 	schemaEmitter                           payloadEmitter
 	schemaQueryError                        error
 	filePath                                string

@@ -29,32 +29,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func schemaPayloadEmitter(_ *Check, emit payloadEmitter) schemaEventEmitter {
-	return func(event schemaEvent) {
-		payload, err := json.Marshal(event)
-		if err == nil {
-			emit(payload)
-		}
-	}
+type schemaTestCollector struct {
+	*schemaCollector
+	t           *testing.T
+	coordinator *schemaSnapshotCoordinator
 }
 
-func emitSchemaSnapshotEvents(events []schemaEvent, complete bool, emit payloadEmitter) error {
-	coordinator := newSchemaSnapshotCoordinator(emit)
-	for _, event := range events {
-		coordinator.add(event)
-	}
-	if complete {
-		return coordinator.complete()
-	}
-	return coordinator.err
+func newSchemaCollector(t *testing.T, c *Check, emit payloadEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaTestCollector {
+	coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, emit)
+	return &schemaTestCollector{schemaCollector: newSchemaEventCollector(c, coordinator.add, details, owners, containers), t: t, coordinator: coordinator}
 }
 
-func newSchemaCollector(c *Check, emit payloadEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
-	return newSchemaEventCollector(c, schemaPayloadEmitter(c, emit), details, owners, containers)
+func (s *schemaTestCollector) finish() {
+	s.t.Helper()
+	s.schemaCollector.finish()
+	require.NoError(s.t, s.coordinator.complete())
+}
+
+func (s *schemaTestCollector) emitEmptyContainers(containers map[int64]string) {
+	s.t.Helper()
+	s.schemaCollector.emitEmptyContainers(containers)
+	require.NoError(s.t, s.coordinator.complete())
 }
 
 func (c *Check) tableDetails(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}) map[tableKey]*tableDetails {
-	return c.tableDetailsForPage(ctx, allowed, allowedColumns, allowed)
+	details := c.tableDetailsForPage(ctx, allowed, allowedColumns)
+	for key, constraints := range c.tableConstraintsForPage(ctx, allowed, allowed) {
+		if details[key] == nil {
+			details[key] = &tableDetails{}
+		}
+		details[key].Constraints = constraints.Constraints
+	}
+	return details
 }
 
 func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumns int, add func(schemaRowDB)) error {
@@ -216,8 +222,10 @@ func TestSchemaCollectionEmptyContainerValidationFailureDoesNotBlockNext(t *test
 }
 
 func TestSchemaSnapshotValidationFailureKeepsOtherContainers(t *testing.T) {
+	c, _, _, cleanup := newSchemaCheck(t)
+	defer cleanup()
 	var events []schemaEvent
-	coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
+	coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
 		var event schemaEvent
 		require.NoError(t, json.Unmarshal(payload, &event))
 		events = append(events, event)
@@ -546,7 +554,7 @@ func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP0000", "T1"))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WithArgs(schemaIdentityArgs(3, 1, []string{"APP1000"})...).WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP1000", "T2"))
-	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP0000", "T1", 0))
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP0000", "T1"))
 
 	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
@@ -603,28 +611,39 @@ func TestSnapshotChunking(t *testing.T) {
 	c.schemaPayloadChunkSize = 2
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
+	collector := newSchemaCollector(t, &c, func(b []byte) {
 		var e schemaEvent
 		require.NoError(t, json.Unmarshal(b, &e))
 		payloads = append(payloads, e)
 	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
 
 	for _, name := range []string{"T1", "T2", "T3", "T4", "T5"} {
-		collector.add(schemaRowDB{
-			ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
-			IotType: "-", ClusterName: "-", Partitioned: "NO",
-			ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true},
-			Nullable: "Y",
-		})
+		for _, column := range []string{"C1", "C2", "C3"} {
+			collector.add(schemaRowDB{
+				ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
+				IotType: "-", ClusterName: "-", Partitioned: "NO",
+				ColumnName: column, DataType: sql.NullString{String: "NUMBER", Valid: true},
+				Nullable: "Y",
+			})
+		}
 	}
 	collector.finish()
 
 	require.Len(t, payloads, 3, "5 tables at chunk size 2 must split into 3 payloads")
 
+	var names []string
 	for i, p := range payloads {
 		assert.Equal(t, payloads[0].CollectionStartedAt, p.CollectionStartedAt,
 			"payload %d must carry the snapshot id", i)
+		require.Len(t, p.Metadata, 1)
+		require.Len(t, p.Metadata[0].Schemas, 1)
+		assert.Len(t, p.Metadata[0].Schemas[0].Tables, min(2, 5-i*2))
+		for _, table := range p.Metadata[0].Schemas[0].Tables {
+			names = append(names, table.Name)
+			assert.Len(t, table.Columns, 3, "table %s must keep its columns in one payload", table.Name)
+		}
 	}
+	assert.Equal(t, []string{"T1", "T2", "T3", "T4", "T5"}, names)
 	assert.Zero(t, payloads[0].CollectionPayloadsCount, "only the last payload is terminating")
 	assert.Zero(t, payloads[1].CollectionPayloadsCount)
 	assert.Equal(t, 3, payloads[2].CollectionPayloadsCount,
@@ -646,14 +665,18 @@ func TestViewSnapshotChunkSize(t *testing.T) {
 			defer closeDB()
 			c.schemaPayloadChunkSize = tc.override
 			var events []schemaEvent
-			collector := newViewEventCollector(&c, func(event schemaEvent) {
+			coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
+				var event schemaEvent
+				require.NoError(t, json.Unmarshal(payload, &event))
 				events = append(events, event)
-			}, nil, nil, nil)
+			})
+			collector := newViewEventCollector(&c, coordinator.add, nil, nil, nil)
 
 			for i := 0; i <= tc.want; i++ {
 				collector.addView(schemaRowDB{ConID: 3, Owner: "APP", TableName: fmt.Sprintf("V%04d", i)})
 			}
 			collector.finish()
+			require.NoError(t, coordinator.complete())
 
 			require.Len(t, events, 2)
 			for i, event := range events {
@@ -679,7 +702,7 @@ func TestSnapshotPerContainer(t *testing.T) {
 	defer closeDB()
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
+	collector := newSchemaCollector(t, &c, func(b []byte) {
 		var e schemaEvent
 		require.NoError(t, json.Unmarshal(b, &e))
 		payloads = append(payloads, e)
@@ -708,6 +731,8 @@ func TestSnapshotPerContainer(t *testing.T) {
 }
 
 func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
+	c, _, _, cleanup := newSchemaCheck(t)
+	defer cleanup()
 	events := []schemaEvent{
 		{Kind: "oracle_databases", CollectionStartedAt: 100, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
 		{Kind: "oracle_databases", CollectionStartedAt: 200, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
@@ -716,17 +741,21 @@ func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
 	}
 
 	var emitted []schemaEvent
-	require.NoError(t, emitSchemaSnapshotEvents(events, true, func(payload []byte) {
+	coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
 		var event schemaEvent
 		require.NoError(t, json.Unmarshal(payload, &event))
 		emitted = append(emitted, event)
-	}))
+	})
+	for _, event := range events {
+		coordinator.add(event)
+	}
+	require.NoError(t, coordinator.complete())
 
 	require.Len(t, emitted, 4)
-	assert.Equal(t, int64(100), emitted[0].CollectionStartedAt)
-	assert.Equal(t, int64(200), emitted[1].CollectionStartedAt)
-	assert.Equal(t, int64(100), emitted[2].CollectionStartedAt)
-	assert.Equal(t, int64(200), emitted[3].CollectionStartedAt)
+	assert.Equal(t, int64(1), emitted[0].CollectionStartedAt)
+	assert.Equal(t, int64(2), emitted[1].CollectionStartedAt)
+	assert.Equal(t, emitted[0].CollectionStartedAt, emitted[2].CollectionStartedAt)
+	assert.Equal(t, emitted[1].CollectionStartedAt, emitted[3].CollectionStartedAt)
 	assert.Zero(t, emitted[0].CollectionPayloadsCount)
 	assert.Zero(t, emitted[1].CollectionPayloadsCount)
 	assert.Equal(t, 2, emitted[2].CollectionPayloadsCount)
@@ -739,14 +768,20 @@ func TestSchemaPayloadKeepsMaterializedViewFreshness(t *testing.T) {
 
 	key := tableKey{conID: 3, owner: "APP", table: "MV_ORDERS"}
 	refreshedAt := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables"} {
+		dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	}
 	dbMock.ExpectQuery("FROM cdb_mviews WHERE").WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "MVIEW_NAME", "REFRESH_MODE", "REFRESH_METHOD", "STALENESS", "LAST_REFRESH_DATE"},
 	).AddRow(3, "APP", "MV_ORDERS", "DEMAND", "COMPLETE", "FRESH", refreshedAt))
+	for _, view := range []string{"cdb_tab_comments", "cdb_indexes", "cdb_external_tables", "cdb_part_tables", "cdb_constraints"} {
+		dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	}
 	details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
 	require.NoError(t, dbMock.ExpectationsWereMet())
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(payload []byte) {
+	collector := newSchemaCollector(t, &c, func(payload []byte) {
 		for _, name := range []string{"num_rows", "row_count_estimate", "last_analyzed", "modifications_details"} {
 			assert.NotContains(t, string(payload), `"`+name+`":`)
 		}
@@ -776,7 +811,7 @@ func TestObjectTableDetailIsSurfaced(t *testing.T) {
 	defer closeDB()
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
+	collector := newSchemaCollector(t, &c, func(b []byte) {
 		var e schemaEvent
 		require.NoError(t, json.Unmarshal(b, &e))
 		payloads = append(payloads, e)
@@ -878,7 +913,7 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	c.cdbName = "free"
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
+	collector := newSchemaCollector(t, &c, func(b []byte) {
 		var e schemaEvent
 		require.NoError(t, json.Unmarshal(b, &e))
 		payloads = append(payloads, e)
@@ -920,7 +955,7 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows(
 		tableKey{conID: 3, owner: "APP", table: "ORDERS"}))
-	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "ORDERS", 1))
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "ORDERS"))
 	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
 		tableKey{conID: 3, owner: "APP", table: "V_ORDERS"}))
 	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(addViewRow(sqlmock.NewRows(viewRelationColumns), 3, "APP", "V_ORDERS", 1))
@@ -976,7 +1011,7 @@ func TestViewCollectionFailureKeepsTables(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows(
 		tableKey{conID: 3, owner: "APP", table: "ORDERS"}))
-	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "ORDERS", 1))
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "ORDERS"))
 	// Leave the view query unprimed to simulate a missing grant.
 
 	require.Error(t, c.SchemaCollection())
@@ -1099,22 +1134,6 @@ func TestIndexInfoJSONContract(t *testing.T) {
 			{"name": "CREATED_AT"}
 		]
 	}`, string(payload))
-
-	var serialized map[string]any
-	require.NoError(t, json.Unmarshal(payload, &serialized))
-	assert.NotContains(t, serialized, "unique")
-
-	columns, ok := serialized["columns"].([]any)
-	require.True(t, ok)
-	require.Len(t, columns, 3)
-	plainPart, ok := columns[0].(map[string]any)
-	require.True(t, ok)
-	assert.NotContains(t, plainPart, "column")
-	assert.NotContains(t, plainPart, "expression")
-	expressionPart, ok := columns[1].(map[string]any)
-	require.True(t, ok)
-	assert.NotContains(t, expressionPart, "name")
-	assert.NotContains(t, expressionPart, "column")
 }
 
 func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
@@ -1253,7 +1272,7 @@ func TestTableDetailsCollectionPresence(t *testing.T) {
 			details := c.tableDetails(context.Background(), allowed, nil)
 			require.NoError(t, dbMock.ExpectationsWereMet())
 			var payload []byte
-			collector := newSchemaCollector(&c, func(value []byte) { payload = value }, details,
+			collector := newSchemaCollector(t, &c, func(value []byte) { payload = value }, details,
 				map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
 			row := schemaRowDB{ConID: 3, Owner: "APP", TableName: "ORDERS", IotType: "-", ClusterName: "-"}
 			if tc.readOnly {
@@ -1297,9 +1316,7 @@ func TestTableDetailsConstraintsResolveForeignKey(t *testing.T) {
 			"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
 			"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
 		}).
-			// Primary key of the referenced table, ORDERS.
 			AddRow(3, "APP", "ORDERS", "ORDERS_PK", "P", "-", "-", "ORDER_ID", nil).
-			// A two-column composite foreign key on ORDER_ITEMS, in column-position order.
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "ORDER_ID", nil).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "LINE_NO", nil))
 
@@ -1359,7 +1376,12 @@ func TestTableDetailsResolvesForeignKeyToSelectedTableOutsidePage(t *testing.T) 
 		}).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "ORDER_ID", nil).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "LINE_NO", nil))
-	dbMock.ExpectQuery(`(?s)cdb_constraints c.*cc\.con_id = :rel0con AND cc\.owner = :rel0owner AND cc\.constraint_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDERS_PK")...).WillReturnRows(
+	dbMock.ExpectQuery(`(?s)SELECT c.con_id, c.owner, c.constraint_name, c.table_name.*c\.constraint_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDERS_PK")...).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME"}).
+			AddRow(3, "APP", "ORDERS_PK", "ORDERS"))
+	columnArgs := schemaRelationArgs(3, "APP", "ORDERS")
+	columnArgs = append(columnArgs, schemaBindTestArgs("targetConstraint", []string{"ORDERS_PK"}, schemaRelationPageSize)...)
+	dbMock.ExpectQuery(`(?s)FROM cdb_cons_columns cc.*cc\.table_name IN \(:rel0name0,.*cc\.constraint_name IN \(:targetConstraint0,`).WithArgs(columnArgs...).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"}).
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "ORDER_ID").
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "LINE_NO"))
@@ -1369,7 +1391,7 @@ func TestTableDetailsResolvesForeignKeyToSelectedTableOutsidePage(t *testing.T) 
 		{conID: 3, owner: "APP", table: "ORDER_ITEMS"}: {},
 		{conID: 3, owner: "APP", table: "ORDERS"}:      {},
 	}
-	details := c.tableDetailsForPage(context.Background(), page, nil, selected)
+	details := c.tableConstraintsForPage(context.Background(), page, selected)
 
 	fk := details[tableKey{conID: 3, owner: "APP", table: "ORDER_ITEMS"}].Constraints[0]
 	assert.Equal(t, "ORDERS", fk.ReferencedTable)
@@ -1519,45 +1541,6 @@ func TestTableDetailsBlockchainAndImmutableRetention(t *testing.T) {
 	assert.Empty(t, audit.HashAlgorithm, "immutable tables carry no hash algorithm")
 }
 
-// Multiple columns per table ensure chunking happens at table boundaries, not row boundaries.
-func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
-	c, _, _, closeDB := newSchemaCheck(t)
-	defer closeDB()
-	c.schemaPayloadChunkSize = 2
-
-	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(b, &e))
-		payloads = append(payloads, e)
-	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
-
-	for _, name := range []string{"T1", "T2", "T3"} {
-		for _, col := range []string{"C1", "C2", "C3"} {
-			collector.add(schemaRowDB{
-				ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
-				IotType: "-", ClusterName: "-", Partitioned: "NO",
-				ColumnName: col, DataType: sql.NullString{String: "NUMBER", Valid: true},
-				Nullable: "Y",
-			})
-		}
-	}
-	collector.finish()
-
-	require.Len(t, payloads, 2, "3 tables at chunk size 2 must split into 2 payloads, not one per column row")
-
-	var seenTables []string
-	for _, p := range payloads {
-		for _, table := range p.Metadata[0].Schemas[0].Tables {
-			seenTables = append(seenTables, table.Name)
-			assert.Len(t, table.Columns, 3, "table %s must keep all 3 of its columns in one payload", table.Name)
-		}
-	}
-	assert.Equal(t, []string{"T1", "T2", "T3"}, seenTables, "no table must be split or dropped across the chunk boundary")
-	assert.Equal(t, 2, payloads[1].CollectionPayloadsCount)
-}
-
-// A partial snapshot has no completion marker, so scan errors must emit no payload.
 func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1594,137 +1577,74 @@ func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }
 
-func TestMaxTablesTruncationFlag(t *testing.T) {
-	c, _, _, closeDB := newSchemaCheck(t)
-	defer closeDB()
-	c.config.Schemas.MaxTables = 1
-
-	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(b, &e))
-		payloads = append(payloads, e)
-	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
-
-	// One returned row with TOTAL_TABLES=2 represents a max_tables=1 result.
-	collector.add(schemaRowDB{
-		ConID: 3, Owner: "APP", TableName: "T1", Temporary: "N", External: "NO",
-		IotType: "-", ClusterName: "-", Partitioned: "NO",
-		TotalTables: sql.NullInt64{Int64: 2, Valid: true},
-		ColumnName:  "C1", DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
-	})
-	collector.finish()
-
-	require.Len(t, payloads, 1)
-	assert.True(t, payloads[0].Truncated, "TOTAL_TABLES exceeding max_tables must mark the payload truncated")
+func TestSchemaIdentityLimits(t *testing.T) {
+	for _, kind := range []string{"table", "view"} {
+		for _, count := range []int{0, 1, 2, 3} {
+			t.Run(fmt.Sprintf("%s/%d", kind, count), func(t *testing.T) {
+				c, _, dbMock, closeDB := newSchemaCheck(t)
+				defer closeDB()
+				const limit = 2
+				var selected []tableKey
+				for i := 0; i < count; i++ {
+					selected = append(selected, tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("R%d", i)})
+				}
+				dbMock.ExpectQuery("SELECT con_id, owner, " + kind + "_name").
+					WithArgs(schemaIdentityArgs(3, limit+1, []string{"APP"})...).
+					WillReturnRows(identityRows(selected...))
+				discover := c.tableIdentities
+				if kind == "view" {
+					discover = c.viewIdentities
+				}
+				keys, truncated, err := discover(context.Background(), ownerListChunks([]string{"APP"}),
+					map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, schemaSQL{}, limit)
+				require.NoError(t, err)
+				require.Equal(t, selected[:min(count, limit)], keys)
+				_, capped := truncated[3]
+				require.Equal(t, count > limit, capped)
+				require.NoError(t, dbMock.ExpectationsWereMet())
+			})
+		}
+	}
 }
 
-func TestMaxTablesNotTruncatedWhenUnderCap(t *testing.T) {
-	c, _, _, closeDB := newSchemaCheck(t)
-	defer closeDB()
-	c.config.Schemas.MaxTables = 300
-
-	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(b, &e))
-		payloads = append(payloads, e)
-	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
-
-	collector.add(schemaRowDB{
-		ConID: 3, Owner: "APP", TableName: "T1", Temporary: "N", External: "NO",
-		IotType: "-", ClusterName: "-", Partitioned: "NO",
-		TotalTables: sql.NullInt64{Int64: 1, Valid: true},
-		ColumnName:  "C1", DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
-	})
-	collector.finish()
-
-	require.Len(t, payloads, 1)
-	assert.False(t, payloads[0].Truncated, "a container with fewer tables than max_tables must not be marked truncated")
-}
-
-func TestMaxColumnsCapsColumnsAndFlagsTruncation(t *testing.T) {
-	c, _, _, closeDB := newSchemaCheck(t)
-	defer closeDB()
-	c.config.Schemas.MaxColumns = 2
-
-	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(b, &e))
-		payloads = append(payloads, e)
-	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
-
-	// Two returned rows with TOTAL_COLUMNS=4 represent a max_columns=2 result.
-	for _, col := range []string{"C1", "C2"} {
-		collector.add(schemaRowDB{
-			ConID: 3, Owner: "APP", TableName: "WIDE", Temporary: "N", External: "NO",
-			IotType: "-", ClusterName: "-", Partitioned: "NO",
-			TotalColumns: sql.NullInt64{Int64: 4, Valid: true},
-			ColumnName:   col, DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
+func TestMaxColumnsCap(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		limit, total int
+	}{
+		{name: "above_cap", limit: 2, total: 4},
+		{name: "under_cap", limit: 50, total: 1},
+		{name: "exactly_at_cap", limit: 2, total: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _, _, closeDB := newSchemaCheck(t)
+			defer closeDB()
+			c.config.Schemas.MaxColumns = tc.limit
+			var payloads []schemaEvent
+			collector := newSchemaCollector(t, &c, func(b []byte) {
+				var event schemaEvent
+				require.NoError(t, json.Unmarshal(b, &event))
+				payloads = append(payloads, event)
+			}, nil, nil, nil)
+			for i := range min(tc.limit, tc.total) {
+				collector.add(schemaRowDB{
+					ConID: 3, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
+					IotType: "-", ClusterName: "-", Partitioned: "NO",
+					TotalColumns: sql.NullInt64{Int64: int64(tc.total), Valid: true},
+					ColumnName:   fmt.Sprintf("C%d", i), DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
+				})
+			}
+			collector.finish()
+			require.Len(t, payloads, 1)
+			require.Len(t, payloads[0].Metadata, 1)
+			require.Len(t, payloads[0].Metadata[0].Schemas, 1)
+			require.Len(t, payloads[0].Metadata[0].Schemas[0].Tables, 1)
+			assert.Len(t, payloads[0].Metadata[0].Schemas[0].Tables[0].Columns, min(tc.limit, tc.total))
+			assert.Equal(t, tc.total > tc.limit, payloads[0].Truncated)
 		})
 	}
-	collector.finish()
-
-	require.Len(t, payloads, 1)
-	table := payloads[0].Metadata[0].Schemas[0].Tables[0]
-	assert.Len(t, table.Columns, 2, "max_columns=2 must cap the table at 2 columns")
-	assert.True(t, payloads[0].Truncated, "TOTAL_COLUMNS exceeding max_columns must mark the payload truncated")
 }
 
-func TestMaxColumnsNotTruncatedWhenUnderCap(t *testing.T) {
-	c, _, _, closeDB := newSchemaCheck(t)
-	defer closeDB()
-	c.config.Schemas.MaxColumns = 50
-
-	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(b, &e))
-		payloads = append(payloads, e)
-	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
-
-	collector.add(schemaRowDB{
-		ConID: 3, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
-		IotType: "-", ClusterName: "-", Partitioned: "NO",
-		TotalColumns: sql.NullInt64{Int64: 1, Valid: true},
-		ColumnName:   "C1", DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
-	})
-	collector.finish()
-
-	require.Len(t, payloads, 1)
-	assert.False(t, payloads[0].Truncated, "a table with fewer columns than max_columns must not be marked truncated")
-}
-
-func TestMaxColumnsNotTruncatedWhenExactlyAtCap(t *testing.T) {
-	c, _, _, closeDB := newSchemaCheck(t)
-	defer closeDB()
-	c.config.Schemas.MaxColumns = 2
-
-	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(b, &e))
-		payloads = append(payloads, e)
-	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
-
-	for _, col := range []string{"C1", "C2"} {
-		collector.add(schemaRowDB{
-			ConID: 3, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
-			IotType: "-", ClusterName: "-", Partitioned: "NO",
-			TotalColumns: sql.NullInt64{Int64: 2, Valid: true},
-			ColumnName:   col, DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
-		})
-	}
-	collector.finish()
-
-	require.Len(t, payloads, 1)
-	table := payloads[0].Metadata[0].Schemas[0].Tables[0]
-	assert.Len(t, table.Columns, 2)
-	assert.False(t, payloads[0].Truncated, "TOTAL_COLUMNS equal to max_columns must not mark the payload truncated")
-}
-
-// Owner names are interpolated into IN lists, so only unquoted Oracle identifiers are accepted.
 func TestSchemaOwnersRejectsUnexpectedCharacters(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1801,8 +1721,52 @@ func TestTableIdentityQueryUsesOracle12CompatibleLimit(t *testing.T) {
 }
 
 func TestObjectTablesAreExcludedFromOrdinaryTableBranches(t *testing.T) {
-	assert.Contains(t, tableIdentitiesQueryTemplate, "NOT EXISTS (\n\t\t\t\tSELECT 1 FROM cdb_object_tables")
+	assert.Contains(t, tableIdentitiesQueryTemplate, "NOT EXISTS (\n\t\t\t\tSELECT 1 FROM (")
 	assert.Contains(t, schemasQueryTemplate, "NOT EXISTS (\n\t\tSELECT 1 FROM cdb_object_tables")
+}
+
+func TestSchemaDiscoveryObjectBarrier(t *testing.T) {
+	owners := map[ownerKey]string{
+		{conID: 3, owner: "APP"}:       "1",
+		{conID: 3, owner: "REPORTING"}: "2",
+		{conID: 4, owner: "APP"}:       "1",
+	}
+	ownerLists := ownerListChunks([]string{"APP", "REPORTING"})
+	filter := schemaSQL{text: "AND t.table_name <> :excluded", args: []any{sql.Named("excluded", "SKIP")}}
+
+	template := tableIdentitiesQueryTemplate
+	require.Contains(t, template, "ORDER BY owner, table_name")
+	require.Contains(t, template, "ROWNUM <= /*IDENTITY_LIMIT*/")
+	c, db, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	var statements []schemaSQL
+	c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+		statements = append(statements, schemaSQL{text: query, args: append([]any(nil), args...)})
+		return db.QueryxContext(ctx, query, args...)
+	})
+	mock.ExpectQuery("cdb_object_tables").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).
+		AddRow(3, "APP", "A").AddRow(3, "APP", "B").AddRow(3, "REPORTING", "A"))
+	mock.ExpectQuery("cdb_object_tables").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).
+		AddRow(4, "APP", "A").AddRow(4, "APP", "B"))
+	keys, truncated, err := c.tableIdentities(context.Background(), ownerLists, owners, filter, 2)
+	require.NoError(t, err)
+	require.Len(t, statements, 2)
+	require.Equal(t, []tableKey{
+		{conID: 3, owner: "APP", table: "A"}, {conID: 3, owner: "APP", table: "B"},
+		{conID: 4, owner: "APP", table: "A"}, {conID: 4, owner: "APP", table: "B"},
+	}, keys)
+	require.Equal(t, map[int64]struct{}{3: {}}, truncated)
+	for i, statement := range statements {
+		require.Equal(t, sql.Named("con_id", int64(3+i)), statement.args[0])
+		require.Equal(t, sql.Named("identity_limit", 3), statement.args[1])
+		require.Equal(t, 2, strings.Count(statement.text, filter.text))
+		require.NotContains(t, statement.text, "/*")
+		require.Contains(t, statement.text, "WHERE con_id = :con_id AND owner IN ("+ownerLists[0].text+")")
+		require.Contains(t, statement.text, "AND ROWNUM > 0")
+	}
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestOwnerListForKeysIsDistinctAndSorted(t *testing.T) {
@@ -1820,7 +1784,7 @@ func TestOwnerListForKeysIsDistinctAndSorted(t *testing.T) {
 func TestForEachTablePageBoundsPageSize(t *testing.T) {
 	keys := make([]tableKey, schemaRelationPageSize*2+1)
 	var pageSizes []int
-	err := forEachTablePage(keys, func(page []tableKey) error {
+	err := forEachTablePage(keys, schemaRelationPageSize, func(page []tableKey) error {
 		pageSizes = append(pageSizes, len(page))
 		return nil
 	})
@@ -1837,7 +1801,7 @@ func TestForEachTablePageDoesNotMixContainers(t *testing.T) {
 	keys[schemaRelationPageSize].conID = 5
 
 	var pages [][]tableKey
-	require.NoError(t, forEachTablePage(keys, func(page []tableKey) error {
+	require.NoError(t, forEachTablePage(keys, schemaRelationPageSize, func(page []tableKey) error {
 		pages = append(pages, page)
 		return nil
 	}))
@@ -1855,7 +1819,7 @@ func TestSchemaCollectorKeepsSnapshotStateAcrossPages(t *testing.T) {
 	c.schemaPayloadChunkSize = 40
 
 	var payloads []schemaEvent
-	coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
+	coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
 		var event schemaEvent
 		require.NoError(t, json.Unmarshal(payload, &event))
 		payloads = append(payloads, event)
@@ -1864,7 +1828,7 @@ func TestSchemaCollectorKeepsSnapshotStateAcrossPages(t *testing.T) {
 	for i := range keys {
 		keys[i] = tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("T%03d", i)}
 	}
-	require.NoError(t, forEachTablePage(keys, func(page []tableKey) error {
+	require.NoError(t, forEachTablePage(keys, schemaRelationPageSize, func(page []tableKey) error {
 		collector := newSchemaEventCollector(&c, coordinator.add, nil, map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
 		for _, key := range page {
 			collector.add(schemaRowDB{ConID: key.conID, Owner: key.owner, TableName: key.table})
@@ -1893,7 +1857,7 @@ func TestHydrateTablePageSkipsDisappearedTables(t *testing.T) {
 			keys := []tableKey{{conID: 3, owner: "APP", table: "DROPPED"}, {conID: 3, owner: "APP", table: "KEPT"}}
 			rows := emptyTablesRows()
 			if !allGone {
-				addTableRow(rows, 3, "APP", "KEPT", 0)
+				addTableRow(rows, 3, "APP", "KEPT")
 			}
 			dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(rows)
 			var collected []string
@@ -1925,10 +1889,11 @@ func TestSnapshotKeepsTableWhenCappedViewsDisappear(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(
 		identityRows(tableKey{conID: 3, owner: "APP", table: "T"}))
+	dbMock.ExpectQuery("FROM cdb_constraints").WillReturnRows(emptyConstraintRows())
 	dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(addTableWithoutColumns(emptyTablesRows(), 3, "APP", "T"))
 	for _, view := range []string{
 		"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_col_comments",
-		"cdb_indexes", "cdb_constraints", "cdb_external_tables", "cdb_part_tables",
+		"cdb_tab_cols", "cdb_indexes",
 	} {
 		dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 	}
@@ -1962,7 +1927,7 @@ func TestHydrateTablePagePropagatesQueryAndRowErrors(t *testing.T) {
 			queryErr := context.DeadlineExceeded
 			query := dbMock.ExpectQuery("WITH ranked_columns")
 			if rowError {
-				query.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T", 0).RowError(0, queryErr))
+				query.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T").RowError(0, queryErr))
 			} else {
 				query.WillReturnError(queryErr)
 			}
@@ -1978,7 +1943,7 @@ func TestSchemaCollectorKeepsTableWithNoEligibleColumns(t *testing.T) {
 	defer closeDB()
 
 	var events []schemaEvent
-	collector := newSchemaCollector(&c, func(payload []byte) {
+	collector := newSchemaCollector(t, &c, func(payload []byte) {
 		var event schemaEvent
 		require.NoError(t, json.Unmarshal(payload, &event))
 		events = append(events, event)
@@ -2015,27 +1980,40 @@ func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 1))
 	identityRows := sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"})
-	firstPageRows := emptyTablesRows()
+	firstPage := emptyTablesRows()
 	for i := 0; i <= schemaRelationPageSize; i++ {
 		name := fmt.Sprintf("T%03d", i)
 		identityRows.AddRow(3, "APP", name)
 		if i < schemaRelationPageSize {
-			addTableRow(firstPageRows, 3, "APP", name, 0)
+			addTableRow(firstPage, 3, "APP", name)
 		}
 	}
 	dbMock.ExpectQuery("cdb_object_tables").WillReturnRows(identityRows)
-	dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(firstPageRows)
+	dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(firstPage)
 	dbMock.ExpectQuery("WITH ranked_columns").WillReturnError(errors.New("second page failed"))
+	dbMock.ExpectQuery("FROM cdb_constraints").WillReturnRows(emptyConstraintRows())
+	dbMock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	dbMock.ExpectQuery("FROM cdb_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	for _, view := range []string{
+		"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments",
+		"cdb_indexes",
+	} {
+		dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	}
 
 	require.ErrorContains(t, c.SchemaCollection(), "second page failed")
-	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
+	sender.AssertNumberOfCalls(t, "EventPlatformEvent", schemaRelationPageSize/50)
 	sender.AssertNumberOfCalls(t, "Commit", 1)
-	for _, call := range sender.Calls[:2] {
+	for _, call := range sender.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
 		var event schemaEvent
 		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
 		assert.Len(t, event.Metadata[0].Schemas[0].Tables, 50)
 		assert.Zero(t, event.CollectionPayloadsCount)
 	}
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
@@ -2043,7 +2021,7 @@ func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
 	defer closeDB()
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
+	collector := newSchemaCollector(t, &c, func(b []byte) {
 		var e schemaEvent
 		require.NoError(t, json.Unmarshal(b, &e))
 		payloads = append(payloads, e)
@@ -2062,7 +2040,7 @@ func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 	defer closeDB()
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
+	collector := newSchemaCollector(t, &c, func(b []byte) {
 		var e schemaEvent
 		require.NoError(t, json.Unmarshal(b, &e))
 		payloads = append(payloads, e)
@@ -2093,7 +2071,7 @@ func TestColumnDefaultTruncatedAtVarchar4000Cap(t *testing.T) {
 	details := c.tableDetails(context.Background(), allowed, allowedColumns)
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
+	collector := newSchemaCollector(t, &c, func(b []byte) {
 		var e schemaEvent
 		require.NoError(t, json.Unmarshal(b, &e))
 		payloads = append(payloads, e)
@@ -2337,7 +2315,7 @@ func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 var viewRelationColumns = []string{
 	"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
 	"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
-	"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES", "COLUMN_PRESENT",
+	"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "COLUMN_PRESENT",
 	"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 	"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 	"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC", "TOTAL_COLUMNS",
@@ -2346,14 +2324,14 @@ var viewRelationColumns = []string{
 func addViewRow(rows *sqlmock.Rows, conID int64, owner, viewName string, totalColumns int) *sqlmock.Rows {
 	return rows.AddRow(
 		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO",
-		"-", "-", nil, 1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil, totalColumns,
+		"-", "-", 1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil, totalColumns,
 	)
 }
 
 func addViewWithoutColumns(rows *sqlmock.Rows, conID int64, owner, viewName string) *sqlmock.Rows {
 	return rows.AddRow(
 		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO",
-		"-", "-", nil, 0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil, nil,
+		"-", "-", 0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil, nil,
 	)
 }
 
@@ -2371,7 +2349,7 @@ func TestViewPagesAreBounded(t *testing.T) {
 		keys[i] = tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("V%03d", i)}
 	}
 	var sizes []int
-	require.NoError(t, forEachTablePage(keys, func(page []tableKey) error {
+	require.NoError(t, forEachTablePage(keys, schemaRelationPageSize, func(page []tableKey) error {
 		sizes = append(sizes, len(page))
 		return nil
 	}))
@@ -2502,16 +2480,16 @@ func TestSchemaCollectionContinuesAfterContainerIdentityFailure(t *testing.T) {
 	assert.Equal(t, []string{"4"}, completed)
 }
 
-func addTableRow(rows *sqlmock.Rows, conID int64, owner, table string, totalTables int) *sqlmock.Rows {
+func addTableRow(rows *sqlmock.Rows, conID int64, owner, table string) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-", totalTables,
+		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-",
 		1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "Y", nil,
 	)
 }
 
 func addTableWithoutColumns(rows *sqlmock.Rows, conID int64, owner, table string) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-", nil,
+		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-",
 		0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil,
 	)
 }
@@ -2520,7 +2498,7 @@ func emptyTablesRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
 		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
-		"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES",
+		"OBJECT_TYPE_OWNER", "OBJECT_TYPE",
 		"COLUMN_PRESENT", "COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
@@ -2545,118 +2523,61 @@ func viewPayloadsByContainer(t *testing.T, sender *mock.Mock) map[string]schemaE
 	return byContainer
 }
 
-func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
-	db, dbMock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	dbMock.MatchExpectationsInOrder(false)
+func TestMaxViewsCap(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		available int
+		limit     int
+		collected int
+		truncated bool
+	}{
+		{name: "above_cap", available: 3, limit: 2, collected: 2, truncated: true},
+		{name: "under_cap", available: 1, limit: 50, collected: 1},
+		{name: "exactly_at_cap", available: 2, limit: 2, collected: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, dbMock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+			dbMock.MatchExpectationsInOrder(false)
 
-	c, sender := newDbDoesNotExistCheck(t, "", "")
-	c.db = sqlx.NewDb(db, "sqlmock")
-	c.clock = clock.NewMock()
-	c.dbVersion = "23.26.2.0.0"
-	c.config.Schemas.Enabled = true
-	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.MaxViews = 2
+			c, sender := newDbDoesNotExistCheck(t, "", "")
+			c.db = sqlx.NewDb(db, "sqlmock")
+			c.clock = clock.NewMock()
+			c.dbVersion = "23.26.2.0.0"
+			c.config.Schemas.Enabled = true
+			c.config.Schemas.CollectionInterval = 600
+			c.config.Schemas.MaxViews = tc.limit
 
-	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
-	dbMock.ExpectQuery("cdb_users").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
-	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
+			dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+			dbMock.ExpectQuery("cdb_users").WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+			dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
 
-	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
-		tableKey{conID: 3, owner: "APP", table: "V1"}, tableKey{conID: 3, owner: "APP", table: "V2"},
-		tableKey{conID: 3, owner: "APP", table: "V3"}))
-	rows := sqlmock.NewRows(viewRelationColumns)
-	addViewRow(rows, 3, "APP", "V1", 1)
-	addViewRow(rows, 3, "APP", "V2", 1)
-	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
+			identities := identityRows()
+			rows := sqlmock.NewRows(viewRelationColumns)
+			for i := range tc.available {
+				name := fmt.Sprintf("V%d", i+1)
+				identities.AddRow(3, "APP", name)
+				if i < tc.collected {
+					addViewRow(rows, 3, "APP", name, 1)
+				}
+			}
+			dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identities)
+			dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
 
-	expectSchemaContainerAvailable(dbMock, 3)
-	require.NoError(t, c.SchemaCollection())
+			expectSchemaContainerAvailable(dbMock, 3)
+			require.NoError(t, c.SchemaCollection())
 
-	byContainer := viewPayloadsByContainer(t, &sender.Mock)
-	require.Contains(t, byContainer, "3")
-	views := byContainer["3"]
-	require.Len(t, views.Metadata[0].Schemas, 1)
-	assert.Len(t, views.Metadata[0].Schemas[0].Views, 2, "max_views=2 must cap the container at 2 views")
-	assert.True(t, views.Truncated, "a container with more views than max_views must be marked truncated")
-}
-
-func TestMaxViewsNotTruncatedWhenUnderCap(t *testing.T) {
-	db, dbMock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	dbMock.MatchExpectationsInOrder(false)
-
-	c, sender := newDbDoesNotExistCheck(t, "", "")
-	c.db = sqlx.NewDb(db, "sqlmock")
-	c.clock = clock.NewMock()
-	c.dbVersion = "23.26.2.0.0"
-	c.config.Schemas.Enabled = true
-	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.MaxViews = 50
-
-	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
-	dbMock.ExpectQuery("cdb_users").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
-	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
-
-	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
-		tableKey{conID: 3, owner: "APP", table: "V1"}))
-	rows := sqlmock.NewRows(viewRelationColumns)
-	addViewRow(rows, 3, "APP", "V1", 1)
-	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
-
-	expectSchemaContainerAvailable(dbMock, 3)
-	require.NoError(t, c.SchemaCollection())
-
-	byContainer := viewPayloadsByContainer(t, &sender.Mock)
-	require.Contains(t, byContainer, "3")
-	views := byContainer["3"]
-	require.Len(t, views.Metadata[0].Schemas, 1)
-	assert.Len(t, views.Metadata[0].Schemas[0].Views, 1)
-	assert.False(t, views.Truncated, "a container with fewer views than max_views must not be marked truncated")
-}
-
-func TestMaxViewsNotTruncatedWhenExactlyAtCap(t *testing.T) {
-	db, dbMock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	dbMock.MatchExpectationsInOrder(false)
-
-	c, sender := newDbDoesNotExistCheck(t, "", "")
-	c.db = sqlx.NewDb(db, "sqlmock")
-	c.clock = clock.NewMock()
-	c.dbVersion = "23.26.2.0.0"
-	c.config.Schemas.Enabled = true
-	c.config.Schemas.CollectionInterval = 600
-	c.config.Schemas.MaxViews = 2
-
-	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
-	dbMock.ExpectQuery("cdb_users").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
-	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
-
-	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
-		tableKey{conID: 3, owner: "APP", table: "V1"}, tableKey{conID: 3, owner: "APP", table: "V2"}))
-	rows := sqlmock.NewRows(viewRelationColumns)
-	addViewRow(rows, 3, "APP", "V1", 1)
-	addViewRow(rows, 3, "APP", "V2", 1)
-	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
-
-	expectSchemaContainerAvailable(dbMock, 3)
-	require.NoError(t, c.SchemaCollection())
-
-	byContainer := viewPayloadsByContainer(t, &sender.Mock)
-	require.Contains(t, byContainer, "3")
-	views := byContainer["3"]
-	require.Len(t, views.Metadata[0].Schemas, 1)
-	assert.Len(t, views.Metadata[0].Schemas[0].Views, 2)
-	assert.False(t, views.Truncated, "a container with exactly max_views views must not be marked truncated")
+			byContainer := viewPayloadsByContainer(t, &sender.Mock)
+			require.Contains(t, byContainer, "3")
+			views := byContainer["3"]
+			require.Len(t, views.Metadata[0].Schemas, 1)
+			assert.Len(t, views.Metadata[0].Schemas[0].Views, tc.collected)
+			assert.Equal(t, tc.truncated, views.Truncated)
+		})
+	}
 }
 
 func TestMaxViewsCapEnforcedPerContainerIndependently(t *testing.T) {
@@ -2737,9 +2658,10 @@ func TestSchemaSnapshotAfterDisappearedPage(t *testing.T) {
 				identities.AddRow(3, "APP", fmt.Sprintf("T%03d", i))
 			}
 			if outcome == "capped" {
-				identities.AddRow(3, "APP", "T101")
+				identities.AddRow(3, "APP", fmt.Sprintf("T%03d", schemaRelationPageSize+1))
 			}
 			dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identities)
+			dbMock.ExpectQuery("FROM cdb_constraints").WillReturnRows(emptyConstraintRows())
 			dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(emptyTablesRows())
 			lastPage := dbMock.ExpectQuery("WITH ranked_columns")
 			switch outcome {
@@ -2748,7 +2670,7 @@ func TestSchemaSnapshotAfterDisappearedPage(t *testing.T) {
 			case "query_error":
 				lastPage.WillReturnError(context.DeadlineExceeded)
 			case "row_error":
-				lastPage.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T100", 0).RowError(0, context.DeadlineExceeded))
+				lastPage.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", fmt.Sprintf("T%03d", schemaRelationPageSize)).RowError(0, context.DeadlineExceeded))
 			}
 			if outcome == "all_gone" || outcome == "capped" {
 				expectSchemaContainerAvailable(dbMock, 3)
@@ -2879,4 +2801,1345 @@ func namesForSchemaTest(n int) []string {
 		names[i] = fmt.Sprintf("APP%04d", i)
 	}
 	return names
+}
+
+func TestColumnFilterChunksSharesIdenticalSets(t *testing.T) {
+	build := func(owner, tablePrefix, columnPrefix string, count int) schemaSQL {
+		allowed := make(map[columnKey]struct{})
+		for table := count - 1; table >= 0; table-- {
+			for column := 9; column >= 0; column-- {
+				allowed[columnKey{tableKey: tableKey{conID: 3, owner: owner, table: fmt.Sprintf("%s%03d", tablePrefix, table)}, column: fmt.Sprintf("%s%02d", columnPrefix, column)}] = struct{}{}
+			}
+		}
+		filters := columnFilterChunks(allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+		require.Len(t, filters, 1)
+		return filters[0]
+	}
+	first := build("APP", "T", "C", 100)
+	second := build("O'WNER", "T'", "C'", 99)
+	require.Equal(t, first.text, second.text)
+	require.Len(t, first.args, 2+schemaRelationPageSize+schemaColumnBindSlots)
+	require.Contains(t, first.text, "c.table_name IN (:rel0name0,")
+	require.Contains(t, first.text, "c.column_name IN (:sharedColumn0,")
+	require.Equal(t, sql.Named("rel0con", int64(3)), first.args[0])
+	require.Equal(t, sql.Named("rel0owner", "APP"), first.args[1])
+	require.Equal(t, sql.Named("rel0name0", sql.NullString{String: "T000", Valid: true}), first.args[2])
+	require.Equal(t, sql.Named("rel0name99", sql.NullString{String: "T099", Valid: true}), first.args[101])
+	require.Equal(t, sql.Named("sharedColumn0", sql.NullString{String: "C00", Valid: true}), first.args[102])
+	require.Equal(t, sql.Named("sharedColumn9", sql.NullString{String: "C09", Valid: true}), first.args[111])
+	for _, arg := range first.args[112:] {
+		require.Equal(t, sql.NullString{}, arg.(sql.NamedArg).Value)
+	}
+	require.NotContains(t, second.text, "O'WNER")
+	require.NotContains(t, second.text, "T'")
+	require.NotContains(t, second.text, "C'")
+}
+
+func TestColumnFilterChunksPreservesExactPairsAndFallbacks(t *testing.T) {
+	for _, scenario := range []string{"shared", "hidden", "local_container", "column_cap", "different_columns", "different_counts", "owners", "containers", "one_table", "chunk_boundary", "wide_boundary"} {
+		t.Run(scenario, func(t *testing.T) {
+			allowed := make(map[columnKey]struct{})
+			add := func(conID int64, owner, table string, names ...string) {
+				for _, name := range names {
+					allowed[columnKey{tableKey: tableKey{conID: conID, owner: owner, table: table}, column: name}] = struct{}{}
+				}
+			}
+			add(3, "APP", "A", "ID", "VALUE")
+			add(3, "APP", "B", "ID", "VALUE")
+			wantShared, wantQueries := true, 1
+			switch scenario {
+			case "hidden", "local_container":
+				for _, table := range []string{"A", "B"} {
+					add(3, "APP", table, "SYS_NC00002$", "SYS_NC_OID$", "SYS_NC_USER")
+				}
+			case "column_cap":
+				delete(allowed, columnKey{tableKey: tableKey{conID: 3, owner: "APP", table: "A"}, column: "VALUE"})
+				wantShared = false
+			case "different_columns":
+				delete(allowed, columnKey{tableKey: tableKey{conID: 3, owner: "APP", table: "B"}, column: "VALUE"})
+				add(3, "APP", "B", "OTHER")
+				wantShared = false
+			case "different_counts":
+				add(3, "APP", "B", "THIRD", "FOURTH")
+				wantShared = false
+			case "owners":
+				add(3, "OTHER", "A", "ID", "VALUE")
+				wantShared = false
+			case "containers":
+				add(4, "APP", "A", "ID", "VALUE")
+				wantShared = false
+			case "one_table":
+				clear(allowed)
+				add(3, "APP", "A", "ID", "VALUE")
+				wantShared = false
+			case "chunk_boundary":
+				clear(allowed)
+				for table := 0; table < 501; table++ {
+					add(3, "APP", fmt.Sprintf("T%04d", table), "ID", "VALUE")
+				}
+				wantQueries = 2
+			case "wide_boundary":
+				clear(allowed)
+				for table := 0; table < 3; table++ {
+					for column := 0; column < 600; column++ {
+						add(3, "APP", fmt.Sprintf("T%d", table), fmt.Sprintf("C%04d", column))
+					}
+				}
+				wantShared, wantQueries = false, 2
+			}
+			containerColumn := "c.con_id"
+			if scenario == "local_container" {
+				containerColumn = schemaCurrentContainerID
+			}
+			filters := columnFilterChunks(allowed, relationColumnNames{conID: containerColumn, owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+			require.Len(t, filters, wantQueries)
+			if scenario == "local_container" {
+				require.Contains(t, filters[0].text, schemaCurrentContainerID+" = :rel0con")
+				require.NotContains(t, filters[0].text, "c.con_id")
+			}
+			require.Equal(t, wantShared, strings.Contains(filters[0].text, ":sharedColumn0"))
+			actual := make(map[columnKey]struct{}, len(allowed))
+			for _, filter := range filters {
+				args := make(map[string]any, len(filter.args))
+				for _, arg := range filter.args {
+					bound := arg.(sql.NamedArg)
+					require.NotContains(t, args, bound.Name)
+					args[bound.Name] = bound.Value
+				}
+				for _, list := range regexp.MustCompile(`IN \(([^)]*)\)`).FindAllStringSubmatch(filter.text, -1) {
+					require.LessOrEqual(t, len(strings.Split(list[1], ",")), maxSchemaRelationsPerQuery)
+				}
+				appendPair := func(key tableKey, column string) {
+					pair := columnKey{tableKey: key, column: column}
+					require.NotContains(t, actual, pair)
+					actual[pair] = struct{}{}
+				}
+				if strings.Contains(filter.text, ":sharedColumn0") {
+					for name, value := range args {
+						if !strings.HasPrefix(name, "rel0name") || !value.(sql.NullString).Valid {
+							continue
+						}
+						key := tableKey{conID: args["rel0con"].(int64), owner: args["rel0owner"].(string), table: value.(sql.NullString).String}
+						for name, value := range args {
+							if strings.HasPrefix(name, "sharedColumn") && value.(sql.NullString).Valid {
+								appendPair(key, value.(sql.NullString).String)
+							}
+						}
+					}
+				} else {
+					require.Contains(t, filter.text, "c.table_name = :col0table")
+					for group := 0; ; group++ {
+						prefix := fmt.Sprintf("col%d", group)
+						table, ok := args[prefix+"table"]
+						if !ok {
+							break
+						}
+						conID := args[prefix+"con"]
+						if conID == nil {
+							conID = args["pagecon"]
+						}
+						key := tableKey{conID: conID.(int64), owner: args[prefix+"owner"].(string), table: table.(string)}
+						for name, value := range args {
+							if strings.HasPrefix(name, prefix+"name") && value.(sql.NullString).Valid {
+								appendPair(key, value.(sql.NullString).String)
+							}
+						}
+					}
+				}
+			}
+			require.Equal(t, allowed, actual)
+		})
+	}
+}
+
+func emptyConstraintRows() *sqlmock.Rows {
+	return sqlmock.NewRows([]string{
+		"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
+		"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
+	})
+}
+
+func TestSchemaConstraintWindowsKeepHydrationPagesBounded(t *testing.T) {
+	for _, scenario := range []string{"complete", "cross_window_fk", "second_window_deadline", "properties_incomplete"} {
+		t.Run(scenario, func(t *testing.T) {
+			c, db, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			views := false
+			c.config.Schemas.CollectViews = &views
+			c.config.Schemas.MaxTables = schemaConstraintPageSize + 1
+			c.config.Schemas.MaxColumns = 100
+			var events []schemaEvent
+			c.schemaEmitter = func(payload []byte) {
+				var event schemaEvent
+				require.NoError(t, json.Unmarshal(payload, &event))
+				events = append(events, event)
+			}
+			constraintQueries, hydrationQueries := 0, 0
+			c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+				if strings.Contains(query, "c.constraint_type IN") {
+					constraintQueries++
+					if constraintQueries == 2 {
+						require.NotEmpty(t, events, "the first window must emit before loading the second")
+					}
+				}
+				if strings.HasPrefix(query, "WITH ranked_columns") {
+					hydrationQueries++
+				}
+				return db.QueryxContext(ctx, query, args...)
+			})
+			dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+			dbMock.ExpectQuery("cdb_users").WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+			identities := identityRows()
+			names := make([]string, schemaConstraintPageSize+1)
+			for i := range names {
+				names[i] = fmt.Sprintf("T%04d", i)
+				identities.AddRow(3, "APP", names[i])
+			}
+			dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identities)
+			for start := 0; start < len(names); start += schemaConstraintPageSize {
+				end := min(start+schemaConstraintPageSize, len(names))
+				args := []driver.Value{sql.Named("rel0con", int64(3)), sql.Named("rel0owner", "APP")}
+				slots := schemaRelationPageSize
+				if end-start > slots {
+					slots = schemaConstraintPageSize
+				}
+				args = append(args, schemaBindTestArgs("rel0name", names[start:end], slots)...)
+				if scenario == "second_window_deadline" && start == schemaConstraintPageSize {
+					dbMock.ExpectQuery("cdb_constraints c").WithArgs(args...).WillReturnError(context.DeadlineExceeded)
+					break
+				}
+				constraints := emptyConstraintRows().AddRow(3, "APP", names[start], "PK_"+names[start], "P", "-", "-", "C1", nil)
+				if scenario == "cross_window_fk" {
+					if start == 0 {
+						constraints.AddRow(3, "APP", names[999], "CHILD_FK", "R", "APP", "PK_"+names[1000], "C1", nil)
+						constraints.AddRow(3, "APP", names[999], "CHILD_FK", "R", "APP", "PK_"+names[1000], "C2", nil)
+					} else {
+						constraints.AddRow(3, "APP", names[start], "PK_"+names[start], "P", "-", "-", "C2", nil)
+					}
+				}
+				dbMock.ExpectQuery("cdb_constraints c").WithArgs(args...).WillReturnRows(constraints)
+				if scenario == "cross_window_fk" && start == 0 {
+					dbMock.ExpectQuery("SELECT c.con_id, c.owner, c.constraint_name").
+						WithArgs(schemaRelationArgs(3, "APP", "PK_"+names[1000])...).WillReturnRows(
+						sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME"}).
+							AddRow(3, "APP", "PK_"+names[1000], names[1000]))
+					columnArgs := schemaRelationArgs(3, "APP", names[1000])
+					columnArgs = append(columnArgs, schemaBindTestArgs("targetConstraint", []string{"PK_" + names[1000]}, schemaRelationPageSize)...)
+					dbMock.ExpectQuery("FROM cdb_cons_columns cc").WithArgs(columnArgs...).WillReturnRows(
+						sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"}).
+							AddRow(3, "APP", "PK_"+names[1000], names[1000], "C1").
+							AddRow(3, "APP", "PK_"+names[1000], names[1000], "C2"))
+				}
+				for pageStart := start; pageStart < end; pageStart += schemaRelationPageSize {
+					pageEnd := min(pageStart+schemaRelationPageSize, end)
+					rows := emptyTablesRows()
+					for _, name := range names[pageStart:pageEnd] {
+						addTableRow(rows, 3, "APP", name)
+					}
+					pageArgs := []driver.Value{sql.Named("max_columns", 100), sql.Named("rel0con", int64(3)), sql.Named("rel0owner", "APP")}
+					pageArgs = append(pageArgs, schemaBindTestArgs("rel0name", names[pageStart:pageEnd], schemaRelationPageSize)...)
+					pageArgs = append(pageArgs, schemaBindTestArgs("pageOwner", []string{"APP"}, schemaRelationPageSize)...)
+					dbMock.ExpectQuery("WITH ranked_columns").WithArgs(pageArgs...).WillReturnRows(rows)
+					for _, view := range []string{
+						"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_col_comments",
+						"cdb_tab_cols", "cdb_indexes",
+					} {
+						if scenario == "properties_incomplete" && view == "cdb_blockchain_tables" {
+							dbMock.ExpectQuery("FROM " + view).WillReturnError(errors.New("ORA-00942: table or view does not exist"))
+							continue
+						}
+						dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+					}
+				}
+			}
+			if scenario != "second_window_deadline" {
+				expectSchemaContainerAvailable(dbMock, 3)
+			}
+			err := c.SchemaCollection()
+			if scenario == "second_window_deadline" {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				require.Equal(t, schemaConstraintPageSize/schemaRelationPageSize, hydrationQueries)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, schemaConstraintPageSize/schemaRelationPageSize+1, hydrationQueries)
+			}
+			require.NoError(t, dbMock.ExpectationsWereMet())
+			require.Equal(t, 2, constraintQueries)
+			seen := make(map[string]bool)
+			for _, event := range events {
+				if scenario == "second_window_deadline" {
+					require.Zero(t, event.CollectionPayloadsCount)
+				}
+				for _, schema := range event.Metadata[0].Schemas {
+					for _, table := range schema.Tables {
+						require.False(t, seen[table.Name])
+						seen[table.Name] = true
+						if scenario == "properties_incomplete" {
+							require.Nil(t, table.Properties)
+						} else {
+							require.NotNil(t, table.Properties)
+						}
+						if scenario == "cross_window_fk" && table.Name == names[999] {
+							require.Len(t, table.Constraints, 1)
+							fk := table.Constraints[0]
+							require.Equal(t, names[1000], fk.ReferencedTable)
+							require.Equal(t, []string{"C1", "C2"}, fk.ReferencedColumns)
+							require.Empty(t, fk.ReferencedConstraint)
+						}
+						if table.Name == names[0] || table.Name == names[schemaConstraintPageSize] {
+							require.Len(t, table.Constraints, 1)
+						}
+					}
+				}
+			}
+			if scenario == "second_window_deadline" {
+				require.NotEmpty(t, seen)
+				require.LessOrEqual(t, len(seen), schemaConstraintPageSize)
+			} else {
+				require.Len(t, seen, len(names))
+				require.Equal(t, len(events), events[len(events)-1].CollectionPayloadsCount)
+			}
+		})
+	}
+}
+
+func TestSchemaConstraintWindowResolvesTargetsAcrossHydrationPages(t *testing.T) {
+	c, db, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	allowed := make(map[tableKey]struct{}, schemaConstraintPageSize)
+	for i := 0; i < schemaConstraintPageSize; i++ {
+		allowed[tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("T%04d", i)}] = struct{}{}
+	}
+	dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+		AddRow(3, "APP", "T0000", "CHILD_FK", "R", "APP", "PARENT_PK", "PARENT_ID", nil).
+		AddRow(3, "APP", "T0999", "PARENT_PK", "P", "-", "-", "ID", nil).
+		AddRow(3, "APP", "T0999", "PARENT_PK", "P", "-", "-", "VERSION", nil))
+	queries := 0
+	c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+		queries++
+		return db.QueryxContext(ctx, query, args...)
+	})
+	details := c.tableConstraintsForPage(context.Background(), allowed, allowed)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+	require.Equal(t, 1, queries)
+	child := details[tableKey{conID: 3, owner: "APP", table: "T0000"}]
+	require.NotNil(t, child)
+	require.Len(t, child.Constraints, 1)
+	require.Equal(t, "T0999", child.Constraints[0].ReferencedTable)
+	require.Equal(t, []string{"ID", "VERSION"}, child.Constraints[0].ReferencedColumns)
+	require.Empty(t, child.Constraints[0].ReferencedConstraint)
+}
+
+func TestSchemaConstraintWindowDeduplicatesExcludedTargets(t *testing.T) {
+	c, db, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	allowed := map[tableKey]struct{}{
+		{conID: 3, owner: "APP", table: "FIRST"}: {},
+		{conID: 3, owner: "APP", table: "LAST"}:  {},
+	}
+	dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+		AddRow(3, "APP", "FIRST", "FIRST_FK", "R", "OTHER", "PARENT_PK", "PARENT_ID", nil).
+		AddRow(3, "APP", "LAST", "LAST_FK", "R", "OTHER", "PARENT_PK", "PARENT_ID", nil))
+	dbMock.ExpectQuery("SELECT c.con_id, c.owner, c.constraint_name").WithArgs(schemaRelationArgs(3, "OTHER", "PARENT_PK")...).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME"}).
+			AddRow(3, "OTHER", "PARENT_PK", "PARENT"))
+	queries := 0
+	c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+		queries++
+		return db.QueryxContext(ctx, query, args...)
+	})
+	details := c.tableConstraintsForPage(context.Background(), allowed, allowed)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+	require.Equal(t, 2, queries)
+	for key := range allowed {
+		require.NotNil(t, details[key])
+		require.Len(t, details[key].Constraints, 1)
+		fk := details[key].Constraints[0]
+		require.Empty(t, fk.ReferencedTable)
+		require.Empty(t, fk.ReferencedColumns)
+		require.Equal(t, "PARENT_PK", fk.ReferencedConstraint)
+	}
+}
+
+func TestSchemaConstraintWindowDoesNotResurrectMissingTables(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	views := false
+	c.config.Schemas.CollectViews = &views
+	c.config.Schemas.MaxTables = 1
+	var events []schemaEvent
+	c.schemaEmitter = func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	}
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(
+		identityRows(tableKey{conID: 3, owner: "APP", table: "GONE"}))
+	dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+		AddRow(3, "APP", "GONE", "GONE_PK", "P", "-", "-", "ID", nil))
+	dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(emptyTablesRows())
+	expectSchemaContainerAvailable(dbMock, 3)
+	require.NoError(t, c.SchemaCollection())
+	require.NoError(t, dbMock.ExpectationsWereMet())
+	require.Len(t, events, 1)
+	require.Empty(t, events[0].Metadata[0].Schemas)
+	require.Equal(t, 1, events[0].CollectionPayloadsCount)
+}
+
+func TestSchemaConstraintWindowFailurePolicy(t *testing.T) {
+	for _, failure := range []error{errors.New(oracleErrorTableOrViewDoesNotExist), errors.New("optional metadata failed"), context.DeadlineExceeded} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			c, db, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			views := false
+			c.config.Schemas.CollectViews = &views
+			c.config.Schemas.MaxTables = 1
+			var events []schemaEvent
+			c.schemaEmitter = func(payload []byte) {
+				var event schemaEvent
+				require.NoError(t, json.Unmarshal(payload, &event))
+				events = append(events, event)
+			}
+			hydrationCalls := 0
+			c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+				if strings.HasPrefix(query, "WITH ranked_columns") {
+					hydrationCalls++
+				}
+				return db.QueryxContext(ctx, query, args...)
+			})
+			dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+			dbMock.ExpectQuery("cdb_users").WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+			dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(
+				identityRows(tableKey{conID: 3, owner: "APP", table: "T"}))
+			dbMock.ExpectQuery("cdb_constraints c").WillReturnError(failure)
+			if !errors.Is(failure, context.DeadlineExceeded) {
+				dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T"))
+				for _, view := range []string{
+					"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_col_comments",
+					"cdb_tab_cols", "cdb_indexes",
+				} {
+					dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+				}
+				expectSchemaContainerAvailable(dbMock, 3)
+			}
+			err := c.SchemaCollection()
+			if errors.Is(failure, context.DeadlineExceeded) {
+				require.ErrorIs(t, err, failure)
+				require.Zero(t, hydrationCalls)
+				require.Empty(t, events)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, 1, hydrationCalls)
+				require.Len(t, events, 1)
+				require.Len(t, events[0].Metadata[0].Schemas[0].Tables, 1)
+				require.Nil(t, events[0].Metadata[0].Schemas[0].Tables[0].Constraints)
+				require.Equal(t, 1, events[0].CollectionPayloadsCount)
+			}
+			require.NoError(t, dbMock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestSchemaConstraintWindowDiscardsPartialRows(t *testing.T) {
+	for _, failure := range []error{errors.New("optional row failed"), context.DeadlineExceeded} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			c, _, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			allowed := map[tableKey]struct{}{
+				{conID: 3, owner: "APP", table: "T"}: {},
+				{conID: 3, owner: "APP", table: "U"}: {},
+			}
+			dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+				AddRow(3, "APP", "T", "PK", "P", "-", "-", "ID", nil).
+				AddRow(3, "APP", "T", "PK", "P", "-", "-", "VERSION", nil).
+				RowError(1, failure))
+			details := c.tableConstraintsForPage(context.Background(), allowed, allowed)
+			require.NoError(t, dbMock.ExpectationsWereMet())
+			for key := range allowed {
+				require.NotNil(t, details[key])
+				require.Nil(t, details[key].Constraints)
+			}
+			if errors.Is(failure, context.DeadlineExceeded) {
+				require.ErrorIs(t, c.schemaContextError(context.Background()), failure)
+			} else {
+				require.NoError(t, c.schemaContextError(context.Background()))
+			}
+		})
+	}
+}
+
+func TestSchemaConstraintWindowDiscardsEarlierQueryOnFailure(t *testing.T) {
+	for _, failure := range []error{errors.New("optional query failed"), context.DeadlineExceeded} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			c, _, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			allowed := make(map[tableKey]struct{}, schemaConstraintPageSize+1)
+			for i := 0; i <= schemaConstraintPageSize; i++ {
+				allowed[tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("T%04d", i)}] = struct{}{}
+			}
+			dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+				AddRow(3, "APP", "T0000", "PK", "P", "-", "-", "ID", nil))
+			dbMock.ExpectQuery("cdb_constraints c").WillReturnError(failure)
+			details := c.tableConstraintsForPage(context.Background(), allowed, allowed)
+			require.Len(t, details, len(allowed))
+			for key := range allowed {
+				require.NotNil(t, details[key])
+				require.Nil(t, details[key].Constraints)
+			}
+			if errors.Is(failure, context.DeadlineExceeded) {
+				require.ErrorIs(t, c.schemaContextError(context.Background()), failure)
+			} else {
+				require.NoError(t, c.schemaContextError(context.Background()))
+			}
+			require.NoError(t, dbMock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestSchemaConstraintWindowPreservesSuccessfulEmptyCollections(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	allowed := map[tableKey]struct{}{
+		{conID: 3, owner: "APP", table: "T"}: {},
+		{conID: 3, owner: "APP", table: "U"}: {},
+	}
+	dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows())
+	details := c.tableConstraintsForPage(context.Background(), allowed, allowed)
+	for key := range allowed {
+		require.NotNil(t, details[key])
+		require.NotNil(t, details[key].Constraints)
+		require.Empty(t, details[key].Constraints)
+	}
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestSchemaSparseDefaultQueriesKeepBothVersionPaths(t *testing.T) {
+	require.Contains(t, columnDefaultsQuery, "WHERE /*RELATIONS*/ AND c.default_length > 0")
+	require.Contains(t, localColumnValuesQuery, "WHERE /*RELATIONS*/ AND c.default_length > 0")
+	require.Contains(t, localColumnValuesQuery, "c.data_default")
+	require.Contains(t, localColumnValuesQuery, schemaIndexExpressionColumn)
+}
+
+func TestSchemaReferencedConstraintColumnsKeepExactTargetIdentities(t *testing.T) {
+	c, db, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	allowed := map[tableKey]struct{}{
+		{conID: 3, owner: "CHILD", table: "A"}: {},
+		{conID: 3, owner: "CHILD", table: "B"}: {},
+		{conID: 3, owner: "CHILD", table: "C"}: {},
+		{conID: 4, owner: "CHILD", table: "D"}: {},
+		{conID: 3, owner: "CHILD", table: "E"}: {},
+		{conID: 3, owner: "CHILD", table: "F"}: {},
+	}
+	selected := make(map[tableKey]struct{})
+	for key := range allowed {
+		selected[key] = struct{}{}
+	}
+	for _, key := range []tableKey{
+		{conID: 3, owner: "APP", table: "PARENT"},
+		{conID: 3, owner: "APP", table: "REPLACEMENT"},
+		{conID: 3, owner: "OTHER", table: "PARENT"},
+		{conID: 4, owner: "APP", table: "PARENT"},
+	} {
+		selected[key] = struct{}{}
+	}
+	dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+		AddRow(3, "CHILD", "A", "A_FK", "R", "APP", "PK", "PARENT_ID", nil).
+		AddRow(3, "CHILD", "B", "B_FK", "R", "APP", "PK", "PARENT_ID", nil).
+		AddRow(3, "CHILD", "C", "C_FK", "R", "OTHER", "PK", "PARENT_ID", nil).
+		AddRow(3, "CHILD", "E", "E_FK", "R", "EXCLUDED", "PK", "PARENT_ID", nil).
+		AddRow(3, "CHILD", "F", "F_FK", "R", "MISSING", "PK", "PARENT_ID", nil).
+		AddRow(4, "CHILD", "D", "D_FK", "R", "APP", "PK", "PARENT_ID", nil))
+	dbMock.ExpectQuery("SELECT c.con_id, c.owner, c.constraint_name").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME"}).
+			AddRow(3, "APP", "PK", "PARENT").
+			AddRow(3, "EXCLUDED", "PK", "PARENT").
+			AddRow(3, "OTHER", "PK", "PARENT").
+			AddRow(4, "APP", "PK", "PARENT"))
+	dbMock.ExpectQuery("FROM cdb_cons_columns cc").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"}).
+			AddRow(3, "APP", "PK", "REPLACEMENT", "WRONG_TABLE").
+			AddRow(3, "APP", "PK", "PARENT", "Z_FIRST").
+			AddRow(3, "APP", "PK", "PARENT", "A_SECOND").
+			AddRow(3, "APP", "UNREQUESTED", "PARENT", "WRONG_CONSTRAINT").
+			AddRow(3, "EXCLUDED", "PK", "PARENT", "WRONG_OWNER").
+			AddRow(3, "OTHER", "PK", "PARENT", "OTHER_ID").
+			AddRow(4, "APP", "PK", "PARENT", "OTHER_PDB_ID").
+			AddRow(5, "APP", "PK", "PARENT", "WRONG_PDB"))
+	queries := 0
+	c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+		queries++
+		return db.QueryxContext(ctx, query, args...)
+	})
+	details := c.tableConstraintsForPage(context.Background(), allowed, selected)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+	require.Equal(t, 3, queries)
+	for key := range allowed {
+		require.NotNil(t, details[key])
+		require.Len(t, details[key].Constraints, 1)
+		fk := details[key].Constraints[0]
+		switch key.table {
+		case "A", "B":
+			require.Equal(t, []string{"Z_FIRST", "A_SECOND"}, fk.ReferencedColumns)
+		case "C":
+			require.Equal(t, []string{"OTHER_ID"}, fk.ReferencedColumns)
+		case "D":
+			require.Equal(t, []string{"OTHER_PDB_ID"}, fk.ReferencedColumns)
+		case "E", "F":
+			require.Empty(t, fk.ReferencedTable)
+			require.Empty(t, fk.ReferencedColumns)
+			require.Equal(t, "PK", fk.ReferencedConstraint)
+			continue
+		}
+		require.Equal(t, "PARENT", fk.ReferencedTable)
+		require.Empty(t, fk.ReferencedConstraint)
+	}
+}
+
+func TestSchemaReferencedConstraintColumnsKeepFallbackUntilValidRow(t *testing.T) {
+	for _, scenario := range []struct {
+		name          string
+		definitionErr error
+		columnErr     error
+		partial       bool
+		changedTable  bool
+	}{
+		{name: "missing columns"},
+		{name: "definition unavailable", definitionErr: errors.New(oracleErrorTableOrViewDoesNotExist)},
+		{name: "definition timeout", definitionErr: context.DeadlineExceeded},
+		{name: "definition canceled", definitionErr: context.Canceled},
+		{name: "columns unavailable", columnErr: errors.New(oracleErrorInvalidIdentifier)},
+		{name: "columns timeout", columnErr: context.DeadlineExceeded},
+		{name: "columns canceled", columnErr: context.Canceled},
+		{name: "partial ordinary error", columnErr: errors.New("column row failed"), partial: true},
+		{name: "partial timeout", columnErr: context.DeadlineExceeded, partial: true},
+		{name: "target recreated on another table", changedTable: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			c, db, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			child := tableKey{conID: 3, owner: "APP", table: "CHILD"}
+			allowed := map[tableKey]struct{}{child: {}}
+			selected := map[tableKey]struct{}{child: {}, {conID: 3, owner: "APP", table: "PARENT"}: {}, {conID: 3, owner: "APP", table: "REPLACEMENT"}: {}}
+			dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+				AddRow(3, "APP", "CHILD", "FK", "R", "APP", "PK", "PARENT_ID", nil))
+			definition := dbMock.ExpectQuery("SELECT c.con_id, c.owner, c.constraint_name")
+			if scenario.definitionErr != nil {
+				definition.WillReturnError(scenario.definitionErr)
+			} else {
+				definition.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME"}).AddRow(3, "APP", "PK", "PARENT"))
+				columns := dbMock.ExpectQuery("FROM cdb_cons_columns cc")
+				rows := sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"})
+				switch {
+				case scenario.partial:
+					columns.WillReturnRows(rows.AddRow(3, "APP", "PK", "PARENT", "FIRST").AddRow(3, "APP", "PK", "PARENT", "SECOND").RowError(1, scenario.columnErr))
+				case scenario.columnErr != nil:
+					columns.WillReturnError(scenario.columnErr)
+				case scenario.changedTable:
+					columns.WillReturnRows(rows.AddRow(3, "APP", "PK", "REPLACEMENT", "WRONG_ID"))
+				default:
+					columns.WillReturnRows(rows)
+				}
+			}
+			queries := 0
+			c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+				queries++
+				return db.QueryxContext(ctx, query, args...)
+			})
+			details := c.tableConstraintsForPage(context.Background(), allowed, selected)
+			require.NoError(t, dbMock.ExpectationsWereMet())
+			if scenario.definitionErr != nil {
+				require.Equal(t, 2, queries)
+			} else {
+				require.Equal(t, 3, queries)
+			}
+			require.NotNil(t, details[child])
+			require.Len(t, details[child].Constraints, 1)
+			fk := details[child].Constraints[0]
+			if scenario.partial {
+				require.Equal(t, "PARENT", fk.ReferencedTable)
+				require.Equal(t, []string{"FIRST"}, fk.ReferencedColumns)
+				require.Empty(t, fk.ReferencedConstraint)
+			} else {
+				require.Empty(t, fk.ReferencedTable)
+				require.Empty(t, fk.ReferencedColumns)
+				require.Equal(t, "PK", fk.ReferencedConstraint)
+			}
+			failure := scenario.definitionErr
+			if failure == nil {
+				failure = scenario.columnErr
+			}
+			if errors.Is(failure, context.DeadlineExceeded) || errors.Is(failure, context.Canceled) {
+				require.ErrorIs(t, c.schemaContextError(context.Background()), failure)
+			} else {
+				require.NoError(t, c.schemaContextError(context.Background()))
+			}
+		})
+	}
+}
+
+func TestSchemaReferencedConstraintDefinitionsPreservePartialRows(t *testing.T) {
+	for _, failure := range []error{errors.New("definition row failed"), context.DeadlineExceeded} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			c, db, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			first := tableKey{conID: 3, owner: "APP", table: "FIRST"}
+			last := tableKey{conID: 3, owner: "APP", table: "LAST"}
+			allowed := map[tableKey]struct{}{first: {}, last: {}}
+			selected := map[tableKey]struct{}{first: {}, last: {}, {conID: 3, owner: "APP", table: "PARENT"}: {}}
+			dbMock.ExpectQuery("cdb_constraints c").WillReturnRows(emptyConstraintRows().
+				AddRow(3, "APP", "FIRST", "FIRST_FK", "R", "APP", "FIRST_PK", "PARENT_ID", nil).
+				AddRow(3, "APP", "LAST", "LAST_FK", "R", "APP", "LAST_PK", "PARENT_ID", nil))
+			dbMock.ExpectQuery("SELECT c.con_id, c.owner, c.constraint_name").WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME"}).
+					AddRow(3, "APP", "FIRST_PK", "PARENT").
+					AddRow(3, "APP", "LAST_PK", "PARENT").RowError(1, failure))
+			if !errors.Is(failure, context.DeadlineExceeded) {
+				dbMock.ExpectQuery("FROM cdb_cons_columns cc").WillReturnRows(
+					sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"}).
+						AddRow(3, "APP", "FIRST_PK", "PARENT", "ID"))
+			}
+			queries := 0
+			c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+				queries++
+				return db.QueryxContext(ctx, query, args...)
+			})
+			details := c.tableConstraintsForPage(context.Background(), allowed, selected)
+			require.NoError(t, dbMock.ExpectationsWereMet())
+			require.NotNil(t, details[first])
+			require.NotNil(t, details[last])
+			require.Len(t, details[first].Constraints, 1)
+			require.Len(t, details[last].Constraints, 1)
+			require.Equal(t, "LAST_PK", details[last].Constraints[0].ReferencedConstraint)
+			require.Empty(t, details[last].Constraints[0].ReferencedColumns)
+			if errors.Is(failure, context.DeadlineExceeded) {
+				require.Equal(t, 2, queries)
+				require.ErrorIs(t, c.schemaContextError(context.Background()), failure)
+				require.Equal(t, "FIRST_PK", details[first].Constraints[0].ReferencedConstraint)
+			} else {
+				require.Equal(t, 3, queries)
+				require.NoError(t, c.schemaContextError(context.Background()))
+				require.Equal(t, []string{"ID"}, details[first].Constraints[0].ReferencedColumns)
+				require.Empty(t, details[first].Constraints[0].ReferencedConstraint)
+			}
+		})
+	}
+}
+
+func TestSchemaReferencedConstraintColumnQueriesBoundNamesAndTables(t *testing.T) {
+	for _, distinctNames := range []bool{false, true} {
+		t.Run(fmt.Sprintf("distinct_names_%t", distinctNames), func(t *testing.T) {
+			targets := make(map[constraintKey]tableKey)
+			for i := 0; i < maxSchemaRelationsPerQuery+1; i++ {
+				owner, name := fmt.Sprintf("OWNER_%04d", i), "SAME_NAME"
+				if distinctNames {
+					owner, name = "APP", fmt.Sprintf("PK_%04d", i)
+				}
+				targets[constraintKey{conID: 3, owner: owner, name: name}] = tableKey{conID: 3, owner: owner, table: "PARENT"}
+			}
+			queries := schemaReferencedConstraintColumnQueries(targets)
+			require.Len(t, queries, 2)
+			seenNames := make(map[string]int)
+			for _, query := range queries {
+				require.NotContains(t, query.text, "/*RELATIONS*/")
+				require.NotContains(t, query.text, "/*CONSTRAINTS*/")
+				require.Contains(t, query.text, "ORDER BY cc.con_id, cc.owner, cc.constraint_name, cc.position, cc.column_name")
+				args := make(map[string]any)
+				namesInQuery := 0
+				for _, value := range query.args {
+					arg, ok := value.(sql.NamedArg)
+					require.True(t, ok)
+					require.NotContains(t, args, arg.Name, "bind namespaces must not collide")
+					args[arg.Name] = arg.Value
+					if strings.HasPrefix(arg.Name, "targetConstraint") {
+						namesInQuery++
+						value := arg.Value.(sql.NullString)
+						if value.Valid {
+							seenNames[value.String]++
+						}
+					}
+				}
+				require.LessOrEqual(t, namesInQuery, maxSchemaRelationsPerQuery)
+				for _, placeholder := range regexp.MustCompile(`:([A-Za-z0-9_]+)`).FindAllStringSubmatch(query.text, -1) {
+					require.Contains(t, args, placeholder[1])
+				}
+			}
+			if distinctNames {
+				require.Len(t, seenNames, maxSchemaRelationsPerQuery+1)
+				for _, count := range seenNames {
+					require.Equal(t, 1, count, "a target name must not overlap name chunks")
+				}
+			} else {
+				require.Equal(t, map[string]int{"SAME_NAME": 2}, seenNames)
+			}
+		})
+	}
+	require.Empty(t, schemaReferencedConstraintColumnQueries(nil))
+}
+
+func schemaColumnPages(tables, columns int) [][]schemaRowDB {
+	var pages [][]schemaRowDB
+	for table := range tables {
+		if table%schemaRelationPageSize == 0 {
+			pages = append(pages, nil)
+		}
+		for column := range columns {
+			pages[len(pages)-1] = append(pages[len(pages)-1], schemaRowDB{
+				ConID: 3, Owner: "APP", TableName: fmt.Sprintf("T%04d", table),
+				ColumnName: fmt.Sprintf("C%04d", column), ColumnPresent: sql.NullInt64{Int64: 1, Valid: true},
+			})
+		}
+	}
+	return pages
+}
+
+func expectSchemaPageDetails(mock sqlmock.Sqlmock) {
+	for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_indexes", "cdb_external_tables", "cdb_part_tables"} {
+		mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	}
+}
+
+func TestSchemaWideTablesKeepColumnDetails(t *testing.T) {
+	for _, version := range []string{"12.1.0.2.0", "19.0.0.0.0", "23.0.0.0.0"} {
+		t.Run(version, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			c.dbVersion = version
+			pages := schemaColumnPages(101, 84)
+			mock.MatchExpectationsInOrder(false)
+			for _, page := range pages {
+				allowed := columnKeysFromRows(page)
+				expectSchemaPageDetails(mock)
+				filters := columnFilterChunks(allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, "column_name")
+				last := page[len(page)-1]
+				for i := range filters {
+					rows := sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "COMMENTS"})
+					if i == len(filters)-1 {
+						rows.AddRow(last.ConID, last.Owner, last.TableName, last.ColumnName, "last column")
+					}
+					mock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(rows)
+				}
+				if c.defaultValueColumn() == "c.data_default_vc" {
+					for range schemaColumnDefaultQueries(allowed) {
+						mock.ExpectQuery("FROM cdb_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+					}
+				} else {
+					expectSchemaSession(mock, 3, "APP_PDB")
+					for range filters {
+						mock.ExpectQuery("FROM dba_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+					}
+				}
+				details := c.tableDetailsForPage(context.Background(), tableKeysFromRows(page), allowed)
+				key := tableKey{conID: last.ConID, owner: last.Owner, table: last.TableName}
+				require.NotNil(t, details[key])
+				require.Equal(t, "last column", details[key].ColumnComments[last.ColumnName])
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestSchemaColumnDetailsKeepPageMembershipAndValues(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	mock.MatchExpectationsInOrder(false)
+	for _, page := range schemaColumnPages(101, 2) {
+		key := tableKey{conID: 3, owner: "APP", table: page[0].TableName}
+		expectSchemaPageDetails(mock)
+		mock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "COMMENTS"}).
+			AddRow(3, "APP", key.table, "C0000", "selected comment").
+			AddRow(3, "APP", "GONE", "C0000", "wrong table").
+			AddRow(4, "APP", key.table, "C0000", "wrong container").
+			AddRow(3, "OTHER", key.table, "C0000", "wrong owner").
+			AddRow(3, "APP", key.table, "UNSELECTED", "wrong column"))
+		mock.ExpectQuery("FROM cdb_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+			AddRow(3, "APP", key.table, "C0000", strings.Repeat("é", 4001)).
+			AddRow(3, "APP", key.table, "C0001", nil).
+			AddRow(4, "APP", key.table, "C0000", "wrong container").
+			AddRow(3, "OTHER", key.table, "C0000", "wrong owner").
+			AddRow(3, "APP", "GONE", "C0000", "wrong table").
+			AddRow(3, "APP", key.table, "UNSELECTED", "wrong column"))
+		details := c.tableDetailsForPage(context.Background(), tableKeysFromRows(page), columnKeysFromRows(page))
+		require.Len(t, details, len(tableKeysFromRows(page)))
+		require.NotContains(t, details, tableKey{conID: 3, owner: "APP", table: "GONE"})
+		require.Equal(t, map[string]string{"C0000": "selected comment"}, details[key].ColumnComments)
+		require.Equal(t, map[string]string{"C0000": strings.Repeat("é", 4000)}, details[key].ColumnDefaults)
+		require.NoError(t, mock.ExpectationsWereMet())
+	}
+}
+
+func TestSchemaHydrationProcessesOnePageBeforeQueryingNext(t *testing.T) {
+	c, db, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	keys := schemaHydrationKeys(500, "APP", 3)
+	expectSchemaHydrationRows(mock, keys, func(rows *sqlmock.Rows, i int, key tableKey) {
+		if i == 1 {
+			addTableWithoutColumns(rows, key.conID, key.owner, key.table)
+		} else if i != 2 {
+			addTableRow(rows, key.conID, key.owner, key.table)
+		}
+	})
+	queried, processed, rowCount := 0, 0, 0
+	c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+		require.Equal(t, processed, queried, "finish the previous page before querying another")
+		require.Len(t, args, 203)
+		require.NotContains(t, query, ":rel0name100")
+		queried++
+		return db.QueryxContext(ctx, query, args...)
+	})
+	err := c.hydrateTablePages(context.Background(), keys, 1000, func(rows []schemaRowDB) error {
+		require.Equal(t, processed+1, queried)
+		require.LessOrEqual(t, len(rows), schemaRelationPageSize)
+		for _, row := range rows {
+			require.NotEqual(t, keys[2].table, row.TableName)
+			if row.TableName == keys[1].table {
+				require.Equal(t, sql.NullInt64{Valid: true}, row.ColumnPresent)
+			}
+		}
+		rowCount += len(rows)
+		processed++
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 5, queried)
+	require.Equal(t, 5, processed)
+	require.Equal(t, 499, rowCount)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSchemaHydrationStopsOnError(t *testing.T) {
+	for _, scenario := range []string{"query", "consume", "cancel"} {
+		t.Run(scenario, func(t *testing.T) {
+
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			keys := schemaHydrationKeys(200, "APP", 3)
+			rows := emptyTablesRows()
+			addTableRow(rows, 3, "APP", keys[0].table)
+			mock.ExpectQuery("WITH ranked_columns").WillReturnRows(rows)
+			expected := errors.New("hydration failed")
+			if scenario == "query" {
+				mock.ExpectQuery("WITH ranked_columns").WillReturnError(expected)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			consumed := 0
+			err := c.hydrateTablePages(ctx, keys, 1000, func([]schemaRowDB) error {
+				consumed++
+				if scenario == "consume" {
+					return expected
+				}
+				if scenario == "cancel" {
+					cancel()
+				}
+				return nil
+			})
+			if scenario == "cancel" {
+				require.ErrorIs(t, err, context.Canceled)
+			} else {
+				require.ErrorIs(t, err, expected)
+			}
+			require.Equal(t, 1, consumed)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestSchemaColumnDetailsOptionalFailuresStayPageLocal(t *testing.T) {
+	for _, scenario := range []string{"empty", "unavailable", "generic_failure", "partial_rows"} {
+		t.Run(scenario, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			mock.MatchExpectationsInOrder(false)
+			for _, page := range schemaColumnPages(101, 2) {
+				key := tableKey{conID: 3, owner: "APP", table: page[0].TableName}
+				expectSchemaPageDetails(mock)
+				for _, family := range []string{"cdb_col_comments", "cdb_tab_cols"} {
+					expect := mock.ExpectQuery("FROM " + family)
+					switch scenario {
+					case "empty":
+						expect.WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+					case "unavailable":
+						expect.WillReturnError(errors.New(oracleErrorTableOrViewDoesNotExist))
+					case "generic_failure":
+						expect.WillReturnError(errors.New("optional metadata unavailable"))
+					case "partial_rows":
+						expect.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "VALUE"}).
+							AddRow(3, "APP", key.table, "C0000", "kept").
+							AddRow(3, "APP", key.table, "C0001", "lost").RowError(1, errors.New("optional fetch failed")))
+					}
+				}
+				details := c.tableDetailsForPage(context.Background(), tableKeysFromRows(page), columnKeysFromRows(page))
+				if scenario == "partial_rows" {
+					require.Equal(t, map[string]string{"C0000": "kept"}, details[key].ColumnComments)
+					require.Equal(t, map[string]string{"C0000": "kept"}, details[key].ColumnDefaults)
+				} else {
+					require.Empty(t, details[key].ColumnComments)
+					require.Empty(t, details[key].ColumnDefaults)
+				}
+				require.NoError(t, c.schemaContextError(context.Background()))
+				require.NoError(t, mock.ExpectationsWereMet())
+			}
+		})
+	}
+}
+
+func TestSchemaHydrationDoesNotResurrectMissingTables(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	keys := schemaHydrationKeys(102, "APP", 3)
+	expectSchemaHydrationRows(mock, keys, func(rows *sqlmock.Rows, i int, key tableKey) {
+		if i != 2 {
+			addTableRow(rows, key.conID, key.owner, key.table)
+		}
+	})
+	var events []schemaEvent
+	coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	})
+	err := c.hydrateTablePages(context.Background(), keys, 1000, func(page []schemaRowDB) error {
+		collector := newSchemaEventCollector(&c, coordinator.add, nil, map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
+		for _, row := range page {
+			collector.add(row)
+		}
+		collector.finish()
+		return coordinator.err
+	})
+	require.NoError(t, err)
+	require.NoError(t, coordinator.complete())
+	require.Len(t, events, 2)
+	require.Equal(t, 2, events[1].CollectionPayloadsCount)
+	var names []string
+	for _, event := range events {
+		for _, table := range event.Metadata[0].Schemas[0].Tables {
+			names = append(names, table.Name)
+		}
+	}
+	require.Len(t, names, 101)
+	require.NotContains(t, names, keys[2].table)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSchemaColumnDetailsKeepHiddenIndexExpressionLookup(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	key := tableKey{conID: 3, owner: "APP", table: "T"}
+	mock.MatchExpectationsInOrder(false)
+	mock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "COMMENTS"}).
+		AddRow(3, "APP", "T", "ID", "identifier"))
+	mock.ExpectQuery("FROM cdb_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+		AddRow(3, "APP", "T", "ID", "42"))
+	for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments"} {
+		mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	}
+	mock.ExpectQuery("FROM cdb_indexes").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
+		AddRow(3, "APP", "T", "APP", "FUNCTION_INDEX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00002$"))
+	mock.ExpectQuery(`(?s)FROM cdb_tab_cols.*c.hidden_column = 'YES'`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+		AddRow(3, "APP", "T", "SYS_NC00002$", `UPPER("ID")`))
+	for _, view := range []string{"cdb_external_tables", "cdb_part_tables"} {
+		mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	}
+	details := c.tableDetailsForPage(context.Background(), map[tableKey]struct{}{key: {}}, map[columnKey]struct{}{{tableKey: key, column: "ID"}: {}})
+	require.Equal(t, "42", details[key].ColumnDefaults["ID"])
+	require.Equal(t, "identifier", details[key].ColumnComments["ID"])
+	require.Len(t, details[key].Indexes, 1)
+	require.Equal(t, []indexKeyPart{{Expression: `UPPER("ID")`}}, details[key].Indexes[0].Columns)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSchemaLegacyPagesKeepDefaultsAndIndexExpressions(t *testing.T) {
+	for _, version := range []string{"12.1.0.2.0", "19.0.0.0.0", "21.3.0.0.0"} {
+		t.Run(version, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			c.dbVersion = version
+			for _, page := range schemaColumnPages(101, 2) {
+				key := tableKey{conID: 3, owner: "APP", table: page[0].TableName}
+				for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments"} {
+					mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+				}
+				mock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "COMMENTS"}).
+					AddRow(3, "APP", key.table, "C0000", "identifier"))
+				mock.ExpectQuery("FROM cdb_indexes").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
+					AddRow(3, "APP", key.table, "APP", "FUNCTION_INDEX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00002$"))
+				expectSchemaSession(mock, 3, "APP_PDB")
+				mock.ExpectQuery("FROM dba_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "EXPRESSION_COLUMN", "DATA_DEFAULT"}).
+					AddRow(3, "APP", key.table, "C0000", "NO", strings.Repeat("界", 4001)).
+					AddRow(3, "APP", key.table, "SYS_NC00002$", "YES", "UPPER(\"C0000\")"))
+				for _, view := range []string{"cdb_external_tables", "cdb_part_tables"} {
+					mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+				}
+				details := c.tableDetailsForPage(context.Background(), tableKeysFromRows(page), columnKeysFromRows(page))
+				require.Equal(t, "identifier", details[key].ColumnComments["C0000"])
+				require.Equal(t, strings.Repeat("界", 4000), details[key].ColumnDefaults["C0000"])
+				require.Len(t, details[key].Indexes, 1)
+				require.Equal(t, []indexKeyPart{{Expression: "UPPER(\"C0000\")"}}, details[key].Indexes[0].Columns)
+			}
+			require.NoError(t, c.schemaContextError(context.Background()))
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestSchemaColumnDetailsCancellationDoesNotPublishSnapshot(t *testing.T) {
+	for _, family := range []string{"comments", "defaults"} {
+		t.Run(family, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			views := false
+			c.config.Schemas.CollectViews = &views
+			c.config.Schemas.MaxTables = 101
+			var events []schemaEvent
+			c.schemaEmitter = func(payload []byte) {
+				var event schemaEvent
+				require.NoError(t, json.Unmarshal(payload, &event))
+				events = append(events, event)
+			}
+			keys := schemaHydrationKeys(101, "APP", 3)
+			mock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+			mock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+			mock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows(keys...))
+			mock.ExpectQuery("FROM cdb_constraints").WillReturnRows(emptyConstraintRows())
+			expectSchemaHydrationRows(mock, keys[:100], nil)
+			for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments"} {
+				mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+			}
+			failure := error(context.Canceled)
+			if family == "comments" {
+				mock.ExpectQuery("FROM cdb_col_comments").WillReturnError(failure)
+			} else {
+				mock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+				failure = context.DeadlineExceeded
+				mock.ExpectQuery("FROM cdb_tab_cols").WillReturnError(failure)
+			}
+			require.ErrorIs(t, c.SchemaCollection(), failure)
+			require.Empty(t, events)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func schemaHydrationKeys(count int, owner string, conID int64) []tableKey {
+	keys := make([]tableKey, count)
+	for i := range keys {
+		keys[i] = tableKey{conID: conID, owner: owner, table: fmt.Sprintf("T%04d", i)}
+	}
+	return keys
+}
+
+func TestSchemaHydrationKeepsPageMembershipAndReturnedOrder(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	keys := schemaHydrationKeys(201, "APP", 3)
+	keys[0].table, keys[1].table, keys[100].table = "Quoted'Name", "éclair", "Zebra"
+	rows := emptyTablesRows()
+	addTableWithoutColumns(rows, 3, "APP", "éclair")
+	addTableRow(rows, 3, "APP", "Quoted'Name")
+	addTableRow(rows, 3, "APP", "Quoted'Name")
+	mock.ExpectQuery("WITH ranked_columns").WillReturnRows(rows).RowsWillBeClosed()
+	mock.ExpectQuery("WITH ranked_columns").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "Zebra")).RowsWillBeClosed()
+	mock.ExpectQuery("WITH ranked_columns").WillReturnRows(emptyTablesRows()).RowsWillBeClosed()
+	var names [][]string
+	var prior []schemaRowDB
+	require.NoError(t, c.hydrateTablePages(context.Background(), keys, 50, func(page []schemaRowDB) error {
+		for _, cleared := range prior {
+			require.Equal(t, schemaRowDB{}, cleared)
+		}
+		var pageNames []string
+		for _, row := range page {
+			pageNames = append(pageNames, row.TableName)
+			if row.TableName == "éclair" {
+				require.True(t, row.ColumnPresent.Valid)
+				require.Zero(t, row.ColumnPresent.Int64)
+			}
+		}
+		names = append(names, pageNames)
+		prior = page
+		return nil
+	}))
+	require.Equal(t, [][]string{{"éclair", "Quoted'Name", "Quoted'Name"}, {"Zebra"}, nil}, names)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSchemaHydrationRejectsInvalidPagesBeforeProcessing(t *testing.T) {
+	for _, outcome := range []string{"query", "partial_rows", "unknown_table", "wrong_container", "wrong_owner", "later_page"} {
+		t.Run(outcome, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			keys := schemaHydrationKeys(201, "APP", 3)
+			query := mock.ExpectQuery("WITH ranked_columns")
+			wanted := context.DeadlineExceeded
+			switch outcome {
+			case "query":
+				query.WillReturnError(wanted)
+			case "partial_rows":
+				rows := addTableRow(emptyTablesRows(), 3, "APP", keys[0].table)
+				addTableRow(rows, 3, "APP", keys[100].table).RowError(1, wanted)
+				query.WillReturnRows(rows).RowsWillBeClosed()
+			case "unknown_table":
+				query.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "UNKNOWN")).RowsWillBeClosed()
+			case "wrong_container":
+				query.WillReturnRows(addTableRow(emptyTablesRows(), 4, "APP", keys[0].table)).RowsWillBeClosed()
+			case "wrong_owner":
+				query.WillReturnRows(addTableRow(emptyTablesRows(), 3, "OTHER", keys[0].table)).RowsWillBeClosed()
+			case "later_page":
+				query.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", keys[100].table)).RowsWillBeClosed()
+			}
+			calls := 0
+			err := c.hydrateTablePages(context.Background(), keys, 50, func([]schemaRowDB) error {
+				calls++
+				return nil
+			})
+			if outcome == "query" || outcome == "partial_rows" {
+				require.ErrorIs(t, err, wanted)
+			} else {
+				require.ErrorContains(t, err, "unselected table")
+			}
+			require.Zero(t, calls)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestSchemaHydrationClearsRowsAfterProcessing(t *testing.T) {
+	for _, outcome := range []string{"success", "error", "panic"} {
+		t.Run(outcome, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			keys := schemaHydrationKeys(101, "APP", 3)
+			expectSchemaHydrationRows(mock, keys[:100], nil)
+			if outcome == "success" {
+				expectSchemaHydrationRows(mock, keys[100:], nil)
+			}
+			wanted := errors.New("details failed")
+			calls := 0
+			var retained []schemaRowDB
+			run := func() error {
+				return c.hydrateTablePages(context.Background(), keys, 50, func(page []schemaRowDB) error {
+					for _, row := range retained {
+						require.Equal(t, schemaRowDB{}, row)
+					}
+					calls++
+					retained = page
+					if outcome == "panic" {
+						panic(wanted)
+					}
+					if outcome == "error" {
+						return wanted
+					}
+					return nil
+				})
+			}
+			if outcome == "panic" {
+				require.PanicsWithValue(t, wanted, func() { _ = run() })
+			} else if outcome == "error" {
+				require.ErrorIs(t, run(), wanted)
+			} else {
+				require.NoError(t, run())
+			}
+			expectedCalls := 1
+			if outcome == "success" {
+				expectedCalls = 2
+			}
+			require.Equal(t, expectedCalls, calls)
+			for _, row := range retained {
+				require.Equal(t, schemaRowDB{}, row)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestSchemaHydrationKeepsOrderedPayloads(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	keys := schemaHydrationKeys(500, "APP", 3)
+	expectSchemaHydrationRows(mock, keys, func(rows *sqlmock.Rows, _ int, key tableKey) {
+		addTableWithoutColumns(rows, key.conID, key.owner, key.table)
+	})
+	collect := func(run func(func([]schemaRowDB) error) error) []schemaEvent {
+		var events []schemaEvent
+		coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
+			var event schemaEvent
+			require.NoError(t, json.Unmarshal(payload, &event))
+			event.Timestamp, event.CollectionStartedAt = 0, 0
+			events = append(events, event)
+		})
+		require.NoError(t, run(func(page []schemaRowDB) error {
+			collector := newSchemaEventCollector(&c, coordinator.add, nil, map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
+			for _, row := range page {
+				collector.add(row)
+			}
+			collector.finish()
+			return coordinator.err
+		}))
+		require.NoError(t, coordinator.complete())
+		return events
+	}
+	actual := collect(func(process func([]schemaRowDB) error) error {
+		return c.hydrateTablePages(context.Background(), keys, 50, func(rows []schemaRowDB) error {
+			return process(rows)
+		})
+	})
+	expected := collect(func(process func([]schemaRowDB) error) error {
+		return forEachTablePage(keys, schemaRelationPageSize, func(page []tableKey) error {
+			var rows []schemaRowDB
+			for _, key := range page {
+				rows = append(rows, schemaRowDB{ConID: key.conID, Owner: key.owner, TableName: key.table,
+					Temporary: "N", Duration: "-", External: "NO", IotType: "-", Partitioned: "NO", ClusterName: "-",
+					Clustering: "NO", ReadOnly: "NO", ObjectTypeOwner: "-", ObjectType: "-"})
+			}
+			return process(rows)
+		})
+	})
+	require.Equal(t, expected, actual)
+	require.Len(t, actual, 5)
+	for _, event := range actual {
+		require.Len(t, event.Metadata[0].Schemas[0].Tables, 100)
+		for _, table := range event.Metadata[0].Schemas[0].Tables {
+			require.Empty(t, table.Columns)
+		}
+	}
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func expectSchemaHydrationRows(mock sqlmock.Sqlmock, keys []tableKey, add func(*sqlmock.Rows, int, tableKey)) {
+	for start := 0; start < len(keys); start += schemaRelationPageSize {
+		rows := emptyTablesRows()
+		for i := start; i < min(start+schemaRelationPageSize, len(keys)); i++ {
+			key := keys[i]
+			if add == nil {
+				addTableRow(rows, key.conID, key.owner, key.table)
+			} else {
+				add(rows, i, key)
+			}
+		}
+		mock.ExpectQuery("WITH ranked_columns").WillReturnRows(rows).RowsWillBeClosed()
+	}
+}
+
+func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns int) ([]schemaRowDB, error) {
+	var pageRows []schemaRowDB
+	err := c.queryTablePageRows(ctx, keys, maxColumns, func(row schemaRowDB) error {
+		pageRows = append(pageRows, row)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return pageRows, nil
+}
+
+func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}) map[tableKey]*tableDetails {
+	return c.tableDetailsForPageWithRelations(ctx, allowed, allowedColumns, allowed, allowed)
 }

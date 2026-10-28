@@ -64,7 +64,7 @@ func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 		require.NoError(t, admin.QueryRowxContext(ctx, schemaSessionContainerQuery).Scan(&id, &name))
 		value := fmt.Sprintf("'CONTAINER_%d'", id)
 		for _, statement := range []string{
-			fmt.Sprintf("CREATE TABLE %s.dd_legacy_values (id NUMBER, val VARCHAR2(40) DEFAULT %s, sys_nc_user GENERATED ALWAYS AS (id + 1) VIRTUAL)", schemaTestUser, value),
+			fmt.Sprintf("CREATE TABLE %s.dd_legacy_values (id NUMBER, val VARCHAR2(40) DEFAULT %s, explicit_null NUMBER DEFAULT NULL, sys_nc_user GENERATED ALWAYS AS (id + 1) VIRTUAL)", schemaTestUser, value),
 			fmt.Sprintf("CREATE INDEX %s.dd_legacy_normal ON %s.dd_legacy_values(id)", schemaTestUser, schemaTestUser),
 			fmt.Sprintf("CREATE INDEX %s.dd_legacy_expression ON %s.dd_legacy_values(UPPER(val), sys_nc_user)", schemaTestUser, schemaTestUser),
 		} {
@@ -74,7 +74,7 @@ func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 		key := tableKey{conID: id, owner: strings.ToUpper(schemaTestUser), table: "DD_LEGACY_VALUES"}
 		keys[key] = struct{}{}
 		defaults[key] = value
-		for _, column := range []string{"ID", "VAL"} {
+		for _, column := range []string{"ID", "VAL", "EXPLICIT_NULL", "SYS_NC_USER"} {
 			columns[columnKey{tableKey: key, column: column}] = struct{}{}
 		}
 	}
@@ -83,29 +83,36 @@ func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 	require.NoError(t, c.init())
 	actualVersion := c.dbVersion
 	// Also exercise the LONG fallback when CI runs a newer database.
-	c.dbVersion = "12.1.0.2.0"
 	c.db.SetMaxOpenConns(1)
 	conn, err := c.db.Connx(ctx)
 	require.NoError(t, err)
 	defer conn.Close()
 	c.schemaQueryer = conn
-	details := c.tableDetailsForPage(ctx, keys, columns, keys)
-	require.NoError(t, c.schemaContextError(ctx))
-	for key, value := range defaults {
-		detail := details[key]
-		require.NotNil(t, detail, "database version %s, container %d", actualVersion, key.conID)
-		require.Equal(t, value, strings.TrimSpace(detail.ColumnDefaults["VAL"]))
-		normal := findIndex(detail.Indexes, "DD_LEGACY_NORMAL")
-		require.NotNil(t, normal)
-		require.Equal(t, []indexKeyPart{{Column: "ID"}}, normal.Columns)
-		expression := findIndex(detail.Indexes, "DD_LEGACY_EXPRESSION")
-		require.NotNil(t, expression)
-		require.Len(t, expression.Columns, 2)
-		require.Equal(t, `UPPER("VAL")`, strings.TrimSpace(expression.Columns[0].Expression))
-		require.Equal(t, indexKeyPart{Column: "SYS_NC_USER"}, expression.Columns[1])
+	for _, version := range []string{actualVersion, "12.1.0.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			c.dbVersion = version
+			details := c.tableDetailsForPage(ctx, keys, columns)
+			require.NoError(t, c.schemaContextError(ctx))
+			for key, value := range defaults {
+				detail := details[key]
+				require.NotNil(t, detail, "database version %s, container %d", actualVersion, key.conID)
+				require.Equal(t, value, strings.TrimSpace(detail.ColumnDefaults["VAL"]))
+				require.Equal(t, "NULL", strings.TrimSpace(detail.ColumnDefaults["EXPLICIT_NULL"]))
+				require.NotEmpty(t, detail.ColumnDefaults["SYS_NC_USER"])
+				require.NotContains(t, detail.ColumnDefaults, "ID")
+				normal := findIndex(detail.Indexes, "DD_LEGACY_NORMAL")
+				require.NotNil(t, normal)
+				require.Equal(t, []indexKeyPart{{Column: "ID"}}, normal.Columns)
+				expression := findIndex(detail.Indexes, "DD_LEGACY_EXPRESSION")
+				require.NotNil(t, expression)
+				require.Len(t, expression.Columns, 2)
+				require.Equal(t, `UPPER("VAL")`, strings.TrimSpace(expression.Columns[0].Expression))
+				require.Equal(t, indexKeyPart{Column: "SYS_NC_USER"}, expression.Columns[1])
+			}
+			var restoredID int64
+			var restoredName string
+			require.NoError(t, conn.QueryRowxContext(ctx, schemaSessionContainerQuery).Scan(&restoredID, &restoredName))
+			require.Equal(t, "CDB$ROOT", restoredName)
+		})
 	}
-	var restoredID int64
-	var restoredName string
-	require.NoError(t, conn.QueryRowxContext(ctx, schemaSessionContainerQuery).Scan(&restoredID, &restoredName))
-	require.Equal(t, "CDB$ROOT", restoredName)
 }
