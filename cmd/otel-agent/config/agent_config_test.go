@@ -1077,8 +1077,6 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {
 	assert.Equal(t, "", c.GetString("kubernetes_kubelet_host"))
 }
 
-// TestGetDogtelExtensionConfig_NilExtensionSection verifies that getDogtelExtensionConfig
-// returns nil without error when the extensions section is absent.
 func TestTelemetryResourceAttribute(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1143,6 +1141,8 @@ func TestTelemetryResourceAttribute(t *testing.T) {
 	}
 }
 
+// TestGetDogtelExtensionConfig_NilExtensionSection verifies that getDogtelExtensionConfig
+// returns nil without error when the extensions section is absent.
 func TestGetDogtelExtensionConfig_NilExtensionSection(t *testing.T) {
 	cfg := confmap.NewFromStringMap(map[string]any{
 		"exporters": map[string]any{},

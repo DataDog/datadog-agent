@@ -78,7 +78,7 @@ env:
 
 When no hostname is configured and no cloud provider (GCE, Azure) gives one, the hostname is `<node name>-<cluster name>`, or the bare node name when no cluster name is found. In standalone mode, the node name is read from the same `node_from_env_var` environment variables as above, so neither kubelet access nor a reachable kubelet is needed, which also covers Kubernetes running in containers (k3d, kind). It falls back to the kubelet only when `use_kubelet_collector` is `true`.
 
-The cluster name comes from `DD_CLUSTER_NAME`, then from the cloud provider's API (GKE, AKS, EKS), then from the node's labels (only through the Cluster Agent, when `cluster_agent.enabled` is set). Failing those, it is the `k8s.cluster.name` attribute of the collector's own telemetry resource, lowercased and with its `_` replaced by `-`. As in the collector, it is read from `service.telemetry.resource` in the collector config first, in either of its forms:
+The cluster name comes from `DD_CLUSTER_NAME`, then from the cloud provider's API (GKE, AKS, EKS), then from the node's labels (only through the Cluster Agent, when `cluster_agent.enabled` is set, and never when `use_kubelet_collector` is `false`). Failing those, it is the `k8s.cluster.name` resource attribute, lowercased and with its `_` replaced by `-`. It is read from `service.telemetry.resource` in the collector config first, in either of its forms (the collector doesn't accept both at once):
 ```yaml
 service:
   telemetry:

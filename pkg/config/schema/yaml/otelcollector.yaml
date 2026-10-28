@@ -87,7 +87,7 @@ properties:
         node_type: setting
         type: string
         default: ''
-        comment: internal, not meant to be set by users - otel-agent sets it at startup in DDOT standalone mode from the k8s.cluster.name attribute of service.telemetry.resource in the collector config; the cluster name resolution tries it after its other sources and before OTEL_RESOURCE_ATTRIBUTES, as the collector gives service.telemetry.resource precedence over that variable
+        comment: internal, not meant to be set by users - otel-agent sets it at startup in DDOT standalone mode from the k8s.cluster.name attribute of service.telemetry.resource in the collector config; the cluster name resolution tries it after its other sources and before OTEL_RESOURCE_ATTRIBUTES, as this collector's own configuration takes precedence over a variable that charts fill with a placeholder by default
       use_kubelet_collector:
         node_type: setting
         type: boolean

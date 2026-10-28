@@ -143,14 +143,13 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 
 		// otel-agent in DDOT standalone mode: OTel deployment tools (the OTel
 		// Helm charts) and users give the collector its cluster's name in the
-		// k8s.cluster.name attribute of its own telemetry resource, which is also
-		// where the cluster_name host tag of the telemetry it exports comes from.
-		// It comes last, after the cloud providers' APIs and the node labels,
-		// because charts fill it with a placeholder by default
-		// (unknown_k8s_cluster), which the EKS and AKS node labels wouldn't
-		// override. Unlike cluster_name, it is free-form, so it is lowercased
-		// before being validated. In connected mode, the core Agent owns the
-		// cluster name.
+		// k8s.cluster.name resource attribute, in the collector config
+		// (service.telemetry.resource) or in OTEL_RESOURCE_ATTRIBUTES. It comes
+		// last, after the cloud providers' APIs and the node labels, because
+		// charts fill it with a placeholder by default (unknown_k8s_cluster),
+		// which the EKS and AKS node labels wouldn't override. Unlike
+		// cluster_name, it is free-form, so it is lowercased before being
+		// validated. In connected mode, the core Agent owns the cluster name.
 		if data.clusterName == "" && ddot.IsStandalone(pkgconfigsetup.Datadog()) {
 			if resourceClusterName, source := otelResourceClusterName(); resourceClusterName != "" {
 				resourceClusterName = strings.ToLower(resourceClusterName)
@@ -196,11 +195,11 @@ func validateClusterName(clusterName, hostname, source string) string {
 	return clusterName
 }
 
-// otelResourceClusterName returns the k8s.cluster.name attribute of the
-// collector's telemetry resource and where it was read from, resolved as the
-// collector does: service.telemetry.resource in the collector config, which
-// otel-agent copies to otelcollector.standalone.telemetry_resource_cluster_name,
-// takes precedence over OTEL_RESOURCE_ATTRIBUTES.
+// otelResourceClusterName returns the k8s.cluster.name resource attribute and
+// where it was read from. service.telemetry.resource in the collector config,
+// which otel-agent copies to otelcollector.standalone.telemetry_resource_cluster_name,
+// takes precedence over OTEL_RESOURCE_ATTRIBUTES: it is this collector's own
+// configuration, while charts fill the variable with a placeholder by default.
 func otelResourceClusterName() (clusterName, source string) {
 	if clusterName = pkgconfigsetup.Datadog().GetString("otelcollector.standalone.telemetry_resource_cluster_name"); clusterName != "" {
 		return clusterName, "service.telemetry.resource in the collector config"

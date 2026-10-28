@@ -272,9 +272,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		}
 
 		// The cluster name resolution reads the k8s.cluster.name attribute of
-		// the collector's own telemetry resource, which the OpenTelemetry Helm
-		// charts and users set in the collector config rather than in
-		// OTEL_RESOURCE_ATTRIBUTES.
+		// the collector's own telemetry resource, where users can set it in the
+		// collector config, next to the Kubernetes attributes the
+		// opentelemetry-collector Helm chart puts there.
 		if clusterName := telemetryResourceAttribute(sc.Telemetry, "k8s.cluster.name"); clusterName != "" {
 			pkgconfig.Set("otelcollector.standalone.telemetry_resource_cluster_name", clusterName, pkgconfigmodel.SourceFile)
 		}
@@ -449,8 +449,8 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 // string when it isn't set. telemetry is the service.telemetry section. The
 // resource takes either form the collector accepts: an inline map of attribute
 // names to values (legacy), where a null value leaves the attribute unset, or
-// an attributes list of name/value entries, which wins over the inline map as
-// it does in the collector.
+// an attributes list of name/value entries. The collector refuses a config that
+// uses both; should both be there anyway, the attributes list wins.
 func telemetryResourceAttribute(telemetry any, key string) string {
 	telemetryMap, ok := telemetry.(map[string]any)
 	if !ok {
