@@ -272,6 +272,7 @@ func TestControllerUpdate(t *testing.T) {
 		remoteConfigs []map[string]state.RawConfig // successive RC updates, each keyed by path
 		wantStatus    map[string]state.ApplyStatus // expected apply status per path
 		wantChanges   []integration.ConfigChanges  // expected ConfigChanges, one per RC update
+		wantErrors    map[string]types.ErrorMsgSet // expected GetConfigErrors after all updates, per path
 	}{
 		{
 			name:          "matching scan task schedules check",
@@ -287,6 +288,24 @@ func TestControllerUpdate(t *testing.T) {
 				Error: `failed to build sub task "sub-1": postgres integration with host="unknown-host" not found`,
 			}},
 			wantChanges: []integration.ConfigChanges{{}},
+			wantErrors: map[string]types.ErrorMsgSet{"rc-1": {
+				`failed to build sub task "sub-1": postgres integration with host="unknown-host" not found`: {},
+			}},
+		},
+		{
+			name:          "fixed task clears its config errors",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskUnknownHostConfig)}, {"rc-1": rawScanTask("rc-1", scanTaskConfig)}},
+			wantStatus:    map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges:   []integration.ConfigChanges{{}, {Schedule: []integration.Config{wantScheduledConfig}}},
+		},
+		{
+			name:          "deleted RC path clears its config errors",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskUnknownHostConfig)}, {}},
+			wantStatus: map[string]state.ApplyStatus{"rc-1": {
+				State: state.ApplyStateError,
+				Error: `failed to build sub task "sub-1": postgres integration with host="unknown-host" not found`,
+			}},
+			wantChanges: []integration.ConfigChanges{{}, {}},
 		},
 		{
 			name:          "failed sub tasks do not block the buildable ones and are named in the error",
@@ -298,6 +317,10 @@ func TestControllerUpdate(t *testing.T) {
 			}},
 			// only sub-1 is scheduled
 			wantChanges: []integration.ConfigChanges{{Schedule: []integration.Config{wantScheduledConfig}}},
+			wantErrors: map[string]types.ErrorMsgSet{"rc-1": {
+				`failed to build sub task "sub-bad-host": postgres integration with host="unknown-host" not found`: {},
+				`failed to build sub task "sub-bad-platform": unsupported platform "mysql"`:                        {},
+			}},
 		},
 		{
 			name:          "re-delivery at the same RC path unschedules the previous check",
@@ -395,6 +418,13 @@ func TestControllerUpdate(t *testing.T) {
 
 			// Every path should reach the expected apply status.
 			assert.Equal(t, tt.wantStatus, updateStatus)
+
+			// The errors shown in `agent status` follow the last update of each path.
+			if len(tt.wantErrors) == 0 {
+				assert.Empty(t, provider.GetConfigErrors())
+			} else {
+				assert.Equal(t, tt.wantErrors, provider.GetConfigErrors())
+			}
 		})
 	}
 }
