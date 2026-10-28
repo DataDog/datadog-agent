@@ -408,7 +408,6 @@
 /cmd/installer/                                     @DataDog/fleet
 /cmd/installer/**/*_windows*.go                     @DataDog/fleet @DataDog/windows-products
 /cmd/installer/**/*_darwin*.go                      @DataDog/fleet @DataDog/windows-products
-/cmd/installer/windows_resources/                  @DataDog/fleet @DataDog/windows-products
 /cmd/host-profiler/                                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 
 /dev/    @DataDog/agent-devx
@@ -784,18 +783,7 @@
 /pkg/fleet/                                                           @DataDog/fleet
 /pkg/fleet/**/*_windows*.go                                           @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/**/*_darwin*.go                                            @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/**/windows/                                               @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/**/darwin/                                                @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/config/config_tree.go                           @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/config/dir_swap.go                              @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/config/resting_link.go                          @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/msi/                                            @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/packages/embedded/tmpl/*-windows.yaml.tmpl       @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/packages/embedded/tmpl/*.plist.tmpl              @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/packages/exec/dotnet_library_exec.go             @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/packages/launchd/                               @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
-/pkg/fleet/installer/symlink/link_win.go                             @DataDog/fleet @DataDog/windows-products
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
 /pkg/inventory/systeminfo/                                            @DataDog/windows-products
@@ -1146,7 +1134,6 @@
 /test/new-e2e/tests/ssi                                         @DataDog/injection-platform
 /test/new-e2e/tests/ssi-gradual-rollout                         @DataDog/apm-release-platform
 /test/new-e2e/tests/fleet                                       @DataDog/fleet
-/test/new-e2e/tests/fleet/**/*_macos*.go                        @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                                   @DataDog/fleet
 /test/new-e2e/tests/installer/script                            @DataDog/fleet @DataDog/data-observability
 /test/new-e2e/tests/sbom                                        @DataDog/agent-security
