@@ -27,7 +27,10 @@ patch contains operations. They are distinct: normalization or status annotation
 can produce a patch even when the callback returns false. No skip-path
 optimization is introduced. Request failures have a bounded `failure_stage`;
 `admission.allowed` and HTTP status are separate because mutation failures can
-remain fail-open with HTTP 200.
+remain fail-open with HTTP 200. Policy denials, including their explanations,
+are admission outcomes rather than internal errors. Panics mark the active
+request and mutation spans as errors without recording the panic value or
+changing panic propagation.
 
 New tags contain fixed operational names, booleans, bounded failure stages, and
 HTTP status codes, not pod contents, object identities, label/annotation/env

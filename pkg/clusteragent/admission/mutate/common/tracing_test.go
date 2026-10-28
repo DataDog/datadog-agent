@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -84,10 +85,10 @@ func TestMutateTracing(t *testing.T) {
 				callback := spans["cluster_agent.admission.mutate_pod"]
 				require.NotNil(t, callback)
 				require.Equal(t, mutation.SpanID(), callback.ParentID())
-				require.Equal(t, fmt.Sprint(tt.inject), mutation.Tag("injected"))
+				require.Equal(t, strconv.FormatBool(tt.inject), mutation.Tag("injected"))
 			}
 			if !tt.fail && !tt.decodeFail {
-				require.Equal(t, fmt.Sprint(tt.patch), mutation.Tag("patch_present"))
+				require.Equal(t, strconv.FormatBool(tt.patch), mutation.Tag("patch_present"))
 				require.Equal(t, mutation.SpanID(), spans["cluster_agent.admission.prepare_patch"].ParentID())
 			} else {
 				require.Nil(t, spans["cluster_agent.admission.prepare_patch"])

@@ -34,8 +34,13 @@ const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes
 // Mutation errors may contain pod data. Never attach the original error to spans.
 var errMutation = errors.New("admission mutation failed")
 
-func finishMutationSpan(span *tracer.Span, err error) {
-	if err != nil {
+// Defer this directly so recover observes panics and err is read at function exit.
+func finishMutationSpan(span *tracer.Span, err *error) {
+	if p := recover(); p != nil {
+		span.Finish(tracer.WithError(errMutation))
+		panic(p)
+	}
+	if *err != nil {
 		span.Finish(tracer.WithError(errMutation))
 		return
 	}
@@ -56,7 +61,7 @@ func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationTy
 		ctx = context.Background()
 	}
 	span, ctx := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.mutate", tracer.ResourceName(mutationType))
-	defer func() { finishMutationSpan(span, retErr) }()
+	defer finishMutationSpan(span, &retErr)
 
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
@@ -81,11 +86,10 @@ func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationTy
 
 	injected, err := func() (injected bool, retErr error) {
 		mutationSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.mutate_pod", tracer.ResourceName(mutationType))
-		defer func() {
-			mutationSpan.SetTag("injected", injected)
-			finishMutationSpan(mutationSpan, retErr)
-		}()
-		return m(&pod, ns, dc)
+		defer finishMutationSpan(mutationSpan, &retErr)
+		injected, retErr = m(&pod, ns, dc)
+		mutationSpan.SetTag("injected", injected)
+		return injected, retErr
 	}()
 	span.SetTag("injected", injected)
 	if err != nil {
@@ -96,7 +100,7 @@ func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationTy
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
 	patchSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.prepare_patch")
-	defer func() { finishMutationSpan(patchSpan, retErr) }()
+	defer finishMutationSpan(patchSpan, &retErr)
 	afterJSON, err := json.Marshal(pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
