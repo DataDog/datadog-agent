@@ -89,12 +89,10 @@ def needs_rc_x509_build_files(build_tags, target_platform, enable_bazel):
     )
 
 
-def add_rc_x509_cgo_flags(env, native_embedded_path, target_platform):
+def add_rc_x509_cgo_flags(env, native_embedded_path):
     """Add the rc-x509 header and static-library directories to a Go build environment."""
     env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" -I{os.path.join(native_embedded_path, 'include')}"
     env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" -L{os.path.join(native_embedded_path, 'lib')}"
-    if target_platform == "darwin":
-        env["CGO_LDFLAGS"] += f" -Wl,-rpath,{os.path.join(native_embedded_path, 'lib')}"
 
 
 @task
@@ -226,7 +224,7 @@ def build(
         platform=target_platform,
     )
     if rc_x509_embedded_path:
-        add_rc_x509_cgo_flags(env, rc_x509_embedded_path, target_platform)
+        add_rc_x509_cgo_flags(env, rc_x509_embedded_path)
 
     if target_platform == 'win32':
         # Important for x-compiling

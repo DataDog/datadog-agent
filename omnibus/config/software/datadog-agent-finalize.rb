@@ -59,13 +59,11 @@ build do
             delete "#{install_dir}/embedded/include/dbus-1.0"
             delete "#{install_dir}/embedded/lib/dbus-1.0/include"
 
-            # The rc-x509 Go bridge needs these development artifacts while
-            # agent.build runs. Linux links its native inputs statically;
-            # macOS retains only the versioned AWS-LC FIPS runtime dylib.
+            # The rc-x509 Go bridge needs these static link inputs only while
+            # agent.build runs; none are needed at runtime.
             delete "#{install_dir}/embedded/include/libdd_rc.h"
             delete "#{install_dir}/embedded/lib/librc_x509_ffi.a"
             delete "#{install_dir}/embedded/lib/libaws_lc_fips_crypto.a"
-            delete "#{install_dir}/embedded/lib/libaws_lc_fips_crypto.dylib"
         end
 
         # Size cleanups for the Windows embedded Python (embedded3), mirroring

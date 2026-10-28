@@ -74,29 +74,27 @@ class TestRCX509BuildInputs(unittest.TestCase):
             install_rc_x509_build_files(os.path.join(os.sep, "tmp", "agent", "embedded"), "win32", AgentFlavor.base)
         bazel.assert_not_called()
 
-    def test_adds_linux_native_paths_without_discarding_existing_cgo_flags(self):
+    def test_adds_native_paths_without_discarding_existing_cgo_flags(self):
         env = {
             "CGO_CFLAGS": "-Werror",
             "CGO_LDFLAGS": "-L/existing/lib",
         }
         native_embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
 
-        add_rc_x509_cgo_flags(env, native_embedded_path, "linux")
+        add_rc_x509_cgo_flags(env, native_embedded_path)
 
         self.assertEqual(env["CGO_CFLAGS"], f"-Werror -I{native_embedded_path}/include")
         self.assertEqual(env["CGO_LDFLAGS"], f"-L/existing/lib -L{native_embedded_path}/lib")
 
-    def test_adds_macos_native_paths_and_runtime_search_path(self):
+    def test_adds_no_runtime_search_path(self):
+        # Every platform links librc_x509_ffi.a statically, so nothing is loaded at runtime.
         env = {}
         native_embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
 
-        add_rc_x509_cgo_flags(env, native_embedded_path, "darwin")
+        add_rc_x509_cgo_flags(env, native_embedded_path)
 
         self.assertEqual(env["CGO_CFLAGS"], f" -I{native_embedded_path}/include")
-        self.assertEqual(
-            env["CGO_LDFLAGS"],
-            f" -L{native_embedded_path}/lib -Wl,-rpath,{native_embedded_path}/lib",
-        )
+        self.assertEqual(env["CGO_LDFLAGS"], f" -L{native_embedded_path}/lib")
 
     def test_needs_build_files_when_rc_x509_tag_is_set(self):
         self.assertTrue(needs_rc_x509_build_files({"rc_x509", "zlib"}, "linux", enable_bazel=False))

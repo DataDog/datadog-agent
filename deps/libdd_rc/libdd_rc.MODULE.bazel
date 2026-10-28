@@ -110,9 +110,7 @@ alias(
 exports_files(["LICENSE"], visibility = ["//visibility:public"])
 """,
     build_script_env_select = {
-        "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
-        "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
         # Keep Go, libclang, and NASM action-scoped. Perl intentionally follows
         # the existing Windows OpenSSL/OpenSSL-FIPS build convention and is
         # resolved from the CI image PATH exposed by --action_env=PATH.
@@ -121,9 +119,7 @@ exports_files(["LICENSE"], visibility = ["//visibility:public"])
     },
     build_script_tools = ["@go_work_sdk//:files"],
     build_script_tools_select = {
-        "aarch64-apple-darwin": ["@go_work_sdk//:bin/go"],
         "aarch64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
-        "x86_64-apple-darwin": ["@go_work_sdk//:bin/go"],
         "x86_64-pc-windows-msvc": [
             "@go_work_sdk//:bin/go.exe",
             "@libclang_windows//:clang/native/libclang.dll",
@@ -134,8 +130,10 @@ exports_files(["LICENSE"], visibility = ["//visibility:public"])
     crate = "aws-lc-fips-sys",
     patch_args = ["-p1"],
     patches = [
-        # The hermetic MSVC patch extends get_cmake_config() as rewritten by
-        # the macOS linker patch, so this order is intentional.
+        # The macOS linker patch also forwards GO_EXECUTABLE to CMake for all
+        # FIPS builds (Linux included), and the hermetic MSVC patch extends its
+        # get_cmake_config() rewrite, so keep it and this order even though
+        # macOS no longer builds AWS-LC FIPS.
         "//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch",
         "//deps/libdd_rc:aws-lc-fips-sys-hermetic-msvc.patch",
         "//deps/libdd_rc:aws-lc-sys-nasm-command.patch",
