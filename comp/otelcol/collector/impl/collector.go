@@ -23,8 +23,6 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	datadogextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -40,7 +38,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/collector/impl/internal/apikeybridge"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	dogtelextension "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
@@ -153,24 +150,6 @@ var datadogConnectorType = component.MustNewType("datadog")
 
 const tracesToTracesStability = component.StabilityLevel(component.StabilityLevelDevelopment)
 const tracesToMetricsStability = component.StabilityLevel(component.StabilityLevelDevelopment)
-
-// bridgeDatadogExtensionAPIKey re-registers the upstream `datadog` extension factory so
-// that the extension's private Agent config -- and therefore its forwarder -- follows
-// the Agent's API key across a rotation. See comp/otelcol/collector/impl/internal/apikeybridge.
-//
-// It replaces an existing entry and never inserts one. The `datadog` extension comes from
-// the OCB-generated factory map, and a BYOC build may legitimately omit it from its
-// manifest (it is not in MANDATORY_COMPONENTS in tasks/collector.py), so adding it back
-// here would ship a component the operator deliberately excluded.
-func bridgeDatadogExtensionAPIKey(factories otelcol.Factories, cfg config.Component, log corelog.Component) {
-	ddExtType := datadogextension.NewFactory().Type()
-	if _, ok := factories.Extensions[ddExtType]; !ok {
-		return
-	}
-	factories.Extensions[ddExtType] = datadogextension.NewFactoryWithOptions(
-		datadogextension.WithConfigOptions(apikeybridge.Option(cfg, log)),
-	)
-}
 
 func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
 	serializerexporter.InitTelemetry(reqs.Telemetry)
