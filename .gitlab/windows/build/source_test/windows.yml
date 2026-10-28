@@ -20,6 +20,7 @@ tests_windows_msi_x64:
       docker run --rm
       -m 24576M
       -v "$(Get-Location):c:\mnt"
+      -e CI
       -e GITLAB_CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
