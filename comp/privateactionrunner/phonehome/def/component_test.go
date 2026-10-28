@@ -12,9 +12,10 @@ import (
 
 func TestStateWireVocabulary(t *testing.T) {
 	states := map[StateName]string{
-		StateBlocked:   "blocked",
-		StateHandedOff: "handed_off",
-		StateWaiting:   "waiting",
+		StateBlocked:       "blocked",
+		StateHandedOff:     "handed_off",
+		StateWaiting:       "waiting",
+		StateNotApplicable: "not_applicable",
 	}
 	for state, want := range states {
 		got, err := json.Marshal(State{State: state})
@@ -29,6 +30,7 @@ func TestStateWireVocabulary(t *testing.T) {
 		ReasonExistingProcessLeftUntouched:        "existing_process_left_untouched",
 		ReasonLaunchOutcomeUnknownRequiresReview:  "launch_outcome_unknown_requires_review",
 		ReasonLegacyAttemptRequiresReconciliation: "legacy_attempt_requires_reconciliation",
+		ReasonLegacyInit:                          "legacy_init",
 		ReasonPreviousProcessExitRequiresReview:   "previous_process_exit_requires_review",
 		ReasonRCCredentialOrEndpointMismatch:      "rc_credential_or_endpoint_mismatch",
 		ReasonRCKeyUnauthorized:                   "rc_key_unauthorized",

@@ -45,6 +45,8 @@ do_start()
 	#   2 if daemon could not be started
 	start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH > /dev/null \
 		|| return 1
+	# This launcher does not start procmgr; core must not wait for split PAR registrations.
+	export DD_INTERNAL_PAR_LEGACY_INIT=true
 	start-stop-daemon --start --background --chuid $AGENT_USER --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH -- \
 		$AGENT_ARGS \
 		|| return 2

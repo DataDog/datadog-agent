@@ -28,6 +28,7 @@ func TestTelemetryReportsStateTransitions(t *testing.T) {
 		{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized},
 		{State: phonehome.StateBlocked, Reason: phonehome.ReasonLegacyAttemptRequiresReconciliation},
 		{State: phonehome.StateHandedOff, Reason: phonehome.ReasonSupervisorStartAcknowledged},
+		{State: phonehome.StateNotApplicable, Reason: phonehome.ReasonLegacyInit},
 	} {
 		report(state)
 		current := string(state.State) + "/" + string(state.Reason)

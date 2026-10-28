@@ -13,6 +13,16 @@ Rust's existing bootstrap starts the Go executor. Monolithic startup, Windows an
 container registrations are unchanged. Unsupported configurations report a blocked
 state; they do not cause core to launch or stop a monolithic runner.
 
+Packaged core Agent SysV/Upstart launchers mark their process with the internal
+`DD_INTERNAL_PAR_LEGACY_INIT=true` environment variable. They do not start procmgr,
+so enabled PAR reports `not_applicable (legacy_init)` without a next check, supervisor
+requests or RC/AAA discovery demand. This describes the startup gate only, not whether
+the independently launched monolith is running or enrolled. The marker does not change
+PAR's deployment configuration or enrollment behavior; it is not a public configuration
+option. Disabled PAR stays quiet. Systemd and custom launchers without the marker retain
+the existing gate, including waiting/recovery when their supervisor is unavailable.
+Missing sockets or non-systemd PID 1 alone never select this bypass.
+
 ## Configuration
 
 - Core: PAR enabled, split mode enabled, local RC enabled.

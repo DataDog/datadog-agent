@@ -28,9 +28,10 @@ type State struct {
 
 // Phone-home startup states.
 const (
-	StateBlocked   StateName = "blocked"
-	StateHandedOff StateName = "handed_off"
-	StateWaiting   StateName = "waiting"
+	StateBlocked       StateName = "blocked"
+	StateHandedOff     StateName = "handed_off"
+	StateWaiting       StateName = "waiting"
+	StateNotApplicable StateName = "not_applicable"
 )
 
 // Phone-home startup reasons.
@@ -38,6 +39,7 @@ const (
 	ReasonExistingProcessLeftUntouched        Reason = "existing_process_left_untouched"
 	ReasonLaunchOutcomeUnknownRequiresReview  Reason = "launch_outcome_unknown_requires_review"
 	ReasonLegacyAttemptRequiresReconciliation Reason = "legacy_attempt_requires_reconciliation"
+	ReasonLegacyInit                          Reason = "legacy_init"
 	ReasonPreviousProcessExitRequiresReview   Reason = "previous_process_exit_requires_review"
 	ReasonRCCredentialOrEndpointMismatch      Reason = "rc_credential_or_endpoint_mismatch"
 	ReasonRCKeyUnauthorized                   Reason = "rc_key_unauthorized"

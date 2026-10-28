@@ -58,6 +58,7 @@ func TestStateLoggingLevelsAndDeduplication(t *testing.T) {
 		{phonehomedef.ReasonPARScopeExpired, "INFO"},
 		{phonehomedef.ReasonMissingEnrollmentScope, "INFO"},
 		{phonehomedef.ReasonStartupJitter, "DEBUG"},
+		{phonehomedef.ReasonLegacyInit, "DEBUG"},
 		{phonehomedef.ReasonSupervisorUnavailable, "DEBUG"},
 		{phonehomedef.ReasonSupervisorRegistrationUnavailable, "DEBUG"},
 		{phonehomedef.ReasonSupervisorRegistrationChangePending, "DEBUG"},

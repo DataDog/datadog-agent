@@ -22,6 +22,8 @@ func newStateLogger(bypass bool) func(State) {
 		reason := s.Reason
 		// Only allowlisted reasons reach logs, even if a source returns unexpected data.
 		switch reason {
+		case phonehomedef.ReasonLegacyInit:
+			log.Debug("PAR startup gate: not applicable; legacy init does not start the process manager: reason=legacy_init")
 		case phonehomedef.ReasonUnsupportedConfiguration:
 			if bypass {
 				log.Debugf("PAR startup gate: bypassed in an intentionally ungated mode: reason=%s", reason)

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -238,6 +239,55 @@ func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
 		f.c.step(context.Background())
 		require.Equal(t, 1, pm.starts)
 	})
+}
+
+func TestLegacyInitSkipsStartupGate(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			f := newFixture(t)
+			f.cfg.SetInTest(par.Enabled, enabled)
+			f.cfg.SetInTest(par.SplitEnabled, true)
+			t.Setenv("DD_INTERNAL_PAR_LEGACY_INIT", "true")
+			// Gate-specific validation must not run in a launcher that never starts procmgr.
+			t.Setenv("DD_PM_SOCKET_PATH", "relative-socket")
+			output := captureLogs(t)
+			var reported []State
+			Run(context.Background(), f.cfg, nil, func(s State) { reported = append(reported, s) })
+			if !enabled {
+				require.Empty(t, reported)
+				require.Empty(t, output.String())
+				return
+			}
+			want := State{State: phonehomedef.StateNotApplicable, Reason: phonehomedef.ReasonLegacyInit}
+			require.Equal(t, []State{want}, reported)
+			require.Equal(t, &want, Status())
+			require.Equal(t, "[DEBUG] PAR startup gate: not applicable; legacy init does not start the process manager: reason=legacy_init\n", output.String())
+		})
+	}
+}
+
+func TestLegacyInitRequiresExplicitLauncherMarker(t *testing.T) {
+	for _, marker := range []string{"", "false", "TRUE"} {
+		t.Run(marker, func(t *testing.T) {
+			f := newFixture(t)
+			f.cfg.SetInTest(par.SplitEnabled, false)
+			t.Setenv("DD_INTERNAL_PAR_LEGACY_INIT", marker)
+			t.Setenv("DD_PM_SOCKET_PATH", filepath.Join(t.TempDir(), "absent.sock"))
+			var reported []State
+			Run(context.Background(), f.cfg, nil, func(s State) { reported = append(reported, s) })
+			require.Equal(t, []State{{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration}}, reported)
+		})
+	}
+}
+
+func TestUnavailableSupervisorStillWaits(t *testing.T) {
+	f := newFixture(t)
+	f.pm.describeErr = errors.New("supervisor socket unavailable")
+	f.rc.onRead = func() { t.Fatal("no authorization demand before observing the supervisor") }
+	require.Equal(t, pollInterval, f.c.step(context.Background()))
+	require.Equal(t, phonehomedef.StateWaiting, f.state.State)
+	require.Equal(t, phonehomedef.ReasonSupervisorUnavailable, f.state.Reason)
+	require.Zero(t, f.pm.starts)
 }
 
 func TestSupervisorSocketUsesPackagedDefaultOrOverride(t *testing.T) {
