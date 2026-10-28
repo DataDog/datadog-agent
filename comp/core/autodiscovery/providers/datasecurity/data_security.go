@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -64,6 +65,10 @@ type controller struct {
 	// scheduledByPath holds the config scheduled per RC path: at most one task per path.
 	scheduledByPath map[string]integration.Config
 
+	// configErrors holds the errors of the last update per RC path, for `agent status`.
+	configErrorsMutex sync.Mutex
+	configErrors      map[string]types.ErrorMsgSet
+
 	// enforceSSL elevates weak postgres ssl modes to require (`data_security.enforce_ssl`).
 	enforceSSL bool
 }
@@ -79,6 +84,7 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component, enfo
 		// TODO(dsec-198): include backpressure to avoid blocking indefinitely
 		configChanges:   make(chan integration.ConfigChanges, 10),
 		scheduledByPath: make(map[string]integration.Config),
+		configErrors:    make(map[string]types.ErrorMsgSet),
 	}
 	// Send an empty initial sync so Autodiscovery's config poller unblocks startup; real configs
 	// are streamed later as scan tasks arrive over RC.
@@ -126,7 +132,24 @@ func (c *controller) String() string {
 
 // GetConfigErrors returns errors from the last update, shown in `agent status`.
 func (c *controller) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return map[string]types.ErrorMsgSet{}
+	c.configErrorsMutex.Lock()
+	defer c.configErrorsMutex.Unlock()
+	out := make(map[string]types.ErrorMsgSet, len(c.configErrors))
+	for path, set := range c.configErrors {
+		out[path] = maps.Clone(set)
+	}
+	return out
+}
+
+// setConfigErrors records the errors of an RC path; an empty set clears them.
+func (c *controller) setConfigErrors(path string, set types.ErrorMsgSet) {
+	c.configErrorsMutex.Lock()
+	defer c.configErrorsMutex.Unlock()
+	if len(set) == 0 {
+		delete(c.configErrors, path)
+		return
+	}
+	c.configErrors[path] = set
 }
 
 // Stream sends configuration updates until the context is cancelled.
@@ -155,12 +178,20 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 			delete(c.scheduledByPath, path)
 		}
 	}
+	c.configErrorsMutex.Lock()
+	for path := range c.configErrors {
+		if _, ok := updates[path]; !ok {
+			delete(c.configErrors, path)
+		}
+	}
+	c.configErrorsMutex.Unlock()
 
 	for path, rawConfig := range updates {
 		var payload scanTaskPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
 			// TODO(dsec-214): send sds-results to report task failure
 			log.Errorf("failed to decode Data Security scan task from remote-config: %v", err)
+			c.setConfigErrors(path, types.ErrorMsgSet{err.Error(): {}})
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
@@ -170,6 +201,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		if err != nil {
 			// TODO(dsec-214): send sds-results to report task failure
 			log.Warnf("failed to build datasecurity instance for scan task %s: %v", path, err)
+			c.setConfigErrors(path, failedOrErr(failed, err))
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
@@ -186,6 +218,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		changes.Schedule = append(changes.Schedule, newCfg)
 		c.scheduledByPath[path] = newCfg
 
+		c.setConfigErrors(path, failed.errorSet())
 		status := state.ApplyStatus{State: state.ApplyStateAcknowledged}
 		if len(failed) > 0 {
 			// Scheduled with the sub tasks that built, but not fully applied.
@@ -353,10 +386,31 @@ type subTaskFailure struct {
 	Err       error
 }
 
+// errorSet returns one message per failed sub task.
+func (f failedSubTasks) errorSet() types.ErrorMsgSet {
+	set := make(types.ErrorMsgSet, len(f))
+	for _, sf := range f {
+		set[sf.message()] = struct{}{}
+	}
+	return set
+}
+
+// failedOrErr returns the per sub task messages when there are failed sub tasks, err otherwise.
+func failedOrErr(failed failedSubTasks, err error) types.ErrorMsgSet {
+	if len(failed) > 0 {
+		return failed.errorSet()
+	}
+	return types.ErrorMsgSet{err.Error(): {}}
+}
+
+func (sf subTaskFailure) message() string {
+	return fmt.Sprintf("failed to build sub task %q: %v", sf.SubTaskID, sf.Err)
+}
+
 func (f failedSubTasks) Error() string {
 	parts := make([]string, 0, len(f))
 	for _, sf := range f {
-		parts = append(parts, fmt.Sprintf("failed to build sub task %q: %v", sf.SubTaskID, sf.Err))
+		parts = append(parts, sf.message())
 	}
 	return strings.Join(parts, "; ")
 }
