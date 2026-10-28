@@ -26,19 +26,24 @@ func TestCoreAgentIPCMirrorsSchema(t *testing.T) {
 			"defaultCoreAgentIPCEnabled no longer mirrors "+coreAgentIPCKey+" in system-probe_schema.yaml")
 	})
 
-	t.Run("env var", func(t *testing.T) {
+	t.Run("env vars", func(t *testing.T) {
 		t.Setenv(coreAgentIPCEnvVar, "false")
+		t.Setenv(fleetPoliciesDirEnvVar, "/fleet")
 		cfg := configmock.NewSystemProbe(t)
 		require.False(t, cfg.GetBool(coreAgentIPCKey),
 			coreAgentIPCEnvVar+" is not the env var the system-probe config binds to "+coreAgentIPCKey)
+		require.Equal(t, "/fleet", cfg.GetString("fleet_policies_dir"),
+			fleetPoliciesDirEnvVar+" is not the env var the system-probe config binds to fleet_policies_dir")
 	})
 }
 
-// unsetCoreAgentIPCEnv unsets the env var for the duration of the test; t.Setenv
+// unsetCoreAgentIPCEnv unsets the env vars for the duration of the test; t.Setenv
 // registers the restore of any value inherited from the environment.
 func unsetCoreAgentIPCEnv(t *testing.T) {
-	t.Setenv(coreAgentIPCEnvVar, "")
-	os.Unsetenv(coreAgentIPCEnvVar)
+	for _, envVar := range []string{coreAgentIPCEnvVar, fleetPoliciesDirEnvVar} {
+		t.Setenv(envVar, "")
+		os.Unsetenv(envVar)
+	}
 }
 
 func TestCoreAgentIPCEnabled(t *testing.T) {
@@ -52,32 +57,59 @@ func TestCoreAgentIPCEnabled(t *testing.T) {
 
 	t.Run("defaults to enabled when nothing is set", func(t *testing.T) {
 		unsetCoreAgentIPCEnv(t)
-		require.Equal(t, defaultCoreAgentIPCEnabled, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", "")))
+		require.Equal(t, defaultCoreAgentIPCEnabled, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", ""), ""))
 	})
 
 	t.Run("missing file falls back to the default", func(t *testing.T) {
 		unsetCoreAgentIPCEnv(t)
-		require.Equal(t, defaultCoreAgentIPCEnabled, coreAgentIPCEnabled("/does/not/exist/system-probe.yaml"))
+		require.Equal(t, defaultCoreAgentIPCEnabled, coreAgentIPCEnabled("/does/not/exist/system-probe.yaml", ""))
 	})
 
 	t.Run("yaml file path", func(t *testing.T) {
 		unsetCoreAgentIPCEnv(t)
-		require.False(t, coreAgentIPCEnabled(writeConf(t, "custom.yaml", disabledYAML)))
+		require.False(t, coreAgentIPCEnabled(writeConf(t, "custom.yaml", disabledYAML), ""))
 	})
 
 	t.Run("directory gets system-probe.yaml appended", func(t *testing.T) {
 		unsetCoreAgentIPCEnv(t)
 		path := writeConf(t, "system-probe.yaml", disabledYAML)
-		require.False(t, coreAgentIPCEnabled(filepath.Dir(path)))
+		require.False(t, coreAgentIPCEnabled(filepath.Dir(path), ""))
 	})
 
 	t.Run("env var wins over yaml", func(t *testing.T) {
+		unsetCoreAgentIPCEnv(t)
 		t.Setenv(coreAgentIPCEnvVar, "true")
-		require.True(t, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", disabledYAML)))
+		require.True(t, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", disabledYAML), ""))
 	})
 
 	t.Run("invalid env var falls through to yaml", func(t *testing.T) {
+		unsetCoreAgentIPCEnv(t)
 		t.Setenv(coreAgentIPCEnvVar, "not-a-bool")
-		require.False(t, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", disabledYAML)))
+		require.False(t, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", disabledYAML), ""))
+	})
+	t.Run("fleet policy from the flag wins over env and yaml", func(t *testing.T) {
+		unsetCoreAgentIPCEnv(t)
+		t.Setenv(coreAgentIPCEnvVar, "true")
+		fleetDir := filepath.Dir(writeConf(t, "system-probe.yaml", disabledYAML))
+		local := writeConf(t, "system-probe.yaml", "system_probe_config:\n  core_agent_ipc:\n    enabled: true\n")
+		require.False(t, coreAgentIPCEnabled(local, fleetDir))
+	})
+
+	t.Run("fleet policy dir from the env var", func(t *testing.T) {
+		unsetCoreAgentIPCEnv(t)
+		t.Setenv(fleetPoliciesDirEnvVar, filepath.Dir(writeConf(t, "system-probe.yaml", disabledYAML)))
+		require.False(t, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", ""), ""))
+	})
+
+	t.Run("fleet policy dir from system-probe.yaml", func(t *testing.T) {
+		unsetCoreAgentIPCEnv(t)
+		fleetDir := filepath.Dir(writeConf(t, "system-probe.yaml", disabledYAML))
+		require.False(t, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", "fleet_policies_dir: "+fleetDir+"\n"), ""))
+	})
+
+	t.Run("fleet policy without the key falls through", func(t *testing.T) {
+		unsetCoreAgentIPCEnv(t)
+		fleetDir := filepath.Dir(writeConf(t, "system-probe.yaml", "log_level: debug\n"))
+		require.False(t, coreAgentIPCEnabled(writeConf(t, "system-probe.yaml", disabledYAML), fleetDir))
 	})
 }
