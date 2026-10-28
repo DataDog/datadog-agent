@@ -14,6 +14,21 @@ crate.from_cargo(
     ],
     validate_lockfile = True,
 )
+
+# The same rc-x509-ffi dependencies built with rc-crypto's non-FIPS backend,
+# for the standard (non-FIPS) Agent flavor.
+crate.from_cargo(
+    name = "libdd_rc_crates_nonfips",
+    cargo_lock = "//deps/libdd_rc/nonfips:Cargo.lock",
+    cargo_toml = "//deps/libdd_rc/nonfips:Cargo.toml",
+    platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+    ],
+    validate_lockfile = True,
+)
 crate.annotation(
     build_script_env = {
         "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
@@ -26,7 +41,10 @@ crate.annotation(
     crate = "rc-x509-proto",
     patch_args = ["-p1"],
     patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
-    repositories = ["libdd_rc_crates"],
+    repositories = [
+        "libdd_rc_crates",
+        "libdd_rc_crates_nonfips",
+    ],
 )
 
 # libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
@@ -34,7 +52,10 @@ crate.annotation(
 # tracing/tracing-core, so reproduce it narrowly in the isolated crate graph.
 crate.annotation(
     crate = "tracing",
-    repositories = ["libdd_rc_crates"],
+    repositories = [
+        "libdd_rc_crates",
+        "libdd_rc_crates_nonfips",
+    ],
     rustc_flags = ["--cfg=tracing_unstable"],
 )
 crate.annotation(
@@ -44,6 +65,12 @@ crate.annotation(
     # Cargo declares this edge under cfg(tracing_unstable), which
     # crate_universe cannot infer from a custom rustc cfg.
     deps = ["@libdd_rc_crates//:valuable-0.1.1"],
+)
+crate.annotation(
+    crate = "tracing-core",
+    repositories = ["libdd_rc_crates_nonfips"],
+    rustc_flags = ["--cfg=tracing_unstable"],
+    deps = ["@libdd_rc_crates_nonfips//:valuable-0.1.1"],
 )
 
 # rules_rust consumes non-Cargo build-script stdout, hiding the command stream
@@ -118,7 +145,7 @@ exports_files(["LICENSE"], visibility = ["//visibility:public"])
 
 inject_repo(crate, "go_work_sdk", "libclang_windows", "nasm_windows", "protobuf")
 
-use_repo(crate, "libdd_rc_crates")
+use_repo(crate, "libdd_rc_crates", "libdd_rc_crates_nonfips")
 
 http_archive(
     name = "libdd_rc_source",

@@ -1,0 +1,8 @@
+exports_files(
+    [
+        "Cargo.lock",
+        "Cargo.toml",
+        "lib.rs",
+    ],
+    visibility = ["//visibility:public"],
+)
