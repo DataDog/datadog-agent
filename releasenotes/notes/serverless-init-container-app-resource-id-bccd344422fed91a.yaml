@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The ``resource_id`` and ``aca.resource.id`` tags are omitted when the Azure
+    Container App name is unavailable, instead of being reported with an empty
+    trailing path segment.
