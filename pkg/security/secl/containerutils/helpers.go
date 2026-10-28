@@ -121,6 +121,10 @@ func FindPodUID(s CGroupID) string {
 //
 // The returned task ID is normalized to lowercase.
 func FindECSTaskID(s CGroupID) string {
+	if !strings.Contains(string(s), "ecs") {
+		return ""
+	}
+
 	segments := strings.Split(string(s), "/")
 
 	for i := len(segments) - 1; i >= 0; i-- {
