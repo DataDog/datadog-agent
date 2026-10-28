@@ -80,8 +80,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
 		fl.restoreMetricFilterListFromLocalConfig()
 		fl.restoreTagFilterListFromLocalConfig()
@@ -137,18 +135,12 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		// in `agent config` calls.
 		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-		if len(fl.localFilterListConfig.metricNames) > 0 {
-			fl.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
-			fl.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
-		}
 
 		effectiveNames = metricNames
 		effectiveMatchPrefix = false
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 	}
 
 	effectivePrefixRules := fl.localFilterListConfig.metricPrefixRules

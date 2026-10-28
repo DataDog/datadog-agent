@@ -74,10 +74,6 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	// init the metric names filterlist
 	filterlist := config.GetStringSlice("metric_filterlist")
 	filterlistPrefix := config.GetBool("metric_filterlist_match_prefix")
-	if len(filterlist) == 0 {
-		filterlist = config.GetStringSlice("statsd_metric_blocklist")
-		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
-	}
 	filterlist = normalizeMetricNames(filterlist, filterlistPrefix, log)
 
 	var metricPrefixEntries []MetricPrefixListEntry

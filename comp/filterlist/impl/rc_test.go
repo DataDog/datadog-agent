@@ -17,6 +17,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -398,6 +399,68 @@ func TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent(t *testing.T) {
 	require.True(matcher.Test("rc.exact"), "metric_filterlist should come from RC")
 	require.False(matcher.Test("local.exact"), "the local exact metric should have been replaced by RC's")
 	require.True(matcher.Test("local.prefixed.anything"), "metric_filterlist_prefix should fall back to local config")
+}
+
+func TestFilterListUpdateRestoresDeprecatedStatsdMetricBlocklistFromFile(t *testing.T) {
+	require := require.New(t)
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockFromYAML(t, `
+statsd_metric_blocklist:
+  - local.legacy
+statsd_metric_blocklist_match_prefix: true
+`)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	require.ElementsMatch([]string{"local.legacy"}, configComponent.GetStringSlice("metric_filterlist"))
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
+	require.True(configComponent.GetBool("metric_filterlist_match_prefix"))
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist_match_prefix"))
+	require.False(configComponent.IsConfigured("statsd_metric_blocklist"))
+	require.False(configComponent.IsConfigured("statsd_metric_blocklist_match_prefix"))
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [{"metric_name": "rc.exact"}]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	require.ElementsMatch([]string{"rc.exact"}, configComponent.GetStringSlice("metric_filterlist"))
+	require.Equal(model.SourceRC, configComponent.GetSource("metric_filterlist"))
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("rc.exact"), "metric_filterlist should come from RC")
+	require.False(matcher.Test("local.legacy"), "the deprecated local metric should not be applied while RC is active")
+
+	results = updateRes{}
+	emptyUpdates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": []
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
+	require.Len(results[state.ApplyStateError], 0)
+
+	require.ElementsMatch([]string{"local.legacy"}, configComponent.GetStringSlice("metric_filterlist"))
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
+	matcher = filterList.GetMetricFilterList()
+	require.True(matcher.Test("local.legacy.anything"), "empty RC update should restore the deprecated file config after migration")
+	require.False(matcher.Test("rc.exact"), "empty RC update should remove the RC metric_filterlist")
 }
 
 // Empty RC prefix rules restore the local prefix rules.
