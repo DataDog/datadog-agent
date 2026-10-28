@@ -62,16 +62,37 @@ func TestGenerationIsUpToDate(t *testing.T) {
 	fixtures.AssertEqualFS(t, currentGeneratedFS, newGeneratedFS)
 }
 
-// TestProcessesEnvVarsDefinedInProcmgrService tests that every environment
-// variable referenced in a gen/pm/processes.d/*.yaml process definition
-// is defined in every gen/pm/*/datadog-agent-procmgr.service context that
-// starts the process manager responsible for running that process.
+func TestPARInitialStartupIsCoreOwned(t *testing.T) {
+	for _, tc := range []struct {
+		name, restart string
+	}{
+		{"datadog-agent-par-control.yaml", "on-failure"},
+		{"datadog-agent-action-executor.yaml", "never"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			process, err := fs.ReadFile(genFS, "gen/pm/processes.d/"+tc.name)
+			assert.NoError(t, err)
+			assert.Contains(t, string(process), "\nauto_start: false\n")
+			assert.Contains(t, string(process), "\nrestart: "+tc.restart+"\n")
+		})
+	}
+	control, err := fs.ReadFile(genFS, "gen/pm/processes.d/datadog-agent-par-control.yaml")
+	assert.NoError(t, err)
+	assert.Contains(t, string(control), "\nrestart_sec: 2\n")
+	assert.Contains(t, string(control), "\nruntime_success_sec: 60\n")
+	assert.Contains(t, string(control), "\nrestart_max_delay_sec: 300\n")
+}
+
 func TestParControlUsesActiveConfigDirForFleetPolicies(t *testing.T) {
 	process, err := fs.ReadFile(genFS, "gen/pm/processes.d/datadog-agent-par-control.yaml")
 	assert.NoError(t, err)
 	assert.Contains(t, string(process), "DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable")
 }
 
+// TestProcessesEnvVarsDefinedInProcmgrService tests that every environment
+// variable referenced in a gen/pm/processes.d/*.yaml process definition
+// is defined in every gen/pm/*/datadog-agent-procmgr.service context that
+// starts the process manager responsible for running that process.
 func TestProcessesEnvVarsDefinedInProcmgrService(t *testing.T) {
 	processesDir, err := fs.Sub(genFS, "gen/pm/processes.d")
 	assert.NoError(t, err)
