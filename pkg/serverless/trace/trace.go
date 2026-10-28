@@ -159,7 +159,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			go ta.Run()
 			return &serverlessTraceAgent{
 				ta:          ta,
-				conf:        tc,
+				convertToV1: !tc.HasFeature("disable-convert-traces"),
 				cancel:      cancel,
 				stopTimeout: stopTimeout,
 			}
@@ -186,9 +186,12 @@ func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc 
 
 type serverlessTraceAgent struct {
 	ta          *agent.Agent
-	conf        *config.AgentConfig
 	cancel      context.CancelFunc
 	stopTimeout time.Duration
+
+	// convertToV1 mirrors the receiver's convert-traces behavior: payloads
+	// are converted to v1 unless the disable-convert-traces feature is set.
+	convertToV1 bool
 }
 
 // Flush performs a synchronous flushing in the trace agent
@@ -207,7 +210,7 @@ func (t *serverlessTraceAgent) Flush() {
 // TODO(v1): once the legacy processing path is removed, callers should build
 // v1 payloads directly and this conversion should be dropped.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
-	if t.conf.HasFeature("disable-convert-traces") {
+	if !t.convertToV1 {
 		t.ta.Process(p)
 		return
 	}
