@@ -80,10 +80,10 @@ func TestAPMDebugHost(t *testing.T) {
 		require.Equal(t, localhostV6, APMDebugHost(cfg))
 	})
 
-	t.Run("other ipv4 loopback", func(t *testing.T) {
+	t.Run("other ipv4 loopback falls back", func(t *testing.T) {
 		cfg := getConfig(t)
 		cfg.Set("cmd_host", "127.0.0.2", model.SourceFile)
-		require.Equal(t, "127.0.0.2", APMDebugHost(cfg))
+		require.Equal(t, localhostV4, APMDebugHost(cfg))
 	})
 
 	t.Run("not local falls back", func(t *testing.T) {

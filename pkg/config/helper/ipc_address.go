@@ -36,18 +36,39 @@ func GetIPCAddress(config model.Reader) (string, error) {
 }
 
 // APMDebugHost returns the address the trace-agent debug server binds.
-// localhost uses 127.0.0.1 so callers do not also dial ::1. An address that is
-// not a loopback falls back to 127.0.0.1, matching the debug server.
+// The IPC certificate only names 127.0.0.1 and ::1. localhost and any other
+// address use 127.0.0.1 so TLS hostname verification succeeds.
 func APMDebugHost(config model.Reader) string {
+	const ipv4Loopback = "127.0.0.1"
+
 	address, err := GetIPCAddress(config)
 	if err != nil {
-		log.Warnf("APM debug server will use 127.0.0.1: %s", err)
-		return "127.0.0.1"
+		log.Warnf("APM debug server will use %s: %s", ipv4Loopback, err)
+		return ipv4Loopback
 	}
-	if address == "" || address == "localhost" {
-		return "127.0.0.1"
+	if host, ok := ipcCertHost(address); ok {
+		return host
 	}
-	return address
+	if address != "" && address != "localhost" {
+		log.Warnf("APM debug server will use %s: %s is not covered by the IPC certificate", ipv4Loopback, address)
+	}
+	return ipv4Loopback
+}
+
+// ipcCertHost returns the canonical 127.0.0.1 or ::1 when address is that IP.
+// localhost is also on the certificate, but dialing that name tries ::1, so it is rejected here.
+func ipcCertHost(address string) (string, bool) {
+	ip := net.ParseIP(address)
+	if ip == nil {
+		return "", false
+	}
+	if ip.Equal(net.ParseIP("127.0.0.1")) {
+		return "127.0.0.1", true
+	}
+	if ip.Equal(net.IPv6loopback) {
+		return "::1", true
+	}
+	return "", false
 }
 
 // GetIPCPort returns the IPC port
