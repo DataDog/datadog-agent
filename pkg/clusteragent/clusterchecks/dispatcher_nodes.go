@@ -8,14 +8,15 @@
 package clusterchecks
 
 import (
+	"cmp"
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,6 +51,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 		warmingUp = true
 	}
 	node := d.store.getOrCreateNodeStore(nodeName, clientIP)
+	d.updateGroup(nodeName, node, status.Group)
 	d.store.Unlock()
 
 	node.Lock()
@@ -84,7 +86,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getNodeToScheduleCheck returns the node where a new check should be scheduled
+// getNodeToScheduleCheck returns the node where a new check should be scheduled, and whether any node is registered.
 //
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the
@@ -96,23 +98,55 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
-func (d *dispatcher) getNodeToScheduleCheck() string {
-	if d.advancedDispatching.Load() {
-		return d.getRandomNode()
-	}
-
-	return d.getNodeWithLessChecks()
-}
-
-func (d *dispatcher) getRandomNode() string {
+func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyNode bool) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	var nodes []string
-	for name := range d.store.nodes {
-		nodes = append(nodes, name)
+	if d.advancedDispatching.Load() {
+		node = d.getRandomNode(checkName)
+	} else {
+		node = d.getNodeWithLessChecks(checkName)
 	}
+	return node, len(d.store.nodes) > 0
+}
 
+// updateGroup records the worker's runner group. The store must be locked.
+func (d *dispatcher) updateGroup(nodeName string, node *nodeStore, group string) {
+	if group == node.group {
+		return
+	}
+	if _, known := d.runnerGroups[group]; group != "" && !known {
+		log.Warnf("Node %s declares unknown cluster checks runner group %q: it won't receive any cluster check", nodeName, group)
+	} else {
+		log.Infof("Node %s is in cluster checks runner group %q", nodeName, cmp.Or(group, "general"))
+	}
+	node.group = group
+}
+
+// accepts reports whether a worker may run a check: a check claimed by a
+// runner group only runs in that group, any other check only on general
+// workers (no group). A worker in a group the Cluster Agent doesn't know runs
+// nothing.
+func (d *dispatcher) accepts(node *nodeStore, checkName string) bool {
+	return node.group == d.checkGroup[checkName]
+}
+
+// groupNodes returns the sorted nodes of a runner group ("" for general
+// workers). The store must be read-locked.
+func (d *dispatcher) groupNodes(group string) []string {
+	var nodes []string
+	for name, node := range d.store.nodes {
+		if node.group == group {
+			nodes = append(nodes, name)
+		}
+	}
+	sort.Strings(nodes)
+	return nodes
+}
+
+// getRandomNode must be called with the store read-locked.
+func (d *dispatcher) getRandomNode(checkName string) string {
+	nodes := d.groupNodes(d.checkGroup[checkName])
 	if len(nodes) == 0 {
 		return ""
 	}
@@ -120,14 +154,15 @@ func (d *dispatcher) getRandomNode() string {
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func (d *dispatcher) getNodeWithLessChecks() string {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
+// getNodeWithLessChecks must be called with the store read-locked.
+func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
 	var selectedNode string
 	minNumChecks := 0
 
 	for name, store := range d.store.nodes {
+		if !d.accepts(store, checkName) {
+			continue
+		}
 		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
 			selectedNode = name
 			minNumChecks = len(store.digestToConfig)
@@ -206,15 +241,13 @@ func (d *dispatcher) updateRunnersStats() {
 		ip := node.clientIP
 		node.RUnlock()
 
-		if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
-			workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
-			if err != nil {
-				// This can happen in old versions of the runners that do not expose this information.
-				log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, node.clientIP, err)
-				node.workers = constants.DefaultNumWorkers
-			} else {
-				node.workers = workers.Count
-			}
+		workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
+		if err != nil {
+			// This can happen in old versions of the runners that do not expose this information.
+			log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, node.clientIP, err)
+			node.workers = constants.DefaultNumWorkers
+		} else {
+			node.workers = workers.Count
 		}
 
 		stats, err := d.clcRunnersClient.GetRunnerStats(ip)

@@ -25,6 +25,8 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
@@ -55,6 +57,7 @@ type testDeps struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	Secrets        secrets.Component `optional:"true"`
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -65,10 +68,11 @@ func makeRequires(deps testDeps) Requires {
 		Serializer:     deps.Serializer,
 		IPCClient:      deps.IPCClient,
 		Hostname:       deps.Hostname,
+		Secrets:        deps.Secrets,
 	}
 }
 
-func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any, options ...fx.Option) Provides {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
@@ -81,6 +85,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
+			fx.Options(options...),
 		)),
 	)
 }
@@ -743,6 +748,28 @@ func TestFetchFleet(t *testing.T) {
 	}, nil)
 	ia.fetchFleetMetadata()
 	assert.Equal(t, "my-config", ia.data["config_id"].(string))
+}
+
+func TestFetchSecretsNoComponent(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchSecretsMetadata()
+	assert.Equal(t, map[string][]string{"paths": {}, "handles": {}}, ia.data["enc_info"])
+}
+
+func TestFetchSecrets(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles(
+		[]string{"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+		[]string{"my_key", "secret_one", "secret_two"},
+	)
+	p := getProvides(t, nil, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+
+	ia.fetchSecretsMetadata()
+	assert.Equal(t, map[string][]string{
+		"paths":   {"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+		"handles": {"my_key", "secret_one", "secret_two"},
+	}, ia.data["enc_info"])
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {
