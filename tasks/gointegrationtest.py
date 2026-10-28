@@ -51,6 +51,17 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
     ],
 )
 
+# The SMB log source's tests against a Samba server in Docker
+# (pkg/logs/launchers/smb/samba_integration_test.go). They need a Docker daemon
+# running Linux containers, and fail without one.
+LOGS_SMB_IT_CONF = IntegrationTestsConfig(
+    name="Logs SMB",
+    go_build_tags=get_default_build_tags(build="test"),
+    tests=[IntegrationTest(prefix="./pkg/logs/launchers/smb/...")],
+    env={"INTEGRATION": "yes"},
+    is_windows_supported=False,
+)
+
 TRACE_AGENT_IT_CONF = IntegrationTestsConfig(
     name="Trace Agent",
     go_build_tags=get_default_build_tags(build="test"),
@@ -110,6 +121,7 @@ def integration_tests(ctx, race=False, timeout="", only: list[str] | None = None
 
     tests = {
         "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
+        "Logs SMB": lambda: containerized_integration_tests(ctx, LOGS_SMB_IT_CONF, race=race, timeout=timeout),
     }
 
     if sys.platform == 'win32':
