@@ -43,7 +43,19 @@ var gvrWPA = apis_v1alpha1.GroupVersion.WithResource("watermarkpodautoscalers")
 
 // runWPA starts the controller to process events about Watermark Pod Autoscalers
 func (h *autoscalersController) runWPA(stopCh <-chan struct{}, wpaClient dynamic_client.Interface, wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
-	waitForWPACRD(wpaClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		select {
+		case <-stopCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	if err := waitForWPACRD(ctx, wpaClient); err != nil {
+		log.Infof("Stopping WPA CRD check: %v", err)
+		return
+	}
 
 	// mutate the Autoscaler controller to embed an informer against the WPAs
 	if err := h.enableWPA(wpaInformerFactory); err != nil {
@@ -52,6 +64,8 @@ func (h *autoscalersController) runWPA(stopCh <-chan struct{}, wpaClient dynamic
 	}
 
 	defer h.wpaQueue.ShutDown()
+	stopShutdown := context.AfterFunc(ctx, h.wpaQueue.ShutDown)
+	defer stopShutdown()
 
 	log.Infof("Starting WPA Controller ... ")
 	defer log.Infof("Stopping WPA Controller")
@@ -93,7 +107,7 @@ func isWPACRDNotFoundError(err error) bool {
 		details.Kind == "watermarkpodautoscalers"
 }
 
-func waitForWPACRD(wpaClient dynamic_client.Interface) {
+func waitForWPACRD(ctx context.Context, wpaClient dynamic_client.Interface) error {
 	exp := backoff.NewExponentialBackOff()
 	exp.InitialInterval = crdCheckInitialInterval
 	exp.RandomizationFactor = 0
@@ -102,12 +116,12 @@ func waitForWPACRD(wpaClient dynamic_client.Interface) {
 	exp.Reset()
 
 	check := func() error {
-		_, err := wpaClient.Resource(gvrWPA).List(context.TODO(), v1.ListOptions{})
+		_, err := wpaClient.Resource(gvrWPA).List(ctx, v1.ListOptions{})
 		return err
 	}
 
 	attempt := 0
-	_, _ = backoff.Retry(context.Background(), func() (any, error) {
+	_, err := backoff.Retry(ctx, func() (any, error) {
 		err := tryCheckWPACRD(check)
 		if err != nil && isWPACRDNotFoundError(err) {
 			attempt++
@@ -115,6 +129,7 @@ func waitForWPACRD(wpaClient dynamic_client.Interface) {
 		}
 		return nil, err
 	}, backoff.WithBackOff(exp), backoff.WithMaxElapsedTime(crdCheckMaxElapsedTime))
+	return err
 }
 
 // enableWPA adds the handlers to the autoscalersController to support WPAs
