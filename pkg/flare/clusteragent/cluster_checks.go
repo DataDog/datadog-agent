@@ -24,12 +24,23 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 )
 
+// ClusterChecksOptions selects what GetClusterChecks prints
+type ClusterChecksOptions struct {
+	// CheckName only shows the configs of this check.
+	CheckName string
+	// Verbose prints the full check configurations instead of one line per instance.
+	Verbose bool
+	// JSON prints the raw dispatching state.
+	JSON bool
+}
+
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
-func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
+func GetClusterChecks(w io.Writer, opts ClusterChecksOptions, c ipc.HTTPClient) error {
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 	urlValues := url.Values{}
 	urlValues.Set("scrub", "true")
@@ -59,12 +70,21 @@ func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 		return err
 	}
 
-	renderClusterChecks(w, cr, checkName, time.Now())
+	if opts.JSON {
+		out, err := json.MarshalIndent(cr, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(w, string(out))
+		return nil
+	}
+
+	renderClusterChecks(w, cr, opts, time.Now())
 	return nil
 }
 
 // renderClusterChecks writes the clustercheck dispatching state.
-func renderClusterChecks(w io.Writer, cr types.StateResponse, checkName string, now time.Time) {
+func renderClusterChecks(w io.Writer, cr types.StateResponse, opts ClusterChecksOptions, now time.Time) {
 	// Gracefully exit when dispatcher is not running
 	if len(cr.NotRunning) > 0 {
 		fmt.Fprintf(w, "Cluster-check dispatching logic not running: %s\n", cr.NotRunning)
@@ -81,21 +101,7 @@ func renderClusterChecks(w io.Writer, cr types.StateResponse, checkName string, 
 	printDispatching(w, cr.Dispatching)
 	printRunnerGroups(w, cr)
 	printWarnings(w, cr, now)
-
-	// Print dangling configs
-	if len(cr.Dangling) > 0 {
-		fmt.Fprintf(w, "=== %d %s configurations ===\n", len(cr.Dangling), color.RedString("unassigned"))
-		for _, c := range cr.Dangling {
-			if checkName != "" && c.Name != checkName {
-				continue
-			}
-			if reason := cr.UnassignedReasons[c.Name]; reason != "" {
-				fmt.Fprintf(w, "\n%s: %s", color.GreenString(c.Name), reason)
-			}
-			flare.PrintClusterCheckConfig(w, c, checkName, nil)
-		}
-		fmt.Fprintln(w, "")
-	}
+	printUnassigned(w, cr, opts)
 
 	// Print summary of agents
 	if len(cr.Nodes) == 0 {
@@ -103,7 +109,7 @@ func renderClusterChecks(w io.Writer, cr types.StateResponse, checkName string, 
 		fmt.Fprintln(w, "No check will be dispatched until agents report to the cluster-agent")
 		return
 	}
-	fmt.Fprintf(w, "=== %d agents reporting ===\n", len(cr.Nodes))
+	fmt.Fprintf(w, "=== %d agent(s) reporting ===\n", len(cr.Nodes))
 	sort.Slice(cr.Nodes, func(i, j int) bool {
 		if cr.Nodes[i].Group != cr.Nodes[j].Group {
 			return cr.Nodes[i].Group < cr.Nodes[j].Group
@@ -111,7 +117,7 @@ func renderClusterChecks(w io.Writer, cr types.StateResponse, checkName string, 
 		return cr.Nodes[i].Name < cr.Nodes[j].Name
 	})
 	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(table, "\nName\tType\tGroup\tWorkers\tUtilization\tRunning checks\tLast seen")
+	fmt.Fprintln(table, "Name\tType\tGroup\tWorkers\tUtilization\tRunning checks\tLast seen")
 	for _, n := range cr.Nodes {
 		workers, utilization, lastSeen := "-", "-", "-"
 		if n.Workers > 0 {
@@ -127,19 +133,122 @@ func renderClusterChecks(w io.Writer, cr types.StateResponse, checkName string, 
 	}
 	table.Flush()
 
-	// Print per-node configurations with execution status
+	// Print per-node configurations with execution status, by runner group
+	// when any is in use
+	byGroup := cr.Dispatching != nil && len(cr.Dispatching.RunnerGroups) > 0
 	for _, node := range cr.Nodes {
+		byGroup = byGroup || node.Group != ""
+	}
+	lastGroup := ""
+	for i, node := range cr.Nodes {
+		if byGroup && (i == 0 || node.Group != lastGroup) {
+			fmt.Fprintf(w, "\n=== Runner group %s ===\n", color.HiCyanString(groupName(node.Group)))
+			lastGroup = node.Group
+		}
 		if len(node.Configs) == 0 {
 			continue
 		}
 		fmt.Fprintf(w, "\n===== Checks on %s =====\n", color.HiMagentaString(node.Name))
+		if !opts.Verbose {
+			printInstances(w, node, opts.CheckName, now)
+			continue
+		}
 		for _, configResp := range node.Configs {
-			flare.PrintClusterCheckConfig(w, configResp.Config, checkName, configResp.InstanceIDs)
+			flare.PrintClusterCheckConfig(w, configResp.Config, opts.CheckName, configResp.InstanceIDs)
 			if len(node.Stats) > 0 {
-				printCheckExecutionStatus(w, configResp.Config, node.Stats, checkName, configResp.InstanceIDs)
+				printCheckExecutionStatus(w, configResp.Config, node.Stats, opts.CheckName, configResp.InstanceIDs)
 			}
 		}
 	}
+
+	if !opts.Verbose {
+		fmt.Fprintln(w, "\nUse --verbose to print the full check configurations.")
+	}
+}
+
+// printUnassigned prints the dangling configs: one line per config with the
+// reason it's waiting, or the full configs when verbose.
+func printUnassigned(w io.Writer, cr types.StateResponse, opts ClusterChecksOptions) {
+	var dangling []integration.Config
+	for _, c := range cr.Dangling {
+		if opts.CheckName == "" || c.Name == opts.CheckName {
+			dangling = append(dangling, c)
+		}
+	}
+	if len(dangling) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "=== %d %s configuration(s) ===\n", len(dangling), color.RedString("unassigned"))
+	if opts.Verbose {
+		for _, c := range dangling {
+			if reason := cr.UnassignedReasons[c.Name]; reason != "" {
+				fmt.Fprintf(w, "\n%s: %s", color.GreenString(c.Name), reason)
+			}
+			flare.PrintClusterCheckConfig(w, c, opts.CheckName, nil)
+		}
+		fmt.Fprintln(w, "")
+		return
+	}
+	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(table, "Check\tInstances\tReason\tSource")
+	for _, c := range dangling {
+		fmt.Fprintf(table, "%s\t%d\t%s\t%s\n", c.Name, len(c.Instances), cr.UnassignedReasons[c.Name], c.Source)
+	}
+	table.Flush()
+	fmt.Fprintln(w, "")
+}
+
+// printInstances prints one line per check instance of a node, with its
+// execution status when the runner reports stats, then the failing
+// instances' last errors.
+func printInstances(w io.Writer, node types.StateNodeResponse, checkName string, now time.Time) {
+	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	// Status is last: tabwriter counts color escape codes as width, which would misalign later columns.
+	fmt.Fprintln(table, "Check\tInstance ID\tAvg exec\tLast run\tStatus")
+	var errors []string
+	for _, configResp := range node.Configs {
+		c := configResp.Config
+		if checkName != "" && c.Name != checkName {
+			continue
+		}
+		ids := configResp.InstanceIDs
+		if len(ids) != len(c.Instances) {
+			ids = make([]string, len(c.Instances))
+			for i, inst := range c.Instances {
+				ids[i] = string(checkid.BuildID(c.Name, c.FastDigest(), inst, c.InitConfig))
+			}
+		}
+		for _, id := range ids {
+			status, avgExec, lastRun := "-", "-", "-"
+			if s, found := node.Stats[id]; found {
+				status = color.GreenString("OK")
+				if s.LastExecFailed {
+					status = color.RedString("ERROR")
+					if s.LastError != "" {
+						errors = append(errors, fmt.Sprintf("%s: %s", id, firstLine(s.LastError)))
+					}
+				}
+				avgExec = (time.Duration(s.AverageExecutionTime) * time.Millisecond).String()
+				if s.LastExecutionDate > 0 {
+					lastRun = formatAge(now.Sub(time.UnixMilli(s.LastExecutionDate)))
+				}
+			}
+			fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\n", c.Name, id, avgExec, lastRun, status)
+		}
+	}
+	table.Flush()
+	for _, e := range errors {
+		fmt.Fprintf(w, "%s %s\n", color.RedString("Last error"), e)
+	}
+}
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
+	const maxLen = 200
+	if len(line) > maxLen {
+		line = line[:maxLen] + "..."
+	}
+	return line
 }
 
 // printDispatching prints the dispatching mode and settings.
