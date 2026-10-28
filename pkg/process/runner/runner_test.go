@@ -329,8 +329,8 @@ func TestRunnerReadsLatestCoalescedRTStatus(t *testing.T) {
 
 		// The runner has not started listening yet. Both publications fit into
 		// one wake-up, which must still apply the second (inactive) status.
-		s.updateRTStatus("https://example.com", 1, &model.CollectorStatus{ActiveClients: 1, Interval: 5})
-		s.updateRTStatus("https://example.com", 2, &model.CollectorStatus{ActiveClients: 0, Interval: 8})
+		s.updateRTStatus(rtDestination{domain: "https://example.com"}, 1, &model.CollectorStatus{ActiveClients: 1, Interval: 5})
+		s.updateRTStatus(rtDestination{domain: "https://example.com"}, 2, &model.CollectorStatus{ActiveClients: 0, Interval: 8})
 		c.listenForRTUpdates()
 		synctest.Wait()
 		assert.False(t, c.realTimeEnabled.Load())

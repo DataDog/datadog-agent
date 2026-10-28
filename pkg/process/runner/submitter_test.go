@@ -380,14 +380,14 @@ func TestSubmitterMergesLatestStatusAcrossDomains(t *testing.T) {
 		}
 	}
 
-	s.updateRTStatus("https://active.example.com", 1, &model.CollectorStatus{ActiveClients: 1, Interval: 3})
+	s.updateRTStatus(rtDestination{domain: "https://active.example.com"}, 1, &model.CollectorStatus{ActiveClients: 1, Interval: 3})
 	first := response()
 	require.Len(t, first.Statuses, 1)
 	assert.EqualValues(t, 1, first.Statuses[0].ActiveClients)
 	runner.UpdateRTStatus(first.Statuses)
 	assert.True(t, runner.IsRealTimeEnabled())
 
-	s.updateRTStatus("https://inactive.example.com", 2, &model.CollectorStatus{ActiveClients: 0, Interval: 8})
+	s.updateRTStatus(rtDestination{domain: "https://inactive.example.com"}, 2, &model.CollectorStatus{ActiveClients: 0, Interval: 8})
 	second := response()
 	assert.Greater(t, second.Sequence, first.Sequence)
 	require.Len(t, second.Statuses, 2)
@@ -397,19 +397,89 @@ func TestSubmitterMergesLatestStatusAcrossDomains(t *testing.T) {
 	assert.Equal(t, 8*time.Second, runner.realTimeInterval)
 
 	// The active endpoint still counts while only the other endpoint replies again.
-	s.updateRTStatus("https://inactive.example.com", 3, &model.CollectorStatus{ActiveClients: 0, Interval: 9})
+	s.updateRTStatus(rtDestination{domain: "https://inactive.example.com"}, 3, &model.CollectorStatus{ActiveClients: 0, Interval: 9})
 	third := response()
 	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 1, Interval: 3}, {ActiveClients: 0, Interval: 9}}, third.Statuses)
 	runner.UpdateRTStatus(third.Statuses)
 	assert.True(t, runner.IsRealTimeEnabled(), "an unanswered endpoint retains its last status")
 	assert.Equal(t, 9*time.Second, runner.realTimeInterval)
 
-	s.updateRTStatus("https://active.example.com", 4, &model.CollectorStatus{ActiveClients: 0, Interval: 4})
+	s.updateRTStatus(rtDestination{domain: "https://active.example.com"}, 4, &model.CollectorStatus{ActiveClients: 0, Interval: 4})
 	last := response()
 	assert.Greater(t, last.Sequence, third.Sequence)
 	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 0, Interval: 4}, {ActiveClients: 0, Interval: 9}}, last.Statuses)
 	runner.UpdateRTStatus(last.Statuses)
 	assert.False(t, runner.IsRealTimeEnabled(), "realtime turns off only when every endpoint reports no clients")
+}
+
+func TestSubmitterKeepsStatusesForDistinctAPIKeys(t *testing.T) {
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+	require.NoError(t, err)
+	notifier := s.GetRTNotifier()
+
+	active := rtDestination{domain: "https://same.example.com", apiKeyIndex: 0}
+	inactive := rtDestination{domain: "https://same.example.com", apiKeyIndex: 1}
+	s.updateRTStatus(active, 1, &model.CollectorStatus{ActiveClients: 1, Interval: 3})
+	<-notifier.Wake
+	s.updateRTStatus(inactive, 1, &model.CollectorStatus{ActiveClients: 0, Interval: 5})
+	<-notifier.Wake
+	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 1, Interval: 3}, {ActiveClients: 0, Interval: 5}}, notifier.Latest().Statuses)
+
+	// Older feedback for one key must not replace it, but must not block the other key.
+	s.updateRTStatus(active, 2, &model.CollectorStatus{ActiveClients: 2})
+	<-notifier.Wake
+	s.updateRTStatus(active, 1, &model.CollectorStatus{ActiveClients: 0})
+	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 2}, {ActiveClients: 0, Interval: 5}}, notifier.Latest().Statuses)
+}
+
+func TestSubmitterPublishesExpirationWithoutFurtherResponses(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+		require.NoError(t, s.Start())
+		defer s.Stop()
+
+		notifier := s.GetRTNotifier()
+		s.updateRTStatus(rtDestination{domain: "https://unreachable.example.com"}, 1, &model.CollectorStatus{ActiveClients: 1})
+		<-notifier.Wake
+		time.Sleep(rtStatusTTL + 10*time.Second)
+		synctest.Wait()
+		select {
+		case <-notifier.Wake:
+			assert.Empty(t, notifier.Latest().Statuses)
+		default:
+			t.Fatal("stale feedback was not removed without another response")
+		}
+	})
+}
+
+func TestSubmitterExpiresStaleStatusAndRejectsOlderFeedback(t *testing.T) {
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+	require.NoError(t, err)
+	notifier := s.GetRTNotifier()
+	active := rtDestination{domain: "https://unreachable.example.com"}
+	inactive := rtDestination{domain: "https://healthy.example.com"}
+
+	s.updateRTStatus(active, 2, &model.CollectorStatus{ActiveClients: 1})
+	<-notifier.Wake
+	s.updateRTStatus(inactive, 3, &model.CollectorStatus{ActiveClients: 0})
+	<-notifier.Wake
+	activeUpdatedAt := s.endpointRTStatuses[active].updatedAt
+	s.expireRTStatuses(activeUpdatedAt.Add(rtStatusTTL - time.Nanosecond))
+	assert.Len(t, notifier.Latest().Statuses, 2)
+	s.expireRTStatuses(activeUpdatedAt.Add(rtStatusTTL))
+	<-notifier.Wake
+	require.Equal(t, []*model.CollectorStatus{{ActiveClients: 0}}, notifier.Latest().Statuses)
+
+	// An expired entry retains its generation guard until fresh feedback arrives.
+	s.updateRTStatus(active, 1, &model.CollectorStatus{ActiveClients: 1})
+	require.Len(t, notifier.Latest().Statuses, 1)
+	s.updateRTStatus(active, 4, &model.CollectorStatus{ActiveClients: 1})
+	<-notifier.Wake
+	require.Len(t, notifier.Latest().Statuses, 2)
 }
 
 // encodeCollectorResponse builds a decodable collector response body.

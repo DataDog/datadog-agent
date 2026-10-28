@@ -47,8 +47,17 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
+// Feedback older than this is not evidence of currently connected viewers.
+const rtStatusTTL = 2 * time.Minute
+
+type rtDestination struct {
+	domain      string
+	apiKeyIndex uint
+}
+
 type endpointRTStatus struct {
 	generation uint64
+	updatedAt  time.Time
 	status     *model.CollectorStatus
 }
 
@@ -79,7 +88,7 @@ type CheckSubmitter struct {
 	// The latest status for each endpoint and the newest published merged snapshot
 	// are updated together. A buffered signal wakes the runner without blocking drains.
 	rtStatusMu         sync.Mutex
-	endpointRTStatuses map[string]endpointRTStatus
+	endpointRTStatuses map[rtDestination]endpointRTStatus
 	latestRTResponse   types.RTResponse
 	rtGeneration       atomic.Uint64
 	rtNotifierChan     chan struct{}
@@ -176,7 +185,7 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 
 		forwarderRetryMaxQueueBytes: queueBytes,
 
-		endpointRTStatuses: make(map[string]endpointRTStatus),
+		endpointRTStatuses: make(map[rtDestination]endpointRTStatus),
 		rtNotifierChan:     make(chan struct{}, 1),
 
 		wg:   &sync.WaitGroup{},
@@ -240,6 +249,10 @@ func (s *CheckSubmitter) Start() error {
 		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
+		// Expire stale feedback even when no endpoint responds again.
+		rtStatusTicker := time.NewTicker(10 * time.Second)
+		defer rtStatusTicker.Stop()
+
 		for {
 			select {
 			case <-queueSizeTicker.C:
@@ -253,6 +266,8 @@ func (s *CheckSubmitter) Start() error {
 				})
 			case <-queueLogTicker.C:
 				s.logQueuesSize()
+			case <-rtStatusTicker.C:
+				s.expireRTStatuses(time.Now())
 			case <-s.exit:
 				return
 			}
@@ -346,36 +361,58 @@ func (s *CheckSubmitter) drainResponses(checkName string, responses <-chan forwa
 			submissionErrors++
 		}
 		if collectorStatus != nil && s.realtimeUpdate[checkName] {
-			s.updateRTStatus(response.Domain, generation, collectorStatus)
+			s.updateRTStatus(rtDestination{response.Domain, response.APIKeyIndex}, generation, collectorStatus)
 		}
 	}
 	status.AddSubmissionErrorCount(submissionErrors)
 }
 
-// updateRTStatus publishes the newest known status of every endpoint as soon
-// as one endpoint responds. Its generation guard is per domain, not per check.
-func (s *CheckSubmitter) updateRTStatus(domain string, generation uint64, collectorStatus *model.CollectorStatus) {
+// updateRTStatus publishes the newest known status of every destination as soon
+// as it responds. Its generation guard is per domain and credential, not per check.
+func (s *CheckSubmitter) updateRTStatus(destination rtDestination, generation uint64, collectorStatus *model.CollectorStatus) {
 	s.rtStatusMu.Lock()
 	defer s.rtStatusMu.Unlock()
 
-	// A late response from an older payload must not undo newer feedback
-	// from this domain.
-	if previous, ok := s.endpointRTStatuses[domain]; ok && previous.generation > generation {
+	// A late response from an older payload must not undo newer feedback,
+	// including feedback that has since expired.
+	if previous, ok := s.endpointRTStatuses[destination]; ok && previous.generation > generation {
 		return
 	}
 
-	// The cache is per URL, not per API key. Responses with the same
-	// generation may replace one another; the last one received wins.
-	s.endpointRTStatuses[domain] = endpointRTStatus{
+	s.endpointRTStatuses[destination] = endpointRTStatus{
 		generation: generation,
+		updatedAt:  time.Now(),
 		status:     collectorStatus,
 	}
+	s.publishRTStatuses()
+}
 
-	// Publish the full view. Domains that have not answered this payload
-	// retain their last valid status in the map.
+// expireRTStatuses removes stale feedback from the published view but keeps
+// its generation to reject delayed responses from older submissions.
+func (s *CheckSubmitter) expireRTStatuses(now time.Time) {
+	s.rtStatusMu.Lock()
+	defer s.rtStatusMu.Unlock()
+
+	changed := false
+	for destination, current := range s.endpointRTStatuses {
+		if current.status != nil && !now.Before(current.updatedAt.Add(rtStatusTTL)) {
+			current.status = nil
+			s.endpointRTStatuses[destination] = current
+			changed = true
+		}
+	}
+	if changed {
+		s.publishRTStatuses()
+	}
+}
+
+// publishRTStatuses must be called with rtStatusMu held.
+func (s *CheckSubmitter) publishRTStatuses() {
 	statuses := make([]*model.CollectorStatus, 0, len(s.endpointRTStatuses))
 	for _, current := range s.endpointRTStatuses {
-		statuses = append(statuses, current.status)
+		if current.status != nil {
+			statuses = append(statuses, current.status)
+		}
 	}
 
 	// Publication order is separate from payload generation. A pending wake-up
