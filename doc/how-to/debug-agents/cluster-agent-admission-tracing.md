@@ -53,5 +53,5 @@ overall frequency. Unit tests do not establish intake delivery or overhead.
 
 SSI selection/injection, composed tags/config stages, and owner lookup spans are
 intentionally deferred to [CONTP-2245](https://datadoghq.atlassian.net/browse/CONTP-2245)
-for team evaluation. No context-aware mutator/filter interface or automatic
-client-go instrumentation is added in this shared-tracing change.
+to evaluate diagnostic value and cost. No context-aware mutator/filter interface
+or automatic client-go instrumentation is added in this shared-tracing change.
