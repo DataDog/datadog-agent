@@ -38,24 +38,21 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -f $HOME/ws/better_gitlab/run_actions/BUILD.bazel ]] ; then
-  cp $HOME/ws/better_gitlab/run_actions/BUILD.bazel experimental/aiuto/run_actions
-fi
+# bazel run @better_gitlab//run_actions must not be used because the
+# individual actions might use bazel, and thus recurse.
 runner_target="${RUN_ACTIONS:-@better_gitlab//run_actions:run_actions}"
-echo bazel build "$runner_target"
-bazel build "$runner_target"
+bazel build --noshow_progress "$runner_target"
 runner=$(bazel info bazel-bin)/external/+http_archive+better_gitlab/run_actions/run_actions.pyz
 # ls -l $(bazel info bazel-bin)/external/+http_archive+better_gitlab/run_actions
 # echo info=$(bazel info bazel-bin)
 tmp_runner=/tmp/$(basename $runner)
 /bin/rm -f $tmp_runner
 cp $runner $tmp_runner
-runner=$tmp_runner
-echo $runner
+run_actions=$tmp_runner
 
-# Action names are the GitLab job names. validate_modules had two script
-# lines, so it becomes two actions.
-"${runner}" "${passthrough[@]+"${passthrough[@]}"}" --ddci \
+# Action names match the former gitLab job names.
+# validate_modules had two script lines, so it becomes two actions.
+"${run_actions}" "${passthrough[@]+"${passthrough[@]}"}" --ddci \
   lint_codeowners='dda inv -- -e github.lint-codeowner' \
   lint_components='dda inv -- -e lint-components lint-fxutil-oneshot-test' \
   lint_copyrights='dda inv -- -e linter.copyrights' \
