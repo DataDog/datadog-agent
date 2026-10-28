@@ -45,12 +45,12 @@ The following settings can be overridden in the Datadog Agent configuration for 
 
 ### Symbol upload report
 
-The Host Profiler batches symbol upload events into periodic reports. These options control how often a report is flushed and how many sampled binary paths it keeps.
+The Host Profiler periodically logs the status of symbol uploads. These options control how often the status is logged.
 
 | Name                                             | Values | Default | Description                                                                                                        |
 |:-------------------------------------------------|:-------|:--------|:-------------------------------------------------------------------------------------------------------------------|
 | `hostprofiler.symbol_uploader.report.interval`   | int    | `300`   | Interval, in seconds, at which the Host Profiler flushes a batched symbol upload report. Maximum `86400` (24 hours). Values outside `1` to `86400` are ignored in bundled mode and fall back to the default. |
-| `hostprofiler.symbol_uploader.report.max_paths_per_report` | int | `100` | Maximum number of sampled binary paths kept per symbol upload report, per log level. Maximum `100000`. Values outside `1` to `100000` are ignored in bundled mode and fall back to the default. |
+| `hostprofiler.symbol_uploader.report.max_paths_per_report` | int | `100` | Maximum number of binary paths kept per symbol upload report, per log level. Maximum `100000`. Values outside `1` to `100000` fall back to the default. |
 
 ### Host Profiler self-profiling
 
