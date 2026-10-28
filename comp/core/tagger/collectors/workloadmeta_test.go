@@ -2484,73 +2484,72 @@ func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 func TestKubeAIInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
+		owners       []workloadmeta.KubernetesPodOwner
 		labels       map[string]string
 		wantWorkload string
 	}{
 		{
-			name:         "model label",
-			labels:       map[string]string{kubernetes.KubeAIModelLabelKey: "my-model"},
-			wantWorkload: "my-model",
-		},
-		{
-			name: "legacy model label",
-			labels: map[string]string{
-				kubernetes.KubeAILegacyModelLabelKey: "my-model",
-				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
+			name: "KubeAI Model owner without labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
 			},
 			wantWorkload: "my-model",
 		},
 		{
-			name: "namespaced label takes priority",
-			labels: map[string]string{
-				kubernetes.KubeAIModelLabelKey:       "my-model",
-				kubernetes.KubeAILegacyModelLabelKey: "other-model",
-				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
+			name: "owner name takes priority over labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
 			},
-			wantWorkload: "my-model",
-		},
-		{
-			name: "empty namespaced label falls back to legacy label",
 			labels: map[string]string{
-				kubernetes.KubeAIModelLabelKey:       "",
-				kubernetes.KubeAILegacyModelLabelKey: "my-model",
-				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
-			},
-			wantWorkload: "my-model",
-		},
-		{
-			name: "generic component does not change the inference role",
-			labels: map[string]string{
-				kubernetes.KubeAIModelLabelKey:      "my-model",
+				"kubeai.org/model":                  "other-model",
+				"model":                             "legacy-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
 				kubernetes.KubeAppComponentLabelKey: "server",
 			},
 			wantWorkload: "my-model",
 		},
 		{
-			name:   "generic model label without KubeAI",
-			labels: map[string]string{kubernetes.KubeAILegacyModelLabelKey: "other-model"},
+			name: "KubeAI Model among other owners",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "ReplicaSet", Group: "apps", Name: "model-1234"},
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			wantWorkload: "my-model",
 		},
 		{
-			name: "other operator",
-			labels: map[string]string{
-				kubernetes.KubeAILegacyModelLabelKey: "other-model",
-				kubernetes.KubeAppManagedByLabelKey:  "other-operator",
+			name: "Model from another API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
 			},
 		},
 		{
-			name:   "operator pod without model",
-			labels: map[string]string{kubernetes.KubeAppManagedByLabelKey: "kubeai"},
+			name:   "Model without API group",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Name: "other-model"}},
 		},
 		{
-			name: "empty model",
-			labels: map[string]string{
-				kubernetes.KubeAIModelLabelKey:       "",
-				kubernetes.KubeAILegacyModelLabelKey: "",
-				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
+			name: "other kind in KubeAI API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Other", Group: "kubeai.org", Name: "other-model"},
 			},
 		},
-		{name: "blank model", labels: map[string]string{kubernetes.KubeAIModelLabelKey: " "}},
-		{name: "no labels"},
+		{
+			name:   "empty Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org"}},
+		},
+		{
+			name:   "blank Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org", Name: " "}},
+		},
+		{
+			name: "labels without Model owner",
+			labels: map[string]string{
+				"kubeai.org/model":                  "my-model",
+				"model":                             "my-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
+			},
+		},
+		{name: "no owners or labels"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			const containerID = "kubeai-server-container"
@@ -2559,14 +2558,14 @@ func TestKubeAIInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Provide(func() config.Component { return config.NewMock(t) }),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 			store.Set(&workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
 			})
 
-			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
 			tagInfos := collector.handleKubePod(workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesPod{
@@ -2574,6 +2573,7 @@ func TestKubeAIInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "model-my-model", Namespace: "inference", Labels: tt.labels,
 					},
+					Owners:     tt.owners,
 					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "server"}},
 				},
 				IsComplete: true,

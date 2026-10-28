@@ -7,9 +7,15 @@ package containers
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -17,9 +23,16 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/dynamic"
 )
+
+//go:embed fixtures/kubeai-model-crd.json
+var kubeAIModelCRD []byte
 
 type kindSuite struct {
 	k8sSuite
@@ -75,7 +88,7 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 		"nvidia.com/dynamo-graph-deployment-name": "my-model",
 		"nvidia.com/dynamo-component-type":        "worker",
 		"nvidia.com/dynamo-sub-component-type":    "decode",
-	}, []string{
+	}, nil, []string{
 		`^dynamo_graph_deployment:my-model$`,
 		`^inference_workload:my-model$`,
 		`^inference_workload_component:decode$`,
@@ -83,15 +96,62 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 }
 
 func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
+	ctx := suite.T().Context()
+	client, err := dynamic.NewForConfig(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig)
+	suite.Require().NoError(err)
+	crds := client.Resource(schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"})
+	var crd unstructured.Unstructured
+	suite.Require().NoError(json.Unmarshal(kubeAIModelCRD, &crd))
+	_, err = crds.Create(ctx, &crd, metav1.CreateOptions{})
+	suite.Require().NoError(err)
+	suite.T().Cleanup(func() {
+		ctx := context.Background()
+		suite.Require().NoError(crds.Delete(ctx, crd.GetName(), metav1.DeleteOptions{}))
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			_, err := crds.Get(ctx, crd.GetName(), metav1.GetOptions{})
+			assert.True(c, apierrors.IsNotFound(err), "wait for test CRD deletion: %v", err)
+		}, time.Minute, time.Second)
+	})
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		current, err := crds.Get(ctx, crd.GetName(), metav1.GetOptions{})
+		require.NoError(c, err)
+		conditions, _, err := unstructured.NestedSlice(current.Object, "status", "conditions")
+		require.NoError(c, err)
+		for _, condition := range conditions {
+			fields, ok := condition.(map[string]interface{})
+			if ok && fields["type"] == "Established" && fields["status"] == "True" {
+				return
+			}
+		}
+		assert.Fail(c, "test Model CRD is not established")
+	}, time.Minute, time.Second)
+
+	models := client.Resource(schema.GroupVersionResource{Group: "kubeai.org", Version: "v1", Resource: "models"}).Namespace("workload-cpustress")
+	model, err := models.Create(ctx, &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "kubeai.org/v1",
+		"kind":       "Model",
+		"metadata":   map[string]interface{}{"name": "kubeai-model"},
+	}}, metav1.CreateOptions{})
+	suite.Require().NoError(err)
+	suite.T().Cleanup(func() {
+		suite.Require().NoError(models.Delete(context.Background(), model.GetName(), metav1.DeleteOptions{}))
+	})
+
+	// Keep the original ReplicaSet owner and add a real Model owner. A conflicting
+	// label verifies that the workload name comes from the owner reference.
 	suite.testInferenceTagsOnContainerMetric(map[string]string{
-		"kubeai.org/model": "kubeai-model",
-	}, []string{
+		"kubeai.org/model": "wrong-label-name",
+	}, []metav1.OwnerReference{{
+		APIVersion: "kubeai.org/v1", Kind: "Model", Name: model.GetName(), UID: model.GetUID(),
+	}}, []string{
 		`^inference_workload:kubeai-model$`,
 		`^inference_workload_component:inference$`,
+		`^kube_ownerref_kind:model$`,
+		`^kube_ownerref_name:kubeai-model$`,
 	})
 }
 
-func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]string, inferenceTags []string) {
+func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]string, podOwners []metav1.OwnerReference, inferenceTags []string) {
 	const namespace = "workload-cpustress"
 
 	ctx := suite.T().Context()
@@ -108,16 +168,18 @@ func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]
 	}
 	suite.Require().NotEmpty(podName, "no stress-ng pod found for inference tag test")
 
-	// Restore all labels so a retry can use the same pod.
+	// Restore pod metadata so a retry can use the same pod.
 	pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
 	suite.Require().NoError(err)
 	originalLabels := pod.Labels
-	setLabels := func(ctx context.Context, labels map[string]string) error {
+	originalOwners := pod.OwnerReferences
+	setMetadata := func(ctx context.Context, labels map[string]string, owners []metav1.OwnerReference) error {
 		pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 		pod.Labels = labels
+		pod.OwnerReferences = owners
 		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
 		return err
 	}
@@ -128,9 +190,10 @@ func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]
 	for key, value := range podLabels {
 		labels[key] = value
 	}
-	suite.Require().NoError(setLabels(ctx, labels))
+	owners := append(append([]metav1.OwnerReference(nil), originalOwners...), podOwners...)
+	suite.Require().NoError(setMetadata(ctx, labels, owners))
 	defer func() {
-		suite.Require().NoError(setLabels(context.Background(), originalLabels), "restore stress-ng pod labels")
+		suite.Require().NoError(setMetadata(context.Background(), originalLabels, originalOwners), "restore stress-ng pod metadata")
 	}()
 
 	expectedTags := append([]string{

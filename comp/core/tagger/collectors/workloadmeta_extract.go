@@ -1151,16 +1151,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 		}
 	}
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
-	// KubeAI Model pods have one inference component. The older generic model
-	// label identifies KubeAI workloads only when the operator manages the pod.
-	model := pod.Labels[kubernetes.KubeAIModelLabelKey]
-	if strings.TrimSpace(model) == "" && pod.Labels[kubernetes.KubeAppManagedByLabelKey] == "kubeai" {
-		model = pod.Labels[kubernetes.KubeAILegacyModelLabelKey]
-	}
-	if strings.TrimSpace(model) != "" {
-		tagList.AddLow(tags.InferenceWorkload, model)
-		tagList.AddLow(tags.InferenceWorkloadComponent, "inference")
-	}
 	// KubeRay adds the Serve label only to RayService pods. Its value tracks
 	// traffic readiness, so both true and false identify the same workload.
 	_, isRayService := pod.Labels[kubernetes.RayServeLabelKey]
@@ -1503,6 +1493,12 @@ func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.Kuberne
 
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
+	case kubernetes.KubeAIModelKind:
+		if owner.Group == kubernetes.KubeAIGroupName && strings.TrimSpace(owner.Name) != "" {
+			tagList.AddLow(tags.InferenceWorkload, owner.Name)
+			tagList.AddLow(tags.InferenceWorkloadComponent, "inference")
+		}
+
 	case kubernetes.DeploymentKind:
 		tagList.AddLow(tags.KubeDeployment, owner.Name)
 
