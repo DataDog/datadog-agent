@@ -236,7 +236,10 @@ def _install_windows_testsuites(module_name: str, targets: list[str]) -> None:
     Suites incompatible with the host, i.e. on anything but Linux x86_64, are left out.
     Transitional, until e2e tests run through `bazel run` with the suites as their `data`.
     """
-    prefixes = {f"{module_name}/{target.lstrip('./')}" for target in targets} or {module_name}
+    prefixes = {
+        f"{module_name}/{path}" if (path := target.removesuffix("...").strip("./")) else module_name
+        for target in targets
+    } or {module_name}
     for package in bazel(
         "cquery",
         f'attr(name, "^install_windows_testsuites$", //{module_name}/...)',

@@ -24,4 +24,5 @@ install_windows_testsuites(
         "//pkg/security/probe:probe_test_functionaltests": "etw/testsuite.exe",
         "//pkg/security/tests:tests_test_bpf_functionaltests": "testsuite.exe",
     },
+    tags = ["manual"],
 )
