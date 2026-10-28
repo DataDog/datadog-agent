@@ -22,7 +22,7 @@ DEFAULT_PYTHON_FILES = "@python_{}//:files".format(DEFAULT_PYTHON_VERSION.replac
 python_externals = {
     "bzip2": "1.0.8",
     "mpdecimal": "4.0.0",
-    "sqlite": "3.53.2.0",
+    "sqlite": "3.54.1.0",
     "xz": "5.2.5",
     "zlib": "1.3.1",
     "libffi": "3.4.4",

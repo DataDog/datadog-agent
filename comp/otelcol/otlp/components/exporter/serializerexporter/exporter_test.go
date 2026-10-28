@@ -1945,7 +1945,19 @@ func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
 		_, err := createDDOTMetricsExporter(s, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "these use v2: http://proxy.example.test;")
-		assert.Contains(t, err.Error(), "serializer_experimental_use_v3_api.sketches.endpoints")
+		assert.Contains(t, err.Error(), "use_v3_api.distributions.endpoints")
+	})
+
+	t.Run("per-URL v3 opt-in", func(t *testing.T) {
+		s, _ := newTestAgentSerializer(t, map[string]any{
+			"use_v3_api.distributions.endpoints": map[string]string{
+				"http://intake.example.test": "true",
+				"http://proxy.example.test":  "true",
+			},
+			"additional_endpoints": map[string][]string{"http://proxy.example.test": {"alt_key"}},
+		})
+		_, err := createDDOTMetricsExporter(s, "")
+		require.NoError(t, err)
 	})
 
 	t.Run("not the agent serializer", func(t *testing.T) {
