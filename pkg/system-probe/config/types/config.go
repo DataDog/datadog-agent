@@ -34,6 +34,7 @@ const (
 	InjectorModule               ModuleName = "injector"
 	NoisyNeighborModule          ModuleName = "noisy_neighbor"
 	LogonDurationModule          ModuleName = "logon_duration"
+	PacketCaptureModule          ModuleName = "packet_capture"
 )
 
 // Config represents the configuration options for the system-probe
@@ -47,6 +48,10 @@ type Config struct {
 
 	SocketAddress      string
 	MaxConnsPerMessage int
+
+	// PacketCaptureSocket is an additional socket serving only the
+	// packet_capture module. Empty when not configured or the module is off.
+	PacketCaptureSocket string
 
 	LogFile          string
 	LogLevel         string

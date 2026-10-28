@@ -1226,6 +1226,10 @@ func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 		return root.Process.MntNS, true
 	}
 
+	if activity_tree.IsContainerRuntime(pc) {
+		return 0, false
+	}
+
 	return pc.Process.MntNS, false
 }
 
