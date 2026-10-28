@@ -9,4 +9,4 @@
 fixes:
   - |
     Fix a crash on startup of the 32-bit ARM IoT Agent when logs collection
-    is enabled (``unaligned 64-bit atomic operation``).
+    is enabled (``unaligned 64-bit atomic operation``). See #59066.
