@@ -746,6 +746,31 @@ func TestSymbolUpload(t *testing.T) {
 		checkUploads(t, goExeSymtab, symbol.SourceGoPCLnTab, symbol.SourceGoPCLnTab, true, []bool{true, true, true, false, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
+
+	t.Run("Corrupt pclntab with symtab fallback stays cached on success", func(t *testing.T) {
+		// When pclntab parse fails but symtab exists and upload succeeds,
+		// the FileID should remain in the upload cache (no eviction).
+		reports := captureUploadReports(t)
+		httpmock.ZeroCallCounters()
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		require.NoError(t, err)
+		uploader.Start(t.Context())
+
+		execMeta := newExecutableMetadata(t, goExeDebugInfosCorruptGoPCLnTab)
+		uploader.UploadSymbols(execMeta)
+		uploader.Stop()
+
+		// First upload: should succeed with debug_info fallback
+		checkUploads(t, goExeDebugInfosCorruptGoPCLnTab, symbol.SourceDebugInfo, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
+
+		// Second sighting on same uploader: should be skipped (cached)
+		uploader.UploadSymbols(execMeta)
+		uploader.reporter.flush()
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1, reasonAlreadyUploaded: 1},
+			uploadReportCounts(t, reports))
+	})
+
 }
 
 // Verify that the symbol uploader transport has the same exported fields as http.DefaultTransport

@@ -329,9 +329,12 @@ func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols Elf
 		parsedSource, _, err := d.getSymbolSourceWithGoPCLnTab(elfSymbols.Elf)
 		if err != nil {
 			pclntabErr = err
-			removeFromCache = true
 		}
-		if parsedSource == symbol.SourceNone || parsedSource <= queryResult.StoredSource {
+		if parsedSource == symbol.SourceNone {
+			removeFromCache = true
+			continue
+		}
+		if parsedSource <= queryResult.StoredSource {
 			continue
 		}
 		endpointIndices = append(endpointIndices, i)
