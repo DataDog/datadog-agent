@@ -43,6 +43,15 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | `hostprofiler.additional_http_headers` | map[string]string | _(empty)_ | Adds custom headers to profile export requests, for example when required by an outbound proxy or gateway. |
 | `hostprofiler.send_error_frames` | bool   | `false` | Includes unwind error frames in profiles for troubleshooting. |
 
+### Symbol upload report
+
+The Host Profiler periodically logs the status of symbol uploads. These options control how often the status is logged.
+
+| Name                                             | Values | Default | Description                                                                                                        |
+|:-------------------------------------------------|:-------|:--------|:-------------------------------------------------------------------------------------------------------------------|
+| `hostprofiler.symbol_uploader.report.interval`   | int    | `300`   | Interval, in seconds, at which the Host Profiler logs symbol upload reports. Maximum `86400` (24 hours). Values outside `1` to `86400` are ignored and fall back to the default. |
+| `hostprofiler.symbol_uploader.report.max_paths_per_report` | int | `100` | Maximum number of binary paths kept per symbol upload report, per log level. Maximum `100000`. Values outside `1` to `100000` fall back to the default. |
+
 ### Host Profiler self-profiling
 
 These options are for Datadog Support diagnostics only. Leave self-profiling disabled unless Datadog Support asks you to enable it.
