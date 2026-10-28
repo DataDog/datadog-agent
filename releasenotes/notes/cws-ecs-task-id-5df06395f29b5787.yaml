@@ -8,8 +8,5 @@
 ---
 features:
   - |
-    CWS now reports the ECS task ID of containers running in ECS tasks on EC2,
-    resolved from the task cgroup the ECS agent creates when task CPU and memory
-    limits are enabled, which is the default. It is available in rules as
-    ``process.container.ecs_task_id`` and reported as ``container.ecs_task_id``
-    in CWS events.
+    Workload Protection events from ECS tasks running on EC2 now include the ECS
+    task ID, which can also be used in rules with ``process.container.ecs_task_id``.
