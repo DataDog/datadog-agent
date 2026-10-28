@@ -18,7 +18,8 @@ enhancements:
     also works when the kubelet isn't reachable, as with Kubernetes running in
     containers (k3d, kind). It falls back to the kubelet only when
     ``use_kubelet_collector`` is ``true``; otherwise, the cluster name lookup
-    no longer queries the kubelet for node labels either. When no other
+    and host metadata (Kubernetes distribution tag, node annotation host
+    aliases) no longer contact the kubelet either. When no other
     source gives a cluster name (``DD_CLUSTER_NAME``, the cloud provider,
     node labels), the hostname suffix now comes from the ``k8s.cluster.name``
     attribute of the collector's telemetry resource: from
