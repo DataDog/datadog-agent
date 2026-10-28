@@ -11,12 +11,16 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 )
 
-// Compile turns an expression of the abstract syntax tree into an evaluator. The
-// returned evaluator is one of the concrete evaluators of this package, its type
-// depends on the type of the expression.
+// Compile turns an expression of the abstract syntax tree into an evaluator,
+// running the compilation passes over it first. The returned evaluator is one of
+// the concrete evaluators of this package, its type depends on the type of the
+// expression.
 func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	node = pass.Run(node, opts.passes()...)
+
 	switch node := node.(type) {
 	case *ast.Rule:
 		return compileExpr(node.Root, opts, state)

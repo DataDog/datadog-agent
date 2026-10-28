@@ -1,11 +1,11 @@
 # SECL compiler
 
-The SECL compiler turns a rule expression into a closure. It has two stages,
-over three packages:
+The SECL compiler turns a rule expression into a closure. It has three stages,
+over four packages:
 
 ```
-source ──parse──▶ AST ──compile──▶ evaluators
-         parser   ast   eval
+source ──parse──▶ AST ──passes──▶ AST ──compile──▶ evaluators
+         parser   ast    pass     ast    eval
 ```
 
 - `parser` — a hand written recursive descent parser, one function per
@@ -17,17 +17,19 @@ source ──parse──▶ AST ──compile──▶ evaluators
 - `ast` — the AST. One type per construct of the language, all members of the
   closed `ast.Node` union, and the `ast.Position` of the nodes. No dependency on
   the parser, no dependency on the evaluators.
+- `pass` — the compilation passes, each rewriting in place a copy of the tree.
 - `eval` — the evaluators, and their construction from the AST (`compile.go`).
   `eval.Compile` walks the AST, type checks it against a `Model`, and returns a
-  tree of closures. `eval.Rule` and `eval.Macro` hold the AST of an expression
-  and compile it on `GenEvaluator`.
+  tree of closures. `eval.Rule` holds the AST of a rule, runs the passes over
+  it and compiles the result on `GenEvaluator`. `eval.Macro` holds the AST of
+  a macro and compiles it on `GenEvaluator`.
 
 ## Conventions
 
 - **Adding a construct to the language** means touching the three packages: a
   token in `token.go` and `scanner.go` if it needs one, a parsing function at the
-  right precedence level in `parser.go`, a node type in `ast`, and a case in
-  `compile.go`.
+  right precedence level in `parser.go`, a node type in `ast` with its `copy`
+  and `editChildren` methods and its case in `Sprint`, and a case in `compile.go`.
 - **The parser looks one token ahead and never backtracks.** A new construct
   should be recognizable from its first token, or from the token following an
   operand for a postfix one (a call, an index).
@@ -38,10 +40,10 @@ source ──parse──▶ AST ──compile──▶ evaluators
 - **Don't resolve names in the parser.** Whether an identifier is a field, a
   constant, a macro or an iterator depends on the `Model` and the `Opts`, which
   are only known at compile time. The AST keeps identifiers as written.
-- **Treat the AST as immutable.** Once the parser returns a tree, nothing
-  modifies it: a tree is cached per expression, shared by the rules using it,
-  and compiled more than once, once per rule and once per partial. A
-  transformation returns a new tree, sharing the nodes it leaves unchanged.
+- **Copy a tree before modifying it.** A tree is cached per expression and
+  shared by the rules using it. The passes run over a copy (`pass.Run`) and
+  modify it in place, and a tree inserted in another one is copied first
+  (`ast.DeepCopy`).
 - **Beware of shared evaluators.** The value of a macro or of a constant is a
   single evaluator instance reused by every rule referring to it. Compilation
   mutates its operands in a couple of places (`=~` forcing the value type of its
