@@ -135,7 +135,7 @@ func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executa
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			coreAgentIPC := coreAgentIPCEnabled(globalParams.ConfFilePath)
+			coreAgentIPC := coreAgentIPCEnabled(globalParams.ConfFilePath, globalParams.FleetPoliciesDirPath)
 			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
