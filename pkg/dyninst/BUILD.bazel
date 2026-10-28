@@ -540,6 +540,7 @@ dd_agent_go_test(
         "testdata/decoded/simple/mapIndex_nilPtrVal_capture.json",
         "testdata/decoded/simple/mapIndex_ptrStructVal_capture_int.json",
         "testdata/decoded/simple/mapIndex_ptrStructVal_capture_string.json",
+        "testdata/decoded/simple/mapIndex_singleTable_capture.json",
         "testdata/decoded/simple/mapIndex_stringKey_capture.json",
         "testdata/decoded/simple/mapIndex_stringKey_cond.json",
         "testdata/decoded/simple/mapIndex_stringKey_template.json",
