@@ -825,6 +825,7 @@
 /pkg/util/containers/metrics/ecsfargate/                              @DataDog/ecs-experiences @DataDog/container-integrations
 /pkg/util/containers/metrics/ecsmanagedinstances/                     @DataDog/ecs-experiences @DataDog/container-integrations
 /pkg/util/crio/                                                       @DataDog/container-integrations
+/pkg/util/ddot/                                                       @DataDog/opentelemetry-agent
 /pkg/util/docker/                                                     @DataDog/container-integrations
 /pkg/util/ecs/                                                        @DataDog/ecs-experiences
 /pkg/util/fargate/                                                    @DataDog/ecs-experiences
@@ -841,6 +842,7 @@
 /pkg/util/ktime                                                       @DataDog/agent-security
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
+/pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
 /pkg/util/metricname/                                                 @DataDog/agent-metric-pipelines
 /pkg/util/podman/                                                     @DataDog/container-integrations
 /pkg/util/port/                                                       @DataDog/agent-runtimes
