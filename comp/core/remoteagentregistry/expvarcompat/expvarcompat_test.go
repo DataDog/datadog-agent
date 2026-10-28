@@ -58,6 +58,27 @@ func TestMergeJSONSaturatesWithoutReplacingIncompatibleValues(t *testing.T) {
 	assert.Equal(t, int64(math.MaxInt64), saturatingAdd(math.MaxInt64, 1))
 }
 
+func TestHandlerPassesBodyThroughWithoutRemoteValues(t *testing.T) {
+	const body = "{\"unrelated\":{\"Gauge\":11}}"
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write([]byte(body))
+	})
+
+	for name, source := range map[string]Source{
+		"nil snapshot":   func() map[string]any { return nil },
+		"empty snapshot": func() map[string]any { return map[string]any{} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			Handler(next, source).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/debug/vars", nil))
+			require.Equal(t, http.StatusOK, response.Code)
+			assert.Equal(t, body, response.Body.String(), "the local body should not be decoded and re-encoded")
+			assert.Equal(t, "application/json; charset=utf-8", response.Header().Get("Content-Type"))
+		})
+	}
+}
+
 func TestHandlerProjectsLateCoreLeafOnEveryRequest(t *testing.T) {
 	const name = "remote-expvar-compat-late-core-test"
 	source := Source(func() map[string]any {

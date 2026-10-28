@@ -34,8 +34,12 @@ func Handler(next http.Handler, source Source) http.Handler {
 		next.ServeHTTP(capture, r)
 		body := capture.body.Bytes()
 		if capture.code == 0 || capture.code == http.StatusOK {
-			if merged, err := MergeJSON(body, source()); err == nil {
-				body = merged
+			// Without remote values there is nothing to overlay, so serve the local body as-is
+			// rather than paying to decode and re-encode it.
+			if remote := source(); len(remote) > 0 {
+				if merged, err := MergeJSON(body, remote); err == nil {
+					body = merged
+				}
 			}
 		}
 		for key, values := range capture.header {
