@@ -113,7 +113,7 @@ func groupByName(t *testing.T, plan *tailCallPlan, name string) *tailCallGroup {
 func TestPlanTailCallGroups(t *testing.T) {
 	progSpecs, mapSpecs, routes, routeCallers := testTailCallSetup()
 
-	plan := planTailCallGroups(progSpecs, mapSpecs, routes, routeCallers, testHookFuncs, noKernelSpec)
+	plan := planTailCallGroups(progSpecs, mapSpecs, routes, routeCallers, testHookFuncs, nil, noKernelSpec)
 	require.NotNil(t, plan)
 
 	// without kernel BTF, the callers are grouped per hooked function
@@ -156,7 +156,7 @@ func TestPlanTailCallGroupsSharedPrototype(t *testing.T) {
 	kernelSpec, err := btf.LoadSpecFromReader(bytes.NewReader(raw))
 	require.NoError(t, err)
 
-	plan := planTailCallGroups(progSpecs, mapSpecs, routes, routeCallers, testHookFuncs, func() (*btf.Spec, error) { return kernelSpec, nil })
+	plan := planTailCallGroups(progSpecs, mapSpecs, routes, routeCallers, testHookFuncs, nil, func() (*btf.Spec, error) { return kernelSpec, nil })
 	require.NotNil(t, plan)
 
 	// func_a and func_b share the same prototype, so their fentry hooks can share program arrays
@@ -176,5 +176,60 @@ func TestPlanTailCallGroupsKprobeOnly(t *testing.T) {
 	mapSpecs := map[string]*lib.MapSpec{"progs": {Type: lib.ProgramArray}}
 	routes := []manager.TailCallRoute{route("progs", 0, "kprobe_target")}
 
-	assert.Nil(t, planTailCallGroups(progSpecs, mapSpecs, routes, nil, map[string]bool{"kprobe_hook": true}, noKernelSpec))
+	assert.Nil(t, planTailCallGroups(progSpecs, mapSpecs, routes, nil, map[string]bool{"kprobe_hook": true}, nil, noKernelSpec))
+}
+
+func TestPlanTailCallGroupsRuntimeCallers(t *testing.T) {
+	progSpecs, mapSpecs, routes, routeCallers := testTailCallSetup()
+
+	plan := planTailCallGroups(progSpecs, mapSpecs, routes, routeCallers, testHookFuncs, []string{"hook_func_b", "kprobe_unrelated", "missing"}, noKernelSpec)
+	require.NotNil(t, plan)
+
+	// only the tracing programs using program arrays can be runtime callers
+	require.Len(t, plan.runtimeCallers, 1)
+
+	// a runtime caller only reaches the routes it can select, independently of the group it belongs to at init
+	reachable := plan.runtimeCallers["hook_func_b"]
+	require.NotNil(t, reachable)
+	assert.ElementsMatch(t, []string{"tail_call_resolve", "tail_call_cb_b"}, reachable.targets)
+	assert.ElementsMatch(t, []string{"progs", "callbacks"}, reachable.arrays)
+	assert.ElementsMatch(t, []manager.TailCallRoute{routes[0], routes[2]}, reachable.routes)
+}
+
+func TestTailCallSpecEditor(t *testing.T) {
+	newArray := func() *lib.Map { return &lib.Map{} }
+	originalProgs, originalCallbacks := newArray(), newArray()
+	initProgs := newArray()
+
+	modifier := newTailCallGroupsModifier("hook_func_b")
+	modifier.kernelTypes = func(*btf.Cache) (*btf.Spec, error) { return noKernelSpec() }
+	modifier.originalKey = tailCallGroupKey{attachType: lib.AttachTraceFEntry, attachTo: "func_a"}
+	modifier.runtimeCallers = map[string]*runtimeTailCallCaller{
+		"hook_func_b": {
+			attachType:     lib.AttachTraceFEntry,
+			refs:           map[string][]string{"hook_func_b": {"progs", "callbacks"}},
+			initArrays:     map[*lib.Map]string{initProgs: "progs"},
+			originalArrays: map[string]*lib.Map{"progs": originalProgs, "callbacks": originalCallbacks},
+		},
+	}
+
+	// the clone of a program associated to the program arrays of its group at init doesn't have map references anymore
+	spec := tracingProgSpec(lib.AttachTraceFEntry, "func_b", "progs", "callbacks", "events")
+	require.NoError(t, spec.Instructions[0].AssociateMap(initProgs))
+
+	editor, err := modifier.specEditor("hook_func_b", "func_a")
+	require.NoError(t, err)
+	require.NotNil(t, editor)
+	editor(spec)
+
+	assert.Same(t, originalProgs, spec.Instructions[0].Map())
+	assert.Same(t, originalCallbacks, spec.Instructions[1].Map())
+	// the other maps are left to the manager
+	assert.Nil(t, spec.Instructions[2].Map())
+	assert.Equal(t, "events", spec.Instructions[2].Reference())
+
+	// programs that aren't runtime callers are left untouched
+	editor, err = modifier.specEditor("hook_func_a", "func_a")
+	require.NoError(t, err)
+	assert.Nil(t, editor)
 }

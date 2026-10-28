@@ -2791,7 +2791,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
-	ddebpf.AddNameMappings(p.Manager.Get(), "cws")
+	p.Manager.AddNameMappings("cws")
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }

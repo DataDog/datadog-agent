@@ -12,6 +12,7 @@ import (
 	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -23,6 +24,7 @@ import (
 // Manager is a wrapper type for pkg/ebpf/manager.Manager used when the bpf build tag is set
 type Manager struct {
 	*ddebpf.Manager
+	tailCallGroups *tailCallGroupsModifier
 }
 
 // Get returns the ebpf-manager instance
@@ -33,6 +35,19 @@ func (m *Manager) Get() *manager.Manager {
 // InitWithOptions wraps the call to corresponding ebpf-manager method
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
 	return m.Manager.InitWithOptions(bytecode, &opts)
+}
+
+// TailCallSpecEditor returns the function to apply to the spec of a clone of the provided program, attached to the
+// provided function, so that it can tail call into its targets. It returns nil if no change is required.
+func (m *Manager) TailCallSpecEditor(funcName string, attachTo string) (func(*ebpf.ProgramSpec), error) {
+	return m.tailCallGroups.specEditor(funcName, attachTo)
+}
+
+// AddNameMappings registers the eBPF programs and maps of the manager, including the copies of the program arrays and
+// of the tail call targets, in the eBPF telemetry
+func (m *Manager) AddNameMappings(module string) {
+	ddebpf.AddNameMappings(m.Get(), module)
+	m.tailCallGroups.addNameMappings(module)
 }
 
 // NewDefaultOptions returns a new instance of the default runtime security manager options
@@ -62,9 +77,11 @@ func NewRuntimeSecurityManager(supportsRingBuffers bool, supportsTaskStorage boo
 		modifiers = append(modifiers, ddmodifiers.NewHelperCallRemover(asm.FnTaskStorageGet, asm.FnTaskStorageDelete, asm.FnGetCurrentTaskBtf))
 	}
 	// must be the last modifier, so that the tail call targets it copies include the changes of the other modifiers
-	modifiers = append(modifiers, newTailCallGroupsModifier())
+	tailCallGroups := newTailCallGroupsModifier(probes.GetOnDemandFuncNames()...)
+	modifiers = append(modifiers, tailCallGroups)
 
 	return &Manager{
-		Manager: ddebpf.NewManagerWithDefault(manager, "cws", modifiers...),
+		Manager:        ddebpf.NewManagerWithDefault(manager, "cws", modifiers...),
+		tailCallGroups: tailCallGroups,
 	}
 }
