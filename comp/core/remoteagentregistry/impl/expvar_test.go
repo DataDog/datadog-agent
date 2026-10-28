@@ -47,12 +47,13 @@ transactions__retry_queue_size{domain="metrics"} 4
 # TYPE transactions__success counter
 transactions__success{domain="metrics",endpoint="series",proto_version="v2"} 9
 # TYPE transactions__errors counter
-transactions__errors{domain="metrics",endpoint="series",error_type="dns_lookup_failure"} 1
-transactions__errors{domain="metrics",endpoint="series",error_type="tls_handshake_failure"} 2
-transactions__errors{domain="metrics",endpoint="series",error_type="connection_failure"} 3
-transactions__errors{domain="metrics",endpoint="series",error_type="writing_failure"} 4
-transactions__errors{domain="metrics",endpoint="series",error_type="invalid_request"} 5
+transactions__errors{domain="metrics",endpoint="series",error_type="dns_error"} 1
+transactions__errors{domain="metrics",endpoint="series",error_type="tls_error"} 2
+transactions__errors{domain="metrics",endpoint="series",error_type="connection_error"} 3
+transactions__errors{domain="metrics",endpoint="series",error_type="wrote_request_error"} 4
+transactions__errors{domain="metrics",endpoint="series",error_type="sent_request_error"} 5
 transactions__errors{domain="metrics",endpoint="series",error_type="cant_send"} 6
+transactions__errors{domain="metrics",endpoint="series",error_type="gt_400"} 7
 # TYPE transactions__http_errors counter
 transactions__http_errors{domain="metrics",endpoint="series",code="500"} 2
 # TYPE aggregator__dogstatsd_contexts gauge
@@ -100,7 +101,7 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(7), values["dogstatsd_service_check_parse_errors"])
 	assert.Equal(t, int64(4), values["forwarder_retry_queue_size"])
 	assert.Equal(t, int64(9), values["forwarder_success"])
-	assert.Equal(t, int64(21), values["forwarder_errors"])
+	assert.Equal(t, int64(18), values["forwarder_errors"], "phase-scoped error types should not be counted as transaction errors")
 	assert.Equal(t, int64(1), values["forwarder_dns_errors"])
 	assert.Equal(t, int64(2), values["forwarder_tls_errors"])
 	assert.Equal(t, int64(3), values["forwarder_connection_errors"])

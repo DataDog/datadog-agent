@@ -156,44 +156,48 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
+		// ADP records lifecycle failures (DNS, connection, TLS, write) as phase-scoped errors in addition to the
+		// transaction-scoped error for the same request, and RAR drops the scope label. Like the Core Agent's Errors
+		// expvar, only count the transaction-scoped error types.
 		id:         "forwarder_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "Errors"},
+		selectors:  selectors(labelSelectorValues("error_type", "cant_send", "gt_400", "sent_request_error")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_dns_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "DNSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "dns_lookup_failure")),
+		selectors:  selectors(labelSelectorValues("error_type", "dns_error")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_tls_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "TLSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "tls_handshake_failure")),
+		selectors:  selectors(labelSelectorValues("error_type", "tls_error")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_connection_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "ConnectionErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "connection_failure")),
+		selectors:  selectors(labelSelectorValues("error_type", "connection_error")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_wrote_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "WroteRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "writing_failure")),
+		selectors:  selectors(labelSelectorValues("error_type", "wrote_request_error")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_sent_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "SentRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "invalid_request")),
+		selectors:  selectors(labelSelectorValues("error_type", "sent_request_error")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
