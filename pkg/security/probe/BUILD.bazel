@@ -421,6 +421,7 @@ dd_agent_go_test(
         "model_test.go",
         "probe_auditing_windows_test.go",
         "probe_ebpf_test.go",
+        "probe_ebpfless_shutdown_test.go",
         "probe_ebpfless_test.go",
         "probe_event_dispatch_test.go",
         "probe_kernel_file_windows_test.go",
