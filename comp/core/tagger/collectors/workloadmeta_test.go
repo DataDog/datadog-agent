@@ -2481,6 +2481,127 @@ func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	}
 }
 
+func TestKubeAIInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		labels       map[string]string
+		wantWorkload string
+	}{
+		{
+			name:         "model label",
+			labels:       map[string]string{kubernetes.KubeAIModelLabelKey: "my-model"},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "legacy model label",
+			labels: map[string]string{
+				kubernetes.KubeAILegacyModelLabelKey: "my-model",
+				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "namespaced label takes priority",
+			labels: map[string]string{
+				kubernetes.KubeAIModelLabelKey:       "my-model",
+				kubernetes.KubeAILegacyModelLabelKey: "other-model",
+				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "empty namespaced label falls back to legacy label",
+			labels: map[string]string{
+				kubernetes.KubeAIModelLabelKey:       "",
+				kubernetes.KubeAILegacyModelLabelKey: "my-model",
+				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "generic component does not change the inference role",
+			labels: map[string]string{
+				kubernetes.KubeAIModelLabelKey:      "my-model",
+				kubernetes.KubeAppComponentLabelKey: "server",
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name:   "generic model label without KubeAI",
+			labels: map[string]string{kubernetes.KubeAILegacyModelLabelKey: "other-model"},
+		},
+		{
+			name: "other operator",
+			labels: map[string]string{
+				kubernetes.KubeAILegacyModelLabelKey: "other-model",
+				kubernetes.KubeAppManagedByLabelKey:  "other-operator",
+			},
+		},
+		{
+			name:   "operator pod without model",
+			labels: map[string]string{kubernetes.KubeAppManagedByLabelKey: "kubeai"},
+		},
+		{
+			name: "empty model",
+			labels: map[string]string{
+				kubernetes.KubeAIModelLabelKey:       "",
+				kubernetes.KubeAILegacyModelLabelKey: "",
+				kubernetes.KubeAppManagedByLabelKey:  "kubeai",
+			},
+		},
+		{name: "blank model", labels: map[string]string{kubernetes.KubeAIModelLabelKey: " "}},
+		{name: "no labels"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "kubeai-server-container"
+			const podID = "kubeai-model-pod"
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podID},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "model-my-model", Namespace: "inference", Labels: tt.labels,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "server"}},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			assert.Equal(t, types.NewEntityID(types.KubernetesPodUID, podID), tagInfos[0].EntityID)
+			assert.Equal(t, types.NewEntityID(types.ContainerID, containerID), tagInfos[1].EntityID)
+			for _, tagInfo := range tagInfos {
+				var inferenceTags []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+						inferenceTags = append(inferenceTags, tag)
+					}
+				}
+				var expected []string
+				if tt.wantWorkload != "" {
+					expected = []string{"inference_workload:" + tt.wantWorkload, "inference_workload_component:inference"}
+				}
+				assert.ElementsMatch(t, expected, inferenceTags)
+				for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
+	}
+}
+
 func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	for _, tt := range []struct {
 		name            string

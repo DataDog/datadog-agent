@@ -71,13 +71,28 @@ func (suite *kindSuite) SetupSuite() {
 }
 
 func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
-	const (
-		deploymentLabel = "nvidia.com/dynamo-graph-deployment-name"
-		deploymentName  = "my-model"
-		componentLabel  = "nvidia.com/dynamo-component-type"
-		subTypeLabel    = "nvidia.com/dynamo-sub-component-type"
-		namespace       = "workload-cpustress"
-	)
+	suite.testInferenceTagsOnContainerMetric(map[string]string{
+		"nvidia.com/dynamo-graph-deployment-name": "my-model",
+		"nvidia.com/dynamo-component-type":        "worker",
+		"nvidia.com/dynamo-sub-component-type":    "decode",
+	}, []string{
+		`^dynamo_graph_deployment:my-model$`,
+		`^inference_workload:my-model$`,
+		`^inference_workload_component:decode$`,
+	})
+}
+
+func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
+	suite.testInferenceTagsOnContainerMetric(map[string]string{
+		"kubeai.org/model": "kubeai-model",
+	}, []string{
+		`^inference_workload:kubeai-model$`,
+		`^inference_workload_component:inference$`,
+	})
+}
+
+func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]string, inferenceTags []string) {
+	const namespace = "workload-cpustress"
 
 	ctx := suite.T().Context()
 	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
@@ -91,7 +106,7 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 			break
 		}
 	}
-	suite.Require().NotEmpty(podName, "no stress-ng pod found for Dynamo tag test")
+	suite.Require().NotEmpty(podName, "no stress-ng pod found for inference tag test")
 
 	// Restore all labels so a retry can use the same pod.
 	pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
@@ -106,54 +121,50 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
 		return err
 	}
-	labels := make(map[string]string, len(originalLabels)+3)
+	labels := make(map[string]string, len(originalLabels)+len(podLabels))
 	for key, value := range originalLabels {
 		labels[key] = value
 	}
-	labels[deploymentLabel] = deploymentName
-	labels[componentLabel] = "worker"
-	labels[subTypeLabel] = "decode"
+	for key, value := range podLabels {
+		labels[key] = value
+	}
 	suite.Require().NoError(setLabels(ctx, labels))
 	defer func() {
 		suite.Require().NoError(setLabels(context.Background(), originalLabels), "restore stress-ng pod labels")
 	}()
 
+	expectedTags := append([]string{
+		`^container_id:`,
+		`^container_name:stress-ng$`,
+		`^display_container_name:stress-ng`,
+		`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+		`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+		`^image_id:.*/apps-stress-ng@sha256:`,
+		`^image_name:.*/apps-stress-ng$`,
+		`^image_tag:`,
+		`^kube_container_name:stress-ng$`,
+		`^kube_deployment:stress-ng$`,
+		`^kube_namespace:` + namespace + `$`,
+		`^kube_ownerref_kind:replicaset$`,
+		`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+		`^kube_qos:Guaranteed$`,
+		`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+		`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+		`^pod_phase:running$`,
+		`^runtime:containerd$`,
+		`^short_image:apps-stress-ng$`,
+	}, inferenceTags...)
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
-			Tags: []string{
+			Tags: append([]string{
 				`^kube_namespace:` + namespace + `$`,
 				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
-				`^dynamo_graph_deployment:` + deploymentName + `$`,
-				`^inference_workload:` + deploymentName + `$`,
-				`^inference_workload_component:decode$`,
-			},
+			}, inferenceTags...),
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^container_id:`,
-				`^container_name:stress-ng$`,
-				`^display_container_name:stress-ng`,
-				`^dynamo_graph_deployment:` + deploymentName + `$`,
-				`^inference_workload:` + deploymentName + `$`,
-				`^inference_workload_component:decode$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
-				`^image_id:.*/apps-stress-ng@sha256:`,
-				`^image_name:.*/apps-stress-ng$`,
-				`^image_tag:`,
-				`^kube_container_name:stress-ng$`,
-				`^kube_deployment:stress-ng$`,
-				`^kube_namespace:` + namespace + `$`,
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
-				`^kube_qos:Guaranteed$`,
-				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
-				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
-				`^pod_phase:running$`,
-				`^runtime:containerd$`,
-				`^short_image:apps-stress-ng$`,
-			},
+			Tags: &expectedTags,
 		},
 	})
 }

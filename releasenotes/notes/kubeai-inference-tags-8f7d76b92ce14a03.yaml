@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Automatically add the ``inference_workload`` and
+    ``inference_workload_component`` tags to KubeAI model pods and containers.
+    The workload tag uses the ``kubeai.org/model`` label, or the legacy
+    ``model`` label when ``app.kubernetes.io/managed-by`` is ``kubeai``.
+    The component tag is ``inference``.
