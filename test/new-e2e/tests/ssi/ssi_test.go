@@ -690,8 +690,8 @@ func (v *ssiSuite) testDatadogInstrumentation() {
 	validator.RequireInstallType(v.T(), "k8s_single_step", []string{ddiApp})
 	validator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
 	validator.RequireEnvs(v.T(), map[string]string{"DD_SERVICE": ddiAPMService, "DD_TRACE_ENABLED": "true"}, []string{ddiApp})
-	validator.RequireAppliedTargetName(v.T(), "datadoginstrumentation:"+ddiNamespace+"/"+ddiAPMName)
-	validator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
+	validator.RequireAppliedConfigName(v.T(), "datadoginstrumentation:"+ddiNamespace+"/"+ddiAPMName)
+	validator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "datadog-instrumentation"})
 	require.Eventually(v.T(), func() bool {
 		return FindTracesForService(v.T(), fi, ddiAPMService) != 0
 	}, time.Minute, 10*time.Second, "did not find traces for DDI-configured service %s", ddiAPMService)
@@ -777,14 +777,15 @@ func (v *ssiSuite) TestRemoteConfig() {
 		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		podValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
 		podValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
-		// Library annotations short-circuit applied-target / applied-policy metadata.
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		// Library annotations short-circuit applied-config metadata.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
+		podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "annotation"})
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		v.requireHelmTargetStillSSI(k8s)
 	})
@@ -803,8 +804,9 @@ func (v *ssiSuite) TestRemoteConfig() {
 		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcAnnotatedPodApp})
 		podValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcAnnotatedPodApp})
-		// SSI mode follows the policy match; annotation short-circuit still skips applied-policy JSON.
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		// SSI mode follows the policy match; annotation short-circuit still skips applied-config JSON.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
+		podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "annotation"})
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
@@ -812,8 +814,8 @@ func (v *ssiSuite) TestRemoteConfig() {
 		unannotatedValidator.RequireInjection(v.T(), []string{rcUnannotatedPodApp})
 		unannotatedValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcUnannotatedPodApp})
 		unannotatedValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcUnannotatedPodApp})
-		unannotatedValidator.RequireAppliedPolicyName(v.T(), rcNamespaceOtherPolicyName)
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+		unannotatedValidator.RequireAppliedConfigName(v.T(), rcNamespaceOtherPolicyName)
+		unannotatedValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "remote-config"})
 
 		v.requireHelmTargetStillSSI(k8s)
 	})
@@ -837,20 +839,19 @@ func (v *ssiSuite) TestRemoteConfig() {
 		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
-		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		helm := RestartUntil(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp, noInjection(rcHelmTargetApp))
 		helmValidator := testutils.NewPodValidator(helm, testutils.InjectionModeAuto)
 		helmValidator.RequireNoInjection(v.T())
 		helmValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusBlocked)
-		helmValidator.RequireAppliedPolicyName(v.T(), rcDenyTargetedNamespacePolicyName)
-		helmValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+		helmValidator.RequireAppliedConfigName(v.T(), rcDenyTargetedNamespacePolicyName)
 	})
 
 	// Two RC policies both match namespace "other": allow then deny. Last TRUE wins,
@@ -871,8 +872,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
 		unannotatedValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusBlocked)
-		unannotatedValidator.RequireAppliedPolicyName(v.T(), rcLastWinsOtherDenyPolicyName)
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+		unannotatedValidator.RequireAppliedConfigName(v.T(), rcLastWinsOtherDenyPolicyName)
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
 		annotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
@@ -880,7 +880,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
-		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		v.requireHelmTargetStillSSI(k8s)
 	})
@@ -894,8 +894,8 @@ func (v *ssiSuite) requireHelmTargetStillSSI(k8s kubeClient.Interface) {
 	podValidator.RequireInjection(v.T(), []string{rcHelmTargetApp})
 	podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcHelmTargetApp})
 	podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
-	podValidator.RequireAppliedTargetName(v.T(), rcHelmTargetName)
-	podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
+	podValidator.RequireAppliedConfigName(v.T(), rcHelmTargetName)
+	podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "static"})
 }
 
 func (v *ssiSuite) pushAPMPolicy(fi *fakeintake.Client, configID, configName string, payload []byte) func() {

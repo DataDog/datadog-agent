@@ -285,12 +285,6 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 }
 
 func (suite *TailerTestSuite) TestWithBlanklinesSingleLineHandler() {
-	mockConfig := configmock.New(suite.T())
-	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
-
-	// Recreate the tailer after config change so decoder uses SingleLineHandler
-	suite.tailer = NewTailer(suite.createTailerOptions(nil))
-
 	lines := "\t\t\t     \t\t\n    \n\n   \n\n\r\n\r\n\r\n"
 	lines += "message 1\n"
 	lines += "\n\n\n\n\n\n\n\n\n\t\n"
@@ -410,10 +404,6 @@ func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	mockConfig.SetInTest("logs_config.tag_multi_line_logs", true)       // Enable multiline tagging
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true) // Enable multiline tagging
 
-	// Enable auto multiline detection with aggregation (not just detection-only tagging)
-	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
-	// Instead, enable full auto multiline on the source itself
-
 	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", false)
@@ -466,10 +456,8 @@ func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetInTest("logs_config.max_message_size_bytes", 3)
 	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
-	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
 	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
-	defer mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", true)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
