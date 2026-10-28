@@ -801,13 +801,16 @@ func TestFilterListUpdateWithCombinedMetricsAndTags(t *testing.T) {
 func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-	cfg["metric_filterlist"] = []string{"local.metric.1", "local.metric.2"}
-
 	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
+	configComponent := config.NewMockFromYAML(t, `
+metric_filterlist:
+  - local.metric.1
+  - local.metric.2
+`)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
 
 	// First, set RC config
 	results := updateRes{}
@@ -883,9 +886,10 @@ func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
 	require.Len(results[state.ApplyStateError], 0)
 
-	// metric filterlist has been reset to default
+	// metric filterlist has been reset to local file config
 	metricNames = configComponent.GetStringSlice("metric_filterlist")
 	require.ElementsMatch([]string{"local.metric.1", "local.metric.2"}, metricNames)
+	require.Equal(model.SourceFile, configComponent.GetSource("metric_filterlist"))
 
 	// tag entries should be as configured through RC
 	err = structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)

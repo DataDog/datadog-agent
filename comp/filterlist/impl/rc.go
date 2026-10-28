@@ -75,14 +75,14 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	fl.log.Debugf("onFilterListUpdateCallback received updates: %d", len(updates))
 
 	// special case: we received a response from RC, but RC didn't have any
-	// configuration for this agent, let's restore the local config and return
+	// configuration for this agent, so clear the RC layer and restore from config.
 	if len(updates) == 0 {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.restoreMetricFilterListFromLocalConfig()
-		fl.restoreTagFilterListFromLocalConfig()
+		fl.restoreMetricFilterListFromConfig()
+		fl.restoreTagFilterListFromConfig()
 		return
 	}
 
@@ -123,9 +123,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 
 	// Exact and prefix-rule lists are separate RC fields; resolve them independently.
-	effectiveNames := fl.localFilterListConfig.metricNames
-	effectiveMatchPrefix := fl.localFilterListConfig.matchPrefix
-
 	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
 	// RC metric names are exact; per-entry prefixes use metric_filterlist_prefix.
 	metricNames = normalizeMetricNames(metricNames, false, fl.log)
@@ -135,26 +132,19 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		// in `agent config` calls.
 		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-
-		effectiveNames = metricNames
-		effectiveMatchPrefix = false
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 	}
 
-	effectivePrefixRules := fl.localFilterListConfig.metricPrefixRules
-
 	prefixEntries := fl.buildMetricPrefixListConfig(metricPrefixListUpdates)
 	if len(prefixEntries) > 0 {
 		fl.config.Set("metric_filterlist_prefix", prefixEntries, model.SourceRC)
-
-		effectivePrefixRules = normalizeMetricPrefixList(prefixEntries, fl.log)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 	}
 
-	fl.SetMetricFilterList(effectiveNames, effectiveMatchPrefix, effectivePrefixRules)
+	fl.restoreMetricFilterListFromConfig()
 
 	tags, tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
 
@@ -169,9 +159,8 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 			MetricTags: tags,
 		})
 	} else {
-		// special case: if the metric names list is empty, fallback to local
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.restoreTagFilterListFromLocalConfig()
+		fl.restoreTagFilterListFromConfig()
 	}
 }
 
