@@ -12,7 +12,17 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
+
+// Keep avg separately allocated: an inline Float64 after started is unaligned
+// on ARM32. Check the representation even when these tests run on a 64-bit host.
+func TestUtilizationMonitorAvgAllocation(t *testing.T) {
+	um := newTelemetryUtilizationMonitorWithSampleRateAndClock("name", "instance", time.Second, clock.NewMock(), nil)
+	require.IsType(t, (*atomic.Float64)(nil), um.avg)
+	require.NotNil(t, um.avg)
+	assert.Zero(t, um.avg.Load())
+}
 
 func TestUtilizationMonitorLifecycle(t *testing.T) {
 	clk := clock.NewMock()

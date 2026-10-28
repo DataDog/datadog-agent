@@ -44,6 +44,8 @@ type TelemetryUtilizationMonitor struct {
 	started             atomic.Bool
 
 	// EWMA utilization (N=15, α≈0.125); sampler writes, subscribers read.
+	// Allocate separately to keep the 64-bit atomic word aligned on ARM32.
+	// An inline Float64 after started would sit at byte offset 20.
 	avg *atomic.Float64
 
 	name              string
