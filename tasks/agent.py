@@ -57,8 +57,8 @@ RC_X509_BUILD_FILES_INSTALL = {
 }
 
 
-def install_rc_x509_build_files(embedded_path, target_platform):
-    """Install the native rc-x509 link inputs into an Agent embedded prefix."""
+def install_rc_x509_build_files(embedded_path, target_platform, flavor):
+    """Install the native rc-x509 link inputs for `flavor` into an Agent embedded prefix."""
     if not embedded_path:
         raise Exit("unable to locate embedded path for the rc-x509 native build inputs", code=1)
 
@@ -73,7 +73,10 @@ def install_rc_x509_build_files(embedded_path, target_platform):
     )
     native_embedded_path = os.path.join(install_root, "embedded")
 
-    bazel("run", install_target, "--", f"--destdir={install_root}")
+    # The Go build tags select FIPS or non-FIPS linking from the same flavor, so the
+    # native inputs must be built for it too (Omnibus also exports AGENT_FLAVOR).
+    bazel_flavor = "fips" if flavor.is_fips() else "base"
+    bazel("run", f"--//packages/agent:flavor={bazel_flavor}", install_target, "--", f"--destdir={install_root}")
     return native_embedded_path
 
 
@@ -170,7 +173,7 @@ def build(
         if embedded_path is None:
             embedded_path = get_embedded_path(ctx)
         with gitlab_section("Install rc-x509 native build inputs", collapsed=True):
-            rc_x509_embedded_path = install_rc_x509_build_files(embedded_path, target_platform)
+            rc_x509_embedded_path = install_rc_x509_build_files(embedded_path, target_platform, flavor)
 
     if enable_bazel:
         if exclude_rtloader:

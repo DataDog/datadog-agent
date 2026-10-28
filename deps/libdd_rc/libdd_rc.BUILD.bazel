@@ -235,10 +235,12 @@ pkg_files(
 
 pkg_files(
     name = "rc_x509_ffi_linux_static_files",
-    srcs = [
-        ":aws_lc_fips_crypto_linux_static_file",
-        ":rc_x509_ffi",
-    ],
+    # The non-FIPS crate graph builds AWS-LC into librc_x509_ffi.a, and its Go
+    # build (rcx509_nonfips) does not link -laws_lc_fips_crypto.
+    srcs = [":rc_x509_ffi"] + select({
+        ":fips_crate_graph": [":aws_lc_fips_crypto_linux_static_file"],
+        "//conditions:default": [],
+    }),
     prefix = "embedded/lib",
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -294,11 +296,9 @@ pkg_files(
 
 pkg_files(
     name = "rc_x509_ffi_macos_native_files",
-    srcs = [
-        ":aws_lc_fips_crypto_dylib_file",
-        ":aws_lc_fips_crypto_macos_linker_file",
-        ":rc_x509_ffi",
-    ],
+    # macOS only ships the standard flavor, which links non-FIPS AWS-LC
+    # statically into librc_x509_ffi.a.
+    srcs = [":rc_x509_ffi"],
     prefix = "embedded/lib",
     target_compatible_with = ["@platforms//os:macos"],
 )

@@ -94,6 +94,23 @@ class TestCodegenPayloadData(unittest.TestCase):
         iot_tags = build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.iot, platform="linux")
         self.assertNotIn("rc_x509", iot_tags)
 
+    def test_rcx509_nonfips_is_set_only_for_non_fips_flavors(self):
+        for flavor in (AgentFlavor.base, AgentFlavor.heroku, AgentFlavor.recorder):
+            for platform in ("linux", "darwin"):
+                with self.subTest(flavor=flavor.name, platform=platform):
+                    tags = build_tags.get_default_build_tags(build="agent", flavor=flavor, platform=platform)
+                    self.assertIn("rcx509_nonfips", tags)
+
+        for build in ("agent", "lint", "unit-tests"):
+            with self.subTest(flavor="fips", build=build):
+                tags = build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.fips, platform="linux")
+                self.assertNotIn("rcx509_nonfips", tags)
+
+    def test_rcx509_nonfips_is_excluded_on_windows(self):
+        # Windows keeps libdd-rc's AWS-LC FIPS DLL until it moves to a MinGW static build.
+        tags = build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform="win32")
+        self.assertNotIn("rcx509_nonfips", tags)
+
     def test_common_tags_disjoint_from_flavor_specific(self):
         # The .bzl/.go consumers compose flavor tag sets as
         # flavor_specific + common_tags + unit_test_tags; if common appears in

@@ -32,6 +32,7 @@ load(
     "DARWIN_EXCLUDED_TAGS",
     "FIPS_TAGS",
     "LINUX_ONLY_TAGS",
+    "NONFIPS_ONLY_TAGS",
     "WINDOWS_EXCLUDED_TAGS",
 )
 
@@ -120,8 +121,8 @@ def dd_agent_go_binary(
         gotags = gotags or set()
         kwargs["gotags"] = select({
             "@platforms//os:macos": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
-            "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
-            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//packages/agent:linux_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - NONFIPS_ONLY_TAGS),
+            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS - NONFIPS_ONLY_TAGS),
             "//:windows_x86_64": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
             "//conditions:default": sorted(COMMON_TAGS | gotags),
         })
