@@ -27,6 +27,7 @@ func TestStateWireVocabulary(t *testing.T) {
 	}
 	reasons := map[Reason]string{
 		ReasonExistingProcessLeftUntouched:        "existing_process_left_untouched",
+		ReasonExplicitSupervisorSocketRequired:    "explicit_supervisor_socket_required",
 		ReasonLaunchOutcomeUnknownRequiresReview:  "launch_outcome_unknown_requires_review",
 		ReasonLegacyAttemptRequiresReconciliation: "legacy_attempt_requires_reconciliation",
 		ReasonPreviousProcessExitRequiresReview:   "previous_process_exit_requires_review",
@@ -39,6 +40,7 @@ func TestStateWireVocabulary(t *testing.T) {
 		ReasonRCUnchecked:                         "rc_unchecked",
 		ReasonStartupJitter:                       "startup_jitter",
 		ReasonSupervisorConnectionFailed:          "supervisor_connection_failed",
+		ReasonSupervisorMustBeOnDemandNoRestart:   "supervisor_must_be_on_demand_no_restart",
 		ReasonSupervisorStartAcknowledged:         "supervisor_start_acknowledged",
 		ReasonSupervisorUnavailable:               "supervisor_unavailable",
 		ReasonUnsupportedConfiguration:            "unsupported_configuration",
@@ -52,10 +54,6 @@ func TestStateWireVocabulary(t *testing.T) {
 		ReasonPARScopeUnchecked:                   "par_scope_unchecked",
 		ReasonPARScopeWaitingForRCOrDemand:        "par_scope_waiting_for_rc_or_demand",
 		ReasonScopePresent:                        "scope_present",
-		ReasonSupervisorRegistrationChangePending: "supervisor_registration_change_pending",
-		ReasonSupervisorRegistrationUnavailable:   "supervisor_registration_unavailable",
-		ReasonInvalidSupervisorSocket:             "invalid_supervisor_socket",
-		ReasonUnsupportedSupervisorPolicy:         "unsupported_supervisor_policy",
 	}
 	for reason, want := range reasons {
 		got, err := json.Marshal(State{Reason: reason})

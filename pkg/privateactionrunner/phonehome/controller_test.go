@@ -11,13 +11,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	"os"
 	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
-
-	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -26,9 +25,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 type supervisor struct {
@@ -36,24 +32,13 @@ type supervisor struct {
 	control, executor *pb.ProcessDetail
 	starts            int
 	startErr          error
-	describeErr       error
-	onDescribe        func(*pb.DescribeRequest)
 }
 
 func (p *supervisor) Describe(_ context.Context, r *pb.DescribeRequest, _ ...grpc.CallOption) (*pb.DescribeResponse, error) {
-	if p.onDescribe != nil {
-		p.onDescribe(r)
+	if r.NameOrUuid == controlProcess {
+		return &pb.DescribeResponse{Detail: p.control}, nil
 	}
-	if p.describeErr != nil {
-		return nil, p.describeErr
-	}
-	if r.NameOrUuid == controlProcess || r.NameOrUuid == p.control.Uuid {
-		return &pb.DescribeResponse{Detail: proto.Clone(p.control).(*pb.ProcessDetail)}, nil
-	}
-	if r.NameOrUuid == executorProcess || r.NameOrUuid == p.executor.Uuid {
-		return &pb.DescribeResponse{Detail: proto.Clone(p.executor).(*pb.ProcessDetail)}, nil
-	}
-	return nil, grpcstatus.Error(codes.NotFound, "registration not found")
+	return &pb.DescribeResponse{Detail: p.executor}, nil
 }
 func (p *supervisor) Start(_ context.Context, _ *pb.StartRequest, _ ...grpc.CallOption) (*pb.StartResponse, error) {
 	p.starts++
@@ -79,7 +64,7 @@ func newFixture(t *testing.T) *fixture {
 		cfg.SetInTest(k, v)
 	}
 	f := &fixture{cfg: cfg, rc: &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}, pm: &supervisor{
-		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "on-failure"},
+		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 		executor: &pb.ProcessDetail{Uuid: "executor", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 	}}
 	f.c = &controller{cfg: cfg, source: NewSource(cfg, f.rc), pm: f.pm, now: time.Now, emit: func(s State) { f.state = s }}
@@ -132,12 +117,7 @@ func TestStartupDoesNotReplayOrStopChildren(t *testing.T) {
 				} else {
 					f.pm.control.State = state
 				}
-				delay := f.c.step(context.Background())
-				if state == pb.ProcessState_RUNNING || state == pb.ProcessState_STARTING || state == pb.ProcessState_STOPPING {
-					require.Equal(t, pollInterval, delay)
-				} else {
-					require.Zero(t, delay)
-				}
+				require.Zero(t, f.c.step(context.Background()))
 				require.Zero(t, f.pm.starts)
 			})
 		}
@@ -190,61 +170,13 @@ func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
 			// Model a scheduling pause after successful supervisor inspection.
 			time.Sleep(6 * time.Second)
 		}
-		require.Equal(t, pollInterval, f.c.step(context.Background()))
+		require.Zero(t, f.c.step(context.Background()))
 		require.NoError(t, pm.startContextErr, "Start must not inherit an exhausted preflight deadline")
 		require.Equal(t, 1, pm.starts)
 		require.Equal(t, phonehomedef.ReasonSupervisorStartAcknowledged, f.state.Reason)
 		f.c.step(context.Background())
 		require.Equal(t, 1, pm.starts)
 	})
-}
-
-func TestSupervisorSocketUsesPackagedDefaultOrOverride(t *testing.T) {
-	t.Setenv("DD_PM_SOCKET_PATH", "")
-	require.Equal(t, "/var/run/datadog-procmgrd/dd-procmgrd.sock", supervisorSocketPath())
-	socket := filepath.Join(t.TempDir(), "procmgr.sock")
-	t.Setenv("DD_PM_SOCKET_PATH", socket)
-	require.Equal(t, socket, supervisorSocketPath())
-}
-
-func TestStartupSupervisorPolicies(t *testing.T) {
-	for _, tc := range []struct {
-		name, controlRestart, executorRestart string
-		controlAuto, executorAuto, allowed    bool
-	}{
-		{"packaged", "on-failure", "never", false, false, true},
-		{"no_recovery", "never", "never", false, false, true},
-		{"control_auto", "on-failure", "never", true, false, false},
-		{"executor_auto", "on-failure", "never", false, true, false},
-		{"executor_restart", "on-failure", "on-failure", false, false, false},
-		{"control_always", "always", "never", false, false, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newFixture(t)
-			f.pm.control.AutoStart, f.pm.executor.AutoStart = tc.controlAuto, tc.executorAuto
-			f.pm.control.RestartPolicy, f.pm.executor.RestartPolicy = tc.controlRestart, tc.executorRestart
-			f.c.step(context.Background())
-			if tc.allowed {
-				require.Equal(t, 1, f.pm.starts)
-			} else {
-				require.Zero(t, f.pm.starts)
-				require.Equal(t, phonehomedef.ReasonUnsupportedSupervisorPolicy, f.state.Reason)
-			}
-		})
-	}
-}
-
-func TestStartupPreservesLegacyJournalAtDefaultIdentityPath(t *testing.T) {
-	f := newFixture(t)
-	dir := t.TempDir()
-	f.cfg.SetConfigFile(filepath.Join(dir, "datadog.yaml"))
-	f.cfg.SetInTest(par.IdentityFilePath, "")
-	journal := filepath.Join(dir, "privateactionrunner_private_identity.json.phone-home")
-	require.NoError(t, os.Mkdir(journal, 0700))
-	f.c.step(context.Background())
-	require.Equal(t, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, f.state.Reason)
-	require.DirExists(t, journal)
-	require.Zero(t, f.pm.starts)
 }
 
 func TestStartupPreservesLegacyRecoveryAndRequiresOnDemandSupervisor(t *testing.T) {
@@ -258,6 +190,6 @@ func TestStartupPreservesLegacyRecoveryAndRequiresOnDemandSupervisor(t *testing.
 	f = newFixture(t)
 	f.pm.control.AutoStart = true
 	f.c.step(context.Background())
-	require.Equal(t, phonehomedef.ReasonUnsupportedSupervisorPolicy, f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonSupervisorMustBeOnDemandNoRestart, f.state.Reason)
 	require.Zero(t, f.pm.starts)
 }

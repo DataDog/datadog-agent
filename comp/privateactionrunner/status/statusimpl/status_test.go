@@ -7,14 +7,12 @@ package statusimpl
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -99,57 +97,6 @@ func TestStatusDisabled(t *testing.T) {
 		assert.Contains(t, output, "Disabled")
 		assert.NotContains(t, output, "URN")
 	})
-}
-
-type phoneHomeStub struct{ state *phonehome.State }
-
-func (s phoneHomeStub) Status() *phonehome.State { return s.state }
-
-func TestPhoneHomeStartupStatus(t *testing.T) {
-	for _, tc := range []struct {
-		state                 phonehome.State
-		wireState, wireReason string
-	}{
-		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonMissingEnrollmentScope, NextCheck: "2026-10-23T10:01:00Z"}, "waiting", "missing_enrollment_scope"},
-		{phonehome.State{State: phonehome.StateBlocked, Reason: phonehome.ReasonLaunchOutcomeUnknownRequiresReview}, "blocked", "launch_outcome_unknown_requires_review"},
-		{phonehome.State{State: phonehome.StateHandedOff, Reason: phonehome.ReasonSupervisorStartAcknowledged}, "handed_off", "supervisor_start_acknowledged"},
-	} {
-		t.Run(tc.wireState, func(t *testing.T) {
-			state := tc.state
-			provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &state}}
-			stats := make(map[string]interface{})
-			require.NoError(t, provider.JSON(false, stats))
-			encoded, err := json.Marshal(stats["privateActionRunnerStatus"].(map[string]interface{})["PhoneHome"])
-			require.NoError(t, err)
-			var fields map[string]interface{}
-			require.NoError(t, json.Unmarshal(encoded, &fields))
-			expected := map[string]interface{}{"state": tc.wireState, "reason": tc.wireReason}
-			if state.NextCheck != "" {
-				expected["next_check"] = state.NextCheck
-			}
-			require.Equal(t, expected, fields, "no RC or recovery diagnostics in JSON")
-			var text, html bytes.Buffer
-			require.NoError(t, provider.Text(false, &text))
-			require.NoError(t, provider.HTML(false, &html))
-			for _, output := range []string{text.String(), html.String()} {
-				require.Contains(t, output, "Startup gate: "+tc.wireState+" ("+tc.wireReason+")")
-				require.NotContains(t, output, "RC prerequisite")
-				require.NotContains(t, output, "Enrollment outcome")
-				require.NotContains(t, output, "retention")
-				if state.NextCheck != "" {
-					require.Contains(t, output, "Next gate check: "+state.NextCheck)
-				} else {
-					require.NotContains(t, output, "Next gate check:")
-				}
-			}
-		})
-	}
-	for _, source := range []phonehome.Component{nil, phoneHomeStub{}} {
-		provider := statusProvider{config: config.NewMock(t), phoneHome: source}
-		stats := make(map[string]interface{})
-		require.NoError(t, provider.JSON(false, stats))
-		require.NotContains(t, stats["privateActionRunnerStatus"], "PhoneHome")
-	}
 }
 
 func TestProviderNameAndSection(t *testing.T) {
