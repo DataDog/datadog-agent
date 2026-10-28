@@ -58,6 +58,10 @@ const (
 	memcgFlushEndName   = "fexit__mem_cgroup_css_rstat_flush"
 	memcgFlushHookName  = "mem_cgroup_css_rstat_flush"
 	memcgFlushSeqName   = "memcg_flush_seq"
+	// memcgFlushBeginLinkName and memcgFlushEndLinkName name the link pins of the memcg flush
+	// programs
+	memcgFlushBeginLinkName = "memcg_flush_begin"
+	memcgFlushEndLinkName   = "memcg_flush_end"
 )
 
 var supportsFentry = features.SupportsFentry
@@ -74,8 +78,9 @@ type Probe struct {
 	progName string
 	link     link.Link
 	oomMap   *maps.GenericMap[statsKey, oomStats]
-	// flushLinks attach the memcg flush programs, when the cgroup memory stats are collected
-	flushLinks []link.Link
+	// flushLinks attach the memcg flush programs, when the cgroup memory stats are collected. They
+	// are keyed by their pin name: memcgFlushBeginLinkName or memcgFlushEndLinkName
+	flushLinks map[string]link.Link
 	// pinned is true if this probe owns the bpffs pins of the link and map
 	pinned bool
 }
@@ -189,24 +194,20 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 
 	// Reuse the map of the previous probe, so that the OOM kills recorded while no system-probe
 	// was running are reported by the next check run.
-	if m, err := bpflib.LoadPinnedMap(mapPinPath(oomMapName), nil); err == nil {
+	if m := reusePinnedMap(oomMapName, func(m *bpflib.Map) error { return compatibleMap(mapSpec, m) }, &collOpts); m != nil {
 		// close the reference to the pinned map this program takes so it can be fully reaped
 		// after the pin is removed
 		defer m.Close()
+	}
 
-		if err := compatibleMap(mapSpec, m); err != nil {
-			log.Warnf("pinned oom-kill map is incompatible with the current probe, dropping its content: %s", err)
-			_ = m.Close()
-			removePin(mapPinPath(oomMapName))
-		} else {
-			if collOpts.MapReplacements == nil {
-				collOpts.MapReplacements = make(map[string]*bpflib.Map)
-			}
-			collOpts.MapReplacements[oomMapName] = m
+	// Reuse the counter of the previous probe, so that the pinned memcg flush and oom-kill programs
+	// share it with the ones of this probe and can be taken over. When the cgroup memory stats are
+	// not collected, it is removed with the other pins of the previous probe.
+	if emitStats == 1 {
+		seqSpec := spec.Maps[memcgFlushSeqName]
+		if m := reusePinnedMap(memcgFlushSeqName, seqSpec.Compatible, &collOpts); m != nil {
+			defer m.Close()
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		log.Warnf("failed to load pinned oom-kill map, removing it: %s", err)
-		removePin(mapPinPath(oomMapName))
 	}
 
 	coll, err := bpflib.NewCollectionWithOptions(spec, collOpts)
@@ -239,6 +240,33 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 
 	ebpf.AddNameMappingsCollection(coll, moduleName)
 	return p, nil
+}
+
+// reusePinnedMap loads the map pinned for name and, if compatible accepts it, makes the collection
+// use it in place of creating the map. Otherwise the pin is removed. The returned map, if any, must
+// be closed once the collection is loaded.
+func reusePinnedMap(name string, compatible func(*bpflib.Map) error, collOpts *bpflib.CollectionOptions) *bpflib.Map {
+	m, err := bpflib.LoadPinnedMap(mapPinPath(name), nil)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Warnf("failed to load pinned map '%s', removing it: %s", name, err)
+			removePin(mapPinPath(name))
+		}
+		return nil
+	}
+
+	if err := compatible(m); err != nil {
+		log.Warnf("pinned map '%s' is incompatible with the current probe, dropping its content: %s", name, err)
+		_ = m.Close()
+		removePin(mapPinPath(name))
+		return nil
+	}
+
+	if collOpts.MapReplacements == nil {
+		collOpts.MapReplacements = make(map[string]*bpflib.Map)
+	}
+	collOpts.MapReplacements[name] = m
+	return m
 }
 
 // compatibleMap checks that the pinned map can be reused by the current probe: on top of the
@@ -297,26 +325,62 @@ func oomStatsVersion(s *btf.Struct) (string, error) {
 	return "", fmt.Errorf("struct %s has no field %s", s.Name, oomStatsVersionField)
 }
 
+// pin pins the probe to bpffs, all or nothing.
+//
+// memcg_flush_seq and the memcg flush links are pinned before the oom-kill link, so that a crash
+// while pinning never leaves a pinned oom-kill program checking the cgroup memory stats against a
+// counter that nothing updates.
 func (k *Probe) pin() error {
 	if err := os.MkdirAll(pinDir, 0o700); err != nil {
 		return fmt.Errorf("create pin directory %s: %w", pinDir, err)
 	}
 
-	if err := k.oomMap.Map().Pin(mapPinPath(oomMapName)); err != nil {
-		return fmt.Errorf("pin map: %w", err)
+	var pins []string
+	removeAddedPins := func() {
+		for i := len(pins) - 1; i >= 0; i-- {
+			removePin(pins[i])
+		}
 	}
 
-	// A link taken over from a pin still records that path, which makes Pin to the same path a
-	// no-op even though removePins deleted the file. Clear it so that the link is pinned again.
-	_ = k.link.Unpin()
-	if err := k.link.Pin(linkPinPath(oomLinkName)); err != nil {
-		removePin(mapPinPath(oomMapName))
+	if len(k.flushLinks) > 0 {
+		path := mapPinPath(memcgFlushSeqName)
+		if err := k.coll.Maps[memcgFlushSeqName].Pin(path); err != nil {
+			return fmt.Errorf("pin map '%s': %w", memcgFlushSeqName, err)
+		}
+		pins = append(pins, path)
+
+		for _, name := range []string{memcgFlushBeginLinkName, memcgFlushEndLinkName} {
+			path := linkPinPath(name)
+			if err := pinLink(k.flushLinks[name], path); err != nil {
+				removeAddedPins()
+				return fmt.Errorf("pin link '%s': %w", name, err)
+			}
+			pins = append(pins, path)
+		}
+	}
+
+	path := mapPinPath(oomMapName)
+	if err := k.oomMap.Map().Pin(path); err != nil {
+		removeAddedPins()
+		return fmt.Errorf("pin map: %w", err)
+	}
+	pins = append(pins, path)
+
+	if err := pinLink(k.link, linkPinPath(oomLinkName)); err != nil {
+		removeAddedPins()
 		return fmt.Errorf("pin link: %w", err)
 	}
 
 	k.pinned = true
 
 	return nil
+}
+
+func pinLink(l link.Link, path string) error {
+	// A link taken over from a pin still records that path, which makes Pin to the same path a
+	// no-op even though removePins deleted the file. Clear it so that the link is pinned again.
+	_ = l.Unpin()
+	return l.Pin(path)
 }
 
 func (k *Probe) unpin() {
@@ -345,18 +409,13 @@ func (k *Probe) unpin() {
 }
 
 func (k *Probe) attach() error {
-	var pinnedLink link.Link
-
-	if l, err := link.LoadPinnedLink(linkPinPath(oomLinkName), nil); err == nil {
-		pinnedLink = l
-	} else if !errors.Is(err, os.ErrNotExist) {
-		log.Warnf("failed to load pinned oom-kill link, removing it: %s", err)
-		removePin(linkPinPath(oomLinkName))
-	}
-
+	// The memcg flush programs are attached first: the oom-kill program, pinned or not, must not
+	// check the cgroup memory stats against a counter that nothing updates.
 	if err := k.attachMemcgFlushPrograms(); err != nil {
 		return err
 	}
+
+	pinnedLink := loadPinnedLink(oomLinkName)
 
 	prog := k.coll.Programs[k.progName]
 	// The oom-kill program also reads memcg_flush_seq when it collects the cgroup memory stats, so
@@ -431,20 +490,95 @@ func memcgFlushTrackingSupported(spec *bpflib.CollectionSpec) error {
 }
 
 // attachMemcgFlushPrograms attaches the memcg flush programs, if they are loaded.
+//
+// The pinned links of a previous probe are taken over when both run the same programs on the same
+// memcg_flush_seq. Otherwise new links are attached before the pinned ones are released, so that
+// the counter is always updated: while both run, the second program of a pair finds the parity
+// already changed and leaves the counter as is.
 func (k *Probe) attachMemcgFlushPrograms() error {
-	for _, name := range []string{memcgFlushBeginName, memcgFlushEndName} {
-		prog, ok := k.coll.Programs[name]
-		if !ok {
+	// link pin name of each memcg flush program
+	linkNames := map[string]string{
+		memcgFlushBeginName: memcgFlushBeginLinkName,
+		memcgFlushEndName:   memcgFlushEndLinkName,
+	}
+
+	progs := make(map[string]*bpflib.Program)
+	for name := range linkNames {
+		if prog, ok := k.coll.Programs[name]; ok {
+			progs[name] = prog
+		}
+	}
+	if len(progs) == 0 {
+		return nil
+	}
+	if len(progs) != len(linkNames) {
+		return fmt.Errorf("memcg flush programs %s and %s are not all loaded", memcgFlushBeginName, memcgFlushEndName)
+	}
+	seq := k.coll.Maps[memcgFlushSeqName]
+
+	pinnedLinks := make(map[string]link.Link)
+	pinnedProgs := make(map[string]*bpflib.Program)
+	for name, prog := range progs {
+		l := loadPinnedLink(linkNames[name])
+		if l == nil {
 			continue
 		}
+		pinnedLinks[name] = l
+		if pinnedProg := samePinnedProgram(l, prog, seq); pinnedProg != nil {
+			pinnedProgs[name] = pinnedProg
+		}
+	}
+
+	if len(pinnedProgs) == len(progs) {
+		log.Infof("taking ownership of pinned memcg flush probes")
+		for name, pinnedProg := range pinnedProgs {
+			_ = progs[name].Close()
+			k.coll.Programs[name] = pinnedProg
+			k.addMemcgFlushLink(linkNames[name], pinnedLinks[name])
+		}
+		return nil
+	}
+
+	for _, pinnedProg := range pinnedProgs {
+		_ = pinnedProg.Close()
+	}
+	// give up ownership over the pinned links, after attaching the new ones, so they can be fully
+	// released once their pins are removed
+	defer func() {
+		for _, l := range pinnedLinks {
+			_ = l.Close()
+		}
+	}()
+
+	for name, prog := range progs {
 		l, err := link.AttachTracing(link.TracingOptions{Program: prog})
 		if err != nil {
 			k.closeMemcgFlushLinks()
 			return fmt.Errorf("failed to attach %s to %s: %w", name, memcgFlushHookName, err)
 		}
-		k.flushLinks = append(k.flushLinks, l)
+		k.addMemcgFlushLink(linkNames[name], l)
 	}
 	return nil
+}
+
+func (k *Probe) addMemcgFlushLink(linkName string, l link.Link) {
+	if k.flushLinks == nil {
+		k.flushLinks = make(map[string]link.Link)
+	}
+	k.flushLinks[linkName] = l
+}
+
+// loadPinnedLink loads the link pinned for name, if any. A pin that cannot be loaded is removed.
+func loadPinnedLink(name string) link.Link {
+	l, err := link.LoadPinnedLink(linkPinPath(name), nil)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Warnf("failed to load pinned link '%s', removing it: %s", name, err)
+			removePin(linkPinPath(name))
+		}
+		return nil
+	}
+	return l
 }
 
 func (k *Probe) closeMemcgFlushLinks() {
@@ -709,10 +843,16 @@ func usesSameMaps(info *bpflib.ProgramInfo, maps []*bpflib.Map) bool {
 	return true
 }
 
-// removePins removes the link and map pins, and the pin directory if it is empty
+// removePins removes the link and map pins, and the pin directory if it is empty.
+//
+// The oom-kill link is removed first and memcg_flush_seq last, so that the oom-kill program never
+// outlives the memcg flush programs updating the counter it checks the cgroup memory stats against.
 func removePins() {
 	removePin(linkPinPath(oomLinkName))
 	removePin(mapPinPath(oomMapName))
+	removePin(linkPinPath(memcgFlushBeginLinkName))
+	removePin(linkPinPath(memcgFlushEndLinkName))
+	removePin(mapPinPath(memcgFlushSeqName))
 	if err := os.Remove(pinDir); err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, unix.ENOTEMPTY) {
 		log.Debugf("failed to remove pin directory %s: %s", pinDir, err)
 	}
