@@ -77,12 +77,12 @@ type CheckSubmitter struct {
 	forwarderRetryMaxQueueBytes int
 
 	// The latest status for each endpoint and the newest published merged snapshot
-	// are updated together. A buffered event wakes the runner without blocking drains.
+	// are updated together. A buffered signal wakes the runner without blocking drains.
 	rtStatusMu         sync.Mutex
 	endpointRTStatuses map[string]endpointRTStatus
 	latestRTResponse   types.RTResponse
 	rtGeneration       atomic.Uint64
-	rtNotifierChan     chan types.RTResponse
+	rtNotifierChan     chan struct{}
 
 	agentStartTime int64
 
@@ -177,7 +177,7 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		forwarderRetryMaxQueueBytes: queueBytes,
 
 		endpointRTStatuses: make(map[string]endpointRTStatus),
-		rtNotifierChan:     make(chan types.RTResponse, 1),
+		rtNotifierChan:     make(chan struct{}, 1),
 
 		wg:   &sync.WaitGroup{},
 		exit: make(chan struct{}),
@@ -278,8 +278,17 @@ func (s *CheckSubmitter) Stop() {
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
-	return s.rtNotifierChan
+func (s *CheckSubmitter) GetRTNotifier() *types.RTNotifier {
+	return &types.RTNotifier{
+		Wake:   s.rtNotifierChan,
+		Latest: s.latestRTStatus,
+	}
+}
+
+func (s *CheckSubmitter) latestRTStatus() types.RTResponse {
+	s.rtStatusMu.Lock()
+	defer s.rtStatusMu.Unlock()
+	return s.latestRTResponse
 }
 
 func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
@@ -369,13 +378,13 @@ func (s *CheckSubmitter) updateRTStatus(domain string, generation uint64, collec
 		statuses = append(statuses, current.status)
 	}
 
-	// Publication order is separate from payload generation: the notifier
-	// may coalesce pending snapshots, while the runner skips older sequences.
+	// Publication order is separate from payload generation. A pending wake-up
+	// can be coalesced because the runner reads the newest complete snapshot.
 	s.latestRTResponse = types.RTResponse{
 		Statuses: statuses,
 		Sequence: s.latestRTResponse.Sequence + 1,
 	}
-	notifyRTStatusChange(s.rtNotifierChan, s.latestRTResponse)
+	notifyRTStatusChange(s.rtNotifierChan)
 }
 
 func (s *CheckSubmitter) logQueuesSize() {
@@ -506,24 +515,10 @@ func (s *CheckSubmitter) heartbeat(heartbeatTicker *time.Ticker) {
 	}
 }
 
-// notifyRTStatusChange replaces a pending event instead of dropping the newest
-// status when the runner is busy. Publications are serialized by rtStatusMu.
-func notifyRTStatusChange(rtNotifierChan chan types.RTResponse, latest types.RTResponse) {
+// notifyRTStatusChange coalesces wake-ups without blocking a response drainer.
+func notifyRTStatusChange(rtNotifierChan chan<- struct{}) {
 	select {
-	case rtNotifierChan <- latest:
-		return
-	default:
-	}
-
-	select {
-	case pending := <-rtNotifierChan:
-		if pending.Sequence > latest.Sequence {
-			latest = pending
-		}
-	default: // The runner consumed the previous event in the meantime.
-	}
-	select {
-	case rtNotifierChan <- latest:
-	default: // Never wait for the runner to consume an update.
+	case rtNotifierChan <- struct{}{}:
+	default: // A wake-up is already pending.
 	}
 }

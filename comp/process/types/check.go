@@ -36,3 +36,9 @@ type RTResponse struct {
 	Statuses []*model.CollectorStatus
 	Sequence uint64
 }
+
+// RTNotifier wakes the runner to read the latest merged realtime status.
+type RTNotifier struct {
+	Wake   <-chan struct{}
+	Latest func() RTResponse
+}

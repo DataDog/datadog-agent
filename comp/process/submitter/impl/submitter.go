@@ -46,8 +46,8 @@ type dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	RTResponseNotifier <-chan types.RTResponse
-	Submitter          submitterComp.Component
+	RTNotifier *types.RTNotifier
+	Submitter  submitterComp.Component
 }
 
 // NewComponent creates a new submitter component.
@@ -73,7 +73,7 @@ func NewComponent(deps dependencies) (Provides, error) {
 		Submitter: &submitterImpl{
 			s: s,
 		},
-		RTResponseNotifier: s.GetRTNotifierChan(),
+		RTNotifier: s.GetRTNotifier(),
 	}, nil
 }
 

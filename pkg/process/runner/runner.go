@@ -83,8 +83,8 @@ type CheckRunner struct {
 	// Submits check payloads to datadog
 	Submitter Submitter
 
-	// listens for when to enable and disable realtime mode
-	rtNotifierChan <-chan types.RTResponse
+	// Wake-ups are coalesced; read the latest complete status when notified.
+	rtNotifier *types.RTNotifier
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -98,7 +98,7 @@ func NewRunner(
 	sysCfg *sysconfigtypes.Config,
 	hostInfo *checks.HostInfo,
 	enabledChecks []checks.Check,
-	rtNotifierChan <-chan types.RTResponse,
+	rtNotifier *types.RTNotifier,
 ) (*CheckRunner, error) {
 	runRealTime := !config.GetBool("process_config.disable_realtime_checks")
 
@@ -111,7 +111,7 @@ func NewRunner(
 		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress
 	}
 
-	return NewRunnerWithChecks(config, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifierChan)
+	return NewRunnerWithChecks(config, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifier)
 }
 
 // NewRunnerWithChecks creates a new CheckRunner
@@ -121,7 +121,7 @@ func NewRunnerWithChecks(
 	hostInfo *checks.HostInfo,
 	checks []checks.Check,
 	runRealTime bool,
-	rtNotifierChan <-chan types.RTResponse,
+	rtNotifier *types.RTNotifier,
 ) (*CheckRunner, error) {
 	return &CheckRunner{
 		hostInfo:    hostInfo,
@@ -139,8 +139,8 @@ func NewRunnerWithChecks(
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  atomic.NewBool(false),
 
-		runRealTime:    runRealTime,
-		rtNotifierChan: rtNotifierChan,
+		runRealTime: runRealTime,
+		rtNotifier:  rtNotifier,
 	}, nil
 }
 
@@ -264,7 +264,7 @@ func (l *CheckRunner) Run() error {
 	}
 	log.Infof("Starting %s with enabled checks=%v", runnerName, checkNames)
 
-	if realTimeAllowed && l.rtNotifierChan != nil {
+	if realTimeAllowed && l.rtNotifier != nil && l.rtNotifier.Wake != nil {
 		l.listenForRTUpdates()
 	}
 
@@ -320,10 +320,11 @@ func (l *CheckRunner) listenForRTUpdates() {
 		var lastApplied uint64
 		for {
 			select {
-			case response, ok := <-l.rtNotifierChan:
+			case _, ok := <-l.rtNotifier.Wake:
 				if !ok {
 					return
 				}
+				response := l.rtNotifier.Latest()
 				if response.Sequence <= lastApplied {
 					continue
 				}

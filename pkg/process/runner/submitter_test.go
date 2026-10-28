@@ -237,8 +237,10 @@ func TestSubmitterDoesNotBlockHealthyDomainOnSlowDomain(t *testing.T) {
 		submitProcessPayload()
 		synctest.Wait()
 		require.EqualValues(t, 1, calls.Load())
+		notifier := s.GetRTNotifier()
 		select {
-		case response := <-s.GetRTNotifierChan():
+		case <-notifier.Wake:
+			response := notifier.Latest()
 			require.Len(t, response.Statuses, 1, "healthy response should enable realtime before the slow endpoint is released")
 			assert.EqualValues(t, 1, response.Statuses[0].ActiveClients)
 		default:
@@ -338,9 +340,11 @@ func TestSubmitterIgnoresLateSameDomainResponse(t *testing.T) {
 		})
 		synctest.Wait()
 		require.EqualValues(t, 2, calls.Load())
+		notifier := s.GetRTNotifier()
 		var newest types.RTResponse
 		select {
-		case newest = <-s.GetRTNotifierChan():
+		case <-notifier.Wake:
+			newest = notifier.Latest()
 		default:
 			t.Fatal("newer response was not published")
 		}
@@ -351,8 +355,8 @@ func TestSubmitterIgnoresLateSameDomainResponse(t *testing.T) {
 		firstClose()
 		synctest.Wait()
 		select {
-		case stale := <-s.GetRTNotifierChan():
-			t.Fatalf("older response replaced newer status: %+v", stale)
+		case <-notifier.Wake:
+			t.Fatalf("older response replaced newer status: %+v", notifier.Latest())
 		default:
 		}
 	})
@@ -364,11 +368,12 @@ func TestSubmitterMergesLatestStatusAcrossDomains(t *testing.T) {
 	require.NoError(t, err)
 	runner, err := NewRunnerWithChecks(deps.Config, nil, &checks.HostInfo{}, nil, true, nil)
 	require.NoError(t, err)
+	notifier := s.GetRTNotifier()
 	response := func() types.RTResponse {
 		t.Helper()
 		select {
-		case event := <-s.GetRTNotifierChan():
-			return event
+		case <-notifier.Wake:
+			return notifier.Latest()
 		default:
 			t.Fatal("expected immediate realtime publication")
 			return types.RTResponse{}
