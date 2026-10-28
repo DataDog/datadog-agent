@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -41,4 +43,16 @@ func TestRebalance(t *testing.T) {
 		[]string{"clusterchecks", "rebalance"},
 		rebalance,
 		func() {})
+}
+
+func TestLogLevelIgnoresEnv(t *testing.T) {
+	t.Setenv("DD_LOG_LEVEL", "info")
+
+	cmd := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	require.NoError(t, cmd.ParseFlags(nil))
+	logLevel, err := cmd.Flags().GetString("log_level")
+	require.NoError(t, err)
+	assert.Equal(t, "off", bundleParams(GlobalParams{}, logLevel).LogParams.LogLevelFn(nil))
+
+	assert.Equal(t, "debug", bundleParams(GlobalParams{}, "debug").LogParams.LogLevelFn(nil))
 }

@@ -7,11 +7,15 @@ package clusteragent
 
 import (
 	"bytes"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -221,7 +225,7 @@ func TestRenderClusterChecks(t *testing.T) {
 	}
 
 	var b bytes.Buffer
-	renderClusterChecks(&b, state, "", now)
+	renderClusterChecks(&b, state, ClusterChecksOptions{}, now)
 	out := b.String()
 
 	assert.Contains(t, out, "Advanced dispatching: enabled, rebalanced every 10m0s")
@@ -234,20 +238,103 @@ func TestRenderClusterChecks(t *testing.T) {
 	assert.Contains(t, out, "kube-1: last seen 27s ago, expires after 30s without a heartbeat")
 	// A busy runner only sends its backup heartbeat 5s before expiring.
 	assert.NotContains(t, out, "kube-2: last seen")
-	assert.Contains(t, out, `http_check: runner group "http" has no live runner`)
+	assert.Contains(t, out, "=== 1 unassigned configuration(s) ===\nCheck   ")
+	assert.Regexp(t, `http_check\s+0\s+runner group "http" has no live runner`, out)
+	assert.Contains(t, out, "=== 4 agent(s) reporting ===\nName   ")
 	assert.Regexp(t, `runner-1\s+clc-runner\s+general\s+4\s+25.0%\s+1\s+3s ago`, out)
 	assert.Regexp(t, `kube-2\s+clc-runner\s+kube\s+-\s+-\s+0\s+20s ago`, out)
+	assert.Less(t, strings.Index(out, "=== Runner group general ==="), strings.Index(out, "Checks on runner-1"))
 }
 
 func TestRenderClusterChecksAdvancedDispatchingDisabled(t *testing.T) {
 	var b bytes.Buffer
 	renderClusterChecks(&b, types.StateResponse{
 		Dispatching: &types.DispatchingState{AdvancedDispatchingReason: "node agents are reporting", ExcludedChecks: []string{"a", "b"}},
-	}, "", time.Now())
+	}, ClusterChecksOptions{}, time.Now())
 	out := b.String()
 
 	assert.Contains(t, out, "Advanced dispatching: disabled (node agents are reporting)")
 	assert.Contains(t, out, "Excluded checks: a, b")
 	assert.NotContains(t, out, "Runner groups")
 	assert.Contains(t, out, "Zero agent reporting")
+}
+
+func TestRenderClusterChecksInstances(t *testing.T) {
+	now := time.Unix(1_000_000, 0)
+	state := types.StateResponse{
+		Nodes: []types.StateNodeResponse{{
+			Name: "runner-1",
+			Configs: []types.ConfigWithInstanceIDs{
+				{Config: integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("host: a")}}, InstanceIDs: []string{"redis:1"}},
+				{Config: integration.Config{Name: "http_check", Instances: []integration.Data{integration.Data("url: b")}}, InstanceIDs: []string{"http_check:2"}},
+			},
+			Stats: types.CLCRunnersStats{
+				"redis:1": {AverageExecutionTime: 1200, LastExecutionDate: now.UnixMilli() - 8000},
+				"http_check:2": {
+					AverageExecutionTime: 50, LastExecFailed: true,
+					LastError: "connection refused\ntraceback...",
+				},
+			},
+		}},
+	}
+
+	var b bytes.Buffer
+	renderClusterChecks(&b, state, ClusterChecksOptions{}, now)
+	out := b.String()
+	assert.Regexp(t, `redis\s+redis:1\s+1.2s\s+8s ago\s+OK`, out)
+	assert.Regexp(t, `http_check\s+http_check:2\s+50ms\s+-\s+ERROR`, out)
+	assert.Contains(t, out, "Last error http_check:2: connection refused\n")
+	assert.NotContains(t, out, "traceback")
+	assert.NotContains(t, out, "host: a")
+	assert.Contains(t, out, "Use --verbose")
+
+	b.Reset()
+	renderClusterChecks(&b, state, ClusterChecksOptions{CheckName: "redis"}, now)
+	assert.NotContains(t, b.String(), "http_check:2")
+
+	b.Reset()
+	renderClusterChecks(&b, state, ClusterChecksOptions{Verbose: true}, now)
+	out = b.String()
+	assert.Contains(t, out, "host: a")
+	assert.Contains(t, out, "Instance ID: redis:1 [OK]")
+	assert.NotContains(t, out, "Use --verbose")
+}
+
+func TestRenderClusterChecksUnassignedCheckFilter(t *testing.T) {
+	state := types.StateResponse{
+		Dangling: []integration.Config{{Name: "kubernetes_state_core"}, {Name: "http_check"}},
+		Nodes:    []types.StateNodeResponse{{Name: "runner-1"}},
+	}
+
+	// The unassigned section only counts the configs it shows, and is skipped when none are.
+	var b bytes.Buffer
+	renderClusterChecks(&b, state, ClusterChecksOptions{CheckName: "http_check"}, time.Now())
+	assert.Contains(t, b.String(), "=== 1 unassigned configuration(s) ===")
+	b.Reset()
+	renderClusterChecks(&b, state, ClusterChecksOptions{CheckName: "redis"}, time.Now())
+	assert.NotContains(t, b.String(), "unassigned")
+}
+
+func TestRenderClusterChecksInstancesAlignedWithColors(t *testing.T) {
+	noColor := color.NoColor
+	color.NoColor = false
+	defer func() { color.NoColor = noColor }()
+
+	state := types.StateResponse{Nodes: []types.StateNodeResponse{{
+		Name: "runner-1",
+		Configs: []types.ConfigWithInstanceIDs{
+			{Config: integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("a"), integration.Data("b")}}, InstanceIDs: []string{"redis:1", "redis:2"}},
+		},
+		Stats: types.CLCRunnersStats{"redis:1": {AverageExecutionTime: 1200}, "redis:2": {LastExecFailed: true}},
+	}}}
+
+	var b bytes.Buffer
+	renderClusterChecks(&b, state, ClusterChecksOptions{}, time.Now())
+	// Compare visible positions: strip the color escape codes.
+	lines := strings.Split(regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAllString(b.String(), ""), "\n")
+	header := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, "Check") && strings.Contains(l, "Avg exec") })
+	require.GreaterOrEqual(t, header, 0)
+	column := strings.Index(lines[header], "Avg exec")
+	assert.Equal(t, column, strings.Index(lines[header+1], "1.2s"))
+	assert.Equal(t, column, strings.Index(lines[header+2], "0s"))
 }
