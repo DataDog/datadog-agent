@@ -349,15 +349,28 @@ func (s *CheckSubmitter) updateRTStatus(domain string, generation uint64, collec
 	s.rtStatusMu.Lock()
 	defer s.rtStatusMu.Unlock()
 
+	// A late response from an older payload must not undo newer feedback
+	// from this domain.
 	if previous, ok := s.endpointRTStatuses[domain]; ok && previous.generation > generation {
 		return
 	}
-	s.endpointRTStatuses[domain] = endpointRTStatus{generation: generation, status: collectorStatus}
 
+	// The cache is per URL, not per API key. Responses with the same
+	// generation may replace one another; the last one received wins.
+	s.endpointRTStatuses[domain] = endpointRTStatus{
+		generation: generation,
+		status:     collectorStatus,
+	}
+
+	// Publish the full view. Domains that have not answered this payload
+	// retain their last valid status in the map.
 	statuses := make([]*model.CollectorStatus, 0, len(s.endpointRTStatuses))
 	for _, current := range s.endpointRTStatuses {
 		statuses = append(statuses, current.status)
 	}
+
+	// Publication order is separate from payload generation: the notifier
+	// may coalesce pending snapshots, while the runner skips older sequences.
 	s.latestRTResponse = types.RTResponse{
 		Statuses: statuses,
 		Sequence: s.latestRTResponse.Sequence + 1,
