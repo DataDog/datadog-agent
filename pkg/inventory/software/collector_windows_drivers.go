@@ -8,9 +8,7 @@
 package software
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -21,9 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
-
-// errEmptyImagePath reports a driver service that names no binary.
-var errEmptyImagePath = errors.New("empty image path")
 
 // zeroVersion is what the fixed version information reports when a driver ships a version
 // resource but never set FILEVERSION. It carries no information, so it is treated as absent.
@@ -54,57 +49,6 @@ type driverCollector struct {
 	// loadIndirectFn resolves an indirect string reference in a display name. It is a field
 	// so tests stay off the filesystem; nil means resolve against the real module.
 	loadIndirectFn func(source string) (string, error)
-}
-
-// resolveDriverPath turns the image path reported for a driver service into a Win32 path.
-//
-// windowsDir is passed in rather than looked up so that the resolution is deterministic and
-// testable. The rules are ordered so that the prefix strip and the variable expansion, both
-// of which can produce an already-rooted path, run before the checks that recognise one.
-func resolveDriverPath(pathName string, windowsDir string) (string, error) {
-	path := strings.TrimSpace(pathName)
-	if path == "" {
-		return "", errEmptyImagePath
-	}
-
-	// A service binary path containing spaces may be quoted and followed by arguments.
-	// Extract the quoted executable before applying path normalization.
-	if strings.HasPrefix(path, `"`) {
-		closingQuote := strings.Index(path[1:], `"`)
-		if closingQuote < 0 {
-			return "", fmt.Errorf("unterminated quoted image path %q", pathName)
-		}
-		path = path[1 : closingQuote+1]
-		if path == "" {
-			return "", errEmptyImagePath
-		}
-	}
-
-	// "\??\C:\Program Files\Vendor\driver.sys" is the NT object-manager form of a Win32 path.
-	path = strings.TrimPrefix(path, `\??\`)
-
-	// A few drivers store their path with variables, e.g. "%SystemRoot%\System32\drivers".
-	if strings.Contains(path, "%") {
-		expanded, err := winutil.ExpandEnvironmentStrings(path)
-		if err != nil {
-			return "", fmt.Errorf("failed to expand environment variables in %q: %w", pathName, err)
-		}
-		path = expanded
-	}
-
-	// Already rooted: a drive letter, or a UNC share.
-	if filepath.IsAbs(path) {
-		return path, nil
-	}
-
-	// "\SystemRoot\System32\drivers\driver.sys" is relative to the Windows directory.
-	if rest, ok := cutPrefixFold(path, `\SystemRoot\`); ok {
-		return filepath.Join(windowsDir, rest), nil
-	}
-
-	// Anything left is relative to the Windows directory, e.g. "System32\drivers\driver.sys".
-	// A leading separator here is not a root: Windows resolves it against %SystemRoot%.
-	return filepath.Join(windowsDir, strings.TrimLeft(path, `\/`)), nil
 }
 
 // resolveDisplayName turns the DisplayName of a driver service into text fit for a human.
@@ -249,7 +193,7 @@ func (c *driverCollector) collectServiceDrivers(byProductCode map[string]*Entry)
 			continue
 		}
 
-		path, err := resolveDriverPath(driver.ImagePath, windowsDir)
+		path, err := winutil.ResolveDriverImagePath(driver.ImagePath, windowsDir)
 		if err != nil {
 			warnings = append(warnings, warnf("skipping driver %q: %v", name, err))
 			continue

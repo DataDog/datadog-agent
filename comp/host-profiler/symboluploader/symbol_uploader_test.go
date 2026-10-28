@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/DataDog/jsonapi"
 	"github.com/DataDog/zstd"
@@ -790,5 +791,37 @@ func TestTransport(t *testing.T) {
 			assert.Equal(t, defaultFieldValue.Interface(), customFieldValue.Interface(),
 				"Field %s should match default transport", field.Name)
 		}
+	}
+}
+
+func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		report       ReportConfig
+		wantInterval time.Duration
+		wantMax      int
+	}{
+		{"explicit positive", ReportConfig{Interval: 30, MaxPathsPerReport: 7}, 30 * time.Second, 7},
+		{"zero value", ReportConfig{}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
+		{"negative", ReportConfig{Interval: -1, MaxPathsPerReport: -1}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &SymbolUploaderConfig{
+				SymbolUploaderOptions: SymbolUploaderOptions{
+					Enabled:         true,
+					SymbolEndpoints: []SymbolEndpoint{{Site: "test.com", APIKey: "key"}},
+					Report:          tt.report,
+				},
+				Version: "test",
+			}
+
+			uploader, err := NewDatadogSymbolUploader(t.Context(), cfg)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantInterval, uploader.reporter.interval)
+			require.Equal(t, tt.wantMax, uploader.reporter.infoRep.maxPaths)
+			require.Equal(t, tt.wantMax, uploader.reporter.errRep.maxPaths)
+		})
 	}
 }
