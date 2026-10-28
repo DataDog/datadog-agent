@@ -122,6 +122,10 @@ var (
 	}
 
 	logLimiter = log.NewLogLimit(20, 10*time.Minute)
+
+	// promotableProcessTagKeys are the tracer process tags added to the
+	// container of the processes when GPU tracing is enabled.
+	promotableProcessTagKeys = []string{"training_run_id", "training_group_id"}
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -167,6 +171,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
 			case workloadmeta.KindProcess:
 				tagInfos = append(tagInfos, c.handleProcess(ev)...)
+				tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindKubernetesKueueQueue:
@@ -204,6 +209,9 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			// A removed Kueue entity is no longer in the store, so the pods
 			// that used it get re-tagged without it.
 			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
+			// A removed process is no longer in the store, so its container
+			// gets re-tagged without it.
+			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -276,8 +284,8 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
-	for key, value := range container.PromotedTags {
-		tagList.AddLow(key, value)
+	if c.promoteProcessTags {
+		c.addPromotedProcessTags(container.ID, tagList)
 	}
 
 	// resize policy tags
@@ -423,6 +431,80 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 			IsComplete:           ev.IsComplete,
 		},
 	}
+}
+
+// retagProcessContainer recomputes the tags of the container of the given
+// process. Container tags include tags promoted from the processes in the store
+// at that time, and setting, changing or removing those processes later does
+// not generate a new event for the container.
+func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity) []*types.TagInfo {
+	if !c.promoteProcessTags {
+		return nil
+	}
+
+	process, ok := entity.(*workloadmeta.Process)
+	if !ok {
+		return nil
+	}
+
+	containerID := processContainerID(process)
+	if containerID == "" {
+		return nil
+	}
+
+	container, err := c.store.GetContainer(containerID)
+	if err != nil {
+		return nil
+	}
+
+	return c.handleContainer(workloadmeta.Event{
+		Type:       workloadmeta.EventTypeSet,
+		Entity:     container,
+		IsComplete: c.entityCompleteness[container.EntityID],
+	})
+}
+
+// addPromotedProcessTags adds the promotable process tags on which every
+// process of the container that has the tag agrees.
+func (c *WorkloadMetaCollector) addPromotedProcessTags(containerID string, tagList *taglist.TagList) {
+	processes := c.store.ListProcessesWithFilter(func(process *workloadmeta.Process) bool {
+		return processContainerID(process) == containerID
+	})
+	for _, key := range promotableProcessTagKeys {
+		if value, ok := agreedProcessTagValue(processes, key); ok {
+			tagList.AddLow(key, value)
+		}
+	}
+}
+
+// agreedProcessTagValue returns the value of the tracer tag when the processes
+// that have it agree on it. Processes without the tag are ignored.
+func agreedProcessTagValue(processes []*workloadmeta.Process, key string) (string, bool) {
+	var agreed string
+	for _, process := range processes {
+		if process.Service == nil {
+			continue
+		}
+		for _, metadata := range process.Service.TracerMetadata {
+			for tagKey, value := range metadata.Tags() {
+				if tagKey != key || value == "" {
+					continue
+				}
+				if agreed != "" && agreed != value {
+					return "", false
+				}
+				agreed = value
+			}
+		}
+	}
+	return agreed, agreed != ""
+}
+
+func processContainerID(process *workloadmeta.Process) string {
+	if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
+		return process.Owner.ID
+	}
+	return process.ContainerID
 }
 
 func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*types.TagInfo {

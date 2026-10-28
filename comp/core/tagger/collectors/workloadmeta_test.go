@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -3661,31 +3662,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 		},
 		{
-			name: "promoted process tags",
-			container: workloadmeta.Container{
-				EntityID: entityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: containerName,
-				},
-				PromotedTags: map[string]string{"training_run_id": "run-1"},
-			},
-			expected: []*types.TagInfo{
-				{
-					Source:   containerSource,
-					EntityID: taggerEntityID,
-					HighCardTags: []string{
-						"container_name:" + containerName,
-						"container_id:" + entityID.ID,
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: []string{
-						"training_run_id:run-1",
-					},
-					StandardTags: []string{},
-				},
-			},
-		},
-		{
 			name: "resize policy",
 			container: workloadmeta.Container{
 				EntityID: entityID,
@@ -5007,6 +4983,144 @@ type fakeProcessor struct {
 
 func (p *fakeProcessor) ProcessTagInfo(tagInfos []*types.TagInfo) {
 	p.ch <- tagInfos
+}
+
+func TestHandleContainerPromotesProcessTags(t *testing.T) {
+	const containerID = "container-id"
+
+	tests := []struct {
+		name              string
+		gpuTracingEnabled bool
+		processTags       []string
+		expected          []string
+	}{
+		{
+			name:              "processes agree",
+			gpuTracingEnabled: true,
+			processTags: []string{
+				"training_run_id:run-1,training_group_id:group-1",
+				"training_run_id:run-1,training_group_id:group-1",
+			},
+			expected: []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "gpu tracing disabled",
+			gpuTracingEnabled: false,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1"},
+		},
+		{
+			name:              "conflicting values block only that tag",
+			gpuTracingEnabled: true,
+			processTags: []string{
+				"training_run_id:run-1,training_group_id:group-1",
+				"training_run_id:run-2,training_group_id:group-1",
+			},
+			expected: []string{"training_group_id:group-1"},
+		},
+		{
+			name:              "process without tags does not block promotion",
+			gpuTracingEnabled: true,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1", ""},
+			expected:          []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "process with only unrelated tags does not block promotion",
+			gpuTracingEnabled: true,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1", "foo:bar"},
+			expected:          []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "tags outside the allowlist are not promoted",
+			gpuTracingEnabled: true,
+			processTags:       []string{"foo:bar"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := newProcessTagPromotionStore(t)
+			for i, processTags := range test.processTags {
+				store.Set(newProcessWithTags(int32(i+1), containerID, processTags))
+			}
+			store.Set(newProcessWithTags(100, "other-container", "training_run_id:other"))
+
+			cfg := configmock.New(t)
+			cfg.SetInTest("gpu.tracing.enabled", test.gpuTracingEnabled)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleContainer(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+				},
+			})
+
+			require.Len(t, actual, 1)
+			assert.ElementsMatch(t, test.expected, actual[0].LowCardTags)
+		})
+	}
+}
+
+func TestProcessEventsRetagsProcessContainer(t *testing.T) {
+	const containerID = "container-id"
+
+	store := newProcessTagPromotionStore(t)
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	})
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("gpu.tracing.enabled", true)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collectorCh := make(chan []*types.TagInfo, 10)
+	collector.tagProcessor = &fakeProcessor{collectorCh}
+
+	process := newProcessWithTags(1, containerID, "training_run_id:run-1")
+	store.Set(process)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: process}},
+		Ch:     make(chan struct{}),
+	})
+	assert.Contains(t, containerLowCardTags(t, <-collectorCh, containerID), "training_run_id:run-1")
+
+	store.Unset(process)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: process}},
+		Ch:     make(chan struct{}),
+	})
+	assert.NotContains(t, containerLowCardTags(t, <-collectorCh, containerID), "training_run_id:run-1")
+}
+
+func newProcessTagPromotionStore(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
+func newProcessWithTags(pid int32, containerID string, processTags string) *workloadmeta.Process {
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.Itoa(int(pid))},
+		Pid:      pid,
+		Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	}
+	if processTags != "" {
+		process.Service = &workloadmeta.Service{
+			TracerMetadata: []tracermetadata.TracerMetadata{{ProcessTags: processTags}},
+		}
+	}
+	return process
+}
+
+func containerLowCardTags(t *testing.T, tagInfos []*types.TagInfo, containerID string) []string {
+	for _, tagInfo := range tagInfos {
+		if tagInfo.Source == containerSource && tagInfo.EntityID == types.NewEntityID(types.ContainerID, containerID) {
+			return tagInfo.LowCardTags
+		}
+	}
+	t.Fatalf("no tag info for container %s", containerID)
+	return nil
 }
 
 func TestHandlePodWithDeletedContainer(t *testing.T) {

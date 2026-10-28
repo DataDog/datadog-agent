@@ -663,10 +663,7 @@ type Container struct {
 	State         ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
-	CollectorTags []string
-	// PromotedTags are allowlisted tags shared by every process in this container.
-	// They are computed by the process collector when GPU tracing is enabled.
-	PromotedTags    map[string]string `proto:"ignore"`
+	CollectorTags   []string
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	ReadinessProbe  *ContainerProbe `proto:"ignore"`

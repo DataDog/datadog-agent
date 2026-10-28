@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net"
 	"net/url"
 	"slices"
@@ -96,7 +95,6 @@ type collector struct {
 	pidHeartbeats                           map[int32]time.Time
 	knownInjectionStatusPids                core.PidSet // Track PIDs whose injection status we've already reported (but have no service data yet)
 	metricDiscoveredServices                telemetry.Gauge
-	promotedTagContainers                   map[string]struct{}
 }
 
 // EventType represents the type of collector event
@@ -114,11 +112,6 @@ type Event struct {
 	Type    EventType
 	Created []*workloadmeta.Process
 	Deleted []*workloadmeta.Process
-}
-
-var promotableProcessTagKeys = map[string]struct{}{
-	"training_run_id":   {},
-	"training_group_id": {},
 }
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
@@ -152,7 +145,6 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		pidHeartbeats:                           make(map[int32]time.Time),
 		knownInjectionStatusPids:                make(core.PidSet),
 		metricDiscoveredServices:                discoveredServicesGauge,
-		promotedTagContainers:                   make(map[string]struct{}),
 	}
 }
 
@@ -1097,128 +1089,6 @@ func (c *collector) collectServicesCachedOnce(ctx context.Context) {
 	c.updateDiscoveredServicesMetric()
 }
 
-// promoteProcessTagsToContainers copies allowlisted tracer process tags onto their
-// owner container when GPU tracing is enabled and every process agrees on the tag.
-func (c *collector) promoteProcessTagsToContainers() {
-	if !c.config.GetBool("gpu.tracing.enabled") {
-		return
-	}
-
-	processesByContainer := make(map[string][]*workloadmeta.Process)
-	for _, process := range c.store.ListProcesses() {
-		containerID := processContainerID(process)
-		if containerID == "" {
-			continue
-		}
-		processesByContainer[containerID] = append(processesByContainer[containerID], process)
-	}
-
-	events := make([]workloadmeta.CollectorEvent, 0, len(processesByContainer)+len(c.promotedTagContainers))
-	currentContainers := make(map[string]struct{}, len(processesByContainer))
-	for containerID, processes := range processesByContainer {
-		tags := promotedProcessTags(processes)
-		if len(tags) == 0 {
-			continue
-		}
-		currentContainers[containerID] = struct{}{}
-		events = append(events, promotedTagsEvent(containerID, tags))
-	}
-
-	for containerID := range c.promotedTagContainers {
-		if _, exists := currentContainers[containerID]; !exists {
-			events = append(events, promotedTagsClearEvent(containerID))
-		}
-	}
-
-	c.promotedTagContainers = currentContainers
-	if len(events) > 0 {
-		c.store.Notify(events)
-	}
-}
-
-func processContainerID(process *workloadmeta.Process) string {
-	if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
-		return process.Owner.ID
-	}
-	return process.ContainerID
-}
-
-func promotedTagsEvent(containerID string, tags map[string]string) workloadmeta.CollectorEvent {
-	return workloadmeta.CollectorEvent{
-		Type:   workloadmeta.EventTypeSet,
-		Source: workloadmeta.SourceServiceDiscovery,
-		Entity: &workloadmeta.Container{
-			EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
-			PromotedTags: tags,
-		},
-	}
-}
-
-func promotedTagsClearEvent(containerID string) workloadmeta.CollectorEvent {
-	return workloadmeta.CollectorEvent{
-		Type:   workloadmeta.EventTypeUnset,
-		Source: workloadmeta.SourceServiceDiscovery,
-		Entity: &workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
-		},
-	}
-}
-
-// promotedProcessTags returns each allowlisted tag whose value is equal across
-// every process in a container that provides that tag.
-func promotedProcessTags(processes []*workloadmeta.Process) map[string]string {
-	tags := make(map[string]string)
-	for key := range promotableProcessTagKeys {
-		value, ok := agreedProcessTagValue(processes, key)
-		if ok {
-			tags[key] = value
-		}
-	}
-	if len(tags) == 0 {
-		return nil
-	}
-	return tags
-}
-
-func agreedProcessTagValue(processes []*workloadmeta.Process, key string) (string, bool) {
-	var value string
-	var foundValue bool
-	for _, process := range processes {
-		values := processTagValues(process, key)
-		if len(values) == 0 {
-			continue
-		}
-		if len(values) != 1 {
-			return "", false
-		}
-		if !foundValue {
-			value = values[0]
-			foundValue = true
-			continue
-		}
-		if value != values[0] {
-			return "", false
-		}
-	}
-	return value, foundValue
-}
-
-func processTagValues(process *workloadmeta.Process, key string) []string {
-	if process.Service == nil {
-		return nil
-	}
-
-	values := make(map[string]struct{})
-	for _, metadata := range process.Service.TracerMetadata {
-		for tagKey, value := range metadata.Tags() {
-			if tagKey == key {
-				values[value] = struct{}{}
-			}
-		}
-	}
-	return slices.Sorted(maps.Keys(values))
-}
-
 func (c *collector) sendProcessEvent(ctx context.Context, event *Event) bool {
 	select {
 	case c.processEventsCh <- event:
@@ -1266,7 +1136,6 @@ func (c *collector) stream(ctx context.Context) {
 			}
 
 			c.store.Notify(events)
-			c.promoteProcessTagsToContainers()
 
 		case <-ctx.Done():
 			err := healthCheck.Deregister()
