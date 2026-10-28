@@ -78,7 +78,8 @@ impl SpawnInputs {
             .working_dir()
             .map(|d| NullTerminatedWide::from_os_str(d.as_os_str()));
 
-        let env_block = env_block_from_baseline_plus_overrides(process_name, env_token, request)?;
+        let env_block =
+            env_block_from_baseline_plus_overrides(process_name, env_token, request.env())?;
 
         Ok(Self {
             command_line,
