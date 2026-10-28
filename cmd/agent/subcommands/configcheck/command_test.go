@@ -191,3 +191,23 @@ value: 456`,
 	require.True(t, isValidJSON(b.Bytes()))
 	assert.Equal(t, expected, b.String())
 }
+
+func TestLogLevelIgnoresEnv(t *testing.T) {
+	t.Setenv("DD_LOG_LEVEL", "info")
+
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"configcheck"},
+		run,
+		func(_ *cliParams, bundleParams core.BundleParams) {
+			assert.Equal(t, "off", bundleParams.LogParams.LogLevelFn(nil))
+		})
+
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"configcheck", "--log_level", "debug"},
+		run,
+		func(_ *cliParams, bundleParams core.BundleParams) {
+			assert.Equal(t, "debug", bundleParams.LogParams.LogLevelFn(nil))
+		})
+}

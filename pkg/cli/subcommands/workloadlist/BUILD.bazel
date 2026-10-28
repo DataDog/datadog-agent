@@ -33,5 +33,6 @@ dd_agent_go_test(
         "//comp/core",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//assert",
     ],
 )
