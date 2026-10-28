@@ -26,6 +26,8 @@ code.cloudfoundry.org/cfhttp/v2 v2.99.0 h1:A2NuxCLW2MuT8Hsiiky3KE6PDvQZ8rkzPimcI
 code.cloudfoundry.org/cfhttp/v2 v2.99.0/go.mod h1:xJ7XlnKyNnyR0+PGrIKARe0uBTqQK7T4BHMjVHnnb2k=
 code.cloudfoundry.org/garden v0.8.0 h1:vKAs7/4/FU7DtmUlKR5TKzLeVeg6flc39DCVF9PpnCI=
 code.cloudfoundry.org/garden v0.8.0/go.mod h1:Q3hMgvJazZ31yUxblz7Ad3Qw45kZu3z/WX2Lckc2k9s=
+code.cloudfoundry.org/garden v0.9.0 h1:HOkcnRZ/pV5a4WLSMFiQzYhGn7WWrvDDqj715DA8Prg=
+code.cloudfoundry.org/garden v0.9.0/go.mod h1:eAjOLRzl1UgV/qgFB1T35ZSxakNxSWU9pCnMeKv0cyQ=
 code.cloudfoundry.org/lager/v3 v3.92.0 h1:ZtLZz2Ilu9trI2RqlSSgzGcKNfM4BT2sjfegXgg/qbU=
 code.cloudfoundry.org/lager/v3 v3.92.0/go.mod h1:keNq3QcT7z6NwMHHym/YVO6xMktRnuo8n4cHwQVNXV8=
 code.cloudfoundry.org/tlsconfig v0.69.0 h1:bvlvdU2BKiSEcgeiv0Csomzmq7Gn8vGU4yeNXy5FN2M=
