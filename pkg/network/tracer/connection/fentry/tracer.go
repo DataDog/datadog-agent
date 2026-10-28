@@ -10,6 +10,7 @@ package fentry
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"syscall"
@@ -36,8 +37,9 @@ var ErrorDisabled = errors.New("fentry tracer is disabled")
 
 // ErrorUnsupported is the error that occurs when the fentry tracer is enabled but
 // cannot run on this system because of a known kernel limitation (as opposed to an
-// unexpected load failure). It is currently treated as a hard failure by callers;
-// a future changeset will validate falling back to another tracer in this case.
+// unexpected load failure). Callers fall back to the kprobe tracer for this error,
+// same as any other load failure (including verifier errors), unless
+// network_config.allow_kprobe_fallback disables that.
 var ErrorUnsupported = errors.New("fentry tracer is not supported on this system")
 
 // LoadTracer loads a new tracer
@@ -54,7 +56,8 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 	var closeFn func()
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
-		o.MapSpecEditors = mgrOpts.MapSpecEditors
+		// cloned so modifier edits from a failed fentry attempt don't carry over to a fallback tracer
+		o.MapSpecEditors = maps.Clone(mgrOpts.MapSpecEditors)
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
@@ -231,6 +234,14 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 		if closeProtocolClassifierSocketFilterFn != nil {
 			closeProtocolClassifierSocketFilterFn()
 		}
+		// Releases the maps and programs if init failed after they were loaded (e.g. in an
+		// AfterInit modifier), since the caller may fall back to another tracer. It is a no-op
+		// returning ErrManagerNotInitialized if loading itself failed. The ddebpf.Manager.Stop
+		// wrapper is not used because its modifier hooks expect a manager that initialized
+		// successfully, e.g. the telemetry BeforeStop looks up maps that may never have loaded.
+		_ = m.Manager.Stop(manager.CleanAll)
+		// The event handler registered this manager's perf/ring buffer telemetry in BeforeInit.
+		ebpftelemetry.UnregisterTelemetry(m.Manager)
 		return nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
