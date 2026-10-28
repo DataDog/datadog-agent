@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"sync"
 
 	ddhttp "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -21,22 +22,23 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 )
 
-type SymbolQueryBatch []*symbol.Elf
-
 type SymbolQueryResult struct {
-	SymbolSource symbol.Source
+	Upload       bool
+	StoredSource symbol.Source
 	Err          error
 }
 
-type ElfWithBackendSources struct {
+type ElfWithQueryResults struct {
 	*symbol.Elf
-
-	BackendSymbolSources []SymbolQueryResult
+	// CandidateSource is the symbol sent to the backend for this binary.
+	CandidateSource symbol.Source
+	// QueryResults has one slot per querier (endpoint), in querier order.
+	QueryResults []SymbolQueryResult
 }
 
 // GetSize returns the size of the underlying elf.
 // It will return 0 if the size can't be retrieved.
-func (e *ElfWithBackendSources) GetSize() int64 {
+func (e *ElfWithQueryResults) GetSize() int64 {
 	return e.Elf.GetSize()
 }
 
@@ -68,13 +70,13 @@ func getBuildID(gnuBuildID, goBuildID string, fileID libpf.FileID) string {
 	return fileHash(fileID)
 }
 
-func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier SymbolQuerier, ind int,
-	reporter *uploadReporter, buildIDToResult map[string][]*ElfWithBackendSources) {
+func invokeQuerier(ctx context.Context, candidates []SymbolCandidate, arch string, querier SymbolQuerier, ind int,
+	reporter *uploadReporter, buildIDToResult map[string][]*ElfWithQueryResults) {
 	elfCount := 0
 	for _, results := range buildIDToResult {
 		elfCount += len(results)
 	}
-	symbolFiles, err := querier.QuerySymbols(ctx, buildIDs, arch)
+	symbolFiles, err := querier.QuerySymbols(ctx, candidates, arch)
 	if err != nil {
 		reason := reasonRequestError
 		if sce, ok := errors.AsType[*ddhttp.StatusCodeError](err); ok && sce.StatusCode == http.StatusTooManyRequests {
@@ -92,7 +94,7 @@ func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier 
 		for _, results := range buildIDToResult {
 			for _, result := range results {
 				paths = append(paths, result.Path())
-				result.BackendSymbolSources[ind].Err = queryErr
+				result.QueryResults[ind].Err = queryErr
 			}
 		}
 		reporter.Error(reason, elfCount, paths...)
@@ -101,63 +103,52 @@ func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier 
 
 	reporter.Info(reasonQueried, elfCount)
 
-	// Note that the same buildID can appear multiple times in the symbolFiles with different buildIDTypes
-	// because there is no constraint in sourcemap DB that prevents having identical goBuildID, gnuBuildID
-	// of fileHash for the same or a different executable.
-	// For a given buildID though, the backend will return first the matching gnuBuildID, then goBuildID and
-	// finally fileHash if they exist.
-	// That's why we consider the first symbol source for a given buildID and ignore the rest.
+	// Among binaries sharing the same build ID, QueryResults.Upload defaults to true
+	// for the one with the highest-priority source. The backend can only turn it off,
+	// with a no_upload decision for the candidate.
 	for _, symbolFile := range symbolFiles {
-		for _, result := range buildIDToResult[symbolFile.BuildID] {
-			queryResult := &result.BackendSymbolSources[ind]
-			if queryResult.Err != nil || queryResult.SymbolSource != symbol.SourceNone {
-				// Already set or an error occurred, skips
-				continue
+		storedSource, err := symbol.NewSource(symbolFile.SymbolSource)
+		if err != nil {
+			storedSource = symbol.SourceNone
+		}
+		for _, result := range buildIDToResult[symbolFile.BuildId] {
+			if symbolFile.Decision == decisionNoUpload {
+				result.QueryResults[ind].Upload = false
 			}
-			src, err := symbol.NewSource(symbolFile.SymbolSource)
-			if err != nil {
-				result.BackendSymbolSources[ind].Err = fmt.Errorf("failed to parse symbol source: %w", err)
-				reporter.Error(reasonSourceParseError, 1, result.Path())
-			} else {
-				result.BackendSymbolSources[ind].SymbolSource = src
-			}
+			result.QueryResults[ind].StoredSource = storedSource
 		}
 	}
 }
 
-func (e *ElfWithBackendSources) fillWithError(err error) {
-	for i := range e.BackendSymbolSources {
-		e.BackendSymbolSources[i].Err = err
+func (e *ElfWithQueryResults) fillWithError(err error) {
+	for i := range e.QueryResults {
+		e.QueryResults[i].Err = err
 	}
 }
 
-func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, queriers []SymbolQuerier,
-	reporter *uploadReporter) []ElfWithBackendSources {
+func ExecuteSymbolQueryBatch(ctx context.Context, batch []ElfWithQueryResults, queriers []SymbolQuerier,
+	reporter *uploadReporter) []ElfWithQueryResults {
 	if len(batch) == 0 {
 		return nil
 	}
 
 	slog.Debug("Querying symbols for executables", slog.Int("count", len(batch)))
-	buildIDToResult := make(map[string][]*ElfWithBackendSources)
+	buildIDToResult := make(map[string][]*ElfWithQueryResults)
 
 	// All the elfs in the batch are expected to have the same arch
-	arch := batch[0].Arch()
+	arch := batch[0].Elf.Arch()
 
-	elfResults := make([]ElfWithBackendSources, 0, len(batch))
 	invalidBuildIDs := 0
 
-	for _, e := range batch {
-		elfResults = append(elfResults,
-			ElfWithBackendSources{Elf: e, BackendSymbolSources: make([]SymbolQueryResult, len(queriers))})
-
-		result := &elfResults[len(elfResults)-1]
-		if e.Arch() != arch {
-			result.fillWithError(fmt.Errorf("arch mismatch: expected %s, got %s", arch, e.Arch()))
+	for i := range batch {
+		result := &batch[i]
+		if result.Elf.Arch() != arch {
+			result.fillWithError(fmt.Errorf("arch mismatch: expected %s, got %s", arch, result.Elf.Arch()))
 			invalidBuildIDs++
 			continue
 		}
 
-		buildID := getBuildID(e.GnuBuildID(), e.GoBuildID(), e.FileID())
+		buildID := getBuildID(result.Elf.GnuBuildID(), result.Elf.GoBuildID(), result.Elf.FileID())
 		if buildID == "" {
 			result.fillWithError(errors.New("empty buildID"))
 			invalidBuildIDs++
@@ -167,24 +158,51 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 	}
 	reporter.Error(reasonInvalidBuildID, invalidBuildIDs)
 
-	buildIDs := make([]string, 0, len(buildIDToResult))
-	for buildID := range buildIDToResult {
-		buildIDs = append(buildIDs, buildID)
+	// One candidate per build ID, declaring the highest-priority source found among the binaries
+	// sharing that build ID. By default, upload is set to true for that candidate.
+	candidates := make([]SymbolCandidate, 0, len(buildIDToResult))
+	for buildID, results := range buildIDToResult {
+		maxSource := results[0].CandidateSource
+		fileName := ""
+		for _, result := range results {
+			if result.CandidateSource > maxSource {
+				maxSource = result.CandidateSource
+				fileName = filepath.Base(result.Path())
+			}
+		}
+		if fileName == "" {
+			fileName = filepath.Base(results[0].Path())
+		}
+		for _, result := range results {
+			for ind := range result.QueryResults {
+				result.QueryResults[ind].Upload = result.CandidateSource == maxSource
+			}
+		}
+		candidates = append(candidates, SymbolCandidate{
+			BuildId:      buildID,
+			FileName:     fileName,
+			SymbolSource: maxSource.String(),
+		})
+	}
+
+	if len(candidates) == 0 {
+		// The backend rejects empty candidates.
+		return batch
 	}
 
 	if len(queriers) == 1 {
-		invokeQuerier(ctx, buildIDs, arch, queriers[0], 0, reporter, buildIDToResult)
+		invokeQuerier(ctx, candidates, arch, queriers[0], 0, reporter, buildIDToResult)
 	} else {
 		var wg sync.WaitGroup
 		for i, querier := range queriers {
 			wg.Add(1)
 			go func(i int, querier SymbolQuerier) {
 				defer wg.Done()
-				invokeQuerier(ctx, buildIDs, arch, querier, i, reporter, buildIDToResult)
+				invokeQuerier(ctx, candidates, arch, querier, i, reporter, buildIDToResult)
 			}(i, querier)
 		}
 		wg.Wait()
 	}
 
-	return elfResults
+	return batch
 }

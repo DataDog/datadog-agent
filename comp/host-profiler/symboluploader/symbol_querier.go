@@ -20,21 +20,35 @@ import (
 
 const symbolQueryEndpoint = "/api/v2/profiles/symbols/query"
 
-type SymbolFile struct {
-	ID           string `json:"id" jsonapi:"primary,symbols-query-response"`
-	BuildID      string `json:"buildId" jsonapi:"attribute"`
-	SymbolSource string `json:"symbolSource" jsonapi:"attribute"`
-	BuildIDType  string `json:"buildIdType" jsonapi:"attribute"`
+type SymbolCandidate struct {
+	BuildId      string `json:"buildId"`
+	FileName     string `json:"fileName"`
+	SymbolSource string `json:"symbolSource"`
 }
 
 type SymbolsQueryRequest struct {
-	ID       string   `jsonapi:"primary,symbols-query-request"`
-	BuildIDs []string `json:"buildIds" jsonapi:"attribute" validate:"required"`
-	Arch     string   `json:"arch" jsonapi:"attribute" validate:"required"`
+	ID         string            `jsonapi:"primary,symbols-query-request"`
+	Arch       string            `json:"arch" jsonapi:"attribute" validate:"required"`
+	Candidates []SymbolCandidate `json:"candidates" jsonapi:"attribute"`
+}
+
+type SymbolFileDecision string
+
+const (
+	decisionUpload   SymbolFileDecision = "upload"
+	decisionNoUpload SymbolFileDecision = "no_upload"
+)
+
+type SymbolFile struct {
+	ID           string             `json:"id" jsonapi:"primary,symbols-query-response"`
+	BuildId      string             `json:"buildId" jsonapi:"attribute"`
+	SymbolSource string             `json:"symbolSource" jsonapi:"attribute"`
+	BuildIdType  string             `json:"buildIdType" jsonapi:"attribute"`
+	Decision     SymbolFileDecision `json:"decision,omitempty" jsonapi:"attribute" openapi:"enum=upload|no_upload"`
 }
 
 type SymbolQuerier interface {
-	QuerySymbols(ctx context.Context, buildIDs []string, arch string) ([]SymbolFile, error)
+	QuerySymbols(ctx context.Context, candidates []SymbolCandidate, arch string) ([]SymbolFile, error)
 }
 
 type datadogSymbolQuerier struct {
@@ -58,12 +72,12 @@ func buildSymbolQueryURL(ddSite string) string {
 	return fmt.Sprintf("https://api.%s%s", ddSite, symbolQueryEndpoint)
 }
 
-func (d *datadogSymbolQuerier) QuerySymbols(ctx context.Context, buildIDs []string,
+func (d *datadogSymbolQuerier) QuerySymbols(ctx context.Context, candidates []SymbolCandidate,
 	arch string) ([]SymbolFile, error) {
 	symbolsQueryRequest := &SymbolsQueryRequest{
-		ID:       "symbols-query-request",
-		BuildIDs: buildIDs,
-		Arch:     arch,
+		ID:         "symbols-query-request",
+		Candidates: candidates,
+		Arch:       arch,
 	}
 
 	body, err := jsonapi.Marshal(symbolsQueryRequest)

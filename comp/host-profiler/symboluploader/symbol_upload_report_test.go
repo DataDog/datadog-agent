@@ -119,7 +119,7 @@ func TestQuerySymbolsRateLimited(t *testing.T) {
 		httpmock.NewStringResponder(http.StatusTooManyRequests, `{"errors":[{"status":"429","title":"Too Many Requests"}]}`),
 	)
 
-	symbolFiles, err := querier.QuerySymbols(t.Context(), []string{"buildid1"}, "arch1")
+	symbolFiles, err := querier.QuerySymbols(t.Context(), []SymbolCandidate{{BuildId: "buildid1"}}, "arch1")
 	require.Nil(t, symbolFiles)
 	var sce *ddhttp.StatusCodeError
 	require.ErrorAs(t, err, &sce)
@@ -324,7 +324,7 @@ type failingQuerier struct {
 	err error
 }
 
-func (f *failingQuerier) QuerySymbols(_ context.Context, _ []string, _ string) ([]SymbolFile, error) {
+func (f *failingQuerier) QuerySymbols(_ context.Context, _ []SymbolCandidate, _ string) ([]SymbolFile, error) {
 	return nil, f.err
 }
 
@@ -348,7 +348,11 @@ func TestExecuteSymbolQueryBatchReportsQueryError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			reporter, buf := setupReportFixture(t)
 
-			ExecuteSymbolQueryBatch(t.Context(), elfs, []SymbolQuerier{&failingQuerier{err: tt.err}}, reporter)
+			queryBatch := []ElfWithQueryResults{
+				{Elf: elfs[0], CandidateSource: symbol.SourceSymbolTable, QueryResults: make([]SymbolQueryResult, 1)},
+				{Elf: elfs[1], CandidateSource: symbol.SourceSymbolTable, QueryResults: make([]SymbolQueryResult, 1)},
+			}
+			ExecuteSymbolQueryBatch(t.Context(), queryBatch, []SymbolQuerier{&failingQuerier{err: tt.err}}, reporter)
 			reporter.flush()
 
 			reports := decodeReports(t, buf)

@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -395,31 +396,71 @@ func buildGo(t *testing.T, tmpDir, buildID string, opts buildOptions) string {
 	return exe
 }
 
-func buildSymbolQueryResponse(t *testing.T, buildID string, symbolSource symbol.Source) string {
-	var symbolFiles []SymbolFile
-	if symbolSource != symbol.SourceNone {
-		symbolFiles = []SymbolFile{
-			{
-				ID:           "1",
-				BuildID:      buildID,
-				SymbolSource: symbolSource.String(),
-				BuildIDType:  "go_build_id",
-			},
-		}
-	}
-	r, err := jsonapi.Marshal(&symbolFiles)
-	require.NoError(t, err)
-	return string(r)
+type queryRecorder struct {
+	queries []*SymbolsQueryRequest
 }
 
-func registerResponders(t *testing.T, buildID string) []chan *http.Request {
+func newQueryRecorder(n int) *queryRecorder {
+	return &queryRecorder{queries: make([]*SymbolsQueryRequest, n)}
+}
+
+func (r *queryRecorder) record(i int, req *SymbolsQueryRequest) {
+	r.queries[i] = req
+}
+
+func (r *queryRecorder) get(i int) *SymbolsQueryRequest {
+	return r.queries[i]
+}
+
+func registerResponders(t *testing.T, buildID string) ([]chan *http.Request, *queryRecorder) {
+	t.Helper()
 	channels := make([]chan *http.Request, 0, len(testEndpoints))
-	symbolSources := []symbol.Source{symbol.SourceNone, symbol.SourceDynamicSymbolTable, symbol.SourceSymbolTable, symbol.SourceGoPCLnTab, symbol.SourceDebugInfo}
+	storedSources := []symbol.Source{symbol.SourceNone, symbol.SourceDynamicSymbolTable, symbol.SourceSymbolTable, symbol.SourceGoPCLnTab, symbol.SourceDebugInfo}
+	recorder := newQueryRecorder(len(testEndpoints))
 	for i, e := range testEndpoints {
 		c := make(chan *http.Request, 1)
 		channels = append(channels, c)
+		stored := storedSources[i]
+		endpointIdx := i
 		httpmock.RegisterResponder("POST", buildSymbolQueryURL(e),
-			httpmock.NewStringResponder(200, buildSymbolQueryResponse(t, buildID, symbolSources[i])))
+			func(req *http.Request) (*http.Response, error) {
+				b, err := io.ReadAll(req.Body)
+				if err != nil {
+					return nil, err
+				}
+				var decoded SymbolsQueryRequest
+				if err := jsonapi.Unmarshal(b, &decoded); err != nil {
+					return nil, err
+				}
+				recorder.record(endpointIdx, &decoded)
+
+				symbolFiles := make([]SymbolFile, 0, len(decoded.Candidates))
+				for j, c := range decoded.Candidates {
+					if c.BuildId != buildID {
+						continue
+					}
+					candidateSource, err := symbol.NewSource(c.SymbolSource)
+					if err != nil {
+						return nil, err
+					}
+					decision := decisionNoUpload
+					if candidateSource > stored {
+						decision = decisionUpload
+					}
+					symbolFiles = append(symbolFiles, SymbolFile{
+						ID:           strconv.Itoa(j),
+						BuildId:      c.BuildId,
+						SymbolSource: stored.String(),
+						BuildIdType:  "go_build_id",
+						Decision:     decision,
+					})
+				}
+				respBody, err := jsonapi.Marshal(&symbolFiles)
+				if err != nil {
+					return nil, err
+				}
+				return httpmock.NewBytesResponse(200, respBody), nil
+			})
 		httpmock.RegisterResponder("POST", buildSourcemapIntakeURL(e),
 			func(req *http.Request) (*http.Response, error) {
 				// Read request body before sending response otherwise client will receive the response before having sent all the data
@@ -432,7 +473,7 @@ func registerResponders(t *testing.T, buildID string) []chan *http.Request {
 				return httpmock.NewStringResponse(200, ""), nil
 			})
 	}
-	return channels
+	return channels, recorder
 }
 
 // captureUploadReports routes slog.Default to a JSON buffer, so tests can
@@ -481,28 +522,37 @@ func TestSymbolUpload(t *testing.T) {
 
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	buildID := "some_go_build_id"
-	channels := registerResponders(t, buildID)
+	channels, recorder := registerResponders(t, buildID)
 
-	checkUploadsWithEncoding := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool, expectedEncoding string) {
+	checkUploadsWithEncoding := func(t *testing.T, execPath string, expectedCandidateSource, expectedUploadSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool, expectedEncoding string) {
 		callCountInfo := httpmock.GetCallCountInfo()
 		for i, e := range testEndpoints {
 			assert.Equal(t, 1, callCountInfo["POST "+buildSymbolQueryURL(e)])
+
+			query := recorder.get(i)
+			if assert.NotNil(t, query, "endpoint %d: no symbols-query request recorded", i) {
+				if assert.Len(t, query.Candidates, 1) {
+					assert.Equal(t, expectedCandidateSource.String(), query.Candidates[0].SymbolSource)
+					assert.Equal(t, filepath.Base(execPath), query.Candidates[0].FileName)
+				}
+			}
+
 			if expectedUploads[i] {
 				assert.Equal(t, 1, callCountInfo["POST "+buildSourcemapIntakeURL(e)])
 				req := <-channels[i]
-				checkRequest(t, req, expectedSymbolSource, expectedGoPCLnTab, expectedEncoding)
+				checkRequest(t, req, expectedUploadSource, expectedGoPCLnTab, expectedEncoding)
 			} else {
 				assert.Equal(t, 0, callCountInfo["POST "+buildSourcemapIntakeURL(e)])
 			}
 		}
 	}
 
-	checkUploads := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool) {
+	checkUploads := func(t *testing.T, execPath string, expectedCandidateSource, expectedUploadSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool) {
 		expectedEncoding := ""
 		if !objcopyZstdSupport {
 			expectedEncoding = "zstd"
 		}
-		checkUploadsWithEncoding(t, expectedSymbolSource, expectedGoPCLnTab, expectedUploads, expectedEncoding)
+		checkUploadsWithEncoding(t, execPath, expectedCandidateSource, expectedUploadSource, expectedGoPCLnTab, expectedUploads, expectedEncoding)
 	}
 
 	goExeNoSymbols := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: false, symtab: false, debugInfos: false})
@@ -537,7 +587,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(execMeta)
 		uploader.Stop()
 
-		checkUploads(t, symbol.SourceSymbolTable, false, []bool{true, true, false, false, false})
+		checkUploads(t, goExeSymtab, symbol.SourceSymbolTable, symbol.SourceSymbolTable, false, []bool{true, true, false, false, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 
 		uploader.UploadSymbols(execMeta)
@@ -556,7 +606,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfos))
 		uploader.Stop()
 
-		checkUploads(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
+		checkUploads(t, goExeDebugInfos, symbol.SourceDebugInfo, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
@@ -584,7 +634,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeyDynsym))
 		uploader.Stop()
 
-		checkUploads(t, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
+		checkUploads(t, goExeyDynsym, symbol.SourceDynamicSymbolTable, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
@@ -598,7 +648,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeNoSymbols))
 		uploader.Stop()
 
-		checkUploads(t, symbol.SourceGoPCLnTab, true, []bool{true, true, true, false, false})
+		checkUploads(t, goExeNoSymbols, symbol.SourceGoPCLnTab, symbol.SourceGoPCLnTab, true, []bool{true, true, true, false, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
@@ -612,7 +662,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfosCorruptGoPCLnTab))
 		uploader.Stop()
 
-		checkUploads(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
+		checkUploads(t, goExeDebugInfosCorruptGoPCLnTab, symbol.SourceDebugInfo, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
@@ -626,7 +676,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeyDynsymCorruptGoPCLnTab))
 		uploader.Stop()
 
-		checkUploads(t, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
+		checkUploads(t, goExeyDynsymCorruptGoPCLnTab, symbol.SourceGoPCLnTab, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
@@ -640,7 +690,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeyDynsymCorruptGoPCLnTab))
 		uploader.Stop()
 
-		checkUploads(t, symbol.SourceNone, false, []bool{false, false, false, false, false})
+		checkUploads(t, goExeyDynsymCorruptGoPCLnTab, symbol.SourceGoPCLnTab, symbol.SourceNone, false, []bool{false, false, false, false, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonGoPCLnTabError: 1}, uploadReportCounts(t, reports))
 	})
 
@@ -650,7 +700,7 @@ func TestSymbolUpload(t *testing.T) {
 			backend    SymbolQueryResult
 			wantCounts map[string]int
 		}{
-			{"existing symbols", SymbolQueryResult{SymbolSource: symbol.SourceDebugInfo}, map[string]int{reasonExistingSymbols: 1}},
+			{"existing symbols", SymbolQueryResult{Upload: false}, map[string]int{reasonExistingSymbols: 1}},
 			{"query error", SymbolQueryResult{Err: errors.New("query failed")}, map[string]int{}},
 		}
 		for _, tt := range tests {
@@ -661,7 +711,7 @@ func TestSymbolUpload(t *testing.T) {
 				e, err := symbol.NewElfFromDisk(goExeSymtab)
 				require.NoError(t, err)
 
-				uploader.uploadWorker(t.Context(), ElfWithBackendSources{Elf: e, BackendSymbolSources: []SymbolQueryResult{tt.backend}})
+				uploader.uploadWorker(t.Context(), ElfWithQueryResults{Elf: e, QueryResults: []SymbolQueryResult{tt.backend}})
 				uploader.reporter.flush()
 
 				require.Equal(t, tt.wantCounts, uploadReportCounts(t, reports))
@@ -679,7 +729,21 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfos))
 		uploader.Stop()
 
-		checkUploadsWithEncoding(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false}, "zstd")
+		checkUploadsWithEncoding(t, goExeDebugInfos, symbol.SourceDebugInfo, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false}, "zstd")
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
+	})
+
+	t.Run("Declare gopclntab over symtab when enabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
+		httpmock.ZeroCallCounters()
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
+		require.NoError(t, err)
+		uploader.Start(t.Context())
+
+		uploader.UploadSymbols(newExecutableMetadata(t, goExeSymtab))
+		uploader.Stop()
+
+		checkUploads(t, goExeSymtab, symbol.SourceGoPCLnTab, symbol.SourceGoPCLnTab, true, []bool{true, true, true, false, false})
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 }

@@ -59,6 +59,17 @@ go_library(
 )
 
 dd_agent_go_test(
+    name = "symbol_querier_test",
+    srcs = ["symbol_querier_test.go"],
+    embed = [":symboluploader"],
+    deps = [
+        "@com_github_datadog_jsonapi//:jsonapi",
+        "@com_github_jarcoal_httpmock//:httpmock",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
     name = "symbol_query_batching_test",
     srcs = ["symbol_query_batching_test.go"],
     data = glob(["testdata/**"]),

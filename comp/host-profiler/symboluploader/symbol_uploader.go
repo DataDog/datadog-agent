@@ -202,7 +202,7 @@ func (d *DatadogSymbolUploader) Start(ctx context.Context) {
 	}
 
 	uploadWorker := pipeline.NewBudgetedProcessingFunc(memoryBudget,
-		func(elfSymbols ElfWithBackendSources) int64 {
+		func(elfSymbols ElfWithQueryResults) int64 {
 			size := elfSymbols.GetSize()
 			if size > memoryBudget {
 				slog.Warn("Upload size is larger than memory limit, attempting upload anyway", slog.String("elf", elfSymbols.String()))
@@ -281,13 +281,23 @@ func (d *DatadogSymbolUploader) symbolRetrievalWorker(_ context.Context, execMet
 	outputChan <- elfSymbols
 }
 
-func (d *DatadogSymbolUploader) queryWorker(ctx context.Context, batch []*symbol.Elf, outputChan chan<- ElfWithBackendSources) {
-	for _, e := range ExecuteSymbolQueryBatch(ctx, batch, d.symbolQueriers, d.reporter) {
+func (d *DatadogSymbolUploader) queryWorker(ctx context.Context, batch []*symbol.Elf, outputChan chan<- ElfWithQueryResults) {
+	queryBatch := make([]ElfWithQueryResults, len(batch))
+	for i, e := range batch {
+		// The candidate declares the optimistic source without parsing the .gopclntab.
+		symbolSource := d.getSymbolSourceIfGoPCLnTab(e)
+		queryBatch[i] = ElfWithQueryResults{
+			Elf:             e,
+			CandidateSource: symbolSource,
+			QueryResults:    make([]SymbolQueryResult, len(d.symbolQueriers)),
+		}
+	}
+	for _, e := range ExecuteSymbolQueryBatch(ctx, queryBatch, d.symbolQueriers, d.reporter) {
 		outputChan <- e
 	}
 }
 
-func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols ElfWithBackendSources) {
+func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols ElfWithQueryResults) {
 	var endpointIndices []int
 	removeFromCache := false
 	defer func() {
@@ -298,35 +308,35 @@ func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols Elf
 	}()
 
 	skippedByError := false
-	hasExistingSymbols := false
 	var pclntabErr error
-	for i, backendSymbolSource := range elfSymbols.BackendSymbolSources {
-		if backendSymbolSource.Err != nil {
+	for i, queryResult := range elfSymbols.QueryResults {
+		if queryResult.Err != nil {
 			slog.Debug("Symbol query failed for executable",
 				slog.String("executable", elfSymbols.String()),
 				slog.Int("endpoint", i),
-				slog.String("error", backendSymbolSource.Err.Error()))
+				slog.String("error", queryResult.Err.Error()))
 			skippedByError = true
 			removeFromCache = true
 			continue
 		}
 
-		if backendSymbolSource.SymbolSource != symbol.SourceNone {
-			hasExistingSymbols = true
+		if !queryResult.Upload {
+			continue
 		}
 
-		upload, symbolSource, err := d.shouldUpload(elfSymbols.Elf, backendSymbolSource.SymbolSource)
-		if err != nil {
-			pclntabErr = err
+		// The gopclntab declaration is optimistic (no parse at candidate time). Parse it now,
+		// and skip this endpoint unless the real extraction beats what it already stores.
+		if elfSymbols.CandidateSource == symbol.SourceGoPCLnTab {
+			parsedSource, _, err := d.getSymbolSourceWithGoPCLnTab(elfSymbols.Elf)
+			if err != nil {
+				pclntabErr = err
+				removeFromCache = true
+			}
+			if parsedSource == symbol.SourceNone || parsedSource <= queryResult.StoredSource {
+				continue
+			}
 		}
-
-		if upload {
-			endpointIndices = append(endpointIndices, i)
-		}
-		if symbolSource == symbol.SourceNone {
-			// Remove from cache because we might have symbols for this exe in another context
-			removeFromCache = true
-		}
+		endpointIndices = append(endpointIndices, i)
 	}
 
 	if len(endpointIndices) == 0 {
@@ -335,10 +345,8 @@ func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols Elf
 			d.reporter.Error(reasonGoPCLnTabError, 1, elfSymbols.Path())
 		case skippedByError:
 			// Query failures are already counted by invokeQuerier.
-		case hasExistingSymbols:
-			d.reporter.Info(reasonExistingSymbols, 1, elfSymbols.Path())
 		default:
-			d.reporter.Info(reasonNoDebugSymbols, 1, elfSymbols.Path())
+			d.reporter.Info(reasonExistingSymbols, 1, elfSymbols.Path())
 		}
 		return
 	}
@@ -401,15 +409,6 @@ func (d *DatadogSymbolUploader) getSymbolsFromDisk(execMeta *reporter.Executable
 	}
 
 	return elfSymbols
-}
-
-func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource symbol.Source) (upload bool, symbolSource symbol.Source, pclntabErr error) {
-	symbolSource = d.getSymbolSourceIfGoPCLnTab(e)
-	if existingSymbolSource >= symbolSource {
-		return false, symbolSource, nil
-	}
-	symbolSource, _, pclntabErr = d.getSymbolSourceWithGoPCLnTab(e)
-	return symbolSource != symbol.SourceNone && existingSymbolSource < symbolSource, symbolSource, pclntabErr
 }
 
 // Returns true if the upload was successful, false otherwise
