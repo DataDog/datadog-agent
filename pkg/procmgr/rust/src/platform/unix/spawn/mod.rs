@@ -20,8 +20,7 @@ impl ManagedProcess {
     pub(crate) fn spawn_child_handle(&mut self) -> Result<ProcessHandle> {
         let process_name = self.name();
         info!("[{process_name}] spawn profile: {}", self.profile());
-        // Unix does not switch users, so the child runs as dd-procmgrd.
-        let request = SpawnRequest::from_config(process_name, self.config(), true)?;
+        let request = SpawnRequest::from_config(process_name, self.config())?;
         let mut cmd = request.to_command(stdout_inheritable(), stderr_inheritable());
         setup_process_group(&mut cmd);
         let child = spawn_registered(|| cmd.spawn()).with_context(|| {

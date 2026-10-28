@@ -73,24 +73,21 @@ fn test_cli_env_overrides_environment_file() {
 
 #[cfg(unix)]
 #[test]
-fn test_cli_child_inherits_same_user_env_except_supervisor_vars() {
-    // /bin/sh supplies its own PATH when none is inherited.
+fn test_cli_child_does_not_inherit_parent_env() {
     let env = TestEnv::new()
-        .with_daemon_env(&[("PROCMGRD_SUPERVISOR_VAR", "copied")])
         .with_config(
-            "same-user-env",
+            "clean-env",
             concat!(
                 "command: /bin/sh\n",
                 "args:\n",
                 "  - '-c'\n",
-                "  - 'test \"$PROCMGRD_SUPERVISOR_VAR\" = copied && test -z \"$DD_PM_CONFIG_DIR\" && test -z \"$DD_PM_SOCKET_PATH\"'\n",
+                "  - 'test -z \"$HOME\" && exit 0 || exit 1'\n",
                 "restart: never\n",
             ),
         )
         .start();
 
-    env.daemon()
-        .wait_for_log_default("[same-user-env] exited with");
+    env.daemon().wait_for_log_default("[clean-env] exited with");
 
     let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["state"], "Exited");
