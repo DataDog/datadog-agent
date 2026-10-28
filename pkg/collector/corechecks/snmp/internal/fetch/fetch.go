@@ -58,7 +58,7 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 		columnResults = make(valuestore.ColumnResultValuesType)
 		remainingOIDs := columnOIDs
 		var batchErr *columnBatchError
-		if errors.As(err, &batchErr) {
+		if errors.As(bulkErr, &batchErr) {
 			columnResults = batchErr.fetchedValues
 			remainingOIDs = batchErr.unfetchedOIDs
 		}
