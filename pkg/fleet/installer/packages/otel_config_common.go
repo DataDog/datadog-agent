@@ -42,12 +42,20 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 		existing = map[string]any{}
 	}
 	existing["otelcollector"] = map[string]any{"enabled": true}
-	// On Linux, the IPC server serves config sync over a unix socket by default
-	// (created in run_path, which processes running on the same host share);
-	// other platforms only support the TCP listener for now.
+	// On Linux, config sync uses the IPC server over a unix socket. The socket
+	// path is set explicitly to /etc/datadog-agent (which every layout shares and
+	// is writable by dd-agent), because the default socket path under run_path
+	// is not shared in the OCI layout: the core agent and the DDOT collector
+	// each resolve run_path relative to their own package root
+	// (/opt/datadog-packages/<package>/<version>/run).
+	// Other platforms only support the TCP listener for now.
 	var agentIPC map[string]any
 	if runtime.GOOS == "linux" {
-		agentIPC = map[string]any{"use_socket": true, "config_refresh_interval": 60}
+		agentIPC = map[string]any{
+			"use_socket":              true,
+			"socket_path":             "/etc/datadog-agent/agent_ipc.socket",
+			"config_refresh_interval": 60,
+		}
 	} else {
 		agentIPC = map[string]any{"port": 5009, "config_refresh_interval": 60}
 	}
