@@ -26,13 +26,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -680,13 +686,16 @@ func TestProcfsScript(t *testing.T) {
 	}
 }
 
-type recordingProfileManager struct {
-	securityprofile.ProfileManager
-	events []*model.Event
+type fakeContainerTagger struct {
+	tags []string
 }
 
-func (r *recordingProfileManager) ProcessEvent(event *model.Event) {
-	r.events = append(r.events, event)
+func (f *fakeContainerTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, error) {
+	return f.tags, nil
+}
+
+func (f *fakeContainerTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
 }
 
 type failingMountFSFieldHandlers struct {
@@ -710,20 +719,66 @@ func (serializingWildcardHandler) HandleEvent(ev *model.Event) {
 }
 
 func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
 	cfg := &config.Config{
 		RuntimeSecurity: &config.RuntimeSecurityConfig{
-			SecurityProfileEnabled:   true,
-			SecurityProfileV2Enabled: true,
+			RuntimeEnabled:                                  true,
+			SecurityProfileEnabled:                          true,
+			SecurityProfileV2Enabled:                        true,
+			SecurityProfileMaxImageTags:                     20,
+			AnomalyDetectionEnabled:                         true,
+			SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType},
+			SecurityProfileV2MaxDumpSize:                    func() int { return 1 << 20 },
+			SecurityProfileV2ProfileReportingDelayTimeBased: true,
+			SecurityProfileDNSMatchMaxDepth:                 3,
+			SecurityProfileCleanupDelay:                     time.Minute,
+			ActivityDumpLocalStorageDirectory:               t.TempDir(),
+			ActivityDumpLocalStorageMaxDumpsCount:           10,
 		},
 	}
-	pm := &recordingProfileManager{}
+
+	cgr, err := cgroup.NewResolver(&statsd.NoOpClient{}, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/docker/" + string(containerID)),
+		CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+	}))
+
+	timeResolver, err := ktime.NewResolver()
+	require.NoError(t, err)
+
+	ebpfResolvers := &resolvers.EBPFResolvers{
+		CGroupResolver: cgr,
+		TagsResolver:   tags.NewResolver(0, &fakeContainerTagger{tags: []string{"image_name:my-app", "image_tag:v1"}}, cgr, nil),
+		TimeResolver:   timeResolver,
+		HashResolver:   &hash.Resolver{},
+	}
+
+	var anomalies []*model.Event
+	pm, err := securityprofile.NewManagerV2(
+		cfg,
+		&statsd.NoOpClient{},
+		nil,
+		ebpfResolvers,
+		&kernel.Version{},
+		nil,
+		func(event *model.Event) {
+			anomalies = append(anomalies, event)
+		},
+		"test-host",
+		time.Now(),
+		nil,
+	)
+	require.NoError(t, err)
+
 	baseProbe := &Probe{Config: cfg}
 	require.NoError(t, baseProbe.AddEventHandler(serializingWildcardHandler{}))
 
 	p := &EBPFProbe{
 		probe:          baseProbe,
 		config:         cfg,
-		Resolvers:      &resolvers.EBPFResolvers{},
+		Resolvers:      ebpfResolvers,
 		profileManager: pm,
 	}
 	p.monitors = &EBPFMonitors{ebpfProbe: p}
@@ -733,22 +788,23 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		failingMountID:    999,
 	}
 
-	ev := model.NewFakeEvent()
-	ev.Type = uint32(model.FileOpenEventType)
-	ev.FieldHandlers = fh
-
 	child := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	child.ContainerContext.ContainerID = containerID
 	child.FileEvent.PathnameStr = "/usr/bin/app"
+	child.FileEvent.BasenameStr = "app"
 	child.FileEvent.Inode = 42
 	child.FileEvent.MountID = 1
 
 	parent := model.NewPlaceholderProcessCacheEntry(2, 2, false)
+	parent.ContainerContext.ContainerID = containerID
 	parent.FileEvent.PathnameStr = "/bin/sh"
+	parent.FileEvent.BasenameStr = "sh"
 	parent.FileEvent.Inode = 2
 	parent.FileEvent.MountID = 1
 
 	grandparent := model.NewPlaceholderProcessCacheEntry(1, 1, false)
-	grandparent.FileEvent.PathnameStr = "/sbin/init"
+	grandparent.FileEvent.PathnameStr = "/usr/bin/containerd-shim-runc-v2"
+	grandparent.FileEvent.BasenameStr = "containerd-shim-runc-v2"
 	grandparent.FileEvent.Inode = 1
 	grandparent.FileEvent.MountID = 1
 	grandparent.LinuxBinprm.FileEvent.PathnameStr = "/lib64/ld-linux.so.2"
@@ -759,9 +815,16 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	parent.Parent = &grandparent.Process
 	child.Ancestor = parent
 	child.Parent = &parent.Process
+
+	ev := model.NewFakeEvent()
+	ev.Type = uint32(model.FileOpenEventType)
+	ev.Timestamp = time.Now()
+	ev.TimestampRaw = uint64(ev.Timestamp.UnixNano())
+	ev.FieldHandlers = fh
 	ev.ProcessCacheEntry = child
 	ev.ProcessContext = &child.ProcessContext
 	ev.Open.File.PathnameStr = "/tmp/ok"
+	ev.Open.File.BasenameStr = "ok"
 	ev.Open.File.Inode = 100
 	ev.Open.File.MountID = 1
 
@@ -769,20 +832,62 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 
 	require.NoError(t, ev.Error)
 	require.ErrorIs(t, grandparent.LinuxBinprm.FileEvent.PathResolutionError, assert.AnError)
-	require.Len(t, pm.events, 1)
-	require.Len(t, pm.events[0].Rules, 1)
-	assert.Equal(t, "rule_1", pm.events[0].Rules[0].RuleID)
+
+	selector, err := cgroupModel.NewWorkloadSelector("my-app", "*")
+	require.NoError(t, err)
+	secprof := pm.GetProfile(selector)
+	require.NotNil(t, secprof)
+	require.Len(t, secprof.ActivityTree.ProcessNodes, 1)
+	require.Len(t, secprof.ActivityTree.ProcessNodes[0].Children, 1)
+	appNode := secprof.ActivityTree.ProcessNodes[0].Children[0]
+	require.Contains(t, appNode.Files, "tmp")
+	require.Contains(t, appNode.Files["tmp"].Children, "ok")
+	okFileNode := appNode.Files["tmp"].Children["ok"]
+	require.Len(t, okFileNode.MatchedRules, 1)
+	assert.Equal(t, "rule_1", okFileNode.MatchedRules[0].RuleID)
+
+	require.Len(t, anomalies, 1)
+	assert.True(t, anomalies[0].IsAnomalyDetectionEvent())
+	require.Len(t, anomalies[0].Rules, 1)
+	assert.Equal(t, "rule_1", anomalies[0].Rules[0].RuleID)
 
 	badEv := model.NewFakeEvent()
 	badEv.Type = uint32(model.FileOpenEventType)
+	badEv.Timestamp = time.Now()
+	badEv.TimestampRaw = uint64(badEv.Timestamp.UnixNano())
 	badEv.FieldHandlers = fh
 	badEv.ProcessCacheEntry = child
 	badEv.ProcessContext = &child.ProcessContext
+	badEv.Open.File.PathnameStr = "/tmp/op-bad"
+	badEv.Open.File.BasenameStr = "op-bad"
 	badEv.Open.File.Inode = 101
 	badEv.Open.File.MountID = 999
 
 	p.DispatchEvent(badEv, false)
 
 	require.ErrorIs(t, badEv.Error, assert.AnError)
-	assert.Len(t, pm.events, 1)
+	assert.NotContains(t, appNode.Files["tmp"].Children, "op-bad")
+	assert.Len(t, anomalies, 1)
+
+	parent.LinuxBinprm.FileEvent.PathnameStr = "/lib64/ld-linux.so.2"
+	parent.LinuxBinprm.FileEvent.Inode = 98
+	parent.LinuxBinprm.FileEvent.MountID = 999
+
+	parentErrEv := model.NewFakeEvent()
+	parentErrEv.Type = uint32(model.FileOpenEventType)
+	parentErrEv.Timestamp = time.Now()
+	parentErrEv.TimestampRaw = uint64(parentErrEv.Timestamp.UnixNano())
+	parentErrEv.FieldHandlers = fh
+	parentErrEv.ProcessCacheEntry = child
+	parentErrEv.ProcessContext = &child.ProcessContext
+	parentErrEv.Open.File.PathnameStr = "/tmp/parent-bad"
+	parentErrEv.Open.File.BasenameStr = "parent-bad"
+	parentErrEv.Open.File.Inode = 102
+	parentErrEv.Open.File.MountID = 1
+
+	p.DispatchEvent(parentErrEv, false)
+
+	require.ErrorIs(t, parentErrEv.Error, assert.AnError)
+	assert.NotContains(t, appNode.Files["tmp"].Children, "parent-bad")
+	assert.Len(t, anomalies, 1)
 }
