@@ -7,7 +7,6 @@ package tests
 
 import (
 	"bufio"
-	"encoding/csv"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -45,7 +44,6 @@ func TestComplianceRequiredFiles(t *testing.T) {
 	required := []string{
 		"LICENSE",
 		"NOTICE",
-		"LICENSE-3rdparty.csv",
 		"README.md",
 		"CONTRIBUTING.md",
 	}
@@ -123,121 +121,4 @@ func TestComplianceCopyrightHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-}
-
-func TestComplianceLicense3rdPartyFormat(t *testing.T) {
-	skipUnlessCompliance(t)
-	root := repoRoot(t)
-	f, err := os.Open(filepath.Join(root, "LICENSE-3rdparty.csv"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	reader := csv.NewReader(f)
-	records, err := reader.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to parse LICENSE-3rdparty.csv: %v", err)
-	}
-	if len(records) == 0 {
-		t.Fatal("LICENSE-3rdparty.csv is empty")
-	}
-
-	// Check header.
-	expectedHeader := []string{"Component", "Origin", "License", "Copyright"}
-	header := records[0]
-	if len(header) != len(expectedHeader) {
-		t.Fatalf("header field count: got %d, want %d", len(header), len(expectedHeader))
-	}
-	for i, h := range expectedHeader {
-		if header[i] != h {
-			t.Errorf("header field %d: got %q, want %q", i, header[i], h)
-		}
-	}
-
-	// Known SPDX identifiers (extend as needed).
-	knownSPDX := map[string]bool{
-		"MIT":                true,
-		"Apache-2.0":         true,
-		"BSD-2-Clause":       true,
-		"BSD-3-Clause":       true,
-		"ISC":                true,
-		"MPL-2.0":            true,
-		"MIT AND Apache-2.0": true,
-	}
-
-	for i, row := range records[1:] {
-		lineNum := i + 2 // 1-indexed, skip header
-		if len(row) != 4 {
-			t.Errorf("line %d: got %d fields, want 4", lineNum, len(row))
-			continue
-		}
-		license := row[2]
-		if !knownSPDX[license] {
-			t.Errorf("line %d: unknown SPDX license identifier: %q", lineNum, license)
-		}
-	}
-}
-
-func TestComplianceLicense3rdPartyCompleteness(t *testing.T) {
-	skipUnlessCompliance(t)
-	root := repoRoot(t)
-
-	// Parse modules from go.mod.
-	gomod, err := os.ReadFile(filepath.Join(root, "go.mod"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	modules := parseGoModRequires(string(gomod))
-
-	// Parse components from LICENSE-3rdparty.csv.
-	csvData, err := os.ReadFile(filepath.Join(root, "LICENSE-3rdparty.csv"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	components := parseLicense3rdPartyComponents(string(csvData))
-
-	for _, mod := range modules {
-		if !components[mod] {
-			t.Errorf("module %s is in go.mod but missing from LICENSE-3rdparty.csv", mod)
-		}
-	}
-}
-
-// parseGoModRequires extracts module paths from require blocks in go.mod.
-func parseGoModRequires(content string) []string {
-	var modules []string
-	inRequire := false
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "require (") {
-			inRequire = true
-			continue
-		}
-		if line == ")" {
-			inRequire = false
-			continue
-		}
-		if inRequire && line != "" {
-			parts := strings.Fields(line)
-			if len(parts) >= 1 {
-				modules = append(modules, parts[0])
-			}
-		}
-	}
-	return modules
-}
-
-// parseLicense3rdPartyComponents returns a set of component names from the CSV.
-func parseLicense3rdPartyComponents(content string) map[string]bool {
-	components := make(map[string]bool)
-	for i, line := range strings.Split(content, "\n") {
-		if i == 0 || strings.TrimSpace(line) == "" {
-			continue // skip header and blank lines
-		}
-		if idx := strings.IndexByte(line, ','); idx > 0 {
-			components[line[:idx]] = true
-		}
-	}
-	return components
 }

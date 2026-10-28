@@ -10,7 +10,6 @@ filegroup(
     srcs = [
         "CONTRIBUTING.md",
         "LICENSE",
-        "LICENSE-3rdparty.csv",
         "NOTICE",
         "README.md",
         "doc.go",

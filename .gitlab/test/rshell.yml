@@ -8,7 +8,6 @@
       paths:
         - pkg/rshell/**/*
         - .gitlab/test/rshell.yml
-        - .gitlab/rshell/**/*
         - .gitlab/build/bazel/defs.yml
         - .gitlab-ci.yml
         - tasks/rshell.py
@@ -44,6 +43,7 @@ rshell:checks:
   timeout: 30m
   script:
     - dda inv -- rshell.verify-source-files
+    - dda inv -- rshell.verify-fuzz-matrix
     - make -C pkg/rshell compliance
     - >-
       dda inv test --module=pkg/rshell
@@ -61,23 +61,61 @@ rshell:bash:
     - docker pull debian:bookworm-slim
     - make -C pkg/rshell test_against_bash
 
-rshell:fuzz:generate:
-  extends: .rshell:base
-  script:
-    - dda inv -- rshell.generate-fuzz-pipeline
-  artifacts:
-    paths:
-      - rshell-fuzz-gitlab-ci.yml
-    expire_in: 1 week
-
 rshell:fuzz:
-  stage: source_test
-  needs: ["rshell:fuzz:generate"]
-  rules: !reference [.rshell:rules]
-  trigger:
-    include:
-      - artifact: rshell-fuzz-gitlab-ci.yml
-        job: rshell:fuzz:generate
-    strategy: depend
-    forward:
-      pipeline_variables: true
+  extends: .rshell:base
+  timeout: 20m
+  variables:
+    RSHELL_BASH_TEST: "1"
+    # Keep the Go module cache under the path .bazel:defs:cache:progressive caches.
+    GOMODCACHE: $CI_PROJECT_DIR/.cache/go/mod
+  before_script:
+    - dda self dep sync -f legacy-tasks
+    - GOTOOLCHAIN="go$(cat .go-version)"
+    - export GOTOOLCHAIN
+    - go version
+    - for command in cat head tail wc; do "$command" --version; done
+  script:
+    - dda inv fuzz --targets="$FUZZ_PACKAGE" --fuzztime=30s
+  # One job per package with fuzz targets; rshell.verify-fuzz-matrix (run by
+  # rshell:checks) fails when this list and the fuzz targets drift apart.
+  parallel:
+    matrix:
+      - FUZZ_PACKAGE:
+          - pkg/rshell/builtins/cd
+          - pkg/rshell/builtins/df
+          - pkg/rshell/builtins/internal/diskstats
+          - pkg/rshell/builtins/internal/ntfsmft
+          - pkg/rshell/builtins/internal/procfd
+          - pkg/rshell/builtins/internal/procnetsocket
+          - pkg/rshell/builtins/internal/vmstat
+          - pkg/rshell/builtins/jq
+          - pkg/rshell/builtins/lsof
+          - pkg/rshell/builtins/ping
+          - pkg/rshell/builtins/pwd
+          - pkg/rshell/builtins/tests/cat
+          - pkg/rshell/builtins/tests/cut
+          - pkg/rshell/builtins/tests/du
+          - pkg/rshell/builtins/tests/echo
+          - pkg/rshell/builtins/tests/grep
+          - pkg/rshell/builtins/tests/head
+          - pkg/rshell/builtins/tests/ip
+          - pkg/rshell/builtins/tests/ls
+          - pkg/rshell/builtins/tests/ps
+          - pkg/rshell/builtins/tests/rm
+          - pkg/rshell/builtins/tests/sha256sum
+          - pkg/rshell/builtins/tests/ss
+          - pkg/rshell/builtins/tests/strings_cmd
+          - pkg/rshell/builtins/tests/tail
+          - pkg/rshell/builtins/tests/tee
+          - pkg/rshell/builtins/tests/testcmd
+          - pkg/rshell/builtins/tests/truncate
+          - pkg/rshell/builtins/tests/uniq
+          - pkg/rshell/builtins/tests/wc
+          - pkg/rshell/builtins/tests/xargs
+          - pkg/rshell/internal/systemd
+          - pkg/rshell/interp/tests
+  artifacts:
+    when: on_failure
+    paths:
+      - $FUZZ_PACKAGE/testdata/fuzz/
+    expire_in: 1 week

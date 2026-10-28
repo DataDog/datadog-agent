@@ -26,18 +26,21 @@ def verify_source_files(ctx):
 
 
 @task
-def generate_fuzz_pipeline(_ctx, output="rshell-fuzz-gitlab-ci.yml"):
-    """Generate one GitLab fuzz job per rshell package."""
-    root = Path("pkg/rshell")
-    packages = sorted({Path(directory) for directory, _ in search_fuzz_tests(str(root))})
-    if not packages:
+def verify_fuzz_matrix(_ctx, config=".gitlab/test/rshell.yml"):
+    """Check that the rshell:fuzz matrix lists exactly the packages with fuzz targets."""
+    expected = {Path(directory).as_posix() for directory, _ in search_fuzz_tests("pkg/rshell")}
+    if not expected:
         raise Exit("No rshell fuzz targets found")
+    jobs = yaml.load(Path(config).read_text(), Loader=_GitLabLoader)
+    listed = {package for entry in jobs["rshell:fuzz"]["parallel"]["matrix"] for package in entry["FUZZ_PACKAGE"]}
+    missing, stale = sorted(expected - listed), sorted(listed - expected)
+    if missing or stale:
+        raise Exit(f"Update the rshell:fuzz matrix in {config}: add {missing}, remove {stale}")
+    print(f"The rshell:fuzz matrix covers all {len(expected)} fuzz packages")
 
-    config = {"include": [{"local": ".gitlab/rshell/fuzz.yml"}]}
-    for package in packages:
-        config[f"rshell:fuzz:{package.relative_to(root).as_posix()}"] = {
-            "extends": ".rshell:fuzz",
-            "variables": {"FUZZ_PACKAGE": package.as_posix()},
-        }
-    Path(output).write_text(yaml.safe_dump(config, sort_keys=False))
-    print(f"Generated {len(packages)} fuzz jobs in {output}")
+
+class _GitLabLoader(yaml.SafeLoader):
+    """Safe loader that tolerates GitLab's !reference tags."""
+
+
+_GitLabLoader.add_constructor("!reference", lambda loader, node: loader.construct_sequence(node))
