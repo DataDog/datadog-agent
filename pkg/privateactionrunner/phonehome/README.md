@@ -13,6 +13,22 @@ configured Linux node-Agent POC. **Ordinary packages are not gated:** shipping
 the worker reports a blocked state rather than changing existing startup behavior.
 Use a separate test supervisor, not an overlay on a running installation.
 
+## Effective host deployment
+
+Core, standalone PAR, and the executor use the same deployment selection. Host split
+mode requires `process_manager.enabled`. Host launchers without procmgr must set
+`DD_PROCESS_MANAGER_ENABLED=false` consistently for core and PAR; packaged launcher
+updates are separate changes. With that effective setting false, installations can enable
+monolithic PAR in `datadog.yaml` without core RC/AAA startup authorization. They do not
+create a phone-home worker or report waiting for a supervisor they never start.
+
+This is launch/configuration policy, not a socket or daemon health probe. A temporarily
+unavailable supervisor in a split deployment keeps waiting rather than falling
+back to monolithic PAR. Custom host launchers must configure `process_manager.enabled`
+consistently for core and PAR; setting it false does not stop Linux procmgr or alter its
+other workloads. Containers retain their explicit split-entrypoint selection. PAR is
+still disabled by default.
+
 ## Configuration
 
 - Core: PAR enabled, split mode enabled, local RC enabled.

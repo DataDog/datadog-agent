@@ -21,6 +21,7 @@ import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -46,6 +47,22 @@ func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T)
 		require.Nil(t, runner.encryptionStore)
 		require.Nil(t, runner.keysManager)
 	}
+}
+
+func TestExecutorWithoutProcessManagerDoesNotResolveIdentity(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"private_action_runner.enabled":       true,
+		"private_action_runner.split_enabled": true,
+		"process_manager.enabled":             false,
+		"private_action_runner.private_key":   "invalid-key",
+	})
+	runner := &PrivateActionRunner{coreConfig: cfg}
+	_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
+	require.NoError(t, err)
+	require.Nil(t, resolved)
+	require.NotNil(t, runner.executorServer)
+	require.Nil(t, runner.encryptionStore)
+	require.Nil(t, runner.keysManager)
 }
 
 func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
@@ -91,7 +108,13 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("monolithic runner did not request a clean shutdown")
 			}
-			require.Equal(t, 3, calls)
+			mode, err := deployment.Resolve(cfg)
+			require.NoError(t, err)
+			wantCalls := 2 // Direct config resolution and monolithic Start.
+			if mode == deployment.Split {
+				wantCalls++ // Only a supported split executor resolves identity.
+			}
+			require.Equal(t, wantCalls, calls)
 		})
 	}
 }

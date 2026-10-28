@@ -13,6 +13,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	engine "github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -29,6 +30,9 @@ type component struct{}
 func NewComponent(r Requires) Provides {
 	c := &component{}
 	if !engine.Enabled(r.Config) {
+		return Provides{Comp: c}
+	}
+	if mode, err := deployment.Resolve(r.Config); err == nil && mode != deployment.Split {
 		return Provides{Comp: c}
 	}
 	rc, _ := r.RC.Get()

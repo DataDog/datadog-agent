@@ -319,7 +319,8 @@ properties:
       When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
       On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
       On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
-      This setting is ignored on Linux and does not enable or disable the systemd unit.
+      This setting does not enable or disable the Linux systemd unit. When false, PAR uses monolithic mode
+      and core skips PAR startup authorization. Host launchers without procmgr must set it to false.
       On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
     tags:
     - template_section:Common
@@ -331,11 +332,12 @@ properties:
         visibility: public
         description: |-
           When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
-          On Linux, the process manager daemon is started by systemd; this option is ignored.
+          On Linux, systemd manages the daemon independently; false selects monolithic PAR and skips core-owned PAR startup.
+          Host launchers that do not start procmgr must set DD_PROCESS_MANAGER_ENABLED=false for core and PAR.
           On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
         comment: |-
           Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
-          On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+          On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); false disables split PAR, not the systemd unit.
           On macOS, dd-procmgrd always runs (com.datadoghq.procmgr). This setting is not yet supported there.
   tag_value_split_separator:
     node_type: setting

@@ -64,6 +64,7 @@ dd_agent_go_test(
         "//pkg/fleet/installer/telemetry",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/deployment",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/executor",
         "//pkg/privateactionrunner/observability",
