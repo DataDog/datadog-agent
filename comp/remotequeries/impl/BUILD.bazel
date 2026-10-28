@@ -14,7 +14,6 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//pkg/collector/check",
-        "//pkg/config/setup/constants",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_uber_go_fx//:fx",
     ],
@@ -33,6 +32,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
         "//comp/core/diagnose/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",

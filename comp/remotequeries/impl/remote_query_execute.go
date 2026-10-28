@@ -21,7 +21,6 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 const (
@@ -309,6 +308,9 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 // the handle is never logged, and url.Parse errors embed the input so they are not wrapped.
 func validateResultDeliveryBaseURL(baseURL string, site string) error {
 	const field = "result_delivery.baseUrl"
+	if site == "" {
+		return fmt.Errorf("%s cannot be checked: the Agent site is not configured", field)
+	}
 	if strings.ContainsAny(baseURL, "\\?#") || strings.ContainsFunc(baseURL, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
 		return fmt.Errorf("%s must not contain a query, fragment, backslash, whitespace or control characters", field)
 	}
@@ -332,17 +334,14 @@ func validateResultDeliveryBaseURL(baseURL string, site string) error {
 	return nil
 }
 
-// site returns the Agent's configured site, lower-cased, falling back to the default site
-// when unset or when no config is available.
+// site returns the Agent's configured site, trimmed and lower-cased. The config component
+// defaults it to datadoghq.com; it is empty only when no config is available or the site
+// was explicitly cleared, in which case validateResultDeliveryBaseURL fails closed.
 func (s *RemoteQueryExecuteService) site() string {
-	site := ""
-	if s != nil && s.cfg != nil {
-		site = strings.ToLower(strings.TrimSpace(s.cfg.GetString("site")))
+	if s == nil || s.cfg == nil {
+		return ""
 	}
-	if site == "" {
-		site = constants.DefaultSite
-	}
-	return site
+	return strings.ToLower(strings.TrimSpace(s.cfg.GetString("site")))
 }
 
 // NewRemoteQueryExecuteRequest validates and normalizes a typed paged-JSON request.

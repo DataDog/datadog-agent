@@ -60,6 +60,7 @@ func TestValidateResultDeliveryBaseURL(t *testing.T) {
 		{name: "scheme-relative", baseURL: "//dd.datad0g.com" + intake, site: "datad0g.com", wantErr: "absolute URL"},
 		{name: "opaque", baseURL: "https:dd.datad0g.com", site: "datad0g.com", wantErr: "absolute URL"},
 		{name: "unparseable", baseURL: "https://[::1", site: "datad0g.com", wantErr: "absolute URL"},
+		{name: "unset site fails closed", baseURL: "https://app.datadoghq.com" + intake, site: "", wantErr: "not configured"},
 		{name: "default site rejects other site", baseURL: "https://dd.datad0g.com" + intake, site: "datadoghq.com", wantErr: "Agent's site"},
 	}
 	for _, tc := range tests {
@@ -82,16 +83,23 @@ func TestValidateResultDeliveryBaseURL(t *testing.T) {
 func TestRemoteQueryExecuteServiceSite(t *testing.T) {
 	cfg := configmock.New(t)
 
-	// Unset site falls back to the default site; so does a missing config.
+	// A config without an explicit site uses the config component's default; a missing
+	// config or an explicitly empty site yields no site (callers fail closed).
 	assert.Equal(t, "datadoghq.com", NewRemoteQueryExecuteService(nil, true, cfg).site())
-	assert.Equal(t, "datadoghq.com", NewRemoteQueryExecuteService(nil, true, nil).site())
+	require.NoError(t, validateResultDeliveryBaseURL("https://app.datadoghq.com/api/unstable/its-agent-intake", NewRemoteQueryExecuteService(nil, true, cfg).site()))
+	assert.Equal(t, "", NewRemoteQueryExecuteService(nil, true, nil).site())
+	assert.Equal(t, "", (*RemoteQueryExecuteService)(nil).site())
 
 	cfg.SetInTest("site", "  EU1.Datadoghq.com ")
 	assert.Equal(t, "eu1.datadoghq.com", NewRemoteQueryExecuteService(nil, true, cfg).site())
+
+	cfg.SetInTest("site", "  ")
+	assert.Equal(t, "", NewRemoteQueryExecuteService(nil, true, cfg).site())
 }
 
 // TestExecuteStreamRejectsBaseURLOffSite proves a baseUrl off the Agent's site fails the
-// run before the integration sees anything, and that the default site applies when unset.
+// run before the integration sees anything, that the config's default site applies when
+// unset, and that a missing site fails closed.
 func TestExecuteStreamRejectsBaseURLOffSite(t *testing.T) {
 	newRequest := func(t *testing.T) RemoteQueryExecuteRequest {
 		req, err := NewRemoteQueryExecuteRequest(
@@ -123,7 +131,7 @@ func TestExecuteStreamRejectsBaseURLOffSite(t *testing.T) {
 		assert.Equal(t, 0, runner.streamCalls)
 	})
 
-	t.Run("unset site uses default site", func(t *testing.T) {
+	t.Run("unset site uses config default site", func(t *testing.T) {
 		runner := newSyntheticForwardRunner(nil)
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, configmock.New(t))
 
@@ -131,6 +139,19 @@ func TestExecuteStreamRejectsBaseURLOffSite(t *testing.T) {
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusInvalidRequest, result.Error.Code)
+		assert.Equal(t, "result_delivery.baseUrl must be on the Agent's site", result.Error.Message)
+		assert.Equal(t, 0, runner.streamCalls)
+	})
+
+	t.Run("nil config fails closed", func(t *testing.T) {
+		runner := newSyntheticForwardRunner(nil)
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
+
+		result := service.ExecuteStream(context.Background(), newRequest(t), emit)
+
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusInvalidRequest, result.Error.Code)
+		assert.Equal(t, "result_delivery.baseUrl cannot be checked: the Agent site is not configured", result.Error.Message)
 		assert.Equal(t, 0, runner.streamCalls)
 	})
 }
