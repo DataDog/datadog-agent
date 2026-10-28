@@ -85,6 +85,18 @@ func TestFindContainerID(t *testing.T) {
 			input:  "/kubepods/besteffort/pod8bbdd97b-f902-4e16-8235-4ac18307cef6/09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
 			output: "09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
 		},
+		{ // containerd service
+			input:  "/runtime.slice/containerd.service",
+			output: "",
+		},
+		{ // pod slice
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice",
+			output: "",
+		},
+		{ // nested container cgroup
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice/cri-containerd-7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17.scope/init.scope",
+			output: "7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17",
+		},
 		{ // nested containers: the innermost wins
 			input:  "/docker/0123456789012345678901234567890123456789012345678901234567890123/docker/aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",

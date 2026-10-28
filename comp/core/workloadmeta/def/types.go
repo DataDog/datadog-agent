@@ -678,8 +678,18 @@ type Container struct {
 	// On ECS it is extracted from the NVIDIA_VISIBLE_DEVICES environment
 	// variable. On Kubernetes with DRA (Dynamic Resource Allocation), it is
 	// populated node-locally by resolving the container's CDI device
-	// allocations to NVML UUIDs (physical GPUs and MIG instances).
-	GPUDeviceIDs []string `proto:"ignore"`
+	// allocations to NVML UUIDs (physical GPUs and MIG instances). With KAI
+	// Scheduler (gpu.kai_scheduler.enabled), it also holds the GPUs of
+	// fractional pods, read from their reservation pods. It is sent to remote
+	// workloadmeta clients, as system-probe needs it to attribute GPU process
+	// metrics to the right device.
+	GPUDeviceIDs []string
+	// GPUShares holds, keyed by GPU device UUID, the share of each GPU in
+	// GPUDeviceIDs that the container is assigned when the GPU is shared with
+	// other workloads by a mechanism that assigns each of them a share, such as
+	// KAI Scheduler GPU fractions. A GPU without an entry is not shared that
+	// way.
+	GPUShares map[string]GPUShare `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -783,6 +793,9 @@ func (c Container) String(verbose bool) string {
 	if len(c.GPUDeviceIDs) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
 		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		if len(c.GPUShares) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
+		}
 	}
 
 	if c.ECSContainer != nil {
@@ -846,7 +859,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
+	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -1240,11 +1253,24 @@ type KubernetesNodeStatus struct {
 	OperatingSystem         string `json:"operatingSystem"`
 }
 
+// KubernetesNodeCondition is a node condition without timestamps, which change on
+// every kubelet heartbeat.
+type KubernetesNodeCondition struct {
+	Type   string
+	Status string
+}
+
 // KubernetesNode is an Entity representing a Kubernetes Node.
 type KubernetesNode struct {
 	EntityID
 	EntityMeta
+	// Status is served as is by the cluster agent /api/v1/info/node endpoint, so it
+	// only holds the kubelet info. The fields below are not part of that wire format.
 	Status KubernetesNodeStatus
+	// Conditions are the node conditions, reduced to type and status.
+	Conditions []KubernetesNodeCondition
+	// Unschedulable mirrors node.Spec.Unschedulable (set by `kubectl cordon`).
+	Unschedulable bool
 }
 
 // GetID implements Entity#GetID.
@@ -1283,6 +1309,10 @@ func (n KubernetesNode) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ContainerRuntimeVersion:", n.Status.ContainerRuntimeVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", n.Status.Architecture)
 		_, _ = fmt.Fprintln(&sb, "OperatingSystem:", n.Status.OperatingSystem)
+		_, _ = fmt.Fprintln(&sb, "Unschedulable:", n.Unschedulable)
+		for _, c := range n.Conditions {
+			_, _ = fmt.Fprintf(&sb, "Condition: %s=%s\n", c.Type, c.Status)
+		}
 	}
 	return sb.String()
 }
@@ -1641,9 +1671,11 @@ type KueuePodSetAssignment struct {
 type KubernetesKueueWorkload struct {
 	EntityID
 	EntityMeta
-	QueueName         string
-	ClusterQueueName  string
-	PodSetAssignments []KueuePodSetAssignment
+	QueueName              string
+	ClusterQueueName       string
+	PodSetAssignments      []KueuePodSetAssignment
+	PodTemplateLabels      map[string]string
+	PodTemplateAnnotations map[string]string
 }
 
 // GetID implements Entity#GetID.
@@ -1678,6 +1710,8 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
 	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
 	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	_, _ = fmt.Fprintln(&sb, "Pod Template Labels:", mapToScrubbedJSONString(w.PodTemplateLabels))
+	_, _ = fmt.Fprintln(&sb, "Pod Template Annotations:", mapToScrubbedJSONString(w.PodTemplateAnnotations))
 	return sb.String()
 }
 
@@ -1821,6 +1855,7 @@ type SBOM struct {
 	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
+	OSFallback         bool   // the SBOM lists the OS packages alone because its scan with application analyzers ran out of time, until a retry replaces it
 }
 
 // CompressedSBOM represents a compressed version of the Software Bill Of Materials (SBOM) of a container
@@ -1831,6 +1866,7 @@ type CompressedSBOM struct {
 	GenerationMethod   string
 	Status             SBOMStatus
 	Error              string
+	OSFallback         bool `proto:"ignore"` // read in the core Agent alone
 }
 
 // GetID implements Entity#GetID.
@@ -1906,6 +1942,9 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 			switch i.SBOM.Status {
 			case Success:
 				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+				if i.SBOM.OSFallback {
+					_, _ = fmt.Fprintln(&sb, "OS packages alone: the scan with application analyzers ran out of time")
+				}
 			case Failed:
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
 			default:
@@ -2276,6 +2315,30 @@ const (
 	GPUCOUNT
 )
 
+// GPUSharingMode is the mechanism through which a GPU is shared between
+// workloads.
+type GPUSharingMode string
+
+const (
+	// GPUSharingModeNone means that no sharing mechanism was detected for the
+	// GPU.
+	GPUSharingModeNone GPUSharingMode = "none"
+	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
+	// between workloads that each request a fraction of it.
+	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+)
+
+// GPUShare is the share of a GPU assigned to a container that shares the GPU
+// with other workloads.
+type GPUShare struct {
+	// Fraction is the fraction of the GPU assigned to the container, in (0, 1],
+	// or 0 when the container shares the GPU but its share is unknown.
+	Fraction float64
+	// Memory is the GPU memory, in bytes, that the container is allowed to
+	// use, or 0 when the container shares the GPU but its memory is unknown.
+	Memory uint64
+}
+
 // GPUDeviceType is an enum to identify the type of the GPU device.
 type GPUDeviceType int
 
@@ -2350,6 +2413,27 @@ type GPU struct {
 	// It is meaningful only when FabricClusterUUID is set.
 	FabricCliqueID uint32
 
+	// ChassisSerial is the serial number of the chassis (rack) containing the GPU,
+	// reported on rack-scale systems such as GB200 NVL72. Empty otherwise.
+	ChassisSerial string
+
+	// SlotNumber, TrayIndex and ModuleID locate the GPU inside the chassis.
+	// They are meaningful only when ChassisSerial is set.
+	SlotNumber uint8
+	TrayIndex  uint8
+	ModuleID   uint8
+
+	// BoardSerial is the board serial number, shared by the GPUs of one
+	// superchip on GB200. It is set only when ChassisSerial is set.
+	BoardSerial string
+
+	// FabricGUID is the GPU's NVLink fabric GUID from NVML platform info (not an
+	// InfiniBand HCA GUID). Empty when not reported.
+	FabricGUID string
+
+	// NUMANode is the NUMA node closest to the GPU. Nil when not reported.
+	NUMANode *int
+
 	// NVLinkVersion is the version reported by the GPU's NVLink links.
 	NVLinkVersion string
 
@@ -2377,6 +2461,11 @@ type GPU struct {
 	// as reported by the driver for the device's GPU instance. Empty for physical
 	// devices and for MIG devices on drivers that do not expose the profile name.
 	MIGProfile string
+
+	// SharingMode is the mechanism through which the device is shared between
+	// workloads. Empty when the collector does not detect sharing mechanisms,
+	// which means the same as GPUSharingModeNone.
+	SharingMode GPUSharingMode
 }
 
 var _ Entity = &GPU{}
@@ -2437,6 +2526,9 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
 	if g.Lost {
 		_, _ = fmt.Fprintln(&sb, "Lost: true")
+	}
+	if g.SharingMode != "" && g.SharingMode != GPUSharingModeNone {
+		_, _ = fmt.Fprintln(&sb, "Sharing Mode:", g.SharingMode)
 	}
 
 	// Do not show "physical" device type as it's the default and redundant information

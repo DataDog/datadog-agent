@@ -211,7 +211,8 @@ build do
               # The healthcheck will fail as the rpath doesn't contain install_dir
               command "inv omnibus.rpath-edit #{install_dir} #{install_dir}#{rpath_args}", cwd: Dir.pwd
               if preserve_installer_rpath
-                command "test \"$(patchelf --print-rpath #{installer_bin})\" = '#{install_dir}/embedded/lib'"
+                expected_rpath = "#{install_dir}/embedded/lib:#{File.dirname(install_dir)}/stable/embedded/lib"
+                command "test \"$(patchelf --print-rpath #{installer_bin})\" = '#{expected_rpath}'"
               end
             end
         end

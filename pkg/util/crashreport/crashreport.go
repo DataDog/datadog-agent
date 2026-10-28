@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -104,7 +104,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 		return nil, nil
 	}
 
-	crash, err := sysprobeclient.GetCheck[probe.WinCrashStatus](wcr.sysProbeClient, sysconfig.WindowsCrashDetectModule)
+	crash, err := sysprobeclient.GetCheck[probe.WinCrashStatus](wcr.sysProbeClient, sysconfigtypes.WindowsCrashDetectModule)
 	if err != nil {
 		if sysprobeclient.IgnoreStartupError(err) == nil {
 			return nil, nil
