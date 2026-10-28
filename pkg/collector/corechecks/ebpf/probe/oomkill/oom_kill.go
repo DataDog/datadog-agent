@@ -696,6 +696,7 @@ func convertStatsV2(in oomStatsV2Layout) (out model.OOMKillStats) {
 		InactiveFile: cgroupMemoryStat(in.Mem.Inactive_file),
 		Unevictable:  cgroupMemoryStat(in.Mem.Unevictable),
 		Kernel:       cgroupMemoryStat(in.Mem.Kernel),
+		Unstable:     in.Mem.Flags&cgroupMemStatsUnstable != 0,
 	}
 	return
 }

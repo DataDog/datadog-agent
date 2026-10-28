@@ -19,4 +19,6 @@ type oomStatsV2 C.oom_stats_v2
 
 type cgroupMemoryStats C.struct_cgroup_memory_stats
 
+const cgroupMemStatsUnstable = C.CGROUP_MEM_STATS_UNSTABLE
+
 type statsKey C.struct_stats_key

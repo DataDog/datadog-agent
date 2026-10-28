@@ -33,6 +33,8 @@ type cgroupMemoryStats struct {
 	Flags         uint64
 }
 
+const cgroupMemStatsUnstable = 0x1
+
 type statsKey struct {
 	Ts        uint64
 	Tgid      uint64

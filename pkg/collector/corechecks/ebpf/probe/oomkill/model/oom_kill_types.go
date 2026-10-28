@@ -31,4 +31,7 @@ type CgroupMemoryStats struct {
 	InactiveFile uint64 `json:"inactiveFile"`
 	Unevictable  uint64 `json:"unevictable"`
 	Kernel       uint64 `json:"kernel"`
+	// Unstable is set when the stat items could not be read without overlapping a memcg stats
+	// flush, and can be off by the updates that flush moved
+	Unstable bool `json:"unstable"`
 }
