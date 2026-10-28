@@ -935,3 +935,107 @@ func TestEnrichTagsContainerIDMismatch(t *testing.T) {
 		assert.NotContains(t, actualTags, "external-container-low")
 	})
 }
+
+func TestEnrichTagsPreResolvedOrigin(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	containerID, containerName, podUID := "container-id", "container-name", "pod-uid"
+	var inode uint64 = 1234
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, containerID), "host", []string{"container-low"}, nil, nil, nil)
+
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
+	// A meta collector that resolves everything to containerID
+	resolvingCollector := collectormock.MetaCollector{
+		CIDFromInode:          map[uint64]string{inode: containerID},
+		CIDFromPodUIDContName: map[string]string{podUID + "/" + containerName: containerID},
+	}
+	// A meta collector that resolves nothing
+	emptyCollector := collectormock.MetaCollector{}
+
+	inodeOrigin := func(productOrigin origindetection.ProductOrigin, resolved *taggertypes.ResolvedOrigin) taggertypes.OriginInfo {
+		return taggertypes.OriginInfo{
+			ProductOrigin: productOrigin,
+			LocalData:     origindetection.LocalData{Inode: inode},
+			Cardinality:   "low",
+			Resolved:      resolved,
+		}
+	}
+	externalDataOrigin := func(resolved *taggertypes.ResolvedOrigin) taggertypes.OriginInfo {
+		return taggertypes.OriginInfo{
+			ProductOrigin: origindetection.ProductOriginAPM,
+			ExternalData:  origindetection.ExternalData{ContainerName: containerName, PodUID: podUID},
+			Cardinality:   "low",
+			Resolved:      resolved,
+		}
+	}
+
+	for _, tt := range []struct {
+		name         string
+		collector    *collectormock.MetaCollector
+		originInfo   taggertypes.OriginInfo
+		expectedTags []string
+	}{
+		{
+			name:         "unified: pre-resolved inode is used instead of the meta collector",
+			collector:    &emptyCollector,
+			originInfo:   inodeOrigin(origindetection.ProductOriginAPM, &taggertypes.ResolvedOrigin{InodeContainerID: containerID, InodeDone: true}),
+			expectedTags: []string{"container-low"},
+		},
+		{
+			name:         "legacy dogstatsd: pre-resolved inode is used instead of the meta collector",
+			collector:    &emptyCollector,
+			originInfo:   inodeOrigin(origindetection.ProductOriginDogStatsD, &taggertypes.ResolvedOrigin{InodeContainerID: containerID, InodeDone: true}),
+			expectedTags: []string{"container-low"},
+		},
+		{
+			name:         "failed inode resolution is not retried",
+			collector:    &resolvingCollector,
+			originInfo:   inodeOrigin(origindetection.ProductOriginAPM, &taggertypes.ResolvedOrigin{InodeDone: true}),
+			expectedTags: []string{},
+		},
+		{
+			name:         "inode resolution not attempted falls back to the meta collector",
+			collector:    &resolvingCollector,
+			originInfo:   inodeOrigin(origindetection.ProductOriginAPM, &taggertypes.ResolvedOrigin{}),
+			expectedTags: []string{"container-low"},
+		},
+		{
+			name:         "pre-resolved external data is used instead of the meta collector",
+			collector:    &emptyCollector,
+			originInfo:   externalDataOrigin(&taggertypes.ResolvedOrigin{ExternalDataContainerID: containerID, ExternalDataDone: true}),
+			expectedTags: []string{"container-low"},
+		},
+		{
+			name:         "failed external data resolution is not retried",
+			collector:    &resolvingCollector,
+			originInfo:   externalDataOrigin(&taggertypes.ResolvedOrigin{ExternalDataDone: true}),
+			expectedTags: []string{},
+		},
+		{
+			name:         "nil resolution keeps the existing behavior",
+			collector:    &resolvingCollector,
+			originInfo:   externalDataOrigin(nil),
+			expectedTags: []string{"container-low"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mockMetricsProvider.RegisterMetaCollector(tt.collector)
+			tb := tagset.NewHashingTagsAccumulator()
+			fakeTagger.EnrichTags(tb, tt.originInfo)
+			assert.Equal(t, tt.expectedTags, tb.Get())
+		})
+	}
+}

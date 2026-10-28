@@ -67,6 +67,7 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	localFilter.RegisterFactory(workloadfilter.ContainerCELLogs, catalog.ContainerCELLogsProgram)
 	localFilter.RegisterFactory(workloadfilter.ContainerCELSBOM, catalog.ContainerCELSBOMProgram)
 	localFilter.RegisterFactory(workloadfilter.ContainerCELGlobal, catalog.ContainerCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELDogstatsd, catalog.ContainerCELDogstatsdProgram)
 
 	// Service Filters
 	localFilter.RegisterFactory(workloadfilter.KubeServiceCELMetrics, catalog.ServiceCELMetricsProgram)
