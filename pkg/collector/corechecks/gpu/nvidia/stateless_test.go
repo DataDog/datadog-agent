@@ -14,10 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -881,6 +883,32 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeNodeSource stands in for the cluster agent.
+type fakeNodeSource struct{}
+
+func (fakeNodeSource) NodeUnschedulable() (nodeunschedulable.Result, error) {
+	return nodeunschedulable.Result{Reasons: []string{}}, nil
+}
+func (fakeNodeSource) Probe() error { return nil }
+
+// The reasons API is only dropped when no health source can ever exist and the node state is
+// off; a GPU missing from workloadmeta at startup keeps it, so health appears once known.
+func TestUnavailableReasonsAPISupport(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
+	wmeta := testutil.GetWorkloadMetaMock(t) // no GPUs yet
+	supported := func(deps *CollectorDependencies) int {
+		apis := createStatelessAPIs(deps)
+		return len(filterSupportedAPIs(device, []apiCallInfo{findAPICallByName(t, apis, "device_unavailable_reasons")}))
+	}
+
+	env.SetFeatures(t)
+	require.Zero(t, supported(&CollectorDependencies{Workloadmeta: wmeta}))
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta, NodeUnschedulable: nodeunschedulable.NewCache(fakeNodeSource{}, time.Minute)}))
+
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta}))
 }
 
 func TestPCIELinkMetrics(t *testing.T) {
