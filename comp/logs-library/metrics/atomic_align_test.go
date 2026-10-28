@@ -48,10 +48,7 @@ func atomicLayoutType(t reflect.Type) types.Type {
 	}
 }
 
-// misalignedMonitorAtomics checks inline Uber atomic words relative to an
-// allocated monitor's 8-byte-aligned base. The constructor test separately checks
-// avg's allocation. This models the host's type definitions with ARM sizes;
-// it does not replace running the package tests on ARM.
+// misalignedMonitorAtomics returns inline Uber atomic words not 8-byte aligned on ARM, assuming an aligned base.
 func misalignedMonitorAtomics(t reflect.Type) []string {
 	sizes := types.SizesFor("gc", "arm")
 	var bad []string
