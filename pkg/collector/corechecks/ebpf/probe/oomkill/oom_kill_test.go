@@ -284,31 +284,8 @@ func TestOOMKillMemcgFlushPinnedTakeover(t *testing.T) {
 		setTestPinDir(t)
 
 		cfg := testConfig(withPersistMonitoring(true), withCgroupMemoryStats(true))
-		first, err := NewProbe(cfg)
-		require.NoError(t, err)
-		t.Cleanup(first.Close)
-		require.True(t, first.pinned, "first probe should be pinned when pinning is supported")
-		assertPins(t, "first probe should pin the oom-kill probe")
-		assertMemcgFlushPins(t, "first probe should pin the memcg flush probes")
-		firstLinkID := linkID(t, first.link)
-		firstFlushLinkIDs := memcgFlushLinkIDs(t, first)
-
-		// Simulate system-probe dying without a graceful shutdown: release the file descriptors
-		// but leave the pins in place, so the probes keep running.
-		require.NoError(t, first.link.Close())
-		first.closeMemcgFlushLinks()
-		first.coll.Close()
-
-		seq, err := bpflib.LoadPinnedMap(mapPinPath(memcgFlushSeqName), nil)
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = seq.Close() })
-		seqBefore, err := memcgFlushSeq(seq)
-		require.NoError(t, err)
-		// memcg stats are flushed at least every 2s
-		require.Eventually(t, func() bool {
-			cur, err := memcgFlushSeq(seq)
-			return err == nil && cur != seqBefore
-		}, 10*time.Second, 100*time.Millisecond, "pinned memcg flush probes should keep counting the flushes")
+		firstLinkID, firstFlushLinkIDs := crashPinnedMemcgFlushProbe(t, cfg)
+		assertMemcgFlushCounting(t, "pinned memcg flush probes should keep counting the flushes")
 
 		// This OOM kill happens while no system-probe is running
 		pid := triggerOOMKill(t)
@@ -329,6 +306,94 @@ func TestOOMKillMemcgFlushPinnedTakeover(t *testing.T) {
 		require.NotEqual(t, -1, idx, "OOM kill of pid %d recorded while no probe was running should be reported", pid)
 		assertCgroupMemoryStats(t, results[idx].CgroupMemory)
 	})
+}
+
+// TestOOMKillMemcgFlushPartialPins checks the takeover of a probe collecting the cgroup memory stats
+// when only part of its pins are left.
+func TestOOMKillMemcgFlushPartialPins(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		skipIfPinningUnsupported(t)
+		skipIfCgroupMemoryStatsUnsupported(t)
+		cfg := testConfig(withPersistMonitoring(true), withCgroupMemoryStats(true))
+
+		// Without the memcg flush links, new ones are attached on the pinned memcg_flush_seq. The
+		// pinned oom-kill program checks the cgroup memory stats against that same counter, so it is
+		// taken over.
+		t.Run("memcg flush links missing", func(t *testing.T) {
+			setTestPinDir(t)
+			firstLinkID, firstFlushLinkIDs := crashPinnedMemcgFlushProbe(t, cfg)
+			removePin(linkPinPath(memcgFlushBeginLinkName))
+			removePin(linkPinPath(memcgFlushEndLinkName))
+
+			second, err := NewProbe(cfg)
+			require.NoError(t, err)
+			t.Cleanup(second.Close)
+			assert.Equal(t, firstLinkID, linkID(t, second.link), "second probe should take over the pinned oom-kill link")
+			assertNoneEqual(t, firstFlushLinkIDs, memcgFlushLinkIDs(t, second), "second probe should attach new memcg flush links")
+			assertPins(t, "the oom-kill probe should be pinned again")
+			assertMemcgFlushPins(t, "the new memcg flush probes should be pinned")
+			assertMemcgFlushCounting(t, "new memcg flush probes should count the flushes on the pinned counter")
+		})
+
+		// Without memcg_flush_seq, a new counter is created. Neither the pinned memcg flush programs
+		// nor the pinned oom-kill program use it, so none of them are taken over.
+		t.Run("memcg flush counter missing", func(t *testing.T) {
+			setTestPinDir(t)
+			firstLinkID, firstFlushLinkIDs := crashPinnedMemcgFlushProbe(t, cfg)
+			removePin(mapPinPath(memcgFlushSeqName))
+
+			second, err := NewProbe(cfg)
+			require.NoError(t, err)
+			t.Cleanup(second.Close)
+			assert.NotEqual(t, firstLinkID, linkID(t, second.link), "second probe should attach a new oom-kill link")
+			assertNoneEqual(t, firstFlushLinkIDs, memcgFlushLinkIDs(t, second), "second probe should attach new memcg flush links")
+			assertPins(t, "the new oom-kill probe should be pinned")
+			assertMemcgFlushPins(t, "the new memcg flush probes should be pinned")
+			assertMemcgFlushCounting(t, "new memcg flush probes should count the flushes on the new counter")
+		})
+	})
+}
+
+// crashPinnedMemcgFlushProbe starts a pinned probe collecting the cgroup memory stats, then
+// simulates system-probe dying without a graceful shutdown: the file descriptors are released but
+// the pins are left in place, so the probes keep running. It returns the IDs of the oom-kill link
+// and of the memcg flush links.
+func crashPinnedMemcgFlushProbe(t *testing.T, cfg *Config) (link.ID, map[string]link.ID) {
+	first, err := NewProbe(cfg)
+	require.NoError(t, err)
+	t.Cleanup(first.Close)
+	require.True(t, first.pinned, "first probe should be pinned when pinning is supported")
+	assertPins(t, "first probe should pin the oom-kill probe")
+	assertMemcgFlushPins(t, "first probe should pin the memcg flush probes")
+	oomLinkID := linkID(t, first.link)
+	flushLinkIDs := memcgFlushLinkIDs(t, first)
+
+	require.NoError(t, first.link.Close())
+	first.closeMemcgFlushLinks()
+	first.coll.Close()
+	return oomLinkID, flushLinkIDs
+}
+
+// assertMemcgFlushCounting checks that the pinned memcg_flush_seq changes, which the memcg stats
+// flushes do at least every 2s
+func assertMemcgFlushCounting(t *testing.T, msg string) {
+	seq, err := bpflib.LoadPinnedMap(mapPinPath(memcgFlushSeqName), nil)
+	require.NoError(t, err)
+	defer seq.Close()
+
+	before, err := memcgFlushSeq(seq)
+	require.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		cur, err := memcgFlushSeq(seq)
+		return err == nil && cur != before
+	}, 10*time.Second, 100*time.Millisecond, msg)
+}
+
+// assertNoneEqual checks that no link of got has the ID of the link of the same name in want
+func assertNoneEqual(t *testing.T, want, got map[string]link.ID, msg string) {
+	for name, id := range got {
+		assert.NotEqual(t, want[name], id, "%s: %s", name, msg)
+	}
 }
 
 // memcgFlushLinkIDs returns the IDs of the memcg flush links of p, keyed by their pin name
