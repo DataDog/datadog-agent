@@ -151,6 +151,88 @@ func TestHandleRunParsesInstanceID(t *testing.T) {
 	assert.Equal(t, "vm-abc123", id, "instance ID must be stored on the server for lifecycle metric tags")
 }
 
+// mockMetadataReporter records the IDs passed to ReportMetadata.
+type mockMetadataReporter struct {
+	mu  sync.Mutex
+	ids []string
+}
+
+func (m *mockMetadataReporter) ReportMetadata(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ids = append(m.ids, id)
+}
+
+func (m *mockMetadataReporter) getIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string{}, m.ids...)
+}
+
+func TestHandleRun_MetadataReporter_InvokedWithInstanceID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	srv.SetMetadataReporter(MetadataReporterFunc(func(id string) {
+		assert.Equal(t, id, srv.InstanceID(), "the instance ID must be stored before the report")
+		reporter.ReportMetadata(id)
+	}))
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	assert.Equal(t, []string{"vm-abc123"}, reporter.getIDs())
+}
+
+// TestHandleRun_MetadataReporter_NotInvokedWithoutInstanceID covers bodies
+// without a usable ID, including an invalid body that Unmarshal partially
+// populated before failing.
+func TestHandleRun_MetadataReporter_NotInvokedWithoutInstanceID(t *testing.T) {
+	for _, body := range []string{"", "{}", `{"microvmId":""}`, `{"microvmId":42}`, `{"microvmId":"bad","microvmId":42}`} {
+		t.Run(body, func(t *testing.T) {
+			srv, _, _, _, _, _ := newTestServer()
+			reporter := &mockMetadataReporter{}
+			srv.SetMetadataReporter(reporter)
+
+			rec := httptest.NewRecorder()
+			srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(body)))
+
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Empty(t, reporter.getIDs())
+			assert.Empty(t, srv.InstanceID(), "an invalid body must not store an instance ID")
+		})
+	}
+}
+
+func TestHandleResume_MetadataReporter_InvokedWithStoredID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	srv.SetMetadataReporter(reporter)
+	srv.instanceID.Store("vm-abc123")
+
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Equal(t, []string{"vm-abc123"}, reporter.getIDs())
+}
+
+func TestHandleResume_MetadataReporter_NotInvokedWithoutRun(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	srv.SetMetadataReporter(reporter)
+
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Empty(t, reporter.getIDs(), "resume must not report without an established identity")
+}
+
+func TestHandleRun_NilMetadataReporter_NoPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+		srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+	})
+}
+
 // TestHandleRun_BodyReadError_Returns500 verifies that a body read failure
 // aborts the handler before any state is mutated, rather than silently
 // proceeding with a truncated/empty body. errReader is defined in
@@ -2000,4 +2082,76 @@ func TestHandleRun_WithForwarder_UpdatesTraceTags(t *testing.T) {
 
 	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called even when forwarder is configured")
 	assert.Equal(t, "vm-fwd789", setter.lastCall()["lambda_microvm_id"])
+}
+
+func TestMetadataReportsSerializedWithInstanceID(t *testing.T) {
+	for _, firstHook := range []string{"run", "resume"} {
+		for _, secondHook := range []string{"run", "resume"} {
+			t.Run(firstHook+"/"+secondHook, func(t *testing.T) {
+				srv, _, _, _, _, _ := newTestServer()
+				srv.instanceID.Store("vm-A")
+				entered, release := make(chan struct{}), make(chan struct{})
+				var releaseOnce sync.Once
+				unblock := func() { releaseOnce.Do(func() { close(release) }) }
+				defer unblock()
+				var calls, active atomic.Int32
+				reporter := &mockMetadataReporter{}
+				srv.SetMetadataReporter(MetadataReporterFunc(func(id string) {
+					assert.EqualValues(t, 1, active.Inc(), "metadata reports must not overlap")
+					defer active.Dec()
+					assert.Equal(t, id, srv.InstanceID())
+					if calls.Inc() == 1 {
+						close(entered)
+						select {
+						case <-release:
+						case <-time.After(5 * time.Second):
+							t.Error("timed out releasing the metadata report")
+						}
+						assert.Equal(t, id, srv.InstanceID(), "another run must not replace the ID during a report")
+					}
+					reporter.ReportMetadata(id)
+				}))
+				invoke := func(hook, id string) {
+					rec := httptest.NewRecorder()
+					if hook == "run" {
+						srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(`{"microvmId":"`+id+`"}`)))
+					} else {
+						srv.handleResume(rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+					}
+					assert.Equal(t, http.StatusOK, rec.Code)
+				}
+				firstDone, secondStarted, secondDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				go func() { defer close(firstDone); invoke(firstHook, "vm-B") }()
+				waitForMetadataReport(t, entered)
+				go func() { defer close(secondDone); close(secondStarted); invoke(secondHook, "vm-C") }()
+				waitForMetadataReport(t, secondStarted)
+				assert.Empty(t, reporter.getIDs(), "the first report is still blocked")
+				unblock()
+				waitForMetadataReport(t, firstDone)
+				waitForMetadataReport(t, secondDone)
+				firstID := "vm-A"
+				if firstHook == "run" {
+					firstID = "vm-B"
+				}
+				lastID := firstID
+				if secondHook == "run" {
+					lastID = "vm-C"
+				}
+				assert.Equal(t, []string{firstID, lastID}, reporter.getIDs())
+				assert.Equal(t, lastID, srv.InstanceID())
+				// A resume after the overlap must not replay an earlier ID.
+				invoke("resume", "")
+				assert.Equal(t, []string{firstID, lastID, lastID}, reporter.getIDs())
+			})
+		}
+	}
+}
+
+func waitForMetadataReport(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the metadata report")
+	}
 }
