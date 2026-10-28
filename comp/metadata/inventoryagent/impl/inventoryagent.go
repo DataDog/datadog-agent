@@ -88,9 +88,6 @@ type inventoryagent struct {
 	data         agentMetadata
 	hostname     string
 	client       ipc.HTTPClient
-	// See iainterface.Capabilities for the meaning of these fields.
-	skipFullAgentMetadataRefresh bool
-	payloadUUID                  func() string
 }
 
 // Requires defines the dependencies for the inventoryagent component
@@ -103,9 +100,6 @@ type Requires struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
-	// Capabilities is optional; absent means standard full-agent behavior.
-	// See iainterface.Capabilities.
-	Capabilities *iainterface.Capabilities `optional:"true"`
 }
 
 // Provides defines the output of the inventoryagent component
@@ -130,12 +124,6 @@ func NewComponent(deps Requires) Provides {
 		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
-
-	if deps.Capabilities != nil {
-		ia.SetReady(!deps.Capabilities.DeferUntilReady)
-		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh
-		ia.payloadUUID = deps.Capabilities.PayloadUUID
-	}
 
 	if ia.Enabled {
 		ia.initData()
@@ -544,9 +532,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
 
-	if !ia.skipFullAgentMetadataRefresh {
-		ia.refreshMetadata()
-	}
+	ia.refreshMetadata()
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
@@ -558,18 +544,8 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
-		UUID:      ia.getUUID(),
+		UUID:      uuid.GetUUID(),
 	}
-}
-
-// getUUID resolves the uuid override when one is supplied, otherwise the host machine GUID.
-func (ia *inventoryagent) getUUID() string {
-	if ia.payloadUUID != nil {
-		if id := ia.payloadUUID(); id != "" {
-			return id
-		}
-	}
-	return uuid.GetUUID()
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
