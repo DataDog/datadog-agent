@@ -66,6 +66,17 @@ func (s *LogSourceSuite) TestDumpConcurrentWithProcessingInfo() {
 	wg.Wait()
 }
 
+func (s *LogSourceSuite) TestRecordMissedBytes() {
+	parent := NewLogSource("parent", nil)
+	source := NewLogSource("child", nil)
+	source.ParentSource = parent
+
+	source.RecordMissedBytes(42)
+	source.RecordMissedBytes(8)
+	s.EqualValues(50, source.BytesMissed.Load())
+	s.EqualValues(50, parent.BytesMissed.Load(), "the status page shows the parent")
+}
+
 func TestTrackerSuite(t *testing.T) {
 	suite.Run(t, new(LogSourceSuite))
 }

@@ -50,6 +50,7 @@ type LogSource struct {
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *statstracker.Tracker
 	BytesRead        atomic.Int64
+	BytesMissed      atomic.Int64 // bytes lost before they could be read (see RecordMissedBytes)
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
 	// tagFilterState is read on every message, so it's cached behind an atomic
@@ -219,6 +220,16 @@ func (s *LogSource) RecordBytes(n int64) {
 	// used to populate the status page.
 	if s.ParentSource != nil {
 		s.ParentSource.BytesRead.Add(n)
+	}
+}
+
+// RecordMissedBytes reports n bytes lost before they could be read, to the
+// source and, as RecordBytes does, to its parent source, which the status page
+// shows instead.
+func (s *LogSource) RecordMissedBytes(n int64) {
+	s.BytesMissed.Add(n)
+	if s.ParentSource != nil {
+		s.ParentSource.BytesMissed.Add(n)
 	}
 }
 
