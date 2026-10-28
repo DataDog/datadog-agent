@@ -210,8 +210,10 @@ func (s *packageAgentSuite) TestPrivilegedRshellHelperLifecycle() {
 	s.False(s.socketExists(rshellSocketPath), "a failed helper must not leave its socket")
 	s.Equal("ActiveState=active", strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+agentUnit)),
 		"the helper failing must not take the core Agent down")
-	// Restarting the Agent clears the failed helper and brings it back: the
-	// Agent unit's Wants= pulls it in and resets its restart counter.
+	// The helper fails closed: once its start limit is hit it stays failed, and
+	// the Agent's Wants= does not reset that counter. Clearing it with
+	// reset-failed and then restarting the Agent brings the helper back.
+	s.host.Run("sudo systemctl reset-failed " + rshellServiceUnit)
 	s.host.Run("sudo systemctl restart " + agentUnit)
 	s.requireRshellHelperSupported()
 	s.assertRshellHelper(true)
