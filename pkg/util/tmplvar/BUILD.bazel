@@ -27,6 +27,7 @@ dd_agent_go_test(
     embed = [":tmplvar"],
     deps = [
         "//comp/core/workloadmeta/def",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

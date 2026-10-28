@@ -1041,21 +1041,27 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Whether the GPU is unavailable for the reason in the unavailable_reason
-        tag. The lost reason means NVML reports the GPU as inaccessible
-        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
-        0 means available, 1 means unavailable.
+        Whether the GPU is unavailable for the reason in unavailable_reason, 0 or
+        1, on physical GPUs (MIG parents included, slices excluded). A GPU has at
+        most one reason at 1, in this order: lost (NVML reports the GPU as
+        inaccessible), unhealthy (device plugin unhealthy or an NVML recovery
+        action), unschedulable (the node is cordoned, not Ready or matches a rule).
+        Series carry device tags but no workload tags. Only unschedulable series
+        carry unschedulable_reason tags, one per cause, and report 0 for 10 minutes
+        after the cause clears.
       aggregation: absolute_usage
     tagsets:
       - device
     custom_tags:
       - unavailable_reason
+      - unschedulable_reason
+    optional: true
     validator:
       values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
   device.needs_recovery:

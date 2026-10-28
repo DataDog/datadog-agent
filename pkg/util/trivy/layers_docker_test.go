@@ -10,6 +10,8 @@ package trivy
 import (
 	"testing"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	dimage "github.com/moby/moby/api/types/image"
 	"github.com/moby/moby/api/types/storage"
 	"github.com/stretchr/testify/assert"
@@ -82,4 +84,26 @@ func TestBuildDockerLayerPaths(t *testing.T) {
 		assert.Equal(t, "/dock/only", got[0].Path)
 		assert.Equal(t, "sha256:only", got[0].DiffID)
 	})
+}
+
+// TestScanDockerImageWithoutGraphDriver checks that the direct scan exports
+// an image of Docker's containerd image store, whose inspect response carries
+// no GraphDriver.
+func TestScanDockerImageWithoutGraphDriver(t *testing.T) {
+	const id = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+	imgMeta := &workloadmeta.ContainerImageMetadata{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: id},
+		EntityMeta: workloadmeta.EntityMeta{Name: "alpine:3.20"},
+	}
+	cl := imageClient{inspect: dimage.InspectResponse{
+		ID: id,
+		RootFS: dimage.RootFS{
+			Type:   "layers",
+			Layers: []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		},
+	}}
+
+	_, method, err := NewCollectorForCLI().ScanDockerImage(t.Context(), imgMeta, cl, sbom.ScanOptions{OverlayFsScan: true, Analyzers: []string{OSAnalyzers}})
+	assert.Equal(t, "tarball", method)
+	assert.ErrorIs(t, err, errSave)
 }

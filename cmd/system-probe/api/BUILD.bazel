@@ -7,6 +7,7 @@ go_library(
         "agentrestart_darwin.go",
         "agentrestart_others.go",
         "config.go",
+        "packet_capture_socket.go",
         "server.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/api",
@@ -32,6 +33,7 @@ dd_agent_go_test(
     srcs = [
         "agentrestart_darwin_test.go",
         "agentrestart_others_test.go",
+        "packet_capture_socket_test.go",
     ],
     embed = [":api"],
     deps = select({
@@ -40,6 +42,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//assert",
@@ -61,6 +64,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:netbsd": [
             "@com_github_stretchr_testify//assert",

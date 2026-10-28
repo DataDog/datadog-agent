@@ -61,6 +61,19 @@ func TestTransformInlineScript_SingleQuoteInValue(t *testing.T) {
 	}
 }
 
+func TestTransformInlineScript_UnicodeSingleQuoteInValue(t *testing.T) {
+	script := `Write-Output "{{ parameters.name }}"`
+	result, err := transformInlineScript(script, map[string]any{"name": "it\u2019s"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// PowerShell treats U+2019 as a single quote, so it is doubled like the ASCII apostrophe.
+	expected := "$__par_name = 'it\u2019\u2019s'"
+	if !strings.Contains(result.Script, expected) {
+		t.Errorf("expected escaped unicode single quotes in preamble, got:\n%s", result.Script)
+	}
+}
+
 func TestTransformInlineScript_DollarSignInValue(t *testing.T) {
 	script := `Write-Output "{{ parameters.pw }}"`
 	result, err := transformInlineScript(script, map[string]any{"pw": "MyNameIs$$$"})
@@ -170,10 +183,17 @@ func TestPowershellLiteral(t *testing.T) {
 		{float64(3.14), "3.14"},
 		{"hello", "'hello'"},
 		{"d'Artagnan", "'d''Artagnan'"},
+		{"a\u2018b", "'a\u2018\u2018b'"},
+		{"a\u2019b", "'a\u2019\u2019b'"},
+		{"a\u201Ab", "'a\u201A\u201Ab'"},
+		{"a\u201Bb", "'a\u201B\u201Bb'"},
+		{"'\u2018\u2019\u201A\u201B", "'''\u2018\u2018\u2019\u2019\u201A\u201A\u201B\u201B'"},
+		{"a\u201Cb\u201Dc", "'a\u201Cb\u201Dc'"}, // double smart quotes are not string delimiters in single-quoted strings
 		{"MyNameIs$$$", "'MyNameIs$$$'"},
 		{`C:\path\file.txt`, `'C:\path\file.txt'`},
 		{map[string]any{"k": "v"}, `'{"k":"v"}'`},
 		{map[string]any{"url": "a&b<c>d"}, `'{"url":"a&b<c>d"}'`}, // & < > must not be HTML-escaped
+		{map[string]any{"k": "\u2019"}, "'{\"k\":\"\u2019\u2019\"}'"},
 	}
 	for _, tc := range tests {
 		got, err := powershellLiteral(tc.input)
