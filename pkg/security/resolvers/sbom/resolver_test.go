@@ -340,10 +340,14 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	t.Cleanup(sbom.stop)
+	sbom.failedScans = 2
 	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0)
 
 	if err := r.analyzeWorkload(sbom); err != nil {
 		t.Fatalf("analyzeWorkload: %v", err)
+	}
+	if sbom.failedScans != 0 {
+		t.Errorf("%d failed scans after the workload took the cached data, want 0", sbom.failedScans)
 	}
 
 	if !sbom.IsComputed() {
@@ -431,7 +435,6 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 		}}, false))
 
 		sbom := NewSBOM("container-id", nil, "image:tag")
-		sbom.status = workloadmeta.Success
 		t.Cleanup(sbom.stop)
 		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true, 0)
 
@@ -668,7 +671,6 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 
 	sbomB := NewSBOM("container-b", nil, "image:tag")
 	sbomB.data = data
-	sbomB.status = workloadmeta.Success
 	sbomB.state.Store(computedState)
 
 	r := newPendingFileEventsResolver(t)
@@ -746,12 +748,9 @@ func TestForwardSkipsStoppedSBOM(t *testing.T) {
 		Package:        sbomtypes.Package{Name: "bash"},
 		InstalledFiles: []string{"/usr/bin/bash"},
 	}})
-	sbom.status = workloadmeta.Success
 	sbom.stop()
 
-	if r.forward(sbom) {
-		t.Errorf("the forward of a stopped SBOM asks for a retry")
-	}
+	r.forward(sbom)
 	if forwarded {
 		t.Errorf("a stopped SBOM was forwarded")
 	}
@@ -794,12 +793,30 @@ func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, err
 	return nil, fmt.Errorf("container %q not found", id)
 }
 
-// TestGetContainerSBOMWithoutWorkloadmeta checks that a resolver without
-// workloadmeta, as in the functional tests, reports an error for a container.
-func TestGetContainerSBOMWithoutWorkloadmeta(t *testing.T) {
-	r := &Resolver{}
-	if sbom, err := r.getContainerSBOM("container-id"); err == nil || sbom != nil {
-		t.Errorf("getContainerSBOM() = %v, %v, want an error", sbom, err)
+// TestForwardBeforeImageSBOM checks that a container report goes out before
+// workloadmeta knows the SBOM of its image, which the core agent waits for.
+func TestForwardBeforeImageSBOM(t *testing.T) {
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		wmeta:    failingWorkloadmeta{},
+	}
+	var reports []*sbompkg.ScanResult
+	if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+		reports = append(reports, result)
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "bash"},
+		InstalledFiles: []string{"/usr/bin/bash"},
+	}})
+	sbom.state.Store(computedState)
+
+	r.forward(sbom)
+	if len(reports) != 1 || reports[0].RequestID != "container-id" {
+		t.Errorf("reports = %v, want the report of container-id", reports)
 	}
 }
 
@@ -884,7 +901,6 @@ func newHostSBOMResolver(t *testing.T) *Resolver {
 		},
 		pendingFileEvents: newPendingFileEvents(t),
 		hostMisses:        newHostMisses(t),
-		wmeta:             failingWorkloadmeta{},
 	}
 
 	r.hostRootDevice, r.hostRootInode = ownRoot(t)
@@ -1126,12 +1142,9 @@ func TestPendingFileEventsRecordDeletedFile(t *testing.T) {
 	}
 }
 
-// TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
-// at once. A container report waits for the Trivy SBOM of its image, while the
-// core agent keeps the report of the host for its next host scan. Here every
-// workloadmeta lookup fails, so a host report that waited on an image SBOM
-// would wait forever.
-func TestHostForwardingSkipsImageSBOM(t *testing.T) {
+// TestForwardHostReport checks that the report of the host goes out at once,
+// with the empty request ID, its usage and the start of its usage.
+func TestForwardHostReport(t *testing.T) {
 	r := newHostSBOMResolver(t)
 
 	var reports []*sbompkg.ScanResult
@@ -1144,9 +1157,7 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	pc, file := hostAccess()
 	r.ResolvePackage(pc, file)
 
-	if r.forward(r.hostSBOM) {
-		t.Errorf("the host report waits to be forwarded again")
-	}
+	r.forward(r.hostSBOM)
 	if len(reports) != 1 {
 		t.Fatalf("%d host reports forwarded, want 1", len(reports))
 	}
@@ -2180,30 +2191,32 @@ func TestScanHostFingerprintsBeforeScan(t *testing.T) {
 }
 
 // TestScanHostCreditsMissedRuns checks that a scan finding a new package credits
-// it the runs of its files by host processes made before the scan, in the last
-// hostMissTTL, at the time of each run. Opens, processes on a root of their
-// own, processes of containers and runs of a file procfs names as replaced
-// leave it as it is, and the run of a file no package owns waits for a later
-// scan.
+// it the runs of its files, as executables or as the interpreters of scripts,
+// by host processes made before the scan, in the last hostMissTTL, at the time
+// of each run. Opens, processes on a root of their own, processes of
+// containers and runs of a file procfs names as replaced leave it as it is,
+// and the run of a file no package owns waits for a later scan.
 func TestScanHostCreditsMissedRuns(t *testing.T) {
 	tests := []struct {
-		name      string
-		path      string        // path of the file the process accesses
-		open      bool          // the process opens the file instead of running it
-		foreign   bool          // the process runs on a root of its own
-		container bool          // the process runs in a container
-		age       time.Duration // age of the run at the scan
-		identity  bool          // the run carries the inode of a file under the host root
-		replaced  bool          // a new file takes the path of the file before the scan
-		credited  bool          // the scan credits the run to gzip
-		uid       uint32        // the real UID of the process, whose effective UID is 0
-		kept      bool          // the run waits for a later scan
+		name        string
+		path        string        // path of the file the process accesses
+		open        bool          // the process opens the file instead of running it
+		interpreter bool          // the process runs a script through the file
+		foreign     bool          // the process runs on a root of its own
+		container   bool          // the process runs in a container
+		age         time.Duration // age of the run at the scan
+		identity    bool          // the run carries the inode of a file under the host root
+		replaced    bool          // a new file takes the path of the file before the scan
+		credited    bool          // the scan credits the run to gzip
+		uid         uint32        // the real UID of the process, whose effective UID is 0
+		kept        bool          // the run waits for a later scan
 	}{
 		{name: "run", path: "/usr/bin/gzip", credited: true},
 		{name: "run of the file at its path", path: "/usr/bin/gzip", identity: true, credited: true},
 		{name: "run of a file replaced since", path: "/usr/bin/gzip", identity: true, replaced: true},
 		{name: "run of a file procfs names as replaced", path: "/usr/bin/gzip" + deletedSuffix},
 		{name: "open", path: "/usr/bin/gzip", open: true},
+		{name: "run of an interpreter", path: "/usr/bin/gzip", interpreter: true, identity: true, credited: true},
 		{name: "foreign root", path: "/usr/bin/gzip", foreign: true},
 		{name: "container", path: "/usr/bin/gzip", container: true},
 		{name: "expired", path: "/usr/bin/gzip", age: hostMissTTL + time.Minute},
@@ -2233,6 +2246,12 @@ func TestScanHostCreditsMissedRuns(t *testing.T) {
 			if tt.open {
 				pc.Process.FileEvent.SetPathnameStr("/usr/bin/zcat")
 				file = &model.FileEvent{}
+				file.SetPathnameStr(tt.path)
+				file.Mode = 04755
+			}
+			if tt.interpreter {
+				pc.Process.FileEvent.SetPathnameStr("/tmp/script")
+				file = &pc.Process.LinuxBinprm.FileEvent
 				file.SetPathnameStr(tt.path)
 				file.Mode = 04755
 			}
@@ -2499,7 +2518,6 @@ func TestResolvePackageRefreshesSteadyUsage(t *testing.T) {
 			Package:        sbomtypes.Package{Name: "bash"},
 			InstalledFiles: []string{"/usr/bin/bash"},
 		}})
-		sbom.status = workloadmeta.Success
 		sbom.state.Store(computedState)
 		t.Cleanup(sbom.stop)
 		sboms.Add(sbom.ContainerID, sbom)
@@ -2757,7 +2775,6 @@ func TestRescanAfterPackageChange(t *testing.T) {
 
 			sbom := r.newSBOM("container-id", nil, "image:tag")
 			t.Cleanup(sbom.stop)
-			sbom.status = workloadmeta.Success
 			r.setScan(sbom, []sbomtypes.PackageWithInstalledFiles{coreutils, gzip("1ubuntu3")}, "")
 			sbom.state.Store(computedState)
 
@@ -3054,4 +3071,133 @@ func TestResolveOpenOfBytecode(t *testing.T) {
 	if pkg := r.hostSBOM.data.packages[0]; pkg.LastAccess.IsZero() {
 		t.Errorf("package = %+v, want python3-requests with its usage recorded", pkg)
 	}
+}
+
+func newScanQueueResolver(t *testing.T) (*Resolver, *SBOM) {
+	t.Helper()
+	r := newPendingFileEventsResolver(t)
+	sboms, err := simplelru.NewLRU(10, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	r.scanChan = make(chan *SBOM, 1)
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
+	sboms.Add(sbom.ContainerID, sbom)
+	if _, ok := r.addPendingScan(sbom.ContainerID); !ok {
+		t.Fatalf("addPendingScan failed")
+	}
+	return r, sbom
+}
+
+// TestScanFailedRetriesScan checks that a workload whose scan failed is queued
+// for a scan again.
+func TestScanFailedRetriesScan(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r, sbom := newScanQueueResolver(t)
+
+		r.scanFailed(sbom, errors.New("scan failed"))
+		time.Sleep(failedScanRetryDelay)
+		synctest.Wait()
+
+		select {
+		case queued := <-r.scanChan:
+			if queued != sbom {
+				t.Errorf("queued unexpected SBOM for a scan")
+			}
+		default:
+			t.Fatalf("the workload was not queued for a scan again")
+		}
+	})
+}
+
+// TestScanFailedSpacesOutRetries checks that the retries of a workload whose scan
+// keeps failing wait twice as long each time.
+func TestScanFailedSpacesOutRetries(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r, sbom := newScanQueueResolver(t)
+
+		for _, delay := range []time.Duration{failedScanRetryDelay, 2 * failedScanRetryDelay, 4 * failedScanRetryDelay} {
+			r.scanFailed(sbom, errors.New("scan failed"))
+			time.Sleep(delay - time.Second)
+			synctest.Wait()
+			if len(r.scanChan) != 0 {
+				t.Fatalf("the workload was queued again before %s", delay)
+			}
+			time.Sleep(time.Second)
+			synctest.Wait()
+			if len(r.scanChan) != 1 {
+				t.Fatalf("the workload was not queued again after %s", delay)
+			}
+			<-r.scanChan
+		}
+	})
+}
+
+// TestRetryScanSkipsQueuedWorkload checks that a retry finding the workload queued
+// again, as a refresh queues it, leaves it there.
+func TestRetryScanSkipsQueuedWorkload(t *testing.T) {
+	r, sbom := newScanQueueResolver(t)
+
+	r.retryScan(sbom)
+
+	if current, ok := r.sboms.Peek(sbom.ContainerID); !ok || current != sbom {
+		t.Fatalf("the retry dropped the queued workload")
+	}
+	if len(r.pendingScan) != 1 || len(r.scanChan) != 0 {
+		t.Errorf("%d pending scans, %d queued, want the one pending scan", len(r.pendingScan), len(r.scanChan))
+	}
+}
+
+// TestScanFailedReleasesGoneWorkload checks that a workload whose processes are
+// gone releases its scan slot and leaves the scan queue.
+func TestScanFailedReleasesGoneWorkload(t *testing.T) {
+	for _, err := range []error{errNoProcessForContainerID, errNoContainerRoot} {
+		t.Run(err.Error(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r, sbom := newScanQueueResolver(t)
+
+				r.scanFailed(sbom, err)
+				time.Sleep(failedScanRetryDelay)
+				synctest.Wait()
+
+				if len(r.pendingScan) != 0 || len(r.scanChan) != 0 {
+					t.Errorf("%d pending scans, %d queued, want none", len(r.pendingScan), len(r.scanChan))
+				}
+			})
+		})
+	}
+}
+
+// TestTriggerScanRetriesOnFullChan checks that a workload meeting a scan chan
+// full of stopped SBOMs is queued again later, rather than dropped.
+func TestTriggerScanRetriesOnFullChan(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r, sbom := newScanQueueResolver(t)
+		r.removePendingScan(sbom.ContainerID)
+		stopped := NewSBOM("stopped-container-id", nil, "image:tag")
+		stopped.stop()
+		r.scanChan <- stopped
+
+		sbom.Lock()
+		r.triggerScan(sbom)
+		sbom.Unlock()
+		if current, ok := r.sboms.Peek(sbom.ContainerID); !ok || current != sbom {
+			t.Fatalf("the workload was dropped on a full scan chan")
+		}
+
+		<-r.scanChan
+		time.Sleep(failedScanRetryDelay)
+		synctest.Wait()
+		select {
+		case queued := <-r.scanChan:
+			if queued != sbom {
+				t.Errorf("queued unexpected SBOM for a scan")
+			}
+		default:
+			t.Fatalf("the workload was not queued again")
+		}
+	})
 }

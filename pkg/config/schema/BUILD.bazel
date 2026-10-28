@@ -158,6 +158,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/schema",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/model",
+        "//pkg/util/scrubber",
         "//pkg/zstd",
         "@com_github_qri_io_jsonpointer//:jsonpointer",
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
@@ -171,6 +173,7 @@ dd_agent_go_test(
     srcs = ["schema_test.go"],
     embed = [":schema"],
     deps = [
+        "//pkg/config/model",
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//assert/yaml",

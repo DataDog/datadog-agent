@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -128,27 +129,34 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 
 	events := make([]*compliance.CheckEvent, 0)
 	for _, benchmark := range benchmarks {
+		var benchmarkEvents []*compliance.CheckEvent
 		for _, rule := range benchmark.Rules {
 			log.Infof("Running check: %s: %s [version=%s]", rule.ID, rule.Description, benchmark.Version)
-			var ruleEvents []*compliance.CheckEvent
-			switch {
-			case rule.IsXCCDF():
-				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
-			case rule.IsRego():
-				inputs, err := resolver.ResolveInputs(context.Background(), rule)
-				if err != nil {
-					ruleEvents = append(ruleEvents, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
-				} else {
-					ruleEvents = compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)
-				}
+			if !rule.IsRego() {
+				continue
 			}
-			for _, event := range ruleEvents {
-				event.HostCCRID = hostCCRID
-				b, _ := json.MarshalIndent(event, "", "\t")
-				fmt.Println(string(b))
-				if event.Result != compliance.CheckSkipped {
-					events = append(events, event)
-				}
+			inputs, err := resolver.ResolveInputs(context.Background(), rule)
+			if err != nil {
+				benchmarkEvents = append(benchmarkEvents, compliance.CheckEventFromError(compliance.RegoEvaluator, rule, benchmark, err))
+				continue
+			}
+			benchmarkEvents = append(benchmarkEvents, compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)...)
+		}
+		err := compliance.EvaluateXCCDFRules(context.Background(), hname, compliance.XCCDFProbeRoot(), benchmark, 0, func(rule *compliance.Rule, event *compliance.CheckEvent, took time.Duration) {
+			compliance.ReportXCCDFInput(statsdClient, rule.ID, took)
+			if event != nil {
+				benchmarkEvents = append(benchmarkEvents, event)
+			}
+		})
+		if err != nil {
+			log.Warnf("could not evaluate xccdf benchmark: %v", err)
+		}
+		for _, event := range benchmarkEvents {
+			event.HostCCRID = hostCCRID
+			b, _ := json.MarshalIndent(event, "", "\t")
+			fmt.Println(string(b))
+			if event.Result != compliance.CheckSkipped {
+				events = append(events, event)
 			}
 		}
 	}

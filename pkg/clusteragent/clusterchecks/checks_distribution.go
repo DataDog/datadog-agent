@@ -110,6 +110,9 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 	return leastBusyRunner
 }
 
+// addToLeastBusy places a config on the least busy runner of the distribution.
+// Eligibility is implied by the distribution's runner set: cohort
+// distributions only contain the cohort's eligible runners.
 func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
 	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner, workersNeeded)
 	if leastBusy == "" {

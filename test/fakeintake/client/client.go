@@ -47,6 +47,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +70,7 @@ const (
 	metricsV1Endpoint            = "/api/v1/series"
 	metricsV3Endpoint            = "/api/intake/metrics/v3/series"
 	sketchesEndpoint             = "/api/beta/sketches"
+	sketchesV3Endpoint           = "/api/intake/metrics/v3/sketches"
 	intakeEndpoint               = "/intake/"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
@@ -146,6 +148,8 @@ type Client struct {
 	metricAggregatorV1             aggregator.MetricAggregator
 	metricAggregatorV3             aggregator.MetricAggregator
 	sketchAggregator               aggregator.SketchAggregator
+	sketchAggregatorV3             aggregator.SketchAggregator
+	histogramAggregator            aggregator.HistogramAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
 	eventAggregator                aggregator.EventAggregator
 	logAggregator                  aggregator.LogAggregator
@@ -186,6 +190,8 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		metricAggregatorV1:             aggregator.NewMetricAggregatorV1(),
 		metricAggregatorV3:             aggregator.NewMetricAggregatorV3(),
 		sketchAggregator:               aggregator.NewSketchAggregator(),
+		sketchAggregatorV3:             aggregator.NewSketchAggregatorV3(),
+		histogramAggregator:            aggregator.NewHistogramAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
 		eventAggregator:                aggregator.NewEventAggregator(),
 		logAggregator:                  aggregator.NewLogAggregator(),
@@ -401,12 +407,29 @@ func (c *Client) getHostTags() error {
 	return c.hostAggregator.UnmarshallPayloads(payloads)
 }
 
+// getSketches refreshes both sketch endpoints. Which one the agent uses depends on
+// `serializer_experimental_use_v3_api.sketches.endpoints`, so both are always fetched.
 func (c *Client) getSketches() error {
 	payloads, err := c.getFakePayloads(sketchesEndpoint)
 	if err != nil {
 		return err
 	}
-	return c.sketchAggregator.UnmarshallPayloads(payloads)
+	if err := c.sketchAggregator.UnmarshallPayloads(payloads); err != nil {
+		return err
+	}
+	payloads, err = c.getFakePayloads(sketchesV3Endpoint)
+	if err != nil {
+		return err
+	}
+	return c.sketchAggregatorV3.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getHistograms() error {
+	payloads, err := c.getFakePayloads(sketchesV3Endpoint)
+	if err != nil {
+		return err
+	}
+	return c.histogramAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getAgentHealth() error {
@@ -436,14 +459,27 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 	return filterPayload(metrics, options...)
 }
 
-// FilterSketches fetches fakeintake on `/api/beta/sketches` and returns sketches
-// matching `name` and any [MatchOpt](#MatchOpt) options. Use this for distribution
-// metrics — counters/gauges go through FilterMetrics instead.
+// FilterSketches fetches fakeintake on `/api/beta/sketches` and
+// `/api/intake/metrics/v3/sketches` and returns DDSketch series matching `name` and any
+// [MatchOpt](#MatchOpt) options. Results from both endpoints are merged. Use this for
+// distribution metrics — counters/gauges go through FilterMetrics instead, and OTel
+// histograms through FilterHistograms.
 func (c *Client) FilterSketches(name string, options ...MatchOpt[*aggregator.Sketch]) ([]*aggregator.Sketch, error) {
 	if err := c.getSketches(); err != nil {
 		return nil, err
 	}
-	return filterPayload(c.sketchAggregator.GetPayloadsByName(name), options...)
+	sketches := c.sketchAggregator.GetPayloadsByName(name)
+	sketches = append(sketches, c.sketchAggregatorV3.GetPayloadsByName(name)...)
+	return filterPayload(sketches, options...)
+}
+
+// FilterHistograms fetches fakeintake on `/api/intake/metrics/v3/sketches` and returns
+// OTel histogram series matching `name` and any [MatchOpt](#MatchOpt) options.
+func (c *Client) FilterHistograms(name string, options ...MatchOpt[*aggregator.Histogram]) ([]*aggregator.Histogram, error) {
+	if err := c.getHistograms(); err != nil {
+		return nil, err
+	}
+	return filterPayload(c.histogramAggregator.GetPayloadsByName(name), options...)
 }
 
 func (c *Client) getMetricsV1() error {
@@ -684,13 +720,24 @@ func (c *Client) GetMetricNames() ([]string, error) {
 	return names, nil
 }
 
-// GetSketchNames fetches fakeintake on `/api/beta/sketches` and returns every
-// distinct sketch metric name received.
+// GetSketchNames fetches fakeintake on `/api/beta/sketches` and
+// `/api/intake/metrics/v3/sketches` and returns every distinct sketch metric name received.
 func (c *Client) GetSketchNames() ([]string, error) {
 	if err := c.getSketches(); err != nil {
 		return nil, err
 	}
-	return c.sketchAggregator.GetNames(), nil
+	names := append(c.sketchAggregator.GetNames(), c.sketchAggregatorV3.GetNames()...)
+	slices.Sort(names)
+	return slices.Compact(names), nil
+}
+
+// GetHistogramNames fetches fakeintake on `/api/intake/metrics/v3/sketches` and returns
+// every distinct OTel histogram metric name received.
+func (c *Client) GetHistogramNames() ([]string, error) {
+	if err := c.getHistograms(); err != nil {
+		return nil, err
+	}
+	return c.histogramAggregator.GetNames(), nil
 }
 
 // WithTags filters by `tags`
@@ -859,6 +906,8 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.metricAggregatorV1.Reset()
 	c.metricAggregatorV3.Reset()
 	c.sketchAggregator.Reset()
+	c.sketchAggregatorV3.Reset()
+	c.histogramAggregator.Reset()
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()

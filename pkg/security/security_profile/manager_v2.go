@@ -188,6 +188,8 @@ type ManagerV2 struct {
 	// resolution) and flushed once per SendStats cycle, like the other counters above.
 	tagResolutionEventsDropped  *atomic.Uint64
 	tagResolutionCgroupsExpired *atomic.Uint64
+	tagResolutionCappedCgroup   *atomic.Uint64
+	tagResolutionCappedTotal    *atomic.Uint64
 	cleanupProfilesRemoved      *atomic.Uint64
 	evictionRuns                *atomic.Uint64
 	evictionNodesEvicted        *atomic.Uint64
@@ -288,6 +290,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 		sampleRefreshMisses:         atomic.NewUint64(0),
 		tagResolutionEventsDropped:  atomic.NewUint64(0),
 		tagResolutionCgroupsExpired: atomic.NewUint64(0),
+		tagResolutionCappedCgroup:   atomic.NewUint64(0),
+		tagResolutionCappedTotal:    atomic.NewUint64(0),
 		cleanupProfilesRemoved:      atomic.NewUint64(0),
 		evictionRuns:                atomic.NewUint64(0),
 		evictionNodesEvicted:        atomic.NewUint64(0),
@@ -782,6 +786,9 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
+	// Resolve the event time before firstSeen reads it: Timestamp stays zero until resolved
+	event.ResolveEventTime()
+
 	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
@@ -794,7 +801,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
@@ -804,6 +810,16 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
+		return
+	}
+
+	// some containers never resolve tags (e.g. Docker-in-Docker), so the queue is bounded
+	if pendingEvents.events.Len() >= m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup {
+		m.tagResolutionCappedCgroup.Inc()
+		return
+	}
+	if m.queueSize.Load() >= uint64(m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents) {
+		m.tagResolutionCappedTotal.Inc()
 		return
 	}
 
@@ -914,6 +930,16 @@ func (m *ManagerV2) SendStats() error {
 	}
 	if value := m.tagResolutionCgroupsExpired.Swap(0); value > 0 {
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedCgroup.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:cgroup"}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedTotal.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:total"}, 1.0); err != nil {
 			return err
 		}
 	}
@@ -1068,6 +1094,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
+	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
+		imageTag = "latest"
+	}
+	// Evict surplus versions before the size check, since eviction can free enough space.
+	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
+
 	// Build workloadID for cache entry lookup
 	workloadID := getWorkloadIDFromEvent(event)
 
@@ -1085,14 +1120,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
 	}
-
-	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if imageTag == "" {
-		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
-		imageTag = "latest"
-	}
-	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
 	// Insert the event into the profile's activity tree
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
@@ -1389,10 +1416,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
-	eventTime := event.Timestamp
-	if eventTime.IsZero() {
-		eventTime = time.Now()
-	}
+	eventTime := event.ResolveEventTime()
 
 	// Initialize metadata
 	secprof.Metadata = mtdt.Metadata{
@@ -1466,25 +1490,14 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 	return nil
 }
 
-// ensureVersionContext creates a version context for the given tag if it doesn't exist, with the tags of the
-// workload that introduced this tag
+// ensureVersionContext creates or refreshes a version context and evicts surplus versions.
+// Existing contexts keep the tags of the workload that introduced the version.
 func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
-	if _, ok := secprof.GetVersionContext(tag); ok {
-		return
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	evictedVersions := secprof.PrepareNewVersion(tag, workloadTags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, nowNano)
+	if len(evictedVersions) > 0 {
+		m.purgeCookiesForProfile(secprof, evictedVersions...)
 	}
-
-	now := time.Now()
-	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-
-	vCtx := &profile.VersionContext{
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           slices.Clone(workloadTags),
-	}
-
-	secprof.AddVersionContext(tag, vCtx)
 }
 
 // seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
@@ -1655,7 +1668,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+		pce := pr.Get(pid)
 		if pce == nil {
 			continue
 		}
@@ -1730,7 +1743,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+			pce := pr.Get(pid)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
@@ -1770,6 +1783,13 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	m.sampleRefreshHits.Inc()
 
+	now := time.Now()
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+	if !entry.profile.UpdateVersionContextLastSeen(entry.imageTag, nowNano) {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
 
@@ -1783,17 +1803,19 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 		return
 	}
 
-	now := time.Now()
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
 	}
 }
 
-func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+// purgeCookiesForProfile removes cookies for a profile, optionally restricted to the given versions.
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile, imageTags ...string) {
 	for _, key := range m.sampleCookieMap.Keys() {
 		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
-			m.sampleCookieMap.Remove(key)
+			if len(imageTags) == 0 || slices.Contains(imageTags, entry.imageTag) {
+				m.sampleCookieMap.Remove(key)
+			}
 		}
 	}
 }

@@ -20,7 +20,7 @@ go_library(
         "//comp/process/hostinfo/def",
         "//comp/process/types",
         "//pkg/process/checks",
-        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
         "//pkg/util/fxutil",
         "//pkg/util/workloadmeta",
         "//pkg/version",

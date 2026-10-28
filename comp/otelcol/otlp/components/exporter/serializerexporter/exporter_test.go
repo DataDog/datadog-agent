@@ -8,24 +8,31 @@
 package serializerexporter
 
 import (
+	"bytes"
+	"compress/zlib"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -106,6 +113,9 @@ const (
 )
 
 func Test_ConsumeMetrics_Tags(t *testing.T) {
+	// Two slices rather than one flat list: the consumer passes extra tags and per-point
+	// tags to tagset.NewCompositeTags by reference, so which half a tag lands in is part of
+	// what these cases pin. extraTags is nil, not empty, when metrics.tags is unset.
 	tests := []struct {
 		name                               string
 		genMetrics                         func(t *testing.T) pmetric.Metrics
@@ -127,8 +137,8 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			extraTags:      []string{},
-			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
-			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
+			wantSketchTags: tagset.NewCompositeTags(nil, []string{}),
+			wantSerieTags:  tagset.NewCompositeTags(nil, []string{}),
 		},
 		{
 			name: "metric tags and extra tags",
@@ -152,18 +162,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			},
 			extraTags: []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
 			wantSketchTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3"},
 			),
 			wantSerieTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3"},
 			),
 		},
 		{
@@ -178,8 +182,8 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
-			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
-			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
+			wantSketchTags: tagset.NewCompositeTags(nil, []string{}),
+			wantSerieTags:  tagset.NewCompositeTags(nil, []string{}),
 		},
 		{
 			name: "runtime metrics, metric tags and extra tags",
@@ -203,18 +207,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			},
 			extraTags: []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
 			wantSketchTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3"},
 			),
 			wantSerieTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3"},
 			),
 		},
 		{
@@ -234,12 +232,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return md
 			},
 			extraTags: []string{},
-			wantSketchTags: tagset.NewCompositeTags([]string{
+			wantSketchTags: tagset.NewCompositeTags(nil, []string{
 				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
-			}, nil),
-			wantSerieTags: tagset.NewCompositeTags([]string{
+			}),
+			wantSerieTags: tagset.NewCompositeTags(nil, []string{
 				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
-			}, nil),
+			}),
 			instrumentationScopeMetadataAsTags: true,
 		},
 		{
@@ -257,12 +255,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return md
 			},
 			extraTags: []string{},
-			wantSketchTags: tagset.NewCompositeTags([]string{
+			wantSketchTags: tagset.NewCompositeTags(nil, []string{
 				"service.instance.id:my-instance-123",
-			}, nil),
-			wantSerieTags: tagset.NewCompositeTags([]string{
+			}),
+			wantSerieTags: tagset.NewCompositeTags(nil, []string{
 				"service.instance.id:my-instance-123",
-			}, nil),
+			}),
 		},
 	}
 	for _, tt := range tests {
@@ -288,7 +286,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			if tt.wantSketchTags.Len() > 0 {
 				assert.Equal(t, tt.wantSketchTags, rec.sketchSeriesList[0].Tags)
 			} else {
-				assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), rec.sketchSeriesList[0].Tags)
+				assert.Equal(t, tagset.NewCompositeTags(nil, []string{}), rec.sketchSeriesList[0].Tags)
 			}
 			assert.True(t, len(rec.series) > 0)
 			for _, s := range rec.series {
@@ -304,12 +302,245 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 					if tt.wantSerieTags.Len() > 0 {
 						assert.Equal(t, tt.wantSerieTags, s.Tags)
 					} else {
-						assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
+						assert.Equal(t, tagset.NewCompositeTags(nil, []string{}), s.Tags)
 					}
 				}
 			}
 		})
 	}
+}
+
+// newAgentExporter returns an Agent OTLP ingest exporter without a sending queue and with extra tag "extra:tag".
+func newAgentExporter(t *testing.T, rec *metricRecorder, hostTags HostTagsFunc) exporter.Metrics {
+	t.Helper()
+	ctx := context.Background()
+	f := NewFactoryForAgent(rec, func(context.Context) (string, error) {
+		return "agent-host", nil
+	}, hostTags, TelemetryStore{})
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	cfg.Metrics.Tags = "extra:tag"
+	cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = false
+	cfg.QueueBatchConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
+	exp, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+	t.Cleanup(func() { require.NoError(t, exp.Shutdown(context.Background())) })
+	return exp
+}
+
+func findSerie(t *testing.T, series []*metrics.Serie, name string) *metrics.Serie {
+	t.Helper()
+	for _, s := range series {
+		if s.Name == name {
+			return s
+		}
+	}
+	require.Failf(t, "serie not found", "name: %s", name)
+	return nil
+}
+
+func Test_ConsumeMetrics_HostTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostTags []string
+		wantTags []string
+	}{
+		{
+			name:     "expected tags window open",
+			hostTags: []string{"env:prod", "datacenter:dc1"},
+			wantTags: []string{"extra:tag", "env:prod", "datacenter:dc1"},
+		},
+		{
+			name:     "expected tags window closed",
+			wantTags: []string{"extra:tag"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &metricRecorder{}
+			exp := newAgentExporter(t, rec, func() []string { return tt.hostTags })
+
+			h := pmetric.NewHistogramDataPoint()
+			h.BucketCounts().FromRaw([]uint64{100})
+			h.SetCount(100)
+			n := pmetric.NewNumberDataPoint()
+			n.SetIntValue(777)
+			require.NoError(t, exp.ConsumeMetrics(context.Background(), newMetrics(histogramMetricName, h, numberMetricName, n)))
+
+			// Second slice is the translator's per-point tags: empty, not nil, since
+			// these points carry no attributes. CompositeTags treats both as len 0.
+			want := tagset.NewCompositeTags(tt.wantTags, []string{})
+			require.Len(t, rec.sketchSeriesList, 1)
+			assert.Equal(t, want, rec.sketchSeriesList[0].Tags)
+			assert.Equal(t, want, findSerie(t, rec.series, numberMetricName).Tags)
+			// Internal series stay untagged, as before 7.60.
+			assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), findSerie(t, rec.series, "datadog.agent.otlp.metrics").Tags)
+		})
+	}
+}
+
+func Test_ConsumeMetrics_HostTagsExpiryKeepsCumulativeState(t *testing.T) {
+	rec := &metricRecorder{}
+	hostTags := []string{"env:prod"}
+	exp := newAgentExporter(t, rec, func() []string { return hostTags })
+
+	for i, v := range []int64{10, 20, 35} {
+		if i == 2 {
+			hostTags = nil // the expected tags window closes
+		}
+		md := pmetric.NewMetrics()
+		m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+		m.SetName("test.cumulative")
+		sum := m.SetEmptySum()
+		sum.SetIsMonotonic(true)
+		sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+		dp := sum.DataPoints().AppendEmpty()
+		dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(int64(i+1), 0)))
+		dp.SetIntValue(v)
+		require.NoError(t, exp.ConsumeMetrics(context.Background(), md))
+	}
+
+	var got []string
+	for _, s := range rec.series {
+		if s.Name == "test.cumulative" {
+			got = append(got, fmt.Sprintf("%v %v", s.Points[0].Value, s.Tags.UnsafeToReadOnlySliceString()))
+		}
+	}
+	// The first point only seeds the delta; the window change must not reset the series.
+	assert.Equal(t, []string{"10 [extra:tag env:prod]", "15 [extra:tag]"}, got)
+}
+
+func TestExporterMetricTagsCopiesExtraTags(t *testing.T) {
+	hostTags := []string{"host:a"}
+	e := &Exporter{
+		extraTags: append(make([]string, 0, 4), "extra:tag"),
+		hostTags:  func() []string { return hostTags },
+	}
+	first := e.metricTags()
+	hostTags = []string{"host:b"}
+	second := e.metricTags()
+
+	assert.Equal(t, []string{"extra:tag", "host:a"}, first)
+	assert.Equal(t, []string{"extra:tag", "host:b"}, second)
+	assert.Equal(t, []string{"extra:tag"}, e.extraTags)
+}
+
+// capturingIntake keeps the decompressed body of every request, keyed by path.
+type capturingIntake struct {
+	*httptest.Server
+
+	mu     sync.Mutex
+	bodies map[string][][]byte
+}
+
+func newCapturingIntake(t *testing.T) *capturingIntake {
+	t.Helper()
+	ci := &capturingIntake{bodies: map[string][][]byte{}}
+	ci.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		_ = r.Body.Close()
+		if err == nil && len(raw) > 0 {
+			// The OTel serializer compresses with zlib.
+			body := raw
+			if zr, zerr := zlib.NewReader(bytes.NewReader(raw)); zerr == nil {
+				if dec, derr := io.ReadAll(zr); derr == nil {
+					body = dec
+				}
+				_ = zr.Close()
+			}
+			ci.mu.Lock()
+			ci.bodies[r.URL.Path] = append(ci.bodies[r.URL.Path], body)
+			ci.mu.Unlock()
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(ci.Close)
+	return ci
+}
+
+func (ci *capturingIntake) payloads(path string) [][]byte {
+	ci.mu.Lock()
+	defer ci.mu.Unlock()
+	return append([][]byte(nil), ci.bodies[path]...)
+}
+
+// Test_ConsumeMetrics_ExtraTags_Wire is the end-to-end counterpart of
+// Test_ConsumeMetrics_Tags: it drives the real serializer and checks the bytes reaching the
+// intake, on both the series and the sketch endpoint. Holding the two tag slices by
+// reference must be indistinguishable on the wire from concatenating them.
+func Test_ConsumeMetrics_ExtraTags_Wire(t *testing.T) {
+	// Sync forwarder: the DDOT default, and it puts the payload on the wire before
+	// ConsumeMetrics returns.
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	intake := newCapturingIntake(t)
+
+	cfg := benchExporterConfig(t, intake.URL)
+	cfg.Metrics.Tags = "extra1:a,extra2:b"
+
+	exp := buildBenchExporter(t, cfg)
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok, "exporter does not implement ConsumeMetrics: %T", exp)
+
+	h := pmetric.NewHistogramDataPoint()
+	h.BucketCounts().FromRaw([]uint64{100})
+	h.SetCount(100)
+	h.SetSum(0)
+	h.Attributes().PutStr("hist_1_id", "value1")
+	h.Attributes().PutStr("hist_2_id", "value2")
+
+	n := pmetric.NewNumberDataPoint()
+	n.SetIntValue(777)
+	n.Attributes().PutStr("gauge_1_id", "value1")
+	n.Attributes().PutStr("gauge_2_id", "value2")
+
+	md := newMetrics(histogramMetricName, h, numberMetricName, n)
+	// Scope metadata becomes tags by default; naming the scope beats "n/a" below.
+	scope := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Scope()
+	scope.SetName("my_library")
+	scope.SetVersion("v1.0.0")
+
+	require.NoError(t, mc.ConsumeMetrics(context.Background(), md))
+
+	seriesPayloads := intake.payloads("/api/v2/series")
+	require.NotEmpty(t, seriesPayloads, "no series payload reached the intake")
+	var gaugeTags []string
+	for _, raw := range seriesPayloads {
+		pl := new(gogen.MetricPayload)
+		require.NoError(t, pl.Unmarshal(raw))
+		for _, serie := range pl.Series {
+			if serie.Metric == numberMetricName {
+				gaugeTags = serie.Tags
+			}
+		}
+	}
+	// Order matters: extra tags first, then per-point tags (data point attributes ahead of
+	// scope metadata, as Dimensions.AddTags produces them).
+	assert.Equal(t, []string{
+		"extra1:a", "extra2:b",
+		"gauge_1_id:value1", "gauge_2_id:value2",
+		"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
+	}, gaugeTags, "series tags on the wire")
+
+	sketchPayloads := intake.payloads("/api/beta/sketches")
+	require.NotEmpty(t, sketchPayloads, "no sketch payload reached the intake")
+	var sketchTags []string
+	for _, raw := range sketchPayloads {
+		pl := new(gogen.SketchPayload)
+		require.NoError(t, pl.Unmarshal(raw))
+		for _, sketch := range pl.Sketches {
+			if sketch.Metric == histogramMetricName {
+				sketchTags = sketch.Tags
+			}
+		}
+	}
+	assert.Equal(t, []string{
+		"extra1:a", "extra2:b",
+		"hist_1_id:value1", "hist_2_id:value2",
+		"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
+	}, sketchTags, "sketch tags on the wire")
 }
 
 func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
@@ -413,6 +644,54 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 				assert.Equal(t, sketch.Source, tt.msrc)
 			}
 		})
+	}
+}
+
+func TestGaugeIntervalOptionFromFeatureGate(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		for _, lossless := range []bool{false, true} {
+			t.Run(fmt.Sprintf("enabled=%t/lossless=%t", enabled, lossless), func(t *testing.T) {
+				previous := gaugeIntervalGate.IsEnabled()
+				require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), enabled))
+				t.Cleanup(func() {
+					require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), previous))
+				})
+
+				cfg := newDefaultConfig().(*ExporterConfig)
+				set := componenttest.NewNopTelemetrySettings()
+				attributesTranslator, err := attributes.NewTranslator(set)
+				require.NoError(t, err)
+				hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-host", nil })
+				buildTranslator := translatorFromConfig
+				if lossless {
+					buildTranslator = minimalTranslatorFromConfig
+				}
+				tr, err := buildTranslator(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+				require.NoError(t, err)
+
+				// The gate is read at construction, not on each translated point.
+				require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), !enabled))
+				md := pmetric.NewMetrics()
+				m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+				m.SetName("test.gauge_interval")
+				dp := m.SetEmptyGauge().DataPoints().AppendEmpty()
+				dp.SetDoubleValue(42)
+				dp.SetTimestamp(pcommon.Timestamp(121e9))
+				dp.Attributes().PutInt("datadog.gauge.interval", 15)
+				consumer := &serializerConsumer{hosts: make(map[string]struct{})}
+				_, err = tr.MapMetrics(t.Context(), md, consumer, nil)
+				require.NoError(t, err)
+				require.Len(t, consumer.series, 1)
+				wantInterval := int64(0)
+				if enabled {
+					wantInterval = 15
+				}
+				assert.Equal(t, wantInterval, consumer.series[0].Interval)
+				assert.Equal(t, metrics.APIGaugeType, consumer.series[0].MType)
+				require.Len(t, consumer.series[0].Points, 1)
+				assert.Equal(t, float64(42), consumer.series[0].Points[0].Value)
+			})
+		}
 	}
 }
 
@@ -889,7 +1168,7 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	}
 	f := NewFactoryForAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, store)
+	}, nil, store)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -1676,7 +1955,7 @@ func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
 	})
 
 	t.Run("agent OTLP ingest is not checked", func(t *testing.T) {
-		f := NewFactoryForAgent(&MockSerializer{}, func(context.Context) (string, error) { return "", nil }, TelemetryStore{})
+		f := NewFactoryForAgent(&MockSerializer{}, func(context.Context) (string, error) { return "", nil }, nil, TelemetryStore{})
 		cfg := f.CreateDefaultConfig().(*ExporterConfig)
 		_, err := f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
 		require.NoError(t, err)

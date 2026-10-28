@@ -85,6 +85,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSetrlimitEvent",
 			"TestPrCtl",
 			"TestCGroupVariables",
+			"TestCGroupContainerForkNoExec",
 			"TestTimestampVariable",
 		}
 
