@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/google/uuid"
 
@@ -32,7 +33,8 @@ type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
 type privateCredentialResolver struct {
-	config model.Reader
+	config                    model.Reader
+	integrationConfigProvider IntegrationConfigProvider
 }
 
 type PrivateConnectionConfig struct {
@@ -50,13 +52,13 @@ type Credential struct {
 // NewPrivateCredentialResolver validates configured credentials and retains the
 // live config so subsequent tasks pick up secret refreshes. A nil config supports
 // connections that do not reference runner credentials.
-func NewPrivateCredentialResolver(config model.Reader) (PrivateCredentialResolver, error) {
+func NewPrivateCredentialResolver(config model.Reader, integrationConfigProvider IntegrationConfigProvider) (PrivateCredentialResolver, error) {
 	if config != nil {
 		if _, err := readCredentialValues(config); err != nil {
 			return nil, err
 		}
 	}
-	return &privateCredentialResolver{config: config}, nil
+	return &privateCredentialResolver{config: config, integrationConfigProvider: integrationConfigProvider}, nil
 }
 
 func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig, error) {
@@ -95,7 +97,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
-		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2())
+		resolvedTokens, err := p.resolveConnectionTokensV2(ctx, connInfo.GetTokensV2())
 		if err != nil {
 			return nil, err
 		}
@@ -109,15 +111,35 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
+func (p *privateCredentialResolver) resolveConnectionTokensV2(ctx context.Context, tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
 	var credentialValues map[string]par.CredentialConfig
+	integrationCredentialFound := false
 	for _, token := range tokens {
-		if token == nil || len(token.GetNameSegments()) == 0 {
-			return nil, errors.New("connection token and its name must not be empty")
+		if token == nil {
+			return nil, errors.New("connection token must not be empty")
 		}
 		var value string
 		switch source := token.GetSource().(type) {
+		case *privateactionspb.ConnectionTokenV2_IntegrationCredential_:
+			if integrationCredentialFound {
+				return nil, errors.New("connection must not contain more than one integration credential")
+			}
+			integrationCredentialFound = true
+			values, err := resolveIntegrationCredentials(ctx, p.integrationConfigProvider, source.IntegrationCredential)
+			if err != nil {
+				return nil, err
+			}
+			names := make([]string, 0, len(values))
+			for name := range values {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				value := values[name]
+				resolved = append(resolved, privateconnection.NewPlainTextToken([]string{privateconnection.RootTokenGroupName, name}, value))
+			}
+			continue
 		case *privateactionspb.ConnectionTokenV2_PlainText_:
 			value = source.PlainText.GetValue()
 		case *privateactionspb.ConnectionTokenV2_RunnerCredential_:
@@ -143,6 +165,9 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			value = credential.Value
 		default:
 			return nil, fmt.Errorf("unsupported source for connection token %q", connlib.GetName(token))
+		}
+		if len(token.GetNameSegments()) == 0 {
+			return nil, errors.New("connection token name must not be empty")
 		}
 		resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), value))
 	}

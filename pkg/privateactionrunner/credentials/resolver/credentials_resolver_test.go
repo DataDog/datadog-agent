@@ -21,7 +21,7 @@ import (
 func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
 	config := configmock.New(t)
 	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "secret-value"}}, model.SourceFile)
-	resolver, err := NewPrivateCredentialResolver(config)
+	resolver, err := NewPrivateCredentialResolver(config, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -60,7 +60,7 @@ func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
 }
 
 func TestResolveConnectionTokensV2FromPlainText(t *testing.T) {
-	resolver, err := NewPrivateCredentialResolver(nil)
+	resolver, err := NewPrivateCredentialResolver(nil, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -98,7 +98,7 @@ func TestResolveConnectionTokensV2UsesOneSnapshot(t *testing.T) {
 	config := configmock.New(t)
 	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "original"}}, model.SourceFile)
 	liveConfig := &refreshOnReadConfig{Reader: config}
-	resolver, err := NewPrivateCredentialResolver(liveConfig)
+	resolver, err := NewPrivateCredentialResolver(liveConfig, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2}
 	for _, name := range []string{"first", "second"} {
@@ -133,7 +133,7 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	resolver, err := NewPrivateCredentialResolver(mockConfig)
+	resolver, err := NewPrivateCredentialResolver(mockConfig, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -181,7 +181,7 @@ func TestNewPrivateCredentialResolverInvalidCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, test.yaml))
+			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, test.yaml), nil)
 			require.Error(t, err)
 			assert.Nil(t, resolver)
 			assert.Contains(t, err.Error(), par.CredentialsValues)
