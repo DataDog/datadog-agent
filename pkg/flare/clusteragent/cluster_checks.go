@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -57,10 +59,16 @@ func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 		return err
 	}
 
+	renderClusterChecks(w, cr, checkName, time.Now())
+	return nil
+}
+
+// renderClusterChecks writes the clustercheck dispatching state.
+func renderClusterChecks(w io.Writer, cr types.StateResponse, checkName string, now time.Time) {
 	// Gracefully exit when dispatcher is not running
 	if len(cr.NotRunning) > 0 {
 		fmt.Fprintf(w, "Cluster-check dispatching logic not running: %s\n", cr.NotRunning)
-		return nil
+		return
 	}
 
 	// Print warmup message
@@ -70,10 +78,20 @@ func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 		fmt.Fprintln(w, "")
 	}
 
+	printDispatching(w, cr.Dispatching)
+	printRunnerGroups(w, cr)
+	printWarnings(w, cr, now)
+
 	// Print dangling configs
 	if len(cr.Dangling) > 0 {
-		fmt.Fprintf(w, "=== %s configurations ===\n", color.RedString("Unassigned"))
+		fmt.Fprintf(w, "=== %d %s configurations ===\n", len(cr.Dangling), color.RedString("unassigned"))
 		for _, c := range cr.Dangling {
+			if checkName != "" && c.Name != checkName {
+				continue
+			}
+			if reason := cr.UnassignedReasons[c.Name]; reason != "" {
+				fmt.Fprintf(w, "\n%s: %s", color.GreenString(c.Name), reason)
+			}
 			flare.PrintClusterCheckConfig(w, c, checkName, nil)
 		}
 		fmt.Fprintln(w, "")
@@ -83,14 +101,29 @@ func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 	if len(cr.Nodes) == 0 {
 		fmt.Fprintf(w, "=== %s agent reporting ===\n", color.RedString("Zero"))
 		fmt.Fprintln(w, "No check will be dispatched until agents report to the cluster-agent")
-		return nil
+		return
 	}
 	fmt.Fprintf(w, "=== %d agents reporting ===\n", len(cr.Nodes))
-	sort.Slice(cr.Nodes, func(i, j int) bool { return cr.Nodes[i].Name < cr.Nodes[j].Name })
+	sort.Slice(cr.Nodes, func(i, j int) bool {
+		if cr.Nodes[i].Group != cr.Nodes[j].Group {
+			return cr.Nodes[i].Group < cr.Nodes[j].Group
+		}
+		return cr.Nodes[i].Name < cr.Nodes[j].Name
+	})
 	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(table, "\nName\tRunning checks")
+	fmt.Fprintln(table, "\nName\tType\tGroup\tWorkers\tUtilization\tRunning checks\tLast seen")
 	for _, n := range cr.Nodes {
-		fmt.Fprintf(table, "%s\t%d\n", n.Name, len(n.Configs))
+		workers, utilization, lastSeen := "-", "-", "-"
+		if n.Workers > 0 {
+			workers = strconv.Itoa(n.Workers)
+		}
+		if n.Utilization != nil {
+			utilization = fmt.Sprintf("%.1f%%", *n.Utilization*100)
+		}
+		if n.LastHeartbeat > 0 {
+			lastSeen = formatAge(now.Sub(time.Unix(n.LastHeartbeat, 0)))
+		}
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n", n.Name, nodeTypeName(n.NodeType), groupName(n.Group), workers, utilization, len(n.Configs), lastSeen)
 	}
 	table.Flush()
 
@@ -107,8 +140,123 @@ func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 			}
 		}
 	}
+}
 
-	return nil
+// printDispatching prints the dispatching mode and settings.
+func printDispatching(w io.Writer, d *types.DispatchingState) {
+	if d == nil {
+		return
+	}
+	fmt.Fprintln(w, "=== Cluster checks dispatching ===")
+	if d.AdvancedDispatching {
+		fmt.Fprintf(w, "Advanced dispatching: %s, rebalanced every %s\n", color.GreenString("enabled"), d.RebalancePeriod)
+	} else {
+		fmt.Fprintf(w, "Advanced dispatching: %s (%s)\n", color.YellowString("disabled"), d.AdvancedDispatchingReason)
+	}
+	fmt.Fprintf(w, "Excluded checks: %s\n", listOrNone(d.ExcludedChecks))
+	fmt.Fprintf(w, "Checks excluded from rebalancing: %s\n", listOrNone(d.ExcludedChecksFromDispatching))
+	fmt.Fprintln(w, "")
+}
+
+// printRunnerGroups prints the declared runner groups and their live workers.
+func printRunnerGroups(w io.Writer, cr types.StateResponse) {
+	if cr.Dispatching == nil || len(cr.Dispatching.RunnerGroups) == 0 {
+		return
+	}
+	live := make(map[string]int)
+	for _, n := range cr.Nodes {
+		live[n.Group]++
+	}
+	fmt.Fprintln(w, "=== Runner groups ===")
+	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(table, "Group\tClaimed checks\tLive workers")
+	for _, g := range cr.Dispatching.RunnerGroups {
+		count := strconv.Itoa(live[g.Name])
+		if live[g.Name] == 0 {
+			count = color.RedString("0")
+		}
+		fmt.Fprintf(table, "%s\t%s\t%s\n", g.Name, listOrNone(g.Checks), count)
+	}
+	fmt.Fprintf(table, "%s\t%s\t%d\n", groupName(""), "all other checks", live[""])
+	table.Flush()
+	fmt.Fprintln(w, "")
+}
+
+// printWarnings prints worker problems: unknown runner groups, missing runner
+// stats, failing check instances and heartbeats close to expiring.
+func printWarnings(w io.Writer, cr types.StateResponse, now time.Time) {
+	declared := make(map[string]bool)
+	advanced := false
+	var expiration int64
+	if cr.Dispatching != nil {
+		for _, g := range cr.Dispatching.RunnerGroups {
+			declared[g.Name] = true
+		}
+		advanced = cr.Dispatching.AdvancedDispatching
+		expiration = cr.Dispatching.NodeExpirationSeconds
+	}
+
+	var warnings []string
+	for _, n := range cr.Nodes {
+		if n.Group != "" && !declared[n.Group] {
+			warnings = append(warnings, fmt.Sprintf("%s declares unknown runner group %q: it receives no cluster check", n.Name, n.Group))
+		}
+		if advanced && n.NodeType == types.NodeTypeCLCRunner && len(n.Stats) == 0 && len(n.Configs) > 0 {
+			warnings = append(warnings, n.Name+": no check stats collected yet, or the runner API is unreachable")
+		}
+		failing := 0
+		for _, s := range n.Stats {
+			if s.IsClusterCheck && s.LastExecFailed {
+				failing++
+			}
+		}
+		if failing > 0 {
+			warnings = append(warnings, fmt.Sprintf("%s: %d check instance(s) failed their last run", n.Name, failing))
+		}
+		if expiration > 0 && n.LastHeartbeat > 0 && now.Sub(time.Unix(n.LastHeartbeat, 0)) > time.Duration(expiration)*time.Second/2 {
+			warnings = append(warnings, fmt.Sprintf("%s: last seen %s, expires after %ds without a heartbeat", n.Name, formatAge(now.Sub(time.Unix(n.LastHeartbeat, 0))), expiration))
+		}
+	}
+	if len(warnings) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "=== %s ===\n", color.YellowString("Warnings"))
+	for _, warning := range warnings {
+		fmt.Fprintf(w, "- %s\n", warning)
+	}
+	fmt.Fprintln(w, "")
+}
+
+func nodeTypeName(t types.NodeType) string {
+	switch t {
+	case types.NodeTypeCLCRunner:
+		return "clc-runner"
+	case types.NodeTypeNodeAgent:
+		return "node-agent"
+	default:
+		return "unknown"
+	}
+}
+
+func groupName(group string) string {
+	if group == "" {
+		return "general"
+	}
+	return group
+}
+
+func listOrNone(items []string) string {
+	if len(items) == 0 {
+		return "none"
+	}
+	return strings.Join(items, ", ")
+}
+
+func formatAge(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	return d.Round(time.Second).String() + " ago"
 }
 
 // printCheckExecutionStatus prints the execution status for each instance of a config,

@@ -248,3 +248,43 @@ func TestRebalanceUsingUtilizationRespectsGroups(t *testing.T) {
 	assert.True(t, moved["digest-kube_a"] || moved["digest-kube_b"])
 	assert.True(t, moved["digest-http_a"] || moved["digest-http_b"])
 }
+
+func TestGetStateReportsWorkersAndRunnerGroups(t *testing.T) {
+	d := newGroupDispatcher(t, kubeGroups)
+	registerWorker(t, d, "kube-1", "10.0.0.1", types.NodeTypeCLCRunner, "kube")
+	registerWorker(t, d, "runner-1", "10.0.0.2", types.NodeTypeCLCRunner, "")
+	d.add(generateIntegration("http_check"))
+
+	state, err := d.getState(false)
+	require.NoError(t, err)
+	requireNotLocked(t, d.store)
+
+	require.NotNil(t, state.Dispatching)
+	assert.Equal(t, []types.RunnerGroupState{{Name: "kube", Checks: []string{"kubernetes_state_core", "orchestrator"}}}, state.Dispatching.RunnerGroups)
+
+	nodes := map[string]types.StateNodeResponse{}
+	for _, n := range state.Nodes {
+		nodes[n.Name] = n
+	}
+	assert.Equal(t, "kube", nodes["kube-1"].Group)
+	assert.Equal(t, types.NodeTypeCLCRunner, nodes["kube-1"].NodeType)
+	assert.NotZero(t, nodes["kube-1"].LastHeartbeat)
+	assert.Equal(t, "", nodes["runner-1"].Group)
+	assert.Len(t, nodes["runner-1"].Configs, 1)
+}
+
+func TestGetStateExplainsUnassignedConfigs(t *testing.T) {
+	d := newGroupDispatcher(t, kubeGroups)
+	d.add(generateIntegration("http_check"))
+	state, err := d.getState(false)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"http_check": "no agent is reporting"}, state.UnassignedReasons)
+
+	registerWorker(t, d, "runner-1", "10.0.0.1", types.NodeTypeCLCRunner, "")
+	d.add(generateIntegration("kubernetes_state_core"))
+	state, err = d.getState(false)
+	require.NoError(t, err)
+	assert.Equal(t, `runner group "kube" has no live runner`, state.UnassignedReasons["kubernetes_state_core"])
+	assert.Equal(t, "waiting for the next dispatch attempt", state.UnassignedReasons["http_check"])
+	requireNotLocked(t, d.store)
+}

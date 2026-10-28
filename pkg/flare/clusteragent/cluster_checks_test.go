@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -193,4 +194,57 @@ func TestPrintCheckExecutionStatus_NilInstanceIDs(t *testing.T) {
 	// Nil instanceIDs — should print nothing (no IDs to match)
 	printCheckExecutionStatus(&buf, config, stats, "", nil)
 	assert.Empty(t, buf.String())
+}
+
+func TestRenderClusterChecks(t *testing.T) {
+	now := time.Unix(1_000_000, 0)
+	utilization := 0.25
+	state := types.StateResponse{
+		Dispatching: &types.DispatchingState{
+			AdvancedDispatching:   true,
+			RebalancePeriod:       "10m0s",
+			NodeExpirationSeconds: 30,
+			RunnerGroups:          []types.RunnerGroupState{{Name: "kube", Checks: []string{"kubernetes_state_core"}}, {Name: "http", Checks: []string{"http_check"}}},
+		},
+		Dangling:          []integration.Config{{Name: "http_check", ClusterCheck: true}},
+		UnassignedReasons: map[string]string{"http_check": `runner group "http" has no live runner`},
+		Nodes: []types.StateNodeResponse{
+			{
+				Name: "runner-1", NodeType: types.NodeTypeCLCRunner, Workers: 4, Utilization: &utilization, LastHeartbeat: now.Unix() - 3,
+				Configs: []types.ConfigWithInstanceIDs{{Config: integration.Config{Name: "redis"}}},
+				Stats:   types.CLCRunnersStats{"redis:1": {IsClusterCheck: true, LastExecFailed: true}},
+			},
+			{Name: "kube-1", NodeType: types.NodeTypeCLCRunner, Group: "kube", LastHeartbeat: now.Unix() - 20},
+			{Name: "rogue-1", NodeType: types.NodeTypeCLCRunner, Group: "foo", LastHeartbeat: now.Unix() - 1},
+		},
+	}
+
+	var b bytes.Buffer
+	renderClusterChecks(&b, state, "", now)
+	out := b.String()
+
+	assert.Contains(t, out, "Advanced dispatching: enabled, rebalanced every 10m0s")
+	assert.Contains(t, out, "Excluded checks: none")
+	assert.Regexp(t, `kube\s+kubernetes_state_core\s+1\n`, out)
+	assert.Regexp(t, `http\s+http_check\s+0\n`, out)
+	assert.Regexp(t, `general\s+all other checks\s+1\n`, out)
+	assert.Contains(t, out, `rogue-1 declares unknown runner group "foo"`)
+	assert.Contains(t, out, "runner-1: 1 check instance(s) failed their last run")
+	assert.Contains(t, out, "kube-1: last seen 20s ago, expires after 30s without a heartbeat")
+	assert.Contains(t, out, `http_check: runner group "http" has no live runner`)
+	assert.Regexp(t, `runner-1\s+clc-runner\s+general\s+4\s+25.0%\s+1\s+3s ago`, out)
+	assert.Regexp(t, `kube-1\s+clc-runner\s+kube\s+-\s+-\s+0\s+20s ago`, out)
+}
+
+func TestRenderClusterChecksAdvancedDispatchingDisabled(t *testing.T) {
+	var b bytes.Buffer
+	renderClusterChecks(&b, types.StateResponse{
+		Dispatching: &types.DispatchingState{AdvancedDispatchingReason: "node agents are reporting", ExcludedChecks: []string{"a", "b"}},
+	}, "", time.Now())
+	out := b.String()
+
+	assert.Contains(t, out, "Advanced dispatching: disabled (node agents are reporting)")
+	assert.Contains(t, out, "Excluded checks: a, b")
+	assert.NotContains(t, out, "Runner groups")
+	assert.Contains(t, out, "Zero agent reporting")
 }
