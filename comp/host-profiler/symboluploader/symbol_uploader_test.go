@@ -436,7 +436,7 @@ func registerResponders(t *testing.T, buildID string) ([]chan *http.Request, *qu
 
 				symbolFiles := make([]SymbolFile, 0, len(decoded.Candidates))
 				for j, c := range decoded.Candidates {
-					if c.BuildId != buildID {
+					if c.BuildID != buildID {
 						continue
 					}
 					candidateSource, err := symbol.NewSource(c.SymbolSource)
@@ -449,9 +449,9 @@ func registerResponders(t *testing.T, buildID string) ([]chan *http.Request, *qu
 					}
 					symbolFiles = append(symbolFiles, SymbolFile{
 						ID:           strconv.Itoa(j),
-						BuildId:      c.BuildId,
+						BuildID:      c.BuildID,
 						SymbolSource: stored.String(),
-						BuildIdType:  "go_build_id",
+						BuildIDType:  "go_build_id",
 						Decision:     decision,
 					})
 				}

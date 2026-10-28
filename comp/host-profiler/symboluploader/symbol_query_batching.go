@@ -111,7 +111,7 @@ func invokeQuerier(ctx context.Context, candidates []SymbolCandidate, arch strin
 		if err != nil {
 			storedSource = symbol.SourceNone
 		}
-		for _, result := range buildIDToResult[symbolFile.BuildId] {
+		for _, result := range buildIDToResult[symbolFile.BuildID] {
 			if symbolFile.Decision == decisionNoUpload {
 				result.QueryResults[ind].Upload = false
 			}
@@ -181,7 +181,7 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch []ElfWithQueryResults, q
 			}
 		}
 		candidates = append(candidates, SymbolCandidate{
-			BuildId:      buildID,
+			BuildID:      buildID,
 			FileName:     fileName,
 			SymbolSource: maxSource.String(),
 		})

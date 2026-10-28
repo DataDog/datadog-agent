@@ -41,7 +41,7 @@ func TestQuerySymbolsSendsCandidates(t *testing.T) {
 		})
 
 	candidates := []SymbolCandidate{
-		{BuildId: "buildid1", FileName: "foo", SymbolSource: "symbol_table"},
+		{BuildID: "buildid1", FileName: "foo", SymbolSource: "symbol_table"},
 	}
 	_, err = querier.QuerySymbols(t.Context(), candidates, "arch1")
 	require.NoError(t, err)
@@ -65,8 +65,8 @@ func TestQuerySymbolsDecodesDecisions(t *testing.T) {
 	require.NoError(t, err)
 
 	want := []SymbolFile{
-		{ID: "0", BuildId: "buildid1", SymbolSource: "symbol_table", BuildIdType: "gnu_build_id", Decision: decisionUpload},
-		{ID: "1", BuildId: "buildid2", SymbolSource: "debug_info", BuildIdType: "", Decision: decisionNoUpload},
+		{ID: "0", BuildID: "buildid1", SymbolSource: "symbol_table", BuildIDType: "gnu_build_id", Decision: decisionUpload},
+		{ID: "1", BuildID: "buildid2", SymbolSource: "debug_info", BuildIDType: "", Decision: decisionNoUpload},
 	}
 	body, err := jsonapi.Marshal(&want)
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestQuerySymbolsDecodesDecisions(t *testing.T) {
 		httpmock.NewBytesResponder(http.StatusOK, withExtra))
 
 	files, err := querier.QuerySymbols(t.Context(),
-		[]SymbolCandidate{{BuildId: "buildid1"}, {BuildId: "buildid2"}}, "arch1")
+		[]SymbolCandidate{{BuildID: "buildid1"}, {BuildID: "buildid2"}}, "arch1")
 	require.NoError(t, err)
 	require.Equal(t, want, files)
 }

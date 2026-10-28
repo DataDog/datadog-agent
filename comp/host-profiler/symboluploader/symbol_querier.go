@@ -21,7 +21,7 @@ import (
 const symbolQueryEndpoint = "/api/v2/profiles/symbols/query"
 
 type SymbolCandidate struct {
-	BuildId      string `json:"buildId"`
+	BuildID      string `json:"buildId"`
 	FileName     string `json:"fileName"`
 	SymbolSource string `json:"symbolSource"`
 }
@@ -41,9 +41,9 @@ const (
 
 type SymbolFile struct {
 	ID           string             `json:"id" jsonapi:"primary,symbols-query-response"`
-	BuildId      string             `json:"buildId" jsonapi:"attribute"`
+	BuildID      string             `json:"buildId" jsonapi:"attribute"`
 	SymbolSource string             `json:"symbolSource" jsonapi:"attribute"`
-	BuildIdType  string             `json:"buildIdType" jsonapi:"attribute"`
+	BuildIDType  string             `json:"buildIdType" jsonapi:"attribute"`
 	Decision     SymbolFileDecision `json:"decision,omitempty" jsonapi:"attribute" openapi:"enum=upload|no_upload"`
 }
 

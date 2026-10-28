@@ -119,7 +119,7 @@ func TestQuerySymbolsRateLimited(t *testing.T) {
 		httpmock.NewStringResponder(http.StatusTooManyRequests, `{"errors":[{"status":"429","title":"Too Many Requests"}]}`),
 	)
 
-	symbolFiles, err := querier.QuerySymbols(t.Context(), []SymbolCandidate{{BuildId: "buildid1"}}, "arch1")
+	symbolFiles, err := querier.QuerySymbols(t.Context(), []SymbolCandidate{{BuildID: "buildid1"}}, "arch1")
 	require.Nil(t, symbolFiles)
 	var sce *ddhttp.StatusCodeError
 	require.ErrorAs(t, err, &sce)

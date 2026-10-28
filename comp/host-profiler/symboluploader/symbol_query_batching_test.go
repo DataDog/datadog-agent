@@ -61,13 +61,13 @@ func (m *mockSymbolQuerier) QuerySymbols(_ context.Context, candidates []SymbolC
 
 	var symbolFiles []SymbolFile
 	for i, c := range candidates {
-		e, ok := m.stored[c.BuildId]
+		e, ok := m.stored[c.BuildID]
 		if !ok {
 			continue
 		}
 		file := SymbolFile{
 			ID:           strconv.Itoa(i),
-			BuildId:      c.BuildId,
+			BuildID:      c.BuildID,
 			SymbolSource: e.symbolSource,
 			Decision:     e.decision,
 		}
@@ -82,7 +82,7 @@ func (m *mockSymbolQuerier) QuerySymbols(_ context.Context, candidates []SymbolC
 func candidateBuildIDs(candidates []SymbolCandidate) []string {
 	ids := make([]string, len(candidates))
 	for i, c := range candidates {
-		ids[i] = c.BuildId
+		ids[i] = c.BuildID
 	}
 	return ids
 }
@@ -197,7 +197,7 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 
 		require.Equal(t, 1, q.ncalls)
 		require.Len(t, q.lastCandidates, 1)
-		require.Equal(t, "shared-buildid", q.lastCandidates[0].BuildId)
+		require.Equal(t, "shared-buildid", q.lastCandidates[0].BuildID)
 		require.Equal(t, symbol.SourceDebugInfo.String(), q.lastCandidates[0].SymbolSource)
 		require.Equal(t, "better", q.lastCandidates[0].FileName)
 
