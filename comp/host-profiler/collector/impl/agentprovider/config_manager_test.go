@@ -20,7 +20,8 @@ api_key: test-key
 site: datadoghq.com
 hostprofiler:
   debug:
-    verbosity: detailed
+    exporter:
+      verbosity: detailed
 `)
 	mgr := newConfigManager(cfg)
 
@@ -28,7 +29,7 @@ hostprofiler:
 }
 
 func TestNewConfigManagerDebugFromEnvVar(t *testing.T) {
-	t.Setenv("DD_HOSTPROFILER_DEBUG_VERBOSITY", "detailed")
+	t.Setenv("DD_HOSTPROFILER_DEBUG_EXPORTER_VERBOSITY", "detailed")
 
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key

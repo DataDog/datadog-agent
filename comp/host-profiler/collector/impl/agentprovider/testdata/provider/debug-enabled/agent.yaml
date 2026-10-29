@@ -3,5 +3,6 @@ api_key: test_api_key_123
 hostprofiler:
     reporter_interval: 120s
     debug:
-        verbosity: detailed
+        exporter:
+            verbosity: detailed
         ebpf_logs: true

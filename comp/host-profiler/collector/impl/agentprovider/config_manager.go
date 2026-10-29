@@ -126,7 +126,7 @@ func newConfigManager(config config.Component) configManager {
 	hostProfilerConfig := hostProfilerConfig{
 		ReporterInterval:      config.GetString("hostprofiler.reporter_interval"),
 		EBPFDebugLogs:         config.GetBool("hostprofiler.debug.ebpf_logs"),
-		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
+		DebugVerbosity:        config.GetString("hostprofiler.debug.exporter.verbosity"),
 		IncludeEnvVars:        config.GetString("hostprofiler.include_env_vars"),
 		SendErrorFrames:       config.GetBool("hostprofiler.send_error_frames"),
 		FilterMinProcessAge:   config.GetDuration("hostprofiler.filter_min_process_age"),
