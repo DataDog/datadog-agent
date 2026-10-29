@@ -10,27 +10,15 @@ normal exit 0
 console log
 env DD_LOG_TO_CONSOLE=false
 
-setuid dd-agent
-
+# No setuid stanza. Upstart applies it to every job process, including pre-start,
+# so this script stays root long enough to create the socket directory.
 script
   if [ ! -x {install_dir}/embedded/bin/dd-procmgrd ]; then
     exit 0
   fi
-  # Mirrors the systemd unit. setuid applies to the whole script, so these reach the exec.
-  if [ -r {etc_dir}/environment ]; then
-    set -a
-    . {etc_dir}/environment
-    set +a
-  fi
-  export DD_PM_CONFIG_DIR={install_dir}/processes.d
-  export DD_CONF_DIR={etc_dir}
-  export DD_PID_DIR={install_dir}
-  export DD_INSTALL_DIR={install_dir}
-  exec {install_dir}/embedded/bin/dd-procmgrd
-end script
-
-# pre-start runs as root. setuid applies to the main script only.
-pre-start script
-  # dd-agent cannot create this directory under root-owned /var/run.
   /usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1
+  # No --background: start-stop-daemon execs the child, and Upstart keeps that pid.
+  exec start-stop-daemon --start --chuid dd-agent \
+    --exec {install_dir}/embedded/bin/dd-procmgrd --startas /bin/sh -- \
+    /etc/init.d/datadog-agent-procmgr load-env {etc_dir} {install_dir} {install_dir}/embedded/bin/dd-procmgrd
 end script
