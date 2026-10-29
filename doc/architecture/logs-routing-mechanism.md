@@ -2,6 +2,20 @@
 
 The PR adds an HTTP routing mechanism. Agent startup does not enable it; a caller supplies groups and selects them for each record.
 
+Injected setup (schematic; remaining provider dependencies omitted):
+
+```go
+RoutedOptions{
+    Groups: []routing.Group{
+        {ID: "a", Endpoints: endpointsA},
+        {ID: "b", Endpoints: endpointsB},
+    },
+    Resolve: resolveGroupsAndGeneration,
+}
+```
+
+There is no YAML for group definitions or selection yet. `logs_config.routing.max_groups` only caps the injected groups.
+
 ```mermaid
 flowchart LR
     X["Source X: A+B"] --> A["Group A sender"]
