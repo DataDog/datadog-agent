@@ -253,12 +253,11 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Service:          p.Header.Service,
 		Source:           p.Header.Source,
 		Metadata:         mtdt.ToProto(&p.Metadata),
-		Tags:             make([]string, len(p.tags)),
+		Tags:             p.getDumpTags(),
 		Tree:             activity_tree.ToProto(p.ActivityTree),
 		SecurityContexts: securityContextsToProto(p.SecurityContexts),
 		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
 	}
-	copy(pad.Tags, p.tags)
 
 	return pad
 }
@@ -454,7 +453,6 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 		copy(outCtx.Syscalls, ctx.Syscalls)
 		copy(outCtx.Tags, ctx.Tags)
 		output.versionContexts[key] = outCtx
-		output.addDistinctTags(outCtx.Tags)
 	}
 
 	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)

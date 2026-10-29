@@ -46,7 +46,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	// set activity dump size for current encoding
 	p.Metadata.Size = uint64(raw.Len())
 
-	p.Header.DDTags = strings.Join(p.GetTags(), ",")
+	p.Header.DDTags = strings.Join(p.GetDumpTags(), ",")
 	// marshal event metadata
 	headerData, err := json.Marshal(p.Header)
 	if err != nil {
