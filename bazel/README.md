@@ -69,8 +69,9 @@ command line always wins over auto-selection.
 #### Remote cache in containers
 
 Inside a container the credential helper may not reach a browser for an
-interactive Vault login, so auto-selection requires either an existing Vault
-session or an injected `BUILDBARN_ID_TOKEN`.
+interactive Vault login, so auto-selection requires either a Vault session
+that can read `identity/oidc/token/buildbarn` or an injected
+`BUILDBARN_ID_TOKEN`.
 
 In a Datadog workspace (itself a container), log in once over a plain SSH
 session; the browser opens on your laptop and the session lasts ~12h:
