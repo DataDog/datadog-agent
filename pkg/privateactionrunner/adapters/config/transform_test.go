@@ -602,6 +602,21 @@ func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsEmpty(t *test
 	assert.Empty(t, cfg.RShellPrivilegedElevatableCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsEmptyYAML(t *testing.T) {
+	mockConfig := configmock.NewFromYAML(t, `
+private_action_runner:
+  restricted_shell:
+    privileged:
+      elevatable_commands: []
+`)
+	require.True(t, mockConfig.IsConfigured(par.RestrictedShellPrivilegedElevatableCommands))
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.RShellPrivilegedElevatableCommands)
+	assert.Empty(t, cfg.RShellPrivilegedElevatableCommands)
+}
+
 func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(par.PrivateKey, "")

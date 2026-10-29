@@ -153,6 +153,19 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 	return intersectAllowedCommands(backendAllowed, h.operatorAllowedCommands)
 }
 
+// filterElevatableCommands applies only known Agent-side elevation restrictions;
+// helper-local policy and execution availability are not known to the ordinary runner.
+func (h *RunCommandHandler) filterElevatableCommands(backend []string) []string {
+	commands := onlyRshellPrefixedCommands(backend)
+	if h.operatorElevatableCommands == nil {
+		return commands
+	}
+	return slices.DeleteFunc(commands, func(command string) bool {
+		_, allowed := slices.BinarySearch(h.operatorElevatableCommands, command)
+		return !allowed
+	})
+}
+
 // filterAllowedPaths returns the effective path allowlist passed to rshell:
 //
 //  1. Normalize the signed backend paths.
@@ -360,6 +373,10 @@ func (h *RunCommandHandler) Run(
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
+	}
+	if inputs.EffectivePermissions == privilegedhelper.EscalationAllowed {
+		// Display authenticated, locally constrained grants without enabling sudo.
+		runnerOptions = append(runnerOptions, interp.ConfiguredElevatableCommands(h.filterElevatableCommands(inputs.ElevatableCommands)))
 	}
 	if h.disableCommandTelemetry {
 		runnerOptions = append(runnerOptions, interp.DisableDetailedTelemetry())
