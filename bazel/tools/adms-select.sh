@@ -5,12 +5,24 @@
 _adms_repo_root=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd) || _adms_repo_root=""
 
 _adms_options_configured() {
-  local arg next_config=false
+  local arg config next_config=false
   for arg in "$@"; do
+    config=
     case "$arg" in
       --) break ;;
-      --config=adms | --config=dd-internal | --downloader_config | --downloader_config=*) return 0 ;;
-      adms | dd-internal) [ "$next_config" = true ] && return 0 ;;
+      --downloader_config | --downloader_config=*) return 0 ;;
+      --config=*) config=${arg#--config=} ;;
+      *) [ "$next_config" = true ] && config=$arg ;;
+    esac
+    case "$config" in
+      adms | dd-internal) return 0 ;;
+      '') ;;
+      *)
+        case " $_adms_configs " in
+          *" $config "*) ;;
+          *) _adms_configs="${_adms_configs:+$_adms_configs }$config"; _adms_config_added=true ;;
+        esac
+        ;;
     esac
     next_config=false
     [ "$arg" = --config ] && next_config=true
@@ -21,18 +33,31 @@ _adms_options_configured() {
 # A user-supplied downloader config (including an empty opt-out) must not be
 # overwritten by command-line injection. Also avoid expanding ADMS twice.
 _adms_rc_configured() {
-  local rc line
+  local rc line config
   local -a options
-  for rc in "${_adms_repo_root:+$_adms_repo_root/user.bazelrc}" "${HOME:+$HOME/.bazelrc}"; do
-    [ -n "$rc" ] && [ -f "$rc" ] || continue
-    while IFS= read -r line || [ -n "$line" ]; do
-      line=${line%%#*}
-      read -r -a options <<< "$line"
-      case "${options[0]-}" in
-        '' | *:*) continue ;; # Comments/blanks and inactive named configs.
-      esac
-      _adms_options_configured "${options[@]:1}" && return 0
-    done < "$rc"
+  # Revisit definitions when a new config becomes active, including definitions
+  # earlier in either file. Remember enabled names so nested cycles terminate.
+  while :; do
+    _adms_config_added=false
+    for rc in "${_adms_repo_root:+$_adms_repo_root/user.bazelrc}" "${HOME:+$HOME/.bazelrc}"; do
+      [ -n "$rc" ] && [ -f "$rc" ] || continue
+      while IFS= read -r line || [ -n "$line" ]; do
+        line=${line%%#*}
+        read -r -a options <<< "$line"
+        case "${options[0]-}" in
+          '') continue ;;
+          *:*)
+            config=${options[0]#*:}
+            case " $_adms_configs " in
+              *" $config "*) ;;
+              *) continue ;;
+            esac
+            ;;
+        esac
+        _adms_options_configured "${options[@]:1}" && return 0
+      done < "$rc"
+    done
+    [ "$_adms_config_added" = true ] || break
   done
   return 1
 }
@@ -73,6 +98,7 @@ _adms_reachable() {
 }
 
 _adms_config() {
+  local _adms_configs= _adms_config_added=false
   _adms_options_configured "$@" && return 0
   _adms_rc_configured && return 0
   case "${DD_BAZEL_ADMS:-auto}" in

@@ -12,6 +12,39 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SELECT_SH = REPO_ROOT / "bazel/tools/adms-select.sh"
 BASH = shutil.which("bash")
 
+# (workspace rc, home rc, command-line options, expected injected config).
+NAMED_CONFIG_CASES = (
+    ("common --config=_local\ncommon:_local --downloader_config=\n", "", (), ""),
+    ("common:_local --downloader_config=custom.cfg\ncommon --config _local\n", "", (), ""),
+    ("common:_local --downloader_config=\n", "", ("--config=_local",), ""),
+    ("common:_local --downloader_config=custom.cfg\n", "", ("--config", "_local"), ""),
+    # Follow nested configs regardless of definition order and rc-file order.
+    (
+        "common:_mirror --downloader_config=\ncommon:_local --config=_mirror\ncommon --config=_local\n",
+        "",
+        (),
+        "",
+    ),
+    ("common:_mirror --downloader_config=\n", "common --config=_local\ncommon:_local --config=_mirror\n", (), ""),
+    ("common --config=_local\ncommon:_local --config=adms\n", "", (), ""),
+    (
+        "common:_local --config=_other\ncommon:_other --config=_local --downloader_config=\n",
+        "",
+        ("--config=_local",),
+        "",
+    ),
+    # Cycles terminate, and inactive configs (including prefix matches) stay inactive.
+    (
+        "common:_local --config=_other\ncommon:_other --config=_local\ncommon:_unused --downloader_config=\n",
+        "",
+        ("--config=_local",),
+        "--config=adms",
+    ),
+    ("common --config=_local_extra\ncommon:_local --downloader_config=\n", "", (), "--config=adms"),
+    ("common:_local --downloader_config=\n", "", ("run", "//:tool", "--", "--config=_local"), "--config=adms"),
+    ("common:_local --downloader_config=\n", "", ("--config=_other", "--config=_local"), ""),
+)
+
 
 @unittest.skipUnless(BASH and os.name != "nt", "requires a POSIX host with Bash")
 class TestAdmsSelect(unittest.TestCase):
@@ -138,6 +171,18 @@ class TestAdmsSelect(unittest.TestCase):
         (self.root / "user.bazelrc").write_text(" \tcommon\t--downloader_config= # opt out")
         self.assertEqual(self.run_select("on").stdout, "")
 
+    def test_named_configs(self):
+        for user_rc, home_rc, args, expected in NAMED_CONFIG_CASES:
+            for workspace, home in ((user_rc, home_rc), (home_rc, user_rc)):
+                for policy in ("auto", "on"):
+                    with self.subTest(workspace=workspace, home=home, args=args, policy=policy):
+                        (self.root / "user.bazelrc").write_text(workspace)
+                        (self.root / ".bazelrc").write_text(home)
+                        (self.root / "curl-args").unlink(missing_ok=True)
+                        self.assertEqual(self.run_select(policy, args).stdout.strip(), expected)
+                        if not expected:
+                            self.assertFalse((self.root / "curl-args").exists())
+
     def test_invalid_policy_reports_error_without_injecting(self):
         result = self.run_select("bogus")
         self.assertEqual(result.stdout, "")
@@ -185,13 +230,27 @@ class TestAdmsWrapper(unittest.TestCase):
                 "BAZEL_REAL": str(fake_bazel),
                 "BAZELISK_SKIP_WRAPPER": "true",
             }
-            for ci, policy in ((False, "on"), (False, "off"), (True, "on")):
-                with self.subTest(ci=ci, policy=policy):
+            for ci, policy, named_config in (
+                (False, "on", False),
+                (False, "off", False),
+                (True, "on", False),
+                (False, "on", True),
+            ):
+                with self.subTest(ci=ci, policy=policy, named_config=named_config):
+                    (root / "user.bazelrc").write_text("common:_local --downloader_config=\n" if named_config else "")
+                    user_args = ["--config=_local"] if named_config else []
                     run_env = env | {"DD_BAZEL_ADMS": policy, "DD_BAZEL_REMOTE_CACHE": policy}
                     if ci:
                         run_env |= {"CI": "true", "BUILDBARN_ID_TOKEN": "test-token"}
                     result = subprocess.run(
-                        [BASH, str(root / "tools/bazel"), "--output_base=/tmp/test base", "build", "//:target"],
+                        [
+                            BASH,
+                            str(root / "tools/bazel"),
+                            "--output_base=/tmp/test base",
+                            "build",
+                            "//:target",
+                            *user_args,
+                        ],
                         capture_output=True,
                         text=True,
                         env=run_env,
@@ -201,12 +260,12 @@ class TestAdmsWrapper(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     configs = ["--config=ci", "--config=cache:frontend"] if ci else []
                     if not ci and policy == "on":
-                        configs = ["--config=cache", "--config=adms"]
+                        configs = ["--config=cache"] + ([] if named_config else ["--config=adms"])
                     self.assertEqual(
                         result.stdout.splitlines(),
                         ["--output_base=/tmp/test base", "build", f"--disk_cache={root}/bazel/disk-cache"]
                         + configs
-                        + ["//:target"],
+                        + ["//:target", *user_args],
                     )
 
 
@@ -214,10 +273,12 @@ class TestAdmsWrapper(unittest.TestCase):
 class TestAdmsWindowsSelect(unittest.TestCase):
     """Run the actual batch selection routines with a deterministic probe."""
 
-    def run_select(self, policy, args=(), *, reachable=True, rc_name=None, rc_contents=""):
+    def run_select(self, policy, args=(), *, reachable=True, rc_name=None, rc_contents="", user_rc="", home_rc=""):
         with tempfile.TemporaryDirectory(prefix="bazel adms ") as directory:
             root = Path(directory)
             (root / "tools").mkdir()
+            (root / "user.bazelrc").write_text(user_rc)
+            (root / ".bazelrc").write_text(home_rc)
             if rc_name:
                 (root / rc_name).write_text(rc_contents)
             routines = (REPO_ROOT / "tools/bazel.bat").read_text(encoding="utf-8")
@@ -281,6 +342,13 @@ class TestAdmsWindowsSelect(unittest.TestCase):
             ):
                 with self.subTest(rc_name=rc_name, contents=contents):
                     self.assertEqual(self.run_select("on", rc_name=rc_name, rc_contents=contents), expected)
+
+    def test_named_configs(self):
+        for user_rc, home_rc, args, expected in NAMED_CONFIG_CASES:
+            for workspace, home in ((user_rc, home_rc), (home_rc, user_rc)):
+                for policy in ("auto", "on"):
+                    with self.subTest(workspace=workspace, home=home, args=args, policy=policy):
+                        self.assertEqual(self.run_select(policy, args, user_rc=workspace, home_rc=home), expected)
 
 
 if __name__ == "__main__":

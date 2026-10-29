@@ -43,8 +43,10 @@ in `bazel/tools/adms-select.sh`, with equivalent logic in `tools/bazel.bat`:
 - To opt out persistently, add `common --downloader_config=` to `user.bazelrc`
   or `~/.bazelrc`. Explicit downloader settings (empty or custom) and explicit
   `--config=adms` / `--config=dd-internal` in either file or on the command line
-  take precedence over automatic injection, including with `on`. Commented
-  settings and definitions of named configs do not affect selection.
+  take precedence over automatic injection, including with `on`. Named configs
+  enabled on the command line or in either rc file are followed, including
+  nested configs and definitions split across the files. Commented settings
+  and inactive named configs do not affect selection.
 
 CI continues to select ADMS through `--config=ci`; these policies only apply
 when `CI` is unset. This selects Bazel's archive mirror; Go module proxy

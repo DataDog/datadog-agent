@@ -205,6 +205,7 @@ exit /b 0
 :: ADMS download mirror auto-selection. DD_BAZEL_ADMS=auto (default) | on | off.
 :: Explicit downloader settings and ADMS configs take precedence over injection.
 :adms_select
+set "_adms_configs="
 call :adms_options_configured && goto :eof
 call :adms_rc_configured && goto :eof
 if not defined DD_BAZEL_ADMS set "DD_BAZEL_ADMS=auto"
@@ -231,31 +232,52 @@ for /f "tokens=1*" %%A in ("!_adms_remaining!") do (
 )
 if not defined _adms_arg exit /b 1
 if "!_adms_arg!"=="--" exit /b 1
-if "!_adms_arg!"=="--config=adms" exit /b 0
-if "!_adms_arg!"=="--config=dd-internal" exit /b 0
 if "!_adms_arg!"=="--downloader_config" exit /b 0
 if "!_adms_arg:~0,20!"=="--downloader_config=" exit /b 0
-if defined _adms_next_config (
-  if "!_adms_arg!"=="adms" exit /b 0
-  if "!_adms_arg!"=="dd-internal" exit /b 0
+set "_adms_config="
+if defined _adms_next_config set "_adms_config=!_adms_arg!"
+if "!_adms_arg:~0,9!"=="--config=" set "_adms_config=!_adms_arg:~9!"
+if defined _adms_config (
+  if "!_adms_config!"=="adms" exit /b 0
+  if "!_adms_config!"=="dd-internal" exit /b 0
+  call :adms_config_enabled
+  if errorlevel 1 (
+    set "_adms_configs=!_adms_configs! !_adms_config!"
+    set "_adms_config_added=1"
+  )
 )
 set "_adms_next_config="
 if "!_adms_arg!"=="--config" set "_adms_next_config=1"
 goto :adms_next_option
 
+:: Track enabled names to avoid repeatedly expanding nested config cycles.
+:adms_config_enabled
+for %%C in (!_adms_configs!) do if "%%C"=="!_adms_config!" exit /b 0
+exit /b 1
+
 :adms_rc_configured
+:adms_scan_rc
+set "_adms_config_added="
 for %%R in ("%~dp0..\user.bazelrc" "%USERPROFILE%\.bazelrc") do (
   if exist "%%~R" for /f "usebackq tokens=1,*" %%S in ("%%~R") do (
     set "_adms_scope=%%S"
-    if not "!_adms_scope:~0,1!"=="#" if "!_adms_scope::=!"=="!_adms_scope!" (
-      rem Strip inline comments; the prefix preserves empty text before '#'.
-      set "_adms_options=%%T"
-      for /f "tokens=1 delims=#" %%L in ("x!_adms_options!") do set "_adms_options=%%L"
-      set "_adms_options=!_adms_options:~1!"
-      call :adms_options_configured && exit /b 0
+    if not "!_adms_scope:~0,1!"=="#" (
+      set "_adms_active=1"
+      if not "!_adms_scope::=!"=="!_adms_scope!" (
+        for /f "tokens=1* delims=:" %%P in ("!_adms_scope!") do set "_adms_config=%%Q"
+        call :adms_config_enabled || set "_adms_active="
+      )
+      if defined _adms_active (
+        rem Strip inline comments; the prefix preserves empty text before '#'.
+        set "_adms_options=%%T"
+        for /f "tokens=1 delims=#" %%L in ("x!_adms_options!") do set "_adms_options=%%L"
+        set "_adms_options=!_adms_options:~1!"
+        call :adms_options_configured && exit /b 0
+      )
     )
   )
 )
+if defined _adms_config_added goto :adms_scan_rc
 exit /b 1
 
 :: ADMS reachability: expire both results after 60s (no downloader fallback).
