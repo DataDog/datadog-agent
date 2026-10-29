@@ -3,13 +3,13 @@ module github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/env v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/env v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
