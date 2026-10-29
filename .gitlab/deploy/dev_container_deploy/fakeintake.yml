@@ -9,6 +9,8 @@ publish_fakeintake:
   needs:
     - job: docker_build_fakeintake
       optional: false
+    - job: docker_sign_fakeintake
+      optional: false
   variables:
     IMG_SOURCES: registry.ddbuild.io/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
     IMG_DESTINATIONS: fakeintake:v${CI_COMMIT_SHORT_SHA}
@@ -23,6 +25,8 @@ publish_fakeintake_latest:
     - !reference [.on_fakeintake_changes_on_main]
   needs:
     - job: docker_build_fakeintake
+      optional: false
+    - job: docker_sign_fakeintake
       optional: false
   variables:
     IMG_SOURCES: registry.ddbuild.io/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
@@ -48,6 +52,8 @@ publish_fakeintake_pinned:
           - test/fakeintake/version/VERSION
   needs:
     - job: docker_build_fakeintake
+      optional: false
+    - job: docker_sign_fakeintake
       optional: false
   before_script:
     - export IMG_DESTINATIONS="fakeintake:$(cat test/fakeintake/version/VERSION)"
