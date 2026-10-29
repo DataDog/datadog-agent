@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	cfclient "github.com/cloudfoundry/go-cfclient/v3/client"
 	cfconfig "github.com/cloudfoundry/go-cfclient/v3/config"
@@ -561,12 +562,18 @@ func (a *CFApplication) extractDataFromV3Org(data *resource.Organization) {
 	}
 }
 
+// ccRequestTimeout bounds each Cloud Controller request, page reads included. It matches the gorouter's default
+// backend timeout (router.request_timeout_in_seconds): go-cfclient's 30s default fails large pages (up to
+// cloud_foundry_cc.apps_batch_size items) that the router, and the previous unbounded client, allow.
+const ccRequestTimeout = 900 * time.Second
+
 // NewCFClient returns a new Cloud Foundry client instance. It discovers the UAA endpoint from the v3 API root.
 func NewCFClient(apiAddress, clientID, clientSecret string, skipSSLValidation bool) (*CFClient, error) {
 	options := []cfconfig.Option{
 		cfconfig.ClientCredentials(clientID, clientSecret),
 		// identifies our requests in Cloud Controller access logs
 		cfconfig.UserAgent("datadog-cluster-agent"),
+		cfconfig.RequestTimeout(ccRequestTimeout),
 	}
 	if skipSSLValidation {
 		options = append(options, cfconfig.SkipTLSValidation())

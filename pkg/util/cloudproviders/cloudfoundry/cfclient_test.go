@@ -310,3 +310,9 @@ func TestCFClient_SetsUserAgent(t *testing.T) {
 		}
 	}
 }
+
+func TestNewCFClient_RequestTimeout(t *testing.T) {
+	client, _ := newTestCFClient(t)
+	assert.Equal(t, ccRequestTimeout, client.client.Config.HTTPAuthClient().Timeout)
+	assert.Equal(t, ccRequestTimeout, client.client.Config.HTTPClient().Timeout)
+}
