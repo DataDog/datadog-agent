@@ -31,11 +31,10 @@ struct credentials_t {
     u64 cap_permitted;
 };
 
-// namespace IDs of a thread, the inode numbers listed in /proc/<tid>/ns/
 struct namespace_ids_t {
     u32 mnt;
     u32 net;
-    u32 pid; // pid_for_children: setns and unshare only change the namespace of future children
+    u32 pid;
     u32 user;
     u32 uts;
     u32 ipc;
