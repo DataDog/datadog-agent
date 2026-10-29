@@ -722,8 +722,10 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
 			transform.SetMetricOTLP(span, k, v.Double())
+			dropResourceMetaOverriddenBySpanMetric(span, res, k)
 		case pcommon.ValueTypeInt:
 			transform.SetMetricOTLP(span, k, float64(v.Int()))
+			dropResourceMetaOverriddenBySpanMetric(span, res, k)
 		default:
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
@@ -822,6 +824,15 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		span.Type = transform.SpanKind2Type(in, res)
 	}
 	return span
+}
+
+// dropResourceMetaOverriddenBySpanMetric removes the Meta entry copied from the resource attribute k
+// when a numeric span attribute with the same key has been stored in Metrics. Span attributes take
+// precedence over resource attributes, so the resource value must not linger as a duplicate tag.
+func dropResourceMetaOverriddenBySpanMetric(span *pb.Span, res pcommon.Resource, k string) {
+	if _, ok := res.Attributes().Get(k); ok {
+		delete(span.Meta, k)
+	}
 }
 
 // resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
