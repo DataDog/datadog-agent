@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.ServiceProcess;
+using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Rollback;
 using Moq;
-using Newtonsoft.Json;
 using Xunit;
 using WixToolset.Dtf.WindowsInstaller;
 
@@ -28,26 +29,47 @@ namespace CustomActions.Tests.Service
             }).ToArray());
         }
 
-        [Fact]
-        public void SerializedRollbackDataRestoresStartupSettingsWithoutStartingServices()
+        [ElevatedFact]
+        public void RollbackStoreRoundTripRestoresStartupSettingsWithoutStartingServices()
         {
-            SetServices(Constants.AgentServiceName);
-            var data = new ServiceStartupRollbackData(new List<ServiceCustomAction.StartupSettings>
+            TestDirectory.EnableSetOwnerPrivilege();
+            SetServices(Constants.AgentServiceName, Constants.ProcmgrServiceName);
+            var name = "ServiceStartupTests-" + Guid.NewGuid().ToString("N");
+            var path = Path.Combine(Path.GetTempPath(), "datadog-installer", "rollback", name + ".json");
+            try
             {
-                new ServiceCustomAction.StartupSettings
+                var store = new RollbackDataStore(Session.Object, name, FileSystemServices.Object, ServiceController.Object);
+                store.Add(new ServiceStartupRollbackData(new List<ServiceCustomAction.StartupSettings>
                 {
-                    Name = Constants.AgentServiceName,
-                    StartType = ServiceStartMode.Automatic,
-                    DelayedAutoStart = true
-                }
-            });
+                    new ServiceCustomAction.StartupSettings
+                    {
+                        Name = Constants.AgentServiceName,
+                        StartType = ServiceStartMode.Automatic,
+                        DelayedAutoStart = true
+                    },
+                    new ServiceCustomAction.StartupSettings
+                    {
+                        Name = Constants.ProcmgrServiceName,
+                        StartType = ServiceStartMode.Manual,
+                        DelayedAutoStart = false
+                    }
+                }));
+                store.Store();
 
-            var restored = JsonConvert.DeserializeObject<ServiceStartupRollbackData>(JsonConvert.SerializeObject(data));
-            restored.Restore(Session.Object, FileSystemServices.Object, ServiceController.Object);
+                // Use the production serializer and binder, and load from disk in a new
+                // instance as the rollback custom action does in a separate MSI invocation.
+                new RollbackDataStore(Session.Object, name, FileSystemServices.Object, ServiceController.Object).Restore();
 
-            ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic), Times.Once);
-            ServiceController.Verify(c => c.SetDelayedAutoStart(Constants.AgentServiceName, true), Times.Once);
-            ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+                ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic), Times.Once);
+                ServiceController.Verify(c => c.SetDelayedAutoStart(Constants.AgentServiceName, true), Times.Once);
+                ServiceController.Verify(c => c.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual), Times.Once);
+                ServiceController.Verify(c => c.SetDelayedAutoStart(Constants.ProcmgrServiceName, false), Times.Once);
+                ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
         }
 
         [Fact]
