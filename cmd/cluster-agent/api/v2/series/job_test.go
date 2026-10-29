@@ -29,6 +29,9 @@ func TestIdleJobQueueStopsOnCancellation(t *testing.T) {
 		<-done
 		jq.start(ctx)
 		jq.m.Lock()
+		if !jq.isStarted {
+			t.Error("queue lost its started state")
+		}
 		jq.m.Unlock()
 	})
 }
