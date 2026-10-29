@@ -57,7 +57,7 @@ func newNodeUnschedulableTestCheck(t *testing.T, src *fakeUnschedulableSource, o
 	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
-	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{})
+	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{}, nil)
 	require.NoError(t, check.deviceCache.Refresh())
 	require.NotNil(t, check.nodeUnschedulable)
 	check.nodeUnschedulable = nodeunschedulable.NewCache(src, time.Minute)
@@ -320,13 +320,13 @@ func TestNodeUnschedulableTagsMatchSpec(t *testing.T) {
 func TestNodeUnschedulableEnabledByDefault(t *testing.T) {
 	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 	configmock.New(t)
-	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), map[int]string{})
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), map[int]string{}, nil)
 	require.NotNil(t, check.nodeUnschedulable)
 }
 
 func TestNodeUnschedulableCanBeDisabled(t *testing.T) {
 	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 	configmock.New(t).SetInTest(nodeunschedulable.EnabledConfigKey, false)
-	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), map[int]string{})
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), map[int]string{}, nil)
 	require.Nil(t, check.nodeUnschedulable)
 }
