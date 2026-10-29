@@ -44,6 +44,9 @@ func (m *adSourceManager) AddSource(src *sources.LogSource) {
 	if isContainerSource(src) && m.sp.isAgentContainerID(src.Config.Identifier) {
 		return
 	}
+	if isContainerSource(src) && m.sp.isExcludedByLogsAnnotationID(src.Config.Identifier) {
+		return
+	}
 	m.logSources.AddSource(src)
 	if isContainerSource(src) {
 		m.sp.suppressIdentifier(src.Config.Identifier)

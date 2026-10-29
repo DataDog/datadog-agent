@@ -215,7 +215,12 @@ func (s *stubWmeta) GetKubernetesPodForContainer(_ string) (*workloadmeta.Kubern
 
 type podAnnotationWmeta struct {
 	stubWmeta
-	pod *workloadmeta.KubernetesPod
+	container *workloadmeta.Container
+	pod       *workloadmeta.KubernetesPod
+}
+
+func (w *podAnnotationWmeta) GetContainer(_ string) (*workloadmeta.Container, error) {
+	return w.container, nil
 }
 
 func (w *podAnnotationWmeta) GetKubernetesPodForContainer(_ string) (*workloadmeta.KubernetesPod, error) {

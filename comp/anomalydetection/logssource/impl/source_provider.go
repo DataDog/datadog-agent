@@ -194,6 +194,19 @@ func (sp *sourceProvider) isExcludedByLogsAnnotation(c *workloadmeta.Container) 
 	return sp.logsFilter.IsExcluded(workloadfilterutil.CreateContainer(c, workloadfilterutil.CreatePod(pod)))
 }
 
+// isExcludedByLogsAnnotationID applies the same logs-annotation check to a
+// container identified by an AD log source.
+func (sp *sourceProvider) isExcludedByLogsAnnotationID(containerID string) bool {
+	if sp == nil || sp.logsFilter == nil || sp.wmeta == nil || containerID == "" {
+		return false
+	}
+	container, err := sp.wmeta.GetContainer(containerID)
+	if err != nil || container == nil {
+		return false
+	}
+	return sp.isExcludedByLogsAnnotation(container)
+}
+
 // isAgentContainer returns true for containers that appear to be Datadog agents,
 // preventing the observer from tailing its own logs — which would create an
 // unbounded feedback loop (agent logs → observer → more agent logs → ...).
