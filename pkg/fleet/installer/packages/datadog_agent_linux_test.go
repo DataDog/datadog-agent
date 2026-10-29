@@ -168,14 +168,14 @@ func TestExperimentStartUnits(t *testing.T) {
 }
 
 // TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists
-// include procmgr and keep the action service.
+// include procmgr ahead of the action service. StopStable reverses the lists.
 func TestSysVAndUpstartServicesStartProcmgr(t *testing.T) {
 	assert.Equal(t,
-		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action", "datadog-agent-procmgr"},
+		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
 		agentService.UpstartServices,
 	)
 	assert.Equal(t,
-		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action", "datadog-agent-procmgr"},
+		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
 		agentService.SysvinitServices,
 	)
 }
