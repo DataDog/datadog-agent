@@ -43,21 +43,19 @@ dogstatsd__processed{message_type="logs",state="ok",origin="host"} 100
 # TYPE transactions__retry_queue_size gauge
 transactions__retry_queue_size{domain="metrics"} 4
 # TYPE transactions__success counter
-transactions__success{domain="metrics",endpoint="/api/v1/series",proto_version="HTTP/2.0"} 9
-transactions__success{domain="metrics",endpoint="/api/v1/validate",proto_version="HTTP/2.0"} 1000
+transactions__success{domain="https://app.datadoghq.com",endpoint="series_v2",proto_version="HTTP/2.0"} 9
+transactions__success{domain="https://app.datadoghq.com",endpoint="/api/v1/validate",proto_version="HTTP/2.0"} 1000
 # TYPE transactions__errors counter
-transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="dns_error"} 1
-transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="tls_error"} 2
-transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="connection_error"} 3
-transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="wrote_request_error"} 4
-transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="sent_request_error"} 5
-transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="cant_send"} 6
-transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="gt_400"} 7
-transactions__errors{domain="metrics",endpoint="/api/v1/validate",error_type="dns_error"} 1000
-transactions__errors{domain="metrics",endpoint="/api/v1/validate",error_type="cant_send"} 1000
+transactions__errors{error_type="dns_error"} 1
+transactions__errors{error_type="tls_error"} 2
+transactions__errors{error_type="connection_error"} 3
+transactions__errors{error_type="wrote_request_error"} 4
+transactions__errors{error_type="sent_request_error"} 5
+transactions__errors{error_type="cant_send"} 6
+transactions__errors{error_type="gt_400"} 7
 # TYPE transactions__http_errors counter
-transactions__http_errors{domain="metrics",endpoint="/api/v1/series",code="500"} 2
-transactions__http_errors{domain="metrics",endpoint="/api/v1/validate",code="500"} 1000
+transactions__http_errors{domain="https://app.datadoghq.com",endpoint="series_v2",code="500"} 2
+transactions__http_errors{domain="https://app.datadoghq.com",endpoint="/api/v1/validate",code="500"} 1000
 # TYPE aggregator__dogstatsd_contexts gauge
 aggregator__dogstatsd_contexts 11
 # TYPE aggregator__processed counter
@@ -103,7 +101,7 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(7), values["dogstatsd_service_check_parse_errors"])
 	assert.Equal(t, int64(4), values["forwarder_retry_queue_size"])
 	assert.Equal(t, int64(9), values["forwarder_success"])
-	assert.Equal(t, int64(18), values["forwarder_errors"], "phase-scoped error types and API-key validation requests should not be counted as transaction errors")
+	assert.Equal(t, int64(18), values["forwarder_errors"], "phase-scoped error types should not be counted as transaction errors")
 	assert.Equal(t, int64(1), values["forwarder_dns_errors"])
 	assert.Equal(t, int64(2), values["forwarder_tls_errors"])
 	assert.Equal(t, int64(3), values["forwarder_connection_errors"])

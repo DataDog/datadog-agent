@@ -695,6 +695,11 @@ func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 	for _, selector := range selectors {
 		value, ok := values[selector.name]
 		if !ok {
+			// A selector that only excludes values doesn't require the label: ADP's forwarder error series, for
+			// example, have no endpoint label at all, and must still match an endpoint exclusion.
+			if len(selector.values) == 0 {
+				continue
+			}
 			return false
 		}
 		if len(selector.values) > 0 {
