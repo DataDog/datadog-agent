@@ -28,7 +28,9 @@ func TestDeniedSyscallRemainsDeniedAfterSelectiveElevation(t *testing.T) {
 	}
 
 	command := exec.Command(os.Args[0], "-test.run=^TestDeniedSyscallRemainsDeniedAfterSelectiveElevation$")
-	command.Env = append(os.Environ(), seccompHelperEnvironment+"=root-elevation")
+	// Don't inherit the test runner's environment: under Bazel coverage it
+	// points the child, which drops privileges, at root-owned coverage paths.
+	command.Env = []string{"PATH=" + os.Getenv("PATH"), seccompHelperEnvironment + "=root-elevation"}
 	output, err := command.CombinedOutput()
 	if exitErr := (*exec.ExitError)(nil); errors.As(err, &exitErr) && exitErr.ExitCode() == 77 {
 		t.Skipf("seccomp unavailable: %s", output)

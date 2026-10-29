@@ -23,7 +23,7 @@ import (
 func TestRestrictEnforcesReadAndWritePolicy(t *testing.T) {
 	if os.Getenv("RSHELL_LANDLOCK_TEST_HELPER") == "1" {
 		runRestrictHelper()
-		return
+		exitLandlockHelper()
 	}
 
 	root := t.TempDir()
@@ -83,7 +83,7 @@ func runRestrictHelper() {
 func TestRestrictUsesValidatedDescriptorAfterPathReplacement(t *testing.T) {
 	if os.Getenv("RSHELL_LANDLOCK_FD_TEST_HELPER") == "1" {
 		runDescriptorIdentityHelper()
-		return
+		exitLandlockHelper()
 	}
 
 	root := t.TempDir()
@@ -126,6 +126,13 @@ func runDescriptorIdentityHelper() {
 
 	mustRead(filepath.Join(moved, "existing"))
 	mustDenyRead(filepath.Join(allowed, "existing"))
+}
+
+// exitLandlockHelper ends a helper subprocess that passed. It exits directly:
+// under Bazel coverage, returning would make the test binary write coverage
+// data outside the paths the helper has just restricted itself to, and fail.
+func exitLandlockHelper() {
+	os.Exit(0)
 }
 
 func runLandlockSubprocess(t *testing.T, cmd *exec.Cmd) {
