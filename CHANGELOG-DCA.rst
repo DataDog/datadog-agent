@@ -119,6 +119,11 @@ Enhancement Notes
   section with the cluster name, cluster ID, distribution, and Kubernetes server
   version.
 
+- The Private Action Runner Helm rollback action now detects the namespace
+  and service account of its rollback Job, so you no longer need to provide
+  them. It also tracks the rollback Job until it ends, and reports Jobs that
+  fail, get stuck, or time out, with the reason.
+
 
 .. _Release Notes_7.85.0_Deprecation Notes:
 

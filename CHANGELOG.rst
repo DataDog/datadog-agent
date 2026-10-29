@@ -211,11 +211,6 @@ Enhancement Notes
   Collector. This metric is not emitted when otel-agent is connected to a core or
   cluster Agent, since that Agent already reports its own running state.
 
-- Auto detect Helm rollback job namespace and service account on DCA side.
-  User will not need to provide them to run an action.
-
-- Implement helm rollback job tracking logic and error reporting
-
 - Agent performance telemetry now includes a ``container_name`` tag on container
   restart, termination, memory, and CPU metrics, so each container in an Agent
   pod can be analyzed separately. Container termination telemetry also includes
@@ -234,8 +229,6 @@ Enhancement Notes
   extracting the first element when an array-typed attribute is provided.
 
 - Agents are now built with Go ``1.26.10``.
-
-- Agents are now built with Go ``1.26.9``.
 
 - CEL-based ``cel_workload_exclude`` rules can now match on Kubernetes labels
   in addition to annotations. Pod, service, and endpoint labels are exposed as
@@ -410,12 +403,6 @@ Enhancement Notes
   Agent now releases NVML and pauses GPU collection, so the reconfiguration's GPU
   reset is no longer blocked by the Agent. Collection resumes when the label
   reaches a terminal state.
-
-- When the kubelet client fails to initialize over HTTPS, it falls back to HTTP.
-  Once set, it never changes, even when HTTPS becomes available again and the
-  initialization error was only temporary.
-  Improve this by trying to re-initialize the kubelet client over HTTPS each time a
-  component tries to get the kubelet client.
 
 - Container image SBOMs now carry a ``datadog:image:Created`` property on
   their root component, holding the ``created`` field of the OCI image
@@ -616,11 +603,6 @@ Bug Fixes
   ``DD_HOSTNAME`` is not set. The trace agent now uses the hostname resolved by
   the collector, and on EC2 nodes the collector falls back to the EC2 instance ID
   when ``DD_KUBERNETES_KUBELET_HOST`` is not set.
-
-- Health Platform: the Docker socket permission health issue now scopes its
-  issue id to the host and the set of unreachable sockets, instead of a single
-  fixed id shared across the fleet. Each affected host now files its own issue,
-  so one host recovering no longer resolves the issue for the others.
 
 - Health Platform: the Docker socket permission health issue now correctly
   describes a permission-denied error connecting to the Docker socket, and
@@ -825,8 +807,9 @@ Bug Fixes
   between attempts up to a ceiling of 5 seconds and logging at error level once the
   failures stop looking transient.
 
-- Fixes the issue when the kubelet keeps using HTTP when HTTPS is available
-  to reach the kubelet server.
+- The kubelet client no longer stays on HTTP after a temporary HTTPS
+  failure at startup. It now retries HTTPS each time a component requests
+  the kubelet client.
 
 - Drop a container image SBOM scan as unsupported when the overlayfs direct
   scan finds a different number of layer paths than the image has layers.
@@ -862,7 +845,7 @@ Bug Fixes
 - APM: Fixed a potential memory leak in the trace-agent. If a tracer sent very
   high cardinality payload tags (language, language version,
   tracer version, endpoint version and service), these would accumulate
-  over the liftetime of the trace-agent. Under normal tracer operation this should
+  over the lifetime of the trace-agent. Under normal tracer operation this should
   never occur.
 
 - APM: Spans with a start time or duration far in the future (for example, from a
@@ -886,15 +869,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- Add a configurable timeout to the fakeintake test client to prevent
-  hung requests during end-to-end tests.
-
 - Add metric origin mapping for the PowerShell integration.
-
-- dd-procmgrd: read the installer ddagentuser password from
-  L$datadog_ddagentuser_password when agent-profile spawn cannot inherit the
-  supervisor token. No behavior change while dd-procmgrd runs as the installed
-  agent account; prepares LocalSystem process manager migration.
 
 - Register the amazon_vpc_cni, ravendb, and sglang metric origins for Agent-side serialization.
 
