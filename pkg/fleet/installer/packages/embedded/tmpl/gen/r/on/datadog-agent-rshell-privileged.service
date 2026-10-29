@@ -11,6 +11,7 @@ Group=dd-agent
 UMask=0077
 RuntimeDirectory=datadog-agent-rshell
 RuntimeDirectoryMode=0755
+EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
 ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/privateactionrunner privileged-helper --cfgpath=/etc/datadog-agent/datadog.yaml --helper=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell --socket=/run/datadog-agent-rshell/privileged.sock --policy=/etc/datadog-agent-rshell/policy.json
 Restart=on-failure

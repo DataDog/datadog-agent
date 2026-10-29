@@ -96,10 +96,6 @@ var (
 		{Path: "embedded", Owner: "root", Group: "root"},
 		{Path: "embedded/bin", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/installer", Owner: "root", Group: "root"},
-		// systemd runs these as root (the rshell privileged helper and the
-		// launcher that starts it), so dd-agent must not be able to replace them.
-		{Path: "embedded/bin/privateactionrunner", Owner: "root", Group: "root"},
-		{Path: "embedded/bin/rshell", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
@@ -197,37 +193,6 @@ func fixRestoredIntegrationOwnership(ctx HookContext) error {
 	return integrationRestorePermissions.Ensure(ctx, filepath.Join(ctx.PackagePath, "embedded/lib"))
 }
 
-// rootExecutableRelPaths are package binaries systemd runs as root (the rshell
-// privileged helper and the privateactionrunner launcher that execs it).
-var rootExecutableRelPaths = []string{
-	"embedded/bin/rshell",
-	"embedded/bin/privateactionrunner",
-}
-
-// ensureRootExecutablesAreRegularFiles refuses to proceed if a root-executed
-// binary is a symlink (or any non-regular file). agentPackagePermissions.Ensure
-// resolves symlinks with filepath.EvalSymlinks before chowning, so a symlink
-// here would chown its target to root rather than be rejected; if that target
-// sits in a dd-agent-writable directory, dd-agent could replace it afterward
-// and the root launcher would exec whatever the path resolves to. Validating
-// the file type closes that gap while keeping the consolidated ownership list.
-func ensureRootExecutablesAreRegularFiles(ctx HookContext) error {
-	for _, rel := range rootExecutableRelPaths {
-		path := filepath.Join(ctx.PackagePath, rel)
-		info, err := os.Lstat(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("failed to stat %s: %w", path, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return fmt.Errorf("root-executed binary %s is not a regular file", path)
-		}
-	}
-	return nil
-}
-
 // installFilesystem sets up the filesystem for the agent installation
 func installFilesystem(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_filesystem")
@@ -248,9 +213,6 @@ func installFilesystem(ctx HookContext) (err error) {
 	// 3. Ensure config/run/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
-	}
-	if err = ensureRootExecutablesAreRegularFiles(ctx); err != nil {
-		return fmt.Errorf("failed to validate root-executed binaries: %w", err)
 	}
 	if err = agentPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)

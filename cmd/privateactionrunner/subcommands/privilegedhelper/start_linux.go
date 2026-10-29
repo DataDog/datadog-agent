@@ -10,7 +10,6 @@ package privilegedhelper
 import (
 	"errors"
 	"fmt"
-	"os"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -30,8 +29,7 @@ var (
 		}
 		return int(version), nil
 	}
-	execve              = syscall.Exec
-	ensureTrustedHelper = ensureTrustedHelperBinary
+	execve = syscall.Exec
 )
 
 // startHelper replaces this process with the rshell privileged helper, which
@@ -45,12 +43,6 @@ func startHelper(logger log.Component, params *helperParams) error {
 		logger.Warnf("not starting the rshell privileged helper: it needs Landlock ABI %d (got %d, %v)", minLandlockABI, version, err)
 		return nil
 	}
-	// This launcher runs as root, so refuse to exec a helper binary that
-	// dd-agent could have tampered with: a symlink (whose target could be
-	// swapped), a non-root-owned file, or one writable by group or other.
-	if err := ensureTrustedHelper(params.helperPath); err != nil {
-		return err
-	}
 	logger.Infof("starting the rshell privileged helper on %s", params.socketPath)
 	// exec discards whatever the logger has not written yet.
 	logger.Flush()
@@ -60,28 +52,4 @@ func startHelper(logger log.Component, params *helperParams) error {
 	// from the Agent's, which can hold credentials.
 	err := execve(params.helperPath, args, []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin"})
 	return fmt.Errorf("exec the rshell privileged helper: %w", err)
-}
-
-// ensureTrustedHelperBinary refuses to exec a helper binary that a non-root
-// user could control. It must be a regular file (not a symlink whose target
-// could be swapped), owned by root, and not writable by group or other.
-func ensureTrustedHelperBinary(path string) error {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return fmt.Errorf("stat the rshell privileged helper %q: %w", path, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return fmt.Errorf("refusing to run the rshell privileged helper: %q is not a regular file", path)
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return fmt.Errorf("refusing to run the rshell privileged helper: cannot read ownership of %q", path)
-	}
-	if stat.Uid != 0 {
-		return fmt.Errorf("refusing to run the rshell privileged helper: %q is owned by uid %d, not root", path, stat.Uid)
-	}
-	if info.Mode().Perm()&0o022 != 0 {
-		return fmt.Errorf("refusing to run the rshell privileged helper: %q is writable by group or other (mode %#o)", path, info.Mode().Perm())
-	}
-	return nil
 }
