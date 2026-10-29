@@ -111,7 +111,7 @@ func newConfigManager(config config.Component) configManager {
 
 	symbolUploaderOptions := make(confMap)
 	for _, option := range []string{
-		"enabled", "upload_dynamic_symbols", "upload_go_pcln_tab", "use_http2",
+		"enabled", "upload_dynamic_symbols", "upload_gopclntab", "use_http2",
 		"symbol_query_interval", "dry_run", "disable_debug_section_compression",
 	} {
 		key := "hostprofiler.symbol_uploader." + option

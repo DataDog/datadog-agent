@@ -81,7 +81,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if len(c.EbpfCollectorConfig.Probes) > 0 {
-		slog.Warn("Datadog Host Profiler probe extensions are not supported by Datadog ingestion at the time of this release; profiles collected by these probes may be interpreted incorrectly.",
+		slog.Warn("Datadog Host Profiler probe extensions are not supported at the time of this release; profiles collected by these probes may be interpreted incorrectly.",
 			slog.Any("probes", c.EbpfCollectorConfig.Probes))
 	}
 	includeEnvVars := append([]string{}, defaultEnvVars...)
