@@ -101,18 +101,17 @@ func setKptrRestrict(t *testing.T, value string) {
 	})
 }
 
-// kallsymsRestricted reports whether /proc/kallsyms shows a zero address for nr_cpu_ids, one of the
-// kernel variables the cgroup memory stats read
+// kallsymsRestricted reports whether /proc/kallsyms shows a zero address for oom_kill_process
 func kallsymsRestricted(t *testing.T) bool {
 	data, err := os.ReadFile("/proc/kallsyms")
 	require.NoError(t, err)
 	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(line)
-		if len(fields) >= 3 && fields[2] == "nr_cpu_ids" {
+		if len(fields) >= 3 && fields[2] == "oom_kill_process" {
 			return strings.Trim(fields[0], "0") == ""
 		}
 	}
-	require.FailNow(t, "nr_cpu_ids not found in /proc/kallsyms")
+	require.FailNow(t, "oom_kill_process not found in /proc/kallsyms")
 	return false
 }
 
