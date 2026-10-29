@@ -124,12 +124,13 @@ func TestOOMKillCgroupMemoryStats(t *testing.T) {
 		t.Run("disabled", func(t *testing.T) {
 			skipIfFentryUnsupported(t)
 			stats := cgroupOOMKillStats(t, false)
-			assert.Zero(t, stats, "no cgroup memory stats should be reported when disabled")
+			assert.Nil(t, stats, "no cgroup memory stats should be reported when disabled")
 		})
 	})
 }
 
-func assertCgroupMemoryStats(t *testing.T, stats model.CgroupMemoryStats) {
+func assertCgroupMemoryStats(t *testing.T, stats *model.CgroupMemoryStats) {
+	require.NotNil(t, stats, "cgroup memory stats should be reported")
 	assert.NotZero(t, stats.Usage, "usage")
 	assert.NotZero(t, stats.ActiveAnon+stats.InactiveAnon+stats.ActiveFile+stats.InactiveFile, "lru pages")
 	assert.NotZero(t, stats.Kernel, "kernel memory")
@@ -137,7 +138,7 @@ func assertCgroupMemoryStats(t *testing.T, stats model.CgroupMemoryStats) {
 
 // cgroupOOMKillStats triggers a cgroup OOM kill with a probe configured to emit the cgroup memory
 // stats or not, and returns the cgroup memory stats reported for it
-func cgroupOOMKillStats(t *testing.T, emit bool) model.CgroupMemoryStats {
+func cgroupOOMKillStats(t *testing.T, emit bool) *model.CgroupMemoryStats {
 	setTestPinDir(t)
 	p, err := NewProbe(testConfig(withCgroupMemoryStats(emit)))
 	require.NoError(t, err)

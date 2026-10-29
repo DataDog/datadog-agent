@@ -18,8 +18,8 @@ type OOMKillStats struct {
 	Pages       uint64 `json:"pages"`
 	MemCgOOM    uint32 `json:"memcgoom"`
 	// CgroupMemory holds the memory statistics of the cgroup at the time of a cgroup OOM kill. It is
-	// only filled when oom_kill.emit_cgroup_memory_stats is enabled and the probe can collect them.
-	CgroupMemory CgroupMemoryStats `json:"cgroupMemory"`
+	// nil unless oom_kill.emit_cgroup_memory_stats is enabled and the probe can collect them.
+	CgroupMemory *CgroupMemoryStats `json:"cgroupMemory,omitempty"`
 }
 
 // CgroupMemoryStats contains the memory statistics of a cgroup, in bytes

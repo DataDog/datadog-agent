@@ -82,6 +82,8 @@ type Probe struct {
 	// flushLinks attach the memcg flush programs, when the cgroup memory stats are collected. They
 	// are keyed by their pin name: memcgFlushBeginLinkName or memcgFlushEndLinkName
 	flushLinks map[string]link.Link
+	// emitStats is true if the oom-kill program collects the cgroup memory stats
+	emitStats bool
 	// pinned is true if this probe owns the bpffs pins of the link and map
 	pinned bool
 }
@@ -220,7 +222,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 		return nil, fmt.Errorf("failed to load oom-kill collection: %w", err)
 	}
 
-	p := &Probe{coll: coll, progName: progSpec.Name}
+	p := &Probe{coll: coll, progName: progSpec.Name, emitStats: emitStats == 1}
 	if p.oomMap, err = maps.Map[statsKey, oomStats](coll.Maps[oomMapName]); err != nil {
 		coll.Close()
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
@@ -679,7 +681,7 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	var stat oomStats
 	it := k.oomMap.Iterate()
 	for it.Next(&ts, &stat) {
-		if out, err := convertStats(stat); err != nil {
+		if out, err := convertStats(stat, k.emitStats); err != nil {
 			log.Error(err)
 		} else {
 			results = append(results, out)
@@ -701,17 +703,18 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 }
 
 // convertStats converts a map value according to the version of its layout. It returns an error for
-// an unknown version, whose value cannot be decoded.
-func convertStats(in oomStats) (model.OOMKillStats, error) {
+// an unknown version, whose value cannot be decoded. The cgroup memory stats are only reported for
+// a cgroup OOM kill when emitStats is true.
+func convertStats(in oomStats, emitStats bool) (model.OOMKillStats, error) {
 	switch v := any(in.Oom_stats_version).(type) {
 	case oomStatsV2:
-		return convertStatsV2(oomStatsV2Layout(in)), nil
+		return convertStatsV2(oomStatsV2Layout(in), emitStats), nil
 	default:
 		return model.OOMKillStats{}, fmt.Errorf("unsupported oom_stats version %T, dropping OOM kill of pid %d", v, in.Victim_pid)
 	}
 }
 
-func convertStatsV2(in oomStatsV2Layout) (out model.OOMKillStats) {
+func convertStatsV2(in oomStatsV2Layout, emitStats bool) (out model.OOMKillStats) {
 	out.CgroupName = unix.ByteSliceToString(in.Cgroup_name[:])
 	out.VictimPid = in.Victim_pid
 	out.TriggerPid = in.Trigger_pid
@@ -721,7 +724,10 @@ func convertStatsV2(in oomStatsV2Layout) (out model.OOMKillStats) {
 	out.TriggerComm = unix.ByteSliceToString(in.Trigger_comm[:])
 	out.Pages = in.Pages
 	out.MemCgOOM = in.Memcg_oom
-	out.CgroupMemory = model.CgroupMemoryStats{
+	if !emitStats || in.Memcg_oom != 1 {
+		return
+	}
+	out.CgroupMemory = &model.CgroupMemoryStats{
 		Usage:        cgroupMemoryStat(in.Mem.Usage),
 		ActiveAnon:   cgroupMemoryStat(in.Mem.Active_anon),
 		InactiveAnon: cgroupMemoryStat(in.Mem.Inactive_anon),
