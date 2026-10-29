@@ -135,6 +135,7 @@ assert settings["DD_ANOMALY_DETECTION_RECORDING_ONLY"] == "true"
 for source in ("CONTAINERS", "INTERNAL", "KUBELET"):
     assert settings[f"DD_ANOMALY_DETECTION_LOGS_{source}_MIN_SEVERITY"] == "info"
     assert settings[f"DD_ANOMALY_DETECTION_LOGS_{source}_MAX_RATE_MEDIUM_PRIORITY"] == "-1"
+    assert settings[f"DD_ANOMALY_DETECTION_LOGS_{source}_MAX_RATE_LOW_PRIORITY"] == "-1"
 PY
 if grep -q dummy-key "$CALLS"; then echo "credential leaked into SSH script" >&2; exit 1; fi
 if bash "$scripts/vm.sh" deploy-recorder --disposable-vm user@vm "$workspace/env" test-tag skill-test 2m 1m > /dev/null 2>&1; then

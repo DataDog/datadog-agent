@@ -24,6 +24,7 @@ type wmetaStore interface {
 	Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle
 	Unsubscribe(ch chan workloadmeta.EventBundle)
 	GetContainer(id string) (*workloadmeta.Container, error)
+	GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error)
 }
 
 // sourceProvider translates workloadmeta container events into LogSources,
@@ -32,6 +33,7 @@ type sourceProvider struct {
 	wmeta       wmetaStore
 	logSources  *sources.LogSources
 	pauseFilter workloadfilter.FilterBundle
+	logsFilter  workloadfilter.FilterBundle
 
 	mu            sync.Mutex
 	activeSources map[string]*sources.LogSource // keyed by container ID
@@ -40,11 +42,12 @@ type sourceProvider struct {
 	stopped sync.WaitGroup
 }
 
-func newSourceProvider(wmeta wmetaStore, logSources *sources.LogSources, pauseFilter workloadfilter.FilterBundle) *sourceProvider {
+func newSourceProvider(wmeta wmetaStore, logSources *sources.LogSources, pauseFilter, logsFilter workloadfilter.FilterBundle) *sourceProvider {
 	return &sourceProvider{
 		wmeta:         wmeta,
 		logSources:    logSources,
 		pauseFilter:   pauseFilter,
+		logsFilter:    logsFilter,
 		activeSources: make(map[string]*sources.LogSource),
 		suppressedIDs: make(map[string]struct{}),
 	}
@@ -94,6 +97,10 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		return
 	}
 	if sp.isPauseContainer(c) || isAgentContainer(c) {
+		return
+	}
+	if sp.isExcludedByLogsAnnotation(c) {
+		logging.Debugf("logssource skipped container source %s: excluded by pod annotation", c.EntityID.ID)
 		return
 	}
 	// For containerd/non-Docker runtimes on Kubernetes, wait for kubelet
@@ -171,6 +178,20 @@ func (sp *sourceProvider) isPauseContainer(c *workloadmeta.Container) bool {
 		return sp.pauseFilter.IsExcluded(workloadfilterutil.CreateContainer(c, nil))
 	}
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "pause")
+}
+
+// isExcludedByLogsAnnotation returns true when the container's pod excludes its
+// logs with the standard AD logs annotations (for example
+// ad.datadoghq.com/<container>.logs_exclude).
+func (sp *sourceProvider) isExcludedByLogsAnnotation(c *workloadmeta.Container) bool {
+	if sp.logsFilter == nil || sp.wmeta == nil {
+		return false
+	}
+	pod, err := sp.wmeta.GetKubernetesPodForContainer(c.EntityID.ID)
+	if err != nil || pod == nil {
+		return false
+	}
+	return sp.logsFilter.IsExcluded(workloadfilterutil.CreateContainer(c, workloadfilterutil.CreatePod(pod)))
 }
 
 // isAgentContainer returns true for containers that appear to be Datadog agents,

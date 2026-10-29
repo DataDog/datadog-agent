@@ -35,7 +35,7 @@ func TestADSourceManagerAddSourceSkipsAgentContainer(t *testing.T) {
 	wmeta.Set(runningContainer("agent-container", "gcr.io/datadoghq/datadog-agent"))
 
 	logSources := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, logSources, nil)
+	sp := newSourceProvider(wmeta, logSources, nil, nil)
 	mgr := newADSourceManager(logSources, service.NewServices(), sp)
 
 	mgr.AddSource(newContainerADSource("agent-container"))
@@ -49,7 +49,7 @@ func TestADSourceManagerAddSourceKeepsNonAgentContainer(t *testing.T) {
 	wmeta.Set(runningContainer("app-container", "nginx"))
 
 	logSources := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, logSources, nil)
+	sp := newSourceProvider(wmeta, logSources, nil, nil)
 	mgr := newADSourceManager(logSources, service.NewServices(), sp)
 
 	src := newContainerADSource("app-container")
@@ -65,7 +65,7 @@ func TestADSourceManagerAddSourceKeepsUnknownContainer(t *testing.T) {
 	wmeta := newWMetaMock(t)
 
 	logSources := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, logSources, nil)
+	sp := newSourceProvider(wmeta, logSources, nil, nil)
 	mgr := newADSourceManager(logSources, service.NewServices(), sp)
 
 	src := newContainerADSource("not-yet-in-workloadmeta")

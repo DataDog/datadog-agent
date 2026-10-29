@@ -542,6 +542,12 @@ func deployOrchestratorJob(
 			Spec: batchv1.JobSpecArgs{
 				BackoffLimit: pulumi.IntPtr(0),
 				Template: corev1.PodTemplateSpecArgs{
+					Metadata: metav1.ObjectMetaArgs{
+						Annotations: pulumi.StringMap{
+							// Keep the orchestrator's scenario timeline out of the recorder.
+							"ad.datadoghq.com/orchestrator.logs_exclude": pulumi.String("true"),
+						},
+					},
 					Spec: corev1.PodSpecArgs{
 						ServiceAccountName: sa.Metadata.Name().Elem(),
 						RestartPolicy:      pulumi.String("Never"),

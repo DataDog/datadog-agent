@@ -33,20 +33,26 @@ datadog:
       value: "{{.Retention}}"
     - name: DD_ANOMALY_DETECTION_RECORDING_ONLY
       value: "{{.RecordingOnly}}"
-    # The observer drops logs below warn and caps medium-priority logs at 100/s by default
-    # (containers, internal and kubelet inputs), which loses the workloads' info access logs.
-    # Record them all. Keep in sync with assets/recorder-values.yaml in the recorder skill.
+    # The observer drops logs below info and rate-limits them by default
+    # (containers, internal and kubelet inputs), which loses info access logs.
+    # Record info and above without rate caps. Keep in sync with assets/recorder-values.yaml.
     - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY
       value: info
     - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MAX_RATE_LOW_PRIORITY
       value: "-1"
     - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MIN_SEVERITY
       value: info
     - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MAX_RATE_MEDIUM_PRIORITY
       value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MAX_RATE_LOW_PRIORITY
+      value: "-1"
     - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MIN_SEVERITY
       value: info
     - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MAX_RATE_LOW_PRIORITY
       value: "-1"
 {{- else}}
     - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED

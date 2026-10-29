@@ -55,6 +55,7 @@ func TestRenderAgentValuesSemanticMatchWithVMRecorder(t *testing.T) {
 	for _, source := range []string{"CONTAINERS", "INTERNAL", "KUBELET"} {
 		require.Equal(t, "info", env["DD_ANOMALY_DETECTION_LOGS_"+source+"_MIN_SEVERITY"])
 		require.Equal(t, "-1", env["DD_ANOMALY_DETECTION_LOGS_"+source+"_MAX_RATE_MEDIUM_PRIORITY"])
+		require.Equal(t, "-1", env["DD_ANOMALY_DETECTION_LOGS_"+source+"_MAX_RATE_LOW_PRIORITY"])
 	}
 
 	for key := range env {

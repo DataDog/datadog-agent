@@ -179,16 +179,15 @@ Both `scripts/fetch.sh` (VM) and `dda inv aws.eks.gensim.fetch` (EKS) run
 - Requires nonempty in-window metrics (`observer-metrics-*.parquet`) and logs (`observer-logs-*.parquet`) from every
   expected recorder pod. Sparse timestamps produce `coverage_warnings`, not automatic failure; inspect warnings before
   claiming complete coverage. Monitor `"success": false` in `episode.json` does not invalidate a recording.
-- **Log filtering (VM and EKS):** the observer's defaults drop logs below `warn` and cap medium-priority logs at 100/s
+- **Log filtering (VM and EKS):** the observer's defaults drop logs below `warn` and rate-limit `info` logs
   (`anomaly_detection.logs.{containers,internal,kubelet}.min_severity=warn` and `.max_rate_medium_priority=100`, defined
   in `pkg/config/setup/all_settings.go`). Left alone, a recording keeps only the `warn`/`error` rows and loses the
   workloads' `info` access logs, while metrics look normal and validation still passes (at most a `coverage_warnings`
   entry). `assets/recorder-values.yaml` (VM) and `agent-values.yaml.tmpl` (EKS) therefore set
   `DD_ANOMALY_DETECTION_LOGS_{CONTAINERS,INTERNAL,KUBELET}_MIN_SEVERITY=info` and
-  `..._MAX_RATE_MEDIUM_PRIORITY=-1`. Keep both files in sync, and if a custom values file is used, keep these overrides.
-  Sanity check after fetching: count `Status` values in `parquet/observer-logs-*.parquet`. Only `error`/`warn` rows from
-  `account-service`-style workloads that normally log at `info` mean the filter is active. Debug and trace logs are
-  still subject to the low-priority cap (`max_rate_low_priority=1`) and are not covered by these overrides.
+  `..._MAX_RATE_{MEDIUM,LOW}_PRIORITY=-1`. Keep both files in sync, and if a custom values file is used, keep these
+  overrides. Sanity check after fetching: count `Status` values in `parquet/observer-logs-*.parquet`; only
+  `error`/`warn` rows from workloads that normally log at `info` mean the filter is active.
 - Writes `episode.json`, `validation.json`, `recording-manifest.json`, and `parquet/` (preserving untrimmed sidecars
   such as `advances.jsonl` and `detect_digests.jsonl`). On failure, retains partial output in `$OUT` for diagnosis.
 

@@ -27,7 +27,8 @@ On EKS (`aws/gensim-eks`), the Datadog Agent runs as a DaemonSet across Linux wo
 `test/e2e-framework/scenarios/aws/gensim-eks/agent-values.yaml.tmpl` matches `assets/recorder-values.yaml` on all
 `DD_ANOMALY_DETECTION_*` and `anomaly_detection.recording.*` settings, including the log filter overrides
 (`DD_ANOMALY_DETECTION_LOGS_{CONTAINERS,INTERNAL,KUBELET}_MIN_SEVERITY=info` and
-`..._MAX_RATE_MEDIUM_PRIORITY=-1`; see the log filtering note in `SKILL.md`). Change both files together. Intentional
+`..._MAX_RATE_{MEDIUM,LOW}_PRIORITY=-1`; see the log filtering note in `SKILL.md`).
+Change both files together. Intentional
 environment differences:
 
 - `agents.image.pullPolicy: Always` on EKS (worker nodes pull from a container registry) vs `Never` on kind (loaded from
