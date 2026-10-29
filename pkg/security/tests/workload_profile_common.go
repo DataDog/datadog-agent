@@ -186,9 +186,9 @@ type workloadProfileAnomaly struct {
 var sentinelCounter atomic.Uint64
 
 // runUntilSentinel runs action, then executes a sentinel command in the container and returns once the sentinel
-// exec event has been dispatched. Events are dispatched in order and the workload profile manager processes each
-// event, and sends the anomaly it triggers, before the event reaches the probe event handlers: once the sentinel
-// is seen, every event of the action and every anomaly it triggered has already been delivered.
+// exec event reaches the probe event handlers. Events are dispatched sequentially, so once the sentinel is seen,
+// every event of the action (along with its workload profile processing and any anomaly it triggered) has already
+// been processed.
 // onProbeEvent, if not nil, is called for each dispatched event until the sentinel.
 func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, action func() error, onProbeEvent func(event *model.Event)) {
 	t.Helper()
@@ -450,6 +450,61 @@ func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) b
 	})) > 0
 }
 
+// profileSyscallSeenTimes returns the seen timestamps of a syscall node, for the image tag, under the process node of argv0
+func profileSyscallSeenTimes(p *profile.Profile, argv0 string, syscall model.Syscall, imageTag string) (firstSeen time.Time, lastSeen time.Time, found bool) {
+	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+
+	for _, node := range walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return node.Process.Argv0 == argv0
+	}) {
+		syscallNode, ok := node.Syscalls[int(syscall)]
+		if !ok {
+			continue
+		}
+		if first, last, ok := syscallNode.GetSeenTimes(imageTagID); ok {
+			return time.Unix(0, first), time.Unix(0, last), true
+		}
+	}
+	return time.Time{}, time.Time{}, false
+}
+
+// profileFileSeenTimes returns the seen timestamps of a file node, for the image tag, under the process node of execBasename
+func profileFileSeenTimes(p *profile.Profile, execBasename string, basename string, imageTag string) (firstSeen time.Time, lastSeen time.Time, found bool) {
+	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+
+	var findFile func(files map[string]*activity_tree.FileNode) *activity_tree.FileNode
+	findFile = func(files map[string]*activity_tree.FileNode) *activity_tree.FileNode {
+		for name, file := range files {
+			if name == basename {
+				return file
+			}
+			if child := findFile(file.Children); child != nil {
+				return child
+			}
+		}
+		return nil
+	}
+
+	for _, node := range walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return filepath.Base(node.Process.FileEvent.PathnameStr) == execBasename
+	}) {
+		file := findFile(node.Files)
+		if file == nil {
+			continue
+		}
+		if first, last, ok := file.GetSeenTimes(imageTagID); ok {
+			return time.Unix(0, first), time.Unix(0, last), true
+		}
+	}
+	return time.Time{}, time.Time{}, false
+}
+
 // profileHasDNS returns true if the profile contains a DNS node for the provided domain
 func profileHasDNS(p *profile.Profile, domain string) bool {
 	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
@@ -481,6 +536,50 @@ func profileHasSocket(p *profile.Profile, port uint16, bind bool) bool {
 		}
 		return false
 	})) > 0
+}
+
+// profileSyscalls holds the syscalls of the process nodes of a profile, by argv0
+type profileSyscalls map[string]map[int]bool
+
+// expect returns an error unless the process node of argv0 holds all the syscalls
+func (ps profileSyscalls) expect(argv0 string, syscalls ...model.Syscall) error {
+	got, ok := ps[argv0]
+	if !ok {
+		return fmt.Errorf("no process node for %s", argv0)
+	}
+	for _, s := range syscalls {
+		if !got[int(s)] {
+			return fmt.Errorf("%s missing from the syscalls of %s", s, argv0)
+		}
+	}
+	return nil
+}
+
+// expectProfileSyscalls waits until check accepts the syscalls of the profile of the selector
+func expectProfileSyscalls(t *testing.T, test *testModule, selector cgroupModel.WorkloadSelector, check func(profileSyscalls) error) {
+	t.Helper()
+	var checkErr error
+	_, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		syscalls := make(profileSyscalls)
+		for _, node := range walkProfileProcesses(p, func(*activity_tree.ProcessNode) bool { return true }) {
+			ids := syscalls[node.Process.Argv0]
+			if ids == nil {
+				ids = make(map[int]bool)
+				syscalls[node.Process.Argv0] = ids
+			}
+			for id := range node.Syscalls {
+				ids[id] = true
+			}
+		}
+		checkErr = check(syscalls)
+		return checkErr == nil
+	})
+	if err != nil {
+		if checkErr != nil {
+			err = checkErr
+		}
+		t.Error(err)
+	}
 }
 
 // workloadProfileEventTypeByName returns the event type of workloadProfileEventTypes with the provided name

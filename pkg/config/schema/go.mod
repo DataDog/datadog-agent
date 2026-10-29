@@ -3,6 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/config/schema
 go 1.26.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
@@ -11,9 +13,10 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
-	github.com/klauspost/compress v1.20.1 // indirect
+	github.com/klauspost/compress v1.20.3 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
 
@@ -112,6 +115,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../pkg/config/setup/constants
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../../pkg/config/setup/generatedsettings_local
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../pkg/discovery/tracermetadata/model

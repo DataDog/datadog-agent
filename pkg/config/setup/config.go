@@ -29,14 +29,12 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-
-	// imported by the generated code. We duplicate the import here to keep it in go.mod
-	_ "github.com/DataDog/datadog-agent/pkg/config/helper"
 )
 
 const (
@@ -140,9 +138,9 @@ func InitConfigObjects() {
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
 	// Settings that are shared in common between serverless and the full agent, split up by feature / product
-	initCommonBase(config)
+	generatedsettings.InitCommonBase(config)
 	// Settings just for the full agent in general
-	initCoreAgentFull(config)
+	generatedsettings.InitCoreAgentFull(config)
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
@@ -250,135 +248,6 @@ func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 	}
 
 	return nil
-}
-
-func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
-	messages := make([]string, 0)
-	checkAndRecordString := func(str string, prefix string) {
-		if res := FindUnexpectedUnicode(str); len(res) != 0 {
-			for _, detected := range res {
-				msg := fmt.Sprintf("%s - Unexpected unicode %s codepoint '%U' detected at byte position %v", prefix, detected.reason, detected.codepoint, detected.position)
-				messages = append(messages, msg)
-			}
-		}
-	}
-
-	var visitElement func(string, interface{})
-	visitElement = func(key string, element interface{}) {
-		switch elementValue := element.(type) {
-		case string:
-			checkAndRecordString(elementValue, fmt.Sprintf("For key '%s', configuration value string '%s'", key, elementValue))
-		case []string:
-			for _, s := range elementValue {
-				checkAndRecordString(s, fmt.Sprintf("For key '%s', configuration value string '%s'", key, s))
-			}
-		case []interface{}:
-			for _, listItem := range elementValue {
-				visitElement(key, listItem)
-			}
-		}
-	}
-
-	allKeys := config.AllKeysLowercased()
-	for _, key := range allKeys {
-		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
-		if unknownValue := config.Get(key); unknownValue != nil {
-			visitElement(key, unknownValue)
-		}
-	}
-
-	return messages
-}
-
-var findUnknownEnvVarsOnce = sync.OnceFunc(func() {
-	for _, v := range findUnknownEnvVars(os.Environ()) {
-		log.Warnf("Unknown environment variable: %v", v)
-	}
-})
-
-func findUnknownEnvVars(environ []string) []string {
-	var unknownVars []string
-
-	// List of known env vars used by the Datadog ecosystem that should not be warned on
-	knownVars := map[string]struct{}{
-		// these variables are used by the agent, but not via the Config struct,
-		// so must be listed separately.
-		"DD_INSIDE_CI":      {},
-		"DD_PROXY_HTTP":     {},
-		"DD_PROXY_HTTPS":    {},
-		"DD_PROXY_NO_PROXY": {},
-		// these variables are used by serverless, but not via the Config struct
-		"DD_AAS_DOTNET_EXTENSION_VERSION":          {},
-		"DD_AAS_EXTENSION_VERSION":                 {},
-		"DD_AAS_JAVA_EXTENSION_VERSION":            {},
-		"DD_AGENT_PIPE_NAME":                       {},
-		"DD_API_KEY_SECRET_ARN":                    {},
-		"DD_APM_FLUSH_DEADLINE_MILLISECONDS":       {},
-		"DD_APPSEC_ENABLED":                        {},
-		"DD_AZURE_APP_SERVICES":                    {},
-		"DD_DOGSTATSD_ARGS":                        {},
-		"DD_DOGSTATSD_PATH":                        {},
-		"DD_DOGSTATSD_WINDOWS_PIPE_NAME":           {},
-		"DD_DOTNET_TRACER_HOME":                    {},
-		"DD_EXTENSION_PATH":                        {},
-		"DD_FLUSH_TO_LOG":                          {},
-		"DD_KMS_API_KEY":                           {},
-		"DD_INTEGRATIONS":                          {},
-		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
-		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
-		"DD_LOGS_INJECTION":                        {},
-		"DD_MERGE_XRAY_TRACES":                     {},
-		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
-		"DD_PROFILING_LOG_DIR":                     {},
-		"DD_RUNTIME_METRICS_ENABLED":               {},
-		"DD_SERVERLESS_APPSEC_ENABLED":             {},
-		"DD_SERVERLESS_FLUSH_STRATEGY":             {},
-		"DD_SERVICE":                               {},
-		"DD_TRACE_AGENT_ARGS":                      {},
-		"DD_TRACE_AGENT_PATH":                      {},
-		"DD_TRACE_AGENT_URL":                       {},
-		"DD_TRACE_LOG_DIRECTORY":                   {},
-		"DD_TRACE_LOG_PATH":                        {},
-		"DD_TRACE_METRICS_ENABLED":                 {},
-		"DD_TRACE_PIPE_NAME":                       {},
-		"DD_TRACE_TRANSPORT":                       {},
-		"DD_VERSION":                               {},
-		// this variable is used by the Kubernetes leader election mechanism
-		"DD_POD_NAME": {},
-		// this variable is used by tracers
-		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
-		// these variables are used by source code integration
-		"DD_GIT_COMMIT_SHA":     {},
-		"DD_GIT_REPOSITORY_URL": {},
-		// signals whether or not ADP is enabled (deprecated)
-		"DD_ADP_ENABLED": {},
-		// trace-loader socket file descriptors
-		"DD_APM_NET_RECEIVER_FD":  {},
-		"DD_APM_UNIX_RECEIVER_FD": {},
-		"DD_OTLP_CONFIG_GRPC_FD":  {},
-		// otelAgentEnvVars lists DD_* environment variables that are consumed by the
-		// otel-agent binary via CLI flags (envflag) rather than through the Datadog
-		// config system.
-		"DD_SYNC_DELAY":  {},
-		"DD_SYNC_TO":     {},
-		"DD_CORE_CONFIG": {},
-	}
-	for _, cfg := range []pkgconfigmodel.Config{Datadog(), SystemProbe()} {
-		for _, key := range cfg.GetEnvVars() {
-			knownVars[key] = struct{}{}
-		}
-	}
-
-	for _, equality := range environ {
-		key := strings.SplitN(equality, "=", 2)[0]
-		if !strings.HasPrefix(key, "DD_") {
-			continue
-		}
-		if _, known := knownVars[key]; !known {
-			unknownVars = append(unknownVars, key)
-		}
-	}
-	return unknownVars
 }
 
 func useHostEtc(config pkgconfigmodel.Config) {
@@ -507,25 +376,25 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	defer cancelStartup()
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for _, section := range delegatedAuthKeys {
+	for _, section := range generatedsettings.DelegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
+		orgUUID := config.GetString(section.DelegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		log.Infof("Configuring delegated authentication for '%s'", section.description)
+		log.Infof("Configuring delegated authentication for '%s'", section.Description)
 
 		err := delegatedAuthComp.AddInstance(startupCtx, delegatedauth.InstanceParams{
 			Config:            config,
 			ProviderConfig:    providerConfig,
 			OrgUUID:           orgUUID,
-			RefreshInterval:   config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
-			APIKeyConfigKey:   section.apiKeyPath,
-			AllowAsyncStartup: section.apiKeyPath == "api_key",
+			RefreshInterval:   config.GetInt(section.DelegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey:   section.APIKeyPath,
+			AllowAsyncStartup: section.APIKeyPath == "api_key",
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.Description, err)
 		}
 	}
 
@@ -547,17 +416,7 @@ func loadCustom(config pkgconfigmodel.Config) error {
 	if err := config.ReadInConfig(); err != nil {
 		return err
 	}
-
-	for _, warn := range config.Warnings() {
-		log.Warnf("%s", warn)
-	}
-
-	findUnknownEnvVarsOnce()
-
-	for _, warningMsg := range findUnexpectedUnicode(config) {
-		log.Warnf("%s", warningMsg)
-	}
-
+	config.Validate()
 	return nil
 }
 
@@ -1080,24 +939,4 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 		// update config with the actual effective number of workers
 		config.Set("check_runners", 1, pkgconfigmodel.SourceAgentRuntime)
 	}
-}
-
-func getPlatformDefault(platformValues map[string]interface{}) interface{} {
-	if pkgconfigenv.IsECSFargate() {
-		if val, found := platformValues["fargate"]; found {
-			return val
-		}
-	}
-	if pkgconfigenv.IsContainerized() {
-		if val, found := platformValues["container"]; found {
-			return val
-		}
-	}
-	if val, found := platformValues[runtime.GOOS]; found {
-		return val
-	}
-	if val, found := platformValues["other"]; found {
-		return val
-	}
-	return nil
 }

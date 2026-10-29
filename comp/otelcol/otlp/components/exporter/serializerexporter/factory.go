@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ const (
 type factory struct {
 	s            serializer.MetricSerializer
 	hostProvider SourceProviderFunc
+	hostTags     HostTagsFunc
 
 	statsIn chan []byte
 
@@ -69,9 +71,10 @@ type createConsumerFunc func(extraTags []string, apmReceiverAddr string, buildIn
 
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
 // Serializer exporter should never receive APM stats in Agent OTLP ingestion.
-func NewFactoryForAgent(s serializer.MetricSerializer, hostGetter SourceProviderFunc, store TelemetryStore) exp.Factory {
+// hostTags may be nil.
+func NewFactoryForAgent(s serializer.MetricSerializer, hostGetter SourceProviderFunc, hostTags HostTagsFunc, store TelemetryStore) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest, false)
+	return newFactoryForAgentWithType(s, hostGetter, hostTags, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest, false)
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
@@ -87,12 +90,13 @@ func NewFactoryForOTelAgent(
 	standalone bool,
 ) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
-	return newFactoryForAgentWithType(s, hostGetter, statsIn, cfgType, gatewayusage, store, reporter, ddot, standalone)
+	return newFactoryForAgentWithType(s, hostGetter, nil, statsIn, cfgType, gatewayusage, store, reporter, ddot, standalone)
 }
 
 func newFactoryForAgentWithType(
 	s serializer.MetricSerializer,
 	hostGetter SourceProviderFunc,
+	hostTags HostTagsFunc,
 	statsIn chan []byte,
 	typ component.Type,
 	gatewayUsage otel.GatewayUsage,
@@ -119,6 +123,7 @@ func newFactoryForAgentWithType(
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
+		hostTags:     hostTags,
 		statsIn:      statsIn,
 		createConsumer: func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer {
 			return &serializerConsumer{
@@ -261,7 +266,21 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		hostGetter = cfg.HostProvider
 	}
 	// Create the metrics translator
-	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
+	newTranslator := translatorFromConfig
+	if f.ipath == ddot && nativeOTelHistogramsGate.IsEnabled() {
+		// OTel histograms cannot go over the v2 sketches intake.
+		agentSerializer, ok := s.(*serializer.Serializer)
+		if !ok {
+			return nil, fmt.Errorf("feature gate %s needs the agent serializer", nativeOTelHistogramsGate.ID())
+		}
+		if domains := agentSerializer.SketchesV2Domains(); len(domains) > 0 {
+			return nil, fmt.Errorf("feature gate %s needs the v3 distributions intake for every metrics destination, but these use v2: %s; "+
+				"set them to true in use_v3_api.distributions.endpoints, and do not use zlib compression or Observability Pipelines Worker for metrics",
+				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
+		}
+		newTranslator = minimalTranslatorFromConfig
+	}
+	tr, err := newTranslator(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
@@ -285,6 +304,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	if err != nil {
 		return nil, err
 	}
+	newExp.hostTags = f.hostTags
 
 	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueBatchConfig),
@@ -309,6 +329,9 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, err
 	}
 
-	return resourcetotelemetry.WrapMetricsExporter(
-		resourcetotelemetry.Settings{Enabled: cfg.Metrics.Metrics.ExporterConfig.ResourceAttributesAsTags}, exporter), nil
+	var rttSettings resourcetotelemetry.Settings
+	if cfg.Metrics.Metrics.ExporterConfig.ResourceAttributesAsTags {
+		rttSettings.Included = []string{"*"}
+	}
+	return resourcetotelemetry.WrapMetricsExporter(rttSettings, exporter), nil
 }

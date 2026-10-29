@@ -3,8 +3,8 @@
 This package implements the **DatadogInstrumentation (DDI) platform**: a shared
 Cluster Agent controller that watches `DatadogInstrumentation` custom resources and
 dispatches per-product events to pluggable **handlers**. It is a *platform* meant to
-be extended by future teams (Autodiscovery today; SSI, AppSec, and others later),
-not a single-purpose controller.
+be extended by future teams. It currently supports Autodiscovery checks, logs,
+and APM SSI through registered handlers.
 
 - Package: `github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation`
 - Build tag: `//go:build kubeapiserver` (all files here and in `handlers/`)
@@ -48,6 +48,8 @@ spec:
   config:                    # each key is one product "section", owned by a handler
     checks: [...]
     logs: [...]
+    apm:
+      enabled: true
 status:
   conditions:                # one condition per handler that acted
     - type: ChecksReady

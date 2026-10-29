@@ -81,6 +81,7 @@ configure_make(
     ],
     lib_source = ":all_srcs",
     out_shared_libs = ["libjemalloc.so"],
+    resource_size = "medium",
 )
 
 foreign_cc_shared_wrapper(

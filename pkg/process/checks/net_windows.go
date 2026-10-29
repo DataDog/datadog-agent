@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,7 +33,7 @@ func fetchFromSystemProbe[T any](client *http.Client, path string) T {
 	var zero T
 	ctx, cancel := context.WithTimeout(context.Background(), defaultFetchTimeout)
 	defer cancel()
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, path)
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, path)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		log.Debugf("failed to create request for %s: %v", path, err)

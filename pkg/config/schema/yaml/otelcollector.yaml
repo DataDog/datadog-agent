@@ -22,6 +22,7 @@ properties:
         - health_check
         - ddflare
         - datadog
+        - opamp
         - cumulativetodelta
         items:
           type: string
@@ -59,6 +60,39 @@ properties:
     node_type: setting
     type: string
     default: ''
+  opamp:
+    node_type: section
+    type: object
+    properties:
+      endpoint:
+        node_type: setting
+        type: string
+        default: ''
+        comment: OpAMP server endpoint; when empty, defaults to https://opamp.<site>/v1/opamp
+      reports_raw_config:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: report the unexpanded configuration, preserving references such as ${env:FOO}
+  standalone:
+    node_type: section
+    type: object
+    properties:
+      node_from_env_var:
+        node_type: setting
+        type: string
+        default: K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME
+        comment: comma-separated names of the environment variables the nodefilter workloadmeta collector and the hostname resolution read the local node's name from, the first one that is set winning; extends k8sattributesprocessor's own node_from_env_var filter config, which takes a single name
+      telemetry_resource_cluster_name:
+        node_type: setting
+        type: string
+        default: ''
+        comment: internal, not meant to be set by users - otel-agent sets it at startup in DDOT standalone mode from the k8s.cluster.name attribute of service.telemetry.resource in the collector config; the cluster name resolution tries it after its other sources and before OTEL_RESOURCE_ATTRIBUTES, as this collector's own configuration takes precedence over a variable that charts fill with a placeholder by default
+      use_kubelet_collector:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: collect pods from the kubelet in DDOT standalone mode; set to false to opt in to the nodefilter workloadmeta collector, which watches the local node's pods through the Kubernetes API server instead
   submit_dummy_metadata:
     node_type: setting
     type: boolean

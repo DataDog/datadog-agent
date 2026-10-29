@@ -7,8 +7,7 @@
 --   marker bytes and propagate a carry-over signal so the next
 --   emission can decorate its head accordingly" pattern. Fulfilled
 --   by: SingleLineHandler (legacy decoder),
---   PassThroughAggregator (preprocessor), and DetectingAggregator
---   (preprocessor).
+--   and PassThroughAggregator (preprocessor).
 --
 --   MultiLineHandler (legacy decoder), RegexAggregator
 --   (preprocessor) and CombiningAggregator (preprocessor) share

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -61,7 +62,28 @@ func (s *OSScanner) ScanInstalledPackages(ctx context.Context, root string) ([]s
 		}
 		pkgs = append(pkgs, result...)
 	}
+
+	for i := range pkgs {
+		// The dpkg entries of the architectures of a package share one slice.
+		files := make([]string, 0, len(pkgs[i].InstalledFiles))
+		for _, file := range pkgs[i].InstalledFiles {
+			if !isDoc(file) {
+				files = append(files, file)
+			}
+		}
+		pkgs[i].InstalledFiles = files
+	}
 	return pkgs, nil
+}
+
+// docDirs hold the documentation and translations of packages, which processes
+// read as data.
+var docDirs = []string{"/usr/share/doc/", "/usr/share/info/", "/usr/share/licenses/", "/usr/share/locale/", "/usr/share/man/"}
+
+func isDoc(path string) bool {
+	return slices.ContainsFunc(docDirs, func(dir string) bool {
+		return strings.HasPrefix(path, dir)
+	})
 }
 
 // databases lists the files the scanners read packages from.

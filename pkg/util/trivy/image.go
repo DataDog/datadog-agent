@@ -63,12 +63,17 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 // image wraps github.com/google/go-containerregistry/pkg/v1/daemon.Image,
 // which loads the whole image into memory up front. The wrapper answers the
 // image ID and, in most cases, the config file from ImageInspect, and exports
-// the image the first time Trivy reads a layer or the raw config. Each scan
-// starts with an empty cache, so it reads the layers and exports the image once.
+// the image the first time Trivy reads a layer or the raw config. Each Trivy
+// scan starts with an empty cache and reads every layer. The image is exported
+// once, so the OS rescan after an application scan runs out of time reads the
+// layers from the same export, or gets the error of a failed one: the export
+// went to the temporary file, which a second export would append to or find
+// closed.
 type image struct {
 	v1.Image
 	name    string
 	opener  opener
+	openErr error // the error of a failed export
 	inspect dimage.InspectResponse
 	history []v1.History
 }
@@ -84,10 +89,14 @@ func (img *image) populateImage() (err error) {
 	if img.Image != nil {
 		return nil
 	}
+	if img.openErr != nil {
+		return img.openErr
+	}
 
 	img.Image, err = img.opener()
 	if err != nil {
-		return fmt.Errorf("unable to open: %w", err)
+		img.openErr = fmt.Errorf("unable to open: %w", err)
+		return img.openErr
 	}
 
 	return nil
@@ -113,6 +122,12 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		return img.configFile()
 	}
 
+	return img.inspectConfigFile()
+}
+
+// inspectConfigFile returns the config file that the inspect response and the
+// history describe, whose history may disagree with its diff IDs.
+func (img *image) inspectConfigFile() (*v1.ConfigFile, error) {
 	diffIDs, err := img.diffIDs()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get diff IDs: %w", err)

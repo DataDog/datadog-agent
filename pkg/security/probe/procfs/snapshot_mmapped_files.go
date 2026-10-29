@@ -36,18 +36,18 @@ func GetMmapedFiles(pid uint32) ([]MmapedFile, error) {
 	for _, path := range paths {
 		mmapedFiles = append(mmapedFiles, MmapedFile{
 			Path:       path,
-			FileFields: statMmapedFile(pid, path),
+			FileFields: statProcessFile(pid, path),
 		})
 	}
 
 	return mmapedFiles, nil
 }
 
-// statMmapedFile returns the metadata of a memory-mapped file. It has to be
-// collected along with the snapshot: the file is resolved through the root of
-// the mapping process, which is gone as soon as that process exits. Best
-// effort, zero values are returned for a file that cannot be stat'ed.
-func statMmapedFile(pid uint32, path string) model.FileFields {
+// statProcessFile returns the metadata of the file at path in the root of the
+// process pid. The root goes away when the process exits, so callers read the
+// metadata soon after they find the process. Best effort, zero values are
+// returned for a file that cannot be stat'ed.
+func statProcessFile(pid uint32, path string) model.FileFields {
 	var fileStats unix.Statx_t
 	if err := unix.Statx(unix.AT_FDCWD, utils.ProcRootFilePath(pid, path), 0, unix.STATX_ALL, &fileStats); err != nil {
 		return model.FileFields{}
@@ -57,8 +57,8 @@ func statMmapedFile(pid uint32, path string) model.FileFields {
 		Mode:   fileStats.Mode,
 		UID:    fileStats.Uid,
 		GID:    fileStats.Gid,
-		CTime:  uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond()),
-		MTime:  uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond()),
+		CTime:  uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano()),
+		MTime:  uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano()),
 		Device: fileStats.Dev_major<<20 | fileStats.Dev_minor,
 		NLink:  fileStats.Nlink,
 	}
