@@ -538,11 +538,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        public static ActionResult EnableDDServices(Session session)
-        {
-            return EnableDDServices(new SessionWrapper(session), new Native.ServiceController());
-        }
-
         internal static ActionResult EnableDDServices(ISession session, IServiceController controller)
         {
             try
@@ -605,8 +600,15 @@ namespace Datadog.CustomActions
                 settings => SaveSnapshot(wrapper, settings));
         }
 
-        private ActionResult StartDDServices()
+        internal ActionResult StartDDServices()
         {
+            // Restore startup settings even when DD_INSTALL_ONLY skips starting services.
+            // Unlike a start failure, an enable failure must fail the install and roll back.
+            if (EnableDDServices(_session, _serviceController) != ActionResult.Success)
+            {
+                return ActionResult.Failure;
+            }
+
             // Check if DD_INSTALL_ONLY flag is set
             var installOnly = _session.Property("DD_INSTALL_ONLY");
             if (!string.IsNullOrEmpty(installOnly) && (installOnly == "1" || installOnly.ToLower() == "true"))

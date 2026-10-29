@@ -546,7 +546,7 @@ namespace WixSetup.Datadog_Agent
                 StartOn = null,
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
-                // EnableDDServices sets automatic delayed start after configuration is safe.
+                // StartDDServices sets automatic delayed start after configuration is safe.
                 Start = SvcStartType.disabled,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,

@@ -84,8 +84,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction StopDDServicesRollback { get; }
 
-        public ManagedAction EnableDDServices { get; }
-
         public ManagedAction StopDDServices { get; }
 
         public ManagedAction StartDDServices { get; }
@@ -658,35 +656,38 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
                 .HideTarget(true);
 
-            // An early InstallExecute flushes only the service protection actions before
-            // RemoveExistingProducts. The corresponding rollback runs after the old MSI's
-            // removal has been rolled back. Never take a second snapshot in the nested MSI.
-            var ownsServiceStartup = Condition.NOT(Conditions.RemovingForUpgrade);
-            // Stop services even when their MSI components are not changing (repair/change).
-            // The outer MSI snapshots and disables first; a nested removal only stops.
+            // WiX built-in StopServices only stops services if the component is changing.
+            // This means that the services associated with MainApplication won't be restarted
+            // during change operations.
+            // An early InstallExecute disables and stops services before the old product is
+            // uninstalled, preventing services from restarting while files and permissions
+            // are being updated. The nested uninstall only stops services; it does not
+            // overwrite the incoming MSI's startup settings snapshot.
             StopDDServices = new CustomAction<CustomActions>(
-                new Id(nameof(StopDDServices)), CustomActions.StopDDServices,
-                Return.check, When.After, Step.InstallInitialize, Condition.Always)
+                new Id(nameof(StopDDServices)),
+                CustomActions.StopDDServices,
+                Return.check,
+                When.After,
+                Step.InstallInitialize,
+                Condition.Always
+            )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }.SetProperties("UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
-                            "RollbackDisabled=[RollbackDisabled]");
+            }
+                .SetProperties("UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "RollbackDisabled=[RollbackDisabled]");
 
             StopDDServicesRollback = new CustomAction<CustomActions>(
-                new Id(nameof(StopDDServicesRollback)), CustomActions.StopDDServicesRollback,
-                Return.ignore, When.Before, new Step(StopDDServices.Id), ownsServiceStartup)
+                new Id(nameof(StopDDServicesRollback)),
+                CustomActions.StopDDServicesRollback,
+                Return.ignore,
+                When.Before,
+                new Step(StopDDServices.Id),
+                Condition.NOT(Conditions.RemovingForUpgrade)
+            )
             {
                 Execute = Execute.rollback,
-                Impersonate = false
-            };
-
-            EnableDDServices = new CustomAction<CustomActions>(
-                new Id(nameof(EnableDDServices)), CustomActions.EnableDDServices,
-                Return.check, When.Before, new Step(nameof(StartDDServices)),
-                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade))
-            {
-                Execute = Execute.deferred,
                 Impersonate = false
             };
 
@@ -707,14 +708,14 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
-            // Rollback StartDDServices stops the the services so that any file locks are released.
+            // Rollback StartDDServices disables and stops services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(
                 new Id(nameof(StartDDServicesRollback)),
                 CustomActions.StartDDServicesRollback,
                 Return.ignore,
                 // Must be sequenced before the action it will rollback for
                 When.Before,
-                new Step(EnableDDServices.Id),
+                new Step(StartDDServices.Id),
                 // Must have same condition as the action it will rollback for
                 Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
