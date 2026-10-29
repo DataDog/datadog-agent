@@ -10,9 +10,24 @@ normal exit 0
 console output
 
 script
-  # Upstart does not start the process manager required by split mode.
-  export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
-  echo "Starting Datadog Private Action Runner in monolithic mode"
+  # datadog-agent-procmgr starts on the same event, so wait (bounded) for it. Without it,
+  # split mode cannot run par-control, so fall back to the monolithic runner.
+  procmgr_running=false
+  attempt=0
+  while [ "$attempt" -lt 10 ]; do
+    if initctl status datadog-agent-procmgr 2>/dev/null | grep -q 'start/running'; then
+      procmgr_running=true
+      break
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  if [ "$procmgr_running" = true ]; then
+    echo "Starting Datadog Private Action Runner (split mode from config)"
+  else
+    export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
+    echo "Starting Datadog Private Action Runner in monolithic mode"
+  fi
   # Logging to console from the agent is disabled since the agent already logs using file or
   # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
   # to log panic/crashes.

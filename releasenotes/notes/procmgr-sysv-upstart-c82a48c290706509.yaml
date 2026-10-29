@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    On hosts that use SysV init or Upstart, the Agent now starts the ``dd-procmgrd`` process manager together with the core Agent. Private Action Runner split mode needs this process manager to run ``par-control``. The ``datadog-agent-action`` service now uses the monolithic runner only when ``dd-procmgrd`` is not running, so split mode follows the configuration otherwise.
