@@ -806,7 +806,7 @@ func withPersistMonitoring(enabled bool) testConfigOpt {
 }
 
 func withCgroupMemoryStats(enabled bool) testConfigOpt {
-	return func(cfg *Config) { cfg.EmitCgroupMemoryStats = enabled }
+	return func(cfg *Config) { cfg.EnableCgroupMemoryStats = enabled }
 }
 
 func testConfig(opts ...testConfigOpt) *Config {
