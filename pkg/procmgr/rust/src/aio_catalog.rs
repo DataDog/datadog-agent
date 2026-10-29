@@ -282,10 +282,29 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
         "datadog-agent-par-control.yaml",
         "datadog-agent-action-executor.yaml",
     ] {
-        let link = aio.join(name);
+        let link = processes_d.join(name);
         let target = fs::read_link(&link).unwrap_or_else(|err| panic!("read_link {name}: {err}"));
-        assert_eq!(target, Path::new("..").join(name), "{name} symlink target");
+        assert_eq!(target, Path::new("aio").join(name), "{name} symlink target");
+        assert!(
+            fs::symlink_metadata(aio.join(name))
+                .unwrap_or_else(|err| panic!("stat aio {name}: {err}"))
+                .is_file(),
+            "{name} in aio should be the regular file"
+        );
     }
+
+    let top = load_configs(&processes_d).expect("top-level processes.d parses");
+    assert!(top.invalid.is_empty());
+    let mut top_names: Vec<_> = top
+        .processes
+        .iter()
+        .map(|process| process.name.as_str())
+        .collect();
+    top_names.sort_unstable();
+    assert_eq!(
+        top_names,
+        ["datadog-agent-action-executor", "datadog-agent-par-control",]
+    );
 
     let catalog = load_configs(&aio).expect("aio directory parses");
     assert!(catalog.invalid.is_empty());
