@@ -33,7 +33,6 @@ const minReporterInterval = 60 * time.Second
 type Config struct {
 	EbpfCollectorConfig *ebpfconfig.Config                  `mapstructure:",squash"`
 	SymbolUploader      symboluploader.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-	CollectContext      bool                                `mapstructure:"collect_context"`
 }
 
 // defaultEnvVars lists environment variables read from profiled processes to populate
@@ -81,10 +80,6 @@ func (c *Config) Validate() error {
 	if err := c.EbpfCollectorConfig.Validate(); err != nil {
 		return err
 	}
-	if c.CollectContext {
-		c.EbpfCollectorConfig.Interpreters.Go.Labels.Disabled = false
-	}
-
 	includeEnvVars := append([]string{}, defaultEnvVars...)
 	if c.EbpfCollectorConfig.IncludeEnvVars != "" {
 		includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
@@ -129,7 +124,6 @@ func defaultConfig(profilerName string) component.Config {
 	return Config{
 		EbpfCollectorConfig: cfg,
 		SymbolUploader:      symbolUploaderConfig,
-		CollectContext:      false,
 	}
 }
 
@@ -137,7 +131,7 @@ func defaultInterpretersConfig() interpreterconfig.Config {
 	cfg := interpreterconfig.AllInterpreters()
 	// Disable Go symbolization by default because we do Go symbolization remotely.
 	cfg.Go.Symbolization = interpreter.BaseConfig{Disabled: true}
-	//  Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
+	// Disable Go labels by default; enable them with interpreters.go.labels.disabled: false.
 	cfg.Go.Labels = interpreter.BaseConfig{Disabled: true}
 	// CRuby has lots of Ruby->native->Ruby transitions which runs out of ebpf tail calls very fast
 	// and captures only a small part of the stack. This config fixes this by skipping native frames

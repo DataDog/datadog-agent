@@ -54,12 +54,15 @@ func TestInterpreters(t *testing.T) {
 	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsSymbolizationDisabled())
 	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
 
-	cfg.CollectContext = false
-	cfg.SymbolUploader.Enabled = false
-	require.NoError(t, cfg.Validate())
-	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
-
-	cfg.CollectContext = true
+	err := confmap.NewFromStringMap(map[string]any{
+		"interpreters": map[string]any{
+			"go": map[string]any{
+				"labels": map[string]any{"disabled": false},
+			},
+		},
+		"symbol_uploader": map[string]any{"enabled": false},
+	}).Unmarshal(&cfg)
+	require.NoError(t, err)
 	require.NoError(t, cfg.Validate())
 	require.False(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
 }
