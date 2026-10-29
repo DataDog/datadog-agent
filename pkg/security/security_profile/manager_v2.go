@@ -1239,32 +1239,69 @@ func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 	return pc.Process.MntNS, false
 }
 
+func processMountNamespaceFromEvent(event *model.Event) uint32 {
+	pc := event.ProcessContext
+	if pc == nil || activity_tree.IsContainerRuntime(pc) {
+		return 0
+	}
+	return pc.Process.MntNS
+}
+
+func liveMountIDFromEvent(event *model.Event) uint32 {
+	switch event.GetEventType() {
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
+		return event.Mount.Mount.MountID
+	default:
+		return 0
+	}
+}
+
 // seedMountsForWorkload seeds a profile's mount table with the workload's
-// pre-existing mounts from its base mount namespace. Later changes come from
-// live mount events.
+// pre-existing mounts from its base mount namespace and any non-base mount
+// namespace entered by the event's process. Later changes come from live mount
+// events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
 	if workload == nil {
 		return
 	}
-
-	nsID, authoritative := baseMountNamespaceFromEvent(event)
-	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative) {
-		return
-	}
-
-	var mounts []model.Mount
-	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
-		mounts = append(mounts, *mnt)
-	})
 
 	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
 		imageTag = "latest"
 	}
 
+	cgroupInode := workload.GCroupCacheEntry.GetCGroupInode()
 	pid := event.ProcessContext.Process.Pid
+	liveMountID := liveMountIDFromEvent(event)
+
+	baseNsID, authoritative := baseMountNamespaceFromEvent(event)
+	if baseNsID != 0 && secprof.PinBaseMountNamespace(cgroupInode, baseNsID, authoritative) {
+		basePid := pid
+		if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.MntNS != 0 && root.Process.Pid != 0 {
+			basePid = root.Process.Pid
+		}
+		m.seedMountNamespace(secprof, cgroupInode, baseNsID, basePid, liveMountID, imageTag)
+	}
+
+	if procNsID := processMountNamespaceFromEvent(event); procNsID != 0 && secprof.ClaimMountNamespaceSeed(cgroupInode, procNsID, imageTag) {
+		if !m.seedMountNamespace(secprof, cgroupInode, procNsID, pid, liveMountID, imageTag) {
+			secprof.ReleaseMountNamespaceSeed(procNsID, imageTag)
+		}
+	}
+}
+
+func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uint64, nsID uint32, pid uint32, skipMountID uint32, imageTag string) bool {
+	var mounts []model.Mount
+	m.resolvers.MountResolver.IterateNamespace(nsID, pid, func(mnt *model.Mount) {
+		if skipMountID != 0 && mnt.MountID == skipMountID {
+			return
+		}
+		mounts = append(mounts, *mnt)
+	})
+
 	maxSize := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize())
 	now := time.Now()
+	seeded := false
 	for i := range mounts {
 		mnt := &mounts[i]
 
@@ -1280,11 +1317,13 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 		}
 		mnt.Path = mountPoint
 
-		secprof.InsertMount(mnt, imageTag, activity_tree.Snapshot, now)
+		secprof.InsertMount(mnt, cgroupInode, imageTag, activity_tree.Snapshot, now)
+		seeded = true
 		if secprof.ComputeHeapSize() >= maxSize {
 			break
 		}
 	}
+	return seeded
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
