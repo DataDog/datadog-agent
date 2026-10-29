@@ -35,7 +35,14 @@ go_library(
         "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         "@com_github_google_go_containerregistry//pkg/name",
         "@com_github_opencontainers_go_digest//:go-digest",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/defaultpaths",
+            "//pkg/util/log",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -44,8 +51,10 @@ dd_agent_go_test(
         "artifact_resolver_test.go",
         "catalog_test.go",
         "command_test.go",
+        "command_windows_test.go",
         "environment_test.go",
         "execution_test.go",
+        "execution_windows_test.go",
         "manifest_test.go",
         "package_test.go",
         "remote_catalog_test.go",
@@ -100,6 +109,10 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:solaris": [
             "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

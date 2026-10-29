@@ -5,7 +5,6 @@
 
 //go:build !windows
 
-// Package serverlessinitimpl implements the serverless-init metadata provider.
 package serverlessinitimpl
 
 import (

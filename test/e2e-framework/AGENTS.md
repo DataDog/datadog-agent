@@ -88,6 +88,22 @@ Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.
 
+### Kubernetes internet access
+
+AWS Kubernetes test provisioners (`kindvm`, `kubeadm`, and `eks`) default to
+no internet access. Override with `WithRunOptions(kindvm.WithInternetAccess())`,
+the equivalent kubeadm option, or
+`WithRunOptions(eks.WithEKSOptions(eks.WithInternetAccess()))` for EKS.
+Register explicit opt-outs in `test/new-e2e/internet-access.yaml`. Direct scenario
+callers do not inherit these provisioner defaults. EKS Auto Mode requires an
+explicit opt-out; EKS Fargate pods are not covered by the egress restriction.
+
+EKS private networking must allow all IPv4 CIDRs associated with the VPC, not
+just its primary CIDR: nodes and custom-CNI pods can use secondary networks.
+The restricted security groups also allow HTTPS to regional S3 through its
+gateway endpoint, which ECR needs for image layers. Keep the node, pod, and
+control-plane egress rules aligned through `eks.NoInternetEgressRules`.
+
 ### Kubernetes resource ownership
 
 Pulumi resource names and component parents only make Pulumi URNs unique. Kubernetes

@@ -19,5 +19,5 @@ go_test(
     name = "testlogs_to_json_test",
     srcs = ["testlogs_to_json_test.go"],
     embed = [":testlogs_to_json_lib"],
-    gotags = [],  # keep
+    gotags = [],
 )

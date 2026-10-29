@@ -136,7 +136,6 @@ go_library(
 go_binary(
     name = "connector",
     embed = [":connector_lib"],
-    # keep
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
