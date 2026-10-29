@@ -8,11 +8,12 @@
 package remote
 
 import (
-	"bufio"
+	"context"
 	"errors"
 	"io"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,56 +51,36 @@ func iosLikeSession(sessions *atomic.Int32) SessionFactory {
 	}
 }
 
-func expectResponse(t testing.TB, r io.Reader, response string) {
+// expectResponse reads from sh until response arrives, and fails if anything
+// else arrived before it.
+func expectResponse(t testing.TB, sh Shell, response string) {
 	t.Helper()
-	buf := make([]byte, len(response))
-	n, err := r.Read(buf)
-	require.NoError(t, err)
-	if assert.Equal(t, n, len(buf)) {
-		if response == string(buf) {
-			return
-		}
-		rest, err := io.ReadAll(r)
-		require.NoError(t, err)
-		assert.Equal(t, response, string(buf)+string(rest))
-		return
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := sh.ReadUntil(ctx, through(response))
+	require.NoError(t, err, "got %q so far", out)
+	assert.Equal(t, response, string(out))
 }
 
 func TestFakeSSHServer_ShellSession(t *testing.T) {
 	var sessions atomic.Int32
 	srv := StartFakeSSHServerWithFactory(t, iosLikeSession(&sessions))
-	client := MustConnect(t, srv)
+	sh := connectTestShell(t, srv)
+	ctx := t.Context()
 
-	session, err := client.NewSession()
-	require.NoError(t, err)
-	defer session.Close()
+	expectResponse(t, sh, "R1#")
 
-	require.NoError(t, session.RequestPty("vt100", 40, 80, ssh.TerminalModes{}))
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
+	require.NoError(t, sh.Send(ctx, "configure terminal\n"))
+	expectResponse(t, sh, "R1(config)#")
 
-	stdoutPipe, err := session.StdoutPipe()
-	require.NoError(t, err)
-	stdout := bufio.NewReader(stdoutPipe)
-	require.NoError(t, session.Shell())
+	require.NoError(t, sh.Send(ctx, "end\r\n\nbogus\n"))
+	expectResponse(t, sh, "R1#R1#% Invalid input\nR1#")
 
-	expectResponse(t, stdout, "R1#")
-
-	_, err = io.WriteString(stdin, "configure terminal\n")
-	require.NoError(t, err)
-	expectResponse(t, stdout, "R1(config)#")
-
-	_, err = io.WriteString(stdin, "end\r\n\nbogus\n")
-	require.NoError(t, err)
-	expectResponse(t, stdout, "R1#R1#% Invalid input\nR1#")
-
-	require.NoError(t, stdin.Close())
-	result, err := io.ReadAll(stdout)
-	require.NoError(t, err)
+	// Closing stdin ends the session; nothing else should be output.
+	require.NoError(t, sh.CloseWrite())
+	result, err := sh.ReadUntil(ctx, through("never"))
 	assert.Equal(t, "", string(result))
 
-	err = session.Wait()
 	var exitErr *ssh.ExitError
 	require.True(t, errors.As(err, &exitErr), "expected exit error, got %v", err)
 	assert.Equal(t, 1, exitErr.ExitStatus())
