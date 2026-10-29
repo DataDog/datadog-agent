@@ -47,19 +47,17 @@ func NewTable(obj object.File) (*Table, error) {
 	if idx == -1 {
 		return nil, errors.New("section containing types not found")
 	}
-	const rodataName = ".rodata"
-	rodata := sections[idx]
-	if rodata.Name != rodataName {
+	typesSection := sections[idx]
+	if typesSection.Name != ".rodata" && typesSection.Name != ".go.type" {
 		return nil, fmt.Errorf(
-			"section containing types is not %q, got %q",
-			rodataName, rodata.Name,
+			"unexpected section containing types: %q", typesSection.Name,
 		)
 	}
-	var roMap object.SectionData
-	if moduleData.Types < rodata.Addr {
+	var typesMap object.SectionData
+	if moduleData.Types < typesSection.Addr {
 		return nil, fmt.Errorf(
-			"moduledata.Types offset is less than rodata address: %#x < %#x",
-			moduleData.Types, rodata.Addr,
+			"moduledata.Types offset is less than types section address: %#x < %#x",
+			moduleData.Types, typesSection.Addr,
 		)
 	}
 	if moduleData.ETypes < moduleData.Types {
@@ -71,25 +69,25 @@ func NewTable(obj object.File) (*Table, error) {
 			moduleData.ETypes, moduleData.Types,
 		)
 	}
-	typesOffset := moduleData.Types - rodata.Addr
+	typesOffset := moduleData.Types - typesSection.Addr
 	typesLen := moduleData.ETypes - moduleData.Types
-	if typesOffset+typesLen > rodata.Size {
+	if typesOffset+typesLen > typesSection.Size {
 		return nil, fmt.Errorf(
-			"types offset + types length is greater than rodata size: %#x + %#x > %#x",
-			typesOffset, typesLen, rodata.Size,
+			"types offset + types length is greater than types section size: %#x + %#x > %#x",
+			typesOffset, typesLen, typesSection.Size,
 		)
 	}
-	roMap, err = obj.SectionDataRange(rodata, typesOffset, typesLen)
+	typesMap, err = obj.SectionDataRange(typesSection, typesOffset, typesLen)
 	if err != nil {
-		return nil, fmt.Errorf("error mapping .rodata section: %w", err)
+		return nil, fmt.Errorf("error mapping types section: %w", err)
 	}
 
-	roData := roMap.Data()
+	typesData := typesMap.Data()
 	return &Table{
 		abiLayout:   hardCodedLayout,
-		data:        roData,
+		data:        typesData,
 		dataAddress: moduleData.Types,
-		closer:      roMap,
+		closer:      typesMap,
 	}, nil
 }
 
