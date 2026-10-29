@@ -87,7 +87,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if err := c.readConfigurationContent(c.file, model.SourceFile, content); err != nil {
+	if err := c.readConfigurationContent(c.file, model.SourceFile, content, ""); err != nil {
 		return err
 	}
 	return c.mergeAllLayers()
@@ -98,7 +98,7 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 	if err != nil {
 		return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // constructing proper error
 	}
-	return c.readConfigurationContent(c.file, model.SourceFile, content)
+	return c.readConfigurationContent(c.file, model.SourceFile, content, filePath)
 }
 
 func (c *ntmConfig) processDeprecation(tree *nodeImpl, deprecatedValues map[string]interface{}, source model.Source) {
@@ -125,14 +125,26 @@ func (c *ntmConfig) processDeprecation(tree *nodeImpl, deprecatedValues map[stri
 	}
 }
 
-func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Source, content []byte) error {
+func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Source, content []byte, filePath string) error {
 	var inData map[string]interface{}
 
 	if strictErr := yaml.UnmarshalStrict(content, &inData); strictErr != nil {
-		log.Errorf("warning reading config file: %v\n", strictErr)
 		if err := yaml.Unmarshal(content, &inData); err != nil {
+			// Unparseable: the whole file is dropped, so say so loudly.
+			c.recordConfigFileError(fmt.Sprintf(
+				"source: %s\ncould not parse %s: %v\n%s%s",
+				c.configSourceLabel(source, filePath),
+				describeConfigSource(filePath), err, c.configErrorConsequence(filePath),
+				formatYAMLErrorContext(content, err),
+			))
 			return err
 		}
+		// Parsed leniently: values are applied, but duplicate keys silently resolve to the last one.
+		c.recordConfigFileError(fmt.Sprintf(
+			"source: %s\ninvalid YAML in %s: %v\nThe file was re-parsed leniently; duplicate keys resolve to the last value.%s",
+			c.configSourceLabel(source, filePath),
+			describeConfigSource(filePath), strictErr, formatYAMLErrorContext(content, strictErr),
+		))
 	}
 	deprecatedValues := map[string]interface{}{}
 	c.warnings = append(c.warnings, c.loadYamlInto(target, source, inData, "", c.defaults, deprecatedValues)...)
