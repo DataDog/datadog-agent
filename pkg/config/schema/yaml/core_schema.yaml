@@ -8199,6 +8199,14 @@ properties:
         default: {}
         additionalProperties:
           type: string
+      include_env_vars:
+        node_type: setting
+        type: string
+        default: ''
+        description: |-
+          Comma-separated names of additional environment variables to collect from profiled processes.
+          These variables are collected in addition to the default service, environment, and version metadata.
+          Only include variables whose values are safe to send with profiles; do not include secrets.
       send_error_frames:
         node_type: setting
         type: boolean
@@ -8253,6 +8261,30 @@ properties:
         node_type: setting
         type: string
         default: ${log_path}/host-profiler.log
+      symbol_uploader:
+        node_type: section
+        type: object
+        properties:
+          report:
+            node_type: section
+            type: object
+            properties:
+              interval:
+                node_type: setting
+                type: integer
+                default: 300
+                minimum: 1
+                maximum: 86400
+                description: How often, in seconds, the host profiler flushes a
+                  batched symbol upload report.
+              max_paths_per_report:
+                node_type: setting
+                type: integer
+                default: 100
+                minimum: 1
+                maximum: 100000
+                description: Maximum number of sampled binary paths kept per symbol
+                  upload report, per log level.
     tags:
     - full-agent-only:true
   hpa_configmap_name:

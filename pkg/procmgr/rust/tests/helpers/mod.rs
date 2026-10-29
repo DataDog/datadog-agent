@@ -1277,6 +1277,10 @@ impl TestEnv {
         &self.config_dir
     }
 
+    pub fn socket_path(&self) -> &Path {
+        &self.socket_path
+    }
+
     pub fn start(self) -> Self {
         self.start_with_timeout(default_start_timeout())
     }

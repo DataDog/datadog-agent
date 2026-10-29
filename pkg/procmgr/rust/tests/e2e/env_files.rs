@@ -75,16 +75,20 @@ fn test_cli_env_overrides_environment_file() {
 #[test]
 fn test_cli_child_inherits_same_user_env_except_supervisor_vars() {
     // /bin/sh supplies its own PATH when none is inherited.
-    let env = TestEnv::new()
-        .with_daemon_env(&[("PROCMGRD_SUPERVISOR_VAR", "copied")])
+    let env = TestEnv::new().with_daemon_env(&[("PROCMGRD_SUPERVISOR_VAR", "copied")]);
+    let socket = env.socket_path().display().to_string();
+    let env = env
         .with_config(
             "same-user-env",
-            concat!(
-                "command: /bin/sh\n",
-                "args:\n",
-                "  - '-c'\n",
-                "  - 'test \"$PROCMGRD_SUPERVISOR_VAR\" = copied && test -z \"$DD_PM_CONFIG_DIR\" && test -z \"$DD_PM_SOCKET_PATH\"'\n",
-                "restart: never\n",
+            &format!(
+                concat!(
+                    "command: /bin/sh\n",
+                    "args:\n",
+                    "  - '-c'\n",
+                    "  - 'test \"$PROCMGRD_SUPERVISOR_VAR\" = copied && test -z \"$DD_PM_CONFIG_DIR\" && test \"$DD_PM_SOCKET_PATH\" = \"{socket}\"'\n",
+                    "restart: never\n",
+                ),
+                socket = socket,
             ),
         )
         .start();
