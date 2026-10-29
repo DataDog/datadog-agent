@@ -486,7 +486,7 @@ func (p *otelTargetProcess) locateOTelTLS(bias uint64, tlsVar tls.Var) (otelTLSR
 	}
 	defer mem.Close()
 
-	loc, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
+	info, loc, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
 	if err != nil {
 		// A failed read keeps its errno for classifySpanCtxError. Anything
 		// else is a slot the loader left unapplied or holding no plausible
@@ -497,8 +497,8 @@ func (p *otelTargetProcess) locateOTelTLS(bias uint64, tlsVar tls.Var) (otelTLSR
 		return otelTLSResolution{}, fmt.Errorf("%w: locate %v: %w", errSpanCtxMalformed, tlsVar, err)
 	}
 
-	if loc.ModuleID == 0 {
-		return otelTLSResolution{tlsOffset: int64(loc.Offset)}, nil
+	if loc == nil {
+		return otelTLSResolution{tlsOffset: int64(info.Tls_offset)}, nil
 	}
 	dtv, err := p.dtvInfo()
 	if err != nil {
