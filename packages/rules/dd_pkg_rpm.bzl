@@ -3,6 +3,12 @@
 load("@rules_pkg//pkg:rpm_pfg.bzl", "pkg_rpm_impl")
 load("//packages/rules:dd_pkg_owned_dirs.bzl", "dd_pkg_owned_dirs")
 
+_DEFAULT_DEFINES = {
+    "__provides_exclude": ".*",
+    "__requires_exclude": ".*",
+    "_build_id_links": "none",
+}
+
 # rpm only removes directories listed in the package on uninstall. Declare the
 # implicit parent directories of srcs so they don't get left behind.
 def _dd_pkg_rpm_impl(name, visibility, srcs, **kwargs):
@@ -17,6 +23,7 @@ def _dd_pkg_rpm_impl(name, visibility, srcs, **kwargs):
     pkg_rpm_impl(
         name = name,
         srcs = srcs + [":" + owned_dirs],
+        defines = _DEFAULT_DEFINES,
         visibility = visibility,
         **kwargs
     )
@@ -26,6 +33,7 @@ dd_pkg_rpm = macro(
     inherit_attrs = pkg_rpm_impl,
     implementation = _dd_pkg_rpm_impl,
     attrs = {
+        "defines": None,
         "private_stamp_detect": None,
         "stamp": None,
     },

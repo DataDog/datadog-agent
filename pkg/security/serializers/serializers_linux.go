@@ -877,10 +877,6 @@ type EventSerializer struct {
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
 	ses := SyscallsEventSerializer{}
-	// Sample events carry a single syscall in SyscallID instead of the Syscalls drain bitmap.
-	if e.EventReason == model.SampleReason {
-		return &SyscallsEventSerializer{{ID: int(e.SyscallID), Name: model.Syscall(e.SyscallID).String()}}
-	}
 	for _, s := range e.Syscalls {
 		ses = append(ses, SyscallSerializer{
 			ID:   int(s),
@@ -1103,6 +1099,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
 				PodUID:    ps.ContainerContext.PodUID,
+				ECSTaskID: ps.ContainerContext.ECSTaskID,
 				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
@@ -1475,9 +1472,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	ps.Variables = newVariablesContext(e, rule, "process.")
 
-	// add the syscalls from the event only for the top level parent. Skip sample events unless
-	// they are anomalies, otherwise the sampled syscall (in SyscallID) is never serialized.
-	if e.GetEventType() == model.SyscallsEventType && (e.Syscalls.EventReason != model.SampleReason || e.IsAnomalyDetectionEvent()) {
+	// add the syscalls from the event only for the top level parent
+	if e.GetEventType() == model.SyscallsEventType {
 		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
 	}
 
@@ -1495,7 +1491,11 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
+		savedErr := e.Error
 		s := newProcessSerializer(&pce.Process, e)
+		if !first && &pce.Process != pc.Parent {
+			e.Error = savedErr
+		}
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
@@ -1727,6 +1727,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
 			PodUID:    event.ProcessContext.ContainerContext.PodUID,
+			ECSTaskID: event.ProcessContext.ContainerContext.ECSTaskID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
@@ -1965,9 +1966,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
 		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
-		if event.Syscalls.EventReason != model.SampleReason || event.IsAnomalyDetectionEvent() {
-			s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
-		}
+		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)

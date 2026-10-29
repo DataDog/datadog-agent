@@ -21,7 +21,7 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist                   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	ActionsAllowlist                   ActionsAllowlist
 	Allowlist                          []string
 	AllowIMDSEndpoint                  bool
 	KubernetesAllowedCustomResources   []string
@@ -77,7 +77,15 @@ type Config struct {
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
-	if c.ActionsAllowlist[bundleId].Has(actionName) {
+	return c.ActionsAllowlist.IsActionAllowed(bundleId, actionName)
+}
+
+// ActionsAllowlist maps bundle IDs to allowed action names, including wildcards.
+type ActionsAllowlist map[string]sets.Set[string]
+
+// IsActionAllowed matches exact actions and integration/sub-bundle wildcards.
+func (a ActionsAllowlist) IsActionAllowed(bundleId, actionName string) bool {
+	if a[bundleId].Has(actionName) {
 		return true
 	}
 
@@ -93,7 +101,7 @@ func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
 		}
 	}
 	for len(parts) >= 3 {
-		if c.ActionsAllowlist[strings.Join(parts, ".")].Has("*") {
+		if a[strings.Join(parts, ".")].Has("*") {
 			return true
 		}
 		parts = parts[:len(parts)-1]
