@@ -44,6 +44,7 @@
       - E2E_MSI_TEST: TestProcmgrLocalSystem
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
+      - E2E_MSI_TEST: TestUpgradeFromBeforeProcmgr
       - E2E_MSI_TEST: TestUpgradeFromLatest
       - E2E_MSI_TEST: TestPersistingIntegrations
       - E2E_MSI_TEST: TestPersistingIntegrationsDuringUninstall
@@ -51,6 +52,7 @@
       - E2E_MSI_TEST: TestIntegrationFolderPermissions
       - E2E_MSI_TEST: TestIntegrationRollback
       - E2E_MSI_TEST: TestUpgradeRollback
+      - E2E_MSI_TEST: TestUpgradeRollbackFromBeforeProcmgr
       - E2E_MSI_TEST: TestUpgradeRollbackWithoutCWS
       - E2E_MSI_TEST: TestUpgradeChangeUser
       - E2E_MSI_TEST: TestUpgradeFromV5
