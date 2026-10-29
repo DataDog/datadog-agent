@@ -13,6 +13,7 @@ go_library(
         "manager_ebpf.go",
         "manager_noebpf.go",
         "map.go",
+        "syscall_aliases.go",
         "tailcall_groups.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/ebpf",
@@ -21,6 +22,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/bytecode/runtime",
             "//pkg/ebpf/maps",
@@ -36,6 +38,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/bytecode/runtime",
             "//pkg/ebpf/maps",
@@ -57,6 +60,7 @@ dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
         "compile_test.go",
+        "syscall_aliases_test.go",
         "tailcall_groups_test.go",
     ],
     embed = [":ebpf"],
