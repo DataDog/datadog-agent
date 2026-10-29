@@ -10,7 +10,6 @@ package eudm
 import (
 	"errors"
 	"fmt"
-	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 )
@@ -36,5 +35,5 @@ func Get(useSerial bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return formatHostname(name, info.SerialNumber, useSerial, runtime.GOOS == "darwin")
+	return formatHostname(name, info.SerialNumber, useSerial)
 }

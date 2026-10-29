@@ -14,17 +14,17 @@ import (
 
 func TestFormatHostname(t *testing.T) {
 	for _, tc := range []struct{ name, serial, want string }{
-		{"MacBook Pro", "C02ABC123", "MacBook-Pro-c02abc123"},
-		{"MacBook Pro", "C02ABC456", "MacBook-Pro-c02abc456"},
-		{"  Alice’s MacBook  ", " abc-123 ", "Alice-s-MacBook-abc-123"},
+		{"MacBook-Pro", "C02ABC123", "MacBook-Pro-c02abc123"},
+		{"MacBook-Pro", "C02ABC456", "MacBook-Pro-c02abc456"},
+		{"My--Mac-2", " ABC / 123 ", "My--Mac-2-abc-123"},
 		{"EC2AMAZ-TEST", "VMware-56 4d ab", "EC2AMAZ-TEST-vmware-56-4d-ab"},
 		// Long VM serials must not shorten the name, so host:<name>* still matches.
 		{"DESKTOP-4F7K2LQ", "VMware-56 4d ab 12 34 56 78 90-ab cd ef 12 34 56 78 90", "DESKTOP-4F7K2LQ-vmware-56-4d-ab-12-34-56-78-90-ab-cd-ef-12-34-56-78-90"},
 		{"ip-10-0-0-1", "ABC123", "ip-10-0-0-1-abc123"},
-		{strings.Repeat("a", 300), "ABC123", strings.Repeat("a", 246) + "-abc123"},
+		{strings.Repeat("a", 246), "ABC123", strings.Repeat("a", 246) + "-abc123"},
 	} {
 		t.Run(tc.want[:min(len(tc.want), 40)], func(t *testing.T) {
-			got, err := formatHostname(tc.name, tc.serial, true, false)
+			got, err := formatHostname(tc.name, tc.serial, true)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
 		})
@@ -34,27 +34,32 @@ func TestFormatHostname(t *testing.T) {
 func TestInvalidIdentity(t *testing.T) {
 	for _, serial := range []string{"", "  ", "Unknown", "None", "N/A", "Not Available", "Default string", "System Serial Number", "To Be Filled By O.E.M.", "00000000", "FF-FF-FF", strings.Repeat("a", 252)} {
 		t.Run(serial, func(t *testing.T) {
-			_, err := formatHostname("device", serial, true, false)
+			_, err := formatHostname("device", serial, true)
 			require.Error(t, err)
 		})
 	}
-	for _, name := range []string{"", "---", "你好"} {
-		_, err := formatHostname(name, "ABC123", true, false)
+	for _, name := range []string{"", "---", "你好", "My Device", " My-Mac ", "localhost", strings.Repeat("a", 254)} {
+		_, err := formatHostname(name, "ABC123", true)
 		require.Error(t, err)
 	}
 }
 
 func TestFormatHostnameWithoutSerial(t *testing.T) {
 	for _, serial := range []string{"ABC123", "", "Unknown", strings.Repeat("a", 300)} {
-		got, err := formatHostname("My Device", serial, false, false)
+		got, err := formatHostname("My--Device-2", serial, false)
 		require.NoError(t, err)
-		require.Equal(t, "My-Device", got)
+		require.Equal(t, "My--Device-2", got)
 	}
-	got, err := formatHostname(strings.Repeat("a", 300), "", false, false)
+	got, err := formatHostname(strings.Repeat("a", 253), "", false)
 	require.NoError(t, err)
 	require.Equal(t, strings.Repeat("a", 253), got)
-	for _, name := range []string{"", "---", "你好"} {
-		_, err := formatHostname(name, "", false, false)
+	for _, name := range []string{"", "---", "你好", "My Device", " My-Mac ", "localhost", strings.Repeat("a", 254)} {
+		_, err := formatHostname(name, "", false)
 		require.Error(t, err)
 	}
+}
+
+func TestFormatHostnameDoesNotTruncateForSerial(t *testing.T) {
+	_, err := formatHostname(strings.Repeat("a", 247), "ABC123", true)
+	require.ErrorContains(t, err, "too long")
 }

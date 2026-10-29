@@ -108,14 +108,7 @@ This also applies to VMs. On macOS, LocalHostName is read directly through
 `SCDynamicStoreCopyLocalHostName`, independently of system-info collection. It excludes `.local` and
 network-specific DNS suffixes. Apple's casing, normalization and conflict-resolution suffixes (such as `-2`)
 are preserved. The name is validated without trimming, normalization or truncation; unavailable or invalid
-names cause resolution to continue through the existing providers. The system-info payload is unchanged.
-
-Windows device names retain their existing normalization and truncation. On both platforms, the optional
-serial suffix is lowercased; runs of non-ASCII-alphanumeric characters become a hyphen and leading/trailing
-hyphens are removed. The full serial is preserved. If the macOS name plus suffix exceeds 253 characters,
-resolution falls back rather than truncating the name. When serial appending is disabled, system information
-is not collected and a missing serial does not affect resolution. When enabled, an unusable, missing or
-placeholder serial causes the Agent to log a warning and continue through the existing providers.
+names cause resolution to continue through the existing providers.
 
 The result is cached until restart. LocalHostName avoids network-derived DNS hostname changes, but it can
 still change when a user renames the Mac or Bonjour resolves a naming conflict. Those changes, and changes

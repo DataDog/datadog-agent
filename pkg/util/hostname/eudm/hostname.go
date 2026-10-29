@@ -13,21 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
-// formatHostname returns the device name with an optional normalized serial suffix.
-// With preserveName, the name is validated unchanged; otherwise it is normalized
-// and may be truncated to keep the result within 253 characters.
-func formatHostname(name, serial string, useSerial, preserveName bool) (string, error) {
-	if preserveName {
-		if err := validate.ValidHostname(name); err != nil {
-			return "", err
-		}
-	} else {
-		name = normalize(name)
+// formatHostname validates the device name unchanged and optionally appends a
+// normalized serial suffix. Neither the name nor the serial is truncated.
+func formatHostname(name, serial string, useSerial bool) (string, error) {
+	if err := validate.ValidHostname(name); err != nil {
+		return "", err
 	}
 
 	suffix := ""
 	if useSerial {
-		serial = normalize(strings.ToLower(serial))
+		serial = normalizeSerial(serial)
 		switch serial {
 		case "", "unknown", "none", "na", "n-a", "not-applicable", "not-available", "not-specified", "default-string", "system-serial-number", "to-be-filled-by-o-e-m", "to-be-filled-by-oem":
 			return "", errors.New("device serial number is missing or a placeholder")
@@ -37,37 +32,24 @@ func formatHostname(name, serial string, useSerial, preserveName bool) (string, 
 		}
 		suffix = "-" + serial
 	}
-	if name == "" {
-		return "", errors.New("device name is empty after normalization")
-	}
-	// Keep the full serial suffix. Do not truncate it into a colliding identity.
-	const maxLength = 253
-	available := maxLength - len(suffix)
-	if available < 1 {
-		return "", errors.New("device serial number is too long")
-	}
-	if len(name) > available {
-		if preserveName {
-			return "", errors.New("device hostname is too long")
-		}
-		name = strings.TrimRight(name[:available], "-")
-	}
-	if name == "" {
-		return "", errors.New("device name is empty after truncation")
-	}
 	hostname := name + suffix
+	const maxLength = 253
+	if len(hostname) > maxLength {
+		return "", errors.New("device hostname is too long")
+	}
+
 	if err := validate.ValidHostname(hostname); err != nil {
 		return "", err
 	}
 	return hostname, nil
 }
 
-// normalize preserves ASCII letter casing and collapses separators to hyphens.
-func normalize(value string) string {
+// normalizeSerial lowercases ASCII letters and collapses separators to hyphens.
+func normalizeSerial(value string) string {
 	var b strings.Builder
 	separator := false
-	for _, r := range strings.TrimSpace(value) {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+	for _, r := range strings.ToLower(strings.TrimSpace(value)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 			if separator && b.Len() > 0 {
 				b.WriteByte('-')
 			}
