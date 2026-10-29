@@ -84,6 +84,14 @@ func TestIPv4MappedIPv6PrefixIsNormalized(t *testing.T) {
 	assert.False(t, f.Allow(tcpAddr("11.0.0.1")), "outside range should not match")
 }
 
+func TestIPv4MappedPeerAddrIsNormalized(t *testing.T) {
+	f, err := New(nil, []string{"127.0.0.0/8"})
+	require.NoError(t, err)
+	mapped := &net.TCPAddr{IP: net.ParseIP("::ffff:127.0.0.1").To16(), Port: 1234}
+	assert.False(t, f.Allow(mapped), "IPv4 peer on a dual-stack listener should match an IPv4 rule")
+	assert.False(t, f.Allow(&net.TCPAddr{IP: net.ParseIP("127.0.0.1").To4(), Port: 1234}))
+}
+
 func TestUDPAddr(t *testing.T) {
 	f, err := New([]string{"10.0.0.0/8"}, nil)
 	require.NoError(t, err)
