@@ -31,6 +31,18 @@ struct credentials_t {
     u64 cap_permitted;
 };
 
+// namespace IDs of a thread, the inode numbers listed in /proc/<tid>/ns/
+struct namespace_ids_t {
+    u32 mnt;
+    u32 net;
+    u32 pid; // pid_for_children: setns and unshare only change the namespace of future children
+    u32 user;
+    u32 uts;
+    u32 ipc;
+    u32 cgroup;
+    u32 time;
+};
+
 struct pid_cache_t {
     u64 cookie;
     u64 fork_timestamp;
