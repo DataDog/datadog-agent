@@ -389,7 +389,7 @@ func (ra *remoteAgentRegistry) getRemoteExpvarValues(ctx context.Context) map[st
 		cache.retiredTotals = make(map[string]map[string]int64)
 	}
 
-	// Update values since, presumably, more time has elapsed than we'd feel comforatble caching for
+	// Update values since, presumably, more time has elapsed than we'd feel comfortable caching for
 	values := collectRemoteExpvarValuesAt(ctx, ra, cache, time.Now())
 	// A caller that gave up mid-fetch may have cut the remote queries short, so don't let its
 	// snapshot satisfy other callers for the rest of the cache window.
