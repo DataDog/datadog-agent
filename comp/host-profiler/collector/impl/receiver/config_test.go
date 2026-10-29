@@ -80,7 +80,7 @@ func TestProbeExtensionsWarning(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(logs.Bytes(), &record))
 			require.Equal(t, "WARN", record.Level)
-			require.Contains(t, record.Message, "probe extensions are not supported by Datadog ingestion at the time of this release")
+			require.Contains(t, record.Message, "probe extensions are not supported at the time of this release")
 			require.Equal(t, tt.probes, record.Probes)
 		})
 	}
