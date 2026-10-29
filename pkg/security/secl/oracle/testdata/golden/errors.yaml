@@ -167,7 +167,6 @@ agent_version_macro_constraints:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"a"
@@ -180,11 +179,12 @@ agent_version_macro_constraints:
             field_values:
                 open.file.name:
                     - scalar:"mexpr"
+                open.flags:
+                    - scalar:1
         r5:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"new"
@@ -192,7 +192,6 @@ agent_version_macro_constraints:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"f"
@@ -209,6 +208,7 @@ agent_version_macro_constraints:
                 open.file.name: 4
     discarders_report:
         open.file.name: supported
+        open.flags: 'invalid: r0'
     event_types:
         - open
     macro_ids:
@@ -223,6 +223,8 @@ agent_version_macro_constraints:
             - scalar:"f"
             - scalar:"mexpr"
             - scalar:"new"
+        open.flags:
+            - scalar:1
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r2 r3 r4 r5 r6 rule_with_filtered_macro]
     rule_ids:
@@ -253,16 +255,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "true"
-                open.flags: "true"
             r3:
                 open.file.name: "false"
                 open.flags: "false"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -271,16 +270,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "false"
                 open.flags: "false"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="c"
           scoped_counts:
@@ -291,16 +287,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "false"
                 open.flags: "false"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="e"
           scoped_counts:
@@ -319,16 +312,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "true"
                 open.flags: "true"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -337,16 +327,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "true"
                 open.flags: "false"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -355,16 +342,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "false"
                 open.flags: "false"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="mexpr2"
           scoped_counts:
@@ -375,16 +359,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "false"
                 open.flags: "false"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="old"
           scoped_counts:
@@ -402,16 +383,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "false"
                 open.flags: "false"
             r5:
                 open.file.name: "true"
-                open.flags: "true"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -427,16 +405,13 @@ agent_version_macro_constraints:
           partials:
             r0:
                 open.file.name: "false"
-                open.flags: "false"
             r3:
                 open.file.name: "false"
                 open.flags: "false"
             r5:
                 open.file.name: "false"
-                open.flags: "false"
             r6:
                 open.file.name: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -447,7 +422,7 @@ agent_version_rule_constraints:
         - 'rule `av_11` error: failed to parse agent version constraint: improper constraint: ">="'
         - 'rule `av_12` error: failed to parse agent version constraint: improper constraint: "garbage"'
         - 'rule `av_29` error: failed to parse agent version constraint: improper constraint: "> 7.60 && < 8"'
-        - 'rule `av_bad_expr_ok_version` error: syntax error `1:18: unexpected token "<EOF>" (expected Comparison)`'
+        - 'rule `av_bad_expr_ok_version` error: syntax error `1:18: expected operand after `==`, found end of expression`'
         - 'rule `av_no_expr_filtered` error: no rule expression'
         - 'rule `bad-av-id-filtered` error: rule ID pattern error'
     filtered_rules:
@@ -2622,8 +2597,8 @@ array_index_and_register_errors:
         - |-
           rule `r14` error: rule syntax error: failed to create array index accessor: field 'connect.addr.ip' is not an array type or array type is not supported for index access: 1:1: connect.addr.ip[0] == 10.0.0.1
           ^
-        - 'rule `r15` error: syntax error `1:11: unexpected token "-1"`'
-        - 'rule `r16` error: rule compilation error: field `exec.argv[]` not found'
+        - 'rule `r15` error: syntax error `1:10: expected `&&`, `||` or end of expression, found `[`, missing `&&` or `||`?`'
+        - 'rule `r16` error: syntax error `1:10: expected `&&`, `||` or end of expression, found `[`, missing `&&` or `||`?`'
         - 'rule `r17` error: rule compilation error: iterator variable error: field `exec.argv.length` not found'
         - |-
           rule `r18` error: rule syntax error: `_` can't be used as a iterator variable name: 1:1: exec.argv[_] == "a"
@@ -4290,11 +4265,11 @@ event_setter_error_types:
 expression_shapes_and_sizes:
     load_errors:
         - 'rule `r0` error: no rule expression'
-        - 'rule `r13` error: syntax error `1:144: unexpected token "<EOF>" (expected ")")`'
-        - 'rule `r1` error: syntax error `1:4: unexpected token "<EOF>"`'
-        - 'rule `r20` error: syntax error `1:21: lexer: invalid input text "* 3"`'
-        - 'rule `r2` error: syntax error `1:17: unexpected token "<EOF>"`'
-        - 'rule `r3` error: syntax error `2:1: unexpected token "<EOF>"`'
+        - 'rule `r13` error: syntax error `1:144: expected `)`, found end of expression, to close the `(` at 1:1`'
+        - 'rule `r1` error: syntax error `1:4: empty expression`'
+        - 'rule `r20` error: syntax error `1:21: unexpected character `*``'
+        - 'rule `r2` error: syntax error `1:17: empty expression`'
+        - 'rule `r3` error: syntax error `2:1: empty expression`'
         - |-
           rule `r4` error: rule syntax error: bool expected: 1:1: "just a string"
           ^
@@ -4957,7 +4932,8 @@ expression_shapes_and_sizes:
                 open.file.name:
                     - scalar:"bitprec2"
                 open.flags:
-                    - bitmask:3
+                    - bitmask:1
+                    - bitmask:2
                     - scalar:3
         r28:
             event_type: open
@@ -5235,6 +5211,8 @@ expression_shapes_and_sizes:
                     - scalar:"bang"
                     - scalar:"notnot"
                     - scalar:"a"
+                    - scalar:"b"
+                    - scalar:"c"
                     - scalar:"arith"
                     - scalar:"negneg"
                     - scalar:"negneg2"
@@ -5602,7 +5580,8 @@ expression_shapes_and_sizes:
             - scalar:"v98"
             - scalar:"v99"
         open.flags:
-            - bitmask:3
+            - bitmask:1
+            - bitmask:2
             - bitmask:3
             - scalar:0
             - scalar:1
@@ -6080,7 +6059,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -6647,7 +6626,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -6797,7 +6776,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -7532,7 +7511,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -7607,7 +7586,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -7799,10 +7778,10 @@ expression_shapes_and_sizes:
             - r19
           matching_values:
             r19:
-                - open.file.name="a"@0+14
-                - ="a"@18+3
                 - open.flags=7@26+10
                 - =7@40+1
+                - open.file.name="a"@0+14
+                - ="a"@18+3
           partials:
             r5:
                 open.file.name: "false"
@@ -7952,7 +7931,17 @@ expression_shapes_and_sizes:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r19
+          second_listener:
+            - r19
+          matching_values:
+            r19:
+                - open.flags=8@71+10
+                - =8@85+1
+                - open.file.name="b"@45+14
+                - ="b"@63+3
           partials:
             r5:
                 open.file.name: "false"
@@ -7988,7 +7977,7 @@ expression_shapes_and_sizes:
                 open.file.name: "false"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r21:
                 open.file.name: "false"
@@ -8027,7 +8016,15 @@ expression_shapes_and_sizes:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r19
+          second_listener:
+            - r19
+          matching_values:
+            r19:
+                - open.file.name="c"@90+14
+                - ="c"@108+3
           partials:
             r5:
                 open.file.name: "false"
@@ -8063,7 +8060,7 @@ expression_shapes_and_sizes:
                 open.file.name: "false"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r21:
                 open.file.name: "false"
@@ -8244,7 +8241,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -8583,7 +8580,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -8843,7 +8840,15 @@ expression_shapes_and_sizes:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r27
+          second_listener:
+            - r27
+          matching_values:
+            r27:
+                - open.file.name="bitprec2"@27+14
+                - ="bitprec2"@45+10
           partials:
             r5:
                 open.file.name: "false"
@@ -8901,7 +8906,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "true"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -9060,7 +9065,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "true"
                 open.flags: "false"
@@ -9302,7 +9307,7 @@ expression_shapes_and_sizes:
                 open.flags: "false"
             r27:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.file.name: "false"
                 open.flags: "false"
@@ -9918,7 +9923,7 @@ fim_write_expansion_errors:
         - 'rule `fim_bad_group` error: rule ID pattern error'
         - 'rule `fim_regexp_on_path` error: rule compilation error: regexp not supported on path `open.file.path`'
         - 'rule `fim_relative_path` error: rule compilation error: invalid path `relative`, all the path have to be absolute'
-        - 'rule `fim_syntax_error` error: syntax error `1:19: unexpected token ")" (expected Comparison)`'
+        - 'rule `fim_syntax_error` error: syntax error `1:19: expected operand after `==`, found `)``'
         - |-
           rule `fim_type_error` error: rule syntax error: string expected: 1:20: (open.file.path == 1) && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0
                              ^
@@ -14240,9 +14245,9 @@ grammar_cidr_array_and_macro_operands:
             - r20
           matching_values:
             r20:
-                - network.destination.ip=10.8.8.8/32@0+22
                 - dns.question.name="c14"@40+17
                 - ="c14"@61+5
+                - network.destination.ip=10.8.8.8/32@0+22
           partials:
             r0:
                 dns.question.name: "false"
@@ -16600,10 +16605,10 @@ grammar_cidr_array_and_macro_operands:
             process.pid: 0(true) own=0(true)
 grammar_duration_units:
     load_errors:
-        - 'rule `r6` error: syntax error `1:53: invalid duration string "2hs": time: unknown unit "hs" in duration "2hs"`'
-        - 'rule `r7` error: syntax error `1:53: invalid duration string "5ss": time: unknown unit "ss" in duration "5ss"`'
-        - 'rule `r8` error: syntax error `1:53: invalid duration string "3mss": time: unknown unit "mss" in duration "3mss"`'
-        - 'rule `r9` error: syntax error `1:53: invalid duration string "1hs": time: unknown unit "hs" in duration "1hs"`'
+        - 'rule `r6` error: syntax error `1:53: invalid duration `2hs`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r7` error: syntax error `1:53: invalid duration `5ss`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r8` error: syntax error `1:53: invalid duration `3mss`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r9` error: syntax error `1:53: invalid duration `1hs`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
     rules:
         r0:
             event_type: open
@@ -21703,10 +21708,10 @@ grammar_operators_spelling:
             - r12
           matching_values:
             r12:
-                - open.file.name="p"@0+14
-                - ="p"@18+3
                 - open.flags=14@25+10
                 - =14@39+2
+                - open.file.name="p"@0+14
+                - ="p"@18+3
           partials:
             r0:
                 open.file.name: "false"
@@ -21787,7 +21792,17 @@ grammar_operators_spelling:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r12
+          second_listener:
+            - r12
+          matching_values:
+            r12:
+                - open.flags=15@70+10
+                - =15@84+2
+                - open.file.name="q"@45+14
+                - ="q"@63+3
           partials:
             r0:
                 open.file.name: "false"
@@ -21826,7 +21841,7 @@ grammar_operators_spelling:
                 open.file.name: "false"
                 open.flags: "false"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r13:
                 open.file.name: "false"
@@ -25838,7 +25853,7 @@ grammar_whitespace_comments_and_newlines:
             process.pid: 0(true) own=0(true)
 invalid_other_actions:
     load_errors:
-        - 'rule `filter_bad_syntax` error: filter `open.flags ==` error: 1:14: unexpected token "<EOF>" (expected Comparison)'
+        - 'rule `filter_bad_syntax` error: filter `open.flags ==` error: 1:14: expected operand after `==`, found end of expression'
         - |-
           rule `filter_type_error` error: filter `open.flags == "x"` error: rule syntax error: int expected: 1:15: open.flags == "x"
                         ^
@@ -27240,7 +27255,7 @@ invalid_set_actions:
         - 'expression ''open.file.name'' for variable ''v_exprsam'': incompatible types: expression returns string but default_value is int'
         - 'expression ''open.flags + 1'' for variable ''v_exprtm'': incompatible types: expression returns int but default_value is string'
         - 'failed to compile action expression: field `open.nosuch` not found'
-        - 'failed to parse action expression: 1:13: unexpected token "<EOF>" (expected BitOperation)'
+        - 'failed to parse action expression: 1:13: expected operand after `+`, found end of expression'
         - field 'exec.file.name' with event type `exec` is not compatible with 'open' rules
         - 'rule `set_bad_name` error: invalid variable name ''bad-name'''
         - 'rule `set_bool_array` error: unsupported item type ''bool'' for array ''v_ba'''
@@ -28670,7 +28685,7 @@ invalid_set_actions:
 macro_definitions_and_errors:
     load_errors:
         - 'macro `bad-macro-id` definition error: ID does not match pattern `^[a-zA-Z0-9_]*$`'
-        - 'macro `m_bad_syntax` definition error: syntax error: 1:18: unexpected token "<EOF>" (expected Comparison)'
+        - 'macro `m_bad_syntax` definition error: syntax error: 1:18: expected operand after `==`, found end of expression'
         - |-
           macro `m_bad_type` definition error: compilation error: macro syntax error: open.flags == "a"
                         ^
@@ -28699,7 +28714,7 @@ macro_definitions_and_errors:
         - 'rule `r18` error: rule compilation error: field `m_bad_syntax` not found'
         - 'rule `r19` error: rule compilation error: field `m_bad_type` not found'
         - 'rule `r20` error: rule compilation error: invalid path `first`, all the path have to be absolute'
-        - 'rule `r25` error: syntax error `1:34: unexpected token "<EOF>" (expected "]")`'
+        - 'rule `r25` error: rule compilation error: `m_primary_str` is not a constant, the members of an array of identifiers have to be constants'
         - |-
           rule `r27` error: rule syntax error: array of string expected: 1:19: open.file.name in m_primary_str
                             ^
@@ -28709,19 +28724,11 @@ macro_definitions_and_errors:
         - |-
           rule `r29` error: rule syntax error: array of int expected: 1:15: open.flags in m_bool
                         ^
-        - 'rule `r32` error: expression with multiple event types is not supported'
-        - 'rule `r33` error: expression with multiple event types is not supported'
-        - 'rule `r34` error: expression with multiple event types is not supported'
-        - 'rule `r35` error: expression with multiple event types is not supported'
-        - 'rule `r5` error: expression with multiple event types is not supported'
     rules:
         r1:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
@@ -28729,45 +28736,28 @@ macro_definitions_and_errors:
                     - scalar:"b"
                     - pattern:"p*"
                     - regex:"r[0-9]"
-                    - scalar:"a"
-                    - scalar:"b"
-                    - pattern:"p*"
-                    - regex:"r[0-9]"
-                    - scalar:"a"
-                    - scalar:"b"
-                    - pattern:"p*"
-                    - regex:"r[0-9]"
                 open.flags:
-                    - scalar:100
                     - scalar:100
         r2:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
+                open.file.name:
+                    - scalar:"x"
                 open.flags:
-                    - scalar:3
+                    - scalar:1
                     - scalar:3
         r3:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"ints"
-                    - scalar:"ints"
-                    - scalar:"ints"
                 open.flags:
-                    - scalar:1
-                    - scalar:2
-                    - scalar:3
                     - scalar:1
                     - scalar:2
                     - scalar:3
@@ -28775,66 +28765,49 @@ macro_definitions_and_errors:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"idents"
-                    - scalar:"idents"
-                    - scalar:"idents"
                 open.flags:
                     - scalar:64
                     - scalar:512
-                    - scalar:64
-                    - scalar:512
+        r5:
+            event_type: connect
+            fields:
+                - connect.addr.ip
+            field_values:
+                connect.addr.ip:
+                    - ip:10.0.0.0/8
+                    - ip:192.168.1.1/32
         r6:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
-                    - scalar:"abc"
-                    - scalar:"abc"
                     - scalar:"abc"
         r7:
             event_type: open
             fields:
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.flags:
-                    - scalar:42
                     - scalar:42
         r8:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"pident"
-                    - scalar:"pident"
-                    - scalar:"pident"
                 open.flags:
-                    - scalar:64
                     - scalar:64
         r9:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
@@ -28842,35 +28815,22 @@ macro_definitions_and_errors:
                     - scalar:"b"
                     - pattern:"p*"
                     - regex:"r[0-9]"
-                    - scalar:"a"
-                    - scalar:"b"
-                    - pattern:"p*"
-                    - regex:"r[0-9]"
-                    - scalar:"a"
-                    - scalar:"b"
-                    - pattern:"p*"
-                    - regex:"r[0-9]"
                 open.flags:
-                    - scalar:101
                     - scalar:101
         r10:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
+                open.file.name:
+                    - scalar:"x"
                 open.flags:
-                    - scalar:4
                     - scalar:4
         r21:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
@@ -28879,165 +28839,145 @@ macro_definitions_and_errors:
                     - scalar:"relative"
                     - scalar:"*glob"
                     - scalar:""
-                    - scalar:"/etc/passwd"
-                    - scalar:"/etc/shadow"
-                    - scalar:"relative"
-                    - scalar:"*glob"
-                    - scalar:""
-                    - scalar:"/etc/passwd"
-                    - scalar:"/etc/shadow"
-                    - scalar:"relative"
-                    - scalar:"*glob"
-                    - scalar:""
                 open.flags:
-                    - scalar:102
                     - scalar:102
         r22:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"x"
         r23:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
+                open.file.name:
+                    - scalar:"x"
                 open.flags:
-                    - scalar:6
                     - scalar:6
         r24:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
+                open.file.name:
+                    - scalar:"x"
                 open.flags:
-                    - scalar:7
                     - scalar:7
         r26:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"abc"
-                    - scalar:"abc"
-                    - scalar:"abc"
                 open.flags:
-                    - scalar:1
-                    - scalar:2
-                    - scalar:3
                     - scalar:1
                     - scalar:2
                     - scalar:3
         r30:
             event_type: open
             fields:
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.flags:
-                    - scalar:8
                     - scalar:8
         r31:
             event_type: open
             fields:
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.flags:
                     - scalar:9
-                    - scalar:9
+        r32:
+            event_type: connect
+            fields:
+                - connect.addr.port
+            field_values:
+                connect.addr.port:
+                    - scalar:1
+        r33:
+            event_type: connect
+            fields:
+                - connect.addr.ip
+            field_values:
+                connect.addr.ip:
+                    - ip:10.0.0.1/32
+        r34:
+            event_type: connect
+            fields:
+                - connect.addr.ip
+            field_values:
+                connect.addr.ip:
+                    - ip:10.0.0.0/8
+        r35:
+            event_type: connect
+            fields:
+                - connect.addr.ip
+            field_values:
+                connect.addr.ip:
+                    - ip:10.0.0.0/8
         r36:
             event_type: open
             fields:
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.flags:
-                    - range:5000000000
                     - range:5000000000
         r37:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
-                    - regex:"a.*"
-                    - regex:"a.*"
                     - regex:"a.*"
         r38:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
-                    - pattern:"a*"
-                    - pattern:"a*"
                     - pattern:"a*"
         r39:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - regex:"a.*"
-                    - regex:"a.*"
-                    - regex:"a.*"
                 open.flags:
-                    - scalar:10
                     - scalar:10
         r40:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
-                - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - pattern:"a*"
-                    - pattern:"a*"
-                    - pattern:"a*"
                 open.flags:
                     - scalar:11
-                    - scalar:11
     approvers:
+        connect:
+            accept_mode: r5
         open:
-            accept_mode: r2
+            accept_mode: r36
             field_stats:
-                open.flags: 1
+                open.file.name: 9
+                open.flags: 7
     discarders_report:
-        open.file.name: supported
-        open.flags: supported
+        connect.addr.ip: 'invalid: r32'
+        connect.addr.port: 'invalid: r5'
+        open.file.name: 'invalid: r7'
+        open.flags: 'invalid: r6'
     event_types:
+        - connect
         - open
     macro_ids:
         - m_bool
@@ -29061,6 +29001,14 @@ macro_definitions_and_errors:
         - m_string_array
         - m_values
     field_values:
+        connect.addr.ip:
+            - ip:10.0.0.0/8
+            - ip:10.0.0.0/8
+            - ip:10.0.0.0/8
+            - ip:10.0.0.1/32
+            - ip:192.168.1.1/32
+        connect.addr.port:
+            - scalar:1
         open.file.name:
             - pattern:"a*"
             - pattern:"a*"
@@ -29084,8 +29032,14 @@ macro_definitions_and_errors:
             - scalar:"ints"
             - scalar:"pident"
             - scalar:"relative"
+            - scalar:"x"
+            - scalar:"x"
+            - scalar:"x"
+            - scalar:"x"
+            - scalar:"x"
         open.flags:
             - range:5000000000
+            - scalar:1
             - scalar:1
             - scalar:1
             - scalar:10
@@ -29121,19 +29075,26 @@ macro_definitions_and_errors:
         - r3
         - r30
         - r31
+        - r32
+        - r33
+        - r34
+        - r35
         - r36
         - r37
         - r38
         - r39
         - r4
         - r40
+        - r5
         - r6
         - r7
         - r8
         - r9
     approvers_all:
-        - accept_mode open=r2
-        - field_stats open.flags=1
+        - accept_mode connect=r5
+        - accept_mode open=r36
+        - field_stats open.file.name=9
+        - field_stats open.flags=7
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.path in m_values" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="open.file.name in m_string_array && open.flags == 100" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -29190,7 +29151,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29200,9 +29161,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29218,7 +29177,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29229,20 +29187,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29266,7 +29219,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29276,9 +29229,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29294,7 +29245,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29305,20 +29255,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29356,7 +29301,7 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "true"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29366,9 +29311,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29384,7 +29327,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29395,20 +29337,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "true"
-                open.flags: "true"
             r38:
                 open.file.name: "true"
-                open.flags: "true"
             r39:
                 open.file.name: "true"
                 open.flags: "false"
@@ -29438,7 +29375,7 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "true"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29448,9 +29385,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29466,7 +29401,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29477,20 +29411,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29520,7 +29449,7 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "true"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29530,9 +29459,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29548,7 +29475,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29559,20 +29485,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29596,7 +29517,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "true"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29606,9 +29527,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29624,7 +29543,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29635,20 +29553,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29686,7 +29599,7 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29696,9 +29609,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29714,7 +29625,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29725,20 +29635,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "true"
-                open.flags: "true"
             r38:
                 open.file.name: "true"
-                open.flags: "true"
             r39:
                 open.file.name: "true"
                 open.flags: "false"
@@ -29774,9 +29679,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29785,14 +29688,13 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r10:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r21:
                 open.file.name: "false"
                 open.flags: "false"
             r22:
                 open.file.name: "true"
-                open.flags: "true"
             r23:
                 open.file.name: "true"
                 open.flags: "false"
@@ -29803,20 +29705,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29852,9 +29749,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29863,14 +29758,13 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r10:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r21:
                 open.file.name: "false"
                 open.flags: "false"
             r22:
                 open.file.name: "true"
-                open.flags: "true"
             r23:
                 open.file.name: "true"
                 open.flags: "false"
@@ -29881,20 +29775,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "true"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29918,7 +29807,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -29928,9 +29817,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -29946,7 +29833,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29957,20 +29843,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "true"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -29999,7 +29880,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30009,9 +29890,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30027,7 +29906,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30038,20 +29916,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30087,9 +29960,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30098,14 +29969,13 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r10:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "true"
             r21:
                 open.file.name: "false"
                 open.flags: "false"
             r22:
                 open.file.name: "true"
-                open.flags: "true"
             r23:
                 open.file.name: "true"
                 open.flags: "false"
@@ -30116,20 +29986,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30159,7 +30024,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "true"
@@ -30169,9 +30034,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30187,7 +30050,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30198,20 +30060,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30240,7 +30097,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "true"
@@ -30250,9 +30107,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30268,7 +30123,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30279,20 +30133,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30322,7 +30171,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30332,9 +30181,7 @@ macro_definitions_and_errors:
                 open.flags: "true"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30350,7 +30197,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30361,20 +30207,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30404,7 +30245,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30414,9 +30255,7 @@ macro_definitions_and_errors:
                 open.flags: "true"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30432,7 +30271,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30443,20 +30281,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30480,7 +30313,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30490,9 +30323,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30508,7 +30339,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30519,20 +30349,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30572,7 +30397,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30582,9 +30407,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "true"
-                open.flags: "true"
             r7:
-                open.file.name: "true"
                 open.flags: "true"
             r8:
                 open.file.name: "false"
@@ -30600,7 +30423,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30611,20 +30433,15 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "true"
-                open.flags: "true"
             r38:
                 open.file.name: "true"
-                open.flags: "true"
             r39:
                 open.file.name: "true"
                 open.flags: "false"
@@ -30669,7 +30486,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30679,9 +30496,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "true"
-                open.flags: "true"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30697,7 +30512,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30708,20 +30522,15 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "true"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "true"
-                open.flags: "true"
             r38:
                 open.file.name: "true"
-                open.flags: "true"
             r39:
                 open.file.name: "true"
                 open.flags: "false"
@@ -30751,7 +30560,7 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30761,9 +30570,7 @@ macro_definitions_and_errors:
                 open.flags: "true"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "true"
@@ -30779,7 +30586,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30790,20 +30596,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30827,7 +30628,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -30837,9 +30638,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30855,7 +30654,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "true"
@@ -30866,20 +30664,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30920,9 +30713,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -30931,14 +30722,13 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r10:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r21:
                 open.file.name: "false"
                 open.flags: "false"
             r22:
                 open.file.name: "true"
-                open.flags: "true"
             r23:
                 open.file.name: "true"
                 open.flags: "true"
@@ -30949,20 +30739,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -30991,7 +30776,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31001,9 +30786,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31019,7 +30802,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31030,20 +30812,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31079,9 +30856,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31090,14 +30865,13 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r10:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r21:
                 open.file.name: "false"
                 open.flags: "false"
             r22:
                 open.file.name: "true"
-                open.flags: "true"
             r23:
                 open.file.name: "true"
                 open.flags: "false"
@@ -31108,20 +30882,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31150,7 +30919,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31160,9 +30929,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31178,7 +30945,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31189,20 +30955,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "true"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31231,7 +30992,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31241,9 +31002,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31259,7 +31018,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31270,20 +31028,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "true"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31321,7 +31074,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31331,9 +31084,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31349,7 +31100,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31360,20 +31110,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "true"
-                open.flags: "true"
             r38:
                 open.file.name: "true"
-                open.flags: "true"
             r39:
                 open.file.name: "true"
                 open.flags: "true"
@@ -31411,7 +31156,7 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31421,9 +31166,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31439,7 +31182,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31450,20 +31192,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "true"
-                open.flags: "true"
             r38:
                 open.file.name: "true"
-                open.flags: "true"
             r39:
                 open.file.name: "true"
                 open.flags: "false"
@@ -31487,7 +31224,7 @@ macro_definitions_and_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31497,9 +31234,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31515,7 +31250,6 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31526,20 +31260,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31569,7 +31298,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31579,9 +31308,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31597,7 +31324,6 @@ macro_definitions_and_errors:
                 open.flags: "true"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31608,20 +31334,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31655,7 +31376,7 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r2:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "false"
             r3:
                 open.file.name: "false"
@@ -31665,9 +31386,7 @@ macro_definitions_and_errors:
                 open.flags: "false"
             r6:
                 open.file.name: "false"
-                open.flags: "false"
             r7:
-                open.file.name: "false"
                 open.flags: "false"
             r8:
                 open.file.name: "false"
@@ -31683,7 +31402,6 @@ macro_definitions_and_errors:
                 open.flags: "true"
             r22:
                 open.file.name: "false"
-                open.flags: "true"
             r23:
                 open.file.name: "false"
                 open.flags: "false"
@@ -31694,20 +31412,15 @@ macro_definitions_and_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r30:
-                open.file.name: "true"
                 open.flags: "false"
             r31:
-                open.file.name: "true"
                 open.flags: "false"
             r36:
-                open.file.name: "true"
                 open.flags: "true"
             r37:
                 open.file.name: "true"
-                open.flags: "true"
             r38:
                 open.file.name: "false"
-                open.flags: "false"
             r39:
                 open.file.name: "true"
                 open.flags: "false"
@@ -31718,31 +31431,130 @@ macro_definitions_and_errors:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r5
+            - r32
+            - r33
+            - r34
+            - r35
+          second_listener:
+            - r5
+            - r32
+            - r33
+            - r34
+            - r35
+          matching_values:
+            r5:
+                - connect.addr.ip=10.0.0.1/32@0+15
+            r32:
+                - connect.addr.port=1@20+17
+                - =1@41+1
+            r33:
+                - connect.addr.ip=10.0.0.1/32@0+15
+            r34:
+                - connect.addr.ip=10.0.0.1/32@0+15
+            r35:
+                - connect.addr.ip=10.0.0.1/32@0+15
+          partials:
+            r5:
+                connect.addr.ip: "true"
+            r32:
+                connect.addr.port: "true"
+            r33:
+                connect.addr.ip: "true"
+            r34:
+                connect.addr.ip: "true"
+            r35:
+                connect.addr.ip: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r5
+            - r32
+            - r34
+            - r35
+          second_listener:
+            - r5
+            - r32
+            - r34
+            - r35
+          matching_values:
+            r5:
+                - connect.addr.ip=10.2.3.4/32@0+15
+            r32:
+                - connect.addr.port=1@20+17
+                - =1@41+1
+            r34:
+                - connect.addr.ip=10.2.3.4/32@0+15
+            r35:
+                - connect.addr.ip=10.2.3.4/32@0+15
+          partials:
+            r5:
+                connect.addr.ip: "true"
+            r32:
+                connect.addr.port: "true"
+            r33:
+                connect.addr.ip: "false"
+            r34:
+                connect.addr.ip: "true"
+            r35:
+                connect.addr.ip: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r5
+          second_listener:
+            - r5
+          matching_values:
+            r5:
+                - connect.addr.ip=192.168.1.1/32@0+15
+          partials:
+            r5:
+                connect.addr.ip: "true"
+            r32:
+                connect.addr.port: "false"
+            r33:
+                connect.addr.ip: "false"
+            r34:
+                connect.addr.ip: "false"
+            r35:
+                connect.addr.ip: "false"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
         - result: false
-          scoped_counts:
-            process.pid: 0
-          variables:
-            process.pid: 0(true) own=0(true)
-        - result: false
-          scoped_counts:
-            process.pid: 0
-          variables:
-            process.pid: 0(true) own=0(true)
-        - result: false
+          partials:
+            r5:
+                connect.addr.ip: "false"
+            r32:
+                connect.addr.port: "false"
+            r33:
+                connect.addr.ip: "false"
+            r34:
+                connect.addr.ip: "false"
+            r35:
+                connect.addr.ip: "false"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
 macro_event_type_isolation_one_macro:
-    load_errors:
-        - 'rule `r0` error: expression with multiple event types is not supported'
-        - 'rule `r3` error: expression with multiple event types is not supported'
     rules:
+        r0:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"first"
         r1:
             event_type: exec
             fields:
@@ -31751,49 +31563,103 @@ macro_event_type_isolation_one_macro:
             field_values:
                 exec.argv:
                     - scalar:"x"
+                exec.file.name:
+                    - scalar:"e"
         r2:
             event_type: exec
             fields:
                 - exec.file.name
-                - exec.file.name
             field_values:
                 exec.file.name:
                     - scalar:"f"
-                    - scalar:"f"
+        r3:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"second"
     approvers:
         exec:
-            accept_mode: r1
+            approvers:
+                exec.file.name:
+                    - scalar:"e"
+                    - scalar:"f"
+            field_stats:
+                exec.file.name: 2
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"first"
+                    - scalar:"second"
+            field_stats:
+                open.file.name: 2
     discarders_report:
         exec.argv: 'panic: runtime error: invalid memory address or nil pointer dereference'
         exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        open.file.name: supported
     event_types:
         - exec
+        - open
     macro_ids:
         - m_exec
     field_values:
         exec.argv:
             - scalar:"x"
         exec.file.name:
+            - scalar:"e"
             - scalar:"f"
+        open.file.name:
+            - scalar:"first"
+            - scalar:"second"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r2 r3]
     rule_ids:
+        - r0
         - r1
         - r2
+        - r3
     approvers_all:
-        - accept_mode exec=r1
+        - field_stats exec.file.name=2
+        - field_stats open.file.name=2
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.name == \"first\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="m_exec && exec.argv == \"x\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r2 accepted=true disabled=false expression="exec.file.name == \"f\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r3 accepted=true disabled=false expression="open.file.name == \"second\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
-        - result: false
+        - result: true
+          matched:
+            - r0
+          second_listener:
+            - r0
+          matching_values:
+            r0:
+                - open.file.name="first"@0+14
+                - ="first"@18+7
+          partials:
+            r0:
+                open.file.name: "true"
+            r3:
+                open.file.name: "false"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r3
+          second_listener:
+            - r3
+          matching_values:
+            r3:
+                - open.file.name="second"@0+14
+                - ="second"@18+8
+          partials:
+            r0:
+                open.file.name: "false"
+            r3:
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -31849,19 +31715,110 @@ macro_event_type_isolation_one_macro:
             process.pid: 0(true) own=0(true)
 macro_event_type_isolation_two_macros:
     load_errors:
-        - 'rule `r0` error: expression with multiple event types is not supported'
-        - 'rule `r1` error: expression with multiple event types is not supported'
-        - 'rule `r2` error: expression with multiple event types is not supported'
-        - 'rule `r3` error: expression with multiple event types is not supported'
-        - 'rule `r4` error: expression with multiple event types is not supported'
-        - 'rule `r5` error: expression with multiple event types is not supported'
-        - 'rule `r6` error: expression with multiple event types is not supported'
+        - 'rule `r3` error: rule compilation error: expression with multiple event types is not supported'
+        - 'rule `r6` error: rule compilation error: expression with multiple event types is not supported'
+    rules:
+        r0:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"first"
+        r1:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - scalar:"f"
+        r2:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+                open.flags:
+                    - scalar:1
+        r4:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"s1"
+                    - scalar:"s2"
+        r5:
+            event_type: chmod
+            fields:
+                - chmod.file.name
+            field_values:
+                chmod.file.name:
+                    - scalar:"s1"
+                    - scalar:"s2"
+    approvers:
+        chmod:
+            approvers:
+                chmod.file.name:
+                    - scalar:"s1"
+                    - scalar:"s2"
+            field_stats:
+                chmod.file.name: 1
+        exec:
+            approvers:
+                exec.file.name:
+                    - scalar:"f"
+            field_stats:
+                exec.file.name: 1
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"first"
+                    - scalar:"o"
+                    - scalar:"s1"
+                    - scalar:"s2"
+            field_stats:
+                open.file.name: 3
+    discarders_report:
+        chmod.file.name: supported
+        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        open.file.name: supported
+        open.flags: 'invalid: r0'
+    event_types:
+        - chmod
+        - exec
+        - open
     macro_ids:
         - m_exec
         - m_open
         - m_strs
+    field_values:
+        chmod.file.name:
+            - scalar:"s1"
+            - scalar:"s2"
+        exec.file.name:
+            - scalar:"f"
+        open.file.name:
+            - scalar:"first"
+            - scalar:"o"
+            - scalar:"s1"
+            - scalar:"s2"
+        open.flags:
+            - scalar:1
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r2 r3 r4 r5 r6]
+    rule_ids:
+        - r0
+        - r1
+        - r2
+        - r4
+        - r5
+    approvers_all:
+        - field_stats chmod.file.name=1
+        - field_stats exec.file.name=1
+        - field_stats open.file.name=3
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.name == \"first\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="exec.file.name == \"f\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -31871,32 +31828,105 @@ macro_event_type_isolation_two_macros:
         - policy0/r5 accepted=true disabled=false expression="chmod.file.name in m_strs" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r6 accepted=true disabled=false expression="chmod.file.name == \"c\" && m_exec" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
-        - result: false
+        - result: true
+          matched:
+            - r0
+          second_listener:
+            - r0
+          matching_values:
+            r0:
+                - open.file.name="first"@0+14
+                - ="first"@18+7
+          partials:
+            r0:
+                open.file.name: "true"
+            r2:
+                open.file.name: "false"
+                open.flags: "false"
+            r4:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r2
+          second_listener:
+            - r2
+          matching_values:
+            r2:
+                - open.flags=1@10+10
+                - =1@24+1
+          partials:
+            r0:
+                open.file.name: "false"
+            r2:
+                open.file.name: "true"
+                open.flags: "true"
+            r4:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r4
+          second_listener:
+            - r4
+          matching_values:
+            r4:
+                - open.file.name="s1"@0+14
+          partials:
+            r0:
+                open.file.name: "false"
+            r2:
+                open.file.name: "false"
+                open.flags: "false"
+            r4:
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
         - result: false
+          partials:
+            r1:
+                exec.file.name: "false"
+          discarders:
+            - exec:exec.file.name="e"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r1
+          second_listener:
+            - r1
+          matching_values:
+            r1:
+                - exec.file.name="f"@0+14
+                - ="f"@18+3
+          partials:
+            r1:
+                exec.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
-          scoped_counts:
-            process.pid: 0
-          variables:
-            process.pid: 0(true) own=0(true)
-        - result: false
-          scoped_counts:
-            process.pid: 0
-          variables:
-            process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r5
+          second_listener:
+            - r5
+          matching_values:
+            r5:
+                - chmod.file.name="s2"@0+15
+          partials:
+            r5:
+                chmod.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -31912,7 +31942,6 @@ macro_merge_and_override_across_policies:
             fields:
                 - open.file.name
                 - open.flags
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"m1"
@@ -31920,7 +31949,6 @@ macro_merge_and_override_across_policies:
                     - scalar:"m3"
                     - scalar:"m4"
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r1:
             event_type: open
@@ -31930,23 +31958,22 @@ macro_merge_and_override_across_policies:
             field_values:
                 open.file.name:
                     - scalar:"expr"
+                open.flags:
+                    - scalar:1
         r2:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"d1"
                 open.flags:
                     - scalar:2
-                    - scalar:2
         r3:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
@@ -31954,54 +31981,45 @@ macro_merge_and_override_across_policies:
                     - scalar:"o4"
                 open.flags:
                     - scalar:3
-                    - scalar:3
         r4:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"x"
                 open.flags:
                     - scalar:4
-                    - scalar:4
         r5:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"v1"
                 open.flags:
                     - scalar:5
-                    - scalar:5
         r6:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
                 - open.flags
             field_values:
                 open.file.name:
                     - scalar:"b1"
                 open.flags:
                     - scalar:6
-                    - scalar:6
         r7:
             event_type: open
             fields:
                 - open.file.name
                 - open.flags
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"n2"
                 open.flags:
-                    - scalar:7
                     - scalar:7
     approvers:
         open:
@@ -32050,6 +32068,7 @@ macro_merge_and_override_across_policies:
             - scalar:"v1"
             - scalar:"x"
         open.flags:
+            - scalar:1
             - scalar:1
             - scalar:2
             - scalar:3
@@ -32973,6 +32992,7 @@ multiple_event_types_and_no_event:
             approvers:
                 chmod.file.name:
                     - scalar:"c"
+                    - scalar:"d"
             field_stats:
                 chmod.file.name: 2
         exec:
@@ -34058,10 +34078,10 @@ multiple_event_types_and_no_event:
                 - chmod.file.path="/c"@26+15
                 - ="/c"@45+4
             r31:
-                - chmod.file.name="c"@0+15
-                - ="c"@19+3
                 - chmod.file.destination.mode=0@26+27
                 - =0@57+1
+                - chmod.file.name="c"@0+15
+                - ="c"@19+3
           partials:
             r30:
                 chmod.file.name: "true"
@@ -34073,113 +34093,130 @@ multiple_event_types_and_no_event:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r31
+          second_listener:
+            - r31
+          matching_values:
+            r31:
+                - chmod.file.name="d"@62+15
+                - ="d"@81+3
           partials:
             r30:
                 chmod.file.name: "false"
                 chmod.file.path: "false"
             r31:
                 chmod.file.destination.mode: "true"
-                chmod.file.name: "false"
-          discarders:
-            - chmod:chmod.file.name="d"
+                chmod.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
 parse_errors_positions:
     load_errors:
-        - 'rule `r10` error: syntax error `1:19: lexer: invalid input text "\"unterminated"`'
-        - 'rule `r11` error: syntax error `1:20: unexpected token "<EOF>" (expected <ident> ("," <ident>)* "]")`'
-        - 'rule `r12` error: syntax error `1:23: unexpected token "," (expected "]")`'
-        - 'rule `r13` error: syntax error `1:20: unexpected token "," (expected <ident> ("," <ident>)* "]")`'
-        - 'rule `r14` error: syntax error `1:24: unexpected token "b" (expected "]")`'
-        - 'rule `r15` error: syntax error `1:20: unexpected token "]" (expected <ident> ("," <ident>)* "]")`'
-        - 'rule `r16` error: syntax error `1:18: unexpected token "<EOF>" (expected Array)`'
-        - 'rule `r17` error: syntax error `1:19: lexer: invalid input text "''single''"`'
-        - 'rule `r18` error: syntax error `1:18: unexpected token "=" (expected Comparison)`'
-        - 'rule `r19` error: syntax error `1:17: unexpected token ">" (expected Comparison)`'
-        - 'rule `r1` error: syntax error `1:18: unexpected token "<EOF>" (expected Comparison)`'
-        - 'rule `r20` error: syntax error `1:24: unexpected token "<EOF>" (expected BitOperation)`'
-        - 'rule `r21` error: syntax error `1:23: lexer: invalid input text "@"`'
-        - 'rule `r22` error: syntax error `1:23: lexer: invalid input text "$"`'
-        - 'rule `r23` error: syntax error `1:20: unexpected token "<EOF>" (expected Comparison)`'
-        - 'rule `r24` error: syntax error `1:12: lexer: invalid input text "ämé == \"a\""`'
-        - 'rule `r25` error: syntax error `1:23: unexpected token "b"`'
-        - 'rule `r26` error: rule compilation error: field `not` not found'
-        - 'rule `r27` error: syntax error `1:2: unexpected token "<EOF>" (expected Unary)`'
-        - 'rule `r28` error: syntax error `1:17: unexpected token "2"`'
-        - 'rule `r2` error: syntax error `1:1: unexpected token "="`'
-        - 'rule `r30` error: syntax error `1:16: lexer: invalid input text ".5"`'
-        - 'rule `r31` error: syntax error `1:18: unexpected token "2" (expected "]")`'
-        - 'rule `r32` error: syntax error `1:17: unexpected token "," (expected "]")`'
-        - 'rule `r33` error: syntax error `1:20: unexpected token "<EOF>" (expected "]")`'
-        - 'rule `r34` error: syntax error `1:14: failed to conform: strconv.ParseInt: parsing "99999999999999999999": value out of range`'
-        - 'rule `r35` error: syntax error `1:16: unexpected token "x1F"`'
-        - 'rule `r36` error: syntax error `1:16: unexpected token "e3"`'
-        - 'rule `r37` error: syntax error `1:16: unexpected token "_000"`'
-        - 'rule `r38` error: syntax error `1:20: unexpected token "<EOF>" (expected BooleanExpression)`'
-        - 'rule `r39` error: syntax error `1:23: unexpected token "open.flags"`'
-        - 'rule `r3` error: syntax error `1:18: unexpected token "a" (expected "~")`'
-        - 'rule `r40` error: syntax error `1:18: unexpected token "|" (expected BitOperation)`'
+        - 'rule `r10` error: syntax error `1:19: unterminated string`'
+        - 'rule `r11` error: syntax error `1:20: expected array member, found end of expression`'
+        - 'rule `r12` error: syntax error `1:24: expected member of an array of strings, found `]``'
+        - 'rule `r13` error: syntax error `1:20: expected array member, found `,``'
+        - 'rule `r14` error: syntax error `1:24: expected `,` or `]`, found string `"b"`, to close the `[` at 1:19`'
+        - 'rule `r15` error: syntax error `1:19: empty array`'
+        - 'rule `r16` error: syntax error `1:18: expected operand after `in`, found end of expression`'
+        - 'rule `r17` error: syntax error `1:19: unexpected character `''` (and 1 more errors)`'
+        - 'rule `r18` error: syntax error `1:18: unexpected `=`, did you mean `==`?`'
+        - 'rule `r19` error: syntax error `1:17: expected operand after `<`, found `>``'
+        - 'rule `r1` error: syntax error `1:18: expected operand after `==`, found end of expression`'
+        - 'rule `r20` error: syntax error `1:24: expected operand after `+`, found end of expression`'
+        - 'rule `r21` error: syntax error `1:23: unexpected character `@``'
+        - 'rule `r22` error: syntax error `1:23: unexpected character `$``'
+        - 'rule `r23` error: syntax error `1:20: expected operand after `==`, found end of expression`'
+        - 'rule `r24` error: syntax error `1:12: unexpected character `ä` (and 1 more errors)`'
+        - 'rule `r25` error: syntax error `1:23: expected `&&`, `||` or end of expression, found string `"b"`, missing `&&` or `||`?`'
+        - 'rule `r26` error: syntax error `1:4: expected operand after `not`, found end of expression`'
+        - 'rule `r27` error: syntax error `1:2: expected operand after `!`, found end of expression`'
+        - 'rule `r28` error: syntax error `1:17: expected `&&`, `||` or end of expression, found integer `2`, missing `&&` or `||`?`'
+        - 'rule `r2` error: syntax error `1:1: expected operand, found `==``'
         - |-
-          rule `r48` error: rule syntax error: operator `=~` unknown: 1:1: open.flags =  ~ 5
-          ^
-        - 'rule `r4` error: syntax error `1:25: unexpected token "<EOF>" (expected BooleanExpression)`'
-        - 'rule `r50` error: syntax error `1:16: unexpected token "notin"`'
-        - 'rule `r51` error: syntax error `1:22: unexpected token "<EOF>" (expected Array)`'
-        - 'rule `r53` error: syntax error `1:16: unexpected token "All"`'
-        - 'rule `r54` error: syntax error `1:16: unexpected token "IN"`'
-        - 'rule `r55` error: syntax error `1:16: unexpected token "AND"`'
-        - 'rule `r56` error: syntax error `1:23: unexpected token "OR"`'
-        - 'rule `r57` error: syntax error `1:5: unexpected token "open.flags"`'
-        - 'rule `r58` error: syntax error `1:31: unexpected token "open.flags"`'
-        - 'rule `r59` error: syntax error `1:44: unexpected token "open.flags"`'
-        - 'rule `r5` error: syntax error `1:1: unexpected token "&"`'
+          rule `r30` error: rule syntax error: invalid IP '1.5': 1:15: open.flags == 1.5
+                        ^
+        - 'rule `r31` error: syntax error `1:18: expected `,` or `]`, found integer `2`, to close the `[` at 1:15`'
+        - 'rule `r32` error: syntax error `1:18: expected member of an array of integers, found `]``'
+        - 'rule `r33` error: syntax error `1:20: expected `,` or `]`, found end of expression, to close the `[` at 1:15`'
+        - 'rule `r34` error: syntax error `1:15: integer `99999999999999999999` out of range`'
+        - 'rule `r35` error: syntax error `1:15: invalid duration `0x1F`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r36` error: syntax error `1:15: invalid duration `1e3`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r37` error: syntax error `1:15: invalid duration `1_000`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r38` error: syntax error `1:20: expected operand after `and`, found end of expression`'
+        - 'rule `r39` error: syntax error `1:20: expected operand after `or`, found `or``'
+        - 'rule `r3` error: syntax error `1:16: unexpected `=`, did you mean `==`?`'
+        - 'rule `r40` error: syntax error `1:18: expected operand after `&`, found `||``'
+        - 'rule `r41` error: syntax error `1:19: expected operand after `|`, found `|``'
+        - 'rule `r42` error: syntax error `1:19: expected operand after `&`, found `&``'
+        - 'rule `r43` error: syntax error `1:20: expected operand after `&`, found `&``'
+        - 'rule `r44` error: syntax error `1:12: unexpected `=`, did you mean `==`? (and 1 more errors)`'
+        - 'rule `r45` error: syntax error `1:12: expected `&&`, `||` or end of expression, found `!`, missing `&&` or `||`? (and 1 more errors)`'
+        - 'rule `r46` error: syntax error `1:14: unexpected `=`, did you mean `==`?`'
+        - 'rule `r47` error: syntax error `1:14: unexpected `=`, did you mean `==`?`'
+        - 'rule `r48` error: syntax error `1:12: unexpected `=`, did you mean `==`? (and 1 more errors)`'
+        - 'rule `r4` error: syntax error `1:25: expected operand after `&&`, found end of expression`'
+        - 'rule `r50` error: syntax error `1:16: expected `&&`, `||` or end of expression, found identifier `notin`, missing `&&` or `||`?`'
+        - 'rule `r51` error: syntax error `1:22: expected operand after `in`, found end of expression`'
+        - 'rule `r53` error: syntax error `1:16: expected `&&`, `||` or end of expression, found identifier `All`, missing `&&` or `||`?`'
+        - 'rule `r54` error: syntax error `1:16: expected `&&`, `||` or end of expression, found identifier `IN`, missing `&&` or `||`?`'
+        - 'rule `r55` error: syntax error `1:16: expected `&&`, `||` or end of expression, found identifier `AND`, missing `&&` or `||`?`'
+        - 'rule `r56` error: syntax error `1:23: expected `&&`, `||` or end of expression, found identifier `OR`, missing `&&` or `||`?`'
+        - 'rule `r57` error: syntax error `1:5: expected `&&`, `||` or end of expression, found identifier `open.flags`, missing `&&` or `||`?`'
+        - 'rule `r58` error: syntax error `1:27: expected operand after `and`, found `and``'
+        - 'rule `r59` error: syntax error `1:44: expected `&&`, `||` or end of expression, found identifier `open.flags`, missing `&&` or `||`?`'
+        - 'rule `r5` error: syntax error `1:1: expected operand, found `&&``'
         - 'rule `r60` error: rule compilation error: field `TRUE` not found'
-        - 'rule `r61` error: syntax error `1:23: lexer: invalid input text "; open.flags == ..."`'
-        - 'rule `r62` error: syntax error `1:22: unexpected token ","`'
-        - 'rule `r63` error: syntax error `1:19: lexer: invalid input text "{\"a\"}"`'
-        - 'rule `r64` error: syntax error `1:16: unexpected token "~"`'
-        - 'rule `r65` error: syntax error `1:19: unexpected token "~" (expected Comparison)`'
-        - 'rule `r66` error: syntax error `1:24: unexpected token "b"`'
-        - 'rule `r67` error: syntax error `1:24: unexpected token "b"`'
+        - 'rule `r61` error: syntax error `1:23: unexpected character `;``'
+        - 'rule `r62` error: syntax error `1:22: expected `&&`, `||` or end of expression, found `,``'
+        - 'rule `r63` error: syntax error `1:19: unexpected character `{` (and 1 more errors)`'
+        - 'rule `r64` error: syntax error `1:16: unexpected character `~``'
+        - 'rule `r65` error: syntax error `1:19: unexpected character `~``'
+        - 'rule `r66` error: syntax error `1:24: expected `&&`, `||` or end of expression, found pattern `~"b"`, missing `&&` or `||`?`'
+        - 'rule `r67` error: syntax error `1:24: expected `&&`, `||` or end of expression, found regular expression `r"b"`, missing `&&` or `||`?`'
         - 'rule `r68` error: rule compilation error: field `r` not found'
-        - 'rule `r69` error: syntax error `1:20: lexer: invalid input text "\"unterminated"`'
-        - 'rule `r6` error: syntax error `1:23: unexpected token "<EOF>" (expected ")")`'
-        - 'rule `r70` error: syntax error `1:20: lexer: invalid input text "\"unterminated"`'
-        - 'rule `r71` error: syntax error `1:19: lexer: invalid input text "${unterminated"`'
-        - 'rule `r72` error: syntax error `1:20: lexer: invalid input text "{unterminated"`'
+        - 'rule `r69` error: syntax error `1:19: unterminated regular expression`'
+        - 'rule `r6` error: syntax error `1:23: expected `)`, found end of expression, to close the `(` at 1:1`'
+        - 'rule `r70` error: syntax error `1:19: unterminated pattern`'
+        - 'rule `r71` error: syntax error `1:19: invalid variable `${unterminated`, expected `${name}``'
+        - 'rule `r72` error: syntax error `1:19: invalid field reference `%{unterminated`, expected `%{name}``'
         - |-
           rule `r73` error: rule syntax error: variable 'a.b.c.d.e' doesn't exist: 1:19: open.file.name == ${a.b.c.d.e}
                             ^
-        - 'rule `r75` error: syntax error `1:17: unexpected token "m"`'
-        - 'rule `r76` error: syntax error `1:16: unexpected token "d"`'
-        - 'rule `r77` error: syntax error `1:16: unexpected token "w"`'
-        - 'rule `r78` error: syntax error `1:16: unexpected token "us"`'
-        - 'rule `r79` error: syntax error `1:16: unexpected token "ns"`'
-        - 'rule `r7` error: syntax error `1:22: unexpected token ")"`'
-        - 'rule `r80` error: syntax error `1:15: invalid duration string "99999999999999999999h": time: invalid duration "99999999999999999999h"`'
+        - 'rule `r75` error: syntax error `1:17: expected `&&`, `||` or end of expression, found identifier `m`, missing `&&` or `||`?`'
+        - 'rule `r76` error: syntax error `1:15: invalid duration `1d`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r77` error: syntax error `1:15: invalid duration `1w`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
+        - 'rule `r7` error: syntax error `1:22: expected `&&`, `||` or end of expression, found `)``'
+        - 'rule `r80` error: syntax error `1:15: invalid duration `99999999999999999999h`, the units are `ns`, `us`, `ms`, `s`, `m` and `h``'
         - |-
           rule `r81` error: rule syntax error: string expected: 1:19: open.file.name == 10.0.0.1
                             ^
         - |-
           rule `r82` error: rule syntax error: string expected: 1:19: open.file.name == 10.0.0.1/8
                             ^
-        - 'rule `r83` error: syntax error `1:22: lexer: invalid input text ".0.0"`'
-        - 'rule `r84` error: syntax error `1:28: lexer: invalid input text ".1"`'
+        - |-
+          rule `r83` error: rule syntax error: invalid IP '10.0.0': 1:20: connect.addr.ip == 10.0.0
+                             ^
+        - |-
+          rule `r84` error: rule syntax error: invalid IP '10.0.0.1.1': 1:20: connect.addr.ip == 10.0.0.1.1
+                             ^
         - |-
           rule `r85` error: rule syntax error: invalid IP '::': 1:20: connect.addr.ip == ::
                              ^
         - |-
           rule `r86` error: rule syntax error: invalid IP '1::2::3': 1:20: connect.addr.ip == 1::2::3
                              ^
-        - 'rule `r87` error: syntax error `1:27: unexpected token "%"`'
-        - 'rule `r88` error: syntax error `1:28: lexer: invalid input text "/"`'
-        - 'rule `r89` error: syntax error `1:28: lexer: invalid input text "/-1"`'
-        - 'rule `r8` error: syntax error `1:2: unexpected token ")" (expected Expression ")")`'
-        - 'rule `r93` error: syntax error `1:35: lexer: invalid input text ":9"`'
-        - 'rule `r9` error: syntax error `1:25: unexpected token "<EOF>" (expected ")")`'
+        - 'rule `r87` error: syntax error `1:27: unexpected character `%``'
+        - 'rule `r88` error: syntax error `1:28: unexpected character `/``'
+        - 'rule `r89` error: syntax error `1:28: unexpected character `/``'
+        - 'rule `r8` error: syntax error `1:2: expected operand after `(`, found `)``'
+        - |-
+          rule `r93` error: rule syntax error: invalid IP '1:2:3:4:5:6:7:8:9': 1:20: connect.addr.ip == 1:2:3:4:5:6:7:8:9
+                             ^
+        - 'rule `r9` error: syntax error `1:25: expected `)`, found end of expression, to close the `(` at 1:1`'
     rules:
         r0:
             event_type: open
@@ -34195,58 +34232,6 @@ parse_errors_positions:
             field_values:
                 open.flags:
                     - scalar:1
-        r41:
-            event_type: open
-            fields:
-                - open.flags
-            field_values:
-                open.flags:
-                    - scalar:5
-                    - scalar:6
-        r42:
-            event_type: open
-            fields:
-                - open.flags
-            field_values:
-                open.flags:
-                    - scalar:5
-                    - scalar:6
-        r43:
-            event_type: open
-            fields:
-                - open.flags
-            field_values:
-                open.flags:
-                    - scalar:5
-                    - scalar:6
-        r44:
-            event_type: open
-            fields:
-                - open.flags
-            field_values:
-                open.flags:
-                    - scalar:5
-        r45:
-            event_type: open
-            fields:
-                - open.flags
-            field_values:
-                open.flags:
-                    - scalar:5
-        r46:
-            event_type: open
-            fields:
-                - open.flags
-            field_values:
-                open.flags:
-                    - range:5
-        r47:
-            event_type: open
-            fields:
-                - open.flags
-            field_values:
-                open.flags:
-                    - range:5
         r49:
             event_type: open
             fields:
@@ -34271,6 +34256,20 @@ parse_errors_positions:
             field_values:
                 open.flags:
                     - scalar:1000000000
+        r78:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1000
+        r79:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r90:
             event_type: connect
             fields:
@@ -34306,9 +34305,9 @@ parse_errors_positions:
         connect:
             accept_mode: r90
         open:
-            accept_mode: r42
+            accept_mode: r74
             field_stats:
-                open.file.name: 1
+                open.file.name: 2
                 open.flags: 2
     discarders_report:
         connect.addr.ip: supported
@@ -34331,42 +34330,29 @@ parse_errors_positions:
             - scalar:"a"
             - scalar:"ok"
         open.flags:
-            - range:5
-            - range:5
             - scalar:1
+            - scalar:1
+            - scalar:1000
             - scalar:1000000000
             - scalar:20
-            - scalar:5
-            - scalar:5
-            - scalar:5
-            - scalar:5
-            - scalar:5
-            - scalar:6
-            - scalar:6
-            - scalar:6
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r2 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r3 r30 r31 r32 r33 r34 r35 r36 r37 r38 r39 r4 r40 r41 r42 r43 r44 r45 r46 r47 r48 r49 r5 r50 r51 r52 r53 r54 r55 r56 r57 r58 r59 r6 r60 r61 r62 r63 r64 r65 r66 r67 r68 r69 r7 r70 r71 r72 r73 r74 r75 r76 r77 r78 r79 r8 r80 r81 r82 r83 r84 r85 r86 r87 r88 r89 r9 r90 r91 r92 r93 r94]
     rule_ids:
         - r0
         - r29
-        - r41
-        - r42
-        - r43
-        - r44
-        - r45
-        - r46
-        - r47
         - r49
         - r52
         - r74
+        - r78
+        - r79
         - r90
         - r91
         - r92
         - r94
     approvers_all:
         - accept_mode connect=r90
-        - accept_mode open=r42
-        - field_stats open.file.name=1
+        - accept_mode open=r74
+        - field_stats open.file.name=2
         - field_stats open.flags=2
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.name == \"ok\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -34468,38 +34454,17 @@ parse_errors_positions:
         - result: true
           matched:
             - r0
-            - r45
-            - r47
           second_listener:
             - r0
-            - r45
-            - r47
           matching_values:
             r0:
                 - open.file.name="ok"@0+14
                 - ="ok"@18+4
-            r47:
-                - open.flags=0@0+10
-                - =5@15+1
           partials:
             r0:
                 open.file.name: "true"
             r29:
                 open.flags: "false"
-            r41:
-                open.flags: "false"
-            r42:
-                open.flags: "false"
-            r43:
-                open.flags: "false"
-            r44:
-                open.flags: "false"
-            r45:
-                open.flags: "true"
-            r46:
-                open.flags: "false"
-            r47:
-                open.flags: "true"
             r49:
                 open.file.name: "true"
                 open.flags: "false"
@@ -34507,23 +34472,20 @@ parse_errors_positions:
                 open.file.name: "false"
             r74:
                 open.flags: "false"
+            r78:
+                open.flags: "false"
+            r79:
+                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
         - result: true
           matched:
-            - r45
-            - r46
             - r52
           second_listener:
-            - r45
-            - r46
             - r52
           matching_values:
-            r46:
-                - open.flags=20@0+10
-                - =5@15+1
             r52:
                 - open.file.name="a"@0+14
                 - ="a"@22+3
@@ -34532,20 +34494,6 @@ parse_errors_positions:
                 open.file.name: "false"
             r29:
                 open.flags: "false"
-            r41:
-                open.flags: "false"
-            r42:
-                open.flags: "false"
-            r43:
-                open.flags: "false"
-            r44:
-                open.flags: "false"
-            r45:
-                open.flags: "true"
-            r46:
-                open.flags: "true"
-            r47:
-                open.flags: "false"
             r49:
                 open.file.name: "false"
                 open.flags: "true"
@@ -34553,23 +34501,20 @@ parse_errors_positions:
                 open.file.name: "true"
             r74:
                 open.flags: "false"
+            r78:
+                open.flags: "false"
+            r79:
+                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
         - result: true
           matched:
-            - r45
-            - r46
             - r49
           second_listener:
-            - r45
-            - r46
             - r49
           matching_values:
-            r46:
-                - open.flags=20@0+10
-                - =5@15+1
             r49:
                 - open.flags=20@32+10
                 - =20@46+2
@@ -34578,26 +34523,16 @@ parse_errors_positions:
                 open.file.name: "false"
             r29:
                 open.flags: "false"
-            r41:
-                open.flags: "false"
-            r42:
-                open.flags: "false"
-            r43:
-                open.flags: "false"
-            r44:
-                open.flags: "false"
-            r45:
-                open.flags: "true"
-            r46:
-                open.flags: "true"
-            r47:
-                open.flags: "false"
             r49:
                 open.file.name: "true"
                 open.flags: "true"
             r52:
                 open.file.name: "false"
             r74:
+                open.flags: "false"
+            r78:
+                open.flags: "false"
+            r79:
                 open.flags: "false"
           scoped_counts:
             process.pid: 0
@@ -34699,7 +34634,7 @@ pattern_and_regexp_errors:
         - 'rule `r29` error: rule compilation error: invalid path `/a/`, paths must be in canonical form, trailing slashes are not allowed: use `/a` to match the directory itself or `/a/*` to match its content'
         - 'rule `r2` error: rule compilation error: invalid regexp `[`: error parsing regexp: missing closing ]: `[`'
         - 'rule `r32` error: rule compilation error: unable to apply pattern on non static value `process.file.name`'
-        - 'rule `r33` error: syntax error `1:19: unexpected token "~" (expected Comparison)`'
+        - 'rule `r33` error: syntax error `1:19: unexpected character `~``'
         - 'rule `r34` error: rule compilation error: unable to apply pattern on non static value `open.file.path`'
         - 'rule `r35` error: rule compilation error: unable to apply pattern on non static value ``'
         - 'rule `r36` error: rule compilation error: unable to apply pattern on non static value ``'
@@ -34707,23 +34642,15 @@ pattern_and_regexp_errors:
           rule `r37` error: rule syntax error: string expected: 1:19: open.file.name =~ ${process.pid}
                             ^
         - 'rule `r38` error: rule compilation error: unable to apply pattern on non static value `process.file.name`'
-        - 'rule `r39` error: syntax error `1:38: unexpected token "<EOF>" (expected "]")`'
+        - 'rule `r39` error: rule compilation error: `process.file.name` is not a constant, the members of an array of identifiers have to be constants'
         - 'rule `r3` error: rule compilation error: invalid regexp `(`: error parsing regexp: missing closing ): `(`'
         - |-
           rule `r40` error: rule syntax error: int expected: 1:19: open.file.name =~ "a" + "b"
                             ^
-        - |-
-          rule `r43` error: rule syntax error: string expected: 1:19: open.file.name =~ "a*" =~ "b"
-                            ^
-        - |-
-          rule `r44` error: rule syntax error: string expected: 1:19: open.file.name == "a" == "b"
-                            ^
-        - |-
-          rule `r45` error: rule syntax error: int expected: 1:15: open.flags == 1 == 1
-                        ^
-        - |-
-          rule `r46` error: rule syntax error: int expected: 1:20: open.flags == 1 == true
-                             ^
+        - 'rule `r43` error: syntax error `1:24: comparisons can''t be chained, add parentheses`'
+        - 'rule `r44` error: syntax error `1:23: comparisons can''t be chained, add parentheses`'
+        - 'rule `r45` error: syntax error `1:17: comparisons can''t be chained, add parentheses`'
+        - 'rule `r46` error: syntax error `1:17: comparisons can''t be chained, add parentheses`'
         - 'rule `r4` error: rule compilation error: invalid regexp `(b`: error parsing regexp: missing closing ): `(b`'
     rules:
         r0:
@@ -36855,7 +36782,7 @@ policy_document_errors:
         - 'rule `` error: no rule ID'
         - 'rule `bad id` error: rule ID pattern error'
         - 'rule `bad-id` error: rule ID pattern error'
-        - 'rule `garbage` error: syntax error `1:20: unexpected token "<EOF>" (expected Expression ")")`'
+        - 'rule `garbage` error: syntax error `1:20: expected operand after `(`, found end of expression`'
         - 'rule `group_bad` error: rule ID pattern error'
         - 'rule `no_expression` error: no rule expression'
     rules:
@@ -37390,14 +37317,13 @@ policy_document_errors:
             process.pid: 0(true) own=0(true)
 rule_merge_and_override_across_policies:
     load_errors:
-        - 'rule `rule_missing_no_expression` error: syntax error `1:1: unexpected token "<EOF>"`'
-        - 'rule `rule_missing` error: syntax error `1:1: unexpected token "<EOF>"`'
+        - 'rule `rule_missing_no_expression` error: syntax error `1:1: empty expression`'
+        - 'rule `rule_missing` error: syntax error `1:1: empty expression`'
     rules:
         rule_a:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"a"
@@ -37405,7 +37331,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"b"
@@ -37413,7 +37338,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"c"
@@ -37421,7 +37345,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"d"
@@ -37429,7 +37352,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"e"
@@ -37437,7 +37359,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"f"
@@ -37445,7 +37366,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"g"
@@ -37453,7 +37373,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"h"
@@ -37461,7 +37380,6 @@ rule_merge_and_override_across_policies:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"new"
@@ -37554,31 +37472,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "true"
-                open.flags: "true"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -37593,31 +37502,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="a_replaced"
           scoped_counts:
@@ -37642,31 +37542,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "true"
-                open.flags: "true"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -37681,31 +37572,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="b_enabled"
           scoped_counts:
@@ -37730,31 +37612,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "true"
-                open.flags: "true"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -37777,31 +37650,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "true"
-                open.flags: "true"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -37824,31 +37688,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "true"
-                open.flags: "true"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -37871,31 +37726,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "true"
-                open.flags: "true"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -37910,31 +37756,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="f2"
           scoped_counts:
@@ -37951,31 +37788,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="f3"
           scoped_counts:
@@ -38000,31 +37828,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "true"
-                open.flags: "true"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -38039,31 +37858,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="g_override"
           scoped_counts:
@@ -38088,31 +37898,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "true"
-                open.flags: "true"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -38127,31 +37928,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "false"
-                open.flags: "false"
           discarders:
             - open:open.file.name="h_merge"
           scoped_counts:
@@ -38176,31 +37968,22 @@ rule_merge_and_override_across_policies:
           partials:
             rule_a:
                 open.file.name: "false"
-                open.flags: "false"
             rule_b:
                 open.file.name: "false"
-                open.flags: "false"
             rule_c:
                 open.file.name: "false"
-                open.flags: "false"
             rule_d:
                 open.file.name: "false"
-                open.flags: "false"
             rule_e:
                 open.file.name: "false"
-                open.flags: "false"
             rule_f:
                 open.file.name: "false"
-                open.flags: "false"
             rule_g:
                 open.file.name: "false"
-                open.flags: "false"
             rule_h:
                 open.file.name: "false"
-                open.flags: "false"
             rule_new:
                 open.file.name: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -38234,11 +38017,13 @@ scalar_versus_array_operands:
         - |-
           rule `r24` error: rule syntax error: operator `>` unknown: 1:1: process.ancestors.is_thread > true && bpf.cmd == 22
           ^
-        - 'rule `r25` error: syntax error `1:39: unexpected token "&" (expected "]")`'
+        - |-
+          rule `r25` error: rule syntax error: array expected: 1:32: process.ancestors.is_thread in [true] && bpf.cmd == 23
+                                         ^
         - |-
           rule `r26` error: rule syntax error: array expected: 1:32: process.ancestors.is_thread in [true, false ] && bpf.cmd == 24
                                          ^
-        - 'rule `r30` error: syntax error `1:32: unexpected token "," (expected "]")`'
+        - 'rule `r30` error: syntax error `1:34: expected member of an array of identifiers, found integer `1``'
         - |-
           rule `r36` error: rule syntax error: string expected: 1:21: dns.response.ips == "x" && dns.question.name == "s5"
                               ^
@@ -38246,7 +38031,7 @@ scalar_versus_array_operands:
           rule `r37` error: rule syntax error: string expected: 1:21: dns.response.ips == 5 && dns.question.name == "s6"
                               ^
         - |-
-          rule `r42` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: exec.argv > "a"
+          rule `r42` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: exec.argv > "a"
           ^
         - 'rule `r43` error: rule compilation error: unable to apply pattern on non static value `exec.file.name`'
         - 'rule `r54` error: rule compilation error: expression with multiple event types is not supported'
@@ -38257,7 +38042,7 @@ scalar_versus_array_operands:
           rule `r68` error: rule syntax error: int expected: 1:55: exec.file.name == "e28" && not (process.created_at =~ 1m)
                                                                 ^
         - |-
-          rule `r73` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: exec.file.name == "e33" && not (process.ancestors.created_at == 1m)
+          rule `r73` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: exec.file.name == "e33" && not (process.ancestors.created_at == 1m)
           ^
     rules:
         r0:
@@ -47318,15 +47103,15 @@ type_errors_arrays_and_ips:
         - |-
           rule `r15` error: rule syntax error: array of int expected: 1:15: open.flags in [true, false ]
                         ^
-        - 'rule `r16` error: syntax error `1:23: unexpected token "," (expected "]")`'
-        - 'rule `r17` error: syntax error `1:17: unexpected token "," (expected "]")`'
-        - 'rule `r18` error: syntax error `1:17: unexpected token "," (expected "]")`'
-        - 'rule `r19` error: syntax error `1:23: unexpected token "," (expected "]")`'
+        - 'rule `r16` error: syntax error `1:25: expected member of an array of identifiers, found string `"x"``'
+        - 'rule `r17` error: syntax error `1:19: expected member of an array of integers, found string `"a"``'
+        - 'rule `r18` error: syntax error `1:19: expected member of an array of integers, found identifier `O_CREAT``'
+        - 'rule `r19` error: syntax error `1:25: expected member of an array of identifiers, found integer `1``'
         - |-
           rule `r1` error: rule syntax error: array of int expected: 1:15: open.flags in ["a", "b"]
                         ^
-        - 'rule `r20` error: syntax error `1:23: unexpected token "," (expected "]")`'
-        - 'rule `r21` error: syntax error `1:23: unexpected token "," (expected "]")`'
+        - 'rule `r20` error: syntax error `1:25: expected member of an array of strings, found integer `1``'
+        - 'rule `r21` error: syntax error `1:25: expected member of an array of strings, found identifier `O_CREAT``'
         - |-
           rule `r22` error: rule syntax error: array of string expected: 1:19: open.file.name in [true ]
                             ^
@@ -47345,19 +47130,19 @@ type_errors_arrays_and_ips:
         - |-
           rule `r28` error: rule syntax error: array of *eval.IntArrayEvaluator expected: 1:20: connect.addr.ip in [1]
                              ^
-        - 'rule `r29` error: syntax error `1:29: unexpected token "," (expected "]")`'
+        - 'rule `r29` error: syntax error `1:31: expected member of an array of IPs, found string `"x"``'
         - |-
           rule `r2` error: rule syntax error: array of string expected: 1:19: open.file.name in [1, 2]
                             ^
-        - 'rule `r30` error: syntax error `1:29: unexpected token "," (expected "]")`'
+        - 'rule `r30` error: syntax error `1:31: expected member of an array of IPs, found integer `5``'
         - |-
-          rule `r31` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: connect.addr.ip == "10.0.0.1"
+          rule `r31` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: connect.addr.ip == "10.0.0.1"
           ^
         - |-
-          rule `r32` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: connect.addr.ip == 10
+          rule `r32` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: connect.addr.ip == 10
           ^
         - |-
-          rule `r33` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: connect.addr.ip == true
+          rule `r33` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: connect.addr.ip == true
           ^
         - |-
           rule `r34` error: rule syntax error: operator `>` unknown: 1:1: connect.addr.ip > 10.0.0.1
@@ -47374,15 +47159,14 @@ type_errors_arrays_and_ips:
         - |-
           rule `r39` error: rule syntax error: invalid CIDR '10.0.0.0/33': 1:20: connect.addr.ip == 10.0.0.0/33
                              ^
-        - 'rule `r3` error: rule compilation error: array of unsupported identifiers (ident type: `%!s(<nil>)`)'
+        - 'rule `r3` error: rule compilation error: `NOSUCH_CONST` is not a constant, the members of an array of identifiers have to be constants'
         - |-
           rule `r40` error: rule syntax error: invalid IP '300.0.0.1': 1:20: connect.addr.ip in [300.0.0.1]
                              ^
         - |-
           rule `r41` error: rule syntax error: invalid IP '999.1.1.1': 1:20: connect.addr.ip == 999.1.1.1
                              ^
-        - 'rule `r42` error: syntax error `1:31: unexpected token "," (expected "]")`'
-        - 'rule `r43` error: syntax error `1:33: unexpected token "<EOF>" (expected "]")`'
+        - 'rule `r42` error: syntax error `1:33: expected member of an array of IPs, found string `"x"``'
         - |-
           rule `r44` error: rule syntax error: array of bool expected: 1:27: connect.addr.is_public in [1]
                                     ^
@@ -47395,7 +47179,6 @@ type_errors_arrays_and_ips:
         - |-
           rule `r56` error: rule syntax error: int expected: 1:21: bpf.prog.helpers == "x"
                               ^
-        - 'rule `r5` error: syntax error `1:33: unexpected token "&" (expected "]")`'
         - |-
           rule `r60` error: rule syntax error: string expected: 1:21: dns.response.ips == "x"
                               ^
@@ -47425,6 +47208,17 @@ type_errors_arrays_and_ips:
             field_values:
                 open.file.name:
                     - scalar:"const"
+                open.flags:
+                    - scalar:64
+                    - scalar:2
+        r5:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"const-nospace"
                 open.flags:
                     - scalar:64
                     - scalar:2
@@ -47503,6 +47297,13 @@ type_errors_arrays_and_ips:
                     - :<nil>
                 connect.addr.port:
                     - scalar:1
+        r43:
+            event_type: connect
+            fields:
+                - connect.addr.is_public
+            field_values:
+                connect.addr.is_public:
+                    - :true
         r45:
             event_type: exec
             fields:
@@ -47653,9 +47454,7 @@ type_errors_arrays_and_ips:
         bpf:
             accept_mode: r55
         connect:
-            approvers:
-                connect.addr.port:
-                    - scalar:1
+            accept_mode: r43
             field_stats:
                 connect.addr.port: 1
         dns:
@@ -47667,6 +47466,7 @@ type_errors_arrays_and_ips:
                 open.file.name:
                     - scalar:"ok"
                     - scalar:"const"
+                    - scalar:"const-nospace"
                     - scalar:"const-single"
                     - scalar:"const3"
                     - scalar:"a"
@@ -47677,13 +47477,14 @@ type_errors_arrays_and_ips:
                     - scalar:64
                     - scalar:3
             field_stats:
-                open.file.name: 7
+                open.file.name: 8
                 open.flags: 2
     discarders_report:
         bpf.cmd: 'invalid: r55'
         bpf.prog.helpers: supported
         connect.addr.ip: supported
-        connect.addr.port: supported
+        connect.addr.is_public: 'invalid: r36'
+        connect.addr.port: 'invalid: r43'
         dns.question.name: 'invalid: r59'
         dns.response.ips: supported
         exec.argv: 'panic: runtime error: invalid memory address or nil pointer dereference'
@@ -47707,6 +47508,8 @@ type_errors_arrays_and_ips:
         connect.addr.ip:
             - :<nil>
             - :<nil>
+        connect.addr.is_public:
+            - :true
         connect.addr.port:
             - scalar:1
         dns.question.name:
@@ -47742,6 +47545,7 @@ type_errors_arrays_and_ips:
             - scalar:"a"
             - scalar:"b"
             - scalar:"const"
+            - scalar:"const-nospace"
             - scalar:"const-single"
             - scalar:"const3"
             - scalar:"mixconst"
@@ -47756,8 +47560,10 @@ type_errors_arrays_and_ips:
             - scalar:1024
             - scalar:2
             - scalar:2
+            - scalar:2
             - scalar:3
             - scalar:512
+            - scalar:64
             - scalar:64
             - scalar:64
             - scalar:64
@@ -47772,9 +47578,11 @@ type_errors_arrays_and_ips:
         - r23
         - r36
         - r4
+        - r43
         - r45
         - r46
         - r47
+        - r5
         - r50
         - r51
         - r52
@@ -47793,10 +47601,11 @@ type_errors_arrays_and_ips:
         - r9
     approvers_all:
         - accept_mode bpf=r55
+        - accept_mode connect=r43
         - accept_mode dns=r59
         - accept_mode exec=r45
         - field_stats connect.addr.port=1
-        - field_stats open.file.name=7
+        - field_stats open.file.name=8
         - field_stats open.flags=2
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.name in [\"ok\"] && open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -47885,6 +47694,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "false"
                 open.flags: "false"
+            r5:
+                open.file.name: "false"
+                open.flags: "false"
             r7:
                 open.file.name: "false"
                 open.flags: "false"
@@ -47915,6 +47727,9 @@ type_errors_arrays_and_ips:
                 open.file.name: "true"
                 open.flags: "false"
             r4:
+                open.file.name: "false"
+                open.flags: "false"
+            r5:
                 open.file.name: "false"
                 open.flags: "false"
             r7:
@@ -47962,6 +47777,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "true"
                 open.flags: "true"
+            r5:
+                open.file.name: "false"
+                open.flags: "true"
             r7:
                 open.file.name: "false"
                 open.flags: "true"
@@ -47993,6 +47811,9 @@ type_errors_arrays_and_ips:
                 open.flags: "false"
             r4:
                 open.file.name: "true"
+                open.flags: "false"
+            r5:
+                open.file.name: "false"
                 open.flags: "false"
             r7:
                 open.file.name: "false"
@@ -48037,6 +47858,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "true"
                 open.flags: "true"
+            r5:
+                open.file.name: "false"
+                open.flags: "true"
             r7:
                 open.file.name: "false"
                 open.flags: "false"
@@ -48068,6 +47892,9 @@ type_errors_arrays_and_ips:
                 open.flags: "false"
             r4:
                 open.file.name: "true"
+                open.flags: "false"
+            r5:
+                open.file.name: "false"
                 open.flags: "false"
             r7:
                 open.file.name: "false"
@@ -48116,6 +47943,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "false"
                 open.flags: "true"
+            r5:
+                open.file.name: "false"
+                open.flags: "true"
             r7:
                 open.file.name: "true"
                 open.flags: "true"
@@ -48146,6 +47976,9 @@ type_errors_arrays_and_ips:
                 open.file.name: "false"
                 open.flags: "false"
             r4:
+                open.file.name: "false"
+                open.flags: "false"
+            r5:
                 open.file.name: "false"
                 open.flags: "false"
             r7:
@@ -48191,6 +48024,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "false"
                 open.flags: "false"
+            r5:
+                open.file.name: "false"
+                open.flags: "false"
             r7:
                 open.file.name: "false"
                 open.flags: "false"
@@ -48232,6 +48068,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "false"
                 open.flags: "false"
+            r5:
+                open.file.name: "false"
+                open.flags: "false"
             r7:
                 open.file.name: "false"
                 open.flags: "false"
@@ -48262,6 +48101,9 @@ type_errors_arrays_and_ips:
                 open.file.name: "false"
                 open.flags: "false"
             r4:
+                open.file.name: "false"
+                open.flags: "false"
+            r5:
                 open.file.name: "false"
                 open.flags: "false"
             r7:
@@ -48308,6 +48150,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "false"
                 open.flags: "false"
+            r5:
+                open.file.name: "false"
+                open.flags: "false"
             r7:
                 open.file.name: "false"
                 open.flags: "false"
@@ -48338,6 +48183,9 @@ type_errors_arrays_and_ips:
                 open.file.name: "false"
                 open.flags: "false"
             r4:
+                open.file.name: "false"
+                open.flags: "false"
+            r5:
                 open.file.name: "false"
                 open.flags: "false"
             r7:
@@ -48385,6 +48233,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "false"
                 open.flags: "true"
+            r5:
+                open.file.name: "false"
+                open.flags: "true"
             r7:
                 open.file.name: "false"
                 open.flags: "true"
@@ -48427,6 +48278,9 @@ type_errors_arrays_and_ips:
             r4:
                 open.file.name: "false"
                 open.flags: "false"
+            r5:
+                open.file.name: "false"
+                open.flags: "false"
             r7:
                 open.file.name: "false"
                 open.flags: "false"
@@ -48467,6 +48321,9 @@ type_errors_arrays_and_ips:
                 open.file.name: "false"
                 open.flags: "true"
             r4:
+                open.file.name: "false"
+                open.flags: "false"
+            r5:
                 open.file.name: "false"
                 open.flags: "false"
             r7:
@@ -48857,6 +48714,8 @@ type_errors_arrays_and_ips:
             r36:
                 connect.addr.ip: "true"
                 connect.addr.port: "true"
+            r43:
+                connect.addr.is_public: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -49266,9 +49125,7 @@ type_errors_scalar_operands:
         - |-
           rule `r38` error: rule syntax error: int expected: 1:14: open.flags ^ "a" == 1
                        ^
-        - |-
-          rule `r39` error: rule syntax error: int expected: 1:19: open.file.name == "a" & open.flags == 1
-                            ^
+        - 'rule `r39` error: syntax error `1:36: comparisons can''t be chained, add parentheses`'
         - |-
           rule `r3` error: rule syntax error: string expected: 1:19: open.file.name == true
                             ^
@@ -49322,6 +49179,8 @@ type_errors_scalar_operands:
                 - connect.addr.is_public
                 - connect.addr.port
             field_values:
+                connect.addr.is_public:
+                    - scalar:true
                 connect.addr.port:
                     - scalar:81
         r10:
@@ -49349,12 +49208,11 @@ type_errors_scalar_operands:
                     - scalar:true
                 connect.addr.port:
                     - scalar:80
-                    - scalar:81
                     - scalar:82
                     - scalar:83
             field_stats:
-                connect.addr.is_public: 1
-                connect.addr.port: 4
+                connect.addr.is_public: 2
+                connect.addr.port: 3
         open:
             approvers:
                 open.file.name:
@@ -49373,6 +49231,7 @@ type_errors_scalar_operands:
         connect.addr.is_public:
             - scalar:false
             - scalar:false
+            - scalar:true
             - scalar:true
         connect.addr.port:
             - scalar:80
@@ -49393,8 +49252,8 @@ type_errors_scalar_operands:
         - r8
         - r9
     approvers_all:
-        - field_stats connect.addr.is_public=1
-        - field_stats connect.addr.port=4
+        - field_stats connect.addr.is_public=2
+        - field_stats connect.addr.port=3
         - field_stats open.file.name=1
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.name == \"ok\" && open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -49705,10 +49564,10 @@ unknown_fields_constants_and_variables:
         - |-
           rule `r31` error: rule syntax error: string expected: 1:19: open.file.name == %{exec.argv}
                             ^
-        - 'rule `r32` error: syntax error `1:19: lexer: invalid input text "${}"`'
-        - 'rule `r33` error: syntax error `1:20: lexer: invalid input text "{}"`'
-        - 'rule `r34` error: syntax error `1:19: lexer: invalid input text "${a b}"`'
-        - 'rule `r35` error: syntax error `1:19: lexer: invalid input text "${1abc}"`'
+        - 'rule `r32` error: syntax error `1:19: invalid variable `${`, expected `${name}` (and 1 more errors)`'
+        - 'rule `r33` error: syntax error `1:19: invalid field reference `%{`, expected `%{name}` (and 1 more errors)`'
+        - 'rule `r34` error: syntax error `1:19: invalid variable `${a`, expected `${name}` (and 1 more errors)`'
+        - 'rule `r35` error: syntax error `1:19: invalid variable `${`, expected `${name}` (and 2 more errors)`'
         - |-
           rule `r36` error: rule syntax error: string expected: 1:19: open.file.name == ${process.pid}
                             ^
@@ -51709,7 +51568,7 @@ variable_reference_errors:
           rule `r25` error: rule syntax error: 'length' cannot be used on 'v_bool': 1:19: open.file.name == "${v_bool.length}"
                             ^
         - |-
-          rule `r27` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: connect.addr.ip == ${v_cidr} && connect.addr.port == 2
+          rule `r27` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: connect.addr.ip == ${v_cidr} && connect.addr.port == 2
           ^
         - |-
           rule `r28` error: rule syntax error: array of *eval.StringEvaluator expected: 1:20: connect.addr.ip in ${v_str}

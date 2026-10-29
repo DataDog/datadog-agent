@@ -545,29 +545,41 @@ approvers_expression_macros_have_no_field_values:
             event_type: open
             fields:
                 - open.file.path
-                - open.file.path
-                - open.flags
             field_values:
                 open.file.path:
-                    - scalar:"/etc/passwd"
                     - scalar:"/etc/passwd"
         r1:
             event_type: open
             fields:
                 - open.file.path
                 - open.flags
+            field_values:
+                open.file.path:
+                    - glob:"/tmp/*"
+                open.flags:
+                    - bitmask:3
+                    - range:0
         r2:
             event_type: open
             fields:
                 - open.file.path
-                - open.flags
+            field_values:
+                open.file.path:
+                    - glob:"/tmp/*"
     approvers:
         open:
-            accept_mode: r1
+            approvers:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - glob:"/tmp/*"
+                open.flags:
+                    - bitmask:3
             field_stats:
-                open.file.path: 1
+                open.file.path: 2
+                open.flags: 1
     discarders_report:
         open.file.path: supported
+        open.flags: 'invalid: r0'
     event_types:
         - open
     macro_ids:
@@ -575,7 +587,12 @@ approvers_expression_macros_have_no_field_values:
         - tmp_files
     field_values:
         open.file.path:
+            - glob:"/tmp/*"
+            - glob:"/tmp/*"
             - scalar:"/etc/passwd"
+        open.flags:
+            - bitmask:3
+            - range:0
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r2]
     rule_ids:
@@ -583,8 +600,8 @@ approvers_expression_macros_have_no_field_values:
         - r1
         - r2
     approvers_all:
-        - accept_mode open=r1
-        - field_stats open.file.path=1
+        - field_stats open.file.path=2
+        - field_stats open.flags=1
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.path == \"/etc/passwd\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="tmp_files && is_write" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -600,13 +617,11 @@ approvers_expression_macros_have_no_field_values:
           partials:
             r0:
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.path: "true"
                 open.flags: "true"
             r2:
                 open.file.path: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -619,13 +634,11 @@ approvers_expression_macros_have_no_field_values:
           partials:
             r0:
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.path: "true"
                 open.flags: "false"
             r2:
                 open.file.path: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -634,13 +647,11 @@ approvers_expression_macros_have_no_field_values:
           partials:
             r0:
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.path: "false"
                 open.flags: "true"
             r2:
                 open.file.path: "false"
-                open.flags: "true"
           discarders:
             - open:open.file.path="/srv/x"
           scoped_counts:
@@ -653,7 +664,6 @@ approvers_from_macros_and_arrays:
             event_type: open
             fields:
                 - open.file.path
-                - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/etc/shadow"
@@ -667,16 +677,23 @@ approvers_from_macros_and_arrays:
                 open.file.path:
                     - scalar:"/etc/shadow"
                     - scalar:"/etc/gshadow"
+                open.flags:
+                    - bitmask:3
+                    - range:0
     approvers:
         open:
             approvers:
                 open.file.path:
                     - scalar:"/etc/shadow"
                     - scalar:"/etc/gshadow"
+                open.flags:
+                    - bitmask:3
             field_stats:
-                open.file.path: 2
+                open.file.path: 1
+                open.flags: 1
     discarders_report:
         open.file.path: supported
+        open.flags: 'invalid: r0'
     event_types:
         - open
     macro_ids:
@@ -688,13 +705,17 @@ approvers_from_macros_and_arrays:
             - scalar:"/etc/gshadow"
             - scalar:"/etc/shadow"
             - scalar:"/etc/shadow"
+        open.flags:
+            - bitmask:3
+            - range:0
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1]
     rule_ids:
         - r0
         - r1
     approvers_all:
-        - field_stats open.file.path=2
+        - field_stats open.file.path=1
+        - field_stats open.flags=1
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.path in sensitive" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="open.file.path in sensitive && is_write" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -710,7 +731,6 @@ approvers_from_macros_and_arrays:
           partials:
             r0:
                 open.file.path: "true"
-                open.flags: "true"
             r1:
                 open.file.path: "true"
                 open.flags: "false"
@@ -733,7 +753,6 @@ approvers_from_macros_and_arrays:
           partials:
             r0:
                 open.file.path: "true"
-                open.flags: "true"
             r1:
                 open.file.path: "true"
                 open.flags: "true"
@@ -745,7 +764,6 @@ approvers_from_macros_and_arrays:
           partials:
             r0:
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.path: "false"
                 open.flags: "true"
@@ -759,7 +777,6 @@ approvers_from_macros_and_arrays:
           partials:
             r0:
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.path: "false"
                 open.flags: "true"
@@ -854,35 +871,57 @@ approvers_macro_default_caps:
             fields:
                 - open.file.name
                 - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+                open.flags:
+                    - scalar:2
         r1:
             event_type: open
             fields:
                 - open.file.name
                 - open.file.path
-                - open.flags
             field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
                 open.file.path:
                     - scalar:"/p"
     approvers:
         open:
-            accept_mode: r0
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+            field_stats:
+                open.file.name: 2
     discarders_report:
+        open.file.name: supported
         open.file.path: 'invalid: r0'
+        open.flags: 'invalid: r1'
     event_types:
         - open
     macro_ids:
         - m1
         - m2
     field_values:
+        open.file.name:
+            - scalar:"a"
+            - scalar:"a"
+            - scalar:"b"
+            - scalar:"b"
         open.file.path:
             - scalar:"/p"
+        open.flags:
+            - scalar:2
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1]
     rule_ids:
         - r0
         - r1
     approvers_all:
-        - accept_mode open=r0
+        - field_stats open.file.name=2
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="m2" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="m1 && open.file.path == \"/p\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -899,7 +938,6 @@ approvers_macro_default_caps:
             r1:
                 open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -920,7 +958,6 @@ approvers_macro_default_caps:
             r1:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -928,12 +965,13 @@ approvers_macro_default_caps:
         - result: false
           partials:
             r0:
-                open.file.name: "true"
+                open.file.name: "false"
                 open.flags: "true"
             r1:
                 open.file.name: "false"
                 open.file.path: "false"
-                open.flags: "true"
+          discarders:
+            - open:open.file.name="c"
           scoped_counts:
             process.pid: 0
           variables:
@@ -4353,6 +4391,10 @@ discarders_macro_only_rule:
                 - open.file.path
                 - open.flags
             field_values:
+                open.file.name:
+                    - scalar:"n"
+                open.file.path:
+                    - scalar:"/a"
                 open.flags:
                     - scalar:1
     approvers:
@@ -4363,12 +4405,18 @@ discarders_macro_only_rule:
             field_stats:
                 open.flags: 1
     discarders_report:
+        open.file.name: supported
+        open.file.path: supported
         open.flags: supported
     event_types:
         - open
     macro_ids:
         - m
     field_values:
+        open.file.name:
+            - scalar:"n"
+        open.file.path:
+            - scalar:"/a"
         open.flags:
             - scalar:1
     policies:
@@ -4423,31 +4471,47 @@ discarders_macros_every_rule_has_path:
             fields:
                 - open.file.path
                 - open.flags
+            field_values:
+                open.file.path:
+                    - glob:"/tmp/*"
+                open.flags:
+                    - bitmask:1
+                    - range:0
         r1:
             event_type: open
             fields:
-                - open.file.path
                 - open.file.path
                 - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/etc/passwd"
-                    - scalar:"/etc/passwd"
+                open.flags:
+                    - bitmask:1
+                    - range:0
         r2:
             event_type: open
             fields:
                 - open.file.name
                 - open.file.path
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"n"
+                open.file.path:
+                    - glob:"/tmp/*"
     approvers:
         open:
-            accept_mode: r0
+            approvers:
+                open.file.name:
+                    - scalar:"n"
+                open.file.path:
+                    - glob:"/tmp/*"
+                    - scalar:"/etc/passwd"
+            field_stats:
+                open.file.name: 1
+                open.file.path: 2
     discarders_report:
         open.file.path: supported
-        open.flags: supported
+        open.flags: 'invalid: r2'
     event_types:
         - open
     macro_ids:
@@ -4457,7 +4521,14 @@ discarders_macros_every_rule_has_path:
         open.file.name:
             - scalar:"n"
         open.file.path:
+            - glob:"/tmp/*"
+            - glob:"/tmp/*"
             - scalar:"/etc/passwd"
+        open.flags:
+            - bitmask:1
+            - bitmask:1
+            - range:0
+            - range:0
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r2]
     rule_ids:
@@ -4465,7 +4536,8 @@ discarders_macros_every_rule_has_path:
         - r1
         - r2
     approvers_all:
-        - accept_mode open=r0
+        - field_stats open.file.name=1
+        - field_stats open.file.path=2
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="tmp && is_write" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="open.file.path == \"/etc/passwd\" && is_write" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -4486,7 +4558,6 @@ discarders_macros_every_rule_has_path:
             r2:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -4502,7 +4573,6 @@ discarders_macros_every_rule_has_path:
             r2:
                 open.file.name: "false"
                 open.file.path: "false"
-                open.flags: "true"
           discarders:
             - open:open.file.path="/srv/a"
           scoped_counts:
@@ -4528,7 +4598,6 @@ discarders_macros_every_rule_has_path:
             r2:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -4544,7 +4613,6 @@ discarders_macros_every_rule_has_path:
             r2:
                 open.file.name: "false"
                 open.file.path: "false"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6129,9 +6197,7 @@ discarders_with_macros:
         r0:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
-                - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/etc/shadow"
@@ -6141,23 +6207,39 @@ discarders_with_macros:
             fields:
                 - open.file.name
                 - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"k"
+                open.flags:
+                    - bitmask:1
+                    - range:0
         r2:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
                 - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/etc/shadow"
                     - scalar:"/etc/passwd"
+                open.flags:
+                    - bitmask:1
+                    - range:0
     approvers:
         open:
-            accept_mode: r1
+            approvers:
+                open.file.name:
+                    - scalar:"k"
+                open.file.path:
+                    - scalar:"/etc/shadow"
+                    - scalar:"/etc/passwd"
             field_stats:
-                open.file.path: 1
+                open.file.name: 1
+                open.file.path: 2
     discarders_report:
+        open.file.name: 'invalid: r0'
         open.file.path: 'invalid: r1'
+        open.flags: 'invalid: r0'
     event_types:
         - open
     macro_ids:
@@ -6165,11 +6247,18 @@ discarders_with_macros:
         - nested
         - sens
     field_values:
+        open.file.name:
+            - scalar:"k"
         open.file.path:
             - scalar:"/etc/passwd"
             - scalar:"/etc/passwd"
             - scalar:"/etc/shadow"
             - scalar:"/etc/shadow"
+        open.flags:
+            - bitmask:1
+            - bitmask:1
+            - range:0
+            - range:0
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r2]
     rule_ids:
@@ -6177,8 +6266,8 @@ discarders_with_macros:
         - r1
         - r2
     approvers_all:
-        - accept_mode open=r1
-        - field_stats open.file.path=1
+        - field_stats open.file.name=1
+        - field_stats open.file.path=2
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.path in sens" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="nested" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -6194,14 +6283,11 @@ discarders_with_macros:
                 - open.file.path="/etc/shadow"@0+14
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "true"
             r1:
                 open.file.name: "false"
-                open.flags: "true"
+                open.flags: "false"
             r2:
-                open.file.name: "true"
                 open.file.path: "true"
                 open.flags: "false"
           scoped_counts:
@@ -6211,14 +6297,11 @@ discarders_with_macros:
         - result: false
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.name: "false"
-                open.flags: "true"
+                open.flags: "false"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
           scoped_counts:
@@ -6232,14 +6315,11 @@ discarders_with_macros:
             - r1
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.name: "true"
                 open.flags: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "true"
           scoped_counts:
@@ -6249,14 +6329,11 @@ discarders_with_macros:
         - result: false
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             r1:
                 open.file.name: "false"
                 open.flags: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "true"
           scoped_counts:

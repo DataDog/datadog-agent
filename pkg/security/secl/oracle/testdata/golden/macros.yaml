@@ -3,42 +3,55 @@ expression_macro_bool:
         either:
             event_type: open
             fields:
-                - open.file.path
                 - open.flags
                 - process.uid
+            field_values:
+                open.flags:
+                    - bitmask:1
+                    - scalar:0
+                process.uid:
+                    - scalar:0
         not_root:
             event_type: open
             fields:
                 - open.file.path
-                - open.file.path
-                - open.flags
                 - process.uid
             field_values:
                 open.file.path:
                     - scalar:""
-                    - scalar:""
+                process.uid:
+                    - scalar:0
         root_tmp:
             event_type: open
             fields:
                 - open.file.path
-                - open.file.path
-                - open.flags
                 - process.uid
             field_values:
                 open.file.path:
                     - scalar:""
-                    - scalar:""
+                    - glob:"/tmp/*"
+                process.uid:
+                    - scalar:0
         write_not_tmp:
             event_type: open
             fields:
                 - open.file.path
                 - open.flags
-                - process.uid
+            field_values:
+                open.file.path:
+                    - glob:"/tmp/*"
+                open.flags:
+                    - bitmask:1
+                    - scalar:0
     approvers:
         open:
-            accept_mode: root_tmp
+            accept_mode: not_root
+            field_stats:
+                open.file.path: 1
     discarders_report:
         open.file.path: supported
+        open.flags: 'invalid: root_tmp'
+        process.uid: none
     event_types:
         - open
     macro_ids:
@@ -47,8 +60,19 @@ expression_macro_bool:
         - write_flag
     field_values:
         open.file.path:
+            - glob:"/tmp/*"
+            - glob:"/tmp/*"
             - scalar:""
             - scalar:""
+        open.flags:
+            - bitmask:1
+            - bitmask:1
+            - scalar:0
+            - scalar:0
+        process.uid:
+            - scalar:0
+            - scalar:0
+            - scalar:0
     policies:
         - policy0(oracle) internal_type= type= version= replace= [either not_root root_tmp write_not_tmp]
     rule_ids:
@@ -57,7 +81,8 @@ expression_macro_bool:
         - root_tmp
         - write_not_tmp
     approvers_all:
-        - accept_mode open=root_tmp
+        - accept_mode open=not_root
+        - field_stats open.file.path=1
     policy_rules:
         - policy0/root_tmp accepted=true disabled=false expression="open.file.path != \"\" && is_root && tmp_file" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/not_root accepted=true disabled=false expression="open.file.path != \"\" && !is_root" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -76,21 +101,17 @@ expression_macro_bool:
                 - open.file.path="/tmp/a"@0+14
           partials:
             either:
-                open.file.path: "true"
                 open.flags: "true"
                 process.uid: "true"
             not_root:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "false"
             root_tmp:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "true"
             write_not_tmp:
                 open.file.path: "false"
                 open.flags: "false"
-                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -102,21 +123,17 @@ expression_macro_bool:
             - not_root
           partials:
             either:
-                open.file.path: "true"
                 open.flags: "true"
                 process.uid: "true"
             not_root:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "true"
             root_tmp:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "false"
             write_not_tmp:
                 open.file.path: "false"
                 open.flags: "false"
-                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -132,21 +149,17 @@ expression_macro_bool:
             - either
           partials:
             either:
-                open.file.path: "true"
                 open.flags: "true"
                 process.uid: "true"
             not_root:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "true"
             root_tmp:
                 open.file.path: "false"
-                open.flags: "true"
                 process.uid: "false"
             write_not_tmp:
                 open.file.path: "true"
                 open.flags: "true"
-                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -160,21 +173,17 @@ expression_macro_bool:
             - either
           partials:
             either:
-                open.file.path: "true"
                 open.flags: "true"
                 process.uid: "true"
             not_root:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "true"
             root_tmp:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "false"
             write_not_tmp:
                 open.file.path: "false"
                 open.flags: "true"
-                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -188,21 +197,17 @@ expression_macro_bool:
             - either
           partials:
             either:
-                open.file.path: "true"
                 open.flags: "true"
                 process.uid: "true"
             not_root:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "false"
             root_tmp:
                 open.file.path: "false"
-                open.flags: "true"
                 process.uid: "true"
             write_not_tmp:
                 open.file.path: "true"
                 open.flags: "true"
-                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -214,21 +219,17 @@ expression_macro_bool:
             - not_root
           partials:
             either:
-                open.file.path: "true"
                 open.flags: "true"
                 process.uid: "true"
             not_root:
                 open.file.path: "true"
-                open.flags: "true"
                 process.uid: "true"
             root_tmp:
                 open.file.path: "false"
-                open.flags: "true"
                 process.uid: "false"
             write_not_tmp:
                 open.file.path: "true"
                 open.flags: "false"
-                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -407,20 +408,24 @@ macro_agent_version_values:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a"
                     - scalar:"a"
         r_ok:
             event_type: open
             fields:
                 - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"ok"
     approvers:
         open:
-            accept_mode: r_ok
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"ok"
             field_stats:
-                open.file.name: 1
+                open.file.name: 2
     discarders_report:
         open.file.name: supported
     event_types:
@@ -431,14 +436,14 @@ macro_agent_version_values:
     field_values:
         open.file.name:
             - scalar:"a"
+            - scalar:"ok"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r_names r_names_new r_ok r_old]
     rule_ids:
         - r_names
         - r_ok
     approvers_all:
-        - accept_mode open=r_ok
-        - field_stats open.file.name=1
+        - field_stats open.file.name=2
     policy_rules:
         - policy0/r_names accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r_names_new accepted=true disabled=false expression="open.file.name in names_new" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -501,17 +506,87 @@ macro_agent_version_values:
           variables:
             process.pid: 0(true) own=0(true)
 macro_bare_rules_two_event_types:
-    load_errors:
-        - 'rule `ok2` error: expression with multiple event types is not supported'
-        - 'rule `ok3` error: expression with multiple event types is not supported'
-        - 'rule `ok4` error: expression with multiple event types is not supported'
-        - 'rule `ok` error: expression with multiple event types is not supported'
-        - 'rule `plain` error: expression with multiple event types is not supported'
+    rules:
+        ok:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - scalar:"y"
+        ok2:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/x"
+        ok3:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - scalar:"y"
+                    - scalar:""
+        ok4:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:""
+                    - scalar:"/x"
+        plain:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - scalar:"y"
+    approvers:
+        exec:
+            approvers:
+                exec.file.name:
+                    - scalar:"y"
+            field_stats:
+                exec.file.name: 3
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/x"
+            field_stats:
+                open.file.path: 2
+    discarders_report:
+        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        open.file.path: supported
+    event_types:
+        - exec
+        - open
     macro_ids:
         - exec_macro
         - open_macro
+    field_values:
+        exec.file.name:
+            - scalar:""
+            - scalar:"y"
+            - scalar:"y"
+            - scalar:"y"
+        open.file.path:
+            - scalar:""
+            - scalar:"/x"
+            - scalar:"/x"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [ok ok2 ok3 ok4 plain]
+    rule_ids:
+        - ok
+        - ok2
+        - ok3
+        - ok4
+        - plain
+    approvers_all:
+        - field_stats exec.file.name=3
+        - field_stats open.file.path=2
     policy_rules:
         - policy0/ok accepted=true disabled=false expression="exec_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/ok2 accepted=true disabled=false expression="open_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -519,12 +594,47 @@ macro_bare_rules_two_event_types:
         - policy0/ok4 accepted=true disabled=false expression="open.file.path != \"\" && open_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/plain accepted=true disabled=false expression="exec.file.name == \"y\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
-        - result: false
+        - result: true
+          matched:
+            - ok
+            - ok3
+            - plain
+          second_listener:
+            - ok
+            - ok3
+            - plain
+          matching_values:
+            ok3:
+                - exec.file.name="y"@14+14
+            plain:
+                - exec.file.name="y"@0+14
+                - ="y"@18+3
+          partials:
+            ok:
+                exec.file.name: "true"
+            ok3:
+                exec.file.name: "true"
+            plain:
+                exec.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - ok2
+            - ok4
+          second_listener:
+            - ok2
+            - ok4
+          matching_values:
+            ok4:
+                - open.file.path="/x"@0+14
+          partials:
+            ok2:
+                open.file.path: "true"
+            ok4:
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -534,82 +644,67 @@ macro_boolean_expressions:
         a:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.flags
-                - open.flags
+            field_values:
+                open.file.path:
+                    - scalar:"/a"
+                    - scalar:"/b"
         b:
             event_type: open
             fields:
-                - open.file.name
-                - open.file.path
-                - open.file.path
-                - open.file.path
                 - open.file.path
                 - open.flags
-                - open.flags
+            field_values:
+                open.file.path:
+                    - scalar:"/c"
+                open.flags:
+                    - scalar:1
         c:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
                 - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.flags
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"q"
-                    - scalar:"q"
+                open.file.path:
+                    - scalar:"/d"
         d:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.flags
                 - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/i"
-                    - scalar:"/i"
-                    - scalar:"/i"
-                    - scalar:"/i"
-                    - scalar:"/i"
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:3
         e:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.flags
-                - open.flags
+            field_values:
+                open.file.path:
+                    - glob:"/re/**"
         f:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.file.path
-                - open.flags
-                - open.flags
+            field_values:
+                open.file.name:
+                    - regex:"^f[0-9]+$"
     approvers:
         open:
-            accept_mode: a
+            accept_mode: f
+            field_stats:
+                open.file.name: 1
+                open.file.path: 4
     discarders_report:
-        open.file.name: supported
+        open.file.name: 'invalid: a'
         open.file.path: supported
+        open.flags: 'invalid: a'
     event_types:
         - open
     macro_ids:
@@ -621,9 +716,20 @@ macro_boolean_expressions:
         - with_regex
     field_values:
         open.file.name:
+            - regex:"^f[0-9]+$"
             - scalar:"q"
         open.file.path:
+            - glob:"/re/**"
+            - scalar:"/a"
+            - scalar:"/b"
+            - scalar:"/c"
+            - scalar:"/d"
             - scalar:"/i"
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:2
+            - scalar:3
     policies:
         - policy0(oracle) internal_type= type= version= replace= [a b c d e f]
     rule_ids:
@@ -634,7 +740,9 @@ macro_boolean_expressions:
         - e
         - f
     approvers_all:
-        - accept_mode open=a
+        - accept_mode open=f
+        - field_stats open.file.name=1
+        - field_stats open.file.path=4
     policy_rules:
         - policy0/a accepted=true disabled=false expression="paren_or" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/b accepted=true disabled=false expression="with_and" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -650,29 +758,20 @@ macro_boolean_expressions:
             - a
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -684,29 +783,20 @@ macro_boolean_expressions:
             - a
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -714,29 +804,20 @@ macro_boolean_expressions:
         - result: false
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -748,29 +829,20 @@ macro_boolean_expressions:
             - b
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "true"
                 open.flags: "true"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "true"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -778,29 +850,20 @@ macro_boolean_expressions:
         - result: false
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "true"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -808,31 +871,20 @@ macro_boolean_expressions:
         - result: false
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
-          discarders:
-            - open:open.file.path="/d"
           scoped_counts:
             process.pid: 0
           variables:
@@ -848,29 +900,20 @@ macro_boolean_expressions:
                 - ="q"@30+3
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -886,29 +929,20 @@ macro_boolean_expressions:
                 - ="/i"@30+4
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "true"
                 open.flags: "true"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -916,29 +950,20 @@ macro_boolean_expressions:
         - result: false
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "true"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -950,29 +975,20 @@ macro_boolean_expressions:
             - e
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -984,29 +1000,20 @@ macro_boolean_expressions:
             - f
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "true"
-                open.file.path: "true"
-                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1014,29 +1021,20 @@ macro_boolean_expressions:
         - result: false
           partials:
             a:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             b:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             c:
                 open.file.name: "false"
                 open.file.path: "true"
-                open.flags: "true"
             d:
-                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "false"
             e:
-                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "true"
             f:
                 open.file.name: "false"
-                open.file.path: "false"
-                open.flags: "false"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1110,25 +1108,32 @@ macro_cidr_and_ip:
             event_type: connect
             fields:
                 - connect.addr.ip
-                - connect.addr.ip
-                - connect.addr.ip
                 - connect.addr.port
             field_values:
                 connect.addr.ip:
                     - ip:0.0.0.0/32
-                    - ip:0.0.0.0/32
-                    - ip:0.0.0.0/32
+                    - ip:10.0.0.0/8
+                    - ip:192.168.0.0/16
+                connect.addr.port:
+                    - scalar:80
+                    - scalar:443
         loc:
             event_type: connect
             fields:
                 - connect.addr.ip
-                - connect.addr.ip
-                - connect.addr.port
+            field_values:
+                connect.addr.ip:
+                    - ip:127.0.0.1/32
+                    - ip:10.0.0.0/8
+                    - ip:192.168.0.0/16
     approvers:
         connect:
-            accept_mode: ext
+            accept_mode: loc
+            field_stats:
+                connect.addr.port: 1
     discarders_report:
         connect.addr.ip: supported
+        connect.addr.port: 'invalid: loc'
     event_types:
         - connect
     macro_ids:
@@ -1138,13 +1143,22 @@ macro_cidr_and_ip:
     field_values:
         connect.addr.ip:
             - ip:0.0.0.0/32
+            - ip:10.0.0.0/8
+            - ip:10.0.0.0/8
+            - ip:127.0.0.1/32
+            - ip:192.168.0.0/16
+            - ip:192.168.0.0/16
+        connect.addr.port:
+            - scalar:443
+            - scalar:80
     policies:
         - policy0(oracle) internal_type= type= version= replace= [ext loc]
     rule_ids:
         - ext
         - loc
     approvers_all:
-        - accept_mode connect=ext
+        - accept_mode connect=loc
+        - field_stats connect.addr.port=1
     policy_rules:
         - policy0/ext accepted=true disabled=false expression="connect.addr.ip != 0.0.0.0/32 && !internal && ports" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/loc accepted=true disabled=false expression="localhost || internal" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -1160,7 +1174,6 @@ macro_cidr_and_ip:
                 connect.addr.port: "true"
             loc:
                 connect.addr.ip: "true"
-                connect.addr.port: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1176,7 +1189,6 @@ macro_cidr_and_ip:
                 connect.addr.port: "true"
             loc:
                 connect.addr.ip: "false"
-                connect.addr.port: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1188,7 +1200,6 @@ macro_cidr_and_ip:
                 connect.addr.port: "false"
             loc:
                 connect.addr.ip: "false"
-                connect.addr.port: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1206,7 +1217,6 @@ macro_cidr_and_ip:
                 connect.addr.port: "true"
             loc:
                 connect.addr.ip: "true"
-                connect.addr.port: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1222,7 +1232,6 @@ macro_cidr_and_ip:
                 connect.addr.port: "false"
             loc:
                 connect.addr.ip: "true"
-                connect.addr.port: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1233,7 +1242,6 @@ macro_defined_only_in_second_policy:
             event_type: open
             fields:
                 - open.file.name
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"a"
@@ -1245,6 +1253,8 @@ macro_defined_only_in_second_policy:
             field_values:
                 open.file.name:
                     - scalar:"z"
+                open.flags:
+                    - scalar:1
     approvers:
         open:
             approvers:
@@ -1255,6 +1265,7 @@ macro_defined_only_in_second_policy:
                 open.file.name: 2
     discarders_report:
         open.file.name: supported
+        open.flags: 'invalid: first'
     event_types:
         - open
     macro_ids:
@@ -1264,6 +1275,8 @@ macro_defined_only_in_second_policy:
         open.file.name:
             - scalar:"a"
             - scalar:"z"
+        open.flags:
+            - scalar:1
     policies:
         - policy0(oracle) internal_type= type= version= replace= [first]
         - policy1(oracle) internal_type= type= version= replace= [uses_late]
@@ -1287,7 +1300,6 @@ macro_defined_only_in_second_policy:
           partials:
             first:
                 open.file.name: "false"
-                open.flags: "false"
             uses_late:
                 open.file.name: "true"
                 open.flags: "true"
@@ -1299,7 +1311,6 @@ macro_defined_only_in_second_policy:
           partials:
             first:
                 open.file.name: "false"
-                open.flags: "false"
             uses_late:
                 open.file.name: "true"
                 open.flags: "false"
@@ -1319,7 +1330,6 @@ macro_defined_only_in_second_policy:
           partials:
             first:
                 open.file.name: "true"
-                open.flags: "true"
             uses_late:
                 open.file.name: "false"
                 open.flags: "false"
@@ -1446,13 +1456,25 @@ macro_expression_redefined_in_policy:
             event_type: open
             fields:
                 - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
     approvers:
         open:
-            accept_mode: r
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
     event_types:
         - open
     macro_ids:
         - m
+    field_values:
+        open.file.name:
+            - scalar:"a"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r]
         - policy1(oracle) internal_type= type= version= replace= []
@@ -1460,7 +1482,7 @@ macro_expression_redefined_in_policy:
     rule_ids:
         - r
     approvers_all:
-        - accept_mode open=r
+        - field_stats open.file.name=1
     policy_rules:
         - policy0/r accepted=true disabled=false expression="m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
@@ -1480,6 +1502,8 @@ macro_expression_redefined_in_policy:
           partials:
             r:
                 open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1488,6 +1512,8 @@ macro_expression_redefined_in_policy:
           partials:
             r:
                 open.file.name: "false"
+          discarders:
+            - open:open.file.name="c"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1500,19 +1526,31 @@ macro_fim_write_rejected:
             event_type: open
             fields:
                 - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/x"
     approvers:
         open:
-            accept_mode: r
+            approvers:
+                open.file.path:
+                    - scalar:"/x"
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        open.file.path: supported
     event_types:
         - open
     macro_ids:
         - okmacro
+    field_values:
+        open.file.path:
+            - scalar:"/x"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r]
     rule_ids:
         - r
     approvers_all:
-        - accept_mode open=r
+        - field_stats open.file.path=1
     policy_rules:
         - policy0/r accepted=true disabled=false expression="okmacro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
@@ -1530,7 +1568,7 @@ macro_fim_write_rejected:
             process.pid: 0(true) own=0(true)
 macro_in_mixed_array:
     load_errors:
-        - 'rule `mixed` error: syntax error `1:25: unexpected token "," (expected "]")`'
+        - 'rule `mixed` error: syntax error `1:27: expected member of an array of identifiers, found string `"baz"``'
     rules:
         nested:
             event_type: open
@@ -1914,20 +1952,32 @@ macro_merge_expression_error:
             event_type: open
             fields:
                 - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
     approvers:
         open:
-            accept_mode: r
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
     event_types:
         - open
     macro_ids:
         - m
+    field_values:
+        open.file.name:
+            - scalar:"a"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r]
         - policy1(oracle) internal_type= type= version= replace= []
     rule_ids:
         - r
     approvers_all:
-        - accept_mode open=r
+        - field_stats open.file.name=1
     policy_rules:
         - policy0/r accepted=true disabled=false expression="m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
@@ -1947,6 +1997,8 @@ macro_merge_expression_error:
           partials:
             r:
                 open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2258,24 +2310,37 @@ macro_mixed_event_types_in_expression:
             event_type: open
             fields:
                 - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/x"
         r2:
             event_type: open
             fields:
                 - open.file.path
                 - open.flags
             field_values:
+                open.file.path:
+                    - scalar:"/x"
                 open.flags:
                     - scalar:1
     approvers:
         open:
-            accept_mode: r
+            approvers:
+                open.file.path:
+                    - scalar:"/x"
+            field_stats:
+                open.file.path: 2
     discarders_report:
+        open.file.path: supported
         open.flags: 'invalid: r'
     event_types:
         - open
     macro_ids:
         - good
     field_values:
+        open.file.path:
+            - scalar:"/x"
+            - scalar:"/x"
         open.flags:
             - scalar:1
     policies:
@@ -2284,7 +2349,7 @@ macro_mixed_event_types_in_expression:
         - r
         - r2
     approvers_all:
-        - accept_mode open=r
+        - field_stats open.file.path=2
     policy_rules:
         - policy0/r accepted=true disabled=false expression="good" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r2 accepted=true disabled=false expression="good && open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -2327,18 +2392,50 @@ macro_mixed_event_types_in_expression:
             process.pid: 0(true) own=0(true)
 macro_multi_event_type_error:
     load_errors:
-        - 'rule `mixed_types` error: expression with multiple event types is not supported'
-        - 'rule `ok` error: expression with multiple event types is not supported'
+        - 'rule `mixed_types` error: rule compilation error: expression with multiple event types is not supported'
+    rules:
+        ok:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - scalar:"y"
+    approvers:
+        exec:
+            approvers:
+                exec.file.name:
+                    - scalar:"y"
+            field_stats:
+                exec.file.name: 1
+    discarders_report:
+        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+    event_types:
+        - exec
     macro_ids:
         - exec_macro
         - open_macro
+    field_values:
+        exec.file.name:
+            - scalar:"y"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [mixed_types ok]
+    rule_ids:
+        - ok
+    approvers_all:
+        - field_stats exec.file.name=1
     policy_rules:
         - policy0/mixed_types accepted=true disabled=false expression="open_macro && exec_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/ok accepted=true disabled=false expression="exec_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
-        - result: false
+        - result: true
+          matched:
+            - ok
+          second_listener:
+            - ok
+          partials:
+            ok:
+                exec.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2727,36 +2824,66 @@ macro_references_macro:
             event_type: open
             fields:
                 - open.file.path
-                - open.flags
-                - process.uid
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
         l2:
             event_type: open
             fields:
                 - open.file.path
                 - open.flags
-                - process.uid
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                open.flags:
+                    - bitmask:1
+                    - scalar:0
         l3:
             event_type: open
             fields:
                 - open.file.path
                 - open.flags
                 - process.uid
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                open.flags:
+                    - bitmask:1
+                    - scalar:0
+                process.uid:
+                    - scalar:0
         l3b:
             event_type: open
             fields:
-                - open.file.path
                 - open.file.path
                 - open.flags
                 - process.uid
             field_values:
                 open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
                     - scalar:"/x"
-                    - scalar:"/x"
+                open.flags:
+                    - bitmask:1
+                    - scalar:0
+                process.uid:
+                    - scalar:0
     approvers:
         open:
-            accept_mode: l1
+            approvers:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                    - scalar:"/x"
+            field_stats:
+                open.file.path: 4
     discarders_report:
         open.file.path: supported
+        open.flags: 'invalid: l1'
+        process.uid: none
     event_types:
         - open
     macro_ids:
@@ -2766,7 +2893,25 @@ macro_references_macro:
         - is_sensitive_write
     field_values:
         open.file.path:
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/shadow"
+            - scalar:"/etc/shadow"
+            - scalar:"/etc/shadow"
+            - scalar:"/etc/shadow"
             - scalar:"/x"
+        open.flags:
+            - bitmask:1
+            - bitmask:1
+            - bitmask:1
+            - scalar:0
+            - scalar:0
+            - scalar:0
+        process.uid:
+            - scalar:0
+            - scalar:0
     policies:
         - policy0(oracle) internal_type= type= version= replace= [l1 l2 l3 l3b]
     rule_ids:
@@ -2775,7 +2920,7 @@ macro_references_macro:
         - l3
         - l3b
     approvers_all:
-        - accept_mode open=l1
+        - field_stats open.file.path=4
     policy_rules:
         - policy0/l1 accepted=true disabled=false expression="is_sensitive" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/l2 accepted=true disabled=false expression="is_sensitive_write" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -2790,15 +2935,12 @@ macro_references_macro:
           partials:
             l1:
                 open.file.path: "true"
-                open.flags: "true"
-                process.uid: "true"
             l2:
                 open.file.path: "true"
                 open.flags: "false"
-                process.uid: "true"
             l3:
                 open.file.path: "true"
-                open.flags: "true"
+                open.flags: "false"
                 process.uid: "true"
             l3b:
                 open.file.path: "true"
@@ -2825,12 +2967,9 @@ macro_references_macro:
           partials:
             l1:
                 open.file.path: "true"
-                open.flags: "true"
-                process.uid: "true"
             l2:
                 open.file.path: "true"
                 open.flags: "true"
-                process.uid: "true"
             l3:
                 open.file.path: "true"
                 open.flags: "true"
@@ -2853,12 +2992,9 @@ macro_references_macro:
           partials:
             l1:
                 open.file.path: "true"
-                open.flags: "true"
-                process.uid: "true"
             l2:
                 open.file.path: "true"
                 open.flags: "true"
-                process.uid: "true"
             l3:
                 open.file.path: "true"
                 open.flags: "true"
@@ -2875,20 +3011,19 @@ macro_references_macro:
           partials:
             l1:
                 open.file.path: "false"
-                open.flags: "true"
-                process.uid: "true"
             l2:
-                open.file.path: "true"
+                open.file.path: "false"
                 open.flags: "true"
-                process.uid: "true"
             l3:
-                open.file.path: "true"
+                open.file.path: "false"
                 open.flags: "true"
                 process.uid: "false"
             l3b:
-                open.file.path: "true"
+                open.file.path: "false"
                 open.flags: "true"
                 process.uid: "true"
+          discarders:
+            - open:open.file.path="/etc/other"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2905,15 +3040,12 @@ macro_references_macro:
           partials:
             l1:
                 open.file.path: "false"
-                open.flags: "true"
-                process.uid: "true"
             l2:
-                open.file.path: "true"
+                open.file.path: "false"
                 open.flags: "false"
-                process.uid: "true"
             l3:
-                open.file.path: "true"
-                open.flags: "true"
+                open.file.path: "false"
+                open.flags: "false"
                 process.uid: "true"
             l3b:
                 open.file.path: "true"
@@ -2934,6 +3066,8 @@ macro_shared_between_rules:
                 open.file.name:
                     - scalar:"a"
                     - scalar:"b"
+                process.file.name:
+                    - scalar:"bash"
         s2:
             event_type: open
             fields:
@@ -2943,6 +3077,8 @@ macro_shared_between_rules:
                 open.file.name:
                     - scalar:"a"
                     - scalar:"b"
+                process.file.name:
+                    - scalar:"bash"
         s3:
             event_type: mkdir
             fields:
@@ -2952,6 +3088,8 @@ macro_shared_between_rules:
                 mkdir.file.name:
                     - scalar:"a"
                     - scalar:"b"
+                process.file.name:
+                    - scalar:"bash"
         s4:
             event_type: open
             fields:
@@ -2961,6 +3099,8 @@ macro_shared_between_rules:
                 open.file.name:
                     - scalar:"a"
                     - scalar:"b"
+                process.file.name:
+                    - scalar:"bash"
         s5:
             event_type: open
             fields:
@@ -2973,6 +3113,8 @@ macro_shared_between_rules:
                     - scalar:"b"
                 open.file.path:
                     - scalar:"/tmp/b"
+                process.file.name:
+                    - scalar:"bash"
     approvers:
         mkdir:
             approvers:
@@ -2989,6 +3131,7 @@ macro_shared_between_rules:
         mkdir.file.name: supported
         open.file.name: supported
         open.file.path: 'invalid: s1'
+        process.file.name: none
     event_types:
         - mkdir
         - open
@@ -3010,6 +3153,12 @@ macro_shared_between_rules:
             - scalar:"b"
         open.file.path:
             - scalar:"/tmp/b"
+        process.file.name:
+            - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"bash"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [s1 s2 s3 s4 s5]
     rule_ids:
@@ -3155,6 +3304,8 @@ macro_shared_between_rules:
             s3:
                 mkdir.file.name: "true"
                 process.file.name: "false"
+          discarders:
+            - mkdir:process.file.name="dash"
           scoped_counts:
             process.pid: 0
           variables:
@@ -3176,26 +3327,38 @@ macro_syntax_error:
         - |-
           macro `broken_type` definition error: compilation error: macro syntax error: open.file.path == 1
                             ^
-        - 'macro `broken` definition error: syntax error: 1:18: unexpected token "<EOF>" (expected Comparison)'
+        - 'macro `broken` definition error: syntax error: 1:18: expected operand after `==`, found end of expression'
         - 'rule `r_broken` error: rule compilation error: field `broken` not found'
     rules:
         r_fine:
             event_type: open
             fields:
                 - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/x"
     approvers:
         open:
-            accept_mode: r_fine
+            approvers:
+                open.file.path:
+                    - scalar:"/x"
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        open.file.path: supported
     event_types:
         - open
     macro_ids:
         - fine
+    field_values:
+        open.file.path:
+            - scalar:"/x"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r_broken r_fine]
     rule_ids:
         - r_fine
     approvers_all:
-        - accept_mode open=r_fine
+        - field_stats open.file.path=1
     policy_rules:
         - policy0/r_fine accepted=true disabled=false expression="fine" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r_broken accepted=true disabled=false expression="broken" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -3271,22 +3434,33 @@ macro_unused_and_dangling:
             event_type: open
             fields:
                 - open.file.path
-                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/used"
     approvers:
         open:
-            accept_mode: only_used
+            approvers:
+                open.file.path:
+                    - scalar:"/used"
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        open.file.path: supported
     event_types:
         - open
     macro_ids:
         - unused_expr
         - unused_values
         - used
+    field_values:
+        open.file.path:
+            - scalar:"/used"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [only_used]
     rule_ids:
         - only_used
     approvers_all:
-        - accept_mode open=only_used
+        - field_stats open.file.path=1
     policy_rules:
         - policy0/only_used accepted=true disabled=false expression="used" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
@@ -3306,6 +3480,8 @@ macro_unused_and_dangling:
           partials:
             only_used:
                 open.file.path: "false"
+          discarders:
+            - open:open.file.path="/never"
           scoped_counts:
             process.pid: 0
           variables:
@@ -3316,12 +3492,9 @@ macro_used_twice_in_rule:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
                 - process.file.name
             field_values:
                 open.file.name:
-                    - scalar:"x"
-                    - scalar:"y"
                     - scalar:"x"
                     - scalar:"y"
                 process.file.name:
@@ -3333,6 +3506,8 @@ macro_used_twice_in_rule:
                 - open.file.name
                 - open.flags
             field_values:
+                open.file.name:
+                    - scalar:"x"
                 open.flags:
                     - scalar:1
                     - scalar:2
@@ -3352,6 +3527,7 @@ macro_used_twice_in_rule:
         - names
     field_values:
         open.file.name:
+            - scalar:"x"
             - scalar:"x"
             - scalar:"y"
         open.flags:
@@ -3784,36 +3960,44 @@ macro_with_ancestor_and_array_fields:
         anc:
             event_type: exec
             fields:
-                - exec.argv
                 - exec.file.name
                 - process.ancestors.file.name
-                - process.container.id
             field_values:
                 exec.file.name:
                     - scalar:"curl"
+                process.ancestors.file.name:
+                    - scalar:"bash"
+                    - scalar:"sh"
         arg:
             event_type: exec
             fields:
                 - exec.argv
-                - process.ancestors.file.name
                 - process.container.id
+            field_values:
+                exec.argv:
+                    - scalar:"--evil"
+                process.container.id:
+                    - scalar:""
         cont:
             event_type: exec
             fields:
-                - exec.argv
                 - exec.file.name
-                - process.ancestors.file.name
                 - process.container.id
             field_values:
                 exec.file.name:
                     - scalar:"curl"
+                process.container.id:
+                    - scalar:""
     approvers:
         exec:
             accept_mode: arg
             field_stats:
                 exec.file.name: 1
     discarders_report:
+        exec.argv: 'invalid: anc'
         exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        process.ancestors.file.name: none
+        process.container.id: none
     event_types:
         - exec
     macro_ids:
@@ -3821,9 +4005,17 @@ macro_with_ancestor_and_array_fields:
         - has_arg
         - shell_ancestor
     field_values:
+        exec.argv:
+            - scalar:"--evil"
         exec.file.name:
             - scalar:"curl"
             - scalar:"curl"
+        process.ancestors.file.name:
+            - scalar:"bash"
+            - scalar:"sh"
+        process.container.id:
+            - scalar:""
+            - scalar:""
     policies:
         - policy0(oracle) internal_type= type= version= replace= [anc arg cont]
     rule_ids:
@@ -3851,18 +4043,13 @@ macro_with_ancestor_and_array_fields:
                 - ="curl"@18+6
           partials:
             anc:
-                exec.argv: "true"
                 exec.file.name: "true"
                 process.ancestors.file.name: "true"
-                process.container.id: "true"
             arg:
                 exec.argv: "true"
-                process.ancestors.file.name: "true"
                 process.container.id: "true"
             cont:
-                exec.argv: "true"
                 exec.file.name: "true"
-                process.ancestors.file.name: "true"
                 process.container.id: "false"
           scoped_counts:
             process.pid: 0
@@ -3875,18 +4062,13 @@ macro_with_ancestor_and_array_fields:
             - arg
           partials:
             anc:
-                exec.argv: "true"
                 exec.file.name: "true"
                 process.ancestors.file.name: "false"
-                process.container.id: "true"
             arg:
                 exec.argv: "true"
-                process.ancestors.file.name: "true"
                 process.container.id: "true"
             cont:
-                exec.argv: "true"
                 exec.file.name: "true"
-                process.ancestors.file.name: "true"
                 process.container.id: "false"
           scoped_counts:
             process.pid: 0
@@ -3899,18 +4081,13 @@ macro_with_ancestor_and_array_fields:
             - arg
           partials:
             anc:
-                exec.argv: "true"
                 exec.file.name: "true"
                 process.ancestors.file.name: "false"
-                process.container.id: "true"
             arg:
                 exec.argv: "true"
-                process.ancestors.file.name: "true"
                 process.container.id: "true"
             cont:
-                exec.argv: "true"
                 exec.file.name: "true"
-                process.ancestors.file.name: "true"
                 process.container.id: "false"
           scoped_counts:
             process.pid: 0
@@ -3932,18 +4109,13 @@ macro_with_ancestor_and_array_fields:
                 - ="curl"@18+6
           partials:
             anc:
-                exec.argv: "true"
                 exec.file.name: "true"
                 process.ancestors.file.name: "true"
-                process.container.id: "true"
             arg:
                 exec.argv: "false"
-                process.ancestors.file.name: "true"
                 process.container.id: "false"
             cont:
-                exec.argv: "true"
                 exec.file.name: "true"
-                process.ancestors.file.name: "true"
                 process.container.id: "true"
           scoped_counts:
             process.pid: 0
