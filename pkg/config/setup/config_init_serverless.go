@@ -7,9 +7,11 @@
 
 package setup
 
+import "github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
+
 func initConfig() {
 	ddcfg := GlobalConfigBuilder()
-	initCommonBase(ddcfg)
+	generatedsettings.InitCommonBase(ddcfg)
 }
 
 func fixupInitConfig() {

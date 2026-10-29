@@ -147,6 +147,8 @@ impl RetainedProcessHandle {
 pub(crate) struct ProcessHandle {
     #[cfg(not(windows))]
     child: Child,
+    #[cfg(not(windows))]
+    supervised: Option<crate::platform::SupervisedPid>,
 
     #[cfg(windows)]
     pid: u32,
@@ -157,9 +159,16 @@ pub(crate) struct ProcessHandle {
 }
 
 impl ProcessHandle {
+    /// Build a handle from [`crate::platform::spawn_registered`].
+    ///
+    /// On Unix this is the only supported constructor: raw `Child` values must
+    /// not be waited outside a registered handle while the reaper is running.
     #[cfg(not(windows))]
-    pub(crate) fn from_child(child: Child) -> Self {
-        Self { child }
+    pub(crate) fn from_registered(
+        child: Child,
+        supervised: Option<crate::platform::SupervisedPid>,
+    ) -> Self {
+        Self { child, supervised }
     }
 
     #[cfg(windows)]
@@ -196,7 +205,9 @@ impl ProcessHandle {
     pub(crate) async fn wait(&mut self) -> Result<ExitStatus> {
         #[cfg(not(windows))]
         {
-            Ok(self.child.wait().await?)
+            let status = self.child.wait().await?;
+            self.supervised = None;
+            Ok(status)
         }
         #[cfg(windows)]
         {

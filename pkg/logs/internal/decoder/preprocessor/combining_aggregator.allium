@@ -19,8 +19,8 @@
 --   PassThroughAggregator.
 -- Excludes:
 --   - Other Aggregator implementations. PassThroughAggregator,
---     RegexAggregator, DetectingAggregator and JSONAggregator
---     each live in their own spec modules.
+--     RegexAggregator and JSONAggregator each live in their own
+--     spec modules.
 --   - The selection logic that decides when a log source uses
 --     CombiningAggregator vs another implementation. That is a
 --     preprocessor configuration concern.
@@ -68,9 +68,7 @@ entity CombiningAggregator {
     --                       the truncation-reason tag. Distinct
     --                       from PassThroughAggregator and
     --                       RegexAggregator, which read this flag
-    --                       from a global runtime config; matches
-    --                       DetectingAggregator in receiving it
-    --                       at construction time.
+    --                       from a global runtime config.
     -- tag_multi_line_logs:  per-aggregator configuration controlling
     --                       whether combined multi-line emissions
     --                       receive the multi-line source tag.

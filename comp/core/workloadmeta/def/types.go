@@ -1671,9 +1671,11 @@ type KueuePodSetAssignment struct {
 type KubernetesKueueWorkload struct {
 	EntityID
 	EntityMeta
-	QueueName         string
-	ClusterQueueName  string
-	PodSetAssignments []KueuePodSetAssignment
+	QueueName              string
+	ClusterQueueName       string
+	PodSetAssignments      []KueuePodSetAssignment
+	PodTemplateLabels      map[string]string
+	PodTemplateAnnotations map[string]string
 }
 
 // GetID implements Entity#GetID.
@@ -1708,6 +1710,8 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
 	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
 	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	_, _ = fmt.Fprintln(&sb, "Pod Template Labels:", mapToScrubbedJSONString(w.PodTemplateLabels))
+	_, _ = fmt.Fprintln(&sb, "Pod Template Annotations:", mapToScrubbedJSONString(w.PodTemplateAnnotations))
 	return sb.String()
 }
 
@@ -2286,6 +2290,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+
+	// EnqueuedAt is the time at which the Store sent the bundle to the
+	// subscriber's channel. Subscribers can use it to measure how long the
+	// bundle waited in the channel.
+	EnqueuedAt time.Time
 }
 
 // Acknowledge acknowledges that the subscriber has handled the event.
