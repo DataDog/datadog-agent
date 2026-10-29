@@ -19,6 +19,8 @@ script
 end script
 
 pre-start script
+  # dd-agent cannot create this directory under root-owned /var/run.
+  /usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1
   # Manual rotation of errors log
   log_file_size=`du -b /var/log/datadog/procmgr-errors.log | cut -f1`
   if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then

@@ -18,6 +18,8 @@ SYSV_AGENT = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.in'
 UPSTART_DEBIAN = REPO_ROOT / 'packages/debian/etc/upstart_debian.procmgr.conf.in'
 UPSTART_REDHAT = REPO_ROOT / 'packages/redhat/etc/upstart_redhat.procmgr.conf.in'
 FOUR_VARIABLES = ('DD_PM_CONFIG_DIR', 'DD_CONF_DIR', 'DD_PID_DIR', 'DD_INSTALL_DIR')
+SYSV_RUNTIME_DIR = '/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2'
+UPSTART_RUNTIME_DIR = '/usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1'
 PARENT_SPLIT = 'true'
 
 
@@ -25,11 +27,16 @@ def render(text, install_dir, etc_dir):
     return text.replace('{install_dir}', str(install_dir)).replace('{etc_dir}', str(etc_dir))
 
 
-def upstart_main_block(template):
-    blocks = re.findall(r'^script\n(.*?)^end script$', template.read_text(), re.MULTILINE | re.DOTALL)
+def upstart_block(template, header):
+    text = template.read_text() if isinstance(template, Path) else template
+    blocks = re.findall(rf'^{header}\n(.*?)^end script$', text, re.MULTILINE | re.DOTALL)
     if len(blocks) != 1:
-        raise AssertionError(f'{template}: expected exactly one main script block')
+        raise AssertionError(f'{template}: expected exactly one {header!r} block')
     return blocks[0]
+
+
+def upstart_main_block(template):
+    return upstart_block(template, 'script')
 
 
 def parse_env(path):
@@ -118,9 +125,15 @@ touch "{started}"
 exit 0
 ''',
         )
+        runtime = self.root / 'var-run' / 'datadog-procmgrd'
         script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
+        # The real path is /var/run, which this user cannot create. install still runs.
+        script = script.replace(
+            SYSV_RUNTIME_DIR,
+            f'/usr/bin/install -d -o {os.getuid()} -g {os.getgid()} -m 0755 {runtime} || return 2',
+        )
         rendered = self.root / 'init-script'
         rendered.write_text(script)
 
@@ -130,6 +143,7 @@ exit 0
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(started.exists())
+        self.assertTrue(runtime.is_dir())
 
         seen = parse_env(start_env)
         for key, value in layout.expected_four().items():
@@ -205,6 +219,41 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
             self.assertIn(f'{name}=', command)
         self.assertIn('. "{etc_dir}/environment"', command)
 
+    def test_runtime_dir_is_created_as_root_before_the_daemon(self):
+        sysv = SYSV_PROCMGR.read_text()
+        self.assertIn(SYSV_RUNTIME_DIR, sysv)
+        self.assertLess(sysv.index(SYSV_RUNTIME_DIR), sysv.index('--chuid'))
+        for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
+            with self.subTest(template=template.name):
+                pre_start = upstart_block(template, 'pre-start script')
+                self.assertIn(UPSTART_RUNTIME_DIR, pre_start)
+                self.assertNotIn(UPSTART_RUNTIME_DIR, upstart_main_block(template))
+
+    def test_sysv_start_fails_when_runtime_dir_cannot_be_created(self):
+        layout = Layout(self.root)
+        commands = self.root / 'commands'
+        started = self.root / 'started'
+        init_functions = self.root / 'init-functions'
+        init_functions.write_text(
+            'init_is_upstart() { return 1; }\n'
+            'log_daemon_msg() { :; }\n'
+            'log_end_msg() { return "$1"; }\n'
+        )
+        write_executable(commands / 'install', 'exit 1\n')
+        write_executable(commands / 'start-stop-daemon', f'touch "{started}"\nexit 0\n')
+        script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
+        script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
+        script = script.replace('/etc/default/', f'{self.root}/default/')
+        script = script.replace('/usr/bin/install', str(commands / 'install'))
+        rendered = self.root / 'init-script'
+        rendered.write_text(script)
+        env = self.base_env(f'{commands}:/usr/bin:/bin')
+        result = subprocess.run(
+            ['/bin/sh', str(rendered), 'start'], env=env, text=True, capture_output=True, check=False, timeout=30
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(started.exists())
+
     def test_templates_do_not_force_split_mode(self):
         for template in (SYSV_PROCMGR, UPSTART_DEBIAN, UPSTART_REDHAT):
             with self.subTest(template=template.name):
@@ -243,8 +292,9 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
         path.write_text(sysv)
         subprocess.run([shell, '-n', str(path)], check=True)
         for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
-            path.write_text(render(upstart_main_block(template), self.root / 'i', self.root / 'e'))
-            subprocess.run([shell, '-n', str(path)], check=True)
+            for header in ('script', 'pre-start script'):
+                path.write_text(render(upstart_block(template, header), self.root / 'i', self.root / 'e'))
+                subprocess.run([shell, '-n', str(path)], check=True)
 
 
 if __name__ == '__main__':
