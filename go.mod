@@ -217,7 +217,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.6
 	github.com/DataDog/jsonapi v0.13.0
-	github.com/DataDog/rshell v0.0.30
+	github.com/DataDog/rshell v0.0.31
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260917081843-fe016948e308
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
@@ -410,7 +410,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.30.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.30.1
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.34
 	go.mongodb.org/mongo-driver/v2 v2.9.2
@@ -495,8 +495,8 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	istio.io/api v1.31.2
-	istio.io/client-go v1.31.2
+	istio.io/api v1.31.3
+	istio.io/client-go v1.31.3
 	k8s.io/api v0.37.1
 	k8s.io/apiextensions-apiserver v0.37.1
 	k8s.io/apimachinery v0.37.1
