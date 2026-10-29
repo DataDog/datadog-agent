@@ -17,6 +17,29 @@ fi
 # Add dd-agent to adm group (required for sar — used by the CPU check)
 chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
 
+# Raise the data-segment limit for dd-agent to 512MiB (1048576 blocks of 512 bytes).
+#
+# When no `data` attribute is set for the user, processes get the AIX kernel
+# default soft RLIMIT_DATA of 128MiB. agent-data-plane buffers DogStatsD
+# traffic in malloc'd heap memory; on busy hosts the process pins against the
+# 128MiB default, malloc starts failing (zstd "Allocation error" floods), and
+# the process eventually aborts with SIGABRT and SRC restarts it.
+#
+# Only raise: leave an unset, unlimited (-1/0) or higher-than-512MiB limit
+# alone so customer-configured values are never lowered.
+_dd_data=$(awk '
+    BEGIN { stanza = ""; udata = ""; ddata = "" }
+    /^[A-Za-z_][A-Za-z0-9_.-]*:/ { stanza = $1; sub(":$", "", stanza) }
+    stanza == "dd-agent" && $1 == "data" { udata = $3 }
+    stanza == "default"  && $1 == "data" { ddata = $3 }
+    END { if (udata != "") print udata; else print ddata }
+' /etc/security/limits 2>/dev/null)
+if [ -z "$_dd_data" ] \
+        || { [ "$_dd_data" -gt 0 ] 2>/dev/null && [ "$_dd_data" -lt 1048576 ] 2>/dev/null; }; then
+    chuser data=1048576 dd-agent 2>/dev/null || true
+fi
+unset _dd_data
+
 # Set ownership of runtime directories so the agent can write to them.
 # The BFF installs these directories as root:root (build-time default); fix
 # them here after the dd-agent user is guaranteed to exist.
