@@ -2132,6 +2132,23 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
+# Map index on a map with a one-table directory
+- id: mapIndex_singleTable_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexSingleTable
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"0000002a\"]"
+        json: {index: [{ref: "m"}, "0000002a"]}
+  sampling:
+    snapshotsPerSecond: 10
+
 # Template with map index expression
 - id: mapIndex_stringKey_template
   tags:

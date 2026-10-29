@@ -266,8 +266,8 @@ func main() {
 		PtrArr: &[2]*indexMemberStruct{&elem1, &elem2},
 	}, "wrapper")
 
-	// Map index expression tests: small maps (≤8 entries, no directory),
-	// large maps (>8 entries, uses directory + probing), and key-not-found.
+	// Map index tests: one-table directory, small, large, and key-not-found.
+	mapIndexSingleTable(makeLargeMapWithKeyLen(8, 100))
 	mapIndexIntKey(map[int]string{1: "one", 2: "two", 3: "three"})
 	mapIndexStringKey(map[string]int{"alpha": 100, "beta": 200, "gamma": 300})
 	largeMap := make(map[string]int)
@@ -1429,4 +1429,9 @@ func anyAllIntSliceOfSlice(xs [][]int, tag string) {
 //go:noinline
 func anyAllIntSliceOfMap(xs []map[string]int, tag string) {
 	fmt.Println("anyAllIntSliceOfMap", len(xs), tag)
+}
+
+//go:noinline
+func mapIndexSingleTable(m map[string]int) {
+	fmt.Println(len(m))
 }
