@@ -58,6 +58,7 @@ dd_agent_go_test(
         "disk_cache_test.go",
         "elf_test.go",
         "fuzz_test.go",
+        "gomoduledata_test.go",
     ],
     embed = [":object"],
     gotags_sets = [["bpf"]],
@@ -67,6 +68,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//pkg/dyninst/testprogs",
             "//pkg/util/filesystem",
+            "//pkg/util/safeelf",
             "@com_github_prometheus_procfs//:procfs",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -74,6 +76,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/dyninst/testprogs",
             "//pkg/util/filesystem",
+            "//pkg/util/safeelf",
             "@com_github_prometheus_procfs//:procfs",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
