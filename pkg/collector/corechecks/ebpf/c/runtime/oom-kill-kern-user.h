@@ -9,6 +9,8 @@
 
 typedef struct {} oom_stats_v2;
 
+// struct cgroup_memory_stats holds the memory usage of the cgroup and the value of some of its stat
+// items, in pages. Untracked stat items are -1.
 struct cgroup_memory_stats {
     __u64 usage;
     __u64 active_anon;

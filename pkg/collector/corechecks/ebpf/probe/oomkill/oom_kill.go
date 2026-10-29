@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	bpflib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -703,12 +704,19 @@ func convertStatsV2(in oomStatsV2Layout) (out model.OOMKillStats) {
 
 // cgroupMemoryStat maps the -1 that the eBPF program, like the bpf_mem_cgroup_page_state kfunc,
 // records for a stat item the kernel does not track to 0
+// cgroupMemoryStat converts a cgroup memory stat from pages, as reported by the eBPF program, to
+// bytes. Untracked stat items are reported as 0.
 func cgroupMemoryStat(v uint64) uint64 {
 	if v == math.MaxUint64 {
 		return 0
 	}
-	return v
+	return v * pageSize()
 }
+
+// pageSize returns the page size of the host, which is the one the kernel counts pages in
+var pageSize = sync.OnceValue(func() uint64 {
+	return uint64(os.Getpagesize())
+})
 
 // pinningFeaturesSupported reports whether the probe should be pinned to bpffs. All of the following must hold:
 //   - oom_kill.persist_monitoring is enabled;

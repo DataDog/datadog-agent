@@ -40,10 +40,6 @@ static __always_inline bool emit_cgroup_memory_stats() {
 }
 
 #ifdef COMPILE_CORE
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096
-#endif
-
 #ifndef READ_ONCE
 #define READ_ONCE(x) (*(const volatile typeof(x) *)&(x))
 #endif
@@ -176,16 +172,16 @@ static long add_cpu_pending_pages(u64 cpu, struct cgroup_memory_stats_ctx *c) {
     return 0;
 }
 
-// page_state_bytes returns the value of a stat item in bytes. Like the kernel, it returns -1 for an
+// page_state_pages returns the value of a stat item in pages. Like the kernel, it returns -1 for an
 // item memcg does not track, and clamps the counters that per-cpu updates make transiently negative.
 // The kernel function can report transiently negative values because it does not synchronize with an 
 // ongoing flush as we do here. For us negative values can happen because we do not read the stats from
 // all CPUs atomically, so a CPU may charge a page after we scanned it and a subsequent CPU may uncharge
 // a page before we scan it, resulting in a net value less than zero.
-static __always_inline __u64 page_state_bytes(struct cgroup_memory_stats_ctx *c, int i) {
+static __always_inline __u64 page_state_pages(struct cgroup_memory_stats_ctx *c, int i) {
     if (c->slot[i] < 0)
         return (__u64)-1;
-    return c->pages[i] > 0 ? (__u64)c->pages[i] * PAGE_SIZE : 0;
+    return c->pages[i] > 0 ? (__u64)c->pages[i] : 0;
 }
 
 // read_cgroup_memory_pages computes the value of the stat items into c->pages. 
@@ -236,7 +232,7 @@ static __always_inline void get_cgroup_memory_stats(struct task_struct *tsk, str
     if (!memcg)
         return;
 
-    s->mem.usage = (unsigned long)BPF_CORE_READ(memcg, memory.usage.counter) * PAGE_SIZE;
+    s->mem.usage = (unsigned long)BPF_CORE_READ(memcg, memory.usage.counter);
 
     struct memcg_vmstats *vmstats = BPF_CORE_READ(memcg, vmstats);
     if (!vmstats)
@@ -272,12 +268,12 @@ static __always_inline void get_cgroup_memory_stats(struct task_struct *tsk, str
         }
     }
 
-    s->mem.active_anon = page_state_bytes(&c, CGROUP_MEM_ACTIVE_ANON);
-    s->mem.inactive_anon = page_state_bytes(&c, CGROUP_MEM_INACTIVE_ANON);
-    s->mem.active_file = page_state_bytes(&c, CGROUP_MEM_ACTIVE_FILE);
-    s->mem.inactive_file = page_state_bytes(&c, CGROUP_MEM_INACTIVE_FILE);
-    s->mem.unevictable = page_state_bytes(&c, CGROUP_MEM_UNEVICTABLE);
-    s->mem.kernel = page_state_bytes(&c, CGROUP_MEM_KERNEL);
+    s->mem.active_anon = page_state_pages(&c, CGROUP_MEM_ACTIVE_ANON);
+    s->mem.inactive_anon = page_state_pages(&c, CGROUP_MEM_INACTIVE_ANON);
+    s->mem.active_file = page_state_pages(&c, CGROUP_MEM_ACTIVE_FILE);
+    s->mem.inactive_file = page_state_pages(&c, CGROUP_MEM_INACTIVE_FILE);
+    s->mem.unevictable = page_state_pages(&c, CGROUP_MEM_UNEVICTABLE);
+    s->mem.kernel = page_state_pages(&c, CGROUP_MEM_KERNEL);
 }
 #endif // COMPILE_CORE
 
@@ -290,6 +286,8 @@ static __always_inline int handle_oom_kill(struct oom_control *oc) {
     };
     u32 pid = k.pid_tgid >> 32;
     new.trigger_pid = pid;
+
+    bpf_memset(new, 0, sizeof(new));
 
     struct task_struct *p = (struct task_struct *)BPF_CORE_READ(oc, chosen);
     if (!p) {
