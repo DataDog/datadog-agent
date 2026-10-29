@@ -62,7 +62,9 @@ typedef struct di_event_header {
   // Event pairing expectation marks whether a return event is expected for this
   // event and if not, why not.
   unsigned char event_pairing_expectation;
-  // Low bits encode the error; bit 2 marks a failed condition rather than a later expression.
+  // Set to non-zero when the condition expression could not be fully evaluated
+  // (e.g. nil pointer in the dereference chain). The event is still emitted
+  // (condition error treated as pass) but userspace should report the error.
   unsigned char condition_eval_error;
 
   // Continuation support for events that exceed the 32KiB scratch buffer.
