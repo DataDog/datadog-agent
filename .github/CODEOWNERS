@@ -402,7 +402,9 @@
 /cmd/secret-generic-connector/                      @DataDog/fleet-automation
 /cmd/security-agent/                                @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/         @DataDog/agent-cspm @DataDog/agent-security
-/cmd/installer/                                     @DataDog/fleet @DataDog/windows-products
+/cmd/installer/                                     @DataDog/fleet
+/cmd/installer/**/*_windows*.go                     @DataDog/fleet @DataDog/windows-products
+/cmd/installer/**/*_darwin*.go                      @DataDog/fleet @DataDog/windows-products
 /cmd/host-profiler/                                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 
 /dev/    @DataDog/agent-devx
@@ -489,7 +491,7 @@
 /comp/snmptraps @DataDog/network-device-monitoring-core
 /comp/systray @DataDog/windows-products
 /comp/trace @DataDog/agent-apm
-/comp/updater @DataDog/fleet @DataDog/windows-products
+/comp/updater @DataDog/fleet
 /comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
 /comp/agent/jmxlogger @DataDog/agent-metric-pipelines
 /comp/checks/agentcrashdetect @DataDog/windows-products
@@ -530,8 +532,6 @@
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/ebpf-platform
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/trace-telemetry @DataDog/agent-runtimes
-/comp/updater/daemonchecker @DataDog/fleet
-/comp/updater/ssistatus @DataDog/fleet
 /comp/anomalydetection/logssource @DataDog/agent-anomaly-detection
 /comp/anomalydetection/observer @DataDog/agent-anomaly-detection
 /comp/anomalydetection/recorder @DataDog/agent-anomaly-detection
@@ -564,6 +564,8 @@
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
+
+/comp/updater/**/*_windows*.go                      @DataDog/fleet @DataDog/windows-products
 
 # Per-team ownership of individual event platform pipeline descriptor files.
 # Each file holds the passthroughPipelineDesc entries for one owning team so
@@ -777,7 +779,8 @@
 /pkg/flare/*_windows.go                                               @DataDog/windows-products @DataDog/fleet-remediation
 /pkg/flare/*_windows_test.go                                          @DataDog/windows-products @DataDog/fleet-remediation
 /pkg/flare/certificates*.go                                           @DataDog/agent-runtimes
-/pkg/fleet/                                                           @DataDog/fleet @DataDog/windows-products
+/pkg/fleet/                                                           @DataDog/fleet
+/pkg/fleet/**/*_windows*.go                                           @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
@@ -825,6 +828,7 @@
 /pkg/util/containers/metrics/ecsfargate/                              @DataDog/ecs-experiences @DataDog/container-integrations
 /pkg/util/containers/metrics/ecsmanagedinstances/                     @DataDog/ecs-experiences @DataDog/container-integrations
 /pkg/util/crio/                                                       @DataDog/container-integrations
+/pkg/util/ddot/                                                       @DataDog/opentelemetry-agent
 /pkg/util/docker/                                                     @DataDog/container-integrations
 /pkg/util/ecs/                                                        @DataDog/ecs-experiences
 /pkg/util/fargate/                                                    @DataDog/ecs-experiences
@@ -841,6 +845,7 @@
 /pkg/util/ktime                                                       @DataDog/agent-security
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
+/pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
 /pkg/util/metricname/                                                 @DataDog/agent-metric-pipelines
 /pkg/util/podman/                                                     @DataDog/container-integrations
 /pkg/util/port/                                                       @DataDog/agent-runtimes
@@ -1130,8 +1135,8 @@
 /test/new-e2e/tests/remote-config                               @DataDog/remote-config
 /test/new-e2e/tests/ssi                                         @DataDog/injection-platform
 /test/new-e2e/tests/ssi-gradual-rollout                         @DataDog/apm-release-platform
-/test/new-e2e/tests/fleet                                       @DataDog/fleet @DataDog/windows-products
-/test/new-e2e/tests/installer                                   @DataDog/fleet @DataDog/windows-products
+/test/new-e2e/tests/fleet                                       @DataDog/fleet
+/test/new-e2e/tests/installer                                   @DataDog/fleet
 /test/new-e2e/tests/installer/script                            @DataDog/fleet @DataDog/data-observability
 /test/new-e2e/tests/sbom                                        @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
@@ -1151,6 +1156,7 @@
 /test/regression/container/quality_gates/quality_gate_security_*  @DataDog/single-machine-performance @DataDog/agent-security
 /test/regression/container/quality_gates/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
+/test/regression/container/logs/                                  @DataDog/agent-log-pipelines
 
 /tools/                                                              @DataDog/agent-devx
 /tools/host-profiler/                                                @DataDog/profiling-full-host
@@ -1173,7 +1179,6 @@
 /internal/third_party/kubernetes @DataDog/container-integrations
 /internal/third_party/golang/    @DataDog/container-integrations
 
-/q_branch/              @DataDog/q-branch
 /internal/anomalydetection/ @DataDog/agent-anomaly-detection
 /comp/anomalydetection/ @DataDog/agent-anomaly-detection # Useful for AGENTS.md files etc. at the root of all AD components
 
