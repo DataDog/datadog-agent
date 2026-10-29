@@ -1452,7 +1452,6 @@ log_level: info
 logs_config:
   enabled: true
   tags: [a, b]
-api_key: abc"def
 `), 0644))
 		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "conf.d", "nginx.d"), 0755))
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "conf.d", "nginx.d", "conf.yaml"), []byte(`
@@ -1494,16 +1493,6 @@ init_config:
 		assert.NotContains(t, got, "foo")
 	})
 
-	t.Run("embedded restore is substituted as text", func(t *testing.T) {
-		tmpDir := setup(t)
-		ops := Operations{FileOperations: []FileOperation{
-			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"note": "key=RES[api_key] level=RES[log_level] enabled=RES[logs_config.enabled]"}`)},
-		}}
-		require.NoError(t, ops.Apply(context.Background(), tmpDir))
-		got := readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))
-		assert.Equal(t, `key=abc"def level=info enabled=true`, got["note"])
-	})
-
 	t.Run("restore in jq arguments", func(t *testing.T) {
 		tmpDir := setup(t)
 		ops := Operations{FileOperations: []FileOperation{
@@ -1520,6 +1509,8 @@ init_config:
 		"disallowed file":         {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "RES[/etc/passwd:root]"}`)},
 		"missing key separator":   {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "RES[/datadog.yaml]"}`)},
 		"empty key":               {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "RES[]"}`)},
+		"restore inside a value":  {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "level=RES[log_level]"}`)},
+		"unquoted restore":        {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`log_level: RES[log_level]`)},
 	} {
 		t.Run(name+" fails before applying anything", func(t *testing.T) {
 			tmpDir := setup(t)

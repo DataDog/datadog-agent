@@ -51,7 +51,7 @@ var (
 	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
 	// resRegex matches RES[...] placeholders in config patches
 	resRegex = regexp.MustCompile(`RES\[([^\]"]*)\]`)
-	// resQuotedRegex matches RES[...] placeholders that make up an entire JSON string
+	// resQuotedRegex matches RES[...] placeholders that make up an entire JSON value
 	resQuotedRegex = regexp.MustCompile(`"RES\[([^\]"]*)\]"`)
 )
 
@@ -145,9 +145,9 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 //
 // A placeholder is either RES[a.b.c], which reads the dotted key from /datadog.yaml, or
 // RES[/conf.d/x.d/conf.yaml:a.b.c], which reads it from the given config file. A
-// placeholder that makes up an entire JSON string ("RES[...]") is replaced by the original
-// value as JSON, keeping its type; a missing file or key yields null, which removes the key
-// in a merge patch. A placeholder embedded in a longer string is replaced by the value as text.
+// placeholder must make up an entire JSON string ("RES[...]") and is replaced by the
+// original value as JSON, keeping its type; a missing file or key yields null, which removes
+// the key in a merge patch.
 func replaceRestores(operations *Operations, root *os.Root) error {
 	files := make(map[string]map[string]any)
 	lookup := func(ref string) (any, error) {
@@ -191,6 +191,9 @@ func replaceRestores(operations *Operations, root *os.Root) error {
 		if !resRegex.Match(raw) {
 			return raw, nil
 		}
+		if resRegex.Match(resQuotedRegex.ReplaceAll(raw, nil)) {
+			return nil, errors.New("restores must replace an entire value, RES[...] found inside a value")
+		}
 		var replaceErr error
 		raw = resQuotedRegex.ReplaceAllFunc(raw, func(match []byte) []byte {
 			value, err := lookup(string(resQuotedRegex.FindSubmatch(match)[1]))
@@ -204,36 +207,6 @@ func replaceRestores(operations *Operations, root *os.Root) error {
 				return match
 			}
 			return encoded
-		})
-		if replaceErr != nil {
-			return nil, replaceErr
-		}
-		raw = resRegex.ReplaceAllFunc(raw, func(match []byte) []byte {
-			value, err := lookup(string(resRegex.FindSubmatch(match)[1]))
-			if err != nil {
-				replaceErr = err
-				return match
-			}
-			var text string
-			switch v := value.(type) {
-			case nil:
-			case string:
-				text = v
-			default:
-				encoded, err := json.Marshal(v)
-				if err != nil {
-					replaceErr = err
-					return match
-				}
-				text = string(encoded)
-			}
-			// The placeholder sits inside a JSON string, so escape the text accordingly.
-			encoded, err := json.Marshal(text)
-			if err != nil {
-				replaceErr = err
-				return match
-			}
-			return encoded[1 : len(encoded)-1]
 		})
 		if replaceErr != nil {
 			return nil, replaceErr
