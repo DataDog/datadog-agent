@@ -618,6 +618,10 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service:        service,
 			Tags:           tags,
 			Timestamp:      timestamppb.New(timestamp),
+			// As for model events: when the event is forwarded to a remote event
+			// server (e.g. from a micro VM), the receiving side would otherwise
+			// report it under its own hostname.
+			Hostname: a.hostname,
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
