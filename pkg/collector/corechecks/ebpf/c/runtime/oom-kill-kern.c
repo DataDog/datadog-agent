@@ -71,7 +71,7 @@ static __always_inline const unsigned int *nr_cpu_ids_addr() {
 /*
  * `memcg_flush_seq` is a sequence count of the memcg stats flush steps. It is odd while
  * mem_cgroup_css_rstat_flush runs, and changes with every call. This is used to make sure that
- * stats are not being read while a flush is ongoing because iterleaved reading of stats can 
+ * stats are not being read while a flush is ongoing because interleaved reading of stats can 
  * cause over/under reporting.
  */
 BPF_ARRAY_MAP(memcg_flush_seq, __u64, 1)
@@ -92,25 +92,30 @@ static __always_inline __u64 *memcg_flush_seq_ptr() {
 SEC("fentry/mem_cgroup_css_rstat_flush")
 int BPF_PROG(fentry__mem_cgroup_css_rstat_flush) {
     __u64 *seq = memcg_flush_seq_ptr();
-    if (!seq)
+    if (!seq) {
         return 0;
+    }
 
     // only from even, in case the program was attached while a flush step was running
     __u64 cur = *seq;
-    if (!(cur & 1))
+    if (!(cur & 1)) {
         __sync_val_compare_and_swap(seq, cur, cur + 1);
+    }
+
     return 0;
 }
 
 SEC("fexit/mem_cgroup_css_rstat_flush")
 int BPF_PROG(fexit__mem_cgroup_css_rstat_flush) {
     __u64 *seq = memcg_flush_seq_ptr();
-    if (!seq)
+    if (!seq) {
         return 0;
+    }
 
     __u64 cur = *seq;
-    if (cur & 1)
+    if (cur & 1) {
         __sync_val_compare_and_swap(seq, cur, cur + 1);
+    }
     return 0;
 }
 
@@ -136,21 +141,26 @@ struct cgroup_memory_stats_ctx {
 // mem_cgroup_stats_slot returns the slot of the stat item idx in the memcg vmstats state arrays, or
 // -1 if memcg does not track it.
 static __always_inline long mem_cgroup_stats_slot(int idx) {
-    if (idx < 0 || idx >= bpf_core_enum_value(enum memcg_stat_item, MEMCG_NR_STAT))
+    if (idx < 0 || idx >= bpf_core_enum_value(enum memcg_stat_item, MEMCG_NR_STAT)) {
         return -1;
+    }
 
     // before 6.10 the state arrays hold every stat item and are indexed by the item itself
-    if (bpf_core_field_size(struct memcg_vmstats, state) >= bpf_core_enum_value(enum memcg_stat_item, MEMCG_NR_STAT) * sizeof(long))
+    if (bpf_core_field_size(struct memcg_vmstats, state) >= bpf_core_enum_value(enum memcg_stat_item, MEMCG_NR_STAT) * sizeof(long)) {
         return idx;
+    }
 
-    const u8 *stats_index = mem_cgroup_stats_index_addr();
-    if (!stats_index)
+    const u8 *stats_index_addr = mem_cgroup_stats_index_addr();
+    if (!stats_index_addr) {
         return -1;
+    }
 
     u8 slot = 0xff;
-    bpf_probe_read_kernel(&slot, sizeof(slot), stats_index + idx);
-    if (slot == 0xff)
+    bpf_probe_read_kernel(&slot, sizeof(slot), stats_index_addr + idx);
+    if (slot == 0xff) {
         return -1;
+    }
+
     return slot;
 }
 
@@ -158,13 +168,16 @@ static __always_inline struct mem_cgroup *task_mem_cgroup(struct task_struct *ts
     struct cgroup_subsys_state *css;
     int ssid;
 
-    if (!bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
+    if (!bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id)) {
         return NULL;
+    }
+
     ssid = bpf_core_enum_value(enum cgroup_subsys_id, memory_cgrp_id);
 
     css = BPF_CORE_READ(tsk, cgroups, subsys[ssid]);
-    if (!css)
+    if (!css) {
         return NULL;
+    }
 
     return container_of(css, struct mem_cgroup, css);
 }
@@ -172,15 +185,17 @@ static __always_inline struct mem_cgroup *task_mem_cgroup(struct task_struct *ts
 // add_cpu_pending_pages adds the stat updates of a cpu that are not flushed to memcg->vmstats yet.
 static long add_cpu_pending_pages(u64 cpu, struct cgroup_memory_stats_ctx *c) {
     unsigned long offset = 0;
-    if (bpf_probe_read_kernel(&offset, sizeof(offset), per_cpu_offset_addr() + cpu) < 0)
+    if (bpf_probe_read_kernel(&offset, sizeof(offset), per_cpu_offset_addr() + cpu) < 0) {
         return 1;
+    }
 
     struct memcg_vmstats_percpu *statc = (struct memcg_vmstats_percpu *)((unsigned long)c->pcpu + offset);
 #pragma unroll
     for (int i = 0; i < CGROUP_MEM_NR_STATS; i++) {
         long slot = c->slot[i];
-        if (slot < 0)
+        if (slot < 0) {
             continue;
+        }
 
         long cur = 0, prev = 0;
         bpf_probe_read_kernel(&cur, sizeof(cur), &statc->state[slot]);
@@ -197,8 +212,10 @@ static long add_cpu_pending_pages(u64 cpu, struct cgroup_memory_stats_ctx *c) {
 // all CPUs atomically, so a CPU may charge a page after we scanned it and a subsequent CPU may uncharge
 // a page before we scan it, resulting in a net value less than zero.
 static __always_inline __u64 page_state_pages(struct cgroup_memory_stats_ctx *c, int i) {
-    if (c->slot[i] < 0)
+    if (c->slot[i] < 0) {
         return (__u64)-1;
+    }
+
     return c->pages[i] > 0 ? (__u64)c->pages[i] : 0;
 }
 
@@ -213,18 +230,22 @@ static __always_inline bool read_cgroup_memory_pages(struct memcg_vmstats *vmsta
 #pragma unroll
     for (int i = 0; i < CGROUP_MEM_NR_STATS; i++) {
         long slot = c->slot[i];
-        if (slot < 0)
+        if (slot < 0) {
             continue;
+        }
 
         long state = 0, pending = 0;
         bpf_probe_read_kernel(&state, sizeof(state), &vmstats->state[slot]);
-        if (bpf_core_field_exists(vmstats->state_pending))
+        if (bpf_core_field_exists(vmstats->state_pending)) {
             bpf_probe_read_kernel(&pending, sizeof(pending), &vmstats->state_pending[slot]);
+        }
+
         c->pages[i] = state + pending;
     }
 
-    if (nr_cpus)
+    if (nr_cpus) {
         bpf_loop(nr_cpus, add_cpu_pending_pages, c, 0);
+    }
 
     return !(seq_begin & 1) && READ_ONCE(*seq) == seq_begin;
 }
@@ -241,18 +262,21 @@ static __always_inline void get_cgroup_memory_stats(struct task_struct *tsk, str
     // memcg->vmstats is a pointer since 6.1, and holds the aggregated counters
     if (!bpf_core_type_exists(struct memcg_vmstats) ||
         bpf_core_field_size(struct mem_cgroup, vmstats) != sizeof(struct memcg_vmstats *) ||
-        !bpf_core_field_exists(struct memcg_vmstats_percpu, state_prev))
+        !bpf_core_field_exists(struct memcg_vmstats_percpu, state_prev)) {
         return;
+    }
 
     struct mem_cgroup *memcg = task_mem_cgroup(tsk);
-    if (!memcg)
+    if (!memcg) {
         return;
+    }
 
     s->mem.usage = (unsigned long)BPF_CORE_READ(memcg, memory.usage.counter);
 
     struct memcg_vmstats *vmstats = BPF_CORE_READ(memcg, vmstats);
-    if (!vmstats)
+    if (!vmstats) {
         return;
+    }
 
     // stat item values change between kernel versions, so resolve them against the running kernel
     struct cgroup_memory_stats_ctx c = {
@@ -268,12 +292,14 @@ static __always_inline void get_cgroup_memory_stats(struct task_struct *tsk, str
     };
 
     u32 nr_cpus = 0;
-    if (c.pcpu && per_cpu_offset_addr() && nr_cpu_ids_addr() && bpf_helper_exists(BPF_FUNC_loop))
+    if (c.pcpu && per_cpu_offset_addr() && nr_cpu_ids_addr() && bpf_helper_exists(BPF_FUNC_loop)) {
         bpf_probe_read_kernel(&nr_cpus, sizeof(nr_cpus), nr_cpu_ids_addr());
+    }
 
     __u64 *seq = memcg_flush_seq_ptr();
-    if (!seq)
+    if (!seq) {
         return;
+    }
 
     s->mem.flags = CGROUP_MEM_STATS_UNSTABLE;
 #pragma unroll
@@ -350,12 +376,14 @@ int BPF_PROG(fentry__oom_kill_process, struct oom_control *oc) {
     bpf_memset(&stats, 0, sizeof(stats));
 
     struct task_struct* victim = handle_oom_kill(oc, &k, &stats);
-    if (!victim)
+    if (!victim) {
         return 0;
+    }
 
 #ifdef COMPILE_CORE
-    if (stats.memcg_oom && emit_cgroup_memory_stats())
+    if (stats.memcg_oom && emit_cgroup_memory_stats()) {
         get_cgroup_memory_stats(victim, &stats);
+    }
 #endif
 
     bpf_map_update_elem(&oom_stats, &k, &stats, BPF_NOEXIST);
@@ -374,8 +402,9 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     bpf_memset(&stats, 0, sizeof(stats));
 
     struct task_struct* victim = handle_oom_kill(oc, &k, &stats);
-    if (!victim)
+    if (!victim) {
         return 0;
+    }
 
     bpf_map_update_elem(&oom_stats, &k, &stats, BPF_NOEXIST);
 
