@@ -131,3 +131,21 @@ func BenchmarkStats(b *testing.B) {
 		})
 	}
 }
+
+func TestResponseCountersFlushWithStats(t *testing.T) {
+	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
+	defer sk.Close()
+	key := getSampleDNSKey()
+	d := ToHostname("abc.com")
+	then := time.Now()
+
+	sk.ProcessPacketInfo(dnsPacketInfo{transactionID: 9, key: key, pktType: successfulResponse}, then)
+	sk.ProcessPacketInfo(dnsPacketInfo{transactionID: 1, pktType: query, key: key, question: d, queryType: TypeA}, then)
+	sk.ProcessPacketInfo(dnsPacketInfo{transactionID: 1, key: key, pktType: successfulResponse}, then.Add(DNSTimeoutSecs*time.Second+time.Millisecond))
+	assert.Equal(t, int64(1), sk.unmatchedResponses)
+	assert.Equal(t, int64(1), sk.lateResponses)
+
+	sk.GetAndResetAllStats()
+	assert.Zero(t, sk.unmatchedResponses)
+	assert.Zero(t, sk.lateResponses)
+}

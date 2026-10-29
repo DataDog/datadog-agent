@@ -16,6 +16,22 @@ import (
 
 var _ gopacket.DecodingLayer = &tcpWithDNSSupport{}
 
+// dnsHeaderLen is the size of the fixed header at the start of every DNS message
+const dnsHeaderLen = 12
+
+// isStandardQueryHeader reports whether msg starts with the header of a
+// standard query or response with a single question, the only messages DNS
+// stats use. Data from the middle of a message is very unlikely to pass.
+func isStandardQueryHeader(msg []byte) bool {
+	if len(msg) < dnsHeaderLen {
+		return false
+	}
+	flags := binary.BigEndian.Uint16(msg[2:4])
+	opcode := (flags >> 11) & 0xf
+	reservedZ := flags & 0x0040
+	return opcode == 0 && reservedZ == 0 && binary.BigEndian.Uint16(msg[4:6]) == 1
+}
+
 // source: https://github.com/weaveworks/scope/blob/master/probe/endpoint/dns_snooper.go
 // Gopacket doesn't provide direct support for DNS over TCP, see https://github.com/google/gopacket/issues/236
 type tcpWithDNSSupport struct {

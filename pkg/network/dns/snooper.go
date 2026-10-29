@@ -167,18 +167,19 @@ func (s *socketFilterSnooper) processPacket(data []byte, info filter.PacketInfo,
 	pktInfo := dnsPacketInfo{}
 
 	parser := s.parserFor(info)
-	if err := parser.ParseInto(data, t, &pktInfo); err != nil {
+	err := parser.ParseInto(data, t, &pktInfo)
+	// count every truncated packet, including those still matched from their header
+	if parser.decoder.Truncated {
+		snooperTelemetry.truncatedPkts.Inc()
+	}
+	if err != nil {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
-		case errTruncated:
-			snooperTelemetry.truncatedPkts.Inc()
+		case errTruncated: // counted above
 		default:
 			snooperTelemetry.decodingErrors.Inc()
 		}
 		return nil
-	}
-	if parser.decoder.Truncated {
-		snooperTelemetry.truncatedPkts.Inc()
 	}
 
 	s.processPacketInfo(&pktInfo, t, ts)

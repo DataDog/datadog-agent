@@ -81,7 +81,11 @@ type dnsStatKeeper struct {
 	deleteCount      int
 	processedStats   int64
 	droppedStats     int64
-	maxStats         int64
+	// response counts kept under mux and flushed to telemetry with the stats,
+	// to keep telemetry calls off the per-packet path
+	lateResponses      int64
+	unmatchedResponses int64
+	maxStats           int64
 }
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int64) *dnsStatKeeper {
@@ -133,7 +137,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	start, ok := d.state[sk]
 
 	if !ok {
-		statsTelemetry.unmatchedResponses.Inc()
+		d.unmatchedResponses++
 		return
 	}
 
@@ -169,7 +173,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		byqtype.Timeouts++
-		statsTelemetry.lateResponses.Inc()
+		d.lateResponses++
 	} else {
 		byqtype.CountByRcode[uint32(info.rCode)]++
 		if info.pktType == successfulResponse {
@@ -191,6 +195,10 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.processedStats, d.droppedStats)
 	d.processedStats = 0
 	d.droppedStats = 0
+	statsTelemetry.lateResponses.Add(float64(d.lateResponses))
+	statsTelemetry.unmatchedResponses.Add(float64(d.unmatchedResponses))
+	d.lateResponses = 0
+	d.unmatchedResponses = 0
 	return ret
 }
 

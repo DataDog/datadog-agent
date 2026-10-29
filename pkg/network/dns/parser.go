@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"runtime"
+	"slices"
 	"syscall"
 	"time"
 
@@ -23,12 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	maxIPBufferSize = 200
-
-	// dnsHeaderLen is the size of the fixed header at the start of every DNS message
-	dnsHeaderLen = 12
-)
+const maxIPBufferSize = 200
 
 var (
 	errTruncated      = errors.New("the packet is truncated")
@@ -123,8 +119,10 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 	p.extraResponses = p.extraResponses[:0]
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
-	// If there is a DNS layer then it would be the last layer
-	if p.decoder.Truncated || err != nil || len(p.layers) == 0 || p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
+	// If there is a DNS layer then it would be the last layer. A truncated TCP
+	// segment can still start with a complete message, so take the normal path
+	// whenever the DNS layer was decoded.
+	if err != nil || len(p.layers) == 0 || p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
 		// The whole DNS message isn't available, either because the packet was
 		// cut short by the snaplen or because it's a TCP segment holding part of
 		// a message. A response can still be matched to its query by its header.
@@ -150,7 +148,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 
 	p.setKey(pktInfo)
 	pktInfo.transactionID = p.dnsPayload.ID
-	if pktInfo.pktType != query && p.hasLayer(layers.LayerTypeTCP) {
+	if pktInfo.pktType != query && slices.Contains(p.layers, layers.LayerTypeTCP) {
 		p.appendTrailingResponses(pktInfo)
 	}
 	return nil
@@ -163,9 +161,9 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 func (p *dnsParser) parseResponseHeaderInto(pktInfo *dnsPacketInfo) bool {
 	var ok bool
 	switch {
-	case p.hasLayer(layers.LayerTypeUDP):
+	case slices.Contains(p.layers, layers.LayerTypeUDP):
 		ok = setResponseFromHeader(p.udpPayload.UDP.LayerPayload(), pktInfo)
-	case p.hasLayer(layers.LayerTypeTCP):
+	case slices.Contains(p.layers, layers.LayerTypeTCP):
 		payload := p.tcpPayload.TCP.LayerPayload()
 		// The message usually starts after its 2-byte length, but the length
 		// may have been sent in a segment of its own.
@@ -185,30 +183,17 @@ func (p *dnsParser) appendTrailingResponses(first *dnsPacketInfo) {
 	payload := p.tcpPayload.TCP.LayerPayload()
 	rest := payload[2+int(binary.BigEndian.Uint16(payload)):]
 	for len(rest) > 2 {
+		length := int(binary.BigEndian.Uint16(rest))
 		extra := dnsPacketInfo{key: first.key, partial: true}
-		if !setResponseFromHeader(rest[2:], &extra) {
+		if length < dnsHeaderLen || !setResponseFromHeader(rest[2:], &extra) {
 			return
 		}
 		p.extraResponses = append(p.extraResponses, extra)
-		next := 2 + int(binary.BigEndian.Uint16(rest))
-		if next > len(rest) {
+		if 2+length > len(rest) {
 			return
 		}
-		rest = rest[next:]
+		rest = rest[2+length:]
 	}
-}
-
-// isStandardQueryHeader reports whether msg starts with the header of a
-// standard query or response with a single question, the only messages DNS
-// stats use. Data from the middle of a message is very unlikely to pass.
-func isStandardQueryHeader(msg []byte) bool {
-	if len(msg) < dnsHeaderLen {
-		return false
-	}
-	flags := binary.BigEndian.Uint16(msg[2:4])
-	opcode := (flags >> 11) & 0xf
-	reservedZ := flags & 0x0040
-	return opcode == 0 && reservedZ == 0 && binary.BigEndian.Uint16(msg[4:6]) == 1
 }
 
 // setResponseFromHeader reads the ID and response code of a DNS response from
@@ -230,15 +215,6 @@ func setResponseFromHeader(msg []byte, pktInfo *dnsPacketInfo) bool {
 		pktInfo.pktType = failedResponse
 	}
 	return true
-}
-
-func (p *dnsParser) hasLayer(layerType gopacket.LayerType) bool {
-	for _, layer := range p.layers {
-		if layer == layerType {
-			return true
-		}
-	}
-	return false
 }
 
 // setKey fills the connection key of pktInfo from the decoded IP and transport layers

@@ -25,13 +25,17 @@ import (
 )
 
 var (
-	tcpDNSClientIP = net.IP{10, 0, 0, 1}
-	tcpDNSServerIP = net.IP{10, 0, 0, 2}
+	// tcpDNSFirstAnswerIP is the first A record in responses built by tcpDNSMessage
+	tcpDNSFirstAnswerIP = net.IP{10, 1, 0, 0}
+	tcpDNSClientIP      = net.IP{10, 0, 0, 1}
+	tcpDNSServerIP      = net.IP{10, 0, 0, 2}
 )
 
 const (
-	tcpDNSClientPort = 40000
-	tcpDNSDomain     = "big.example.com"
+	// replaySnapLenForTests matches the packet source's default snaplen
+	replaySnapLenForTests = 4096
+	tcpDNSClientPort      = 40000
+	tcpDNSDomain          = "big.example.com"
 )
 
 // noopPacketSource lets tests build a snooper and feed it frames directly.
@@ -83,6 +87,9 @@ func (h *tcpDNSHarness) sendFromServer(payload []byte) {
 
 func (h *tcpDNSHarness) feed(frame []byte) {
 	h.now = h.now.Add(time.Millisecond)
+	if len(frame) > replaySnapLenForTests {
+		frame = frame[:replaySnapLenForTests] // as the packet source would
+	}
 	require.NoError(h.t, h.snooper.processPacket(frame, nil, h.now))
 }
 
@@ -101,12 +108,15 @@ func (h *tcpDNSHarness) finish() Stats {
 
 func TestTCPDNSReassembly(t *testing.T) {
 	small := func(id uint16) []byte { return tcpDNSMessage(t, id, true, 1) }
-	large := func(id uint16) []byte { return tcpDNSMessage(t, id, true, 200) } // ~3.2KB, larger than one 1448-byte MSS segment
+	large := func(id uint16) []byte { return tcpDNSMessage(t, id, true, 200) } // ~6KB, larger than one 1448-byte MSS segment
 
 	tests := []struct {
 		name      string
 		queries   int
 		responses func(h *tcpDNSHarness)
+		// cached is whether the first answer reaches the reverse DNS cache,
+		// which needs the first response to be fully decoded
+		cached bool
 	}{
 		{
 			name:    "self-contained answer",
@@ -114,6 +124,7 @@ func TestTCPDNSReassembly(t *testing.T) {
 			responses: func(h *tcpDNSHarness) {
 				h.sendFromServer(withTCPLength(small(1)))
 			},
+			cached: true,
 		},
 		{
 			name:    "answer split across MSS-sized segments",
@@ -130,6 +141,7 @@ func TestTCPDNSReassembly(t *testing.T) {
 			responses: func(h *tcpDNSHarness) {
 				h.sendFromServer(append(withTCPLength(small(1)), withTCPLength(small(2))...))
 			},
+			cached: true,
 		},
 		{
 			name:    "length prefix in its own segment",
@@ -139,6 +151,15 @@ func TestTCPDNSReassembly(t *testing.T) {
 				h.sendFromServer(msg[:2])
 				h.sendFromServer(msg[2:])
 			},
+		},
+		{
+			name:    "segment truncated by the snaplen after complete answers",
+			queries: 3,
+			responses: func(h *tcpDNSHarness) {
+				payload := append(withTCPLength(small(1)), withTCPLength(small(2))...)
+				h.sendFromServer(append(payload, withTCPLength(large(3))...))
+			},
+			cached: true,
 		},
 	}
 
@@ -155,8 +176,22 @@ func TestTCPDNSReassembly(t *testing.T) {
 			assert.Equal(t, uint32(tt.queries), stats.CountByRcode[0], "every answer should be matched to its query")
 			assert.Zero(t, stats.Timeouts, "answered queries must not be counted as timeouts")
 			assert.Equal(t, decodingErrors, snooperTelemetry.decodingErrors.Load(), "no segment should count as a decoding error")
+			resolved := h.snooper.Resolve(map[util.Address]struct{}{util.AddressFromNetIP(tcpDNSFirstAnswerIP): {}})
+			assert.Equal(t, tt.cached, len(resolved) > 0, "first answer in the reverse DNS cache")
 		})
 	}
+}
+
+func TestTrailingResponseNeedsPlausibleLength(t *testing.T) {
+	h := newTCPDNSHarness(t)
+	h.sendFromClient(withTCPLength(tcpDNSMessage(t, 1, false, 0)))
+	h.sendFromClient(withTCPLength(tcpDNSMessage(t, 2, false, 0)))
+	// the second response follows a length field too small for a DNS header
+	payload := append(withTCPLength(tcpDNSMessage(t, 1, true, 1)), 0, 0)
+	h.sendFromServer(append(payload, tcpDNSMessage(t, 2, true, 1)...))
+	stats := h.finish()
+	assert.Equal(t, uint32(1), stats.CountByRcode[0])
+	assert.Equal(t, uint32(1), stats.Timeouts)
 }
 
 func TestDNSResponseHeaderOnly(t *testing.T) {
@@ -232,7 +267,7 @@ func TestSetResponseFromHeader(t *testing.T) {
 }
 
 func BenchmarkParseDNSPacket(b *testing.B) {
-	t := &testing.T{}
+	t := testing.TB(b)
 	split := splitEvery(withTCPLength(tcpDNSMessage(t, 1, true, 200)), 1448)
 	bigUDP := udpDNSFrame(t, tcpDNSMessage(t, 1, true, 400))
 	frames := []struct {
@@ -263,11 +298,11 @@ func BenchmarkParseDNSPacket(b *testing.B) {
 }
 
 // udpDNSFrame builds a server-to-client UDP frame carrying msg.
-func udpDNSFrame(t *testing.T, msg []byte) []byte {
+func udpDNSFrame(t testing.TB, msg []byte) []byte {
 	return udpDNSFrameFrom(t, tcpDNSServerIP, tcpDNSClientIP, 53, tcpDNSClientPort, msg)
 }
 
-func udpDNSFrameFrom(t *testing.T, src, dst net.IP, sport, dport uint16, msg []byte) []byte {
+func udpDNSFrameFrom(t testing.TB, src, dst net.IP, sport, dport uint16, msg []byte) []byte {
 	eth := &layers.Ethernet{
 		SrcMAC:       net.HardwareAddr{0, 0, 0, 0, 0, 1},
 		DstMAC:       net.HardwareAddr{0, 0, 0, 0, 0, 2},
@@ -283,7 +318,7 @@ func udpDNSFrameFrom(t *testing.T, src, dst net.IP, sport, dport uint16, msg []b
 }
 
 // tcpDNSMessage builds a DNS query (response=false) or a NOERROR response with numAnswers A records.
-func tcpDNSMessage(t *testing.T, id uint16, response bool, numAnswers int) []byte {
+func tcpDNSMessage(t testing.TB, id uint16, response bool, numAnswers int) []byte {
 	dns := &layers.DNS{
 		ID:           id,
 		QR:           response,
@@ -322,7 +357,7 @@ func splitEvery(b []byte, n int) [][]byte {
 	return append(out, b)
 }
 
-func tcpDNSFrame(t *testing.T, src, dst net.IP, sport, dport uint16, seq, ack uint32, payload []byte) []byte {
+func tcpDNSFrame(t testing.TB, src, dst net.IP, sport, dport uint16, seq, ack uint32, payload []byte) []byte {
 	eth := &layers.Ethernet{
 		SrcMAC:       net.HardwareAddr{0, 0, 0, 0, 0, 1},
 		DstMAC:       net.HardwareAddr{0, 0, 0, 0, 0, 2},
