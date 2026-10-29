@@ -24,6 +24,12 @@ import (
 // Brace analysis for tilde validation returns ctx.Err() if ctx is done before
 // it finishes.
 func validateNode(ctx context.Context, node syntax.Node, remediationMode bool) error {
+	// Bound the AST nesting depth before the recursive syntax.Walk below (and
+	// before any recursive execution) so that neither can overflow the stack.
+	// See [MaxNestingDepth]. This is iterative and cannot itself overflow.
+	if err := checkNestingDepth(node); err != nil {
+		return err
+	}
 	var err error
 	hdocWords := make(map[*syntax.Word]bool)
 	// literalWords are words that undergo tilde expansion but never brace

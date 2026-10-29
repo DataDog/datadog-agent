@@ -22,7 +22,7 @@ the Go error return.
 
 | Surface | Static check |
 |---|---|
-| Shell syntax | Same `ParseScript` size limit and restricted AST validation as execution |
+| Shell syntax | Same `ParseScript` size and nesting-depth limits, and restricted AST validation, as execution |
 | Commands | Exact `AllowedCommands`, builtin registration, remediation-only metadata, selective elevation, and prohibition of elevation in pipelines |
 | Flags | Same builtin flag factories, normalization, and parsing as execution; handler-level semantic checks and embedded AWK/sed/jq programs are not validated |
 | Paths | Explicit redirects and modeled builtin operands; local checks use sandbox metadata for containment and write restrictions; remote checks use only lexical grant parsing, containment, and access precedence, leaving target metadata indeterminate |

@@ -819,6 +819,11 @@ func ParseScript(script, name string) (*syntax.File, error) {
 		return nil, fmt.Errorf("script size %d bytes exceeds maximum of %d bytes (%d MiB); split the script into smaller pieces",
 			len(script), MaxScriptBytes, MaxScriptBytes/(1024*1024))
 	}
+	// Reject deeply nested scripts before the recursive-descent parser can
+	// overflow the goroutine stack on them. See [MaxNestingDepth].
+	if err := checkScriptNestingDepth(script); err != nil {
+		return nil, err
+	}
 	return syntax.NewParser().Parse(strings.NewReader(script), name)
 }
 
