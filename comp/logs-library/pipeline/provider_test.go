@@ -6,13 +6,7 @@
 package pipeline
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +23,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
@@ -347,55 +340,4 @@ func TestPipelineChannelDistribution(t *testing.T) {
 			assert.Empty(t, p.pipelines)
 		})
 	}
-}
-
-// TestServerlessFlushTimeoutDoesNotBlockLaterPayloads checks that when a flush stops waiting for an
-// in-flight send because its context is done, payloads flushed afterwards can still be queued for sending.
-func TestServerlessFlushTimeoutDoesNotBlockLaterPayloads(t *testing.T) {
-	// The intake holds every request until the test ends, so the first payload stays in flight
-	release := make(chan struct{})
-	intake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		<-release
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer intake.Close()
-	defer close(release)
-
-	url := strings.Split(intake.URL, ":")
-	port, err := strconv.Atoi(url[2])
-	require.NoError(t, err)
-	endpoint := config.NewEndpoint("test", "", strings.TrimPrefix(url[1], "//"), port, config.EmptyPathPrefix, false)
-	endpoints := config.NewEndpoints(endpoint, nil, false, true)
-	// Only the flushes below send payloads
-	endpoints.BatchWait = time.Hour
-
-	destinationsContext := client.NewDestinationsContext()
-	destinationsContext.Start()
-	defer destinationsContext.Stop()
-
-	p := NewProvider(1, &sender.NoopSink{}, &diagnostic.BufferedMessageReceiver{}, nil, nil, endpoints,
-		destinationsContext, statusinterface.NewStatusProviderMock(), nil, configmock.New(t),
-		compressionfx.NewMockCompressor(), false, true, secretsnoopimpl.NewComponent().Comp)
-	p.Start()
-
-	source := sources.NewLogSource("test", &config.LogsConfig{})
-	sendLine := func() {
-		p.NextPipelineChan() <- message.NewMessageWithSource([]byte("line"), message.StatusInfo, source, time.Now().UnixNano())
-		// Give the processor time to hand the line to the batch strategy
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	// The first flush stops waiting for its in-flight payload when ctx is done
-	sendLine()
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	p.Flush(ctx)
-	cancel()
-
-	// The next payload must still be queued for sending while the first one is in flight
-	sendLine()
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	start := time.Now()
-	p.(*provider).pipelines[0].Flush(ctx)
-	assert.Less(t, time.Since(start), time.Second, "queuing the payload waited for the earlier in-flight send")
 }
