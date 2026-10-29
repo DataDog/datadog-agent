@@ -134,9 +134,18 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
 // text. Frames whose terminator falls outside the classification buffer are
 // rejected; giving up is the safe direction, and the caller retries on later
 // packets.
+//
+// The switch only chooses which character classes the first field may use;
+// the field itself is checked by a single call to check_resp_field_and_crlf
+// after it. That is deliberate. The validator is inlined, so every call site
+// gets its own copy of the 11-step ladder (~290 instructions), and is_redis is
+// itself inlined into several programs. Calling the validator from each switch
+// arm made the Go TLS return uprobes grow from ~2,100 to ~4,400 instructions,
+// past the 4,096 limit on pre-5.2 kernels (E2BIG on 4.14-4.19).
 static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH);
 
+    __u8 classes;
     switch (buf[0]) {
     // Length- and count-prefixed types: <type><decimal>\r\n. The sign class also
     // admits the null forms $-1\r\n and *-1\r\n.
@@ -151,20 +160,27 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     // classification buffer will not find its terminator and is rejected.
     case RESP_INTEGER_PREFIX:          // Integer
     case RESP3_BIG_NUMBER_PREFIX:      // Big Number
-        return check_resp_field_and_crlf(buf, buf_size,RESP_CLASS_DIGIT | RESP_CLASS_SIGN);
+        classes = RESP_CLASS_DIGIT | RESP_CLASS_SIGN;
+        break;
 
     // Doubles additionally carry '.', a signed exponent (1e-7), and the literals
     // inf, -inf and nan. Only the character set is checked, not the grammar.
     case RESP3_DOUBLE_PREFIX:          // Double
-        return check_resp_field_and_crlf(buf, buf_size,RESP_CLASS_DIGIT | RESP_CLASS_SIGN | RESP_CLASS_INNER_SIGN | RESP_CLASS_DOT | RESP_CLASS_ALPHA);
+        classes = RESP_CLASS_DIGIT | RESP_CLASS_SIGN | RESP_CLASS_INNER_SIGN | RESP_CLASS_DOT | RESP_CLASS_ALPHA;
+        break;
 
     // Simple strings: +OK\r\n, +PONG\r\n.
     case RESP_SIMPLE_STRING_PREFIX:    // Simple String
-        return check_resp_field_and_crlf(buf, buf_size,RESP_CLASS_TEXT);
+        classes = RESP_CLASS_TEXT;
+        break;
 
     // Errors: -ERR ..., -WRONGTYPE ..., or other CRLF-terminated text.
     case RESP_ERROR_PREFIX:            // Error
-        return check_err_prefix(buf, buf_size) || check_resp_field_and_crlf(buf, buf_size,RESP_CLASS_TEXT);
+        if (check_err_prefix(buf, buf_size)) {
+            return true;
+        }
+        classes = RESP_CLASS_TEXT;
+        break;
 
     // RESP3 null is exactly _\r\n. REDIS_MIN_FRAME_LENGTH guarantees 3 bytes.
     case RESP3_NULL_PREFIX:            // Null
@@ -177,6 +193,8 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     default:
         return false;
     }
+
+    return check_resp_field_and_crlf(buf, buf_size, classes);
 }
 
 #endif
