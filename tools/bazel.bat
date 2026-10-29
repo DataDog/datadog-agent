@@ -160,10 +160,12 @@ exit /b 1
 set "_have_token="
 if defined BUILDBARN_ID_TOKEN set "_have_token=1"
 if defined DOTNET_RUNNING_IN_CONTAINER (
-  if not defined _have_token call :buildbarn_token_readable || (
-    >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token or Vault session in this container. Mint a token on the host and inject it, e.g.:
-    >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
-    exit /b 1
+  if not defined _have_token (
+    call :buildbarn_token_readable || (
+      >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token or Vault session in this container. Mint a token on the host and inject it, e.g.:
+      >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
+      exit /b 1
+    )
   )
 ) else (
   if not defined _have_token where vault >nul 2>&1 || exit /b 1
