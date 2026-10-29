@@ -8,6 +8,7 @@ go_library(
         "apm_inject_reinstall_other.go",
         "output.go",
         "packages.go",
+        "par.go",
         "services_nix.go",
         "services_windows.go",
         "setup.go",
@@ -25,6 +26,7 @@ go_library(
         "//pkg/fleet/installer/setup/config",
         "//pkg/fleet/installer/telemetry",
         "//pkg/version",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/exec",
@@ -120,6 +122,7 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",
+            "//pkg/fleet/installer/packages/service/systemd",
             "//pkg/fleet/installer/packages/service/windows",
         ],
         "//conditions:default": [],
@@ -128,12 +131,16 @@ go_library(
 
 dd_agent_go_test(
     name = "common_test",
-    srcs = ["setup_test.go"],
+    srcs = [
+        "par_test.go",
+        "setup_test.go",
+    ],
     embed = [":common"],
     deps = [
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/repository",
+        "//pkg/fleet/installer/setup/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
