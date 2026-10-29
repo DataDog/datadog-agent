@@ -29,7 +29,7 @@ class TestUpdateChangelog(unittest.TestCase):
         self.assertEqual(generic_mock.call_count, 2)
         create_tree_mock.assert_called_once_with(ctx, '7.86.x')
         github = github_mock.return_value
-        github.create_branch.assert_called_once_with('changelog-update-7.86.0', 'basesha')
+        github.create_branch.assert_called_once_with('changelog-update-7.86.0', 'basesha', reset=True)
         github.commit_and_push_signed.assert_called_once_with(
             'changelog-update-7.86.0', 'Changelog updates for 7.86.0 release', tree
         )

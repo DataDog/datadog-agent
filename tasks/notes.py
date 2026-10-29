@@ -93,7 +93,7 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             print("Creating signed commits using Github API")
             tree = create_tree(ctx, base_branch)
             github = GithubAPI()
-            github.create_branch(update_branch, tree["base_tree"])
+            github.create_branch(update_branch, tree["base_tree"], reset=True)
             github.commit_and_push_signed(update_branch, f"Changelog updates for {new_version} release", tree)
         else:
             commit_message = f"'Changelog updates for {new_version} release'"
