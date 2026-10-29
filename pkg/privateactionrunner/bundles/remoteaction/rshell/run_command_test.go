@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -609,6 +610,48 @@ func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
 	_, err := handler.Run(context.Background(), makeTask("", nil), nil)
 
 	assert.ErrorContains(t, err, "command is required")
+}
+
+func TestRunCommandScriptSizeLimit(t *testing.T) {
+	for _, action := range []struct {
+		name       string
+		newHandler func() *RunCommandHandler
+	}{
+		{name: "read-only", newHandler: newDefaultRunCommandHandler},
+		{name: "remediation", newHandler: newDefaultRunRemediationCommandHandler},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			for _, tc := range []struct {
+				name string
+				size int
+			}{
+				{name: "below limit", size: interp.MaxScriptBytes - 1},
+				{name: "at limit", size: interp.MaxScriptBytes},
+				{name: "above limit", size: interp.MaxScriptBytes + 1},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					// Pad with a comment so script length does not affect its output.
+					const command = "echo script-size-ok\n#"
+					script := command + strings.Repeat("x", tc.size-len(command))
+					handler := action.newHandler()
+
+					out, err := handler.Run(context.Background(), makeTask(script, []string{"rshell:echo"}), nil)
+
+					if tc.size > interp.MaxScriptBytes {
+						require.ErrorContains(t, err, "failed to parse command: script size")
+						assert.ErrorContains(t, err, "exceeds maximum")
+						assert.Nil(t, out)
+						return
+					}
+					require.NoError(t, err)
+					result := out.(*RunCommandOutputs)
+					assert.Zero(t, result.ExitCode)
+					assert.Equal(t, "script-size-ok\n", result.Stdout)
+					assert.Empty(t, result.Stderr)
+				})
+			}
+		})
+	}
 }
 
 func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
