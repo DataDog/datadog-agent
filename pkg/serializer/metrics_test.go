@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -511,6 +512,111 @@ func TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured(t *testing.T) {
 		assert.False(t, conf.V3)
 		assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
 		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
+
+// TestBuildPipelinesValidationRequestID verifies that validation_request_id sends
+// v3 sketches to beta_route under that validation ID, and leaves other routes alone.
+func TestBuildPipelinesValidationRequestID(t *testing.T) {
+	const validationID = "staging-validation"
+	customRoute := transaction.Endpoint{Route: "/api/intake/metrics/custom/sketches", Name: endpoints.V3BetaSketchSeriesEndpoint.Name}
+
+	tests := []struct {
+		name         string
+		kind         metricsKind
+		config       map[string]any
+		wantV3       bool
+		wantEndpoint transaction.Endpoint
+		wantID       string
+	}{
+		{
+			name:         "v3 sketches go to beta_route",
+			kind:         metricsKindSketches,
+			config:       map[string]any{"use_v3_api.distributions.enabled": "true"},
+			wantV3:       true,
+			wantEndpoint: endpoints.V3BetaSketchSeriesEndpoint,
+			wantID:       validationID,
+		},
+		{
+			name: "custom beta_route",
+			kind: metricsKindSketches,
+			config: map[string]any{
+				"use_v3_api.distributions.enabled":                       "true",
+				"serializer_experimental_use_v3_api.sketches.beta_route": customRoute.Route,
+			},
+			wantV3:       true,
+			wantEndpoint: customRoute,
+			wantID:       validationID,
+		},
+		{
+			name:         "v2 sketches are unchanged",
+			kind:         metricsKindSketches,
+			config:       map[string]any{"use_v3_api.distributions.enabled": "false"},
+			wantEndpoint: endpoints.SketchSeriesEndpoint,
+		},
+		{
+			name:         "series are unchanged",
+			kind:         metricsKindSeries,
+			config:       map[string]any{"use_v3_api.series.enabled": "true"},
+			wantV3:       true,
+			wantEndpoint: endpoints.V3SeriesEndpoint,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := configmock.New(t)
+			config.SetInTest("dd_url", "http://example.test")
+			config.SetInTest("api_key", "test_key")
+			config.SetInTest("serializer_experimental_use_v3_api.sketches.validation_request_id", validationID)
+			for k, v := range tt.config {
+				config.SetInTest(k, v)
+			}
+			s := newV3Serializer(t, config)
+
+			pipelines := s.buildPipelines(tt.kind)
+			require.Len(t, pipelines, 1)
+			for conf, ctx := range pipelines {
+				require.Len(t, ctx.Destinations, 1)
+				dest := ctx.Destinations[0]
+				assert.Equal(t, tt.wantV3, conf.V3)
+				assert.Equal(t, tt.wantEndpoint, dest.Endpoint)
+				assert.Equal(t, tt.wantID, dest.ValidationBatchID)
+			}
+		})
+	}
+}
+
+// TestBuildPipelinesValidationRequestIDLeavesMRF verifies that the MRF destination
+// keeps the regular v3 route and no validation ID.
+func TestBuildPipelinesValidationRequestIDLeavesMRF(t *testing.T) {
+	config := configmock.New(t)
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("use_v3_api.distributions.enabled", "true")
+	config.SetInTest("multi_region_failover.enabled", true)
+	config.SetInTest("multi_region_failover.failover_metrics", true)
+	config.SetInTest("multi_region_failover.dd_url", "http://mrf.example.test")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.validation_request_id", "staging-validation")
+	s := newV3Serializer(t, config)
+
+	pipelines := s.buildPipelines(metricsKindSketches)
+	require.Len(t, pipelines, 1)
+	for conf, ctx := range pipelines {
+		assert.True(t, conf.V3)
+		require.Len(t, ctx.Destinations, 2)
+		for _, dest := range ctx.Destinations {
+			switch dest.Resolver.GetBaseDomain() {
+			case "http://example.test":
+				assert.Equal(t, endpoints.V3BetaSketchSeriesEndpoint, dest.Endpoint)
+				assert.Equal(t, "staging-validation", dest.ValidationBatchID)
+			case "http://mrf.example.test":
+				assert.Equal(t, endpoints.V3SketchSeriesEndpoint, dest.Endpoint)
+				assert.Empty(t, dest.ValidationBatchID)
+			default:
+				t.Fatal("unexpected destination address")
+			}
+		}
 	}
 }
 
