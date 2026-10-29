@@ -111,6 +111,9 @@ func invokeQuerier(ctx context.Context, candidates []SymbolCandidate, arch strin
 		if err != nil {
 			storedSource = symbol.SourceNone
 		}
+		// We can safely iterate over buildIDToResult because the backend guarantees that
+		// entries are deduplicated by build ID. We will never encounter a case where a later no_upload
+		// decision overrides an earlier upload decision.
 		for _, result := range buildIDToResult[symbolFile.BuildID] {
 			if symbolFile.Decision == decisionNoUpload {
 				result.QueryResults[ind].Upload = false

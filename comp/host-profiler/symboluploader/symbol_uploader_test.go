@@ -747,8 +747,8 @@ func TestSymbolUpload(t *testing.T) {
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
-	t.Run("Corrupt pclntab with symtab fallback stays cached on success", func(t *testing.T) {
-		// When pclntab parse fails but symtab exists and upload succeeds,
+	t.Run("Corrupt pclntab with debug_info fallback stays cached on success", func(t *testing.T) {
+		// When pclntab parse fails but debug info exists and upload succeeds,
 		// the FileID should remain in the upload cache (no eviction).
 		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
