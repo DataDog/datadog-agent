@@ -35,6 +35,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Rotate the Private Action Runner identity by performing a new enrollment",
 		Long: `Generates fresh credentials and registers a new Private Action Runner identity.
 The new identity is persisted to the configured storage (file or Kubernetes secret).
+Explicit rotation is allowed when PAR is only disabled by default, but not when
+private_action_runner.enabled is explicitly set to false.
 Restart the Private Action Runner process to apply the new identity.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
@@ -53,7 +55,8 @@ Restart the Private Action Runner process to apply the new identity.`,
 func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
-	if !cfg.GetBool(par.Enabled) {
+	// Explicit rotation opts in to enrollment, but must respect an explicit PAR opt-out.
+	if !cfg.GetBool(par.Enabled) && cfg.IsConfigured(par.Enabled) {
 		return errors.New("private_action_runner.enabled is false - set it to true before rotating the identity")
 	}
 
