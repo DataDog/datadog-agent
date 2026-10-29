@@ -13,6 +13,9 @@ type Position struct {
 	Offset int
 	Line   int
 	Column int // in runes
+	// Source is the ID of the macro the position is in, empty for the
+	// expression being compiled. An expanded macro keeps its own positions.
+	Source string
 }
 
 // String renders the position as `line:column`.
@@ -24,6 +27,8 @@ func (p Position) String() string {
 type Node interface {
 	// Position returns the position of the first token of the node.
 	Position() Position
+	// Metadata returns the Meta of the node, for the passes to update it.
+	Metadata() *Meta
 
 	// copy returns a shallow copy of the node, see Copy.
 	copy() Node
@@ -44,6 +49,11 @@ func At(pos Position) Meta {
 // Position returns the position of the first token of the node.
 func (m Meta) Position() Position {
 	return m.Pos
+}
+
+// Metadata returns the Meta of the node.
+func (m *Meta) Metadata() *Meta {
+	return m
 }
 
 // Rule is the root of a rule. Its expression evaluates to a boolean.

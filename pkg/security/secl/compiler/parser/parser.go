@@ -39,31 +39,32 @@ import (
 
 // ParseExpression parses a SECL expression.
 func ParseExpression(expr string) (ast.Node, error) {
-	_, root, err := parse(expr)
+	_, root, err := parse("", expr)
 	return root, err
 }
 
 // ParseRule parses the expression of a SECL rule.
 func ParseRule(expr string) (*ast.Rule, error) {
-	start, root, err := parse(expr)
+	start, root, err := parse("", expr)
 	if err != nil {
 		return nil, err
 	}
 	return &ast.Rule{Meta: ast.At(start), Expr: expr, Root: root}, nil
 }
 
-// ParseMacro parses the expression of a SECL macro.
-func ParseMacro(expr string) (*ast.Macro, error) {
-	start, root, err := parse(expr)
+// ParseMacro parses the expression of a SECL macro, tagging the positions of
+// the tree with the ID of the macro.
+func ParseMacro(id, expr string) (*ast.Macro, error) {
+	start, root, err := parse(id, expr)
 	if err != nil {
 		return nil, err
 	}
 	return &ast.Macro{Meta: ast.At(start), Root: root}, nil
 }
 
-func parse(expr string) (start ast.Position, root ast.Node, err error) {
+func parse(source, expr string) (start ast.Position, root ast.Node, err error) {
 	p := &parser{}
-	p.scanner = newScanner(expr, &p.errs)
+	p.scanner = newScanner(source, expr, &p.errs)
 
 	defer func() {
 		if r := recover(); r != nil {
