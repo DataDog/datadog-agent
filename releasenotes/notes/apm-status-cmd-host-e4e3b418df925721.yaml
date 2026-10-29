@@ -1,4 +1,7 @@
 ---
 fixes:
   - |
-    The APM debug server listens on ``127.0.0.1`` or ``::1`` when ``cmd_host`` is one of those addresses. Any other value stays on ``127.0.0.1``. ``datadog-agent status`` queries that same address.
+    ``datadog-agent status`` no longer hangs for about two minutes when ``::1`` drops packets. The APM debug endpoint is queried on the same address the debug server binds.
+upgrade:
+  - |
+    With ``cmd_host: ::1``, the APM debug server now listens on ``[::1]:5012`` instead of ``127.0.0.1:5012``. If the agent and trace-agent run in separate containers, set ``cmd_host`` the same way in both, or status cannot reach the debug server.
