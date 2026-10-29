@@ -27,6 +27,7 @@ type Task struct {
 type Attributes struct {
 	Name                  string                                          `json:"name"`
 	BundleID              string                                          `json:"bundle_id"`
+	ExecutionFQN          string                                          `json:"execution_fqn,omitempty"`
 	SecDatadogHeaderValue string                                          `json:"sec_datadog_header_value"`
 	Inputs                map[string]interface{}                          `json:"inputs"`
 	Client                actionsclientpb.Client                          `json:"client"`
@@ -80,6 +81,14 @@ func (task *Task) TimeoutSeconds() *int32 {
 
 func (task *Task) GetFQN() string {
 	return fmt.Sprintf("%s.%s", task.Data.Attributes.BundleID, task.Data.Attributes.Name)
+}
+
+// GetExecutionFQN returns the signed execution target, falling back to the public FQN for older tasks.
+func (task *Task) GetExecutionFQN() string {
+	if task.Data.Attributes.ExecutionFQN != "" {
+		return task.Data.Attributes.ExecutionFQN
+	}
+	return task.GetFQN()
 }
 
 func (task *Task) Validate() error {

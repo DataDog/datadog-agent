@@ -46,19 +46,23 @@ type fakeCredentialResolver struct {
 }
 
 type fakeBundle struct {
-	action types.Action
+	action        types.Action
+	gotActionName string
 }
 
-func (b *fakeBundle) GetAction(string) types.Action {
+func (b *fakeBundle) GetAction(actionName string) types.Action {
+	b.gotActionName = actionName
 	return b.action
 }
 
 type recordingAction struct {
 	called bool
+	task   *types.Task
 }
 
-func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.PrivateCredentials) (interface{}, error) {
+func (a *recordingAction) Run(_ context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
 	a.called = true
+	a.task = task
 	return "executed", nil
 }
 
@@ -178,6 +182,75 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "executed", output)
 	assert.True(t, action.called)
+}
+
+func TestWorkflowTaskExecutorValidatesExecutionFQN(t *testing.T) {
+	const (
+		publicBundle = "com.datadoghq.helm"
+		actionName   = "addRepo"
+		publicFQN    = publicBundle + "." + actionName
+		otherBundle  = "com.datadoghq.script"
+	)
+
+	tests := []struct {
+		name         string
+		executionFQN string
+		wantError    string
+	}{
+		{
+			name: "native action uses public FQN when execution FQN is absent",
+		},
+		{
+			name:         "native action uses public FQN when execution FQN matches it",
+			executionFQN: publicFQN,
+		},
+		{
+			name:         "unknown execution FQN fails closed",
+			executionFQN: "com.datadoghq.unknown.action",
+			wantError:    "does not match public action",
+		},
+		{
+			name:         "allowlisted public action cannot execute another native handler",
+			executionFQN: otherBundle + ".run",
+			wantError:    "does not match public action",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nativeAction := &recordingAction{}
+			nativeBundle := &fakeBundle{action: nativeAction}
+			otherAction := &recordingAction{}
+			executor := &WorkflowTaskExecutor{
+				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+					publicBundle: nativeBundle,
+					otherBundle:  &fakeBundle{action: otherAction},
+				}},
+				config: &config.Config{
+					ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+					MetricsClient:    &statsd.NoOpClient{},
+				},
+			}
+			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+			task.Data.Attributes.ExecutionFQN = tt.executionFQN
+
+			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.Nil(t, output)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "executed", output)
+			}
+			assert.Equal(t, tt.wantError == "", nativeAction.called)
+			assert.False(t, otherAction.called)
+			if tt.wantError == "" {
+				assert.Equal(t, actionName, nativeBundle.gotActionName)
+			} else {
+				assert.Empty(t, nativeBundle.gotActionName)
+			}
+		})
+	}
 }
 
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
