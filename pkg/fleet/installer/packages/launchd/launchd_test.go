@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"testing/synctest"
@@ -136,7 +135,7 @@ func TestOperationsAreIdempotentWhenJobIsAbsent(t *testing.T) {
 			"Load failed: 5: Input/output error: service already loaded\n",
 		} {
 			rec := &recorder{outputs: [][]byte{[]byte(out)}, errs: []error{exitError(5)}}
-			job := Job{Label: "com.datadoghq.agent", Domain: System}
+			job := Job{Label: "com.datadoghq.agent"}
 			assert.NoError(t, newClient(rec).Bootstrap(context.Background(), job))
 		}
 	})
@@ -150,7 +149,7 @@ func TestBootstrapFailureIsAnErrorWhenTheJobIsNotLoaded(t *testing.T) {
 		outputs: [][]byte{[]byte("Bootstrap failed: 5: Input/output error\n"), []byte(notLoadedOutput)},
 		errs:    []error{exitError(5), exitError(exitServiceNotFound)},
 	}
-	job := Job{Label: "com.datadoghq.agent", Domain: System}
+	job := Job{Label: "com.datadoghq.agent"}
 	assert.Error(t, newClient(rec).Bootstrap(context.Background(), job))
 }
 
@@ -266,7 +265,7 @@ func TestBootoutReportsCancellation(t *testing.T) {
 
 func TestCommandConstruction(t *testing.T) {
 	ctx := context.Background()
-	job := Job{Label: "com.datadoghq.agent", Domain: System}
+	job := Job{Label: "com.datadoghq.agent"}
 
 	tests := []struct {
 		name string
@@ -307,7 +306,7 @@ func TestCommandConstruction(t *testing.T) {
 
 func TestJobWriteIsAtomicAndLeavesNoTemporaryFiles(t *testing.T) {
 	dir := t.TempDir()
-	job := Job{Label: "com.datadoghq.agent", PlistPath: filepath.Join(dir, "com.datadoghq.agent.plist")}
+	job := Job{Label: "com.datadoghq.agent", Dir: dir}
 
 	require.NoError(t, job.Write([]byte("first")))
 	content, err := os.ReadFile(job.Path())
@@ -331,5 +330,7 @@ func TestJobWriteIsAtomicAndLeavesNoTemporaryFiles(t *testing.T) {
 
 func TestJobPathDefaultsToTheDomainDirectory(t *testing.T) {
 	assert.Equal(t, "/Library/LaunchDaemons/com.datadoghq.installer.plist",
-		Job{Label: "com.datadoghq.installer", Domain: System}.Path())
+		Job{Label: "com.datadoghq.installer"}.Path())
+	assert.Equal(t, "/tmp/x/com.datadoghq.installer.plist",
+		Job{Label: "com.datadoghq.installer", Dir: "/tmp/x"}.Path())
 }

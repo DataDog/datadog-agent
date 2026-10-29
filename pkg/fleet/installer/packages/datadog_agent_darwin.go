@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
@@ -55,15 +54,6 @@ var (
 	launchdJobDir = launchd.System.Dir()
 )
 
-// stableJob returns the job definition record for a label in the system domain.
-func stableJob(label string) launchd.Job {
-	return launchd.Job{
-		Label:     label,
-		PlistPath: filepath.Join(launchdJobDir, label+".plist"),
-		Domain:    launchd.System,
-	}
-}
-
 // installStableJobs writes and loads the stable launchd job set from the embedded definitions.
 //
 // Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
@@ -90,7 +80,7 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 	if err != nil {
 		return fmt.Errorf("failed to read job definition %s: %w", label, err)
 	}
-	job := stableJob(label)
+	job := launchd.Job{Label: label, Dir: launchdJobDir}
 	// Unload before rewriting so the new definition is the one launchd runs: launchd caches the
 	// definition it loaded, and bootstrapping over a loaded job is a no-op. If the job can't be
 	// unloaded, leave its file untouched and fail, so the postinstall fallback sees a definition
@@ -156,7 +146,7 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to unload %s: %v", label, err)
 			continue
 		}
-		if err := os.Remove(stableJob(label).Path()); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(launchd.Job{Label: label, Dir: launchdJobDir}.Path()); err != nil && !os.IsNotExist(err) {
 			log.Warnf("failed to remove job definition %s: %v", label, err)
 		}
 	}

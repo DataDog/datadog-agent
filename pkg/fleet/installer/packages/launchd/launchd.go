@@ -36,22 +36,21 @@ func (Domain) Dir() string {
 	return "/Library/LaunchDaemons"
 }
 
-// Job is a launchd job definition on disk.
+// Job is a launchd job definition on disk, at <Dir>/<Label>.plist.
 type Job struct {
 	// Label is the job's launchd label, e.g. com.datadoghq.agent.
 	Label string
-	// PlistPath is where the definition lives. Empty means the default path for the domain.
-	PlistPath string
-	// Domain is the domain the job belongs to.
-	Domain Domain
+	// Dir is the directory the definition lives in. Empty means the system domain's directory.
+	Dir string
 }
 
 // Path returns the path the job definition is written to.
 func (j Job) Path() string {
-	if j.PlistPath != "" {
-		return j.PlistPath
+	dir := j.Dir
+	if dir == "" {
+		dir = System.Dir()
 	}
-	return filepath.Join(j.Domain.Dir(), j.Label+".plist")
+	return filepath.Join(dir, j.Label+".plist")
 }
 
 // Write writes the job definition to disk.
