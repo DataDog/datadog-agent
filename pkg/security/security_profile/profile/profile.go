@@ -681,9 +681,7 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	return ctx, ok
 }
 
-// GetVersionContextTags returns the tags of the given version if any. The version context
-// tags grow as new workloads are seen, the returned slice is clipped so that appending to it
-// doesn't write to the version context.
+// GetVersionContextTags returns the tags of the given version if any. They grow as new workloads are seen.
 func (p *Profile) GetVersionContextTags(imageTag string) ([]string, bool) {
 	p.Lock()
 	defer p.Unlock()
@@ -692,7 +690,7 @@ func (p *Profile) GetVersionContextTags(imageTag string) ([]string, bool) {
 	if !ok {
 		return nil, false
 	}
-	return slices.Clip(ctx.Tags), true
+	return ctx.Tags, true
 }
 
 // UpdateVersionContextLastSeen refreshes an existing version's last seen timestamp.
