@@ -50,6 +50,15 @@ runner_status()
 	agent_start_stop_daemon --status --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
 }
 
+PROCMGR_PIDFILE="$INSTALL_DIR/run/dd-procmgrd.pid"
+PROCMGR_PATH="$INSTALL_DIR/embedded/bin/dd-procmgrd"
+
+# The core Agent starts dd-procmgrd before this service, so one check is enough.
+procmgr_running()
+{
+	agent_start_stop_daemon --status --quiet --pidfile "$PROCMGR_PIDFILE" --user "$AGENT_USER" --exec "$PROCMGR_PATH"
+}
+
 #
 # Function that starts the daemon/service
 #
@@ -65,8 +74,6 @@ do_start()
 		1|3) ;;
 		*) return 2 ;;
 	esac
-	# SysV does not start the process manager required by split mode.
-	export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
 	# Disable job control so setsid execs, rather than forking away our waitable child.
 	set +m
 	# Preserve --background's descriptor cleanup; bash can close descriptors above 9.
@@ -88,7 +95,13 @@ do_start()
 #
 start_and_wait()
 {
-	log_daemon_msg "Starting $DESC (monolithic mode)" "$NAME"
+	if procmgr_running; then
+		log_daemon_msg "Starting $DESC (split mode from config)" "$NAME"
+	else
+		log_daemon_msg "Starting $DESC (monolithic mode)" "$NAME"
+		# Without dd-procmgrd, split mode cannot run par-control, so use the monolithic runner.
+		export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
+	fi
 	do_start
 	case "$?" in
 		1) log_end_msg 0 ;;

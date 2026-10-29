@@ -6,8 +6,8 @@
 # Description: Datadog Agent
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
-# Should-Start: datadog-agent-data-plane datadog-agent-process datadog-agent-trace datadog-agent-security datadog-agent-action
-# Should-Stop: datadog-agent-data-plane datadog-agent-process datadog-agent-trace datadog-agent-security datadog-agent-action
+# Should-Start: datadog-agent-data-plane datadog-agent-process datadog-agent-trace datadog-agent-security datadog-agent-action datadog-agent-procmgr
+# Should-Stop: datadog-agent-data-plane datadog-agent-process datadog-agent-trace datadog-agent-security datadog-agent-action datadog-agent-procmgr
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
 ### END INIT INFO
@@ -75,6 +75,8 @@ start_and_wait()
 					service datadog-agent-process start
 					service datadog-agent-trace start
 					service datadog-agent-security start
+					# Start procmgr first: the action service decides split mode from it.
+					service datadog-agent-procmgr start
 					service datadog-agent-action start
 					return 0
 				else
@@ -120,6 +122,7 @@ stop_and_wait()
 			service datadog-agent-trace stop
 			service datadog-agent-security stop
 			service datadog-agent-action stop
+			service datadog-agent-procmgr stop
 			return 0
 			;;
 		*) log_end_msg 1 ;; # Failed to stop

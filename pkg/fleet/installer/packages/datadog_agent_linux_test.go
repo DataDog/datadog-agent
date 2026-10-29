@@ -166,3 +166,16 @@ func TestExperimentStartUnits(t *testing.T) {
 		experimentStartUnits(ctx, "datadog-agent-exp.service"),
 	)
 }
+
+// TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists
+// include procmgr and keep the action service.
+func TestSysVAndUpstartServicesStartProcmgr(t *testing.T) {
+	assert.Equal(t,
+		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action", "datadog-agent-procmgr"},
+		agentService.UpstartServices,
+	)
+	assert.Equal(t,
+		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action", "datadog-agent-procmgr"},
+		agentService.SysvinitServices,
+	)
+}

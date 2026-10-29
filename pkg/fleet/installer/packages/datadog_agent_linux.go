@@ -166,10 +166,10 @@ var (
 		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml", "datadog-agent-par-control.yaml"},
 
 		UpstartMainService: "datadog-agent",
-		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
+		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action", "datadog-agent-procmgr"},
 
 		SysvinitMainService: "datadog-agent",
-		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
+		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action", "datadog-agent-procmgr"},
 	}
 
 	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
@@ -919,13 +919,14 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 }
 
-// WriteProcesses writes the processes for the given package path
+// WriteProcesses writes the processes for the given package path.
+// SysV and Upstart init scripts start dd-procmgrd, which reads these definitions.
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
 	switch service.GetServiceManagerType(packagePath) {
-	case service.ProcmgrType:
+	case service.ProcmgrType, service.SysvinitType, service.UpstartType:
 		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
 	default:
-		return nil // Only procmgr defines processes
+		return nil // Systemd without procmgr does not define processes
 	}
 }
 

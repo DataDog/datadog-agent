@@ -121,7 +121,8 @@ AS_AGENT=yes PATH=/usr/bin:/bin exec "$shell" -c "$command" "$@"
             daemon = commands / 'start-stop-daemon'
             self.executable(
                 daemon,
-                '''echo "$* split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-unset}" >> "$CALLS"
+                '''case " $* " in *" --exec $PROCMGR "*) echo "$*" >> "$PROCMGR_CALLS"; exit "$PROCMGR_STATUS" ;; esac
+echo "$* split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-unset}" >> "$CALLS"
 case " $* " in *" --exec "*) ;; *) exit 90 ;; esac
 case "$1" in
     --status)
@@ -182,6 +183,9 @@ log_warning_msg() { echo "WARNING: $*"; }
                 'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
                 'PIDFILE': str(pidfile),
                 'CALLS': str(calls),
+                'PROCMGR': str(root / 'embedded/bin/dd-procmgrd'),
+                'PROCMGR_CALLS': str(root / 'procmgr-calls'),
+                'PROCMGR_STATUS': '1',
                 'SLEEPS': str(sleeps),
                 'COUNT': str(root / 'count'),
                 'STATUSES': statuses,
@@ -227,6 +231,15 @@ log_warning_msg() { echo "WARNING: $*"; }
                 self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
                 self.assertIn('monolithic mode', result.stdout)
                 self.assertNotIn('WARNING', result.stdout)
+
+    def test_start_defers_split_mode_to_config_when_procmgr_runs(self):
+        result, calls, sleeps, _ = self.run_sysv(PROCMGR_STATUS='0')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+        self.assertNotIn('split=false', calls)
+        self.assertIn('split mode from config', result.stdout)
+        self.assertNotIn('monolithic', result.stdout)
+        self.assertEqual(sleeps, ['1', '1'])
 
     def test_start_accepts_clean_exit_and_removes_pidfile(self):
         for setpriv in (True, False):
@@ -380,40 +393,53 @@ log_failure_msg() { echo "$*"; }''',
                     finally:
                         service('stop')
 
-    def test_upstart_script_blocks_force_monolithic_without_warning(self):
+    def test_upstart_script_forces_monolithic_only_without_procmgr(self):
         for template in UPSTART_TEMPLATES:
-            with self.subTest(template=template), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp)
-                binary = root / 'embedded/bin/privateactionrunner'
-                binary.parent.mkdir(parents=True)
-                self.executable(binary, 'echo "split=$DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"\n')
-                # Upstart's script/end script delimiters are syntax, not layout comments.
-                blocks = re.findall(r'^script\n(.*?)^end script$', template.read_text(), re.MULTILINE | re.DOTALL)
-                self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
-                script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
-                logfile = root / 'errors.log'
-                script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
-                self.executable(
-                    root / 'su',
-                    '''shell=$2
+            for state, split, mode in (
+                ('stop/waiting', 'false', 'monolithic mode'),
+                ('start/running', 'true', 'split mode from config'),
+            ):
+                with self.subTest(template=template.name, state=state), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    binary = root / 'embedded/bin/privateactionrunner'
+                    binary.parent.mkdir(parents=True)
+                    self.executable(binary, 'echo "split=$DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"\n')
+                    # Upstart's script/end script delimiters are syntax, not layout comments.
+                    blocks = re.findall(r'^script\n(.*?)^end script$', template.read_text(), re.MULTILINE | re.DOTALL)
+                    self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
+                    script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
+                    logfile = root / 'errors.log'
+                    script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
+                    self.executable(
+                        root / 'su',
+                        '''shell=$2
 command=$4
 shift 6
 exec "$shell" -c "$command" "$@"
 ''',
-                )
-                result = subprocess.run(
-                    [shutil.which('bash'), '-c', script],
-                    env={
-                        **os.environ,
-                        'PATH': f'{tmp}:/usr/bin:/bin',
-                        'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
-                    },
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                output = result.stdout + (logfile.read_text() if logfile.exists() else '')
-                self.assertIn('split=false', output)
-                self.assertIn('monolithic mode', output)
-                self.assertNotIn('not supported', output)
+                    )
+                    # Fake initctl reports the procmgr job state; fake sleep keeps the bounded wait instant.
+                    self.executable(
+                        root / 'initctl',
+                        '''[ "$1" = status ] && [ "$2" = datadog-agent-procmgr ] || exit 1
+echo "datadog-agent-procmgr $PROCMGR_STATE"
+''',
+                    )
+                    self.executable(root / 'sleep', 'exit 0\n')
+                    result = subprocess.run(
+                        [shutil.which('bash'), '-c', script],
+                        env={
+                            **os.environ,
+                            'PATH': f'{tmp}:/usr/bin:/bin',
+                            'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
+                            'PROCMGR_STATE': state,
+                        },
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    output = result.stdout + (logfile.read_text() if logfile.exists() else '')
+                    self.assertIn(f'split={split}', output)
+                    self.assertIn(mode, output)
+                    self.assertNotIn('not supported', output)
