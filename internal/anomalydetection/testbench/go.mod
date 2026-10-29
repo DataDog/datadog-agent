@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.83.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.83.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.83.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000 // indirect

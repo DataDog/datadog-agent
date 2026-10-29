@@ -82,7 +82,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.83.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.83.0 // indirect

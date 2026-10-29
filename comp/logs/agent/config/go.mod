@@ -33,7 +33,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
