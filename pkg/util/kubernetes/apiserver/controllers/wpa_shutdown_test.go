@@ -9,6 +9,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"testing/synctest"
 
@@ -16,8 +17,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
 type shutdownWPAClient struct {
@@ -36,6 +40,27 @@ type shutdownWPAResource struct {
 
 func (r shutdownWPAResource) List(ctx context.Context, _ metav1.ListOptions) (*unstructured.UnstructuredList, error) {
 	return r.list(ctx)
+}
+
+func TestWPACRDTransientErrorStillEnablesInformer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := shutdownWPAClient{resource: shutdownWPAResource{list: func(context.Context) (*unstructured.UnstructuredList, error) {
+			return nil, errors.New("API server temporarily unavailable")
+		}}}
+		informerClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			gvrWPA: "WatermarkPodAutoscalerList",
+		})
+		factory := dynamicinformer.NewDynamicSharedInformerFactory(informerClient, 0)
+		stop := make(chan struct{})
+		done := make(chan struct{})
+		controller := &autoscalersController{}
+		go func() { controller.runWPA(stop, client, factory); close(done) }()
+		synctest.Wait()
+		close(stop)
+		<-done
+		factory.Shutdown()
+		require.True(t, controller.wpaEnabled)
+	})
 }
 
 func TestWPACRDWaitStops(t *testing.T) {

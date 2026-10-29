@@ -52,7 +52,7 @@ func (h *autoscalersController) runWPA(stopCh <-chan struct{}, wpaClient dynamic
 		case <-ctx.Done():
 		}
 	}()
-	if err := waitForWPACRD(ctx, wpaClient); err != nil {
+	if err := waitForWPACRD(ctx, wpaClient); ctx.Err() != nil {
 		log.Infof("Stopping WPA CRD check: %v", err)
 		return
 	}
