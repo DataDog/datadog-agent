@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -87,7 +88,7 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 func TestHTTP2Scenarios(t *testing.T) {
 	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
-		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
+		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled && runtime.GOARCH == "arm64" {
 			flake.MarkOnJobName(t, "ubuntu_26.04")
 		}
 		for _, tc := range []struct {

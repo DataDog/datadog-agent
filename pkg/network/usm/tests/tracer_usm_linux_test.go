@@ -19,6 +19,7 @@ import (
 	neturl "net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -2639,7 +2640,7 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
 	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
-	if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
+	if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled && runtime.GOARCH == "arm64" {
 		flake.MarkOnJobName(t, "ubuntu_26.04")
 	}
 
