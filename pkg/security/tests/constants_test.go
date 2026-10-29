@@ -29,6 +29,20 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	// 34 distinct values on amd64 (46 on arm64) across BTFHub
 	constantfetch.OffsetNameTaskStructThread,
 	constantfetch.OffsetNameThreadStructTp,
+	// setns namespace ID offsets: BTF/BTFHub-only by design, the namespace IDs report 0 without them
+	constantfetch.OffsetNameTaskStructNsproxy,
+	constantfetch.OffsetNameNsproxyPidNsForChildren,
+	constantfetch.OffsetNameNsproxyUtsNs,
+	constantfetch.OffsetNameNsproxyIpcNs,
+	constantfetch.OffsetNameNsproxyCgroupNs,
+	constantfetch.OffsetNameNsproxyTimeNs,
+	constantfetch.OffsetNameCredStructUserNs,
+	constantfetch.OffsetNamePidNamespaceNs,
+	constantfetch.OffsetNameUtsNamespaceNs,
+	constantfetch.OffsetNameIpcNamespaceNs,
+	constantfetch.OffsetNameUserNamespaceNs,
+	constantfetch.OffsetNameCgroupNamespaceNs,
+	constantfetch.OffsetNameTimeNamespaceNs,
 }
 
 func TestOctogonConstants(t *testing.T) {
