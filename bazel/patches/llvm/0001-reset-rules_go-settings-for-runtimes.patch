@@ -1,0 +1,95 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+index 23b2b2e..44407b9 100644
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -13,7 +13,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0")
+ bazel_dep(name = "rules_python", version = "1.8.0")
+ bazel_dep(name = "with_cfg.bzl", version = "0.12.0")
+ bazel_dep(name = "tar.bzl", version = "0.10.4")
+-bazel_dep(name = "rules_go", version = "0.62.0", repo_name = None)
++bazel_dep(name = "rules_go", version = "0.62.0", repo_name = "llvm_rules_go")
+ bazel_dep(name = "windows_support", version = "0.4.1")
+ bazel_dep(name = "zlib-ng", version = "2.3.3.bcr.2", repo_name = "llvm_zlib")
+ bazel_dep(name = "zstd", version = "1.5.7.bcr.1", repo_name = "llvm_zstd")
+diff --git a/toolchain/runtimes/cc_stage0_object.bzl b/toolchain/runtimes/cc_stage0_object.bzl
+index 8dff70f..b4402de 100644
+--- a/toolchain/runtimes/cc_stage0_object.bzl
++++ b/toolchain/runtimes/cc_stage0_object.bzl
+@@ -1,10 +1,11 @@
+ load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
+ load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_TYPE", "find_cc_toolchain", "use_cc_toolchain")
+ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
++load(":go_settings_reset.bzl", "GO_SETTINGS_RESET")
+ 
+ #TODO(cerisier): use a single shared transition
+ bootstrap_transition = transition(
+-    implementation = lambda settings, attr: {
++    implementation = lambda settings, attr: dict({
+         # we are compiling runtimes without any kind of other dependencies
+         "//toolchain:runtime_stage": "stage0",
+         # Stage0 objects (crtbegin/crtend) are linked into every binary and
+@@ -49,7 +50,7 @@ bootstrap_transition = transition(
+         "//config:host_xray": False,
+         "//config:host_fuzzer": False,
+         "//config:host_profile": False,
+-    },
++    }, **GO_SETTINGS_RESET),
+     inputs = [],
+     outputs = [
+         "//toolchain:runtime_stage",
+@@ -89,7 +90,7 @@ bootstrap_transition = transition(
+         "//config:host_xray",
+         "//config:host_fuzzer",
+         "//config:host_profile",
+-    ],
++    ] + GO_SETTINGS_RESET.keys(),
+ )
+ 
+ def _cc_stage0_object_impl(ctx):
+diff --git a/toolchain/runtimes/go_settings_reset.bzl b/toolchain/runtimes/go_settings_reset.bzl
+new file mode 100644
+index 0000000..50ba599
+--- /dev/null
++++ b/toolchain/runtimes/go_settings_reset.bzl
+@@ -0,0 +1,21 @@
++"""rules_go settings that runtimes never read but that fork their configuration.
++
++Mirrors _reset_transition_dict in rules_go's go/private/rules/transition.bzl.
++"""
++
++_ORIGINAL_SETTINGS = ["msan", "race", "pure", "linkmode", "tags", "pgoprofile"]
++
++GO_SETTINGS_RESET = dict({
++    str(Label("@llvm_rules_go//go/private:bootstrap_nogo")): False,
++    str(Label("@llvm_rules_go//go/config:static")): False,
++    str(Label("@llvm_rules_go//go/config:msan")): False,
++    str(Label("@llvm_rules_go//go/config:race")): False,
++    str(Label("@llvm_rules_go//go/config:pure")): False,
++    str(Label("@llvm_rules_go//go/config:debug")): False,
++    str(Label("@llvm_rules_go//go/config:linkmode")): "auto",
++    str(Label("@llvm_rules_go//go/config:tags")): [],
++    str(Label("@llvm_rules_go//go/config:pgoprofile")): Label("@llvm_rules_go//go/config:empty"),
++}, **{
++    str(Label("@llvm_rules_go//go/private/rules:original_" + name)): ""
++    for name in _ORIGINAL_SETTINGS
++})
+diff --git a/toolchain/runtimes/with_cfg_runtimes_common.bzl b/toolchain/runtimes/with_cfg_runtimes_common.bzl
+index 667df43..3917545 100644
+--- a/toolchain/runtimes/with_cfg_runtimes_common.bzl
++++ b/toolchain/runtimes/with_cfg_runtimes_common.bzl
+@@ -1,3 +1,5 @@
++load(":go_settings_reset.bzl", "GO_SETTINGS_RESET")
++
+ def configure_builder_for_runtimes(builder, runtime_stage, linkmode = "static", sanitizers = False, inherit_asan = False):
+     # The problem is that compiler-rt and start libs can only be compiled with
+     # a specific set of flags and compilation mode. It is not safe to let the user
+@@ -33,6 +35,9 @@ def configure_builder_for_runtimes(builder, runtime_stage, linkmode = "static",
+         linkmode,
+     )
+ 
++    for setting, value in GO_SETTINGS_RESET.items():
++        builder.set(Label(setting), value)
++
+     if sanitizers == False:
+         builder.set(Label("//config:ubsan"), False)
+         builder.set(Label("//config:cfi"), False)
