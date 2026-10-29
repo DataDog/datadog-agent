@@ -761,6 +761,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, "localhost", cfg.StatsdHost)
 	assert.Equal(t, 8125, cfg.StatsdPort)
+	assert.Equal(t, 8192, cfg.StatsdBufferSize)
 	assert.Equal(t, true, cfg.StatsdEnabled)
 
 	assert.Equal(t, true, cfg.Enabled)
@@ -1194,6 +1195,17 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 4321, cfg.StatsdPort)
+	})
+
+	env = "DD_DOGSTATSD_BUFFER_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "16384")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 16384, cfg.StatsdBufferSize)
 	})
 
 	env = "DD_APM_NON_LOCAL_TRAFFIC"
