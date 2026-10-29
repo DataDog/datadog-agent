@@ -89,7 +89,7 @@ func (f *countingForwarder) GetDomainResolvers() []resolver.DomainResolver {
 
 // SubmitTransaction increments the sketch counter when a sketch-series transaction reaches the intake.
 func (f *countingForwarder) SubmitTransaction(txn *transaction.HTTPTransaction) error {
-	if txn.Endpoint.Name == endpoints.SketchSeriesEndpoint.Name {
+	if txn.Endpoint.Name == endpoints.SketchSeriesEndpoint.Name || txn.Endpoint.Name == endpoints.V3SketchSeriesEndpoint.Name {
 		f.sketchCount.Add(1)
 	}
 	return nil
