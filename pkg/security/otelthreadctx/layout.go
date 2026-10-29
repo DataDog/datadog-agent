@@ -502,7 +502,7 @@ func (p *Target) locateOTelTLS(bias uint64, tlsVar tls.Var) (Layout, error) {
 	}
 	defer mem.Close()
 
-	loc, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
+	info, loc, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
 	if err != nil {
 		// A failed read keeps its errno, which tells a vanished or forbidden
 		// target apart. Anything else is a slot the loader left unapplied or
@@ -513,8 +513,8 @@ func (p *Target) locateOTelTLS(bias uint64, tlsVar tls.Var) (Layout, error) {
 		return Layout{}, fmt.Errorf("%w: locate %v: %w", ErrMalformed, tlsVar, err)
 	}
 
-	if loc.ModuleID == 0 {
-		return Layout{tlsOffset: int64(loc.Offset)}, nil
+	if loc == nil {
+		return Layout{tlsOffset: int64(info.Tls_offset)}, nil
 	}
 	dtv, err := p.dtvInfo()
 	if err != nil {
