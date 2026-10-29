@@ -189,8 +189,6 @@ static __always_inline __u64 page_state_pages(struct cgroup_memory_stats_ctx *c,
 static __always_inline bool read_cgroup_memory_pages(struct memcg_vmstats *vmstats, struct cgroup_memory_stats_ctx *c,
                                                      u32 nr_cpus, __u64 *seq) {
     __u64 seq_begin = READ_ONCE(*seq);
-    if (seq_begin & 1)
-        return false;
 
 #pragma unroll
     for (int i = 0; i < CGROUP_MEM_NR_STATS; i++) {
@@ -208,7 +206,7 @@ static __always_inline bool read_cgroup_memory_pages(struct memcg_vmstats *vmsta
     if (nr_cpus)
         bpf_loop(nr_cpus, add_cpu_pending_pages, c, 0);
 
-    return READ_ONCE(*seq) == seq_begin;
+    return !(seq_begin & 1) && READ_ONCE(*seq) == seq_begin;
 }
 
 // get_cgroup_memory_stats fills s->mem with the memory usage of the memcg of tsk, and the value of
