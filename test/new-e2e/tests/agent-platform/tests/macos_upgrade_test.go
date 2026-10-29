@@ -107,6 +107,7 @@ func (m *macosUpgradeSuite) TestUpgradeFromStable() {
 	preinstallLog := macosReadRemoteFile(t, macosTestClient, macosPreinstallLogPath)
 	if stableShipsInstaller {
 		assert.Contains(t, preinstallLog, macosPreinstPreRemoveRan, "the preinstall script should hand the teardown to the released installer")
+		assert.NotContains(t, preinstallLog, macosPreinstPreRemoveFailed, "the released installer's pre-remove should succeed")
 	} else {
 		assert.NotContains(t, preinstallLog, macosPreinstPreRemoveRan, "the released Agent has no installer to hand the teardown to")
 	}

@@ -126,6 +126,7 @@ func (m *macosInstallSuite) SetupSuite() {
 // logs rather than fails on error.
 func removePreInstalledAgent(t *testing.T, client *common.MacOSTestClient) {
 	cmd := `
+sudo launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
@@ -137,6 +138,7 @@ done
 sudo pkill -f 'Datadog Agent.app' 2>/dev/null || true
 sudo pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null || true
 sudo pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
+sudo rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
@@ -778,7 +780,7 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 	// `launchctl bootout` returns as soon as it has requested the unload; launchd removes the
 	// job from its job table asynchronously, so a `launchctl print` run immediately afterwards
 	// can still report the service as registered. Poll instead of asserting on the first try.
-	for _, service := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"} {
+	for _, service := range macosStableLaunchDaemons {
 		m.EventuallyWithT(func(c *assert.CollectT) {
 			_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
 			assert.Error(c, err, "service %s should no longer be registered with launchd", service)
@@ -786,9 +788,6 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 	}
 
 	removedPaths := []string{
-		"/Library/LaunchDaemons/com.datadoghq.agent.plist",
-		"/Library/LaunchDaemons/com.datadoghq.sysprobe.plist",
-		"/Library/LaunchDaemons/com.datadoghq.data-plane.plist",
 		"/Library/LaunchAgents/com.datadoghq.gui.plist",
 		"/Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist",
 		"/Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist",
@@ -797,6 +796,9 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 		"/usr/local/bin/datadog-agent",
 		"/var/log/datadog",
 		"/private/var/root/datadog-install",
+	}
+	for _, label := range macosStableLaunchDaemons {
+		removedPaths = append(removedPaths, macosLaunchDaemonPath(label))
 	}
 	for _, path := range removedPaths {
 		_, err := macosTestClient.Execute(fmt.Sprintf("sudo test -e %q", path))

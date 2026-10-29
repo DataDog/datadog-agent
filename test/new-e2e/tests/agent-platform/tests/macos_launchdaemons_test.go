@@ -50,13 +50,15 @@ var macosStableLaunchDaemons = []string{
 }
 
 // macosUnexpectedLaunchDaemons are jobs no package install may leave behind: the installer does
-// not run as a daemon, and the experiment jobs only exist while a configuration experiment runs.
+// not run as a daemon, the experiment jobs only exist while a configuration experiment runs, and
+// the process manager has no experiment variant at all.
 var macosUnexpectedLaunchDaemons = []string{
 	"com.datadoghq.installer",
 	"com.datadoghq.installer-exp",
 	"com.datadoghq.agent-exp",
 	"com.datadoghq.sysprobe-exp",
 	"com.datadoghq.data-plane-exp",
+	"com.datadoghq.procmgr-exp",
 }
 
 func macosLaunchDaemonPath(label string) string {
