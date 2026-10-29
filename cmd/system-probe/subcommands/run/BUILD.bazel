@@ -74,16 +74,15 @@ go_library(
         "//pkg/ebpf/telemetry",
         "//pkg/runtime",
         "//pkg/system-probe/api/module",
+        "//pkg/system-probe/config",
         "//pkg/system-probe/utils",
         "//pkg/util/coredump",
-        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "//pkg/util/profiling",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_spf13_cobra//:cobra",
-        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:android": [

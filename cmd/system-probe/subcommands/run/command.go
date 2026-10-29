@@ -257,6 +257,14 @@ func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
 			nooptaggerfx.Module(),
 			workloadfilterfx.Module(),
 			hostnameimpl.Module(),
+			// Remote Configuration is served by the core agent: turn it off so that
+			// neither the RC client nor the CWS RC policy provider try to reach it.
+			// A decorator, unlike an invoke, applies before any component sees the
+			// config, whatever the order fx builds them in.
+			fx.Decorate(func(cfg config.Component) config.Component {
+				cfg.Set("remote_configuration.enabled", false, model.SourceAgentRuntime)
+				return cfg
+			}),
 		)
 	}
 	return fx.Options(

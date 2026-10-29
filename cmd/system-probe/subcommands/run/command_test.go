@@ -83,7 +83,14 @@ func TestRunCommand(t *testing.T) {
 				}),
 				[]string{"run"},
 				run,
-				func() {})
+				func(cfg configComponent.Component) {
+					if !test.coreAgentIPC {
+						// Remote Configuration is served by the core agent, so the RC
+						// client and the CWS RC policy provider must stay off.
+						require.False(t, cfg.GetBool("remote_configuration.enabled"),
+							"remote configuration is still enabled although core agent IPC is disabled")
+					}
+				})
 
 			registers, _ := fakeCore.Counts()
 			if test.coreAgentIPC {
