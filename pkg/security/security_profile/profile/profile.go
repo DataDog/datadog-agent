@@ -428,7 +428,9 @@ func (p *Profile) FakeOverweight() {
 	p.ActivityTree.Stats.ProcessNodes = 99999
 }
 
-// AddTags adds tags to the profile
+// AddTags adds tags to the profile. A tag name already present is left unchanged:
+// this keeps a single value per name for tags that describe the profile as a whole.
+// Tags contributed by each tracked image tag are merged separately, see addDistinctTags.
 func (p *Profile) AddTags(tags []string) {
 	p.Lock()
 	defer p.Unlock()
@@ -443,6 +445,18 @@ func (p *Profile) AddTags(tags []string) {
 		if !slices.Contains(existingTagNames, tagName) {
 			p.tags = append(p.tags, tag)
 		}
+	}
+}
+
+// addDistinctTags appends tags the profile does not already store. The caller must
+// hold p.Lock. Unlike AddTags, two values of the same tag name are both kept, so
+// every image tag the profile tracks contributes its own tags.
+func (p *Profile) addDistinctTags(tags []string) {
+	for _, tag := range tags {
+		if tag == "" || slices.Contains(p.tags, tag) {
+			continue
+		}
+		p.tags = append(p.tags, tag)
 	}
 }
 
@@ -703,6 +717,9 @@ func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags
 			Tags:           slices.Clone(tags),
 		}
 		p.versionContexts[imageTag] = ctx
+		// a profile is shared by every image tag it tracks, so its own tag list keeps
+		// each of their tags, not only the ones of the first container
+		p.addDistinctTags(tags)
 	}
 	ctx.LastSeenNano = nowTimestamp
 
@@ -720,6 +737,9 @@ func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
 	defer p.Unlock()
 
 	p.versionContexts[version] = ctx
+	if ctx != nil {
+		p.addDistinctTags(ctx.Tags)
+	}
 }
 
 func (p *Profile) evictProfileVersion(retainedImageTag string) string {
