@@ -519,10 +519,6 @@ func TestSendMetadata(t *testing.T) {
 	}
 }
 
-type rawJSONPayload []byte
-
-func (p rawJSONPayload) MarshalJSON() ([]byte, error) { return p, nil }
-
 func TestSendMetadataScrubsDebugLog(t *testing.T) {
 	var logs bytes.Buffer
 	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&logs, pkglog.DebugLvl)
