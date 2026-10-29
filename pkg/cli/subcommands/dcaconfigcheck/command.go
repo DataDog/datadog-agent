@@ -32,7 +32,8 @@ type GlobalParams struct {
 }
 
 type cliParams struct {
-	verbose bool
+	verbose  bool
+	logLevel string
 }
 
 // MakeCommand returns a `configcheck` command to be used by cluster-agent
@@ -51,7 +52,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot("CLUSTER", "off", true),
+					LogParams:    log.ForOneShot("CLUSTER", cliParams.logLevel, false),
 				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
@@ -60,6 +61,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
+	cmd.Flags().StringVar(&cliParams.logLevel, "log_level", "off", "Override the log level for this command for debugging purposes")
 
 	return cmd
 }
