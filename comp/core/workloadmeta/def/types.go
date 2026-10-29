@@ -2338,6 +2338,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+
+	// EnqueuedAt is the time at which the Store sent the bundle to the
+	// subscriber's channel. Subscribers can use it to measure how long the
+	// bundle waited in the channel.
+	EnqueuedAt time.Time
 }
 
 // Acknowledge acknowledges that the subscriber has handled the event.

@@ -11,6 +11,12 @@ dda inv schema.lint
 dda inv schema.codegen
 ```
 
+If external consumers of `pkg/config/setup`, such as the OTel Collector, need the change, also refresh the [committed snapshot](../../architecture/agent-schema/index.md#the-generated-settings-snapshot) and commit it:
+
+```bash
+dda inv schema.codegen-snapshot
+```
+
 ## Generate configuration examples
 
 The Agent build generates configuration examples automatically. To validate all generated examples locally, run:
