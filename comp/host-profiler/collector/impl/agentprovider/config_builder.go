@@ -33,6 +33,9 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
+	if agent.hostProfilerConfig.IncludeEnvVars != "" {
+		_ = confmaputils.Set(profiling, "include_env_vars", agent.hostProfilerConfig.IncludeEnvVars)
+	}
 	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
 

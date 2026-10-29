@@ -160,6 +160,22 @@ properties:
         node_type: setting
         type: integer
         default: 500
+      core_agent_ipc:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Whether system-probe talks to the core agent over IPC.
+              Set to false when system-probe runs isolated from the core agent and cannot
+              reach it by design (for example inside a microVM, forwarding its events to a
+              system-probe on the host). When false, system-probe uses the noop tagger and
+              the local workloadfilter and hostname instead of their remote counterparts,
+              and does not start remote workloadmeta, configsync, the remote agent registry
+              or the config stream consumer. Read once at startup.
       debug_port:
         node_type: setting
         type: integer

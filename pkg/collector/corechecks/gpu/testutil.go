@@ -27,6 +27,19 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
+// CleanupForTest removes the process-wide readiness registration after a test.
+func (r *Readiness) CleanupForTest(t testing.TB) {
+	t.Helper()
+	r.timer.Stop()
+	require.NoError(t, r.handle.Deregister())
+}
+
+// AssertReadinessForTest verifies that a check uses the startup readiness object.
+func (c *Check) AssertReadinessForTest(t testing.TB, readiness *Readiness) {
+	t.Helper()
+	require.Same(t, readiness, c.readiness)
+}
+
 // WithGPUConfigEnabled enables the GPU check configuration for testing
 // and registers a cleanup to disable it after the test completes.
 func WithGPUConfigEnabled(t testing.TB) {
