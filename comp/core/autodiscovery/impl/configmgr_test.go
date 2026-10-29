@@ -26,6 +26,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
+func noopConfigPublisher(integration.ConfigChanges, map[checkid.ID]checkid.ID) {}
+
+func TestConfigManagerPublishesBeforeUnlock(t *testing.T) {
+	cm := newReconcilingConfigManager(&MockSecretResolver{}, nil, nil, nil, nil, noopConfigPublisher).(*reconcilingConfigManager)
+	var published []integration.ConfigChanges
+	cm.publish = func(changes integration.ConfigChanges, _ map[checkid.ID]checkid.ID) {
+		// A concurrent mutation cannot pass the manager lock while this batch
+		// is being published. Unlock on failure so the test can report it.
+		if cm.m.TryLock() {
+			cm.m.Unlock()
+			t.Error("publication must hold the manager's mutation lock")
+		}
+		published = append(published, changes)
+	}
+
+	tpl := integration.Config{Name: "vault", ADIdentifiers: []string{"vault"}, LogsConfig: integration.Data(`[{"source":"vault"}]`)}
+	svc := &dummyService{ID: "docker://vault", ADIdentifiers: []string{"vault"}}
+	added, _ := cm.processNewConfig(tpl)
+	resolved := cm.processNewService(svc)
+	removed := cm.processDelService(svc)
+	deleted := cm.processDelConfigs([]integration.Config{tpl})
+	require.Len(t, resolved.Schedule, 1)
+	require.Len(t, removed.Unschedule, 1)
+	require.Equal(t, []integration.ConfigChanges{added, resolved, removed, deleted}, published)
+}
+
 // assertConfigsMatch verifies that the given slice of changes has exactly
 // one match to each of the given functions, regardless of order.
 func assertConfigsMatch(t *testing.T, configs []integration.Config, matches ...func(integration.Config) bool) {
@@ -545,7 +571,7 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver, nil, nil, nil, nil)
+			return newReconcilingConfigManager(&mockResolver, nil, nil, nil, nil, noopConfigPublisher)
 		}},
 	})
 }
@@ -572,7 +598,7 @@ func TestStaticConfigIndexDedupOnReconcile(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil, noopConfigPublisher)
 
 	// A service whose FilterTemplates drops any template whose Name has a
 	// static config in the shared index — this is the contract ProcessService
@@ -626,7 +652,7 @@ func TestStaticConfigIndexRefcountThroughConfigMgr(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil, noopConfigPublisher)
 
 	staticRedis1 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6379")}}
 	staticRedis2 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6380")}}
@@ -653,7 +679,7 @@ func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil, nil, noopConfigPublisher)
 
 	logsOnly := integration.Config{
 		Name:       "redis",
@@ -672,7 +698,7 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.New(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil, noopConfigPublisher).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "postgres",
@@ -706,7 +732,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.New(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil, noopConfigPublisher).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "redis",
@@ -740,7 +766,7 @@ func TestResolveTemplateForService_SkipsReportWhenServiceNotReady(t *testing.T) 
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.New(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil, nil, noopConfigPublisher).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "postgres",

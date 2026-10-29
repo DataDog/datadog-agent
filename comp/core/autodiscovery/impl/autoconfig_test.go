@@ -403,9 +403,7 @@ func TestResolveTemplate(t *testing.T) {
 		}
 
 		// no services
-		changes := ac.processNewConfig(tpl)
-		ac.applyChanges(changes) // processNewConfigs does not apply changes
-
+		ac.processNewConfig(tpl)
 		assert.Equal(t, sch.scheduledSize(), 0)
 
 		service := dummyService{
@@ -426,8 +424,7 @@ func TestResolveTemplate(t *testing.T) {
 			Name:        "service-check",
 			CELSelector: workloadfilter.Rules{KubeServices: []string{`kube_service.name.matches("redis") && kube_service.namespace == "default"`}},
 		}
-		changes := ac.processNewConfig(tpl)
-		ac.applyChanges(changes)
+		ac.processNewConfig(tpl)
 		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching services
@@ -455,8 +452,7 @@ func TestResolveTemplate(t *testing.T) {
 			Name:        "endpoint-check",
 			CELSelector: workloadfilter.Rules{KubeEndpoints: []string{`kube_endpoint.namespace.matches("include-ns") && !kube_endpoint.name.matches("exclude-name") && !("team" in kube_endpoint.annotations && kube_endpoint.annotations["team"].matches("exclude"))`}},
 		}
-		changes := ac.processNewConfig(tpl)
-		ac.applyChanges(changes)
+		ac.processNewConfig(tpl)
 		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching endpoints
@@ -505,7 +501,6 @@ func TestResolveTemplate(t *testing.T) {
 			CELSelector: workloadfilter.Rules{Containers: []string{`container.name.matches("container-name") && container.image.reference.matches("container-image")`}},
 		}
 		changes := ac.processNewConfig(tpl)
-		ac.applyChanges(changes)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Pod name and namespace matching
@@ -513,12 +508,12 @@ func TestResolveTemplate(t *testing.T) {
 			Name:        "container-check-2",
 			CELSelector: workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.pod.namespace.matches("pod-ns") && container.image.reference != ""`}},
 		}
-		ac.applyChanges(ac.processNewConfig(tpl))
+		ac.processNewConfig(tpl)
 		assert.Equal(t, 2, countLoadedConfigs(ac))
 
 		// CCA
 		tpl = utils.AddContainerCollectAllConfigs([]integration.Config{}, "container-image")[0]
-		ac.applyChanges(ac.processNewConfig(tpl))
+		ac.processNewConfig(tpl)
 		assert.Equal(t, 3, countLoadedConfigs(ac))
 		activeConfigs := ac.GetAllConfigs()
 		activeConfigNames := make([]string, 0, len(activeConfigs))
@@ -535,8 +530,7 @@ func TestResolveTemplate(t *testing.T) {
 			LogsConfig:    []byte(`{"source":"test-source"}`),
 			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
 		}
-		logsConfigChanges := ac.processNewConfig(tpl)
-		ac.applyChanges(logsConfigChanges)
+		ac.processNewConfig(tpl)
 		assert.Equal(t, 3, countLoadedConfigs(ac))
 
 		// Should override the generic container_collect_all check config
@@ -551,7 +545,7 @@ func TestResolveTemplate(t *testing.T) {
 			ADIdentifiers: []string{"not-container-image"},
 			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.image.reference != ""`}},
 		}
-		ac.applyChanges(ac.processNewConfig(tpl))
+		ac.processNewConfig(tpl)
 		assert.Equal(t, 3, countLoadedConfigs(ac))
 
 		// Test config deletion
@@ -754,8 +748,7 @@ func TestRefreshConfig(t *testing.T) {
 			ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 			ac.processNewService(&dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
-			changes := ac.processNewConfig(tpl)
-			ac.applyChanges(changes)
+			ac.processNewConfig(tpl)
 
 			resolved := integration.Config{
 				Name:          "redisdb",
