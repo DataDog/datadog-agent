@@ -1366,6 +1366,10 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup)
 	}
 
+	if c.SecurityProfileV2Enabled {
+		c.AnomalyDetectionSilentRuleEventsEnabled = false
+	}
+
 	c.sanitizePlatform()
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()

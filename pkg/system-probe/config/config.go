@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -31,8 +32,30 @@ func New(configPath string, fleetPoliciesDirPath string) (*types.Config, error) 
 }
 
 func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
+	if err := loadFiles(pkgconfigsetup.GlobalSystemProbeConfigBuilder(), configPath, fleetPoliciesDirPath); err != nil {
+		return nil, err
+	}
 
+	return load()
+}
+
+// NewStandalone loads the system-probe configuration file and fleet policy into a
+// new config object, leaving the global one untouched. It is meant for reading a
+// few settings before the config components exist, with the same semantics as the
+// regular loader (nested and dotted keys, env vars, fleet policy precedence).
+func NewStandalone(configPath string, fleetPoliciesDirPath string) (pkgconfigmodel.Reader, error) {
+	cfg := create.NewConfig("system-probe")
+	pkgconfigsetup.InitSystemProbeConfig(cfg)
+	cfg.BuildSchema()
+
+	if err := loadFiles(cfg, configPath, fleetPoliciesDirPath); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// loadFiles reads system-probe.yaml and the fleet policy into cfg.
+func loadFiles(cfg pkgconfigmodel.BuildableConfig, configPath string, fleetPoliciesDirPath string) error {
 	cfg.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -53,13 +76,13 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
 			if runtime.GOOS == "windows" {
-				return nil, fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
+				return fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
 			}
-			return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
+			return fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 		}
 
 		if !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) && !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
+			return fmt.Errorf("unable to load system-probe config file: %w", err)
 		}
 	}
 
@@ -70,10 +93,10 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	// apply remote fleet policy to the config
 	err = applyFleetPolicy(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load fleet policy: %w", err)
+		return fmt.Errorf("failed to load fleet policy: %w", err)
 	}
 
-	return load()
+	return nil
 }
 
 func load() (*types.Config, error) {
