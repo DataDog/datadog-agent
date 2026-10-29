@@ -277,28 +277,29 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 	return s.Values.SetFieldValues(values...)
 }
 
-// AppendMembers add members to the evaluator
-func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringArrayMember) {
+// AppendMembers add members to the evaluator, literals of strings, patterns or
+// regexps
+func (s *StringValuesEvaluator) AppendMembers(members ...*ast.Literal) {
 	for _, member := range members {
 		var value FieldValue
-		switch member := member.(type) {
-		case *ast.PatternLiteral:
+		switch member.Value.Kind() {
+		case ast.Pattern:
 			value = FieldValue{
-				Value: member.Value,
+				Value: ast.StringVal(member.Value),
 				Type:  PatternValueType,
 			}
-		case *ast.RegexpLiteral:
+		case ast.Regexp:
 			value = FieldValue{
-				Value: member.Value,
+				Value: ast.StringVal(member.Value),
 				Type:  RegexpValueType,
 			}
-		case *ast.StringLiteral:
+		case ast.String:
 			value = FieldValue{
-				Value: member.Value,
+				Value: ast.StringVal(member.Value),
 				Type:  ScalarValueType,
 			}
 		default:
-			// unreachable, ast.StringArrayMember is a closed union
+			// not a member of an array of strings
 			continue
 		}
 		s.Values.AppendFieldValue(value)

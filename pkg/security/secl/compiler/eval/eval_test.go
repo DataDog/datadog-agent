@@ -680,6 +680,28 @@ func TestMacroList(t *testing.T) {
 	}
 }
 
+func TestMacroEmptyValues(t *testing.T) {
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
+
+	macro, err := NewStringValuesMacro("list", nil, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.MacroStore.Add(macro)
+
+	expr := `open.filename in list`
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	ctx := NewContext(&testEvent{open: testOpen{filename: "/etc/shadow"}})
+	if rule.Eval(ctx) {
+		t.Fatalf("should return false")
+	}
+}
+
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
