@@ -131,8 +131,11 @@ func (cm *ConnectionManager) dial(ctx context.Context) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	// SOCKS5 returns a context-aware dialer, including proxy negotiation.
-	return dialer.(proxy.ContextDialer).DialContext(ctx, "tcp", cm.address())
+	contextDialer, ok := dialer.(proxy.ContextDialer)
+	if !ok {
+		return nil, errors.New("SOCKS5 dialer does not support cancellation")
+	}
+	return contextDialer.DialContext(ctx, "tcp", cm.address())
 }
 
 func (cm *ConnectionManager) handshakeWithTimeout(ctx context.Context, conn *tls.Conn, timeout time.Duration) error {
@@ -164,10 +167,7 @@ func (cm *ConnectionManager) CloseConnection(conn net.Conn) {
 	log.Debug("Connection closed")
 }
 
-// handleServerClose lets the connection manager detect when a connection
-// has been closed by the server, and closes it for the client.
-// This is not strictly necessary but a good safeguard against callers
-// that might not handle errors properly.
+// handleServerClose closes the connection on peer shutdown or an unexpected read error.
 func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 	for {
 		buff := make([]byte, 1)
@@ -182,6 +182,7 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 			return
 		default:
 			log.Warn(err)
+			cm.CloseConnection(conn)
 			return
 		}
 	}

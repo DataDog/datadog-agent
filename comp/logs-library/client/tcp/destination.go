@@ -109,6 +109,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		err = d.conn.SetWriteDeadline(time.Now().Add(connectionTimeout))
 		if err == nil {
 			_, err = d.conn.Write(frame)
+			if err == nil {
+				_ = d.conn.SetWriteDeadline(time.Time{})
+			}
 		}
 		if err != nil {
 			d.connManager.CloseConnection(d.conn)

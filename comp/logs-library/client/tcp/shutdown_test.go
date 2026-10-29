@@ -130,6 +130,55 @@ func TestDestinationWriteHasDeadline(t *testing.T) {
 	})
 }
 
+type readErrorConn struct {
+	net.Conn
+	closed bool
+}
+
+func (*readErrorConn) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+func (c *readErrorConn) Close() error {
+	c.closed = true
+	return nil
+}
+
+func TestUnexpectedReadErrorClosesConnection(t *testing.T) {
+	conn := &readErrorConn{}
+	cm := newConnectionManagerForHostPort("localhost", 1234)
+	cm.handleServerClose(conn)
+	require.True(t, conn.closed)
+}
+
+type deadlineRecordingConn struct {
+	net.Conn
+	deadlines []time.Time
+}
+
+func (c *deadlineRecordingConn) SetWriteDeadline(deadline time.Time) error {
+	c.deadlines = append(c.deadlines, deadline)
+	return c.Conn.SetWriteDeadline(deadline)
+}
+
+func TestSuccessfulWriteClearsDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		endpoint := config.NewEndpoint("key", "", "localhost", 1234, config.EmptyPathPrefix, false)
+		destination := NewDestination(endpoint, false, client.NewDestinationsContext(), false, statusinterface.NewNoopStatusProvider())
+		conn, peer := net.Pipe()
+		defer conn.Close()
+		defer peer.Close()
+		recorded := &deadlineRecordingConn{Conn: conn}
+		destination.conn = recorded
+		go func() {
+			_, _ = peer.Read(make([]byte, 1024))
+		}()
+		output := make(chan *message.Payload, 1)
+		destination.sendAndRetry(message.NewPayload(nil, []byte("logs"), "source", 1), output, nil)
+		require.Len(t, output, 1)
+		require.Len(t, recorded.deadlines, 2)
+		require.False(t, recorded.deadlines[0].IsZero())
+		require.True(t, recorded.deadlines[1].IsZero())
+	})
+}
+
 func TestDestinationClosesConnectionOnDrain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		endpoint := config.NewEndpoint("key", "", "localhost", 1234, config.EmptyPathPrefix, false)
