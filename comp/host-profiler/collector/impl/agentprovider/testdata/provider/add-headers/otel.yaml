@@ -12,6 +12,7 @@ exporters:
 extensions:
     hpflare:
         endpoint: localhost:7778
+    oom: {}
 processors:
     infraattributes:
         allow_hostname_override: true
@@ -40,6 +41,7 @@ receivers:
 service:
     extensions:
         - hpflare
+        - oom
     pipelines:
         profiles:
             exporters:
