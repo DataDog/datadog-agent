@@ -11,4 +11,4 @@ fixes:
     Fix Autodiscovery checks being unscheduled and rescheduled every few
     minutes for containerd containers with more than one IP address, such
     as ECS ``awsvpc`` tasks. The container IP picked by the containerd
-    collector is now deterministic.
+    collector is now deterministic and prefers non link-local addresses.
