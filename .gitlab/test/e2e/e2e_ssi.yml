@@ -89,8 +89,6 @@ new-e2e-ssi-eks:
     E2E_PROVISIONER: eks
     E2E_STACK_NAME_SUFFIX: eks
     E2E_PRE_INITIALIZED: "true"
-    # Image volume is not supported on EKS in our current test setup.
-    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 new-e2e-ssi-gke-init:
   extends: .new-e2e_ssi_extra_distribution_init
@@ -107,8 +105,6 @@ new-e2e-ssi-gke:
     E2E_PROVISIONER: gke
     E2E_STACK_NAME_SUFFIX: gke
     E2E_PRE_INITIALIZED: "true"
-    # Image volume is not supported on GKE in our current test setup.
-    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-ssi-gke-autopilot-init:
@@ -127,8 +123,6 @@ new-e2e-ssi-gke-autopilot:
     E2E_PROVISIONER: gke-autopilot
     E2E_STACK_NAME_SUFFIX: gke-autopilot
     E2E_PRE_INITIALIZED: "true"
-    # Image volume is not supported on GKE in our current test setup.
-    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
   retry: !reference [.retry_only_infra_failure, retry]
   allow_failure: true
 
@@ -167,8 +161,6 @@ new-e2e-ssi-aks:
   variables:
     E2E_PROVISIONER: aks
     E2E_STACK_NAME_SUFFIX: aks
-    # Image volume is not supported on AKS in our current test setup.
-    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
