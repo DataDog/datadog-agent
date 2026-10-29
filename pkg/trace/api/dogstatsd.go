@@ -25,10 +25,30 @@ import (
 // metrics per request.
 const maxDogstatsdProxyLines = 100_000
 
+// maxDogstatsdProxyPacketSize caps packed datagrams. It matches the
+// dogstatsd_buffer_size default and fits every platform's UDP limit (macOS:
+// 9216). Larger packets would save few writes.
+const maxDogstatsdProxyPacketSize = 8192
+
+// dogstatsdProxyPacketSize returns the size to pack lines up to, or 0 to send
+// one line per datagram. It never exceeds bufferSize, as DogStatsD truncates
+// larger datagrams. Packing is only done on loopback: a remote DogStatsD may
+// read with a smaller buffer, and a lost fragment would drop the whole packet.
+func dogstatsdProxyPacketSize(addr *net.UDPAddr, bufferSize int) int {
+	if !addr.IP.IsLoopback() && !addr.IP.IsUnspecified() {
+		return 0
+	}
+	return max(min(bufferSize, maxDogstatsdProxyPacketSize), 0)
+}
+
 // dogstatsdProxyHandler returns a new HTTP handler which will proxy requests to
 // the DogStatsD endpoint in the Core Agent over UDP. Communication between the
 // proxy and the agent does not support UDS (see #13628), and so does not guarantee delivery of
 // all statsd payloads.
+//
+// On loopback, lines are packed into datagrams (see dogstatsdProxyPacketSize):
+// a burst of small datagrams fills the receive buffer much faster than the same
+// bytes in a few larger ones. Lines longer than the packet are sent alone.
 //
 // The request body is relayed as it is read, so a body that turns out to be
 // unreadable, over the size limit, or over maxDogstatsdProxyLines is
@@ -53,6 +73,8 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 			http.Error(w, "Failed to resolve dogstatsd address", http.StatusInternalServerError)
 		})
 	}
+	// With a packet size of 0, every line is sent alone.
+	packetSize := dogstatsdProxyPacketSize(addr, r.conf.StatsdBufferSize)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		req.Body = apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 		conn, err := net.DialUDP("udp", nil, addr)
@@ -68,11 +90,27 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 		// of newlines multiplies its own size in memory several times over. The
 		// scanner keeps the extra memory proportional to the longest line.
 		scanner := bufio.NewScanner(req.Body)
+		// Grown on demand, so short bodies stay cheap.
+		var packet []byte
+		// flush sends the lines packed so far, if any, as one datagram.
+		flush := func() error {
+			if len(packet) == 0 {
+				return nil
+			}
+			_, err := conn.Write(packet)
+			packet = packet[:0]
+			return err
+		}
 		lines := 0
 		for scanner.Scan() {
 			lines++
 			if lines > maxDogstatsdProxyLines {
 				log.Errorf("Dogstatsd proxy request contains more than %d lines, dropping the rest.", maxDogstatsdProxyLines)
+				// A send error takes precedence.
+				if err := flush(); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 				http.Error(w, "too many dogstatsd payloads in request", http.StatusRequestEntityTooLarge)
 				return
 			}
@@ -81,10 +119,31 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 				// Nothing for DogStatsD to parse; don't spend a syscall on it.
 				continue
 			}
-			if _, err := conn.Write(payload); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+			// Flush if this line and its separator would not fit.
+			if len(packet) > 0 && len(packet)+1+len(payload) > packetSize {
+				if err := flush(); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 			}
+			if len(payload) > packetSize {
+				// Too long to pack; send it alone.
+				if _, err := conn.Write(payload); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				continue
+			}
+			if len(packet) > 0 {
+				packet = append(packet, '\n')
+			}
+			// Copied, as the scanner reuses its buffer.
+			packet = append(packet, payload...)
+		}
+		// Relay what was read before reporting a read error.
+		if err := flush(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 		if err := scanner.Err(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

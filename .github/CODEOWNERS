@@ -168,7 +168,7 @@
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml                @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/cluster_agent.yml                             @DataDog/container-platform @DataDog/agent-build
 /.gitlab/build/binary_build/fakeintake.yml                                @DataDog/agent-devx
-/.gitlab/build/binary_build/host_profiler.yml                             @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
+/.gitlab/build/binary_build/host_profiler.yml                             @DataDog/agent-build @DataDog/profiling-full-host
 /.gitlab/build/binary_build/system_probe.yml                              @DataDog/ebpf-platform @DataDog/agent-build
 /.gitlab/windows/build/binary_build/windows.yml                           @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/codeql_scan.yml                                @DataDog/sdlc-security
@@ -422,6 +422,7 @@
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent/windows/              @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent-ddot                  @DataDog/opentelemetry-agent
+/Dockerfiles/ddot-ebpf/                  @DataDog/agent-build @DataDog/profiling-full-host
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 /Dockerfiles/manifests/                  @DataDog/container-integrations
 
@@ -596,6 +597,13 @@
 /comp/core/remoteagent/impl-systemprobe   @DataDog/agent-runtimes @DataDog/ebpf-platform
 /comp/core/remoteagent/impl-trace         @DataDog/agent-runtimes @DataDog/agent-apm
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
+
+# Host profiler: core profiling features are owned by profiling-full-host only;
+# the rest of comp/host-profiler is shared with opentelemetry-agent (see bundle.go)
+/comp/host-profiler/cgroup/                 @DataDog/profiling-full-host
+/comp/host-profiler/collector/impl/receiver/ @DataDog/profiling-full-host
+/comp/host-profiler/oom/                    @DataDog/profiling-full-host
+/comp/host-profiler/symboluploader/         @DataDog/profiling-full-host
 
 # pkg
 /pkg/                                                                 @DataDog/agent-runtimes
@@ -1052,7 +1060,8 @@
 /tasks/unit_tests/static_quality_gates/                         @DataDog/agent-build
 /tasks/unit_tests/testdata/schema_codegen/                      @DataDog/fleet-automation
 /tasks/installer.py                                             @DataDog/fleet
-/tasks/host_profiler.py                                         @DataDog/opentelemetry-agent @DataDog/profiling-full-host
+/tasks/host_profiler.py                                         @DataDog/agent-build @DataDog/profiling-full-host
+/tasks/unit_tests/host_profiler_tests.py                        @DataDog/agent-build @DataDog/profiling-full-host
 /test/                                                          @DataDog/agent-devx
 /test/benchmarks/                                               @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/                              @DataDog/container-integrations
