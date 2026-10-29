@@ -16,7 +16,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.files_inventory import _compare_inventories
-from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.package.binaries import binary_signatures, signature_differences
 from tasks.libs.package.metadata import read_deb_metadata, read_rpm_metadata
 from tasks.libs.package.size import CENTOS_OS, DEBIAN_OS, extract_package
@@ -172,15 +172,32 @@ def metric_values(report: dict) -> list[dict]:
     return metrics
 
 
+def run_event() -> dict:
+    branch = os.environ.get('CI_COMMIT_REF_NAME', 'unknown')
+    sha = os.environ.get('CI_COMMIT_SHA', 'unknown')
+    return {
+        'title': f'Bazel parity: {branch}@{sha[:12]}',
+        'text': (
+            '%%%\n'
+            f'Commit: [{sha[:12]}](https://github.com/DataDog/datadog-agent/commit/{sha})\n\n'
+            f'Pipeline: {os.environ.get("CI_PIPELINE_URL", "unknown")}\n'
+            '%%%'
+        ),
+        'tags': ['bazel_parity'] + metric_tags(**{'git.branch': branch, 'git.commit.sha': sha}),
+    }
+
+
 def submit_metrics(report: dict) -> None:
     if os.environ.get('CI_COMMIT_BRANCH') != 'main' and os.environ.get('BAZEL_PARITY_SUBMIT') != 'true':
         print(f'Not submitting {len(report["metrics"])} metrics.')
         return
     timestamp = int(time.time())
-    series = [create_gauge(m['name'], timestamp, m['value'], m['tags']) for m in report['metrics']]
+    branch = metric_tags(**{'git.branch': os.environ.get('CI_COMMIT_REF_NAME', 'unknown')})
+    series = [create_gauge(m['name'], timestamp, m['value'], m['tags'] + branch) for m in report['metrics']]
     # Bound request size as the number of checks grows.
     for offset in range(0, len(series), 500):
         send_metrics(series[offset : offset + 500])
+    send_event(**run_event())
 
 
 def measure_inventory(ctx, package: Path, package_format: str, readelf: str) -> tuple[list[FileInfo], dict[str, dict]]:
