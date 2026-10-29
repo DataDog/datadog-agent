@@ -5,7 +5,7 @@ load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
@@ -125,6 +125,35 @@ cc_library(
     ],
     strip_include_prefix = "src/liblzma/api",  # Allows public header without the path and without COPTS -I or includes = []
     visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "xz_cli",
+    srcs = [
+        "src/common/tuklib_exit.c",
+        "src/common/tuklib_mbstr_fw.c",
+        "src/common/tuklib_mbstr_nonprint.c",
+        "src/common/tuklib_mbstr_width.c",
+        "src/common/tuklib_mbstr_wrap.c",
+        "src/common/tuklib_open_stdxxx.c",
+        "src/common/tuklib_progname.c",
+    ] + glob([
+        "src/common/*.h",
+        "src/xz/*.c",
+        "src/xz/*.h",
+    ]),
+    copts = ["-pthread"],
+    linkopts = ["-pthread"],
+    local_defines = ["HAVE_CONFIG_H"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":liblzma",
+        ":xz_config",
+    ],
 )
 
 cc_shared_library(
