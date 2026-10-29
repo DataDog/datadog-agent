@@ -693,7 +693,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 		t.Run(eventType.String(), func(t *testing.T) {
 			m, _ := newInsertionTestManagerV2(t)
 
-			p, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
 			require.NotNil(t, p)
 			assert.True(t, inserted, "a first activity should create a new entry")
 			assert.Equal(t, testSelector, *p.GetWorkloadSelector(), "the profile should be shared by all the tags of the image")
@@ -703,7 +703,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.True(t, ok, "the node should be tagged with v1")
 
 			// the same activity under another tag of the image only adds the tag to the existing entry
-			p2, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
+			p2, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
 			require.Same(t, p, p2)
 			assert.False(t, inserted, "a known activity under another tag shouldn't create a new entry")
 			assert.ElementsMatch(t, []string{"v1", "v2"}, p.GetVersions())
@@ -712,7 +712,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			_, _, ok = node.GetSeenTimes(p.ActivityTree.GetImageTagID("v2"))
 			assert.True(t, ok, "the existing node should be tagged with v2")
 
-			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			_, inserted, _ = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
 			assert.True(t, inserted, "a new activity should create a new entry")
 			assert.NotNil(t, findTestEventNode(p, eventType, "new"))
 		})
@@ -915,6 +915,46 @@ func TestManagerV2_onEventTagsResolved(t *testing.T) {
 				require.NotNil(t, p)
 				assert.NotNil(t, findTestEventNode(p, eventType, "known"), "the activity should still be learned")
 			})
+
+			t.Run("a known activity is sent again once the anomaly TTL has elapsed", func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEventTTL = time.Hour
+
+				start := time.Now()
+				first := newTestEventV2(eventType, "v1", "known")
+				first.Timestamp = start
+				m.onEventTagsResolved(first)
+				require.Len(t, *anomalies, 1)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				node := findTestEventNode(p, eventType, "known")
+				require.NotNil(t, node)
+				lastSent, ok := node.GetLastAnomalySent()
+				require.True(t, ok, "sending an anomaly should record lastAnomalySent")
+				assert.True(t, lastSent.Equal(start))
+
+				again := newTestEventV2(eventType, "v1", "known")
+				again.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(again)
+				assert.Len(t, *anomalies, 1, "an activity re-seen within the TTL shouldn't trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(start), "a suppressed occurrence shouldn't move lastAnomalySent")
+
+				otherTag := newTestEventV2(eventType, "v2", "known")
+				otherTag.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(otherTag)
+				assert.Len(t, *anomalies, 1, "the TTL belongs to the activity node and is shared by every tag of the image")
+
+				later := newTestEventV2(eventType, "v1", "known")
+				later.Timestamp = start.Add(2 * time.Hour)
+				m.onEventTagsResolved(later)
+				assert.Len(t, *anomalies, 2, "an activity re-seen after the TTL should trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(later.Timestamp))
+			})
 		})
 	}
 }
@@ -925,11 +965,11 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 		m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return 1 }
 
 		// the size is checked before the insertion: an empty profile is below any max size
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
-		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		p, inserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
 		assert.Nil(t, p)
 		assert.False(t, inserted)
 
@@ -947,7 +987,7 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 	t.Run("a profile below the max size keeps learning", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		assert.True(t, inserted)
 		assert.True(t, p.IsEnabled())
@@ -999,11 +1039,11 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-		_, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
 
-		_, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
 
 		m.cleanupPendingProfiles()
@@ -1020,7 +1060,7 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m, _ := newInsertionTestManagerV2(t)
 	m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.True(t, inserted)
 	require.Len(t, p.Instances, 1, "the workload of the event should be linked to the profile")
 

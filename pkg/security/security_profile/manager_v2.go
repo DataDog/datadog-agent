@@ -834,10 +834,35 @@ func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time
 	return now.Sub(p.Metadata.Start) >= m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayDuration
 }
 
+// HasTTLExpired reports whether an anomaly was already sent for this activity node,
+// and that send is at least AnomalyDetectionEventTTL old.
+// A zero TTL disables re-emission. An activity that was learned without an anomaly being
+// sent stays quiet.
+// Callers must not hold p's lock.
+func (m *ManagerV2) HasTTLExpired(p *profile.Profile, node *activity_tree.NodeBase, now time.Time) bool {
+	ttl := m.config.RuntimeSecurity.AnomalyDetectionEventTTL
+	if ttl == 0 || p == nil || node == nil {
+		return false
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	lastSent, ok := node.GetLastAnomalySent()
+	if !ok {
+		return false
+	}
+	return now.Sub(lastSent) >= ttl
+}
+
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
-	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil || !m.shouldSendAnomalyDetection(profile, event.ResolveEventTime()) {
+	profile, inserted, activityNode := m.insertEventIntoProfile(event)
+	now := event.ResolveEventTime()
+	if profile == nil || !m.shouldSendAnomalyDetection(profile, now) {
+		return
+	}
+	// A new activity is always eligible. A known one is re-emitted only once the previous anomaly is older than the TTL.
+	if !inserted && !m.HasTTLExpired(profile, activityNode, now) {
 		return
 	}
 
@@ -865,6 +890,11 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
 		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
+		if activityNode != nil {
+			profile.Lock()
+			activityNode.RecordAnomalySent(now)
+			profile.Unlock()
+		}
 	}
 }
 
@@ -1060,16 +1090,17 @@ func (m *ManagerV2) SendStats() error {
 }
 
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
-// Returns the profile and whether the event was actually inserted (new data added).
-func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool) {
+// Returns the profile, whether the event was actually inserted (new data added), and the activity node the
+// anomaly TTL is tracked on.
+func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool, *activity_tree.NodeBase) {
 	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Build selector from event tags
 	selector, err := m.buildWorkloadSelector(event)
 	if err != nil {
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Cancel any pending removal for this selector (it's back!)
@@ -1083,11 +1114,11 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Get or create the profile for this workload
 	secprof, err := m.getOrCreateProfile(selector, event)
 	if err != nil {
-		return nil, false
+		return nil, false, nil
 	}
 	if !secprof.IsEnabled() {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
@@ -1114,7 +1145,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Insert the event into the profile's activity tree
@@ -1124,7 +1155,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Register the sample cookie → (process node, event node) mapping for sample refresh events
@@ -1148,7 +1179,32 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		}
 	}
 
-	return secprof, inserted
+	secprof.Lock()
+	activityNode := activityNodeForEvent(processNode, eventNodeBase, event)
+	secprof.Unlock()
+
+	return secprof, inserted, activityNode
+}
+
+// activityNodeForEvent returns the node whose lastAnomalySent tracks this event.
+// Exec is the process node. File, bind, connect and syscall samples are the event node
+// returned by Insert. DNS does not return its node, so it is looked up by question name.
+func activityNodeForEvent(processNode *activity_tree.ProcessNode, eventNodeBase *activity_tree.NodeBase, event *model.Event) *activity_tree.NodeBase {
+	if eventNodeBase != nil {
+		return eventNodeBase
+	}
+	if processNode == nil || event == nil {
+		return nil
+	}
+	switch event.GetEventType() {
+	case model.ExecEventType:
+		return &processNode.NodeBase
+	case model.DNSEventType:
+		if dnsNode, ok := processNode.DNSNames[event.DNS.Question.Name]; ok {
+			return &dnsNode.NodeBase
+		}
+	}
+	return nil
 }
 
 // buildWorkloadSelector creates a workload selector from the event's container tags
