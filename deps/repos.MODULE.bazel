@@ -372,11 +372,13 @@ http_archive(
     patch_strip = 1,
     patches = [
         "//deps:krb5/0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
+        "//deps:krb5/0002-Avoid-null-dereference-in-krb5_rd_cred.patch",
+        "//deps:krb5/0003-Avoid-another-null-dereference-in-krb5_rd_cred.patch",
     ],
-    sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
-    strip_prefix = "krb5-1.21.3",
+    sha256 = "3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13",
+    strip_prefix = "krb5-1.22.2",
     urls = [
-        "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
+        "https://kerberos.org/dist/krb5/1.22/krb5-1.22.2.tar.gz",
     ],
 )
 
