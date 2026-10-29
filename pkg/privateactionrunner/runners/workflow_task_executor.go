@@ -8,6 +8,7 @@ package runners
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -177,18 +178,31 @@ func (e *WorkflowTaskExecutor) RunTask(
 func (e *WorkflowTaskExecutor) getAllowedAction(task *types.Task) (types.Action, error) {
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
-	bundle := e.registry.GetBundle(bundleName)
+	executionFQN := task.GetExecutionFQN()
+	// Only the matching authored-script target may override an allowlisted public action.
+	if executionFQN != fqn {
+		const publicPrefix = "com.datadoghq."
+		publicAction, isDatadogAction := strings.CutPrefix(fqn, publicPrefix)
+		if !isDatadogAction || executionFQN != "com.datadoghq.authoredscripts."+publicAction {
+			return nil, util.NewPARError(
+				aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
+				fmt.Errorf("execution FQN %q does not match public action %q", executionFQN, fqn),
+			)
+		}
+	}
+	executionBundle, executionAction := actions.SplitFQN(executionFQN)
+	bundle := e.registry.GetBundle(executionBundle)
 	if bundle == nil {
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find bundle for %s", bundleName),
+			fmt.Errorf("could not find bundle for %s", executionBundle),
 		)
 	}
-	action := bundle.GetAction(actionName)
+	action := bundle.GetAction(executionAction)
 	if action == nil {
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find action for %s", actionName),
+			fmt.Errorf("could not find action for %s", executionAction),
 		)
 	}
 	if !e.config.IsActionAllowed(bundleName, actionName) {
