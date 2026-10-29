@@ -57,6 +57,8 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/gcp/host/linux",
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
         "//test/new-e2e/tests/agent-platform/platforms",
         "//test/new-e2e/tests/cws/api",
         "//test/new-e2e/tests/cws/config",

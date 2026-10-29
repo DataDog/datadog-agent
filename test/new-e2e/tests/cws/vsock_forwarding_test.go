@@ -8,7 +8,6 @@ package cws
 import (
 	_ "embed"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
 )
 
@@ -33,10 +34,11 @@ import (
 //	system-probe #1 (forwarder)    listens on vsock 2:5020, ships to the intake
 //	system-probe #2 (guest)        dials 2:5020, reaches nothing else
 //
-// The two roles match the vsock modes added in datadog-operator#3186: the
-// forwarder is "SystemProbe" mode, the guest is "Full" mode. That PR's own unit
-// tests cover whether the operator emits these env vars; what needs real infra,
-// and has no coverage anywhere today, is whether the Agent then actually works.
+// The guest matches what datadog-operator sets with global.useVSock
+// (datadog-operator#3186), whose unit tests cover the env vars it emits; the
+// forwarder matches a host system-probe configured to host the event server.
+// What needs real infra, and has no coverage anywhere today, is whether the
+// Agent then actually works.
 
 const (
 	// vsockEventPort is the runtime-security event port both roles agree on.
@@ -60,9 +62,25 @@ const (
 	// guestHostname must match DD_HOSTNAME in the env fixture.
 	guestHostname = "terrapin"
 
-	// cwsIntakeService is the service CWS events are reported under.
-	cwsIntakeService = "runtime-security-agent"
+	// guestPoliciesDir must match DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR in the
+	// env fixture. Only the guest loads guestPolicy, so an event for guestRuleID
+	// can only come from the guest, whatever hostname it ends up with.
+	guestPoliciesDir = "/tmp/sysprobe-guest-policies"
+	guestRuleID      = "vsock_e2e_guest_open"
+	guestTriggerPath = "/tmp/vsock-e2e-guest-trigger"
+
+	// cwsIntakeSource is the ddsource of the logs the CWS reporter sends. Their
+	// service comes from the event, and is empty for most of them.
+	cwsIntakeSource = "runtime-security-agent"
 )
+
+// guestPolicy is a deterministic stimulus for the forwarded-event assertions:
+// opening guestTriggerPath fires guestRuleID in the guest only.
+var guestPolicy = fmt.Sprintf(`version: 1.0.0
+rules:
+  - id: %s
+    expression: open.file.path == "%s"
+`, guestRuleID, guestTriggerPath)
 
 //go:embed config/e2e-vsock-forwarder-system-probe.yaml
 var vsockForwarderSystemProbeConfig string
@@ -135,6 +153,9 @@ func (s *vsockForwardingSuite) SetupSuite() {
 	require.NoError(s.T(), err, "could not write the guest env file")
 	_, err = host.WriteFile(guestConfigPath, []byte(guestConfigYAML))
 	require.NoError(s.T(), err, "could not write the guest config file")
+	host.MustExecute("mkdir -p " + guestPoliciesDir)
+	_, err = host.WriteFile(guestPoliciesDir+"/vsock-e2e.policy", []byte(guestPolicy))
+	require.NoError(s.T(), err, "could not write the guest policy")
 
 	s.T().Logf("starting the guest system-probe as transient unit %s", guestUnit)
 	host.MustExecute(fmt.Sprintf(
@@ -165,7 +186,7 @@ func (s *vsockForwardingSuite) TearDownSuite() {
 	s.BaseSuite.TearDownSuite()
 }
 
-// TestForwarderListensOnVSock checks the "SystemProbe" vsock role wired a real
+// TestForwarderListensOnVSock checks the forwarder role wired a real
 // listener: event_grpc_server=system-probe plus socket=vsock:5020 must produce a
 // bound CID 2 socket, not just a log line.
 func (s *vsockForwardingSuite) TestForwarderListensOnVSock() {
@@ -203,27 +224,36 @@ func (s *vsockForwardingSuite) TestEventCrossesVSockHop() {
 
 // TestForwardedEventReachesIntake extends TestEventCrossesVSockHop past the
 // receiver log line: with direct_send_from_system_probe the forwarder ships what
-// it receives itself, so a guest event must end up in fakeintake. The guest's
-// distinct hostname is what tells its events apart from the forwarder's own
-// self-test events, and checks the forwarder keeps the guest's hostname instead
-// of stamping its own.
+// it receives itself, so a guest event must end up in fakeintake. The event is
+// produced on demand by the guest-only rule, so neither the forwarder's own
+// events nor forwarded heartbeats or self-test reports can satisfy this, and it
+// checks the forwarder keeps the guest's hostname instead of stamping its own.
 func (s *vsockForwardingSuite) TestForwardedEventReachesIntake() {
+	host := s.Env().RemoteHost
+	fakeIntake := s.Env().FakeIntake.Client()
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(cwsIntakeService)
+		// Opening the file again on every attempt covers events sent before the
+		// guest was connected, or dropped by the rule's rate limiter.
+		host.MustExecuteOn(c, "touch "+guestTriggerPath)
+
+		// Logs are bucketed by service, which CWS events do not reliably set, so
+		// look in every bucket.
+		services, err := fakeIntake.GetLogServiceNames()
 		require.NoError(c, err)
 
-		hostnames := make([]string, 0, len(logs))
-		for _, log := range logs {
-			if log.HostName == guestHostname {
-				return
-			}
-			if !slices.Contains(hostnames, log.HostName) {
-				hostnames = append(hostnames, log.HostName)
-			}
+		var events []*aggregator.Log
+		for _, service := range services {
+			logs, err := fakeIntake.FilterLogs(service, fakeintakeclient.WithMessageContaining(guestRuleID))
+			require.NoError(c, err)
+			events = append(events, logs...)
 		}
-		assert.Fail(c, "no guest event in fakeintake",
-			"%d %s logs received, none from host %q (hostnames seen: %v)",
-			len(logs), cwsIntakeService, guestHostname, hostnames)
+		require.NotEmpty(c, events, "no %s event in fakeintake yet (services seen: %v)", guestRuleID, services)
+
+		for _, event := range events {
+			assert.Equal(c, cwsIntakeSource, event.Source, "the %s event was not sent by the CWS reporter", guestRuleID)
+			assert.Equal(c, guestHostname, event.HostName, "the forwarder replaced the guest hostname on the %s event", guestRuleID)
+		}
 	}, 6*time.Minute, 10*time.Second)
 }
 
@@ -248,6 +278,7 @@ func (s *vsockForwardingSuite) TestGuestIsIsolatedFromCoreAgent() {
 		"waiting for initial configuration",
 		"unable to establish stream, will possibly retry",
 		"error received trying to start stream",
+		"retrying the first update of remote-config state",
 	} {
 		assert.NotContains(s.T(), string(logs), unwanted,
 			"the guest contacted the core agent; it should only ever reach the forwarder over vsock")
