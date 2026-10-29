@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -261,7 +262,7 @@ func load() (*types.Config, error) {
 func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader, npmEnabled bool) bool {
 	isEUDM := coreCfg.GetString("infrastructure_mode") == "end_user_device"
 	cnmDynamicTestsEnabled := coreCfg.GetBool("network_path.connections_monitoring.enabled") ||
-		(!isEUDM && coreCfg.GetBool("network_path.connections_monitoring.basic_tests_enabled"))
+		(!isEUDM && configutils.IsNetworkPathBasicTestsEnabled(coreCfg))
 	eudmBasicTestsEnabled := isEUDM &&
 		coreCfg.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
 	dynamicTestsEnabled := (npmEnabled && cnmDynamicTestsEnabled) || eudmBasicTestsEnabled

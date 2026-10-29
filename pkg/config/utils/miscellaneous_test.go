@@ -211,6 +211,80 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	}
 }
 
+func TestIsNetworkPathBasicTestsEnabled(t *testing.T) {
+	const key = "network_path.connections_monitoring.basic_tests_enabled"
+	tests := []struct {
+		name      string
+		expected  bool
+		setConfig func(m model.BuildableConfig)
+	}{
+		{
+			name:      "default",
+			expected:  true,
+			setConfig: func(model.BuildableConfig) {},
+		},
+		{
+			name:     "explicitly disabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetInTest(key, false)
+			},
+		},
+		{
+			name:     "gov via site and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetInTest("site", "ddog-gov.com")
+			},
+		},
+		{
+			name:     "gov via long site and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetInTest("site", "xxxx99.ddog-gov.com")
+			},
+		},
+		{
+			name:     "gov via dd_url and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetInTest("dd_url", "https://app.ddog-gov.com")
+			},
+		},
+		{
+			name:     "gov via fips.enabled and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetInTest("fips.enabled", true)
+			},
+		},
+		{
+			name:     "gov via site and explicitly enabled",
+			expected: true,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetInTest("site", "ddog-gov.com")
+				m.SetInTest(key, true)
+			},
+		},
+		{
+			name:     "gov via site and explicitly disabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetInTest("site", "ddog-gov.com")
+				m.SetInTest(key, false)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			test.setConfig(mockConfig)
+			assert.Equal(t, test.expected, IsNetworkPathBasicTestsEnabled(mockConfig))
+		})
+	}
+}
+
 func TestIsCloudProviderEnabled(t *testing.T) {
 	config := configmock.New(t)
 

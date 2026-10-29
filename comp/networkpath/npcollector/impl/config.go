@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -63,7 +64,7 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 	// Basic tests are on by default, so they stand down when system-probe traceroute is
 	// explicitly disabled (e.g. the Helm chart default): every test would fail otherwise.
 	tracerouteExplicitlyDisabled := sysprobeConfig.IsConfigured("traceroute.enabled") && !sysprobeConfig.GetBool("traceroute.enabled")
-	basicTestsRequested := !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm
+	basicTestsRequested := !isEUDM && configutils.IsNetworkPathBasicTestsEnabled(agentConfig) && cnm
 	if basicTestsRequested && tracerouteExplicitlyDisabled {
 		logger.Infof("Network Path basic dynamic tests are disabled because system-probe traceroute is explicitly disabled (traceroute.enabled: false)")
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 type rdnsQuerierConfig struct {
@@ -63,7 +64,7 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 	tracerouteExplicitlyDisabled := sysprobeConfig.IsConfigured("traceroute.enabled") && !sysprobeConfig.GetBool("traceroute.enabled")
 	cnmDynamicTestsEnabled := sysprobeConfig.GetBool("network_config.enabled") &&
 		(agentConfig.GetBool("network_path.connections_monitoring.enabled") ||
-			(!isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && !tracerouteExplicitlyDisabled))
+			(!isEUDM && configutils.IsNetworkPathBasicTestsEnabled(agentConfig) && !tracerouteExplicitlyDisabled))
 	eudmDynamicTestsEnabled := isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
 	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") &&
 		(cnmDynamicTestsEnabled || eudmDynamicTestsEnabled)

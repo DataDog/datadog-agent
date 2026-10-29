@@ -364,6 +364,17 @@ network_path:
 `)
 	assert.False(t, newConfig(optOut, testSysprobe(t, true)).enabled)
 
+	gov := mock.NewFromYAML(t, "site: ddog-gov.com\n")
+	assert.False(t, newConfig(gov, testSysprobe(t, true)).enabled)
+
+	govOptIn := mock.NewFromYAML(t, `
+site: ddog-gov.com
+network_path:
+  connections_monitoring:
+    basic_tests_enabled: true
+`)
+	assert.True(t, newConfig(govOptIn, testSysprobe(t, true)).enabled)
+
 	standard := mock.NewFromYAML(t, `
 network_path:
   connections_monitoring:

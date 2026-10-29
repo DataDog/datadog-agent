@@ -296,6 +296,31 @@ func TestNewConfigBasicTestsStandDownWhenTracerouteDisabled(t *testing.T) {
 	}
 }
 
+func TestNewConfigBasicTestsGov(t *testing.T) {
+	tests := []struct {
+		name        string
+		basicTests  any // nil: not configured
+		expectBasic bool
+	}{
+		{name: "off by default"},
+		{name: "explicitly enabled", basicTests: true, expectBasic: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides := map[string]any{
+				"site":                           "ddog-gov.com",
+				"network_path.collector.filters": []map[string]any{},
+			}
+			if tt.basicTests != nil {
+				overrides["network_path.connections_monitoring.basic_tests_enabled"] = tt.basicTests
+			}
+			cfg := newConfig(config.NewMockWithOverrides(t, overrides), testSysprobe(t, true), logmock.New(t))
+			assert.Equal(t, tt.expectBasic, cfg.basicTestsEnabled)
+			assert.Equal(t, tt.expectBasic, cfg.networkPathCollectorEnabled())
+		})
+	}
+}
+
 func TestNewConfigBasicTestsRequireCNM(t *testing.T) {
 	logger := logmock.New(t)
 	empty := map[string]any{"network_path.collector.filters": []map[string]any{}}
