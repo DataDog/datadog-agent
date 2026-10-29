@@ -271,8 +271,13 @@ func (s *apiKeyRotationTestSuite) TestAPIKeyReachesDatadogExtension() {
 			"the datadog extension should have been autoconfigured from the Agent api_key")
 	}, 3*time.Minute, 10*time.Second)
 
-	require.Equal(s.T(), 0, strings.Count(s.otelAgentLogs(ctx, pod.Name), rotationLogMarker),
-		"precondition: no rotation should have happened yet")
+	// Count markers relative to a baseline rather than from zero. Connected mode emits
+	// one at startup: the otel-agent's own serializer forwarder is built before
+	// configsync's first write lands, so it sees api_key change once. The extension's
+	// forwarder is built later and gets the resolved key at construction, logging
+	// nothing. What proves the fix is still +2 from here -- one per forwarder.
+	baseline := strings.Count(s.otelAgentLogs(ctx, pod.Name), rotationLogMarker)
+	s.T().Logf("rotation markers before rotating: %d", baseline)
 
 	s.T().Log("Rotating the API key in the Kubernetes secret")
 	secrets := s.Env().KubernetesCluster.Client().CoreV1().Secrets(apiKeyRotationNamespace)
@@ -289,8 +294,8 @@ func (s *apiKeyRotationTestSuite) TestAPIKeyReachesDatadogExtension() {
 	s.T().Log("Waiting for both forwarders to rotate")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs := s.otelAgentLogs(ctx, pod.Name)
-		assert.GreaterOrEqual(c, strings.Count(logs, rotationLogMarker), 2,
+		assert.GreaterOrEqual(c, strings.Count(logs, rotationLogMarker), baseline+2,
 			"expected both the exporter's and the datadog extension's forwarder to rotate; "+
-				"exactly one occurrence means the extension is still on the stale key")
+				"only one more than the baseline means the extension is still on the stale key")
 	}, 6*time.Minute, 15*time.Second)
 }
