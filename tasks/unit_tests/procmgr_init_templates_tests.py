@@ -332,9 +332,7 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
         pidfile = layout.install / 'run' / 'dd-procmgrd.pid'
         init_functions = self.root / 'init-functions'
         init_functions.write_text(
-            'init_is_upstart() { return 1; }\n'
-            'log_daemon_msg() { :; }\n'
-            'log_end_msg() { return "$1"; }\n'
+            'init_is_upstart() { return 1; }\n' 'log_daemon_msg() { :; }\n' 'log_end_msg() { return "$1"; }\n'
         )
         write_executable(
             commands / 'start-stop-daemon',
@@ -388,9 +386,7 @@ exit 0
         started = self.root / 'started'
         init_functions = self.root / 'init-functions'
         init_functions.write_text(
-            'init_is_upstart() { return 1; }\n'
-            'log_daemon_msg() { :; }\n'
-            'log_end_msg() { return "$1"; }\n'
+            'init_is_upstart() { return 1; }\n' 'log_daemon_msg() { :; }\n' 'log_end_msg() { return "$1"; }\n'
         )
         write_executable(commands / 'install', 'exit 1\n')
         write_executable(commands / 'start-stop-daemon', f'touch "{started}"\nexit 0\n')
@@ -422,8 +418,12 @@ exit 0
         self.assertIn('datadog-agent-procmgr', should_stop.group(1).split())
         self.assertEqual(text.count('service datadog-agent-procmgr start'), 1)
         self.assertEqual(text.count('service datadog-agent-procmgr stop'), 1)
-        self.assertLess(text.index('service datadog-agent-procmgr start'), text.index('service datadog-agent-action start'))
-        self.assertLess(text.index('service datadog-agent-action stop'), text.index('service datadog-agent-procmgr stop'))
+        self.assertLess(
+            text.index('service datadog-agent-procmgr start'), text.index('service datadog-agent-action start')
+        )
+        self.assertLess(
+            text.index('service datadog-agent-action stop'), text.index('service datadog-agent-procmgr stop')
+        )
         # Boot starts each init script on its own. The action script must follow procmgr or its one check selects monolithic mode.
         action = SYSV_ACTION.read_text()
         action_start = re.search(r'^# Should-Start:(.*)$', action, re.MULTILINE)
