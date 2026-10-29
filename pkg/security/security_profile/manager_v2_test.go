@@ -425,7 +425,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 
 	t.Run("cookie_retargeted_while_waiting_for_lock", func(t *testing.T) {
 		m, cookieMap := newTestManagerV2(t)
-		prof := profile.New()
+		prof := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}))
 		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
 
 		processNode := &activity_tree.ProcessNode{}
