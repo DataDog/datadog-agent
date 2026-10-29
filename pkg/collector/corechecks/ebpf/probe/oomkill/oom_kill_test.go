@@ -620,16 +620,22 @@ func disableFentry(t *testing.T) {
 	t.Cleanup(func() { supportsFentry = orig })
 }
 
-// skipIfFentryUnsupported skips the test unless the kernel supports fentry on oom_kill_process
+// skipIfFentryUnsupported skips the test unless the fentry program is used, which requires fentry on
+// oom_kill_process and function pointer loads
 func skipIfFentryUnsupported(t *testing.T) {
 	if err := supportsFentry(oomHookName); err != nil {
 		t.Skipf("fentry is not supported on %s: %s", oomHookName, err)
+	}
+	if err := funcPointerLoadSupported(); err != nil {
+		t.Skipf("function pointer loads are not supported: %s", err)
 	}
 }
 
 // skipIfCgroupMemoryStatsUnsupported skips the test unless the cgroup memory stats are collected
 // on the running kernel, which requires tracking the memcg stats flushes
 func skipIfCgroupMemoryStatsUnsupported(t *testing.T) {
+	// the stats are only collected by the fentry program
+	skipIfFentryUnsupported(t)
 	if err := cgroupMemoryStatsSupported(); err != nil {
 		t.Skipf("cgroup memory stats are not supported: %s", err)
 	}
