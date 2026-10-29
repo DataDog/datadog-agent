@@ -2,6 +2,162 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.0:
+
+7.85.0
+======
+
+.. _Release Notes_7.85.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-30
+Pinned to datadog-agent v7.85.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7850>`_.
+
+
+.. _Release Notes_7.85.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Six CIS Kubernetes 1.5.1 rules evaluated by the Cluster Agent are no
+  longer shipped: ``cis-kubernetes-1.5.1-5.1.5`` (default service account
+  in use), ``cis-kubernetes-1.5.1-5.2.2`` through ``-5.2.5``, which read
+  PodSecurityPolicy objects, and ``cis-kubernetes-1.5.1-5.7.4`` (resources
+  in the default namespace). On clusters at Kubernetes 1.25 or later, only
+  ``cis-kubernetes-1.5.1-5.1.5`` stops producing findings. Kubernetes
+  removed PodSecurityPolicy in 1.25, so the four PodSecurityPolicy rules
+  have reported ``skipped`` on those clusters. On older clusters that still
+  serve PodSecurityPolicy, the four rules stop producing findings as well.
+  ``cis-kubernetes-1.5.1-5.7.4`` requested pods from the ``policy/v1beta1``
+  API group instead of the core group, so it has reported ``skipped`` or
+  ``error`` on every cluster since Agent 7.33.0.
+  ``cis-kubernetes-1.5.1-5.3.2`` is unchanged.
+
+
+.. _Release Notes_7.85.0_New Features:
+
+New Features
+------------
+
+- Added opt-in instance-level sharding for cluster checks. When
+  ``cluster_checks.instance_sharding_enabled`` is set to ``true``, a cluster
+  check config that defines multiple instances (for example, a single file
+  monitoring 100 databases) is split into one config per instance, so
+  instances are spread and rebalanced across cluster-check runners instead
+  of always landing on a single runner. Specific checks can be excluded
+  from this behavior with ``cluster_checks.instance_sharding_exclude_checks``.
+
+- Added the ``autoscaling.datadoghq.com/force-replicas`` annotation on ``DatadogPodAutoscaler``
+  objects to pin the replica count of the target workload during an incident. The count is applied
+  in one step, ignoring ``spec.constraints``, scaling rules and stabilization windows. It is still
+  suppressed by the ``autoscaling.datadoghq.com/pause`` annotation and by the ``Preview`` apply mode.
+  While applied, it is reported by the ``HorizontalScalingLimited`` status condition and the
+  ``datadog.cluster_agent.autoscaling.workload.force_replicas`` gauge.
+
+- Added the ``autoscaling.datadoghq.com/force-resources`` annotation on ``DatadogPodAutoscaler``
+  objects to override container resources on top of the vertical recommendation during an
+  incident. The value is a JSON list of container resources, in the same format as the
+  ``DatadogPodAutoscaler``, for example
+  ``[{"name": "app", "requests": {"cpu": "2", "memory": "200Mi"}, "limits": {"cpu": "4"}}]``. Only the
+  values that are set are forced; everything else keeps following the recommendation. Forced values
+  are bounded by ``spec.constraints`` and rolled out like a recommendation that raises limits. They
+  are suppressed by the ``autoscaling.datadoghq.com/pause`` annotation and by the ``Preview`` apply
+  mode. While applied, they are reported by the ``VerticalScalingLimited`` status condition and the
+  ``datadog.cluster_agent.autoscaling.workload.force_resources`` gauge.
+
+- Added the ``autoscaling.datadoghq.com/pause`` and ``autoscaling.datadoghq.com/force-fallback``
+  annotations on ``DatadogPodAutoscaler`` objects, to act on an autoscaler during an incident
+  without editing its ``spec``, whatever its owner. ``pause`` stops all actions of the
+  autoscaler, and ``force-fallback`` triggers the local fallback as if recommendations from
+  Datadog were stale.
+
+- The ``kubernetes_state_core`` check can now collect Dynamic Resource
+  Allocation objects, reporting accelerator demand and supply as
+  ``kubernetes_state.resourceclaim.count`` (tagged by ``state``:
+  ``pending``, ``allocated`` or ``in_use``),
+  ``kubernetes_state.resourceclaim.pending.age``,
+  ``kubernetes_state.resourceclaim.devices.allocated``,
+  ``kubernetes_state.resourceslice.devices`` and
+  ``kubernetes_state.resourceslice.capacity`` (tagged by ``capacity`` name).
+  On Kubernetes 1.37+, it also collects DeviceTaintRule objects as
+  ``kubernetes_state.dra.device_taint_rule`` (tagged by ``devicetaintrule``,
+  ``driver``, ``taint_key``, ``taint_effect``).
+  Enable it by adding ``resourceclaims``, ``resourceslices`` and
+  ``devicetaintrules`` to the check's ``collectors`` list, individually or
+  together; they are not collected by default because the
+  ``resource.k8s.io`` API group is absent on most clusters. The check
+  resolves each to the API version the cluster serves. As with other
+  cluster-scoped resources, they are not collected in the ``node_kubelet``
+  pod collection mode. Use
+  ``dra_device_classes`` to restrict collection to specific DeviceClasses
+  (for example ``gpu.nvidia.com``). Collection requires ``list`` and
+  ``watch`` on ``resourceclaims``, ``resourceslices``, and (on 1.37+)
+  ``devicetaintrules`` in the ``resource.k8s.io`` API group; the check
+  registers nothing when the cluster serves no supported version of that
+  group.
+
+
+.. _Release Notes_7.85.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect KServe custom resources by default, including inference services,
+  inference graphs, serving runtimes, storage containers, trained models,
+  LLM inference services and configs, and local model resources, when the
+  Cluster Agent has permission to access the ``serving.kserve.io`` API group.
+
+- Collect KubeAI ``Model`` custom resources by default.
+
+- Kubernetes event collection reads the node of a Pod ``Scheduled`` event
+  from the scheduler's message instead of fetching the Pod from the API
+  server, removing one Pod GET per scheduled pod.
+
+- The ``datadog-cluster-agent status`` output has a new "Kubernetes Information"
+  section with the cluster name, cluster ID, distribution, and Kubernetes server
+  version.
+
+
+.. _Release Notes_7.85.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Starting with Datadog Cluster Agent 7.86.0, Kubernetes versions older than v1.23
+  are no longer officially supported. The Cluster Agent keeps running on these
+  versions, but its features are supported on a best-effort basis and might not
+  work as expected. When the Cluster Agent detects such a version at startup, it
+  logs a warning and shows it in the ``datadog-cluster-agent status`` output.
+
+
+.. _Release Notes_7.85.0_Security Notes:
+
+Security Notes
+--------------
+
+- The Cluster Agent external metrics provider now validates individual
+  metric queries before batching them.
+
+
+.. _Release Notes_7.85.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the Cluster Agent flare to collect pprof and goroutine dump data
+  from the correct port (``metrics_port``) instead of ``expvar_port``.
+
+- Fix the Cluster Agent admission controller unintentionally removing custom
+  fields from Kubernetes Pod specifications during mutation.
+
+- Allow workloads selected for Agent sidecar injection to start when their
+  ``datadog-secret`` Secret or a required key is missing. The Cluster Agent
+  skips sidecar injection and annotates the Pod with the reason instead of
+  leaving it in ``CreateContainerConfigError``.
+
+
 .. _Release Notes_7.84.6:
 
 7.84.6
