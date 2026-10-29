@@ -46,7 +46,7 @@ const (
 )
 
 // agentConfigDir is the directory containing datadog.yaml. Overridable in tests.
-var agentConfigDir = defaultAgentConfigDir
+var agentConfigDir = paths.AgentConfigDir
 
 type cmdOption func(*cmdConfig)
 type cmdConfig struct{ quiet bool }

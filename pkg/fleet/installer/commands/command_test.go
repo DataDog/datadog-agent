@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths/testutil"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
@@ -243,9 +244,8 @@ installer:
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := testutil.TrustedDir(t)
-			originalConfigDir := agentConfigDir
 			agentConfigDir = dir
-			t.Cleanup(func() { agentConfigDir = originalConfigDir })
+			t.Cleanup(func() { agentConfigDir = paths.AgentConfigDir })
 
 			if tc.yaml != "" {
 				err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(tc.yaml), 0644)
