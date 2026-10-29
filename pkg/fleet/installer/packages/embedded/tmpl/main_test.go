@@ -20,6 +20,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
+func TestPARDefaultOnOnlyMarksSupervisedLaunches(t *testing.T) {
+	for _, procmgr := range []bool{false, true} {
+		units := unitSetSystemd(stableDataOCI, expDataOCI, true)
+		if procmgr {
+			units = unitSetProcmgr(stableDataOCI, expDataOCI, true)
+		}
+		for _, suffix := range []string{"", "-exp"} {
+			core := string(units["datadog-agent"+suffix+".service"])
+			assert.NotEmpty(t, core)
+			assert.Equal(t, procmgr, strings.Contains(core, `Environment="DD_INTERNAL_PAR_SPLIT_LAUNCH=true"`))
+		}
+	}
+	executor := mustRenderYAMLConfig("datadog-agent-action-executor.yaml", stableDataOCI)
+	assert.Contains(t, string(executor), `DD_INTERNAL_PAR_SPLIT_LAUNCH: "true"`)
+	standalone := mustReadUnit("datadog-agent-action.service", stableDataOCI, true, false)
+	assert.NotContains(t, string(standalone), "DD_INTERNAL_PAR_SPLIT_LAUNCH")
+}
+
 func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T) {
 	units := unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)
 

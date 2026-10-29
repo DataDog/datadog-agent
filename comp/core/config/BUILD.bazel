@@ -54,6 +54,9 @@ dd_agent_go_test(
     ],
     embed = [":config"],
     deps = [
+        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/secrets/noop-impl/types",
+        "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/util/defaultpaths",
         "@com_github_stretchr_testify//assert",

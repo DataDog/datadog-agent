@@ -1,5 +1,7 @@
 enhancements:
   - |
-    The Private Action Runner is now enabled by default. To disable it, set
+    The Private Action Runner is now enabled by default. On Linux, automatic
+    enablement is limited to packaged non-FIPS procmgr host split deployments;
+    other Linux setups remain opt-in. To disable it, set
     ``private_action_runner.enabled`` to ``false`` in ``datadog.yaml`` or set
     the ``DD_PRIVATE_ACTION_RUNNER_ENABLED`` environment variable to ``false``.
