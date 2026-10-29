@@ -216,6 +216,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/sigdanger"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// runtime init routines
@@ -336,6 +337,11 @@ func run(log log.Component,
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
 	}()
+
+	// Install the SIGDANGER handler (AIX paging-space-low warning; no-op on other
+	// platforms). See pkg/util/sigdanger for why this must not be left to the
+	// Go runtime's default behavior.
+	sigdanger.Init()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
