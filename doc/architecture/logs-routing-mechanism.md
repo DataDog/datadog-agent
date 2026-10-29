@@ -90,6 +90,8 @@ An endpoint does not have its own set. To require delivery to A **and** B, defin
 
 ## Limits and lifecycle
 
+This table defines the injected provider's operating limits and the caller's integration responsibilities. The capacity and queue rows explain when ingestion can pause and how much work can be retained. The caller, replacement, and shutdown rows explain how to manage producers and source generations without advancing checkpoints past unfinished delivery. These are implementation constraints and API requirements, not a complete user-facing routing configuration.
+
 | Area | Rule |
 | --- | --- |
 | Admission | 64 pending records per source; 4096 records and 4096 source owners/history entries in aggregate. Aggregate exhaustion may pause Y too. Selected group copies are not dropped on overflow. |
