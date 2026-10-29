@@ -25,7 +25,7 @@ The following settings can be overridden in the Datadog Agent configuration for 
 
 | Name                                  | Values | Default          | Description                                                                                                                                      |
 |:--------------------------------------|:-------|:-----------------|:-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `hostprofiler.health_metrics.enabled` | bool   | `true`           | Sends internal Host Profiler health metrics to Datadog. Automatically disabled when `infrastructure_mode: none`.                                 |
+| `hostprofiler.health_metrics.enabled` | bool   | `true` (`false` when `infrastructure_mode: none`) | Sends internal Host Profiler health metrics to Datadog. |
 | `hostprofiler.health_metrics.target`  | string | `127.0.0.1:8889` | Address used for the Host Profiler internal Prometheus metrics endpoint. Change this only if the default address conflicts with another service. |
 
 ### Diagnostics
@@ -44,7 +44,7 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | `hostprofiler.reporter_interval` | duration | `60s` | Interval between profile reports. Must be at least `60s`; shorter intervals are rejected. |
 | `hostprofiler.additional_http_headers` | map[string]string | _(empty)_ | Adds custom headers to profile export requests, for example when required by an outbound proxy or gateway. |
 | `hostprofiler.send_error_frames` | bool   | `false` | Includes unwind error frames in profiles for troubleshooting. |
-| `hostprofiler.include_env_vars` | string (comma-separated) | _(empty)_ | Collects additional environment variables from profiled processes without replacing the default metadata collection. Only include variables whose values are safe to send with profiles; do not include secrets. Can also be set with `DD_HOSTPROFILER_INCLUDE_ENV_VARS`. |
+| `hostprofiler.include_env_vars` | string (comma-separated) | _(empty)_ | Collects additional environment variables from profiled processes without replacing the default metadata collection. Only include variables whose values are safe to send with profiles; do not include secrets. |
 
 ### Symbol uploader
 
