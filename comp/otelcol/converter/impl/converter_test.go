@@ -561,45 +561,45 @@ func TestConvert(t *testing.T) {
 		},
 		// DaemonSet in the DaemonSet+Gateway setup (OTAGENT-1179).
 		{
-			name:           "cumulativetodelta/gateway-daemonset",
-			provided:       "cumulativetodelta/gateway-daemonset/config.yaml",
-			expectedResult: "cumulativetodelta/gateway-daemonset/config-result.yaml",
-			agentConfig:    "cumulativetodelta/gateway-daemonset/acfg.yaml",
+			name:           "cumulativetodelta/daemonset",
+			provided:       "cumulativetodelta/daemonset/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset/acfg.yaml",
 		},
 		{
-			name:           "cumulativetodelta/gateway-daemonset-exporter-types",
-			provided:       "cumulativetodelta/gateway-daemonset-exporter-types/config.yaml",
-			expectedResult: "cumulativetodelta/gateway-daemonset-exporter-types/config-result.yaml",
-			agentConfig:    "cumulativetodelta/gateway-daemonset-exporter-types/acfg.yaml",
-		},
-		{
-			// No-op expected: the provided config doubles as the expected result.
-			name:           "cumulativetodelta/gateway-daemonset-flag-off",
-			provided:       "cumulativetodelta/gateway-daemonset-flag-off/config.yaml",
-			expectedResult: "cumulativetodelta/gateway-daemonset-flag-off/config.yaml",
-			agentConfig:    "cumulativetodelta/gateway-daemonset-flag-off/acfg.yaml",
+			name:           "cumulativetodelta/daemonset-exporters",
+			provided:       "cumulativetodelta/daemonset-exporters/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-exporters/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-exporters/acfg.yaml",
 		},
 		{
 			// No-op expected: the provided config doubles as the expected result.
-			name:           "cumulativetodelta/gateway-daemonset-feature-disabled",
-			provided:       "cumulativetodelta/gateway-daemonset-feature-disabled/config.yaml",
-			expectedResult: "cumulativetodelta/gateway-daemonset-feature-disabled/config.yaml",
-			agentConfig:    "cumulativetodelta/gateway-daemonset-feature-disabled/acfg.yaml",
+			name:           "cumulativetodelta/daemonset-flag-off",
+			provided:       "cumulativetodelta/daemonset-flag-off/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-flag-off/config.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-flag-off/acfg.yaml",
 		},
 		{
-			name:           "cumulativetodelta/gateway-daemonset-mixed-exporters",
-			provided:       "cumulativetodelta/gateway-daemonset-mixed-exporters/config.yaml",
-			expectedResult: "cumulativetodelta/gateway-daemonset-mixed-exporters/config-result.yaml",
-			agentConfig:    "cumulativetodelta/gateway-daemonset-mixed-exporters/acfg.yaml",
+			// No-op expected: the provided config doubles as the expected result.
+			name:           "cumulativetodelta/daemonset-no-feature",
+			provided:       "cumulativetodelta/daemonset-no-feature/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-no-feature/config.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-no-feature/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/daemonset-mixed",
+			provided:       "cumulativetodelta/daemonset-mixed/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-mixed/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-mixed/acfg.yaml",
 		},
 		{
 			// Interaction of the datadog and Gateway rules: a mixed pipeline, a
 			// datadog-only pipeline and a Gateway-only pipeline each get the
 			// processor exactly once, defined a single time under processors.
-			name:           "cumulativetodelta/gateway-daemonset-with-datadog",
-			provided:       "cumulativetodelta/gateway-daemonset-with-datadog/config.yaml",
-			expectedResult: "cumulativetodelta/gateway-daemonset-with-datadog/config-result.yaml",
-			agentConfig:    "cumulativetodelta/gateway-daemonset-with-datadog/acfg.yaml",
+			name:           "cumulativetodelta/daemonset-with-datadog",
+			provided:       "cumulativetodelta/daemonset-with-datadog/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-with-datadog/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-with-datadog/acfg.yaml",
 		},
 	}
 
@@ -772,29 +772,29 @@ func TestCumulativeToDeltaMixedExporterWarning(t *testing.T) {
 		},
 		{
 			name:        "gateway daemonset: mixed metrics pipeline warns and injects",
-			provided:    "cumulativetodelta/gateway-daemonset-mixed-exporters/config.yaml",
-			agentConfig: "cumulativetodelta/gateway-daemonset-mixed-exporters/acfg.yaml",
+			provided:    "cumulativetodelta/daemonset-mixed/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset-mixed/acfg.yaml",
 			substr:      "non-Gateway exporter",
 			wantWarning: true,
 		},
 		{
 			name:        "gateway daemonset: otlphttp-only metrics pipeline injects without warning",
-			provided:    "cumulativetodelta/gateway-daemonset/config.yaml",
-			agentConfig: "cumulativetodelta/gateway-daemonset/acfg.yaml",
+			provided:    "cumulativetodelta/daemonset/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset/acfg.yaml",
 			substr:      "non-Gateway exporter",
 			wantWarning: false,
 		},
 		{
 			name:        "gateway daemonset with datadog: mixed pipeline warns for the datadog rule",
-			provided:    "cumulativetodelta/gateway-daemonset-with-datadog/config.yaml",
-			agentConfig: "cumulativetodelta/gateway-daemonset-with-datadog/acfg.yaml",
+			provided:    "cumulativetodelta/daemonset-with-datadog/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset-with-datadog/acfg.yaml",
 			substr:      "non-Datadog exporter",
 			wantWarning: true,
 		},
 		{
 			name:        "gateway daemonset with datadog: mixed pipeline already has the processor, so the Gateway rule never warns",
-			provided:    "cumulativetodelta/gateway-daemonset-with-datadog/config.yaml",
-			agentConfig: "cumulativetodelta/gateway-daemonset-with-datadog/acfg.yaml",
+			provided:    "cumulativetodelta/daemonset-with-datadog/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset-with-datadog/acfg.yaml",
 			substr:      "non-Gateway exporter",
 			wantWarning: false,
 		},
