@@ -173,7 +173,6 @@ go_library(
 
 dd_agent_go_binary(
     name = "agent",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/agent/windows_resources:rsrc"],
         "//conditions:default": [],
@@ -191,7 +190,6 @@ dd_agent_go_binary(
 dd_agent_go_binary(
     name = "agent-heroku",
     embed = [":agent_lib"],
-    # keep
     exact_gotags = sorted(COMMON_TAGS | AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
 )

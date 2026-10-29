@@ -35,17 +35,28 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	if c.coreConfig != nil {
 		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 	} else {
-		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog", "cumulativetodelta"}
+		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog", "opamp", "cumulativetodelta"}
 	}
 
-	// extensions (pprof, zpages, health_check, ddflare, datadog)
+	// extensions (pprof, zpages, health_check, ddflare, datadog, opamp)
+	standalone := c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone")
 	extensions := createExtensions(enabledFeatures)
 	for _, extension := range extensions {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
-		// datadog needs a core-agent API key; without one, neither reuse nor add it.
-		if extension.Name == datadogName && (c.coreConfig == nil || c.coreConfig.GetString("api_key") == "") {
+		// datadog and opamp are mutually exclusive, split on the deployment mode:
+		// the datadog extension reports to the core Agent, which standalone mode does
+		// not have, while opamp reports to the backend directly and is meaningful only
+		// when there is no core Agent already doing so.
+		if extension.Name == datadogName && standalone {
+			continue
+		}
+		if extension.Name == opampName && !standalone {
+			continue
+		}
+		// Both need a core-agent API key; without one, neither reuse nor add them.
+		if (extension.Name == datadogName || extension.Name == opampName) && (c.coreConfig == nil || c.coreConfig.GetString("api_key") == "") {
 			continue
 		}
 		// Reuse before building the datadog config below, whose hostname lookup is a
@@ -53,11 +64,25 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		if c.reuseExtension(conf, extension.Name) {
 			continue
 		}
-		if extension.Name == datadogName {
-			site := defaultSite
-			if c.coreConfig.GetString("site") != "" {
-				site = c.coreConfig.GetString("site")
+		if extension.Name == opampName {
+			endpoint := c.coreConfig.GetString("otelcollector.opamp.endpoint")
+			if endpoint == "" {
+				endpoint = "https://opamp." + c.resolvedSite() + "/v1/opamp"
 			}
+			extension.Config = map[string]any{
+				"server": map[string]any{
+					"http": map[string]any{
+						"endpoint": endpoint,
+						"headers": map[string]any{
+							"DD-API-KEY": c.coreConfig.GetString("api_key"),
+						},
+					},
+				},
+				"reports_raw_config": c.coreConfig.GetBool("otelcollector.opamp.reports_raw_config"),
+			}
+		}
+		if extension.Name == datadogName {
+			site := c.resolvedSite()
 			deploymentType := "daemonset"
 			if c.coreConfig.GetBool("otelcollector.gateway.mode") {
 				deploymentType = "gateway"
@@ -134,6 +159,15 @@ func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
 				"only be used in standalone mode (DD_OTEL_STANDALONE=true) to avoid metric conflicts.")
 		}
 	}
+}
+
+// resolvedSite returns the configured Datadog site, falling back to the default
+// when unset. It must only be called with a non-nil coreConfig.
+func (c *ddConverter) resolvedSite() string {
+	if site := c.coreConfig.GetString("site"); site != "" {
+		return site
+	}
+	return defaultSite
 }
 
 func componentName(fullName string) string {

@@ -12,8 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 
+	ddhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
@@ -67,16 +69,37 @@ func getBuildID(gnuBuildID, goBuildID string, fileID libpf.FileID) string {
 }
 
 func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier SymbolQuerier, ind int,
-	buildIDToResult map[string][]*ElfWithBackendSources) {
+	reporter *uploadReporter, buildIDToResult map[string][]*ElfWithBackendSources) {
+	elfCount := 0
+	for _, results := range buildIDToResult {
+		elfCount += len(results)
+	}
 	symbolFiles, err := querier.QuerySymbols(ctx, buildIDs, arch)
 	if err != nil {
+		reason := reasonRequestError
+		if sce, ok := errors.AsType[*ddhttp.StatusCodeError](err); ok && sce.StatusCode == http.StatusTooManyRequests {
+			reason = reasonRateLimited
+		}
+		queryErr := fmt.Errorf("failed to query symbols: %w", err)
+		if reason != reasonRateLimited {
+			slog.Error("Failed to query symbols",
+				slog.Int("endpoint", ind),
+				slog.String("arch", arch),
+				slog.Int("executables", elfCount),
+				slog.String("error", err.Error()))
+		}
+		paths := make([]string, 0, elfCount)
 		for _, results := range buildIDToResult {
 			for _, result := range results {
-				result.BackendSymbolSources[ind].Err = fmt.Errorf("failed to query symbols: %w", err)
+				paths = append(paths, result.Path())
+				result.BackendSymbolSources[ind].Err = queryErr
 			}
 		}
+		reporter.Error(reason, elfCount, paths...)
 		return
 	}
+
+	reporter.Info(reasonQueried, elfCount)
 
 	// Note that the same buildID can appear multiple times in the symbolFiles with different buildIDTypes
 	// because there is no constraint in sourcemap DB that prevents having identical goBuildID, gnuBuildID
@@ -94,6 +117,7 @@ func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier 
 			src, err := symbol.NewSource(symbolFile.SymbolSource)
 			if err != nil {
 				result.BackendSymbolSources[ind].Err = fmt.Errorf("failed to parse symbol source: %w", err)
+				reporter.Error(reasonSourceParseError, 1, result.Path())
 			} else {
 				result.BackendSymbolSources[ind].SymbolSource = src
 			}
@@ -107,7 +131,8 @@ func (e *ElfWithBackendSources) fillWithError(err error) {
 	}
 }
 
-func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, queriers []SymbolQuerier) []ElfWithBackendSources {
+func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, queriers []SymbolQuerier,
+	reporter *uploadReporter) []ElfWithBackendSources {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -119,6 +144,7 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 	arch := batch[0].Arch()
 
 	elfResults := make([]ElfWithBackendSources, 0, len(batch))
+	invalidBuildIDs := 0
 
 	for _, e := range batch {
 		elfResults = append(elfResults,
@@ -127,16 +153,19 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 		result := &elfResults[len(elfResults)-1]
 		if e.Arch() != arch {
 			result.fillWithError(fmt.Errorf("arch mismatch: expected %s, got %s", arch, e.Arch()))
+			invalidBuildIDs++
 			continue
 		}
 
 		buildID := getBuildID(e.GnuBuildID(), e.GoBuildID(), e.FileID())
 		if buildID == "" {
 			result.fillWithError(errors.New("empty buildID"))
+			invalidBuildIDs++
 			continue
 		}
 		buildIDToResult[buildID] = append(buildIDToResult[buildID], result)
 	}
+	reporter.Error(reasonInvalidBuildID, invalidBuildIDs)
 
 	buildIDs := make([]string, 0, len(buildIDToResult))
 	for buildID := range buildIDToResult {
@@ -144,14 +173,14 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 	}
 
 	if len(queriers) == 1 {
-		invokeQuerier(ctx, buildIDs, arch, queriers[0], 0, buildIDToResult)
+		invokeQuerier(ctx, buildIDs, arch, queriers[0], 0, reporter, buildIDToResult)
 	} else {
 		var wg sync.WaitGroup
 		for i, querier := range queriers {
 			wg.Add(1)
 			go func(i int, querier SymbolQuerier) {
 				defer wg.Done()
-				invokeQuerier(ctx, buildIDs, arch, querier, i, buildIDToResult)
+				invokeQuerier(ctx, buildIDs, arch, querier, i, reporter, buildIDToResult)
 			}(i, querier)
 		}
 		wg.Wait()

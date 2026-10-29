@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The overlayfs direct scan of container images
+    (``sbom.container_image.overlayfs_direct_scan``) now fails with an error
+    naming the image layer directory the Agent cannot read, as happens when
+    the container runtime's storage is missing from the Agent container. It
+    reported an SBOM listing only the packages of the layers it could read,
+    often none, as a success, and never scanned the image again.

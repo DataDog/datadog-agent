@@ -135,18 +135,12 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 
 // IsTracing is used to check if TraceF would actually log
 func (l *PatternLogger) IsTracing() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.TraceLvl {
-		return false
-	}
-	return true
+	return log.ShouldLog(log.TraceLvl)
 }
 
 // IsDebugging returns true if the debug level is enabled
 func (l *PatternLogger) IsDebugging() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.DebugLvl {
-		return false
-	}
-	return true
+	return log.ShouldLog(log.DebugLvl)
 }
 
 // Debugf is used to print a trace level log

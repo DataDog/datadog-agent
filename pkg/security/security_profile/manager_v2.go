@@ -14,7 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"slices"
 	"strconv"
 	"sync"
@@ -86,9 +85,6 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	}
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
-	}
-	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		size += probes.SyscallSamplesMaxEntries
 	}
 	if size == 0 {
 		// lru.New rejects non-positive sizes.
@@ -188,6 +184,8 @@ type ManagerV2 struct {
 	// resolution) and flushed once per SendStats cycle, like the other counters above.
 	tagResolutionEventsDropped  *atomic.Uint64
 	tagResolutionCgroupsExpired *atomic.Uint64
+	tagResolutionCappedCgroup   *atomic.Uint64
+	tagResolutionCappedTotal    *atomic.Uint64
 	cleanupProfilesRemoved      *atomic.Uint64
 	evictionRuns                *atomic.Uint64
 	evictionNodesEvicted        *atomic.Uint64
@@ -204,11 +202,14 @@ type ManagerV2 struct {
 	excludedCgroupsMap *ebpf.Map
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
-
-	excludedCgroupsMap, err := managerhelper.Map(ebpf, "excluded_cgroups")
-	if err != nil {
-		return nil, err
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfManager *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
+	var excludedCgroupsMap *ebpf.Map
+	if ebpfManager != nil {
+		var err error
+		excludedCgroupsMap, err = managerhelper.Map(ebpfManager, "excluded_cgroups")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if cfg.RuntimeSecurity.SecurityProfileV2ClearLocalProfilesOnStart {
@@ -288,6 +289,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 		sampleRefreshMisses:         atomic.NewUint64(0),
 		tagResolutionEventsDropped:  atomic.NewUint64(0),
 		tagResolutionCgroupsExpired: atomic.NewUint64(0),
+		tagResolutionCappedCgroup:   atomic.NewUint64(0),
+		tagResolutionCappedTotal:    atomic.NewUint64(0),
 		cleanupProfilesRemoved:      atomic.NewUint64(0),
 		evictionRuns:                atomic.NewUint64(0),
 		evictionNodesEvicted:        atomic.NewUint64(0),
@@ -397,7 +400,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	}
 
 	// Register listener for cgroup creations to exclude host/systemd cgroups from the syscall sampler
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
 			seclog.Errorf("failed to register cgroup creation listener: %v", err)
 		} else {
@@ -471,6 +474,9 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 // onCGroupCreated excludes host/systemd cgroups from the v2 syscall sampler and un-excludes
 // container cgroups (defensive against cgroup inode reuse).
 func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
+	if m.excludedCgroupsMap == nil {
+		return
+	}
 	inode := cgce.GetCGroupInode()
 
 	if cgce.IsContainerContextNull() {
@@ -489,7 +495,7 @@ func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
 
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.excludedCgroupsMap != nil && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		inode := cgce.GetCGroupInode()
 		if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Debugf("couldn't remove cgroup inode %d from exclusion map: %v", inode, err)
@@ -665,7 +671,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		if m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -782,6 +788,9 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
+	// Resolve the event time before firstSeen reads it: Timestamp stays zero until resolved
+	event.ResolveEventTime()
+
 	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
@@ -794,7 +803,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
@@ -804,6 +812,16 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
+		return
+	}
+
+	// some containers never resolve tags (e.g. Docker-in-Docker), so the queue is bounded
+	if pendingEvents.events.Len() >= m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup {
+		m.tagResolutionCappedCgroup.Inc()
+		return
+	}
+	if m.queueSize.Load() >= uint64(m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents) {
+		m.tagResolutionCappedTotal.Inc()
 		return
 	}
 
@@ -914,6 +932,16 @@ func (m *ManagerV2) SendStats() error {
 	}
 	if value := m.tagResolutionCgroupsExpired.Swap(0); value > 0 {
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedCgroup.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:cgroup"}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedTotal.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:total"}, 1.0); err != nil {
 			return err
 		}
 	}
@@ -1068,6 +1096,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
+	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
+		imageTag = "latest"
+	}
+	// Evict surplus versions before the size check, since eviction can free enough space.
+	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
+
 	// Build workloadID for cache entry lookup
 	workloadID := getWorkloadIDFromEvent(event)
 
@@ -1085,14 +1122,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
 	}
-
-	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if imageTag == "" {
-		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
-		imageTag = "latest"
-	}
-	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
 	// Insert the event into the profile's activity tree
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
@@ -1114,8 +1143,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 			sampleCookie = event.Bind.SampleCookie
 		case model.ConnectEventType:
 			sampleCookie = event.Connect.SampleCookie
-		case model.SyscallsEventType:
-			sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
 		}
 		if sampleCookie != 0 {
 			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
@@ -1205,35 +1232,76 @@ func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 		return root.Process.MntNS, true
 	}
 
+	if activity_tree.IsContainerRuntime(pc) {
+		return 0, false
+	}
+
 	return pc.Process.MntNS, false
 }
 
+func processMountNamespaceFromEvent(event *model.Event) uint32 {
+	pc := event.ProcessContext
+	if pc == nil || activity_tree.IsContainerRuntime(pc) {
+		return 0
+	}
+	return pc.Process.MntNS
+}
+
+func liveMountIDFromEvent(event *model.Event) uint32 {
+	switch event.GetEventType() {
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
+		return event.Mount.Mount.MountID
+	default:
+		return 0
+	}
+}
+
 // seedMountsForWorkload seeds a profile's mount table with the workload's
-// pre-existing mounts from its base mount namespace. Later changes come from
-// live mount events.
+// pre-existing mounts from its base mount namespace and any non-base mount
+// namespace entered by the event's process. Later changes come from live mount
+// events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
 	if workload == nil {
 		return
 	}
-
-	nsID, authoritative := baseMountNamespaceFromEvent(event)
-	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative) {
-		return
-	}
-
-	var mounts []model.Mount
-	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
-		mounts = append(mounts, *mnt)
-	})
 
 	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
 		imageTag = "latest"
 	}
 
+	cgroupInode := workload.GCroupCacheEntry.GetCGroupInode()
 	pid := event.ProcessContext.Process.Pid
+	liveMountID := liveMountIDFromEvent(event)
+
+	baseNsID, authoritative := baseMountNamespaceFromEvent(event)
+	if baseNsID != 0 && secprof.PinBaseMountNamespace(cgroupInode, baseNsID, authoritative) {
+		basePid := pid
+		if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.MntNS != 0 && root.Process.Pid != 0 {
+			basePid = root.Process.Pid
+		}
+		m.seedMountNamespace(secprof, cgroupInode, baseNsID, basePid, liveMountID, imageTag)
+	}
+
+	if procNsID := processMountNamespaceFromEvent(event); procNsID != 0 && secprof.ClaimMountNamespaceSeed(cgroupInode, procNsID, imageTag) {
+		if !m.seedMountNamespace(secprof, cgroupInode, procNsID, pid, liveMountID, imageTag) {
+			secprof.ReleaseMountNamespaceSeed(procNsID, imageTag)
+		}
+	}
+}
+
+func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uint64, nsID uint32, pid uint32, skipMountID uint32, imageTag string) bool {
+	var mounts []model.Mount
+	m.resolvers.MountResolver.IterateNamespace(nsID, pid, func(mnt *model.Mount) {
+		if skipMountID != 0 && mnt.MountID == skipMountID {
+			return
+		}
+		mounts = append(mounts, *mnt)
+	})
+
 	maxSize := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize())
 	now := time.Now()
+	seeded := false
 	for i := range mounts {
 		mnt := &mounts[i]
 
@@ -1249,11 +1317,13 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 		}
 		mnt.Path = mountPoint
 
-		secprof.InsertMount(mnt, imageTag, activity_tree.Snapshot, now)
+		secprof.InsertMount(mnt, cgroupInode, imageTag, activity_tree.Snapshot, now)
+		seeded = true
 		if secprof.ComputeHeapSize() >= maxSize {
 			break
 		}
 	}
+	return seeded
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -1332,7 +1402,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
 	)
 
 	// Try to load from local storage
@@ -1385,14 +1454,10 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
-	eventTime := event.Timestamp
-	if eventTime.IsZero() {
-		eventTime = time.Now()
-	}
+	eventTime := event.ResolveEventTime()
 
 	// Initialize metadata
 	secprof.Metadata = mtdt.Metadata{
@@ -1466,38 +1531,14 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 	return nil
 }
 
-// ensureVersionContext creates a version context for the given tag if it doesn't exist, with the tags of the
-// workload that introduced this tag
+// ensureVersionContext creates or refreshes a version context and evicts surplus versions.
+// Existing contexts keep the tags of the workload that introduced the version.
 func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
-	if _, ok := secprof.GetVersionContext(tag); ok {
-		return
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	evictedVersions := secprof.PrepareNewVersion(tag, workloadTags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, nowNano)
+	if len(evictedVersions) > 0 {
+		m.purgeCookiesForProfile(secprof, evictedVersions...)
 	}
-
-	now := time.Now()
-	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-
-	vCtx := &profile.VersionContext{
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           slices.Clone(workloadTags),
-	}
-
-	secprof.AddVersionContext(tag, vCtx)
-}
-
-// seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
-func (m *ManagerV2) seededSyscalls() []uint32 {
-	if !m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		return nil
-	}
-	ids := utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH)
-	out := make([]uint32, len(ids))
-	for i, id := range ids {
-		out[i] = uint32(id)
-	}
-	return out
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
@@ -1655,7 +1696,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+		pce := pr.Get(pid)
 		if pce == nil {
 			continue
 		}
@@ -1730,7 +1771,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+			pce := pr.Get(pid)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
@@ -1770,6 +1811,13 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	m.sampleRefreshHits.Inc()
 
+	now := time.Now()
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+	if !entry.profile.UpdateVersionContextLastSeen(entry.imageTag, nowNano) {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
 
@@ -1783,17 +1831,19 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 		return
 	}
 
-	now := time.Now()
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
 	}
 }
 
-func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+// purgeCookiesForProfile removes cookies for a profile, optionally restricted to the given versions.
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile, imageTags ...string) {
 	for _, key := range m.sampleCookieMap.Keys() {
 		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
-			m.sampleCookieMap.Remove(key)
+			if len(imageTags) == 0 || slices.Contains(imageTags, entry.imageTag) {
+				m.sampleCookieMap.Remove(key)
+			}
 		}
 	}
 }

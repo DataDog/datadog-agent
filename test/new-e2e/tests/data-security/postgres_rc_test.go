@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // The scan task carries no connection: the provider resolves it from the postgres integration
@@ -44,11 +45,17 @@ var rcIDPlaceholder = regexp.MustCompile(`\$\{(?:TASK|SUB_TASK)_ID(?:_[A-Z0-9_]+
 // rcScenario is self-contained: the RC payload, the apply state the agent must report, and the
 // SDS results that must follow.
 type rcScenario struct {
-	Name       string           `yaml:"name"`
-	RC         map[string]any   `yaml:"rc"`
-	ApplyState string           `yaml:"apply_state"`
-	ApplyError string           `yaml:"apply_error"` // regexp, only for apply_state: error
-	Expected   []map[string]any `yaml:"expected"`
+	Name       string            `yaml:"name"`
+	RC         map[string]any    `yaml:"rc"`
+	ApplyState string            `yaml:"apply_state"`
+	ApplyError string            `yaml:"apply_error"` // regexp, only for apply_state: error
+	Flare      *flareExpectation `yaml:"flare"`
+	Expected   []map[string]any  `yaml:"expected"`
+}
+
+type flareExpectation struct {
+	Absent  []string `yaml:"absent"`
+	Present []string `yaml:"present"`
 }
 
 var rcApplyStates = map[string]state.ApplyState{
@@ -80,6 +87,28 @@ func (s *postgresRCSuite) SetupSuite() {
 // TestRCScenarios pushes each scenario through Remote Config and checks the apply state the
 // agent reports and the SDS results that reach fakeintake.
 func (s *postgresRCSuite) TestRCScenarios() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.NoError(c, s.Env().FakeIntake.Client().GetServerHealth())
+	}, 5*time.Minute, 20*time.Second, "timed out waiting for fakeintake to be healthy")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.Env().Agent.Client.IsReady())
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for the agent to be ready")
+
+	// The provider subscribes to the product only once a postgres integration is configured.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.Contains(c, s.Env().Agent.Client.RemoteConfig(), fmt.Sprintf("products:%q", state.ProductDataSecurityDBScanTasks))
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for the agent to subscribe to the data security RC product")
+
+	// Polls is cumulative on a reused stack: wait for it to grow instead of for it to be non-zero.
+	before, err := s.Env().FakeIntake.Client().RCStats()
+	require.NoError(s.T(), err)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().RCStats()
+		require.NoError(c, err)
+		assert.Greater(c, stats.Polls, before.Polls, "agent did not poll fakeintake Remote Config")
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for the agent to poll Remote Config")
+
 	for _, sc := range loadRCScenarios(s.T()) {
 		s.Run(sc.Name, func() {
 			payload, err := json.Marshal(sc.RC)
@@ -97,7 +126,7 @@ func (s *postgresRCSuite) TestRCScenarios() {
 			}
 			s.EventuallyWithT(func(c *assert.CollectT) {
 				assert.Regexp(c, pattern, s.Env().Agent.Client.RemoteConfig())
-			}, time.Minute, 5*time.Second)
+			}, 3*time.Minute, 5*time.Second)
 
 			if len(sc.Expected) == 0 {
 				return // rejected task: nothing is scanned
@@ -109,8 +138,32 @@ func (s *postgresRCSuite) TestRCScenarios() {
 				for subTaskID, want := range sdsResultsBySubTask(sc.expectedResults(s.T())) {
 					assertSDSResultsEqual(c, sc.Name, subTaskID, want, got[subTaskID])
 				}
-			}, 2*time.Minute, 10*time.Second)
+			}, 3*time.Minute, 10*time.Second)
+			if sc.Flare != nil {
+				s.assertFlareScrubbed(*sc.Flare)
+			}
 		})
+	}
+}
+
+func (s *postgresRCSuite) assertFlareScrubbed(expected flareExpectation) {
+	t := s.T()
+	fi := s.Env().FakeIntake.Client()
+
+	_, err := s.Env().Agent.Client.FlareWithError(
+		agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}),
+	)
+	require.NoError(t, err)
+
+	flare, err := fi.GetLatestFlare()
+	require.NoError(t, err)
+	configCheck, err := flare.GetFileContent("config-check.log")
+	require.NoError(t, err)
+	for _, value := range expected.Absent {
+		assert.NotContains(t, configCheck, value)
+	}
+	for _, value := range expected.Present {
+		assert.Contains(t, configCheck, value)
 	}
 }
 
