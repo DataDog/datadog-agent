@@ -1,0 +1,508 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+One definition per OVAL probe the agent's OpenSCAP build enables
+(ENABLED_FEATURES in deps/openscap/openscap.BUILD.bazel). TestOVALProbes
+creates the files under /var/tmp/dd-oval-probes before it evaluates them,
+and keeps the expected result of each definition in oval_probes_nix_test.go.
+-->
+<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5"
+    xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5"
+    xmlns:ind="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent"
+    xmlns:unix="http://oval.mitre.org/XMLSchema/oval-definitions-5#unix"
+    xmlns:linux="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <generator>
+    <oval:product_name>datadog-agent new-e2e cspm</oval:product_name>
+    <oval:schema_version>5.11.3</oval:schema_version>
+    <oval:timestamp>2026-10-27T00:00:00</oval:timestamp>
+  </generator>
+
+  <definitions>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:1" version="1">
+      <metadata><title>family</title><description>family probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:1"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:2" version="1">
+      <metadata><title>uname</title><description>uname probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:2"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:3" version="1">
+      <metadata><title>environmentvariable</title><description>environmentvariable probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:3"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:4" version="1">
+      <metadata><title>environmentvariable58</title><description>environmentvariable58 probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:4"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:5" version="1">
+      <metadata><title>variable</title><description>variable probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:5"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:6" version="1">
+      <metadata><title>textfilecontent</title><description>textfilecontent probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:6"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:7" version="1">
+      <metadata><title>textfilecontent54</title><description>textfilecontent54 probe, PCRE2 subexpression</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:7"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:8" version="1">
+      <metadata><title>xmlfilecontent</title><description>xmlfilecontent probe, libxml2 XPath</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:8"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:9" version="1">
+      <metadata><title>filehash58</title><description>filehash58 probe, libgcrypt SHA-256 and SHA-512</description></metadata>
+      <criteria operator="AND">
+        <criterion test_ref="oval:com.datadoghq.e2e:tst:11"/>
+        <criterion test_ref="oval:com.datadoghq.e2e:tst:12"/>
+      </criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:10" version="1">
+      <metadata><title>file</title><description>file probe, libacl without an ACL</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:13"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:11" version="1">
+      <metadata><title>file_acl</title><description>file probe, libacl with an ACL</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:14"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:12" version="1">
+      <metadata><title>fileextendedattribute</title><description>fileextendedattribute probe, libattr</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:15"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:13" version="1">
+      <metadata><title>symlink</title><description>symlink probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:16"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:14" version="1">
+      <metadata><title>password</title><description>password probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:17"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:15" version="1">
+      <metadata><title>shadow</title><description>shadow probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:18"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:16" version="1">
+      <metadata><title>process</title><description>process probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:19"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:17" version="1">
+      <metadata><title>interface</title><description>interface probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:20"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:18" version="1">
+      <metadata><title>routingtable</title><description>routingtable probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:21"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:19" version="1">
+      <metadata><title>inetlisteningservers</title><description>inetlisteningservers probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:22"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:20" version="1">
+      <metadata><title>iflisteners</title><description>iflisteners probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:23"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:21" version="1">
+      <metadata><title>runlevel</title><description>runlevel probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:24"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:22" version="1">
+      <metadata><title>xinetd</title><description>xinetd probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:25"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:23" version="1">
+      <metadata><title>sysctl</title><description>sysctl probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:26"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:24" version="1">
+      <metadata><title>dnscache</title><description>dnscache probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:27"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:25" version="1">
+      <metadata><title>dpkginfo</title><description>dpkginfo probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:28"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:26" version="1">
+      <metadata><title>rpminfo</title><description>rpminfo probe, librpm and its OpenPGP parser</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:29"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:27" version="1">
+      <metadata><title>rpmverify</title><description>rpmverify probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:30"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:28" version="1">
+      <metadata><title>rpmverifyfile</title><description>rpmverifyfile probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:31"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:29" version="1">
+      <metadata><title>rpmverifypackage</title><description>rpmverifypackage probe</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:32"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:30" version="1">
+      <metadata><title>selinuxboolean</title><description>selinuxboolean probe, libselinux</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:33"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:31" version="1">
+      <metadata><title>selinuxsecuritycontext</title><description>selinuxsecuritycontext probe, libselinux</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:34"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:32" version="1">
+      <metadata><title>partition</title><description>partition probe, libblkid</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:35"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:33" version="1">
+      <metadata><title>systemdunitproperty</title><description>systemdunitproperty probe, libdbus</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:36"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:34" version="1">
+      <metadata><title>systemdunitdependency</title><description>systemdunitdependency probe, libdbus</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:37"/></criteria>
+    </definition>
+    <definition class="miscellaneous" id="oval:com.datadoghq.e2e:def:35" version="1">
+      <metadata><title>fwupdsecattr</title><description>fwupdsecattr probe, libdbus</description></metadata>
+      <criteria><criterion test_ref="oval:com.datadoghq.e2e:tst:38"/></criteria>
+    </definition>
+  </definitions>
+
+  <tests>
+    <ind:family_test id="oval:com.datadoghq.e2e:tst:1" version="1" check="all" comment="family">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:1"/>
+      <ind:state state_ref="oval:com.datadoghq.e2e:ste:1"/>
+    </ind:family_test>
+    <unix:uname_test id="oval:com.datadoghq.e2e:tst:2" version="1" check="all" comment="uname">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:2"/>
+      <unix:state state_ref="oval:com.datadoghq.e2e:ste:2"/>
+    </unix:uname_test>
+    <ind:environmentvariable_test id="oval:com.datadoghq.e2e:tst:3" version="1" check="all" check_existence="at_least_one_exists" comment="environmentvariable">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:3"/>
+    </ind:environmentvariable_test>
+    <ind:environmentvariable58_test id="oval:com.datadoghq.e2e:tst:4" version="1" check="all" check_existence="at_least_one_exists" comment="environmentvariable58">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:4"/>
+    </ind:environmentvariable58_test>
+    <ind:variable_test id="oval:com.datadoghq.e2e:tst:5" version="1" check="all" comment="variable">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:5"/>
+      <ind:state state_ref="oval:com.datadoghq.e2e:ste:5"/>
+    </ind:variable_test>
+    <ind:textfilecontent_test id="oval:com.datadoghq.e2e:tst:6" version="1" check="all" check_existence="at_least_one_exists" comment="textfilecontent">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:6"/>
+    </ind:textfilecontent_test>
+    <ind:textfilecontent54_test id="oval:com.datadoghq.e2e:tst:7" version="1" check="all" check_existence="at_least_one_exists" comment="textfilecontent54">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:7"/>
+      <ind:state state_ref="oval:com.datadoghq.e2e:ste:7"/>
+    </ind:textfilecontent54_test>
+    <ind:xmlfilecontent_test id="oval:com.datadoghq.e2e:tst:8" version="1" check="all" check_existence="at_least_one_exists" comment="xmlfilecontent">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:8"/>
+      <ind:state state_ref="oval:com.datadoghq.e2e:ste:8"/>
+    </ind:xmlfilecontent_test>
+    <ind:filehash58_test id="oval:com.datadoghq.e2e:tst:11" version="1" check="all" check_existence="at_least_one_exists" comment="filehash58 SHA-256">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:11"/>
+      <ind:state state_ref="oval:com.datadoghq.e2e:ste:11"/>
+    </ind:filehash58_test>
+    <ind:filehash58_test id="oval:com.datadoghq.e2e:tst:12" version="1" check="all" check_existence="at_least_one_exists" comment="filehash58 SHA-512">
+      <ind:object object_ref="oval:com.datadoghq.e2e:obj:12"/>
+      <ind:state state_ref="oval:com.datadoghq.e2e:ste:12"/>
+    </ind:filehash58_test>
+    <unix:file_test id="oval:com.datadoghq.e2e:tst:13" version="1" check="all" check_existence="at_least_one_exists" comment="file">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:13"/>
+      <unix:state state_ref="oval:com.datadoghq.e2e:ste:13"/>
+    </unix:file_test>
+    <unix:file_test id="oval:com.datadoghq.e2e:tst:14" version="1" check="all" check_existence="at_least_one_exists" comment="file with an ACL">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:14"/>
+      <unix:state state_ref="oval:com.datadoghq.e2e:ste:14"/>
+    </unix:file_test>
+    <unix:fileextendedattribute_test id="oval:com.datadoghq.e2e:tst:15" version="1" check="all" check_existence="at_least_one_exists" comment="fileextendedattribute">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:15"/>
+      <unix:state state_ref="oval:com.datadoghq.e2e:ste:15"/>
+    </unix:fileextendedattribute_test>
+    <unix:symlink_test id="oval:com.datadoghq.e2e:tst:16" version="1" check="all" check_existence="at_least_one_exists" comment="symlink">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:16"/>
+      <unix:state state_ref="oval:com.datadoghq.e2e:ste:16"/>
+    </unix:symlink_test>
+    <unix:password_test id="oval:com.datadoghq.e2e:tst:17" version="1" check="all" check_existence="at_least_one_exists" comment="password">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:17"/>
+      <unix:state state_ref="oval:com.datadoghq.e2e:ste:17"/>
+    </unix:password_test>
+    <unix:shadow_test id="oval:com.datadoghq.e2e:tst:18" version="1" check="all" check_existence="at_least_one_exists" comment="shadow">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:18"/>
+    </unix:shadow_test>
+    <unix:process_test id="oval:com.datadoghq.e2e:tst:19" version="1" check="all" check_existence="at_least_one_exists" comment="process">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:19"/>
+    </unix:process_test>
+    <unix:interface_test id="oval:com.datadoghq.e2e:tst:20" version="1" check="all" check_existence="at_least_one_exists" comment="interface">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:20"/>
+    </unix:interface_test>
+    <unix:routingtable_test id="oval:com.datadoghq.e2e:tst:21" version="1" check="all" check_existence="at_least_one_exists" comment="routingtable">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:21"/>
+    </unix:routingtable_test>
+    <linux:inetlisteningservers_test id="oval:com.datadoghq.e2e:tst:22" version="1" check="all" check_existence="at_least_one_exists" comment="inetlisteningservers">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:22"/>
+    </linux:inetlisteningservers_test>
+    <linux:iflisteners_test id="oval:com.datadoghq.e2e:tst:23" version="1" check="all" check_existence="any_exist" comment="iflisteners">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:23"/>
+    </linux:iflisteners_test>
+    <unix:runlevel_test id="oval:com.datadoghq.e2e:tst:24" version="1" check="all" check_existence="any_exist" comment="runlevel">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:24"/>
+    </unix:runlevel_test>
+    <unix:xinetd_test id="oval:com.datadoghq.e2e:tst:25" version="1" check="all" check_existence="any_exist" comment="xinetd">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:25"/>
+    </unix:xinetd_test>
+    <unix:sysctl_test id="oval:com.datadoghq.e2e:tst:26" version="1" check="all" check_existence="at_least_one_exists" comment="sysctl">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:26"/>
+      <unix:state state_ref="oval:com.datadoghq.e2e:ste:26"/>
+    </unix:sysctl_test>
+    <unix:dnscache_test id="oval:com.datadoghq.e2e:tst:27" version="1" check="all" check_existence="any_exist" comment="dnscache">
+      <unix:object object_ref="oval:com.datadoghq.e2e:obj:27"/>
+    </unix:dnscache_test>
+    <linux:dpkginfo_test id="oval:com.datadoghq.e2e:tst:28" version="1" check="all" check_existence="at_least_one_exists" comment="dpkginfo">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:28"/>
+    </linux:dpkginfo_test>
+    <linux:rpminfo_test id="oval:com.datadoghq.e2e:tst:29" version="1" check="all" check_existence="at_least_one_exists" comment="rpminfo">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:29"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:29"/>
+    </linux:rpminfo_test>
+    <linux:rpmverify_test id="oval:com.datadoghq.e2e:tst:30" version="1" check="all" check_existence="at_least_one_exists" comment="rpmverify">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:30"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:30"/>
+    </linux:rpmverify_test>
+    <linux:rpmverifyfile_test id="oval:com.datadoghq.e2e:tst:31" version="1" check="all" check_existence="at_least_one_exists" comment="rpmverifyfile">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:31"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:31"/>
+    </linux:rpmverifyfile_test>
+    <linux:rpmverifypackage_test id="oval:com.datadoghq.e2e:tst:32" version="1" check="all" check_existence="at_least_one_exists" comment="rpmverifypackage">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:32"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:32"/>
+    </linux:rpmverifypackage_test>
+    <linux:selinuxboolean_test id="oval:com.datadoghq.e2e:tst:33" version="1" check="all" check_existence="at_least_one_exists" comment="selinuxboolean">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:33"/>
+    </linux:selinuxboolean_test>
+    <linux:selinuxsecuritycontext_test id="oval:com.datadoghq.e2e:tst:34" version="1" check="all" check_existence="at_least_one_exists" comment="selinuxsecuritycontext">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:34"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:34"/>
+    </linux:selinuxsecuritycontext_test>
+    <linux:partition_test id="oval:com.datadoghq.e2e:tst:35" version="1" check="all" check_existence="at_least_one_exists" comment="partition">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:35"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:35"/>
+    </linux:partition_test>
+    <linux:systemdunitproperty_test id="oval:com.datadoghq.e2e:tst:36" version="1" check="all" check_existence="at_least_one_exists" comment="systemdunitproperty">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:36"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:36"/>
+    </linux:systemdunitproperty_test>
+    <linux:systemdunitdependency_test id="oval:com.datadoghq.e2e:tst:37" version="1" check="all" check_existence="at_least_one_exists" comment="systemdunitdependency">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:37"/>
+      <linux:state state_ref="oval:com.datadoghq.e2e:ste:37"/>
+    </linux:systemdunitdependency_test>
+    <linux:fwupdsecattr_test id="oval:com.datadoghq.e2e:tst:38" version="1" check="all" check_existence="at_least_one_exists" comment="fwupdsecattr">
+      <linux:object object_ref="oval:com.datadoghq.e2e:obj:38"/>
+    </linux:fwupdsecattr_test>
+  </tests>
+
+  <objects>
+    <ind:family_object id="oval:com.datadoghq.e2e:obj:1" version="1"/>
+    <unix:uname_object id="oval:com.datadoghq.e2e:obj:2" version="1"/>
+    <ind:environmentvariable_object id="oval:com.datadoghq.e2e:obj:3" version="1">
+      <ind:name>PATH</ind:name>
+    </ind:environmentvariable_object>
+    <ind:environmentvariable58_object id="oval:com.datadoghq.e2e:obj:4" version="1">
+      <ind:pid datatype="int" xsi:nil="true"/>
+      <ind:name>PATH</ind:name>
+    </ind:environmentvariable58_object>
+    <ind:variable_object id="oval:com.datadoghq.e2e:obj:5" version="1">
+      <ind:var_ref>oval:com.datadoghq.e2e:var:1</ind:var_ref>
+    </ind:variable_object>
+    <ind:textfilecontent_object id="oval:com.datadoghq.e2e:obj:6" version="1">
+      <ind:path>/var/tmp/dd-oval-probes</ind:path>
+      <ind:filename>f.txt</ind:filename>
+      <ind:line operation="pattern match">^key = value$</ind:line>
+    </ind:textfilecontent_object>
+    <ind:textfilecontent54_object id="oval:com.datadoghq.e2e:obj:7" version="1">
+      <ind:filepath>/var/tmp/dd-oval-probes/f.txt</ind:filepath>
+      <ind:pattern operation="pattern match">^key = (\w+)$</ind:pattern>
+      <ind:instance datatype="int" operation="greater than or equal">1</ind:instance>
+    </ind:textfilecontent54_object>
+    <ind:xmlfilecontent_object id="oval:com.datadoghq.e2e:obj:8" version="1">
+      <ind:filepath>/var/tmp/dd-oval-probes/f.xml</ind:filepath>
+      <ind:xpath>/root/item[@name='dd']/text()</ind:xpath>
+    </ind:xmlfilecontent_object>
+    <ind:filehash58_object id="oval:com.datadoghq.e2e:obj:11" version="1">
+      <ind:filepath>/var/tmp/dd-oval-probes/f.txt</ind:filepath>
+      <ind:hash_type>SHA-256</ind:hash_type>
+    </ind:filehash58_object>
+    <ind:filehash58_object id="oval:com.datadoghq.e2e:obj:12" version="1">
+      <ind:filepath>/var/tmp/dd-oval-probes/f.txt</ind:filepath>
+      <ind:hash_type>SHA-512</ind:hash_type>
+    </ind:filehash58_object>
+    <unix:file_object id="oval:com.datadoghq.e2e:obj:13" version="1">
+      <unix:filepath>/var/tmp/dd-oval-probes/f.txt</unix:filepath>
+    </unix:file_object>
+    <unix:file_object id="oval:com.datadoghq.e2e:obj:14" version="1">
+      <unix:filepath>/var/tmp/dd-oval-probes/f.acl</unix:filepath>
+    </unix:file_object>
+    <unix:fileextendedattribute_object id="oval:com.datadoghq.e2e:obj:15" version="1">
+      <unix:filepath>/var/tmp/dd-oval-probes/f.txt</unix:filepath>
+      <unix:attribute_name>user.dd</unix:attribute_name>
+    </unix:fileextendedattribute_object>
+    <unix:symlink_object id="oval:com.datadoghq.e2e:obj:16" version="1">
+      <unix:filepath>/var/tmp/dd-oval-probes/link</unix:filepath>
+    </unix:symlink_object>
+    <unix:password_object id="oval:com.datadoghq.e2e:obj:17" version="1">
+      <unix:username>root</unix:username>
+    </unix:password_object>
+    <unix:shadow_object id="oval:com.datadoghq.e2e:obj:18" version="1">
+      <unix:username>root</unix:username>
+    </unix:shadow_object>
+    <unix:process_object id="oval:com.datadoghq.e2e:obj:19" version="1">
+      <unix:command operation="pattern match">^systemd$</unix:command>
+    </unix:process_object>
+    <unix:interface_object id="oval:com.datadoghq.e2e:obj:20" version="1">
+      <unix:name>lo</unix:name>
+    </unix:interface_object>
+    <unix:routingtable_object id="oval:com.datadoghq.e2e:obj:21" version="1">
+      <unix:destination datatype="ipv4_address">0.0.0.0</unix:destination>
+    </unix:routingtable_object>
+    <linux:inetlisteningservers_object id="oval:com.datadoghq.e2e:obj:22" version="1">
+      <linux:protocol operation="pattern match">^tcp</linux:protocol>
+      <linux:local_address operation="pattern match">.*</linux:local_address>
+      <linux:local_port datatype="int">22</linux:local_port>
+    </linux:inetlisteningservers_object>
+    <linux:iflisteners_object id="oval:com.datadoghq.e2e:obj:23" version="1">
+      <linux:interface_name operation="pattern match">.*</linux:interface_name>
+    </linux:iflisteners_object>
+    <unix:runlevel_object id="oval:com.datadoghq.e2e:obj:24" version="1">
+      <unix:service_name operation="pattern match">.*</unix:service_name>
+      <unix:runlevel>3</unix:runlevel>
+    </unix:runlevel_object>
+    <unix:xinetd_object id="oval:com.datadoghq.e2e:obj:25" version="1">
+      <unix:protocol operation="pattern match">.*</unix:protocol>
+      <unix:service_name operation="pattern match">.*</unix:service_name>
+    </unix:xinetd_object>
+    <unix:sysctl_object id="oval:com.datadoghq.e2e:obj:26" version="1">
+      <unix:name>kernel.ostype</unix:name>
+    </unix:sysctl_object>
+    <unix:dnscache_object id="oval:com.datadoghq.e2e:obj:27" version="1">
+      <unix:domain_name operation="pattern match">.*</unix:domain_name>
+    </unix:dnscache_object>
+    <linux:dpkginfo_object id="oval:com.datadoghq.e2e:obj:28" version="1">
+      <linux:name>bash</linux:name>
+    </linux:dpkginfo_object>
+    <linux:rpminfo_object id="oval:com.datadoghq.e2e:obj:29" version="1">
+      <linux:name>bash</linux:name>
+    </linux:rpminfo_object>
+    <linux:rpmverify_object id="oval:com.datadoghq.e2e:obj:30" version="1">
+      <linux:name>bash</linux:name>
+      <linux:filepath operation="pattern match">^(/usr)?/bin/bash$</linux:filepath>
+    </linux:rpmverify_object>
+    <linux:rpmverifyfile_object id="oval:com.datadoghq.e2e:obj:31" version="1">
+      <linux:name>bash</linux:name>
+      <linux:epoch operation="pattern match">.*</linux:epoch>
+      <linux:version operation="pattern match">.*</linux:version>
+      <linux:release operation="pattern match">.*</linux:release>
+      <linux:arch operation="pattern match">.*</linux:arch>
+      <linux:filepath operation="pattern match">^(/usr)?/bin/bash$</linux:filepath>
+    </linux:rpmverifyfile_object>
+    <linux:rpmverifypackage_object id="oval:com.datadoghq.e2e:obj:32" version="1">
+      <linux:name>bash</linux:name>
+      <linux:epoch operation="pattern match">.*</linux:epoch>
+      <linux:version operation="pattern match">.*</linux:version>
+      <linux:release operation="pattern match">.*</linux:release>
+      <linux:arch operation="pattern match">.*</linux:arch>
+    </linux:rpmverifypackage_object>
+    <linux:selinuxboolean_object id="oval:com.datadoghq.e2e:obj:33" version="1">
+      <linux:name>httpd_can_network_connect</linux:name>
+    </linux:selinuxboolean_object>
+    <linux:selinuxsecuritycontext_object id="oval:com.datadoghq.e2e:obj:34" version="1">
+      <linux:filepath>/etc/passwd</linux:filepath>
+    </linux:selinuxsecuritycontext_object>
+    <linux:partition_object id="oval:com.datadoghq.e2e:obj:35" version="1">
+      <linux:mount_point>/</linux:mount_point>
+    </linux:partition_object>
+    <linux:systemdunitproperty_object id="oval:com.datadoghq.e2e:obj:36" version="1">
+      <linux:unit operation="pattern match">^sshd?\.service$</linux:unit>
+      <linux:property>ActiveState</linux:property>
+    </linux:systemdunitproperty_object>
+    <linux:systemdunitdependency_object id="oval:com.datadoghq.e2e:obj:37" version="1">
+      <linux:unit>multi-user.target</linux:unit>
+    </linux:systemdunitdependency_object>
+    <linux:fwupdsecattr_object id="oval:com.datadoghq.e2e:obj:38" version="1">
+      <linux:stream_id>org.fwupd.hsi.Kernel.Lockdown</linux:stream_id>
+    </linux:fwupdsecattr_object>
+  </objects>
+
+  <states>
+    <ind:family_state id="oval:com.datadoghq.e2e:ste:1" version="1">
+      <ind:family>unix</ind:family>
+    </ind:family_state>
+    <unix:uname_state id="oval:com.datadoghq.e2e:ste:2" version="1">
+      <unix:os_name>Linux</unix:os_name>
+    </unix:uname_state>
+    <ind:variable_state id="oval:com.datadoghq.e2e:ste:5" version="1">
+      <ind:value>dd-oval-probe</ind:value>
+    </ind:variable_state>
+    <ind:textfilecontent54_state id="oval:com.datadoghq.e2e:ste:7" version="1">
+      <ind:subexpression>value</ind:subexpression>
+    </ind:textfilecontent54_state>
+    <ind:xmlfilecontent_state id="oval:com.datadoghq.e2e:ste:8" version="1">
+      <ind:value_of>probe</ind:value_of>
+    </ind:xmlfilecontent_state>
+    <ind:filehash58_state id="oval:com.datadoghq.e2e:ste:11" version="1">
+      <ind:hash_type>SHA-256</ind:hash_type>
+      <ind:hash>ead95e3a704789333a7ad24640de3031740404a343677e23f41be6e67d2375d9</ind:hash>
+    </ind:filehash58_state>
+    <ind:filehash58_state id="oval:com.datadoghq.e2e:ste:12" version="1">
+      <ind:hash_type>SHA-512</ind:hash_type>
+      <ind:hash>26654d8eea66fff08aa566777782a248dcd847b4c0ef7c8b6d72e48e2d990f3ff5f58e260d4033cea0b4e54f68a6f3a8c10b1583172fbaac96e1f1979143f133</ind:hash>
+    </ind:filehash58_state>
+    <unix:file_state id="oval:com.datadoghq.e2e:ste:13" version="1">
+      <unix:type>regular</unix:type>
+      <unix:uread datatype="boolean">true</unix:uread>
+      <unix:has_extended_acl datatype="boolean">false</unix:has_extended_acl>
+    </unix:file_state>
+    <unix:file_state id="oval:com.datadoghq.e2e:ste:14" version="1">
+      <unix:has_extended_acl datatype="boolean">true</unix:has_extended_acl>
+    </unix:file_state>
+    <unix:fileextendedattribute_state id="oval:com.datadoghq.e2e:ste:15" version="1">
+      <unix:value>probe</unix:value>
+    </unix:fileextendedattribute_state>
+    <unix:symlink_state id="oval:com.datadoghq.e2e:ste:16" version="1">
+      <unix:canonical_path>/var/tmp/dd-oval-probes/f.txt</unix:canonical_path>
+    </unix:symlink_state>
+    <unix:password_state id="oval:com.datadoghq.e2e:ste:17" version="1">
+      <unix:user_id datatype="int">0</unix:user_id>
+    </unix:password_state>
+    <unix:sysctl_state id="oval:com.datadoghq.e2e:ste:26" version="1">
+      <unix:value>Linux</unix:value>
+    </unix:sysctl_state>
+    <linux:rpminfo_state id="oval:com.datadoghq.e2e:ste:29" version="1">
+      <linux:signature_keyid operation="pattern match">^[0-9a-f]{16}$</linux:signature_keyid>
+    </linux:rpminfo_state>
+    <linux:rpmverify_state id="oval:com.datadoghq.e2e:ste:30" version="1">
+      <linux:size_differs>pass</linux:size_differs>
+      <linux:mode_differs>pass</linux:mode_differs>
+      <linux:md5_differs>pass</linux:md5_differs>
+    </linux:rpmverify_state>
+    <linux:rpmverifyfile_state id="oval:com.datadoghq.e2e:ste:31" version="1">
+      <linux:size_differs>pass</linux:size_differs>
+      <linux:mode_differs>pass</linux:mode_differs>
+      <linux:filedigest_differs>pass</linux:filedigest_differs>
+    </linux:rpmverifyfile_state>
+    <linux:rpmverifypackage_state id="oval:com.datadoghq.e2e:ste:32" version="1">
+      <linux:dependency_check_passed datatype="boolean">true</linux:dependency_check_passed>
+    </linux:rpmverifypackage_state>
+    <linux:selinuxsecuritycontext_state id="oval:com.datadoghq.e2e:ste:34" version="1">
+      <linux:type>passwd_file_t</linux:type>
+    </linux:selinuxsecuritycontext_state>
+    <linux:partition_state id="oval:com.datadoghq.e2e:ste:35" version="1">
+      <linux:uuid operation="pattern match">.+</linux:uuid>
+    </linux:partition_state>
+    <linux:systemdunitproperty_state id="oval:com.datadoghq.e2e:ste:36" version="1">
+      <linux:value>active</linux:value>
+    </linux:systemdunitproperty_state>
+    <linux:systemdunitdependency_state id="oval:com.datadoghq.e2e:ste:37" version="1">
+      <linux:dependency entity_check="at least one" operation="pattern match">^basic\.target$</linux:dependency>
+    </linux:systemdunitdependency_state>
+  </states>
+
+  <variables>
+    <local_variable id="oval:com.datadoghq.e2e:var:1" version="1" datatype="string" comment="literal">
+      <literal_component>dd-oval-probe</literal_component>
+    </local_variable>
+  </variables>
+</oval_definitions>

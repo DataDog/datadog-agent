@@ -10,6 +10,7 @@ use std::ptr;
 use super::super::child_env::merge_legacy_scm_env;
 use super::super::merge_env_overrides;
 use super::super::wide::WideEnvBlock;
+use crate::spawn::SpawnRequest;
 use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
@@ -17,11 +18,21 @@ use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 
 fn build_child_env_vars(
     process_name: &str,
-    baseline: HashMap<String, String>,
+    mut vars: HashMap<String, String>,
+    inherited: &[(String, String)],
     config_overrides: &[(String, String)],
+    inherit_supervisor_env: bool,
 ) -> HashMap<String, String> {
-    let mut vars = baseline;
-    merge_legacy_scm_env(process_name, &mut vars);
+    if inherit_supervisor_env {
+        // Supervisor PATH is already a complete value. Apply it before the
+        // legacy service block so that block appends to it instead of the
+        // other way around.
+        merge_env_overrides(&mut vars, inherited);
+        merge_legacy_scm_env(process_name, &mut vars);
+    } else {
+        merge_legacy_scm_env(process_name, &mut vars);
+        merge_env_overrides(&mut vars, inherited);
+    }
     merge_env_overrides(&mut vars, config_overrides);
     vars
 }
@@ -38,10 +49,23 @@ pub(crate) fn build_windows_command_line(command: &str, args: &[String]) -> Stri
 pub(crate) fn env_block_from_baseline_plus_overrides(
     process_name: &str,
     token: HANDLE,
-    overrides: &[(String, String)],
+    request: &SpawnRequest,
 ) -> Result<WideEnvBlock> {
-    let baseline = super::super::baseline_env_vars_for_spawn(process_name, token);
-    let vars = build_child_env_vars(process_name, baseline, overrides);
+    let inherit_supervisor_env = request.inherit_supervisor_env();
+    // A same-user child already carries the supervisor environment in `inherited_env()`.
+    // Starting from the account block as well would append that PATH a second time.
+    let baseline = if inherit_supervisor_env {
+        HashMap::new()
+    } else {
+        super::super::baseline_env_vars_for_spawn(process_name, token)
+    };
+    let vars = build_child_env_vars(
+        process_name,
+        baseline,
+        request.inherited_env(),
+        request.config_env(),
+        inherit_supervisor_env,
+    );
     Ok(env_vars_to_wide_block(&vars))
 }
 
