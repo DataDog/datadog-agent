@@ -51,13 +51,6 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | Name | Values | Default | Description |
 |:-----|:-------|:--------|:------------|
 | `hostprofiler.symbol_uploader.enabled` | bool | `true` | Uploads debug symbols to Datadog using the Agent's profiling intake destinations and API keys. Disabling it can leave native and Go frames unresolved. |
-
-### Symbol upload report
-
-The Host Profiler periodically logs the status of symbol uploads. These options control how often the status is logged.
-
-| Name                                             | Values | Default | Description                                                                                                        |
-|:-------------------------------------------------|:-------|:--------|:-------------------------------------------------------------------------------------------------------------------|
 | `hostprofiler.symbol_uploader.report.interval`   | int    | `300`   | Interval, in seconds, at which the Host Profiler logs symbol upload reports. Maximum `86400` (24 hours). Values outside `1` to `86400` are ignored and fall back to the default. |
 | `hostprofiler.symbol_uploader.report.max_paths_per_report` | int | `100` | Maximum number of binary paths kept per symbol upload report, per log level. Maximum `100000`. Values outside `1` to `100000` fall back to the default. |
 
