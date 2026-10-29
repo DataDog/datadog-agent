@@ -33,13 +33,13 @@ target
 *.syso
 *.log
 /main
+# Version cache written by during releasing.
+/agent-version.cache
 
 # Build System Protocol (Bazel <-> JetBrains IDEs)
 /.bazelbsp/
 # In-workpace cache
 /.cache/
-# Version cache written by `dda inv` (tasks/libs/releasing/version.py)
-/agent-version.cache
 # Bazel convenience symlinks to output folders
 /bazel-*
 # User specific bazelrc file
