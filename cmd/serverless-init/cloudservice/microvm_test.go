@@ -248,7 +248,7 @@ func TestMicroVMMetadataReporter_ReportsAfterRunAndResume(t *testing.T) {
 		lifecycle.HookToggles{}, // no hooks enabled
 		nil,                     // no heartbeat
 	)
-	srv.SetMetadataReporter(m.MetadataReporter(metadata))
+	srv.SetMetadataReporter(m.MetadataReporter(metadata.Comp))
 	require.NoError(t, srv.ListenAndServe(nil))
 	t.Cleanup(func() {
 		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -276,7 +276,7 @@ func TestMicroVMMetadataReporter_ReportsAfterRunAndResume(t *testing.T) {
 	post("resume", "")
 	post("run", `{"microvmId":""}`)
 	assert.Empty(t, m.GetMetadata().ResourceID)
-	assert.Empty(t, metadata.Reported(), "nothing is reported before /run delivers an instance ID")
+	assert.Empty(t, metadata.Reported, "nothing is reported before /run delivers an instance ID")
 
 	for _, step := range []struct{ hook, body, id string }{
 		{"run", `{"microvmId":"vm-A"}`, "vm-A"},
@@ -285,7 +285,7 @@ func TestMicroVMMetadataReporter_ReportsAfterRunAndResume(t *testing.T) {
 	} {
 		post(step.hook, step.body)
 		assert.Equal(t, step.id, nextReportedID(), "the instance ID is set before each report")
-		<-metadata.Reported()
+		<-metadata.Reported
 	}
 }
 
