@@ -1111,7 +1111,7 @@ dependencies = [
 [[package]]
 name = "rc-crypto"
 version = "0.1.7"
-source = "git+https://github.com/DataDog/libdd-rc?rev=2c5496404cceab24219560ad23dd71c9226bbb0a#2c5496404cceab24219560ad23dd71c9226bbb0a"
+source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -1130,12 +1130,13 @@ dependencies = [
 [[package]]
 name = "rc-x509-client"
 version = "0.2.2"
-source = "git+https://github.com/DataDog/libdd-rc?rev=2c5496404cceab24219560ad23dd71c9226bbb0a#2c5496404cceab24219560ad23dd71c9226bbb0a"
+source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
 dependencies = [
  "futures",
  "pin-project",
  "rc-crypto",
  "rc-x509-proto",
+ "rc-x509-roots",
  "rc-x509-trust",
  "thiserror",
  "tokio",
@@ -1147,7 +1148,7 @@ dependencies = [
 [[package]]
 name = "rc-x509-proto"
 version = "0.3.1"
-source = "git+https://github.com/DataDog/libdd-rc?rev=2c5496404cceab24219560ad23dd71c9226bbb0a#2c5496404cceab24219560ad23dd71c9226bbb0a"
+source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
 dependencies = [
  "bytes",
  "glob",
@@ -1164,7 +1165,7 @@ dependencies = [
 [[package]]
 name = "rc-x509-roots"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdd-rc?rev=2c5496404cceab24219560ad23dd71c9226bbb0a#2c5496404cceab24219560ad23dd71c9226bbb0a"
+source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
 dependencies = [
  "rc-crypto",
 ]
@@ -1172,7 +1173,7 @@ dependencies = [
 [[package]]
 name = "rc-x509-trust"
 version = "0.2.1"
-source = "git+https://github.com/DataDog/libdd-rc?rev=2c5496404cceab24219560ad23dd71c9226bbb0a#2c5496404cceab24219560ad23dd71c9226bbb0a"
+source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
 dependencies = [
  "bytes",
  "mini-moka",

@@ -34,6 +34,15 @@ crate.annotation(
     repositories = ["libdd_rc_crates"],
 )
 
+# TODO: drop once libdd-rc stops using cfg_select!, which is unstable in the
+# Agent's Rust 1.94. Repository-relative paths, as for rc-x509-proto above.
+crate.annotation(
+    crate = "rc-crypto",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:rc-crypto-cfg-select.patch"],
+    repositories = ["libdd_rc_crates"],
+)
+
 # libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
 # valuable integration is gated on both the Cargo feature and this cfg in
 # tracing/tracing-core, so reproduce it narrowly in the isolated crate graph.
@@ -58,7 +67,7 @@ crate.annotation(
     crate = "rc-x509-client",
     gen_build_script = "off",
     repositories = ["libdd_rc_crates"],
-    rustc_env = {"BUILD_GIT_COMMIT_HASH": "2c5496404cceab24219560ad23dd71c9226bbb0a"},
+    rustc_env = {"BUILD_GIT_COMMIT_HASH": "248199fbc416ce435912d7aa9c95f68cacdbd723"},
 )
 
 # AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule
@@ -78,7 +87,7 @@ use_repo(crate, "libdd_rc_crates")
 http_archive(
     name = "libdd_rc_source",
     build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
-    sha256 = "3cd296b58c8ee55be39eb991ef92f16ec8cbc1acfcdf886fe9b8a5980b481090",
-    strip_prefix = "libdd-rc-2c5496404cceab24219560ad23dd71c9226bbb0a",
-    urls = ["https://github.com/DataDog/libdd-rc/archive/2c5496404cceab24219560ad23dd71c9226bbb0a.tar.gz"],
+    sha256 = "51aaf54c948a5b4ac944c0ff4f5c7ffa2a4a49454ab925509c211d39d3c8a074",
+    strip_prefix = "libdd-rc-248199fbc416ce435912d7aa9c95f68cacdbd723",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/248199fbc416ce435912d7aa9c95f68cacdbd723.tar.gz"],
 )

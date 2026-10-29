@@ -2,6 +2,7 @@ exports_files(
     [
         "Cargo.lock",
         "Cargo.toml",
+        "rc-crypto-cfg-select.patch",
         "rc-x509-proto-protobuf-include.patch",
         "lib.rs",
         "libdd_rc.BUILD.bazel",

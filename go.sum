@@ -123,8 +123,8 @@ github.com/DataDog/jsonapi v0.13.0 h1:ebIqG50aEGjjl/Hg8TVUsm6Fiw9T6IT1WZRC8aL8OQ
 github.com/DataDog/jsonapi v0.13.0/go.mod h1:FUSGF3bwMARlVfXEoFo9R/CVlYYy9BGL4C/Prf6Ke3M=
 github.com/DataDog/kube-state-metrics/v2 v2.20.1-dd.1 h1:gqmOQ+H0gTcl7p1y3eGEWgK9gwydDjM/8p2q2a27XkE=
 github.com/DataDog/kube-state-metrics/v2 v2.20.1-dd.1/go.mod h1:1xxFEecNuwhg7QrtI+jPmwVXOTG3pMB8Wtn5cw/aqe4=
-github.com/DataDog/libdd-rc/ffi-hosts/go v0.0.0-20261028003800-2c5496404cce h1:WE1fY3+0OUL9CMXRthQMXY0dtDJw6te/+dJ3uTnzcII=
-github.com/DataDog/libdd-rc/ffi-hosts/go v0.0.0-20261028003800-2c5496404cce/go.mod h1:LZVRZLmdEabg5chYF3VbixNm81pneSsvbG9N8YsePHo=
+github.com/DataDog/libdd-rc/ffi-hosts/go v0.0.0-20261029204620-248199fbc416 h1:YCMiMQtUS7BHnGDn/S39SR/87xu7HRVge0FTM2yJiys=
+github.com/DataDog/libdd-rc/ffi-hosts/go v0.0.0-20261029204620-248199fbc416/go.mod h1:LZVRZLmdEabg5chYF3VbixNm81pneSsvbG9N8YsePHo=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RPxTQdhDDwxblTNWhJUKeyTPsuyaOnxQ=
