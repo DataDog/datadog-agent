@@ -25,6 +25,7 @@ var (
 	mockCapabilitiesError     error
 	mockCountersV1            DDInjectorCountersV1
 	mockCountersV2            DDInjectorCountersV2
+	mockCountersV3            DDInjectorCountersV3
 	mockQueryCountersError    error
 	mockBytesReturnedOverride uint32 // if non-zero, returned instead of the full struct size
 	mockRequestedVersion      uint32 // records the version the caller requested
@@ -77,28 +78,35 @@ func float64frombits(b uint64) float64 {
 // createCounters creates a new InjectorCounters with mock telemetry gauges for testing.
 func createCounters() *InjectorCounters {
 	return &InjectorCounters{
-		ProcessesAddedToInjectionTracker:     &mockSimpleGauge{},
-		ProcessesRemovedFromInjectionTracker: &mockSimpleGauge{},
-		ProcessesSkippedSubsystem:            &mockSimpleGauge{},
-		ProcessesSkippedContainer:            &mockSimpleGauge{},
-		ProcessesSkippedProtected:            &mockSimpleGauge{},
-		ProcessesSkippedSystem:               &mockSimpleGauge{},
-		ProcessesSkippedExcluded:             &mockSimpleGauge{},
-		InjectionAttempts:                    &mockSimpleGauge{},
-		InjectionAttemptFailures:             &mockSimpleGauge{},
-		InjectionMaxTimeUs:                   &mockSimpleGauge{},
-		InjectionSuccesses:                   &mockSimpleGauge{},
-		InjectionFailures:                    &mockSimpleGauge{},
-		PeCachingFailures:                    &mockSimpleGauge{},
-		ImportDirectoryRestorationFailures:   &mockSimpleGauge{},
-		PeMemoryAllocationFailures:           &mockSimpleGauge{},
-		PeInjectionContextAllocated:          &mockSimpleGauge{},
-		PeInjectionContextCleanedup:          &mockSimpleGauge{},
-		CrashesDuringInjection:               &mockSimpleGauge{},
-		CrashesPostInjection:                 &mockSimpleGauge{},
-		BootRecoveryCrashBootsDetected:       &mockSimpleGauge{},
-		BootRecoveryDriverSelfDisabled:       &mockSimpleGauge{},
-		BootRecoveryStabilityTimerFired:      &mockSimpleGauge{},
+		ProcessesAddedToInjectionTracker:      &mockSimpleGauge{},
+		ProcessesRemovedFromInjectionTracker:  &mockSimpleGauge{},
+		ProcessesSkippedSubsystem:             &mockSimpleGauge{},
+		ProcessesSkippedContainer:             &mockSimpleGauge{},
+		ProcessesSkippedProtected:             &mockSimpleGauge{},
+		ProcessesSkippedSystem:                &mockSimpleGauge{},
+		ProcessesSkippedExcluded:              &mockSimpleGauge{},
+		InjectionAttempts:                     &mockSimpleGauge{},
+		InjectionAttemptFailures:              &mockSimpleGauge{},
+		InjectionMaxTimeUs:                    &mockSimpleGauge{},
+		InjectionSuccesses:                    &mockSimpleGauge{},
+		InjectionFailures:                     &mockSimpleGauge{},
+		PeCachingFailures:                     &mockSimpleGauge{},
+		ImportDirectoryRestorationFailures:    &mockSimpleGauge{},
+		PeMemoryAllocationFailures:            &mockSimpleGauge{},
+		PeInjectionContextAllocated:           &mockSimpleGauge{},
+		PeInjectionContextCleanedup:           &mockSimpleGauge{},
+		CrashesDuringInjection:                &mockSimpleGauge{},
+		CrashesPostInjection:                  &mockSimpleGauge{},
+		BootRecoveryCrashBootsDetected:        &mockSimpleGauge{},
+		BootRecoveryDriverSelfDisabled:        &mockSimpleGauge{},
+		BootRecoveryStabilityTimerFired:       &mockSimpleGauge{},
+		ProcessesAutomaticallyAddedToSkipList: &mockSimpleGauge{},
+		ProcessesSkippedDefault:               &mockSimpleGauge{},
+		ProcessesSkippedCustom:                &mockSimpleGauge{},
+		ProcessesSkippedCrashRecovery:         &mockSimpleGauge{},
+		ProcessesSkippedSignaturePolicy:       &mockSimpleGauge{},
+		ProcessesSignaturePolicyUnknown:       &mockSimpleGauge{},
+		ProcessesSkippedShortName:             &mockSimpleGauge{},
 	}
 }
 
@@ -128,7 +136,11 @@ func testQueryDriverCounters(_ windows.Handle, request *DDInjectorCounterRequest
 	}
 
 	var bytesReturned uint32
-	if mockRequestedVersion >= CountersVersion2 {
+	if mockRequestedVersion >= CountersVersion3 {
+		assert.GreaterOrEqual(currentTest, bufferSize, uint32(DDInjectorCountersV3Size))
+		*(*DDInjectorCountersV3)(buffer) = mockCountersV3
+		bytesReturned = uint32(DDInjectorCountersV3Size)
+	} else if mockRequestedVersion == CountersVersion2 {
 		assert.GreaterOrEqual(currentTest, bufferSize, uint32(DDInjectorCountersV2Size))
 		*(*DDInjectorCountersV2)(buffer) = mockCountersV2
 		bytesReturned = uint32(DDInjectorCountersV2Size)
@@ -166,6 +178,7 @@ func resetMockState() {
 	mockCapabilitiesError = nil
 	mockCountersV1 = DDInjectorCountersV1{}
 	mockCountersV2 = DDInjectorCountersV2{}
+	mockCountersV3 = DDInjectorCountersV3{}
 	mockQueryCountersError = nil
 	mockBytesReturnedOverride = 0
 	mockRequestedVersion = 0
@@ -206,8 +219,51 @@ func fillMockCountersV2() {
 	mockCountersV2.BootRecoveryStabilityTimerFired = 104
 }
 
-// TestQueryCountersV2 covers a driver that supports V2 counters: both V1 and V2
-// gauges are populated and the negotiated request version is 2.
+// fillMockCountersV3 populates mockCountersV3 (V2 head + V3 tail) with deterministic values.
+func fillMockCountersV3() {
+	fillMockCountersV2()
+	mockCountersV3 = DDInjectorCountersV3{}
+	// The V2 counters are an exact binary prefix of the V3 struct; copy them via a pointer reinterpret.
+	*(*DDInjectorCountersV2)(unsafe.Pointer(&mockCountersV3)) = mockCountersV2
+	mockCountersV3.v3.ProcessesAutomaticallyAddedToSkipList = 200
+	mockCountersV3.v3.ProcessesSkippedDefault = 201
+	mockCountersV3.v3.ProcessesSkippedCustom = 202
+	mockCountersV3.v3.ProcessesSkippedCrashRecovery = 203
+	mockCountersV3.v3.ProcessesSkippedSignaturePolicy = 204
+	mockCountersV3.v3.ProcessesSignaturePolicyUnknown = 205
+	mockCountersV3.v3.ProcessesSkippedShortName = 206
+}
+
+// TestQueryCountersV3 covers a driver that supports V3 counters: V1, V2 and V3
+// gauges are populated and the negotiated request version is 3.
+func TestQueryCountersV3(t *testing.T) {
+	currentTest = t
+	overrideDriverCallbacks()
+	defer restoreDriverCallbacks()
+	resetMockState()
+
+	inj, err := NewInjector()
+	assert.NoError(t, err)
+	assert.NotNil(t, inj)
+
+	mockCapabilitiesVersion = CountersVersion3
+	fillMockCountersV3()
+
+	counters := createCounters()
+	err = inj.GetCounters(counters)
+	assert.NoError(t, err)
+
+	assert.Equal(t, CountersVersion3, mockRequestedVersion)
+	assertV1CountersEqual(t, &mockCountersV1, counters)
+	assertV2CountersEqual(t, &mockCountersV2, counters)
+	assertV3CountersEqual(t, &mockCountersV3, counters)
+
+	inj.Close()
+}
+
+// TestQueryCountersV2 covers a driver that supports V2 counters: V1 and V2
+// gauges are populated, V3 gauges stay at 0, and the negotiated request version
+// is 2.
 func TestQueryCountersV2(t *testing.T) {
 	currentTest = t
 	overrideDriverCallbacks()
@@ -228,6 +284,7 @@ func TestQueryCountersV2(t *testing.T) {
 	assert.Equal(t, CountersVersion2, mockRequestedVersion)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersEqual(t, &mockCountersV2, counters)
+	assertV3CountersZero(t, counters)
 
 	inj.Close()
 }
@@ -254,6 +311,7 @@ func TestQueryCountersV1Only(t *testing.T) {
 	assert.Equal(t, CountersVersion1, mockRequestedVersion)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersZero(t, counters)
+	assertV3CountersZero(t, counters)
 
 	inj.Close()
 }
@@ -280,12 +338,13 @@ func TestQueryCountersCapabilitiesUnsupported(t *testing.T) {
 	assert.Equal(t, CountersVersion1, mockRequestedVersion)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersZero(t, counters)
+	assertV3CountersZero(t, counters)
 
 	inj.Close()
 }
 
 // TestQueryCountersFallbackToV1ClearsV2Counters covers a long-lived system-probe
-// process observing a V2 driver first, then falling back to the V1 contract.
+// process observing a V3 driver first, then falling back to the V1 contract.
 func TestQueryCountersFallbackToV1ClearsV2Counters(t *testing.T) {
 	currentTest = t
 	overrideDriverCallbacks()
@@ -296,13 +355,14 @@ func TestQueryCountersFallbackToV1ClearsV2Counters(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, inj)
 
-	mockCapabilitiesVersion = CountersVersion2
-	fillMockCountersV2()
+	mockCapabilitiesVersion = CountersVersion3
+	fillMockCountersV3()
 
 	counters := createCounters()
 	err = inj.GetCounters(counters)
 	assert.NoError(t, err)
 	assertV2CountersEqual(t, &mockCountersV2, counters)
+	assertV3CountersEqual(t, &mockCountersV3, counters)
 
 	mockCapabilitiesVersion = 0
 	mockCapabilitiesError = errors.New("capabilities IOCTL not supported")
@@ -314,13 +374,14 @@ func TestQueryCountersFallbackToV1ClearsV2Counters(t *testing.T) {
 	assert.Equal(t, CountersVersion1, mockRequestedVersion)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersZero(t, counters)
+	assertV3CountersZero(t, counters)
 
 	inj.Close()
 }
 
 // TestQueryCountersDriverNewerThanAgent covers a driver advertising a version
 // beyond what the agent understands: the negotiated version is clamped to
-// maxKnownVersion (V2).
+// maxKnownVersion (V3).
 func TestQueryCountersDriverNewerThanAgent(t *testing.T) {
 	currentTest = t
 	overrideDriverCallbacks()
@@ -331,8 +392,8 @@ func TestQueryCountersDriverNewerThanAgent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, inj)
 
-	mockCapabilitiesVersion = CountersVersion2 + 1 // driver claims V3
-	fillMockCountersV2()
+	mockCapabilitiesVersion = CountersVersion3 + 1 // driver claims V4
+	fillMockCountersV3()
 
 	counters := createCounters()
 	err = inj.GetCounters(counters)
@@ -341,6 +402,7 @@ func TestQueryCountersDriverNewerThanAgent(t *testing.T) {
 	assert.Equal(t, maxKnownVersion, mockRequestedVersion)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersEqual(t, &mockCountersV2, counters)
+	assertV3CountersEqual(t, &mockCountersV3, counters)
 
 	inj.Close()
 }
@@ -370,12 +432,13 @@ func TestQueryCountersDriverBelowV1(t *testing.T) {
 	assert.Zero(t, mockRequestedVersion)
 	assertV1CountersZero(t, counters)
 	assertV2CountersZero(t, counters)
+	assertV3CountersZero(t, counters)
 
 	inj.Close()
 }
 
 // TestQueryCountersDriverBelowV1ClearsCounters covers a long-lived system-probe
-// process that first observes a V2 driver, then a driver reporting no supported
+// process that first observes a V3 driver, then a driver reporting no supported
 // version: all previously collected gauges are cleared and no query is issued.
 func TestQueryCountersDriverBelowV1ClearsCounters(t *testing.T) {
 	currentTest = t
@@ -387,14 +450,15 @@ func TestQueryCountersDriverBelowV1ClearsCounters(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, inj)
 
-	mockCapabilitiesVersion = CountersVersion2
-	fillMockCountersV2()
+	mockCapabilitiesVersion = CountersVersion3
+	fillMockCountersV3()
 
 	counters := createCounters()
 	err = inj.GetCounters(counters)
 	assert.NoError(t, err)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersEqual(t, &mockCountersV2, counters)
+	assertV3CountersEqual(t, &mockCountersV3, counters)
 
 	// Driver now reports no supported version.
 	mockCapabilitiesVersion = 0
@@ -406,6 +470,7 @@ func TestQueryCountersDriverBelowV1ClearsCounters(t *testing.T) {
 	assert.Equal(t, uint32(99), mockRequestedVersion)
 	assertV1CountersZero(t, counters)
 	assertV2CountersZero(t, counters)
+	assertV3CountersZero(t, counters)
 
 	inj.Close()
 }
@@ -423,10 +488,10 @@ func TestQueryCountersShortRead(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, inj)
 
-	mockCapabilitiesVersion = CountersVersion2
-	fillMockCountersV2()
-	// Driver returns only a V1-sized payload for a negotiated V2 read.
-	mockBytesReturnedOverride = uint32(DDInjectorCountersV1Size)
+	mockCapabilitiesVersion = CountersVersion3
+	fillMockCountersV3()
+	// Driver returns only a V2-sized payload for a negotiated V3 read.
+	mockBytesReturnedOverride = uint32(DDInjectorCountersV2Size)
 
 	counters := createCounters()
 	err = inj.GetCounters(counters)
@@ -436,6 +501,7 @@ func TestQueryCountersShortRead(t *testing.T) {
 	// No gauges should have been populated.
 	assertV1CountersZero(t, counters)
 	assertV2CountersZero(t, counters)
+	assertV3CountersZero(t, counters)
 
 	inj.Close()
 }
@@ -490,6 +556,16 @@ func assertV2CountersEqual(t *testing.T, expected *DDInjectorCountersV2, actual 
 	assert.Equal(t, float64(expected.BootRecoveryStabilityTimerFired), actual.BootRecoveryStabilityTimerFired.Get())
 }
 
+func assertV3CountersEqual(t *testing.T, expected *DDInjectorCountersV3, actual *InjectorCounters) {
+	assert.Equal(t, float64(expected.v3.ProcessesAutomaticallyAddedToSkipList), actual.ProcessesAutomaticallyAddedToSkipList.Get())
+	assert.Equal(t, float64(expected.v3.ProcessesSkippedDefault), actual.ProcessesSkippedDefault.Get())
+	assert.Equal(t, float64(expected.v3.ProcessesSkippedCustom), actual.ProcessesSkippedCustom.Get())
+	assert.Equal(t, float64(expected.v3.ProcessesSkippedCrashRecovery), actual.ProcessesSkippedCrashRecovery.Get())
+	assert.Equal(t, float64(expected.v3.ProcessesSkippedSignaturePolicy), actual.ProcessesSkippedSignaturePolicy.Get())
+	assert.Equal(t, float64(expected.v3.ProcessesSignaturePolicyUnknown), actual.ProcessesSignaturePolicyUnknown.Get())
+	assert.Equal(t, float64(expected.v3.ProcessesSkippedShortName), actual.ProcessesSkippedShortName.Get())
+}
+
 func assertV1CountersZero(t *testing.T, actual *InjectorCounters) {
 	assert.Zero(t, actual.ProcessesAddedToInjectionTracker.Get())
 	assert.Zero(t, actual.ProcessesRemovedFromInjectionTracker.Get())
@@ -516,4 +592,14 @@ func assertV2CountersZero(t *testing.T, actual *InjectorCounters) {
 	assert.Zero(t, actual.BootRecoveryCrashBootsDetected.Get())
 	assert.Zero(t, actual.BootRecoveryDriverSelfDisabled.Get())
 	assert.Zero(t, actual.BootRecoveryStabilityTimerFired.Get())
+}
+
+func assertV3CountersZero(t *testing.T, actual *InjectorCounters) {
+	assert.Zero(t, actual.ProcessesAutomaticallyAddedToSkipList.Get())
+	assert.Zero(t, actual.ProcessesSkippedDefault.Get())
+	assert.Zero(t, actual.ProcessesSkippedCustom.Get())
+	assert.Zero(t, actual.ProcessesSkippedCrashRecovery.Get())
+	assert.Zero(t, actual.ProcessesSkippedSignaturePolicy.Get())
+	assert.Zero(t, actual.ProcessesSignaturePolicyUnknown.Get())
+	assert.Zero(t, actual.ProcessesSkippedShortName.Get())
 }

@@ -17,6 +17,16 @@ pub(crate) struct SpawnRequest {
     command: String,
     args: Vec<String>,
     env: Vec<(String, String)>,
+    /// Index in `env` where `environment_file` and `env:` entries begin. Entries
+    /// before it are the copied supervisor environment, or the allowlist.
+    /// Read on Windows when the environment block is assembled.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    config_env_start: usize,
+    /// When set, `env` already contains the supervisor process environment (minus
+    /// supervisor-only `DD_PM_*` names). Windows uses this to skip the account
+    /// environment block, which would otherwise append a second copy of `PATH`.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    inherit_supervisor_env: bool,
     working_dir: Option<PathBuf>,
     stdout_setting: StdioSetting,
     stderr_setting: StdioSetting,
@@ -35,6 +45,30 @@ impl SpawnRequest {
         &self.env
     }
 
+    #[cfg(windows)]
+    pub(crate) fn inherit_supervisor_env(&self) -> bool {
+        self.inherit_supervisor_env
+    }
+
+    /// The copied supervisor environment, or the allowlisted vars, in front of
+    /// `environment_file`/`env:` entries.
+    #[cfg(windows)]
+    pub(crate) fn inherited_env(&self) -> &[(String, String)] {
+        &self.env[..self.config_env_boundary()]
+    }
+
+    #[cfg(windows)]
+    fn config_env_boundary(&self) -> usize {
+        self.config_env_start.min(self.env.len())
+    }
+
+    /// Only the `environment_file`/`env:` entries, excluding the copied supervisor
+    /// environment or the allowlist.
+    #[cfg(windows)]
+    pub(crate) fn config_env(&self) -> &[(String, String)] {
+        &self.env[self.config_env_boundary()..]
+    }
+
     pub(crate) fn working_dir(&self) -> Option<&PathBuf> {
         self.working_dir.as_ref()
     }
@@ -47,11 +81,24 @@ impl SpawnRequest {
         &self.stderr_setting
     }
 
-    pub(crate) fn from_config(process_name: &str, config: &ProcessConfig) -> Result<Self> {
+    /// `inherit_supervisor_env` is set when the child runs as the same user as
+    /// `dd-procmgrd`. The child then receives the supervisor environment, except
+    /// supervisor-only `DD_PM_*` names, which belong to the process manager. A child
+    /// that runs as another account does not receive that environment. It receives
+    /// only the names selected by `DD_PM_INHERIT_ENV_PREFIXES` and
+    /// `DD_PM_INHERIT_ENV_NAMES`.
+    pub(crate) fn from_config(
+        process_name: &str,
+        config: &ProcessConfig,
+        inherit_supervisor_env: bool,
+    ) -> Result<Self> {
+        let (env, config_env_start) = collect_env(process_name, config, inherit_supervisor_env)?;
         Ok(Self {
             command: expand_env_vars(&config.command),
             args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
-            env: collect_env(process_name, config)?,
+            env,
+            config_env_start,
+            inherit_supervisor_env,
             working_dir: config
                 .working_dir
                 .as_ref()
@@ -62,15 +109,23 @@ impl SpawnRequest {
     }
 }
 
-fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String, String)>> {
-    // Parent environment inheritance is opt-in so host-managed children stay isolated.
-    let prefixes = env_list("DD_PM_INHERIT_ENV_PREFIXES");
-    let exact_names = env_list("DD_PM_INHERIT_ENV_NAMES");
-    let mut env = if prefixes.is_empty() && exact_names.is_empty() {
-        Vec::new()
+fn collect_env(
+    process_name: &str,
+    config: &ProcessConfig,
+    inherit_supervisor_env: bool,
+) -> Result<(Vec<(String, String)>, usize)> {
+    let mut env = if inherit_supervisor_env {
+        collect_same_user_env(std::env::vars_os())
     } else {
-        collect_inherited_env(std::env::vars_os(), &prefixes, &exact_names)
+        let prefixes = env_list("DD_PM_INHERIT_ENV_PREFIXES");
+        let exact_names = env_list("DD_PM_INHERIT_ENV_NAMES");
+        if prefixes.is_empty() && exact_names.is_empty() {
+            Vec::new()
+        } else {
+            collect_inherited_env(std::env::vars_os(), &prefixes, &exact_names)
+        }
     };
+    let config_env_start = env.len();
 
     if let Some(ref raw_path) = config.environment_file {
         let raw_path = expand_env_vars(raw_path);
@@ -102,7 +157,37 @@ fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String
         }
     }
 
-    Ok(env)
+    Ok((env, config_env_start))
+}
+
+/// `DD_PM_*` names a same-user child still receives.
+const CHILD_VISIBLE_CONTROL_VARS: &[&str] = &["DD_PM_SOCKET_PATH"];
+
+/// Supervisor control variables. A same-user child receives the rest of the
+/// supervisor environment. The prefix match is case-insensitive so a Windows
+/// environment block cannot keep `dd_pm_*` under a different spelling.
+fn is_supervisor_control_var(name: &str) -> bool {
+    const PREFIX: &str = "DD_PM_";
+    let has_prefix = name.len() >= PREFIX.len()
+        && name.as_bytes()[..PREFIX.len()].eq_ignore_ascii_case(PREFIX.as_bytes());
+    has_prefix
+        && !CHILD_VISIBLE_CONTROL_VARS
+            .iter()
+            .any(|allowed| name.eq_ignore_ascii_case(allowed))
+}
+
+fn collect_same_user_env(
+    vars: impl IntoIterator<Item = (OsString, OsString)>,
+) -> Vec<(String, String)> {
+    vars.into_iter()
+        .filter_map(|(name, value)| {
+            let name = name.into_string().ok()?;
+            if is_supervisor_control_var(&name) {
+                return None;
+            }
+            Some((name, value.into_string().ok()?))
+        })
+        .collect()
 }
 
 fn collect_inherited_env(
@@ -158,6 +243,29 @@ mod inherited_env_tests {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use std::ffi::OsString;
+
+    #[test]
+    fn same_user_env_drops_supervisor_control_vars() {
+        let vars = [
+            (OsString::from("AWS_ROLE_ARN"), OsString::from("role")),
+            (OsString::from("DD_PM_CONFIG_DIR"), OsString::from("/etc")),
+            (
+                OsString::from("dd_pm_socket_path"),
+                OsString::from("/tmp/sock"),
+            ),
+            (OsString::from("SSL_CERT_DIR"), OsString::from("/certs")),
+        ];
+
+        assert_eq!(
+            collect_same_user_env(vars),
+            vec![
+                ("AWS_ROLE_ARN".to_string(), "role".to_string()),
+                ("dd_pm_socket_path".to_string(), "/tmp/sock".to_string()),
+                ("SSL_CERT_DIR".to_string(), "/certs".to_string()),
+            ]
+        );
+    }
 
     #[test]
     fn from_config_collects_environment_file_vars() {
@@ -170,7 +278,7 @@ mod tests {
             ..Default::default()
         };
 
-        let request = SpawnRequest::from_config("envfile", &config).unwrap();
+        let request = SpawnRequest::from_config("envfile", &config, false).unwrap();
         assert!(
             request
                 .env
@@ -195,7 +303,7 @@ mod tests {
             ..Default::default()
         };
 
-        let request = SpawnRequest::from_config("override", &config).unwrap();
+        let request = SpawnRequest::from_config("override", &config, false).unwrap();
         assert_eq!(
             request
                 .env

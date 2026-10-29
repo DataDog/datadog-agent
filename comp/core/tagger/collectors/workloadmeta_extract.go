@@ -1287,6 +1287,10 @@ func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *wor
 	// and the ones from the labels/annotations
 	groupResource := kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName
 	c.addResourceLabelsAndAnnotationsAsTags(groupResource, workload.Labels, workload.Annotations, tagList)
+	// Template metadata is what the admitted pods carry. Use the pod
+	// labels/annotations-as-tags config (kubernetes_pod_labels_as_tags and
+	// kubernetes_resources_labels_as_tags["pods"], and the annotation equivalents).
+	c.addResourceLabelsAndAnnotationsAsTags("pods", workload.PodTemplateLabels, workload.PodTemplateAnnotations, tagList)
 
 	// now get the queue entities for more tags
 	localQueue := c.extractKueueQueueTagsFromQueueName(workload.Namespace, tagList, workloadmeta.KueueLocalQueue, workload.QueueName)
@@ -1489,6 +1493,12 @@ func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.Kuberne
 
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
+	case kubernetes.KubeAIModelKind:
+		if owner.Group == kubernetes.KubeAIGroupName && strings.TrimSpace(owner.Name) != "" {
+			tagList.AddLow(tags.InferenceWorkload, owner.Name)
+			tagList.AddLow(tags.InferenceWorkloadComponent, "inference")
+		}
+
 	case kubernetes.DeploymentKind:
 		tagList.AddLow(tags.KubeDeployment, owner.Name)
 
