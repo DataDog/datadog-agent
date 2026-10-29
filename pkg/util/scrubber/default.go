@@ -28,8 +28,9 @@ var (
 
 	defaultReplacement = "********"
 
-	// dynamicReplacers are replacers added at runtime. New Replacer can be added through configuration or by the
-	// secrets package for example.
+	// dynamicReplacers are replacers added at runtime. New Replacer can be added
+	// through configuration or by the secrets package for example. dynamicStrippedKeys
+	// also tracks which keys have been scrubbed, both are protected by the same mutex
 	dynamicReplacers      = []Replacer{}
 	dynamicStrippedKeys   = []string{}
 	dynamicReplacersMutex = sync.Mutex{}
