@@ -10,6 +10,42 @@
 # Default-Stop: 0 1 6
 ### END INIT INFO
 
+# load-env is the unprivileged child. It applies the agent environment file and execs the daemon.
+if [ "$1" = load-env ]; then
+	etc=$2
+	install=$3
+	daemon=$4
+	if [ -r "$etc/environment" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
+			case $line in
+			""|"#"*|";"*) continue ;;
+			esac
+			case $line in
+			*=*) ;;
+			*) continue ;;
+			esac
+			key=${line%%=*}
+			value=${line#*=}
+			case $key in
+			*[!A-Za-z0-9_]*|"") continue ;;
+			[0-9]*) continue ;;
+			esac
+			case $value in
+			\"*\") value=${value#\"}; value=${value%\"} ;;
+			\'*\') value=${value#\'}; value=${value%\'} ;;
+			esac
+			export "$key=$value"
+		done < "$etc/environment"
+	fi
+	# Process definitions append /run to DD_PID_DIR.
+	export DD_PM_CONFIG_DIR="$install/processes.d"
+	export DD_CONF_DIR="$etc"
+	export DD_PID_DIR="$install"
+	export DD_INSTALL_DIR="$install"
+	exec "$daemon"
+	exit 1
+fi
+
 . /lib/lsb/init-functions
 
 ETC_DIR="{etc_dir}"
@@ -28,21 +64,10 @@ if [ ! -x $AGENTPATH ]; then
 	exit 0
 fi
 
+# /etc/default is root-owned. load-env reads the agent environment file after --chuid.
 if [ -r "/etc/default/${NAME}" ]; then
 	. "/etc/default/${NAME}"
 fi
-
-# Mirrors the systemd unit: the environment file, then the Environment= values.
-# DD_PID_DIR is the install directory because process definitions append /run to it.
-if [ -r "$ETC_DIR/environment" ]; then
-	set -a
-	. "$ETC_DIR/environment"
-	set +a
-fi
-export DD_PM_CONFIG_DIR="$INSTALL_DIR/processes.d"
-export DD_CONF_DIR="$ETC_DIR"
-export DD_PID_DIR="$INSTALL_DIR"
-export DD_INSTALL_DIR="$INSTALL_DIR"
 
 
 #
@@ -57,9 +82,13 @@ do_start()
 
 	# dd-agent cannot create this directory under root-owned /var/run.
 	/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2
-	start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH > /dev/null \
+	start-stop-daemon --start --test --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH" > /dev/null \
 		|| return 1
-	start-stop-daemon --start --background --make-pidfile --chuid $AGENT_USER --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH \
+	# load-env runs as dd-agent and reads the environment file there.
+	start-stop-daemon --start --background --make-pidfile --chuid "$AGENT_USER" --quiet \
+		--pidfile "$PIDFILE" --user "$AGENT_USER" \
+		--exec "$AGENTPATH" --startas /bin/sh -- \
+		"$0" load-env "$ETC_DIR" "$INSTALL_DIR" "$AGENTPATH" \
 		|| return 2
 }
 
@@ -78,7 +107,7 @@ start_and_wait()
 			# check if the process manager is running once per second for 5 seconds
 			retries=5
 			while [ $retries -gt 1 ]; do
-				start-stop-daemon --start --test --quiet --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH
+				start-stop-daemon --start --test --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
 				if [ "$?" -eq "1" ]; then
 					log_end_msg 0
 					return 0
