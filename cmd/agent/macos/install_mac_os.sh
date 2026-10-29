@@ -95,6 +95,16 @@ if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
     gui_app_menu_enabled=true
 fi
 
+logs_enabled=
+case "$DD_LOGS_ENABLED" in
+    true|false) logs_enabled="$DD_LOGS_ENABLED" ;;
+    "") ;;
+    *)
+        printf "${RED}DD_LOGS_ENABLED must be true or false.${NC}\n"
+        exit 1
+        ;;
+esac
+
 # Optional: Chrome extension ID for AI usage native messaging host (postinst writes NativeMessagingHosts manifest).
 ai_usage_chrome_extension_id=
 if [ -n "$DD_AI_USAGE_CHROME_EXTENSION_ID" ]; then
@@ -236,6 +246,7 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
     [ -n "$ai_usage_chrome_extension_id" ] && echo "DD_AI_USAGE_CHROME_EXTENSION_ID=$ai_usage_chrome_extension_id"
     [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
+    [ -n "$logs_enabled" ] && echo "DD_LOGS_ENABLED=$logs_enabled"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null

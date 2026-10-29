@@ -35,6 +35,7 @@ dd_agent_go_test(
         "credit_cards_test.go",
         "http_test.go",
         "ip_address_test.go",
+        "ip_scheme_prefix_test.go",
         "json_test.go",
         "memcached_test.go",
         "obfuscate_test.go",

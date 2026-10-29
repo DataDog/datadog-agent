@@ -250,7 +250,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			continue
 		}
 
-		if p.procfsSBOM {
+		if p.procfsSBOM && container.State.Running {
 			if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
 				p.triggerProcfsScan(container)
 			}
@@ -538,13 +538,8 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		sbom.Status = model.SBOMStatus_FAILED
 	} else {
 		log.Infof("Successfully generated SBOM for procfs: %v, %v", result.CreatedAt, result.Duration)
-		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
-			sbom.Heartbeat = true
-		} else {
-			report := result.Report.ToCycloneDX()
-			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: report,
-			}
+		sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+			Cyclonedx: result.Report.ToCycloneDX(),
 		}
 	}
 
@@ -607,6 +602,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 		log.Debugf("The SBOM of image %s waits for the runtime usage of the image", img.ID)
 		return
 	}
+
+	// The copy of the SBOM that runtime usage merges into keeps the repo tags
+	// and digests the image had at the first merge, so take those it has now.
+	cyclosbom = sbomutil.UpdateSBOMRepoMetadata(cyclosbom, img.RepoTags, img.RepoDigests)
 
 	// UncompressSBOM returns a BOM of its own, which every repo entity shares.
 	if cyclosbom.Status == workloadmeta.Success && sbomutil.UsageWindowOpen(cyclosbom.CycloneDXBOM, p.now(), p.imageUsageWindow) {

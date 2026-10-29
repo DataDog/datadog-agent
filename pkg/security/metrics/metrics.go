@@ -625,6 +625,10 @@ var (
 	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
 
+	// MetricSecurityProfileV2TagResolutionEventsCapped is the name of the metric used to report events not queued because the tag resolution queue is full
+	// Tags: limit (cgroup or total)
+	MetricSecurityProfileV2TagResolutionEventsCapped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_capped")
+
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
 	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsExpired = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_expired")
@@ -694,6 +698,22 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricEventSampleSentBelowThreshold is the name of the metric used to report events allowed below the pressure threshold
+	// Tags: event_type
+	MetricEventSampleSentBelowThreshold = newRuntimeMetric(".event_sample.sent_below_threshold")
+
+	// MetricEventSampleAllowedBetween is the name of the metric used to report events allowed by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleAllowedBetween = newRuntimeMetric(".event_sample.allowed_between")
+
+	// MetricEventSampleDroppedBetween is the name of the metric used to report events dropped by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleDroppedBetween = newRuntimeMetric(".event_sample.dropped_between")
+
+	// MetricEventSampleDroppedAboveCritical is the name of the metric used to report events dropped above the critical pressure threshold
+	// Tags: event_type
+	MetricEventSampleDroppedAboveCritical = newRuntimeMetric(".event_sample.dropped_above_critical")
 
 	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
 	// Tags: -

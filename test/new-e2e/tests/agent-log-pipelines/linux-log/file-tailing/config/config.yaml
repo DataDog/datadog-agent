@@ -4,6 +4,20 @@ logs:
     service: hello
     source: custom_log
   - type: file
+    path: '/var/log/e2e_test_logs/tag-filter.log'
+    service: tag-filter
+    source: custom_log
+    tags:
+      - e2e_global_drop:yes
+      - e2e_source_drop:yes
+      - e2e_rescued:yes
+      - e2e_keep:yes
+    tag_filters:
+      include:
+        - e2e_rescued:yes
+      exclude:
+        - e2e_source_drop:*
+  - type: file
     path: '/var/log/e2e_test_logs/iis-w3c.log'
     service: iis-w3c
     source: iis

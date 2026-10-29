@@ -8,6 +8,7 @@ package sbom
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,7 +57,7 @@ const (
 // when the usage it carries started being recorded, as a Unix timestamp
 // (seconds). Until the usage window of its workload closes, one refresh period
 // later, an unseen package goes out stripped of its runtime properties.
-const propUsageObservedSince = "UsageObservedSince"
+const propUsageObservedSince = "datadog:usage:ObservedSince"
 
 // usageWindow is how long the usage of a workload is recorded before an unseen
 // package reads "0": the refresh period the suites set for the host and the
@@ -967,10 +968,10 @@ os.close(os.open("/usr/bin/crictl", os.O_RDONLY | os.O_NOFOLLOW))
 // Agent image and with the image pull secrets of the Agent, and returns its
 // name. Kubernetes checks the credentials of a pod even for an image the node
 // holds (KEP-2535). The pod goes away with the test.
-func (s *packageInUseSuite) startHostShell() string {
-	ctx := s.T().Context()
-	client := s.Env().KubernetesCluster.Client()
-	agent := s.nodeAgent(s.T())
+func startHostShell(t *testing.T, env *environments.Kubernetes) string {
+	ctx := t.Context()
+	client := env.KubernetesCluster.Client()
+	agent := nodeAgent(ctx, t, env)
 
 	privileged := true
 	pod, err := client.CoreV1().Pods(hostShellNamespace).Create(ctx, &corev1.Pod{
@@ -989,12 +990,12 @@ func (s *packageInUseSuite) startHostShell() string {
 			Tolerations:   []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
 		},
 	}, metav1.CreateOptions{})
-	s.Require().NoError(err, "failed to create the host shell pod")
-	s.T().Cleanup(func() {
+	require.NoError(t, err, "failed to create the host shell pod")
+	t.Cleanup(func() {
 		_ = client.CoreV1().Pods(hostShellNamespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
 	})
 
-	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+	require.EventuallyWithTf(t, func(c *assert.CollectT) {
 		p, err := client.CoreV1().Pods(hostShellNamespace).Get(ctx, pod.Name, metav1.GetOptions{})
 		require.NoError(c, err)
 		assert.Equal(c, corev1.PodRunning, p.Status.Phase)
@@ -1003,14 +1004,22 @@ func (s *packageInUseSuite) startHostShell() string {
 	return pod.Name
 }
 
+func (s *packageInUseSuite) startHostShell() string {
+	return startHostShell(s.T(), s.Env())
+}
+
 // nodeAgent returns the Agent pod of the node.
-func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
-	agents, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(s.T().Context(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+func nodeAgent(ctx context.Context, t require.TestingT, env *environments.Kubernetes) corev1.Pod {
+	agents, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", env.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	require.NoError(t, err, "failed to list the Agent pods")
 	require.NotEmpty(t, agents.Items, "no Agent pod on the node")
 	return agents.Items[0]
+}
+
+func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
+	return nodeAgent(s.T().Context(), t, s.Env())
 }
 
 // hostExec runs script on the node from shell, as a transient systemd unit
@@ -1018,24 +1027,33 @@ func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
 // as root in a cgroup of the host, so its processes are host processes. Most
 // opens made in the first second of the unit never reach system-probe, so a
 // script whose opens a subtest checks makes them later.
-func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) string {
+func hostExec(t require.TestingT, env *environments.Kubernetes, shell, script string) string {
 	cmd := []string{"nsenter", "-t", "1", "-m", "--", "systemd-run", "--wait", "--pipe", "--quiet", "--collect", "/bin/sh", "-c", script}
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, cmd)
+	stdout, stderr, err := env.KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, cmd)
 	require.NoErrorf(t, err, "host exec %q failed: %s", script, stderr)
 	return stdout
 }
 
-// systemProbeLog returns the log of system-probe since since, a Unix time of
-// the node, with the timestamps of the kubelet.
-func (s *packageInUseSuite) systemProbeLog(t require.TestingT, since int64) string {
+func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) string {
+	return hostExec(t, s.Env(), shell, script)
+}
+
+// containerLog returns the log of container, a container of the Agent pod,
+// since since, a Unix time of the node, with the timestamps of the kubelet.
+func containerLog(ctx context.Context, t require.TestingT, env *environments.Kubernetes, container string, since int64) string {
 	sinceTime := metav1.NewTime(time.Unix(since, 0))
-	logs, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").GetLogs(s.nodeAgent(t).Name, &corev1.PodLogOptions{
-		Container:  "system-probe",
+	logs, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").GetLogs(nodeAgent(ctx, t, env).Name, &corev1.PodLogOptions{
+		Container:  container,
 		SinceTime:  &sinceTime,
 		Timestamps: true,
-	}).DoRaw(s.T().Context())
-	require.NoError(t, err, "failed to read the system-probe log")
+	}).DoRaw(ctx)
+	require.NoErrorf(t, err, "failed to read the %s log", container)
 	return string(logs)
+}
+
+// systemProbeLog returns the log of system-probe since since.
+func (s *packageInUseSuite) systemProbeLog(t require.TestingT, since int64) string {
+	return containerLog(s.T().Context(), t, s.Env(), "system-probe", since)
 }
 
 // hostScans returns, in order, the times at which log, the system-probe log
@@ -1055,13 +1073,17 @@ func hostScans(t require.TestingT, log string) []time.Time {
 }
 
 // hostEpoch returns the wall clock of the node (Unix seconds), the clock that
-// stamps LastSeenRunning.
-func (s *packageInUseSuite) hostEpoch(shell string) int64 {
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, []string{"date", "+%s"})
-	s.Require().NoErrorf(err, "date failed: %s", stderr)
+// stamps LastSeenRunning and the kubelet logs.
+func hostEpoch(t require.TestingT, env *environments.Kubernetes, shell string) int64 {
+	stdout, stderr, err := env.KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, []string{"date", "+%s"})
+	require.NoErrorf(t, err, "date failed: %s", stderr)
 	n, err := strconv.ParseInt(strings.TrimSpace(stdout), 10, 64)
-	s.Require().NoError(err, "date printed %q", stdout)
+	require.NoError(t, err, "date printed %q", stdout)
 	return n
+}
+
+func (s *packageInUseSuite) hostEpoch(shell string) int64 {
+	return hostEpoch(s.T(), s.Env(), shell)
 }
 
 // fetchSBOMs returns the SBOMs intake holds, parsed from one fetch of its SBOM
@@ -1654,6 +1676,109 @@ var idleWorkloads = []struct {
 	{"sbom-node", "node", "coreutils", []string{"getent", "hosts", "localhost"}},
 	{"sbom-ruby", "ruby", "coreutils", []string{"getent", "hosts", "localhost"}},
 	{"sbom-golang", "golang", "busybox", []string{"apk", "--version"}},
+}
+
+// TestRepoTagsOfEnrichedImage names an image whose SBOM carries runtime usage,
+// then removes the name, and checks that every SBOM the Agent sends for the
+// image lists in its CycloneDX metadata the repo tags it reports. Its name runs
+// it before the TestZZ tests, which restart system-probe and flush the fake
+// intake.
+func (s *packageInUseSuite) TestRepoTagsOfEnrichedImage() {
+	t := s.T()
+	d, found := lo.Find(pkgInUseDistros, func(d pkgInUseDistro) bool { return d.name == "ubi9" })
+	s.Require().True(found, "no ubi9 workload")
+	const alias = "sbom-e2e-alias"
+	name := d.repo + ":" + alias
+	s.keepActive(d)
+
+	payloads := func(c require.TestingT) []*aggregator.SBOMPayload {
+		agg := fetchSBOMs(c, s.Fakeintake)
+		var ps []*aggregator.SBOMPayload
+		for _, id := range agg.GetNames() {
+			if !strings.HasPrefix(id, d.repo+"@") {
+				continue
+			}
+			for _, p := range agg.GetPayloadsByName(id) {
+				if p.GetType() == sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS && p.Status == sbom.SBOMStatus_SUCCESS && p.GetCyclonedx() != nil {
+					ps = append(ps, p)
+				}
+			}
+		}
+		return ps
+	}
+	enriched := func(p *aggregator.SBOMPayload) bool {
+		return lo.ContainsBy(p.GetCyclonedx().GetComponents(), func(comp *cyclonedx_v1_4.Component) bool {
+			_, ok := lastSeenRunning(comp)
+			return ok
+		})
+	}
+
+	// start is the newest SBOM of the image fakeintake holds when the test
+	// starts, so that the checks below read the SBOMs sent during the test.
+	var start time.Time
+	for _, p := range payloads(t) {
+		if p.GetCollectedTime().After(start) {
+			start = p.GetCollectedTime()
+		}
+	}
+	var repoDigest string
+	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		repoDigest = ""
+		for _, p := range payloads(c) {
+			if p.GetCollectedTime().After(start) && enriched(p) && len(p.GetRepoDigests()) > 0 {
+				repoDigest = p.GetRepoDigests()[0]
+			}
+		}
+		assert.NotEmptyf(c, repoDigest, "no %s SBOM with usage since %s yet", d.name, start)
+	}, 14*time.Minute, 15*time.Second, "%s SBOMs never carried usage", d.name)
+
+	// consistent returns the SBOMs of the image collected after start, and
+	// checks that each lists in its metadata the tags of the repo it reports.
+	consistent := func(c *assert.CollectT) []*aggregator.SBOMPayload {
+		var later []*aggregator.SBOMPayload
+		for _, p := range payloads(c) {
+			if !p.GetCollectedTime().After(start) {
+				continue
+			}
+			later = append(later, p)
+			var listed []string
+			for _, repoTag := range propertyValues(p.GetCyclonedx().GetMetadata().GetComponent().GetProperties(), propRepoTag) {
+				if tag, ok := strings.CutPrefix(repoTag, d.repo+":"); ok {
+					listed = append(listed, tag)
+				}
+			}
+			assert.ElementsMatchf(c, p.GetRepoTags(), listed, "the %s SBOM collected at %s reports the tags %v and lists %v", d.name, p.GetCollectedTime(), p.GetRepoTags(), listed)
+		}
+		return later
+	}
+
+	shell := s.startHostShell()
+	t.Cleanup(func() {
+		s.hostExec(t, shell, "ctr -n k8s.io images rm "+name+" >/dev/null 2>&1 || true")
+	})
+	s.hostExec(t, shell, "ctr -n k8s.io images tag "+repoDigest+" "+name)
+	if !s.EventuallyWithTf(func(c *assert.CollectT) {
+		named := lo.Filter(consistent(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return enriched(p) && slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, named, "no %s SBOM with usage and the tag %s yet", d.name, alias)
+	}, 5*time.Minute, 10*time.Second, "%s SBOMs never listed %s", d.name, name) {
+		return
+	}
+
+	s.hostExec(t, shell, "ctr -n k8s.io images rm "+name)
+	var removed time.Time
+	for _, p := range payloads(t) {
+		if p.GetCollectedTime().After(removed) {
+			removed = p.GetCollectedTime()
+		}
+	}
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		unnamed := lo.Filter(consistent(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return enriched(p) && p.GetCollectedTime().After(removed) && !slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, unnamed, "no %s SBOM with usage since the removal of %s yet", d.name, name)
+	}, 5*time.Minute, 10*time.Second, "%s SBOMs never dropped %s", d.name, name)
 }
 
 // TestZZRunningBeforeSystemProbe checks that system-probe credits the packages
