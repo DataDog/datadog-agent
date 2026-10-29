@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"runtime"
 	"testing"
 	"time"
 
@@ -60,7 +61,7 @@ func TestGRPCScenarios(t *testing.T) {
 	}
 
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
-		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
+		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled && runtime.GOARCH == "arm64" {
 			flake.MarkOnJobName(t, "ubuntu_26.04")
 		}
 		for _, tc := range []struct {
