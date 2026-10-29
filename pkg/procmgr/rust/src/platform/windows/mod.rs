@@ -52,6 +52,13 @@ pub fn shutdown_notify() -> &'static Notify {
     SHUTDOWN_NOTIFY.get_or_init(Notify::new)
 }
 
+#[must_use = "dropping the reaper stops it"]
+pub struct Reaper;
+
+pub fn start_reaper() -> Reaper {
+    Reaper
+}
+
 pub async fn shutdown_signal() {
     tokio::select! {
         result = tokio::signal::ctrl_c() => {

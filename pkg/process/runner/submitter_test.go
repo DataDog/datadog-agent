@@ -239,7 +239,7 @@ func TestSubmitterBlocksHealthyDomainOnSlowDomain(t *testing.T) {
 		submitProcessPayload := func() {
 			s.Submit(time.Now(), checks.ProcessCheckName, &types.Payload{
 				CheckName: checks.ProcessCheckName,
-				Message:   []model.MessageBody{&model.CollectorProc{HostName: testHostName}},
+				Messages:  []model.MessageBody{&model.CollectorProc{HostName: testHostName}},
 			})
 		}
 

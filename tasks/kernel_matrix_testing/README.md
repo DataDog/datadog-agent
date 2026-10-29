@@ -393,7 +393,7 @@ Launches all configured VMs in a stack. If VMs have been added to the configurat
 dda inv -e kmt.launch-stack [--stack=<name>] [--ssh-key=<key>]
 ```
 
--   If launching **local VMs** on Linux, you may be prompted for your `sudo` password. This is required because the program needs to run some commands as root (e.g. firewall rules for NFS). We do not run the entire scenario with `sudo` to avoid creating broken permissions. On macOS, launching and destroying local VMs does not require `sudo`: only `kmt.setup` does. If the [Privileges](https://github.com/SAP/macOS-enterprise-privileges) app is installed, KMT requests administrator privileges automatically when `sudo` is needed.
+-   If launching **local VMs** on Linux, you may be prompted for your `sudo` password. This is required because the program needs to run some commands as root (e.g. firewall rules for NFS). We do not run the entire scenario with `sudo` to avoid creating broken permissions. On macOS, launching and destroying local VMs does not require `sudo`: only `kmt.setup` does. If the [Privileges](https://github.com/SAP/macOS-enterprise-privileges) app is installed, KMT requests administrator privileges automatically when `sudo` is needed. KMT asks for the `sudo` password once, directly on the terminal (no echo), before running privileged commands; those commands then run with `sudo -n` where possible. In non-interactive sessions no prompt is shown, so `sudo` credentials must already be cached (or run as root).
 -   If launching **remote VMs**, an SSH key is required. If you configured a default key with `kmt.config-ssh-key`, you don't need to provide it again.
 
 The `--ssh-key` argument allows you to specify a key for this launch, overriding the default. The value can be:

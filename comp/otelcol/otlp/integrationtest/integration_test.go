@@ -222,6 +222,8 @@ func TestIntegration(t *testing.T) {
 	)
 	defer server.Close()
 	t.Setenv("SERVER_URL", server.URL)
+	// TestSpan0 is a sampled trace root: both the trace-agent and the datadog connector must ignore it.
+	t.Setenv("DD_APM_IGNORE_RESOURCES", "^TestSpan0$")
 
 	// 2. Start in-process collector
 	params := &subcommands.GlobalParams{
@@ -248,14 +250,14 @@ func TestIntegration(t *testing.T) {
 	var spans []*pb.Span
 	var stats []*pb.ClientGroupedStats
 
-	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter.
+	// 4 sampled spans + APM stats on 9 spans are sent to datadog exporter (TestSpan0 is ignored).
 	// Bail out rather than block forever: without a deadline a missing payload
 	// turns a test failure into a CI job timeout.
 	deadline := time.After(3 * time.Minute)
-	for len(spans) < 5 || len(stats) < 10 {
+	for len(spans) < 4 || len(stats) < 9 {
 		select {
 		case <-deadline:
-			t.Fatalf("timed out waiting for payloads: got %d/5 spans and %d/10 stats", len(spans), len(stats))
+			t.Fatalf("timed out waiting for payloads: got %d/4 spans and %d/9 stats", len(spans), len(stats))
 		case tracesBytes := <-tracesRec.ReqChan:
 			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
 			zr := getZstdReader(tracesBytes)
@@ -269,6 +271,9 @@ func TestIntegration(t *testing.T) {
 			for _, tps := range traces.TracerPayloads {
 				for _, chunks := range tps.Chunks {
 					spans = append(spans, chunks.Spans...)
+					for _, span := range chunks.Spans {
+						assert.NotEqual(t, "TestSpan0", span.Resource)
+					}
 				}
 			}
 
@@ -281,6 +286,7 @@ func TestIntegration(t *testing.T) {
 					stats = append(stats, csbs.Stats...)
 					for _, stat := range csbs.Stats {
 						assert.True(t, strings.HasPrefix(stat.Resource, "TestSpan"))
+						assert.NotEqual(t, "TestSpan0", stat.Resource)
 						assert.Equal(t, uint64(1), stat.Hits)
 						assert.Equal(t, uint64(1), stat.TopLevelHits)
 						assert.Equal(t, "client", stat.SpanKind)
@@ -292,8 +298,8 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// Verify we don't receive more than the expected numbers
-	assert.Len(t, spans, 5)
-	assert.Len(t, stats, 10)
+	assert.Len(t, spans, 4)
+	assert.Len(t, stats, 9)
 
 	// Validate metrics ship zstd on the wire too. The datadog/connector turns the
 	// received spans into metrics that flow through the serializer's config-driven

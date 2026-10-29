@@ -14,29 +14,29 @@ import (
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 )
 
-// Mock is a serverlessinit component that records ReportNow calls.
-type Mock struct {
+// Provides exposes the mock component and its record of ReportNow calls.
+type Provides struct {
+	Comp serverlessdef.Component
+	// Reported receives one value for each ReportNow call.
+	Reported <-chan struct{}
+}
+
+type mock struct {
 	onReport func()
 	reports  chan struct{}
 }
 
-var _ serverlessdef.Component = (*Mock)(nil)
-
 // New returns a mock that runs onReport, when it is not nil, on each ReportNow
-// call. Reported receives one value per call; it buffers up to capacity calls.
-func New(_ *testing.T, capacity int, onReport func()) *Mock {
-	return &Mock{onReport: onReport, reports: make(chan struct{}, capacity)}
+// call. Reported buffers up to capacity calls.
+func New(_ *testing.T, capacity int, onReport func()) Provides {
+	m := &mock{onReport: onReport, reports: make(chan struct{}, capacity)}
+	return Provides{Comp: m, Reported: m.reports}
 }
 
 // ReportNow runs the onReport callback and records the call.
-func (m *Mock) ReportNow() {
+func (m *mock) ReportNow() {
 	if m.onReport != nil {
 		m.onReport()
 	}
 	m.reports <- struct{}{}
-}
-
-// Reported receives one value for each ReportNow call.
-func (m *Mock) Reported() <-chan struct{} {
-	return m.reports
 }

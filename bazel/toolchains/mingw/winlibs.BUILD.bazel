@@ -71,6 +71,7 @@ cc_toolchain(
 
 toolchain(
     name = "mingw_cc_toolchain",
+    exec_compatible_with = ["@platforms//os:windows"],
     target_compatible_with = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
