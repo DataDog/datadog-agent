@@ -801,6 +801,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"EnableSecurityProfileV2":                 true,
 		"SecurityProfileNodeEvictionTimeout":      opts.securityProfileNodeEvictionTimeout,
 		"SecurityProfileSampleRefreshPeriod":      opts.securityProfileSampleRefreshPeriod,
+		"SecurityProfileMaxImageTags":             opts.securityProfileMaxImageTags,
 		"EnableAnomalyDetection":                  opts.enableAnomalyDetection,
 		"WorkloadProfileStorageDir":               opts.workloadProfileStorageDir,
 		"WorkloadProfilePersistencePeriod":        opts.workloadProfilePersistencePeriod,
