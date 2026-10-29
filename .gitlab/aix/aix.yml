@@ -99,8 +99,10 @@ deploy_aix_install_script:
     - !reference [.on_deploy]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
-  # The script is a static file: upload it as soon as the deploy pipeline starts.
-  needs: []
+  # Wait for the deploy guard (check_already_deployed_version_7) so we don't
+  # upload a script for a version that's already shipped. Same .on_deploy
+  # rules, so they're always co-eligible.
+  needs: [check_already_deployed_version_7]
   tags: ["arch:amd64", "specific:true"]
   script:
     - $S3_CP_CMD --content-type "text/x-shellscript" "cmd/agent/aix/install_aix.sh" "${S3_RELEASE_ARTIFACTS_URI}/scripts/install_aix.sh"
