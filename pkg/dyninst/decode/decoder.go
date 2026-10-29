@@ -545,7 +545,7 @@ func (s *message) init(
 
 		s.Debugger.Snapshot.stack.frames = stackFrames
 		s.Debugger.Snapshot.Stack = &s.Debugger.Snapshot.stack
-		// Any/all capture expressions also set Condition_eval_error, so require a condition.
+		// Any/all capture expressions also set this flag, so only drop captures on probes with a condition.
 		conditionErrored := header.Condition_eval_error != 0 ||
 			(returnHeader != nil && returnHeader.Condition_eval_error != 0)
 		if !conditionErrored || probe.GetWhen() == nil {
