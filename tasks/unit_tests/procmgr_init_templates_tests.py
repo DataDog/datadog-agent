@@ -190,20 +190,53 @@ exit 93
         self.assertEqual(seen.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
 
     def test_debian_upstart_exports_environment_before_exec(self):
+        text = UPSTART_DEBIAN.read_text()
+        self.assertNotIn('\nsetuid ', f'\n{text}')
+        self.assertNotIn('pre-start script', text)
+        main = upstart_main_block(UPSTART_DEBIAN)
+        self.assertLess(main.index(UPSTART_RUNTIME_DIR), main.index('--chuid dd-agent'))
+
         layout = Layout(self.root)
-        script = render(upstart_main_block(UPSTART_DEBIAN), layout.install, layout.etc)
+        commands = self.root / 'commands'
+        runtime = self.root / 'var-run' / 'datadog-procmgrd'
+        sysv = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
+        sysv_path = self.root / 'sysv-procmgr'
+        sysv_path.write_text(sysv)
+        sysv_path.chmod(0o755)
+        # No --background, so the fake replaces itself with the load-env child.
+        write_executable(
+            commands / 'start-stop-daemon',
+            '''case " $* " in *" --background "*) exit 96 ;; esac
+case " $* " in *" --chuid dd-agent "*) ;; *) exit 97 ;; esac
+while [ $# -gt 0 ]; do
+  if [ "$1" = "--" ]; then
+    shift
+    exec /bin/sh "$@"
+  fi
+  shift
+done
+exit 98
+''',
+        )
+        script = render(main, layout.install, layout.etc)
+        script = script.replace(
+            UPSTART_RUNTIME_DIR,
+            f'/usr/bin/install -d -o {os.getuid()} -g {os.getgid()} -m 0755 {runtime} || exit 1',
+        )
+        script = script.replace('/etc/init.d/datadog-agent-procmgr', str(sysv_path))
         script_path = self.root / 'upstart-script.sh'
         script_path.write_text(script)
 
         result = subprocess.run(
             ['/bin/sh', str(script_path)],
-            env=self.base_env(os.environ['PATH']),
+            env=self.base_env(f'{commands}:/usr/bin:/bin'),
             text=True,
             capture_output=True,
             check=False,
             timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(runtime.is_dir())
 
         seen = parse_env(layout.env_out)
         for key, value in layout.expected_four().items():
@@ -261,11 +294,12 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
         sysv = SYSV_PROCMGR.read_text()
         self.assertIn(SYSV_RUNTIME_DIR, sysv)
         self.assertLess(sysv.index(SYSV_RUNTIME_DIR), sysv.index('--chuid "$AGENT_USER"'))
-        for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
-            with self.subTest(template=template.name):
-                pre_start = upstart_block(template, 'pre-start script')
-                self.assertIn(UPSTART_RUNTIME_DIR, pre_start)
-                self.assertNotIn(UPSTART_RUNTIME_DIR, upstart_main_block(template))
+        debian_main = upstart_main_block(UPSTART_DEBIAN)
+        self.assertIn(UPSTART_RUNTIME_DIR, debian_main)
+        self.assertLess(debian_main.index(UPSTART_RUNTIME_DIR), debian_main.index('--chuid dd-agent'))
+        redhat_pre_start = upstart_block(UPSTART_REDHAT, 'pre-start script')
+        self.assertIn(UPSTART_RUNTIME_DIR, redhat_pre_start)
+        self.assertNotIn(UPSTART_RUNTIME_DIR, upstart_main_block(UPSTART_REDHAT))
 
     def test_sysv_start_fails_when_runtime_dir_cannot_be_created(self):
         layout = Layout(self.root)
@@ -329,10 +363,11 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
         path = self.root / 'sysv.sh'
         path.write_text(sysv)
         subprocess.run([shell, '-n', str(path)], check=True)
-        for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
-            for header in ('script', 'pre-start script'):
-                path.write_text(render(upstart_block(template, header), self.root / 'i', self.root / 'e'))
-                subprocess.run([shell, '-n', str(path)], check=True)
+        path.write_text(render(upstart_main_block(UPSTART_DEBIAN), self.root / 'i', self.root / 'e'))
+        subprocess.run([shell, '-n', str(path)], check=True)
+        for header in ('script', 'pre-start script'):
+            path.write_text(render(upstart_block(UPSTART_REDHAT, header), self.root / 'i', self.root / 'e'))
+            subprocess.run([shell, '-n', str(path)], check=True)
 
 
 if __name__ == '__main__':
