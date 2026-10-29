@@ -47,7 +47,7 @@ dd_agent_go_test(
         "trivy",
     ]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/config/mock",

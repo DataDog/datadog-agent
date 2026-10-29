@@ -11,7 +11,6 @@ exports_files(
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
 
-# keep
 service_srcs = glob([
     "tmpl/gen/pm/processes.d/*.yaml",
     "tmpl/gen/windows/*.yaml",
@@ -28,7 +27,6 @@ service_srcs = glob([
 # Selected by GetSystemdUnit/GetProcmgrUnit on hosts without ambient capability support. These must
 # be embedded in the production library, not just in tmpl_test, or the shipped binary cannot read
 # them.
-# keep
 nocap_service_srcs = glob([
     "tmpl/gen/pm/debrpm-nc/*.service",
     "tmpl/gen/pm/oci-nc/*.service",
@@ -53,7 +51,6 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-# keep
 go_library(
     name = "tmpl_lib",
     srcs = ["tmpl/main.go"],
@@ -98,7 +95,6 @@ go_test(
     name = "tmpl_test",
     srcs = ["tmpl/main_test.go"],
     embed = [":tmpl_lib"],
-    # keep
     embedsrcs = glob(["tmpl/**"]),
     tags = ["dd_agent_go_test"],
     deps = [

@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -511,26 +510,18 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 		for i := range mounts {
 			mounts[i].Source = image.SanitizeHostPath(mounts[i].Source)
 
-			var errs []error
 			for j, opt := range mounts[i].Options {
 				for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
 					if trimmedOpt, ok := strings.CutPrefix(opt, prefix); ok {
 						dirs := strings.Split(trimmedOpt, ":")
 						for n, dir := range dirs {
 							dirs[n] = image.SanitizeHostPath(dir)
-							if _, err := os.Stat(dirs[n]); err != nil {
-								errs = append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
-							}
 						}
 						mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
 					}
 				}
 
 				log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
-			}
-
-			if len(errs) > 0 {
-				log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errors.Join(errs...))
 			}
 		}
 	}
