@@ -101,10 +101,10 @@ _RPM_PRE_DEPS_COMMON = [
 _DESCRIPTION = """Datadog IoT Agent
 The Datadog IoT Agent is a lightweight process that monitors system
 processes and services, and sends information back to your Datadog account.
-.
+
 This package installs and runs the advanced Agent daemon, which queues and
 forwards metrics from your applications as well as system services.
-.
+
 See http://www.datadoghq.com/ for more information
 """
 
