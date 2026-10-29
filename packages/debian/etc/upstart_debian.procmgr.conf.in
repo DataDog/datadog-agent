@@ -28,3 +28,9 @@ script
   export DD_INSTALL_DIR={install_dir}
   exec {install_dir}/embedded/bin/dd-procmgrd
 end script
+
+# pre-start runs as root. setuid applies to the main script only.
+pre-start script
+  # dd-agent cannot create this directory under root-owned /var/run.
+  /usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1
+end script
