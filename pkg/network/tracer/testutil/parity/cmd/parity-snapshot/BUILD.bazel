@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity/cmd/parity-snapshot",
     visibility = ["//visibility:private"],
     deps = [
-        "//pkg/network",
         "//pkg/network/tracer/testutil/parity",
         "//pkg/network/tracer/testutil/parity/snapshot",
+        "@com_github_datadog_agent_payload_v5//process",
         "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )

@@ -83,17 +83,36 @@ func TestSnapshotsCompare(t *testing.T) {
 }
 
 func TestSum(t *testing.T) {
+	tcp := tcpConn(40000, 1)
+	tcp.IpTranslation = &model.IPTranslation{ReplSrcIP: "10.0.0.9"}
 	udp := &model.Connection{
 		Laddr: &model.Addr{Ip: "10.0.0.1", Port: 53}, Raddr: &model.Addr{Ip: "10.0.0.3", Port: 5353},
 		Type: model.ConnectionType_udp, LastBytesSent: 64, IntraHost: true,
+		DnsStatsByDomainOffsetByQueryType: map[int32]*model.DNSStatsByQueryType{0: {DnsStatsByQueryType: map[int32]*model.DNSStats{
+			1: {DnsTimeouts: 1, DnsCountByRcode: map[uint32]uint32{0: 5, 3: 2}},
+		}}},
 	}
-	totals := Sum(ToStats(&model.Connections{Conns: []*model.Connection{tcpConn(40000, 1), tcpConn(40001, 0), udp}}))
+	totals := Sum(&model.Connections{Conns: []*model.Connection{tcp, tcpConn(40001, 0), udp}})
 
-	assert.Equal(t, Totals{
-		Records: 2, SentBytes: 200, RecvBytes: 4000, SentPackets: 6, RecvPackets: 8,
-		TCPEstablished: 2, TCPClosed: 1, TCPFailures: 4,
-	}, totals[Class{Type: network.TCP, Family: network.AFINET}])
-	assert.Equal(t, Totals{Records: 1, SentBytes: 64}, totals[Class{Type: network.UDP, Family: network.AFINET, IntraHost: true}])
+	tt := totals[Class{Type: model.ConnectionType_tcp, Family: model.ConnectionFamily_v4}]
+	require.NotNil(t, tt)
+	for field, want := range map[string]uint64{
+		"records": 2, "sent_bytes": 200, "recv_bytes": 4000, "sent_packets": 6, "recv_packets": 8,
+		"tcp_established": 2, "tcp_closed": 1, "tcp_failures": 4,
+		"rtt_sum": 500, "rtt_count": 2, "nat_translated": 1,
+	} {
+		assert.Equal(t, want, tt.Counters[field], field)
+	}
+	assert.Equal(t, map[string]uint64{"32": 4}, tt.Breakdowns["tcp_failures_by_errno"])
+	assert.Equal(t, map[string]uint64{"tls": 2, "http": 2}, tt.Breakdowns["conns_by_protocol"])
+
+	ut := totals[Class{Type: model.ConnectionType_udp, Family: model.ConnectionFamily_v4, IntraHost: true}]
+	require.NotNil(t, ut)
+	assert.Equal(t, uint64(1), ut.Counters["records"])
+	assert.Equal(t, uint64(5), ut.Counters["dns_successes"])
+	assert.Equal(t, uint64(2), ut.Counters["dns_failures"])
+	assert.Equal(t, uint64(1), ut.Counters["dns_timeouts"])
+	assert.Equal(t, map[string]uint64{"0": 5, "3": 2}, ut.Breakdowns["dns_responses_by_rcode"])
 }
 
 func TestReadFileJSON(t *testing.T) {

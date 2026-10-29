@@ -25,6 +25,12 @@
 //   - parity.snapshot.total{side,field,type,family,intra_host}: count, summed deltas.
 //     Totals are insensitive to when each side reported a connection, so they are
 //     the measure to compare over a long run.
+//     Fields cover byte/packet counters, TCP state and congestion counters, RTT
+//     (rtt_sum/rtt_var_sum/rtt_count), ECN, NAT and DNS totals; see
+//     snapshot.CounterFields. USM aggregations are not compared. Breakdowns add one
+//     more tag (see snapshot.BreakdownTag), e.g. field:tcp_failures_by_errno,errno:32.
+//   - parity.snapshot.conn_telemetry{side,key}: count, system-probe's connection
+//     telemetry from the same read (conn_telemetry_gauge for *_size keys)
 //   - parity.snapshot.matched: count, connections reported by both sides
 //   - parity.snapshot.divergences{kind,field,type,family,closed}: count. Divergences on
 //     closed:false connections include timing noise from the two reads not being
@@ -41,9 +47,9 @@ import (
 	"syscall"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity/snapshot"
 )
@@ -103,7 +109,7 @@ func run(o options) error {
 		if err != nil {
 			return err
 		}
-		report(o, compareOpts, nil, snapshot.ToStats(ca), snapshot.ToStats(cb))
+		report(o, compareOpts, nil, ca, cb)
 		return nil
 	}
 
@@ -163,14 +169,15 @@ func run(o options) error {
 			continue
 		}
 		consecutiveErrors = 0
-		report(o, compareOpts, sd, snapshot.ToStats(ca), snapshot.ToStats(cb))
+		report(o, compareOpts, sd, ca, cb)
 	}
 	return nil
 }
 
-func report(o options, opts parity.Options, sd statsd.ClientInterface, a, b []network.ConnectionStats) {
+func report(o options, opts parity.Options, sd statsd.ClientInterface, ca, cb *model.Connections) {
+	a, b := snapshot.ToStats(ca), snapshot.ToStats(cb)
 	r := parity.Compare(a, b, opts)
-	totals := map[string]map[snapshot.Class]snapshot.Totals{o.labelA: snapshot.Sum(a), o.labelB: snapshot.Sum(b)}
+	totals := map[string]map[snapshot.Class]*snapshot.Totals{o.labelA: snapshot.Sum(ca), o.labelB: snapshot.Sum(cb)}
 
 	fmt.Printf("%s %s=%d %s=%d matched=%d divergences=%d\n",
 		time.Now().UTC().Format(time.RFC3339), o.labelA, len(a), o.labelB, len(b), r.Matched, len(r.Divergences))
@@ -200,45 +207,60 @@ func report(o options, opts parity.Options, sd statsd.ClientInterface, a, b []ne
 		for k, t := range byClass {
 			tags := []string{
 				"side:" + side,
-				"type:" + k.Type.String(),
-				"family:" + k.Family.String(),
+				"type:" + snapshot.TypeName(k.Type),
+				"family:" + snapshot.FamilyName(k.Family),
 				fmt.Sprintf("intra_host:%t", k.IntraHost),
 			}
-			_ = sd.Gauge("parity.snapshot.records", float64(t.Records), tags, 1)
-			for field, v := range fieldsOf(t) {
-				_ = sd.Count("parity.snapshot.total", int64(v), append(tags, "field:"+field), 1)
+			_ = sd.Gauge("parity.snapshot.records", float64(t.Counters["records"]), tags, 1)
+			for _, field := range snapshot.CounterFields {
+				_ = sd.Count("parity.snapshot.total", int64(t.Counters[field]), withTags(tags, "field:"+field), 1)
 			}
+			for field, byValue := range t.Breakdowns {
+				for v, n := range byValue {
+					_ = sd.Count("parity.snapshot.total", int64(n), withTags(tags, "field:"+field, snapshot.BreakdownTag[field]+":"+v), 1)
+				}
+			}
+		}
+	}
+	// system-probe's connection telemetry, sampled with the same read as the
+	// connections; it's a per-node value, not per class
+	for side, c := range map[string]*model.Connections{o.labelA: ca, o.labelB: cb} {
+		for key, v := range c.ConnTelemetryMap {
+			tags := []string{"side:" + side, "key:" + key}
+			if strings.HasSuffix(key, "_size") {
+				// sizes are point-in-time values, not deltas
+				_ = sd.Gauge("parity.snapshot.conn_telemetry_gauge", float64(v), tags, 1)
+				continue
+			}
+			_ = sd.Count("parity.snapshot.conn_telemetry", v, tags, 1)
 		}
 	}
 }
 
-func fieldsOf(t snapshot.Totals) map[string]uint64 {
-	return map[string]uint64{
-		"records":         t.Records,
-		"sent_bytes":      t.SentBytes,
-		"recv_bytes":      t.RecvBytes,
-		"sent_packets":    t.SentPackets,
-		"recv_packets":    t.RecvPackets,
-		"retransmits":     t.Retransmits,
-		"tcp_established": t.TCPEstablished,
-		"tcp_closed":      t.TCPClosed,
-		"tcp_failures":    t.TCPFailures,
-	}
+// withTags returns a new slice so callers can't share a backing array
+func withTags(base []string, extra ...string) []string {
+	return append(append(make([]string, 0, len(base)+len(extra)), base...), extra...)
 }
 
-func printTotals(o options, totals map[string]map[snapshot.Class]snapshot.Totals) {
+func printTotals(o options, totals map[string]map[snapshot.Class]*snapshot.Totals) {
 	classes := make(map[snapshot.Class]bool)
 	for _, byClass := range totals {
 		for k := range byClass {
 			classes[k] = true
 		}
 	}
+	get := func(side string, k snapshot.Class, field string) uint64 {
+		if t := totals[side][k]; t != nil {
+			return t.Counters[field]
+		}
+		return 0
+	}
 	for k := range classes {
-		ta, tb := totals[o.labelA][k], totals[o.labelB][k]
-		fmt.Printf("  %s%s intra_host=%t records %d/%d closed %d/%d established %d/%d failures %d/%d bytes sent %d/%d recv %d/%d\n",
-			k.Type, k.Family, k.IntraHost, ta.Records, tb.Records, ta.TCPClosed, tb.TCPClosed,
-			ta.TCPEstablished, tb.TCPEstablished, ta.TCPFailures, tb.TCPFailures,
-			ta.SentBytes, tb.SentBytes, ta.RecvBytes, tb.RecvBytes)
+		fmt.Printf("  %s%s intra_host=%t", snapshot.TypeName(k.Type), snapshot.FamilyName(k.Family), k.IntraHost)
+		for _, f := range []string{"records", "tcp_closed", "tcp_established", "tcp_failures", "sent_bytes", "recv_bytes"} {
+			fmt.Printf(" %s %d/%d", f, get(o.labelA, k, f), get(o.labelB, k, f))
+		}
+		fmt.Println()
 	}
 }
 

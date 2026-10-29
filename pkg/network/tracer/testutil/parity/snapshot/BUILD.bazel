@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "snapshot",
-    srcs = ["snapshot.go"],
+    srcs = [
+        "snapshot.go",
+        "totals.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity/snapshot",
     visibility = ["//visibility:public"],
     deps = [
