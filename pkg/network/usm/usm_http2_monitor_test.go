@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type pathType uint8
@@ -86,6 +87,9 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 func TestHTTP2Scenarios(t *testing.T) {
 	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
+		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
+			flake.MarkOnJobName(t, "ubuntu_26.04")
+		}
 		for _, tc := range []struct {
 			name  string
 			isTLS bool
