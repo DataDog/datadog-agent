@@ -91,30 +91,35 @@ The notion of `isOSHostnameUsable` means:
 On macOS and Windows, `infrastructure_mode: end_user_device` supplies a provisional device name before cloud
 discovery. GCE, Azure, FQDN (when enabled) and container providers can replace it, and EC2 gets the final
 opportunity to select its instance ID under its existing rules. OS discovery only supplies a fallback if no
-name has been found, preserving macOS Computer Name when no higher-priority provider succeeds.
+name has been found, preserving macOS LocalHostName when no higher-priority provider succeeds.
 Explicit `hostname` and `hostname_file` settings still take precedence, and sidecar hostname handling is
 unchanged. Other operating systems and modes keep the existing resolution order.
 
 Set `hostname_use_serial: true` (or `DD_HOSTNAME_USE_SERIAL=true`) to append the hardware serial number.
-The default is `false`; macOS still uses Computer Name when serial appending is disabled.
+The default is `false`; macOS still uses LocalHostName when serial appending is disabled.
 
 With serial appending enabled, the final hostname combines a name and serial on both platforms:
 
 - **Windows:** `<OS-hostname>-<serial-number>`, using `os.Hostname()` and `Win32_BIOS.SerialNumber`.
-- **macOS:** `<Computer-Name>-<serial-number>`, using the configured Computer Name from SystemConfiguration and
+- **macOS:** `<LocalHostName>-<serial-number>`, using the current LocalHostName from SystemConfiguration and
   the hardware serial from IOKit.
 
-This also applies to VMs. Device-name casing is preserved. On macOS, straight (`'`) and curly (`’`)
-apostrophes are removed from the Computer Name to match Bonjour naming. The serial suffix is lowercased;
-runs of other non-ASCII-alphanumeric characters become a hyphen and
-leading/trailing hyphens are removed. Only the name is truncated if necessary to keep the result within 253 characters;
-the serial is preserved. When serial appending is disabled, only the device name is normalized and truncated,
-and a missing or placeholder serial does not affect resolution. If the device name is unusable, or serial appending
-is enabled and the serial is unusable, missing or a known placeholder, the Agent logs a warning and continues
-through the existing providers.
+This also applies to VMs. On macOS, LocalHostName is read directly through
+`SCDynamicStoreCopyLocalHostName`, independently of system-info collection. It excludes `.local` and
+network-specific DNS suffixes. Apple's casing, normalization and conflict-resolution suffixes (such as `-2`)
+are preserved. The name is validated without trimming, normalization or truncation; unavailable or invalid
+names cause resolution to continue through the existing providers. The system-info payload is unchanged.
 
-The result is cached until restart. Network-derived macOS hostname changes do not change it; intentional Computer
-Name changes and changes to `hostname_use_serial` take effect after restart. The selected name is the primary
+Windows device names retain their existing normalization and truncation. On both platforms, the optional
+serial suffix is lowercased; runs of non-ASCII-alphanumeric characters become a hyphen and leading/trailing
+hyphens are removed. The full serial is preserved. If the macOS name plus suffix exceeds 253 characters,
+resolution falls back rather than truncating the name. When serial appending is disabled, system information
+is not collected and a missing serial does not affect resolution. When enabled, an unusable, missing or
+placeholder serial causes the Agent to log a warning and continue through the existing providers.
+
+The result is cached until restart. LocalHostName avoids network-derived DNS hostname changes, but it can
+still change when a user renames the Mac or Bonjour resolves a naming conflict. Those changes, and changes
+to `hostname_use_serial`, take effect after restart. The selected name is the primary
 Agent hostname and is sent as `internalHostname` in host metadata. Existing OS/cloud metadata and configured/cloud aliases remain available.
 No historical identity migration is performed. Devices sharing both a device name and serial can still collide,
 and, when serial appending is enabled, failed serial collection across restarts can switch a host back to its legacy identity.

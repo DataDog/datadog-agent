@@ -5,15 +5,11 @@
 
 package eudm
 
-import (
-	"strings"
+import "github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 
-	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
-)
+var localHostName = systeminfo.LocalHostName
 
-// deviceName uses the configured Computer Name instead of a network-derived hostname.
-func deviceName(info *systeminfo.SystemInfo) (string, error) {
-	name := info.ComputerName
-	// Match Apple's Computer Name to hostname conversion by stripping apostrophes.
-	return strings.ReplaceAll(strings.ReplaceAll(name, "'", ""), "’", ""), nil
+// deviceName preserves Apple's normalization and any Bonjour conflict suffix.
+func deviceName() (string, error) {
+	return localHostName()
 }

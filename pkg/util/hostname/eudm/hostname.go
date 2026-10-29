@@ -13,11 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
-// formatHostname returns "<name>" or "<name>-<serial>": ASCII letters, digits and
-// single hyphens, with no leading or trailing hyphen, at most 253 characters,
-// and accepted by validate.ValidHostname (the Agent's RFC 1123 check). Only the
-// name is truncated; the full serial is kept so truncation cannot collide.
-func formatHostname(name, serial string, useSerial bool) (string, error) {
+// formatHostname returns the device name with an optional normalized serial suffix.
+// With preserveName, the name is validated unchanged; otherwise it is normalized
+// and may be truncated to keep the result within 253 characters.
+func formatHostname(name, serial string, useSerial, preserveName bool) (string, error) {
+	if preserveName {
+		if err := validate.ValidHostname(name); err != nil {
+			return "", err
+		}
+	} else {
+		name = normalize(name)
+	}
+
 	suffix := ""
 	if useSerial {
 		serial = normalize(strings.ToLower(serial))
@@ -30,7 +37,6 @@ func formatHostname(name, serial string, useSerial bool) (string, error) {
 		}
 		suffix = "-" + serial
 	}
-	name = normalize(name)
 	if name == "" {
 		return "", errors.New("device name is empty after normalization")
 	}
@@ -41,6 +47,9 @@ func formatHostname(name, serial string, useSerial bool) (string, error) {
 		return "", errors.New("device serial number is too long")
 	}
 	if len(name) > available {
+		if preserveName {
+			return "", errors.New("device hostname is too long")
+		}
 		name = strings.TrimRight(name[:available], "-")
 	}
 	if name == "" {

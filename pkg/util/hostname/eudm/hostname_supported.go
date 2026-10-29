@@ -17,12 +17,12 @@ import (
 
 var collectSystemInfo = systeminfo.Collect
 
-// Get returns the normalized device name, optionally suffixed with its hardware serial.
+// Get returns the device name, optionally suffixed with its hardware serial.
 // Missing identity is an error so callers can retain legacy hostname resolution.
 func Get(useSerial bool) (string, error) {
 	info := &systeminfo.SystemInfo{}
-	// macOS needs Computer Name; Windows only needs system information for the serial.
-	if useSerial || runtime.GOOS == "darwin" {
+	// System information is only needed for the optional serial suffix.
+	if useSerial {
 		var err error
 		info, err = collectSystemInfo()
 		if err != nil {
@@ -32,9 +32,9 @@ func Get(useSerial bool) (string, error) {
 			return "", errors.New("device identity is unavailable")
 		}
 	}
-	name, err := deviceName(info)
+	name, err := deviceName()
 	if err != nil {
 		return "", err
 	}
-	return formatHostname(name, info.SerialNumber, useSerial)
+	return formatHostname(name, info.SerialNumber, useSerial, runtime.GOOS == "darwin")
 }

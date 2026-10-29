@@ -24,7 +24,7 @@ func TestFormatHostname(t *testing.T) {
 		{strings.Repeat("a", 300), "ABC123", strings.Repeat("a", 246) + "-abc123"},
 	} {
 		t.Run(tc.want[:min(len(tc.want), 40)], func(t *testing.T) {
-			got, err := formatHostname(tc.name, tc.serial, true)
+			got, err := formatHostname(tc.name, tc.serial, true, false)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
 		})
@@ -34,27 +34,27 @@ func TestFormatHostname(t *testing.T) {
 func TestInvalidIdentity(t *testing.T) {
 	for _, serial := range []string{"", "  ", "Unknown", "None", "N/A", "Not Available", "Default string", "System Serial Number", "To Be Filled By O.E.M.", "00000000", "FF-FF-FF", strings.Repeat("a", 252)} {
 		t.Run(serial, func(t *testing.T) {
-			_, err := formatHostname("device", serial, true)
+			_, err := formatHostname("device", serial, true, false)
 			require.Error(t, err)
 		})
 	}
 	for _, name := range []string{"", "---", "你好"} {
-		_, err := formatHostname(name, "ABC123", true)
+		_, err := formatHostname(name, "ABC123", true, false)
 		require.Error(t, err)
 	}
 }
 
 func TestFormatHostnameWithoutSerial(t *testing.T) {
 	for _, serial := range []string{"ABC123", "", "Unknown", strings.Repeat("a", 300)} {
-		got, err := formatHostname("My Device", serial, false)
+		got, err := formatHostname("My Device", serial, false, false)
 		require.NoError(t, err)
 		require.Equal(t, "My-Device", got)
 	}
-	got, err := formatHostname(strings.Repeat("a", 300), "", false)
+	got, err := formatHostname(strings.Repeat("a", 300), "", false, false)
 	require.NoError(t, err)
 	require.Equal(t, strings.Repeat("a", 253), got)
 	for _, name := range []string{"", "---", "你好"} {
-		_, err := formatHostname(name, "", false)
+		_, err := formatHostname(name, "", false, false)
 		require.Error(t, err)
 	}
 }
