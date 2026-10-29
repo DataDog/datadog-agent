@@ -411,6 +411,7 @@ func deepCopyContainerContext(fieldToCopy ContainerContext, c deepCopyContext) C
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
+	copied.ECSTaskID = fieldToCopy.ECSTaskID
 	copied.PodUID = fieldToCopy.PodUID
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable, c)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags, c)
@@ -1351,8 +1352,6 @@ func deepCopySysCtlEvent(fieldToCopy SysCtlEvent, c deepCopyContext) SysCtlEvent
 func deepCopySyscallsEvent(fieldToCopy SyscallsEvent, c deepCopyContext) SyscallsEvent {
 	copied := SyscallsEvent{}
 	copied.EventReason = fieldToCopy.EventReason
-	copied.SampleCookie = fieldToCopy.SampleCookie
-	copied.SyscallID = fieldToCopy.SyscallID
 	copied.Syscalls = deepCopySyscallArr(fieldToCopy.Syscalls, c)
 	return copied
 }

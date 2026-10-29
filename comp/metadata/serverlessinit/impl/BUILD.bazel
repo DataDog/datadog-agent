@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "payload.go",
         "runtime.go",
+        "serverlessinit.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/impl",
     visibility = ["//visibility:public"],

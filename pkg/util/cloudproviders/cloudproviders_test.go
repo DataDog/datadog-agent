@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -197,6 +198,63 @@ func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testin
 	assert.True(t, otherDetectorCalled, "non-kubelet-dependent host alias detectors should still run on a Cluster Checks Runner")
 	assert.Equal(t, []string{"other-alias"}, aliases)
 	assert.Equal(t, "other", cloudprovider)
+}
+
+// TestCloudProviderAliasesWithoutKubeletAccess ensures that, when otel-agent's
+// configuration leaves it without kubelet access, GetHostAliases skips the
+// detectors that need the kubelet but still runs the "kubelet" one, which then
+// reads the node name from the environment.
+func TestCloudProviderAliasesWithoutKubeletAccess(t *testing.T) {
+	tests := []struct {
+		name                string
+		useKubeletCollector bool
+		wantKubernetes      bool
+	}{
+		{name: "nodefilter collector", useKubeletCollector: false, wantKubernetes: false},
+		{name: "kubelet collector", useKubeletCollector: true, wantKubernetes: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origDetectors := hostAliasesDetectors
+			t.Cleanup(func() { hostAliasesDetectors = origDetectors })
+
+			flavor.SetTestFlavor(t, flavor.OTelAgent)
+			config := configmock.New(t)
+			config.SetInTest("otel_standalone", true)
+			config.SetInTest("otelcollector.standalone.use_kubelet_collector", tt.useKubeletCollector)
+
+			var kubeletCalled, kubernetesCalled bool
+			hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+				"kubelet": {
+					name:            "kubelet",
+					requiresKubelet: true,
+					nodeNameFromEnv: true,
+					callback: func(_ context.Context) ([]string, error) {
+						kubeletCalled = true
+						return []string{"kubelet-alias"}, nil
+					},
+				},
+				"kubernetes": {
+					name:            "kubernetes",
+					requiresKubelet: true,
+					callback: func(_ context.Context) ([]string, error) {
+						kubernetesCalled = true
+						return []string{"kubernetes-alias"}, nil
+					},
+				},
+			}
+
+			aliases, _ := GetHostAliases(context.TODO())
+			assert.True(t, kubeletCalled, "the kubelet host alias detector reads the node name from the environment and should run")
+			assert.Equal(t, tt.wantKubernetes, kubernetesCalled)
+			want := []string{"kubelet-alias"}
+			if tt.wantKubernetes {
+				want = append(want, "kubernetes-alias")
+			}
+			assert.ElementsMatch(t, want, aliases)
+		})
+	}
 }
 
 // dmiDetectableProviders lists the cloud providers DetectCloudProviderDMI can positively identify.

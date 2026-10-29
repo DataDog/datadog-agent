@@ -42,6 +42,7 @@ type cliParams struct {
 	verbose    bool
 	json       bool
 	prettyJSON bool
+	logLevel   string
 }
 
 type instance struct {
@@ -77,7 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot("CORE", "off", true)}),
+					LogParams:    log.ForOneShot("CORE", cliParams.logLevel, false)}),
 				core.Bundle(core.WithSecrets()),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -86,6 +87,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
 	configCheckCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
 	configCheckCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
+	configCheckCommand.Flags().StringVar(&cliParams.logLevel, "log_level", "off", "Override the log level for this command for debugging purposes")
 
 	return []*cobra.Command{configCheckCommand}
 }
