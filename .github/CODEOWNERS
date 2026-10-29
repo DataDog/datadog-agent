@@ -152,6 +152,7 @@
 /.gitlab/build/binary_build/linux.yml                                     @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml                     @DataDog/agent-build
 /.gitlab/test/functional_test/files_inventory_check.yml                   @DataDog/agent-build
+/.gitlab/test/functional_test/bazel_parity_check.yml                      @DataDog/agent-build
 /.gitlab/test/install_script_testing/install_script_testing.yml           @DataDog/agent-build
 /.gitlab/test/integration_test/dogstatsd.yml                              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/test/integration_test/linux.yml                                  @DataDog/agent-devx
@@ -975,6 +976,10 @@
 /tasks/msi.py                                                   @DataDog/windows-products
 /tasks/agent.py                                                 @DataDog/agent-runtimes
 /tasks/bazel.py                                                 @DataDog/agent-build
+/tasks/bazel_parity.py                                          @DataDog/agent-build
+/tasks/libs/package/metadata.py                                 @DataDog/agent-build
+/tasks/libs/package/binaries.py                                 @DataDog/agent-build
+/tasks/unit_tests/bazel_parity_tests.py                         @DataDog/agent-build
 /tasks/build_tags.py                                            @DataDog/agent-build
 /tasks/build_tags.bzl                                           @DataDog/agent-build
 /tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
