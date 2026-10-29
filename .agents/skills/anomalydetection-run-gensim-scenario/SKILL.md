@@ -245,7 +245,6 @@ Read only for a failed or unfamiliar step:
 
 - Recorder configuration: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7272235685/Using+the+recorder+to+record+gensim+staging+scenarios
 - Lima/kind setup: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6238700466/Gensim+Hands+On
-- Original setup in the `gensim-episodes` repo: `q_branch/setup-k8s-host.sh`, `q_branch/gadget-k8s-host.lima.yaml`.
 - [VM Ubuntu bootstrap](references/bootstrap.md) — load only when `vm.sh probe` fails on missing tools or sysctl limits.
 - [EKS multi-pod recording & live acceptance checklist](references/eks.md) — load only for EKS recovery, troubleshooting, or live acceptance handoff.
 - Docker permission denied after bootstrap: close the multiplexed SSH connection and reconnect to pick up group membership.
