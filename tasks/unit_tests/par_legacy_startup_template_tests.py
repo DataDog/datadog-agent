@@ -403,9 +403,17 @@ log_failure_msg() { echo "$*"; }''',
                     root = Path(tmp)
                     binary = root / 'embedded/bin/privateactionrunner'
                     binary.parent.mkdir(parents=True)
-                    self.executable(binary, 'echo "split=$DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"\n')
+                    self.executable(binary, 'echo "split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED-}"\n')
                     # Upstart's script/end script delimiters are syntax, not layout comments.
-                    blocks = re.findall(r'^script\n(.*?)^end script$', template.read_text(), re.MULTILINE | re.DOTALL)
+                    text = template.read_text()
+                    self.assertIn('initctl status datadog-agent-procmgr', text)
+                    self.assertNotIn('initctl --system', text)
+                    if template.name.startswith('upstart_debian'):
+                        self.assertNotIn('\nsetuid ', f'\n{text}')
+                        command = text.split('exec start-stop-daemon', 1)[1].split('end script', 1)[0]
+                        self.assertIn('--chuid dd-agent', command)
+                        self.assertNotIn('--background', command)
+                    blocks = re.findall(r'^script\n(.*?)^end script$', text, re.MULTILINE | re.DOTALL)
                     self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
                     script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
                     logfile = root / 'errors.log'
@@ -415,7 +423,7 @@ log_failure_msg() { echo "$*"; }''',
                         '''shell=$2
 command=$4
 shift 6
-exec "$shell" -c "$command" "$@"
+exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
 ''',
                     )
                     # Fake initctl reports the procmgr job state; fake sleep keeps the bounded wait instant.
@@ -423,6 +431,26 @@ exec "$shell" -c "$command" "$@"
                         root / 'initctl',
                         '''[ "$1" = status ] && [ "$2" = datadog-agent-procmgr ] || exit 1
 echo "datadog-agent-procmgr $PROCMGR_STATE"
+''',
+                    )
+                    self.executable(
+                        root / 'start-stop-daemon',
+                        '''case " $* " in *" --background "*) exit 96 ;; esac
+case " $* " in *" --chuid dd-agent "*) ;; *) exit 97 ;; esac
+exec_path=
+while [ $# -gt 0 ]; do
+  if [ "$1" = --exec ]; then
+    exec_path=$2
+    shift 2
+    continue
+  fi
+  if [ "$1" = -- ]; then
+    shift
+    exec "$exec_path" "$@"
+  fi
+  shift
+done
+exit 98
 ''',
                     )
                     self.executable(root / 'sleep', 'exit 0\n')
@@ -440,6 +468,10 @@ echo "datadog-agent-procmgr $PROCMGR_STATE"
                     )
                     self.assertEqual(result.returncode, 0, result.stderr)
                     output = result.stdout + (logfile.read_text() if logfile.exists() else '')
-                    self.assertIn(f'split={split}', output)
                     self.assertIn(mode, output)
+                    # Red Hat su clears the environment, so an inherited true does not reach the runner.
+                    if template.name.startswith('upstart_redhat') and state == 'start/running':
+                        self.assertNotIn('split=false', output)
+                    else:
+                        self.assertIn(f'split={split}', output)
                     self.assertNotIn('not supported', output)
