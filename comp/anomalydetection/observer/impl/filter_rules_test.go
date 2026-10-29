@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func requireCounterMetricValueBySource(t *testing.T, source string, want float64, telemetryComp telemetry.Component) {
+func requireCounterMetricValueBySource(t testing.TB, source string, want float64, telemetryComp telemetry.Component) {
 	t.Helper()
 
 	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
@@ -46,7 +46,7 @@ func requireCounterMetricValueBySource(t *testing.T, source string, want float64
 	t.Fatalf("counter %q with source=%q not found", metricName, source)
 }
 
-func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source string, telemetryComp telemetry.Component) {
+func requireNoCounterMetricForNameBySource(t testing.TB, metricName, source string, telemetryComp telemetry.Component) {
 	t.Helper()
 
 	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
@@ -1266,4 +1266,97 @@ anomaly_detection:
 	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
+
+func newFilteredMetricHandle(t *testing.T, source string, telemetryComp telemetry.Component) *handle {
+	t.Helper()
+
+	return &handle{
+		source:    source,
+		telemetry: newObserverTelemetry(telemetryComp),
+	}
+}
+
+func TestHandleFilteredMetricCachesArbitrarySourceAndAgentSource(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	for i := 0; i < 5; i++ {
+		h.recordFilteredMetric("kubelet")
+	}
+	for i := 0; i < 3; i++ {
+		h.recordFilteredMetric(observerdef.AgentNamespace)
+	}
+
+	requireCounterMetricValueBySource(t, "kubelet", 5.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 3.0, telComp)
+}
+
+func TestHandleFilteredMetricFirstRejectionInitializesOtherSourceAtZero(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
+	requireCounterMetricValueBySource(t, "check", 0.0, telComp)
+}
+
+func TestHandleFilteredMetricWithoutRejectionCreatesNoCounters(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	newFilteredMetricHandle(t, "check", telComp)
+
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, "check", telComp)
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, observerdef.AgentNamespace, telComp)
+}
+
+func TestHandleFilteredMetricAgentNamespaceHandleUsesOneSeries(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, observerdef.AgentNamespace, telComp)
+
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+
+	metricFamilies, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+
+	metricName := "observer__" + telemetryFilteredMetrics
+	var sources []string
+	for _, family := range metricFamilies {
+		if family.GetName() != metricName {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "source" {
+					sources = append(sources, label.GetValue())
+				}
+			}
+		}
+	}
+	require.Equal(t, []string{observerdef.AgentNamespace}, sources)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 2.0, telComp)
+}
+
+func TestHandleFilteredMetricConcurrentMixedSourcesLosesNoIncrements(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+
+	const goroutines = 8
+	const perGoroutine = 100
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perGoroutine; j++ {
+				h.recordFilteredMetric("check")
+				h.recordFilteredMetric(observerdef.AgentNamespace)
+			}
+		}()
+	}
+	wg.Wait()
+
+	requireCounterMetricValueBySource(t, "check", goroutines*perGoroutine, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, goroutines*perGoroutine, telComp)
 }

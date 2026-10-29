@@ -1459,11 +1459,12 @@ type handle struct {
 	filter    *metricsFilterRules
 	logFilter *logAdmissionFilter
 
-	// Cache the common source's bound counter so rejecting high-volume metrics
-	// does not add an allocation to the producer path.
-	filteredMetricOnce   sync.Once
-	filteredMetricSource string
-	filteredMetric       telemetry.SimpleCounter
+	// Cache both normalized-source counters so rejecting high-volume metrics
+	// does not resolve a Prometheus child counter on the producer path.
+	// Normalization produces either the handle source or AgentNamespace.
+	filteredMetricOnce  sync.Once
+	filteredMetric      telemetry.SimpleCounter
+	filteredAgentMetric telemetry.SimpleCounter
 }
 
 // ObserveMetric observes a metric with its metrics-pipeline context key, or
@@ -1519,18 +1520,19 @@ func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, conte
 
 func (h *handle) recordFilteredMetric(source string) {
 	h.filteredMetricOnce.Do(func() {
-		h.filteredMetricSource = source
-		h.filteredMetric = h.telemetry.filteredMetrics.WithValues(source)
+		h.filteredMetric = h.telemetry.filteredMetrics.WithValues(h.source)
+		if h.source == observerdef.AgentNamespace {
+			h.filteredAgentMetric = h.filteredMetric
+			return
+		}
+		h.filteredAgentMetric = h.telemetry.filteredMetrics.WithValues(observerdef.AgentNamespace)
 	})
-	if h.filteredMetricSource == source {
-		h.filteredMetric.Inc()
+
+	if source == observerdef.AgentNamespace {
+		h.filteredAgentMetric.Inc()
 		return
 	}
-
-	// datadog.* metrics are normalized to the agent namespace, rather than the
-	// source that created this handle. Keep the generic lookup for that uncommon
-	// alternate label value.
-	h.telemetry.recordFilteredMetric(source)
+	h.filteredMetric.Inc()
 }
 
 // ObserveLog observes a log message.
