@@ -172,7 +172,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 	// The cgroup memory stats are checked against the memcg stats flushes, which the memcg flush
 	// programs count. Without them the check would always pass, so the stats are not collected.
 	emitStats := uint64(0)
-	if cfg.EmitCgroupMemoryStats {
+	if cfg.EmitCgroupMemoryStats && progSpec.Type() == bpflib.Tracing {
 		if err := cgroupMemoryStatsSupported(); err != nil {
 			log.Warnf("cgroup memory stats disabled: %s", err)
 		} else if err := memcgFlushTrackingSupported(spec); err != nil {
