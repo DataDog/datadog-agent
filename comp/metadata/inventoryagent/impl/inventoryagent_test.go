@@ -30,7 +30,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
+	"github.com/DataDog/datadog-agent/comp/metadata/internal/agentmetadata"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"

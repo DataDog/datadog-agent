@@ -2481,6 +2481,127 @@ func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	}
 }
 
+func TestKubeAIInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		owners       []workloadmeta.KubernetesPodOwner
+		labels       map[string]string
+		wantWorkload string
+	}{
+		{
+			name: "KubeAI Model owner without labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "owner name takes priority over labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			labels: map[string]string{
+				"kubeai.org/model":                  "other-model",
+				"model":                             "legacy-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
+				kubernetes.KubeAppComponentLabelKey: "server",
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "KubeAI Model among other owners",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "ReplicaSet", Group: "apps", Name: "model-1234"},
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "Model from another API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
+			},
+		},
+		{
+			name:   "Model without API group",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Name: "other-model"}},
+		},
+		{
+			name: "other kind in KubeAI API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Other", Group: "kubeai.org", Name: "other-model"},
+			},
+		},
+		{
+			name:   "empty Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org"}},
+		},
+		{
+			name:   "blank Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org", Name: " "}},
+		},
+		{
+			name: "labels without Model owner",
+			labels: map[string]string{
+				"kubeai.org/model":                  "my-model",
+				"model":                             "my-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
+			},
+		},
+		{name: "no owners or labels"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "kubeai-server-container"
+			const podID = "kubeai-model-pod"
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podID},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "model-my-model", Namespace: "inference", Labels: tt.labels,
+					},
+					Owners:     tt.owners,
+					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "server"}},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			assert.Equal(t, types.NewEntityID(types.KubernetesPodUID, podID), tagInfos[0].EntityID)
+			assert.Equal(t, types.NewEntityID(types.ContainerID, containerID), tagInfos[1].EntityID)
+			for _, tagInfo := range tagInfos {
+				var inferenceTags []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+						inferenceTags = append(inferenceTags, tag)
+					}
+				}
+				var expected []string
+				if tt.wantWorkload != "" {
+					expected = []string{"inference_workload:" + tt.wantWorkload, "inference_workload_component:inference"}
+				}
+				assert.ElementsMatch(t, expected, inferenceTags)
+				for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
+	}
+}
+
 func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	for _, tt := range []struct {
 		name            string

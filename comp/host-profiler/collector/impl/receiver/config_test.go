@@ -55,6 +55,26 @@ func TestDefaultEnvVars(t *testing.T) {
 
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, strings.Join(defaultEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
+	require.Contains(t, strings.Split(cfg.EbpfCollectorConfig.IncludeEnvVars, ","), "DD_CRASHTRACKING_IS_MONITOR_PROCESS")
+}
+
+func TestAdditionalEnvVars(t *testing.T) {
+	for _, envVars := range []string{
+		"CUSTOM_ENV_VAR",
+		"CUSTOM_ENV_VAR,ANOTHER_ENV_VAR",
+	} {
+		t.Run(envVars, func(t *testing.T) {
+			cfg := defaultConfig(profilerName).(Config)
+			err := confmap.NewFromStringMap(map[string]any{
+				"include_env_vars": envVars,
+				"symbol_uploader":  map[string]any{"enabled": false},
+			}).Unmarshal(&cfg)
+			require.NoError(t, err)
+			require.NoError(t, cfg.Validate())
+
+			require.Equal(t, strings.Join(defaultEnvVars, ",")+","+envVars, cfg.EbpfCollectorConfig.IncludeEnvVars)
+		})
+	}
 }
 
 func TestSymbolUploader(t *testing.T) {
