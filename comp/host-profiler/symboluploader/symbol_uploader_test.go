@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"mime"
 	"mime/multipart"
@@ -26,6 +27,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/DataDog/jsonapi"
@@ -84,12 +86,12 @@ func (d *dummyProcess) CalculateMappingFileID(m *process.RawMapping) (libpf.File
 	return libpf.FileIDFromExecutableFile(m.Path)
 }
 
-func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (process.ReadAtCloser, error) {
+func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
 	return os.Open(m.Path)
 }
 
-func (d *dummyProcess) OpenELF(name string) (*pfelf.File, error) {
-	return pfelf.Open(name)
+func (d *dummyProcess) Open(name string) (fs.File, error) {
+	return os.Open(name)
 }
 
 func (d *dummyProcess) Close() error {
@@ -104,8 +106,8 @@ func (d *dummyProcess) GetExe() (libpf.String, error) {
 	return libpf.Intern(str), nil
 }
 
-func (d *dummyProcess) GetProcessMeta(_ process.MetaConfig) process.ProcessMeta {
-	return process.ProcessMeta{}
+func (d *dummyProcess) GetProcessMeta(_ []process.MetaEnricher) process.Meta {
+	return process.Meta{}
 }
 
 func newExecutableMetadata(t *testing.T, filePath string) *reporter.ExecutableMetadata {
@@ -682,6 +684,49 @@ func TestSymbolUpload(t *testing.T) {
 
 		checkUploadsWithEncoding(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false}, "zstd")
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
+	})
+}
+
+// memProcess serves its mappings from memory rather than from files, as
+// systemProcess does for the vdso.
+type memProcess struct {
+	dummyProcess
+	mappings fstest.MapFS
+}
+
+func (p *memProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
+	return p.mappings.Open(m.Path)
+}
+
+func TestElfFromMemoryMapping(t *testing.T) {
+	data, err := os.ReadFile(buildGo(t, t.TempDir(), "test", buildOptions{}))
+	require.NoError(t, err)
+
+	t.Run("vdso", func(t *testing.T) {
+		pr := &memProcess{mappings: fstest.MapFS{process.VdsoPathName: {Data: data}}}
+		m := &process.RawMapping{Path: process.VdsoPathName}
+		e, err := symbol.NewElfFromMapping(m, "", "", libpf.FileID{}, pr)
+		require.NoError(t, err)
+
+		// The vdso has no backing file, so its content is dumped to a temporary file.
+		assert.Empty(t, e.SymbolPathOnDisk())
+		assert.Equal(t, int64(len(data)), e.GetSize())
+		dump, err := e.DumpElfData()
+		require.NoError(t, err)
+		got, err := os.ReadFile(dump)
+		require.NoError(t, err)
+		assert.Equal(t, data, got)
+
+		e.Close()
+		_, err = os.Stat(dump)
+		assert.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("other mappings need a backing file", func(t *testing.T) {
+		pr := &memProcess{mappings: fstest.MapFS{"helloworld": {Data: data}}}
+		m := &process.RawMapping{Path: "helloworld"}
+		_, err := symbol.NewElfFromMapping(m, "", "", libpf.FileID{}, pr)
+		require.Error(t, err)
 	})
 }
 
