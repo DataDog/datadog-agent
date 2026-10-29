@@ -299,6 +299,8 @@ func run(
 
 	if err := startSystemProbe(rcclient, settings, deps); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
+			stopReporting := startConfigHealth(deps, false)
+			defer stopReporting()
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 			// http://supervisord.org/subprocess.html#process-states
@@ -307,6 +309,8 @@ func run(
 		}
 		return err
 	}
+	stopReporting := startConfigHealth(deps, true)
+	defer stopReporting()
 	return <-stopCh
 }
 
