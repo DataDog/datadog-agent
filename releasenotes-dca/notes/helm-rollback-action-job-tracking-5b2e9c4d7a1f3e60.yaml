@@ -6,9 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
-    Health Platform: the Docker socket permission health issue now scopes its
-    issue id to the host and the set of unreachable sockets, instead of a single
-    fixed id shared across the fleet. Each affected host now files its own issue,
-    so one host recovering no longer resolves the issue for the others.
+    The Private Action Runner Helm rollback action now detects the namespace
+    and service account of its rollback Job, so you no longer need to provide
+    them. It also tracks the rollback Job until it ends, and reports Jobs that
+    fail, get stuck, or time out, with the reason.
