@@ -655,6 +655,72 @@ api_key:
 #
 #   static_metrics_reporting_interval: "15s"
 
+#   # @param jobs - custom object - optional
+#   # Identify the training job a GPU workload belongs to. The Agent reads the
+#   # configured pod label, pod annotation, or environment variable and attaches
+#   # its value as a tag on GPU metrics.
+#
+#   jobs:
+
+#     # @param run - custom object - optional
+#     # Where to find the unique ID of a single training run.
+#
+#     run:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_RUN_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_RUN_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#     # @param group - custom object - optional
+#     # Where to find the ID of the group of related training runs.
+#
+#     group:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_GROUP_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the group ID, for example example/job-group-annotation. Leave empty to
+#       # disable group tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_GROUP_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#   # @param tracing - custom object - optional
+#   # Configure the tracers injected into GPU workloads. The fields match an
+#   # apm_config.instrumentation.targets entry of Single Step Instrumentation.
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_TRACING_ENABLED - boolean - optional - default: false
+#     # Set to true to inject tracers into GPU workloads.
+#
+#     enabled: false
+
+#     # @param tracer_versions - object - optional - default: {'c': '0'}
+#     # @env DD_GPU_TRACING_TRACER_VERSIONS - JSON object - optional - default: {'c': '0'}
+#     # Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+#     # Defaults to the latest major version 0 of the C tracer.
+#
+#     tracer_versions:
+#       c: "0.24.0"
+
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
 ## Timeout in milliseconds on calls to the Azure metadata endpoints.
@@ -1902,6 +1968,13 @@ api_key:
 #
 #   ignore_resources: ["(GET|POST) /healthcheck"]
 
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_APM_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the trace Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
 #   # @param log_file - string - optional - default: ""
 #   # @env DD_APM_LOG_FILE - string - optional - default: ""
 #   # The full path to the file where APM-agent logs are written.
@@ -2147,6 +2220,13 @@ api_key:
 #
 #   cmd_port: 6162
 
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_PROCESS_CONFIG_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the process Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
 #   # @param log_file - string - optional - default: "/var/log/datadog/process-agent.log"
 #   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: "/var/log/datadog/process-agent.log"
 #   # The full path to the file where process Agent logs are written.
@@ -2292,6 +2372,18 @@ api_key:
 #
 #     enabled: true
 
+#     # @param eudm_basic_tests_enabled - boolean - optional - default: true
+#     # @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_EUDM_BASIC_TESTS_ENABLED - boolean - optional - default: true
+#     # Enables basic Network Path Dynamic Tests for end-user devices. In end_user_device infrastructure mode, the Agent tests up to 20 eligible paths after the first five minutes and in each subsequent hour. Set to false to disable these tests. This setting has no effect in other infrastructure modes.
+#
+#     eudm_basic_tests_enabled: true
+
+#     # @param eudm_basic_candidate_limit - integer - optional - default: 80
+#     # @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_EUDM_BASIC_CANDIDATE_LIMIT - integer - optional - default: 80
+#     # Maximum number of eligible paths considered when selecting the 20 basic Network Path Dynamic Tests on an end-user device. Must be between 20 and 512. This setting has no effect in other infrastructure modes.
+#
+#     eudm_basic_candidate_limit: 80
+
 #   # @param collector - custom object - optional
 #   # Configuration related to Network Path Collector used for Network Path Dynamic Test
 #   # to monitor network traffic connections on the host.
@@ -2365,6 +2457,13 @@ api_key:
 #
 #       # Include specific domain
 #       # - match_domain: 'api.datadoghq.com'
+#       #   type: include
+#
+#       # To select dynamic paths only from chosen domains, exclude all domains first,
+#       # then add includes. The last matching filter wins.
+#       # - match_domain: '*'
+#       #   type: exclude
+#       # - match_domain: 'api.example.com'
 #       #   type: include
 
 #     # @param traceroute_queries - integer - optional - default: 3
@@ -3257,29 +3356,12 @@ api_key:
 ## The list of environment variables that are allowed to be resolved in check
 ## configurations.
 ## If the list is not set or is empty, the default behavior applies: all envs
-## are allowed except the ones bound to Agent settings (see
-## `ad_allowed_agent_env_vars`).
+## are allowed.
 ## This list only applies when `ad_disable_env_var_resolution` is set to false.
 #
 # ad_allowed_env_vars:
 #   - <ENV_VAR_1>
 #   - <ENV_VAR_2>
-
-## @param ad_allowed_agent_env_vars - list of strings - optional - default: ["DD_CLUSTER_NAME", "DD_ENV"]
-## @env DD_AD_ALLOWED_AGENT_ENV_VARS - space-separated list of strings - optional - default: "DD_CLUSTER_NAME DD_ENV"
-## The list of environment variables bound to Agent settings that are allowed
-## to be resolved in check configurations. Other environment variables bound
-## to Agent settings are not resolved because some of them hold Agent
-## credentials, like `DD_API_KEY`.
-## Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
-## `DD_ENV` if you still need them.
-## This list only applies when `ad_allowed_env_vars` is not set or is empty,
-## and `ad_disable_env_var_resolution` is set to false.
-#
-# ad_allowed_agent_env_vars:
-#   - DD_CLUSTER_NAME
-#   - DD_ENV
-#   - <ENV_VAR_1>
 
 ## @param ad_disable_env_var_resolution - boolean - optional - default: false
 ## @env DD_AD_DISABLE_ENV_VAR_RESOLUTION - boolean - optional - default: false
@@ -3393,6 +3475,18 @@ api_key:
 # container_labels_as_tags:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+
+## @param container_image_annotations_as_tags - object - optional - default: {}
+## @env DD_CONTAINER_IMAGE_ANNOTATIONS_AS_TAGS - JSON object of string to string - optional - default: {}
+## The Agent can extract container image OCI annotation values and set them as tags associated to a <TAG_KEY>.
+## These tags are attached to container image entities (appearing on the Container Images page) and are also
+## applied to the containers using the image, so they show up on container.* metrics.
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
+## runtimes: Containerd, CRI-O).
+#
+# container_image_annotations_as_tags:
+#   <ANNOTATION_NAME>: <TAG_KEY>
+#   <HIGH_CARDINALITY_ANNOTATION_NAME>: +<TAG_KEY>
 
 ###################################
 ## ECS integration Configuration ##
@@ -4908,3 +5002,27 @@ api_key:
 #     #  sensitive to forward to Datadog telemetry.
 #
 #     disable_detailed_telemetry: false
+
+## @param security_agent - custom object - optional
+## Settings specific to the security Agent process.
+#
+# security_agent:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SECURITY_AGENT_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the security Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
+## @param system_probe - custom object - optional
+## system-probe settings the core Agent owns and streams to system-probe.
+#
+# system_probe:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SYSTEM_PROBE_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for system-probe only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""

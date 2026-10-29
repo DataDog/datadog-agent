@@ -267,6 +267,12 @@
 #
 #   enable_ebpf_probes: false
 
+#   # @param driver_events_enabled - boolean - optional - default: false
+#   # @env DD_GPU_MONITORING_DRIVER_EVENTS_ENABLED - boolean - optional - default: false
+#   # Set to true to collect NVIDIA driver events from the kernel log.
+#
+#   driver_events_enabled: false
+
 ##################################################
 ## Datadog Agent Windows Crash Detection module ##
 ##################################################
