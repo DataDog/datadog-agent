@@ -13,8 +13,7 @@ normal exit 0
 console log
 env DD_LOG_TO_CONSOLE=false
 
-setuid dd-agent
-
+# Runs as root: initctl's private socket is root-only.
 script
   # datadog-agent-procmgr starts on the same event, so wait (bounded) for it. Without it,
   # split mode cannot run par-control, so fall back to the monolithic runner.
@@ -34,5 +33,8 @@ script
     export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
     echo "Starting Datadog Private Action Runner in monolithic mode"
   fi
-  exec {install_dir}/embedded/bin/privateactionrunner run --cfgpath={etc_dir}/datadog.yaml
+  # No --background: the runner keeps the pid Upstart tracks.
+  exec start-stop-daemon --start --chuid dd-agent \
+    --exec {install_dir}/embedded/bin/privateactionrunner -- \
+    run --cfgpath={etc_dir}/datadog.yaml
 end script
