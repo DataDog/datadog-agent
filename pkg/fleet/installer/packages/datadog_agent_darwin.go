@@ -11,13 +11,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var datadogAgentPackage = hooks{
+	preRemove:   preRemoveDatadogAgent,
 	postInstall: postInstallDatadogAgent,
 }
 
@@ -121,4 +125,32 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // control lists, and writes the install info itself, so none of that happens here.
 func postInstallDMG(ctx HookContext) error {
 	return installStableJobs(ctx)
+}
+
+// preRemoveDatadogAgent unloads the stable job set and removes its definitions, in the reverse of
+// the order they are loaded in. The .dmg's preinstall script runs it through the installed
+// version's `installer prerm --upgrade datadog-agent dmg`, before the new payload replaces it, so
+// the version being replaced takes down exactly the jobs it installed -- including any the next
+// version no longer knows about, whose definitions launchd would otherwise load again at boot.
+//
+// The definitions are removed on an upgrade too: both install paths write every definition from
+// scratch, so nothing is lost. Neither the package type nor ctx.Upgrade changes anything: tearing
+// down the jobs is the same whichever way the Agent was installed and whatever replaces it.
+//
+// Every step is allowed to fail: a job that is already gone is the desired outcome, and an error
+// here would only stop the next version from installing.
+func preRemoveDatadogAgent(ctx HookContext) error {
+	client := launchdClient()
+	for _, label := range slices.Backward(stableJobs) {
+		if err := client.Bootout(ctx, label); err != nil {
+			// As in loadStableJob, a job that can't be unloaded keeps its definition, so launchd is
+			// never left running a job whose file is gone, and the postinstall script reloads it.
+			log.Warnf("failed to unload %s: %v", label, err)
+			continue
+		}
+		if err := os.Remove(stableJob(label).Path()); err != nil && !os.IsNotExist(err) {
+			log.Warnf("failed to remove job definition %s: %v", label, err)
+		}
+	}
+	return nil
 }

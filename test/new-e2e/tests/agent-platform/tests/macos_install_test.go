@@ -770,7 +770,10 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 
 	m.Env().RemoteHost.CopyFileFromFS(agentmacos.Scripts, agentmacos.UninstallScriptPath, remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), "chmod +x "+remoteScriptPath)
-	macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
+	uninstallOutput := macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
+	assert.Contains(m.T(), uninstallOutput, "Running the installed version's pre-remove",
+		"the uninstall script should hand the teardown to the installed installer")
+	assert.NotContains(m.T(), uninstallOutput, "pre-remove failed")
 
 	// `launchctl bootout` returns as soon as it has requested the unload; launchd removes the
 	// job from its job table asynchronously, so a `launchctl print` run immediately afterwards

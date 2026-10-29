@@ -57,6 +57,8 @@ func (m *macosUpgradeSuite) SetupSuite() {
 // upgrades it to this pipeline's build with the pipeline's install script, as a customer would.
 // The released Agent installs its LaunchDaemons from the plist examples in etc/; after the upgrade
 // they must be the installer's:
+//   - the preinstall script handed the teardown to the released installer's pre-remove only if
+//     the released Agent ships one;
 //   - the installer postinst succeeded, with no fallback;
 //   - each stable job definition is the one the package ships, root:wheel 644, and loaded;
 //   - the Agent is healthy, and runs the upgraded version;
@@ -76,7 +78,9 @@ func (m *macosUpgradeSuite) TestUpgradeFromStable() {
 
 	stableVersion := macosTestClient.MustExecuteOn(t, macosAgentBinary+" version")
 	t.Logf("released Agent: %s", stableVersion)
-	if _, err := macosTestClient.Execute("sudo test -e " + macosInstallerBinary); err == nil {
+	_, err := macosTestClient.Execute("sudo test -e " + macosInstallerBinary)
+	stableShipsInstaller := err == nil
+	if stableShipsInstaller {
 		// Not a failure: once a release ships the installer, this still tests an upgrade, but no
 		// longer the one from LaunchDaemons installed from the plist examples.
 		t.Logf("the released Agent already ships %s: this upgrade does not start from the legacy LaunchDaemons", macosInstallerBinary)
@@ -98,7 +102,16 @@ func (m *macosUpgradeSuite) TestUpgradeFromStable() {
 	t.Logf("upgraded Agent: %s", upgradedVersion)
 	assert.NotEqual(t, stableVersion, upgradedVersion, "the Agent should run the pipeline build after the upgrade")
 
-	_, err := macosTestClient.Execute("sudo test -x " + macosInstallerBinary)
+	// The preinstall script hands the teardown to the released Agent's installer only if it ships
+	// one; otherwise it boots out the jobs it knows itself.
+	preinstallLog := macosReadRemoteFile(t, macosTestClient, macosPreinstallLogPath)
+	if stableShipsInstaller {
+		assert.Contains(t, preinstallLog, macosPreinstPreRemoveRan, "the preinstall script should hand the teardown to the released installer")
+	} else {
+		assert.NotContains(t, preinstallLog, macosPreinstPreRemoveRan, "the released Agent has no installer to hand the teardown to")
+	}
+
+	_, err = macosTestClient.Execute("sudo test -x " + macosInstallerBinary)
 	require.NoError(t, err, "the installer binary is not shipped in the package")
 	assertMacosInstallerPostinstSucceeded(t, macosTestClient)
 	assertMacosStableLaunchDaemons(t, macosTestClient)

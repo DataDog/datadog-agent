@@ -27,6 +27,11 @@ const (
 	// the postinstall script falls back to when the installer cannot install them.
 	macosShippedLaunchDaemonsDir = "/opt/datadog-agent/embedded/share/launchd"
 	macosPostinstallLogPath      = "/opt/datadog-agent/logs/postinstall.log"
+	macosPreinstallLogPath       = "/opt/datadog-agent/logs/preinstall.log"
+
+	// Lines omnibus/package-scripts/agent-dmg/preinst writes to its log.
+	macosPreinstPreRemoveRan    = "# Running the installed version's pre-remove"
+	macosPreinstPreRemoveFailed = "WARNING: The installed version's pre-remove"
 
 	// Lines omnibus/package-scripts/agent-dmg/postinst writes to its log.
 	macosPostinstInstallerSucceeded = "# The installer postinst succeeded"
@@ -276,6 +281,8 @@ sudo chmod 755 %[1]s`, macosInstallerBinary),
 
 // TestZYReinstallSameVersion reinstalls the same package over itself through the install script and
 // checks the installer reinstalls the LaunchDaemons idempotently:
+//   - the preinstall script hands the teardown to the installed installer's pre-remove, which
+//     succeeds;
 //   - the installer postinst succeeds, with no fallback;
 //   - each job definition is byte-for-byte what it was before, and still the shipped definition,
 //     root:wheel 644;
@@ -312,6 +319,9 @@ func (m *macosInstallSuite) TestZYReinstallSameVersion() {
 	require.False(t, t.Failed(), "the reinstall failed")
 
 	assert.Equal(t, versionBefore, macosTestClient.MustExecuteOn(t, macosAgentBinary+" version"), "the same version should have been reinstalled")
+	preinstallLog := macosReadRemoteFile(t, macosTestClient, macosPreinstallLogPath)
+	assert.Contains(t, preinstallLog, macosPreinstPreRemoveRan, "the preinstall script should hand the teardown to the installed installer")
+	assert.NotContains(t, preinstallLog, macosPreinstPreRemoveFailed)
 	assertMacosInstallerPostinstSucceeded(t, macosTestClient)
 	for _, label := range macosStableLaunchDaemons {
 		assert.Equal(t, definitionsBefore[label], macosReadRemoteFile(t, macosTestClient, macosLaunchDaemonPath(label)),

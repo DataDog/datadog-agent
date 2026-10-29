@@ -7,3 +7,6 @@ enhancements:
     definitions directly. The ``.plist.example`` copies of these LaunchDaemons are no longer
     shipped under ``/opt/datadog-agent/etc``. The Agent LaunchDaemon now passes its configuration
     directory, system-probe configuration path and PID file explicitly.
+    On upgrade, the ``.dmg`` now has the installed version's installer unload and remove the
+    LaunchDaemons it installed before the new version replaces it, and the macOS uninstall script
+    does the same before removing the Agent.

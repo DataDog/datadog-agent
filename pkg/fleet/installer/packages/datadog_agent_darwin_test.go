@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -221,6 +222,107 @@ func TestPostInstallDMGIsIdempotent(t *testing.T) {
 		content, err := os.ReadFile(filepath.Join(dir, label+".plist"))
 		require.NoError(t, err)
 		assert.Equal(t, first[label], content)
+	}
+}
+
+// TestDatadogAgentPackageHasPreRemove guards the .dmg preinstall handoff: `is-prerm-supported`
+// answers yes for every installer, and RunHook silently succeeds for a hook the package doesn't
+// define, so a release without this hook would let the next .dmg skip the teardown unnoticed.
+func TestDatadogAgentPackageHasPreRemove(t *testing.T) {
+	assert.NotNil(t, getHook(agentPackage, "preRemove"))
+}
+
+// TestPreRemoveUnloadsTheStableSet covers what `installer prerm --upgrade datadog-agent dmg` does
+// for the .dmg's preinstall script: it runs through RunHook, as the command does, unloads every
+// stable job in the reverse of the order they are loaded in, and removes their definitions.
+func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	for _, label := range stableJobs {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	ctx := testHookContext(t)
+	ctx.Hook = "preRemove"
+	ctx.PackageType = PackageTypeDMG
+	ctx.Upgrade = true
+
+	require.NoError(t, RunHook(ctx))
+
+	var bootedOut []string
+	for _, args := range *calls {
+		if len(args) == 2 && args[0] == "bootout" {
+			bootedOut = append(bootedOut, args[1])
+		}
+	}
+	var expected []string
+	for _, label := range slices.Backward(stableJobs) {
+		expected = append(expected, "system/"+label)
+	}
+	assert.Equal(t, expected, bootedOut)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+// TestPreRemoveKeepsTheDefinitionWhenBootoutFails pins that a job that can't be unloaded keeps its
+// definition, as in loadStableJob, and doesn't stop the rest of the set from being torn down.
+func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	for _, label := range stableJobs {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	failing := stableJobs[1]
+	stub := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := stub()
+		record := client.Runner
+		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			if len(args) == 2 && args[1] == "system/"+failing {
+				switch args[0] {
+				case "bootout":
+					return nil, errors.New("operation now in progress")
+				case "print":
+					return []byte("state = running"), nil
+				}
+			}
+			return record(ctx, name, args...)
+		}
+		return client
+	}
+
+	require.NoError(t, preRemoveDatadogAgent(testHookContext(t)))
+
+	for _, label := range stableJobs {
+		path := filepath.Join(dir, label+".plist")
+		if label == failing {
+			assert.FileExists(t, path)
+		} else {
+			assert.NoFileExists(t, path)
+		}
+	}
+}
+
+// TestPreRemoveIsIdempotent pins that the pre-remove succeeds on a host with nothing installed, and
+// behaves the same whatever the package type and whether it is an upgrade.
+func TestPreRemoveIsIdempotent(t *testing.T) {
+	for _, packageType := range []PackageType{PackageTypeDMG, PackageTypeOCI} {
+		for _, upgrade := range []bool{true, false} {
+			calls := stubLaunchd(t)
+			dir := stubJobDir(t)
+			ctx := testHookContext(t)
+			ctx.PackageType = packageType
+			ctx.Upgrade = upgrade
+
+			require.NoError(t, preRemoveDatadogAgent(ctx), "package type %s, upgrade %t", packageType, upgrade)
+
+			for _, label := range stableJobs {
+				assert.Contains(t, *calls, []string{"bootout", "system/" + label}, "package type %s, upgrade %t", packageType, upgrade)
+			}
+			entries, err := os.ReadDir(dir)
+			require.NoError(t, err)
+			assert.Empty(t, entries)
+		}
 	}
 }
 

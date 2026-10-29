@@ -75,6 +75,37 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
                 self.assertIn(f"launchctl bootout system/{label}", uninstall)
                 self.assertIn(plist, uninstall)
 
+    def test_preinst_hands_the_teardown_to_the_installed_installer(self):
+        # Only the installed version knows the LaunchDaemons it installed, so preinst runs its
+        # installer's pre-remove (preRemoveDatadogAgent in
+        # pkg/fleet/installer/packages/datadog_agent_darwin.go) before booting out the jobs it knows
+        # itself, as the rpm preinst does.
+        preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
+
+        supported = preinst.find('"$OLD_INSTALLER_BIN" is-prerm-supported')
+        handoff = preinst.find('"$OLD_INSTALLER_BIN" prerm --upgrade datadog-agent dmg')
+        fallback = preinst.find("echo '# Stopping running services'")
+        self.assertNotEqual(supported, -1)
+        self.assertNotEqual(handoff, -1)
+        self.assertNotEqual(fallback, -1)
+        self.assertLess(supported, handoff)
+        self.assertLess(handoff, fallback)
+
+    def test_uninstall_hands_the_teardown_to_the_installed_installer(self):
+        # The uninstall script runs the installed installer's pre-remove, without --upgrade, before
+        # booting out the jobs it knows itself, as preinst does on upgrade.
+        uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
+
+        supported = uninstall.find('"$installer_bin" is-prerm-supported')
+        handoff = uninstall.find('"$installer_bin" prerm datadog-agent dmg')
+        fallback = uninstall.find("Stopping system services")
+        self.assertNotEqual(supported, -1)
+        self.assertNotEqual(handoff, -1)
+        self.assertNotEqual(fallback, -1)
+        self.assertNotIn("prerm --upgrade", uninstall)
+        self.assertLess(supported, handoff)
+        self.assertLess(handoff, fallback)
+
     def test_windows_fips_packaging_does_not_expect_adp_sidecar_dlls(self):
         agent_installer = (
             REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
