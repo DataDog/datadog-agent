@@ -64,7 +64,7 @@ if [ ! -x $AGENTPATH ]; then
 	exit 0
 fi
 
-# /etc/default is root-owned. load-env reads the agent environment file after --chuid.
+# /etc/default is root-owned, so it is read here and not in load-env.
 if [ -r "/etc/default/${NAME}" ]; then
 	. "/etc/default/${NAME}"
 fi
@@ -84,7 +84,6 @@ do_start()
 	/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2
 	start-stop-daemon --start --test --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH" > /dev/null \
 		|| return 1
-	# load-env runs as dd-agent and reads the environment file there.
 	start-stop-daemon --start --background --make-pidfile --chuid "$AGENT_USER" --quiet \
 		--pidfile "$PIDFILE" --user "$AGENT_USER" \
 		--exec "$AGENTPATH" --startas /bin/sh -- \
