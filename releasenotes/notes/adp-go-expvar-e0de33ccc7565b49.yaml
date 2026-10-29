@@ -1,4 +1,10 @@
 ---
+upgrade:
+  - |
+    The ``openmetrics.d/adp_compat.yaml.example`` configuration example is no longer shipped. When
+    ADP is enabled, its DogStatsD, forwarder, and aggregator telemetry is now included in the Core
+    Agent's ``go_expvar`` values, so a separate OpenMetrics check against ADP is not needed and
+    would count ADP's values twice alongside ``go_expvar``.
 features:
   - |
     Expose DogStatsD, forwarder, and aggregator telemetry from the Agent Data Plane through the
