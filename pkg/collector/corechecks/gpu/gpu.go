@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	gpumodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -37,7 +38,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -61,6 +62,7 @@ var _ check.IssueAwareCheck = (*Check)(nil)
 type Check struct {
 	core.CheckBase
 	collectors          []nvidia.Collector               // collectors for NVML metrics
+	collectorBuilder    *nvidia.CollectorBuilder         // collectorBuilder builds the collectors and retries the ones that failed to be created
 	excludedDeviceUUIDs map[string]struct{}              // excludedDeviceUUIDs contains normalized device UUIDs whose metrics should not be collected
 	tagger              tagger.Component                 // Tagger instance to add tags to outgoing metrics
 	telemetry           *checkTelemetry                  // Internal telemetry metrics for the check
@@ -77,6 +79,7 @@ type Check struct {
 	strictIntervals     *nvidia.StrictIntervalProcessor  // strictIntervals timestamps metrics that must be emitted on a fixed cadence
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
+	nvmlIssueID         string                           // nvmlIssueID is the ID of the NVML issue being reported, kept stable across runs since the resource_id is resolved best-effort; only touched from the Run goroutine
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
@@ -86,6 +89,7 @@ type Check struct {
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
 	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
+	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil when gpu.unschedulable_nodes.enabled is false; refreshed before the collectors run
 }
 
 type checkTelemetry struct {
@@ -120,6 +124,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		deviceTags:          make(map[string][]string),
 		excludedDeviceUUIDs: make(map[string]struct{}),
 		deviceCache:         ddnvml.NewDeviceCache(),
+		collectorBuilder:    nvidia.NewCollectorBuilder(),
 		rateCalculator:      nvidia.NewRateCalculator(),
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 		sysprobeNvmlState:   newSysprobeNvmlStateNotifier(),
@@ -237,6 +242,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		}
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
+	c.nodeUnschedulable = nodeunschedulable.New(pkgconfigsetup.Datadog())
 
 	return nil
 }
@@ -252,12 +258,14 @@ func (c *Check) ensureInitCollectors() error {
 		return fmt.Errorf("failed to retrieve physical devices: %w", err)
 	}
 	curDevices := map[string]ddnvml.Device{}
+	var includedDevices []ddnvml.Device
 	for _, d := range devices {
 		deviceUUID := d.GetDeviceInfo().UUID
 		if c.isDeviceExcluded(deviceUUID) {
 			continue
 		}
 		curDevices[deviceUUID] = d
+		includedDevices = append(includedDevices, d)
 	}
 
 	// discard collectors of devices that are no more available
@@ -271,6 +279,16 @@ func (c *Check) ensureInitCollectors() error {
 		}
 	}
 
+	deps := &nvidia.CollectorDependencies{
+		DeviceEventsGatherer: c.deviceEvtGatherer,
+		SystemProbeCache:     c.spCache,
+		PRMCache:             c.prmCache,
+		NodeUnschedulable:    c.nodeUnschedulable,
+		Telemetry:            c.telemetry.collectorTelemetry,
+		Workloadmeta:         c.wmeta,
+		Config:               *c.gpuConfig,
+	}
+
 	// figure out which devices do not have a collector yet and build new ones accordingly
 	missingDevices := []ddnvml.Device{}
 	for uuid, d := range curDevices {
@@ -279,21 +297,10 @@ func (c *Check) ensureInitCollectors() error {
 		}
 	}
 	if len(missingDevices) > 0 {
-		newCollectors, err := nvidia.BuildCollectors(
-			missingDevices,
-			&nvidia.CollectorDependencies{
-				DeviceEventsGatherer: c.deviceEvtGatherer,
-				SystemProbeCache:     c.spCache,
-				PRMCache:             c.prmCache,
-				Telemetry:            c.telemetry.collectorTelemetry,
-				Workloadmeta:         c.wmeta,
-				Config:               *c.gpuConfig,
-			})
-		if err != nil {
-			return fmt.Errorf("failed to build NVML collectors: %w", err)
-		}
-		collectors = append(collectors, newCollectors...)
+		collectors = append(collectors, c.collectorBuilder.Build(missingDevices, deps)...)
 	}
+
+	collectors = append(collectors, c.collectorBuilder.RetryFailed(includedDevices, deps)...)
 
 	c.collectors = collectors
 	c.deviceTags = nvidia.GetDeviceTagsMapping(c.deviceCache, c.tagger)
@@ -350,7 +357,8 @@ func (c *Check) Run() error {
 	// error in the agent status.
 	if c.skipNVML {
 		if c.issueReporter != nil {
-			c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
+			c.resolveNvmlIssues("")
+			c.nvmlIssueID = ""
 		}
 		c.telemetry.metrics.deviceCount.Set(0)
 		return nil
@@ -451,15 +459,21 @@ func (c *Check) Run() error {
 		}
 	}
 
+	if c.nodeUnschedulable != nil {
+		c.nodeUnschedulable.Refresh(currentExecutionTime)
+	}
+
 	// start device event gatherer if we have not already
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
 			log.Warnf("error starting device events collection: %v", err)
+		} else {
+			// The (re)started gatherer has a fresh event set: reset the
+			// collectors' registration latch, or XID collection would silently
+			// stay off. Only on success: resetting also skips the collectors'
+			// registration backoff.
+			nvidia.ResetEventRegistrations(c.collectors)
 		}
-		// The (re)started gatherer has a fresh event set: reset the
-		// collectors' registration latch, or XID collection would silently
-		// stay off.
-		nvidia.ResetEventRegistrations(c.collectors)
 	}
 
 	// Attempt refreshing device events. Only the system-probe driver events
@@ -495,7 +509,6 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		return
 	}
 
-	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 	if !unavailable {
 		// Only mark the issue as resolved if we had a successful init of the
 		// NVML library. unavailable is only true after a certain amount of
@@ -504,7 +517,8 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		// (unavailable will be false at the start) even if the NVML library is
 		// not available still.
 		if nvmlInitSuccess {
-			c.issueReporter.ResolveIssue(issueID)
+			c.resolveNvmlIssues("")
+			c.nvmlIssueID = ""
 		}
 		return
 	}
@@ -517,10 +531,28 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		log.Warnf("failed to build GPU NVML health issue: %v", buildErr)
 		return
 	}
-	issue.Id = issueID
+	if c.nvmlIssueID == "" {
+		c.nvmlIssueID = c.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	}
+	issue.Id = c.nvmlIssueID
 
 	if err := c.issueReporter.ReportIssue(issue); err != nil {
 		log.Warnf("failed to report GPU NVML health issue: %v", err)
+		return
+	}
+	c.resolveNvmlIssues(c.nvmlIssueID)
+}
+
+// resolveNvmlIssues resolves every active NVML issue except keep. Active issues
+// are looked up by name rather than by recomputing the id, so that issues
+// persisted by a previous run (possibly with another discriminator, or the
+// legacy unscoped id) are resolved too.
+func (c *Check) resolveNvmlIssues(keep string) {
+	prefix := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
+	for _, issueID := range c.issueReporter.GetActiveIssueIDsByIssueName(gpuenvironment.IssueName) {
+		if issueID != keep && strings.HasPrefix(issueID, prefix) {
+			c.issueReporter.ResolveIssue(issueID)
+		}
 	}
 }
 
@@ -590,8 +622,10 @@ func (c *Check) resolveIssuesByName(issueName, keepID string) {
 	}
 }
 
-func gpuHealthIssueID(reason string) string {
-	return gpuenvironment.IssueID + ":" + reason
+// gpuHealthIssueID scopes the issue to the resource_id the outbound report
+// carries, so agents on different resources don't share the same id.
+func (c *Check) gpuHealthIssueID(reason string) string {
+	return gpuenvironment.IssueID + ":" + reason + ":" + c.issueReporter.ResourceID()
 }
 
 // PCI identifiers used to tell from the PCI inventory whether a host only has
@@ -907,7 +941,7 @@ func newSysprobeNvmlStateNotifier() sysprobeNvmlStateNotifier {
 			Released:   state,
 			TTLSeconds: int(ttl / time.Second),
 		}
-		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfig.GPUMonitoringModule)
+		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfigtypes.GPUMonitoringModule)
 		return err
 	}
 }
@@ -994,6 +1028,7 @@ func (c *Check) releaseNVML() {
 	// dead state.
 	c.deviceCache.Invalidate()
 	c.collectors = nil
+	c.collectorBuilder.Reset()
 	c.releaseWindowStart = time.Now()
 }
 

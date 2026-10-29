@@ -82,12 +82,10 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/discovery/module/splite",
-            "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/module/splite",
-            "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
         ],
         "//conditions:default": [],

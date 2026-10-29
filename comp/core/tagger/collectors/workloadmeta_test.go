@@ -1747,11 +1747,17 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 	collector.initK8sResourcesMetaAsTags(
 		map[string]map[string]string{
+			"pods": {
+				"team": "team",
+			},
 			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
 				"team": "workload_team",
 			},
 		},
 		map[string]map[string]string{
+			"pods": {
+				"workload-owner": "workload_owner",
+			},
 			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
 				"owner": "workload_owner",
 			},
@@ -1775,6 +1781,13 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 			},
 			QueueName:        "batch",
 			ClusterQueueName: "cluster-batch",
+			PodTemplateLabels: map[string]string{
+				"team":       "ccm-allocation",
+				"spark-role": "driver",
+			},
+			PodTemplateAnnotations: map[string]string{
+				"workload-owner": "gpu-monitoring",
+			},
 			PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 				{Name: "main", Flavors: map[string]string{"cpu": "default", "nvidia.com/gpu": "a100"}},
 				{Name: "sidecar", Flavors: map[string]string{"cpu": "default"}},
@@ -1802,6 +1815,8 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				"kueue_local_queue:batch",
 				"kueue_resource_flavor:a100",
 				"kueue_resource_flavor:default",
+				"team:ccm-allocation",
+				"workload_owner:gpu-monitoring",
 				"workload_owner:team-a",
 				"workload_team:ml",
 			},
@@ -1916,6 +1931,12 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 				},
 				QueueName:        "batch",
 				ClusterQueueName: "cluster-batch",
+				PodTemplateLabels: map[string]string{
+					"team": "ccm-allocation",
+				},
+				PodTemplateAnnotations: map[string]string{
+					"workload-owner": "gpu-monitoring",
+				},
 				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 					{Name: "other", Flavors: map[string]string{"nvidia.com/gpu": "h100"}},
@@ -1950,6 +1971,12 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 
 			cfg := configmock.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector.initK8sResourcesMetaAsTags(
+				map[string]map[string]string{
+					"pods": {"team": "team"},
+				},
+				nil,
+			)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
@@ -1987,7 +2014,9 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 					"kueue_cluster_queue:cluster-batch",
 					"kueue_local_queue:batch",
 					"kueue_resource_flavor:a100",
+					"team:ccm-allocation",
 				})
+				assert.NotContains(t, tagInfo.LowCardTags, "workload-owner:gpu-monitoring")
 				assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
 					"kueue_workload:job-sample",
 				})
@@ -2540,6 +2569,141 @@ func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cluster       string
+		serve         string
+		nodeType      string
+		group         string
+		image         string
+		wantWorkload  string
+		wantComponent string
+	}{
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated", wantComponent: "aggregated"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated", wantComponent: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated", wantComponent: "prefill"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "custom group", cluster: "serve", serve: "true", nodeType: "worker", group: "gpu-workers", wantWorkload: "serve", wantComponent: "gpu-workers"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no group", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no node type", cluster: "serve", serve: "true", group: "decode", wantWorkload: "serve"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "batch", cluster: "batch", nodeType: "worker", group: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head excluded from traffic", cluster: "serve", serve: "false", nodeType: "head", wantWorkload: "serve", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no cluster", serve: "true", nodeType: "worker", group: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "unrelated pod"},
+		{name: "generic Ray Serve", image: "rayproject/ray:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", group: "decode"},
+		{name: "Ray ML", image: "rayproject/ray-ml:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "custom registry", image: "example.com/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom namespace", image: "docker.io/example/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom Ray LLM image", image: "rayproject/ray-llm-custom:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "private Ray LLM service", image: "example.com/team/llm/apps/ray-llm-service:vllm-stable-nydus@sha256:0123456789abcdef", cluster: "nlq-mixed-nqlnx", serve: "true", nodeType: "worker", group: "a10", wantWorkload: "nlq-mixed", wantComponent: "a10"},
+		{name: "vLLM image", image: "vllm/vllm-openai:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom vLLM image", image: "example.com/team/custom-vllm-server:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "LLM registry only", image: "ray-llm.example.com/team/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM namespace only", image: "example.com/vllm/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM tag only", image: "example.com/team/ray:vllm-stable-nydus", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "generic LLM image", image: "example.com/team/llm-training:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "vLLM without Serve", image: "vllm/vllm-openai:latest", cluster: "batch", nodeType: "worker"},
+		{name: "missing image", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "explicit Docker Hub", image: "docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "Docker Hub index", image: "index.docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "Docker Hub registry", image: "registry-1.docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "digest", image: "rayproject/ray-llm@sha256:0123456789abcdef", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "ray-container"
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+			var image workloadmeta.ContainerImage
+			if tt.image != "" {
+				var err error
+				image, err = workloadmeta.NewContainerImage("", tt.image)
+				require.NoError(t, err)
+			}
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			pod := &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "ray-pod"},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "ray-pod", Namespace: "ray",
+					Labels: map[string]string{
+						kubernetes.RayClusterLabelKey:   tt.cluster,
+						kubernetes.RayServeLabelKey:     tt.serve,
+						kubernetes.RayNodeTypeLabelKey:  tt.nodeType,
+						kubernetes.RayNodeGroupLabelKey: tt.group,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "ray-worker", Image: image}},
+			}
+			check := func(wantWorkload, wantComponent string) {
+				tagInfos := collector.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: true})
+				require.Len(t, tagInfos, 2)
+				for _, tagInfo := range tagInfos {
+					var inferenceTags []string
+					for _, tag := range tagInfo.LowCardTags {
+						if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+							inferenceTags = append(inferenceTags, tag)
+						}
+					}
+					var expected []string
+					if wantWorkload != "" {
+						expected = append(expected, "inference_workload:"+wantWorkload)
+					}
+					if wantComponent != "" {
+						expected = append(expected, "inference_workload_component:"+wantComponent)
+					}
+					assert.ElementsMatch(t, expected, inferenceTags)
+					for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+						assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+					}
+				}
+			}
+			if tt.serve == "" {
+				delete(pod.Labels, kubernetes.RayServeLabelKey)
+			}
+			check(tt.wantWorkload, tt.wantComponent)
+			// Changes to traffic readiness must not change workload identity.
+			if tt.serve != "" {
+				pod.Labels[kubernetes.RayServeLabelKey] = "false"
+				check(tt.wantWorkload, tt.wantComponent)
+				pod.Labels[kubernetes.RayServeLabelKey] = "true"
+				check(tt.wantWorkload, tt.wantComponent)
+			}
+			// A change to a generic Ray image must remove the inference tags.
+			pod.Containers[0].Image = workloadmeta.ContainerImage{Name: "rayproject/ray"}
+			check("", "")
+			pod.Containers[0].Image = image
+			// Removing RayService identity must remove the inference tags.
+			delete(pod.Labels, kubernetes.RayServeLabelKey)
+			check("", "")
+		})
+	}
+}
+
+func TestRayLLMContainerIdentification(t *testing.T) {
+	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{}))
+	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{
+		Containers: []workloadmeta.OrchestratorContainer{
+			{Name: "ray-worker", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
+			{Name: "sidecar", Image: workloadmeta.ContainerImage{Name: "vllm/vllm-openai"}},
+		},
+	}))
+	for _, name := range []string{"ray-head", "ray-worker", "llm", "custom-ray"} {
+		assert.True(t, isRayLLMPod(&workloadmeta.KubernetesPod{
+			Containers: []workloadmeta.OrchestratorContainer{
+				{Name: name, Image: workloadmeta.ContainerImage{Name: "rayproject/ray-llm"}},
+				{Name: "autoscaler", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
+			},
+		}))
 	}
 }
 
@@ -4468,6 +4632,7 @@ func TestHandleGPU(t *testing.T) {
 	}
 
 	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+	numaNode := 0
 
 	tests := []struct {
 		name     string
@@ -4487,6 +4652,13 @@ func TestHandleGPU(t *testing.T) {
 				PCIBusID:          "0000:00:1e.0",
 				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
 				FabricCliqueID:    7,
+				ChassisSerial:     "1821825880999",
+				SlotNumber:        20,
+				TrayIndex:         10,
+				ModuleID:          2,
+				BoardSerial:       "1650825051135",
+				NUMANode:          &numaNode,
+				FabricGUID:        "0x8505c454f59170d4",
 				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
@@ -4509,6 +4681,13 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_nvlink_capable:true",
 						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
 						"gpu_fabric_clique_id:7",
+						"gpu_chassis_serial:1821825880999",
+						"gpu_slot_number:20",
+						"gpu_tray_index:10",
+						"gpu_module_id:2",
+						"gpu_board_serial:1650825051135",
+						"gpu_numa_node:0",
+						"gpu_fabric_guid:0x8505c454f59170d4",
 					},
 					StandardTags: []string{},
 				},
@@ -5909,6 +6088,30 @@ func TestHandleProcess(t *testing.T) {
 				require.Len(t, result, 1)
 				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
 			}
+		})
+	}
+}
+
+func TestRayClusterWorkloadName(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		want string
+	}{
+		{name: "nlq-mixed-nqlnx", want: "nlq-mixed"},
+		{name: "nlq-mixed-24567", want: "nlq-mixed"},
+		{name: "nlq-mixed-nqlnx-bcdfg", want: "nlq-mixed-nqlnx"},
+		{name: "nlq-mixed", want: "nlq-mixed"},
+		{name: "nlq-mixed-abcde", want: "nlq-mixed-abcde"},
+		{name: "nlq-mixed-12345", want: "nlq-mixed-12345"},
+		{name: "nlq-mixed-bcdf", want: "nlq-mixed-bcdf"},
+		{name: "nlq-mixed-bcdfgh", want: "nlq-mixed-bcdfgh"},
+		{name: "nlq-mixed-", want: "nlq-mixed-"},
+		{name: "-bcdfg", want: "-bcdfg"},
+		{name: "bcdfg", want: "bcdfg"},
+		{name: "", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, rayClusterWorkloadName(tt.name))
 		})
 	}
 }

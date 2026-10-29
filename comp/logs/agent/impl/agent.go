@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -57,6 +58,7 @@ const (
 	invalidProcessingRules   = "invalid_global_processing_rules"
 	invalidEndpoints         = "invalid_endpoints"
 	invalidFingerprintConfig = "invalid_fingerprint_config"
+	invalidTagFilters        = "invalid_global_tag_filters"
 	intakeTrackType          = "logs"
 
 	// Log messages
@@ -118,6 +120,13 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+
+	tagFilterReport tagfilter.Report
+	tagFilters      *tagfilter.Filters
+	// tag filters are immutable configuration and compile once, including across
+	// transport-only pipeline restarts
+	tagFiltersConfigured    bool
+	tagFilterSubscriberDone chan struct{}
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -222,17 +231,27 @@ func (a *logAgent) start(context.Context) error {
 // This is used to switch between transport protocols (TCP to HTTP)
 // without disrupting the entire agent.
 func (a *logAgent) setupAgent() error {
-	processingRules, fingerprintConfig, err := a.configureAgent()
+	processingRules, tagFilters, fingerprintConfig, err := a.configureAgent()
 	if err != nil {
 		return err
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
+	a.SetupPipeline(processingRules, tagFilters, a.wmeta, a.integrationsLogs, *fingerprintConfig)
 	return nil
 }
 
+func (a *logAgent) reportTagFilterWarnings() {
+	for i, warning := range a.tagFilterReport.Warnings {
+		status.AddGlobalWarning(fmt.Sprintf("%s_warning_%d", invalidTagFilters, i), warning)
+	}
+	for _, rejected := range a.tagFilterReport.Rejected {
+		status.AddGlobalWarning(
+			fmt.Sprintf("%s_rejected_%s", invalidTagFilters, rejected.Pattern), rejected.Reason)
+	}
+}
+
 // configureAgent validates and retrieves configuration settings needed for agent operation.
-func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
+func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *tagfilter.Filters, *types.FingerprintConfig, error) {
 	if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
 	} else {
@@ -250,7 +269,7 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
-		return nil, nil, errors.New(message)
+		return nil, nil, nil, errors.New(message)
 	}
 
 	if config.HasMultiLineRule(processingRules) {
@@ -262,10 +281,15 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 	if err != nil {
 		message := fmt.Sprintf("Invalid fingerprint_config setting: %v", err)
 		status.AddGlobalError(invalidFingerprintConfig, message)
-		return nil, nil, errors.New(message)
+		return nil, nil, nil, errors.New(message)
 	}
 
-	return processingRules, fingerprintConfig, nil
+	if !a.tagFiltersConfigured {
+		a.tagFiltersConfigured = true
+		a.configureTagFilters()
+	}
+
+	return processingRules, a.tagFilters, fingerprintConfig, nil
 }
 
 // Start starts all the elements of the data pipeline
@@ -274,6 +298,8 @@ func (a *logAgent) startPipeline() {
 
 	// setup the status
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
+
+	a.startTagFiltering()
 
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
@@ -308,6 +334,10 @@ func (a *logAgent) stop(context.Context) error {
 
 	// Stop HTTP retry loop if running
 	a.stopHTTPRetry()
+
+	if a.tagFilterSubscriberDone != nil {
+		close(a.tagFilterSubscriberDone)
+	}
 
 	status.Clear()
 

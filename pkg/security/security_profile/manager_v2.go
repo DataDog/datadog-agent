@@ -14,7 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"slices"
 	"strconv"
 	"sync"
@@ -86,9 +85,6 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	}
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
-	}
-	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		size += probes.SyscallSamplesMaxEntries
 	}
 	if size == 0 {
 		// lru.New rejects non-positive sizes.
@@ -401,7 +397,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	}
 
 	// Register listener for cgroup creations to exclude host/systemd cgroups from the syscall sampler
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
 			seclog.Errorf("failed to register cgroup creation listener: %v", err)
 		} else {
@@ -493,7 +489,7 @@ func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
 
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		inode := cgce.GetCGroupInode()
 		if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Debugf("couldn't remove cgroup inode %d from exclusion map: %v", inode, err)
@@ -669,7 +665,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -1094,6 +1090,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
+	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
+		imageTag = "latest"
+	}
+	// Evict surplus versions before the size check, since eviction can free enough space.
+	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
+
 	// Build workloadID for cache entry lookup
 	workloadID := getWorkloadIDFromEvent(event)
 
@@ -1111,14 +1116,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
 	}
-
-	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if imageTag == "" {
-		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
-		imageTag = "latest"
-	}
-	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
 	// Insert the event into the profile's activity tree
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
@@ -1140,8 +1137,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 			sampleCookie = event.Bind.SampleCookie
 		case model.ConnectEventType:
 			sampleCookie = event.Connect.SampleCookie
-		case model.SyscallsEventType:
-			sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
 		}
 		if sampleCookie != 0 {
 			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
@@ -1229,6 +1224,10 @@ func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 
 	if root := activity_tree.FindRootProcess(pc); root != nil && root.Process.MntNS != 0 {
 		return root.Process.MntNS, true
+	}
+
+	if activity_tree.IsContainerRuntime(pc) {
+		return 0, false
 	}
 
 	return pc.Process.MntNS, false
@@ -1358,7 +1357,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
 	)
 
 	// Try to load from local storage
@@ -1411,7 +1409,6 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
@@ -1489,38 +1486,14 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 	return nil
 }
 
-// ensureVersionContext creates a version context for the given tag if it doesn't exist, with the tags of the
-// workload that introduced this tag
+// ensureVersionContext creates or refreshes a version context and evicts surplus versions.
+// Existing contexts keep the tags of the workload that introduced the version.
 func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
-	if _, ok := secprof.GetVersionContext(tag); ok {
-		return
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	evictedVersions := secprof.PrepareNewVersion(tag, workloadTags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, nowNano)
+	if len(evictedVersions) > 0 {
+		m.purgeCookiesForProfile(secprof, evictedVersions...)
 	}
-
-	now := time.Now()
-	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-
-	vCtx := &profile.VersionContext{
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           slices.Clone(workloadTags),
-	}
-
-	secprof.AddVersionContext(tag, vCtx)
-}
-
-// seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
-func (m *ManagerV2) seededSyscalls() []uint32 {
-	if !m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		return nil
-	}
-	ids := utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH)
-	out := make([]uint32, len(ids))
-	for i, id := range ids {
-		out[i] = uint32(id)
-	}
-	return out
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
@@ -1678,7 +1651,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+		pce := pr.Get(pid)
 		if pce == nil {
 			continue
 		}
@@ -1753,7 +1726,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+			pce := pr.Get(pid)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
@@ -1793,6 +1766,13 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	m.sampleRefreshHits.Inc()
 
+	now := time.Now()
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+	if !entry.profile.UpdateVersionContextLastSeen(entry.imageTag, nowNano) {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
 
@@ -1806,17 +1786,19 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 		return
 	}
 
-	now := time.Now()
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
 	}
 }
 
-func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+// purgeCookiesForProfile removes cookies for a profile, optionally restricted to the given versions.
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile, imageTags ...string) {
 	for _, key := range m.sampleCookieMap.Keys() {
 		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
-			m.sampleCookieMap.Remove(key)
+			if len(imageTags) == 0 || slices.Contains(imageTags, entry.imageTag) {
+				m.sampleCookieMap.Remove(key)
+			}
 		}
 	}
 }

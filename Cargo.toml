@@ -25,7 +25,7 @@ base64 = "0.23"
 cap-std = "4.0"
 # Keep only the `dd-sds` feature and disable default features so we pull in just
 # the necessary dependencies and avoid shipping the third-party checkers.
-dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20260807-dd8be015454d", default-features = false, features = ["dd-sds"] }
+dd_sds = { package = "dd-sensitive-data-scanner", version = "=0.1.0-20261022-f906e9b36550", default-features = false, features = ["dd-sds"] }
 caps = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
@@ -42,7 +42,7 @@ prost-build = "0.14"
 prost-types = "0.14"
 protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
-lru = { version = "0.18.0", default-features = false }
+lru = { version = "0.19.0", default-features = false }
 memchr = "2.7.6"
 nom = "8.0"
 normalize-path = "0.2"

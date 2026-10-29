@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	tcpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/tcp"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -62,6 +63,7 @@ type provider struct {
 	numberOfPipelines         int
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	processingRules           []*config.ProcessingRule
+	tagFilters                *tagfilter.Filters
 	endpoints                 *config.Endpoints
 	sender                    sender.PipelineComponent
 
@@ -87,6 +89,7 @@ func NewProvider(
 	sink sender.Sink,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	status statusinterface.Status,
@@ -110,6 +113,7 @@ func NewProvider(
 		numberOfPipelines,
 		diagnosticMessageReceiver,
 		processingRules,
+		tagFilters,
 		endpoints,
 		hostname,
 		cfg,
@@ -224,6 +228,7 @@ func newProvider(
 	numberOfPipelines int,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters,
 	endpoints *config.Endpoints,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
@@ -235,6 +240,7 @@ func newProvider(
 		numberOfPipelines:         numberOfPipelines,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		processingRules:           processingRules,
+		tagFilters:                tagFilters,
 		endpoints:                 endpoints,
 		sender:                    senderImpl,
 		pipelines:                 []*Pipeline{},
@@ -259,6 +265,7 @@ func (p *provider) Start() {
 	for i := 0; i < p.numberOfPipelines; i++ {
 		pipeline := NewPipeline(
 			p.processingRules,
+			p.tagFilters,
 			p.endpoints,
 			p.sender,
 			p.diagnosticMessageReceiver,

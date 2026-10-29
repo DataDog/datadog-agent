@@ -64,6 +64,12 @@ class TestCompareInventory(unittest.TestCase):
         self.assertEqual(changed['/a/b/c'].current, changed_file)
         self.assertEqual(changed['/a/b/c'].previous, old_file)
 
+    def test_empty_file_growing_is_a_size_change(self):
+        empty = FileInfo(relative_path='/a/empty', size_bytes=0, is_symlink=False, chmod=0o755, owner=1000, group=1000)
+        grown = FileInfo(relative_path='/a/empty', size_bytes=10, is_symlink=False, chmod=0o755, owner=1000, group=1000)
+        _, _, changed = _compare_inventories([empty], [grown])
+        self.assertTrue(changed['/a/empty'].flags & FileChange.Flags.Size)
+
     def test_modified_filesize(self):
         changed_inventory = self.default_inventory.copy()
         changed_file_ignored = FileInfo(
@@ -83,6 +89,23 @@ class TestCompareInventory(unittest.TestCase):
         self.assertFalse(changed['/a/b/d'].flags & ~FileChange.Flags.Size)
         self.assertEqual(changed['/a/b/d'].current, changed_file_detected)
         self.assertEqual(changed['/a/b/d'].size_percent, 100)
+
+    def test_modified_filesize_decrease(self):
+        changed_inventory = self.default_inventory.copy()
+        changed_file_ignored = FileInfo(
+            relative_path='/a/b/c', size_bytes=1000, is_symlink=False, chmod=0o755, owner=1000, group=1000
+        )
+        changed_file_detected = FileInfo(
+            relative_path='/a/b/d', size_bytes=512, is_symlink=False, chmod=0o755, owner=1000, group=1000
+        )
+        changed_inventory[0] = changed_file_ignored
+        changed_inventory[1] = changed_file_detected
+        added, removed, changed = _compare_inventories(self.default_inventory, changed_inventory)
+        self.assertEqual(len(added), 0)
+        self.assertEqual(len(removed), 0)
+        self.assertEqual(len(changed), 1)
+        self.assertTrue(changed['/a/b/d'].flags & FileChange.Flags.Size)
+        self.assertEqual(changed['/a/b/d'].size_percent, -50)
 
     def test_modified_owner_groups(self):
         changed_inventory = self.default_inventory.copy()

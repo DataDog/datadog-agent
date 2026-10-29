@@ -19,7 +19,11 @@ package(
     ],
 )
 
-VERSION = "1.4.5"
+# RELEASE names the release of github.com/0intro/openscap that
+# openscap.MODULE.bazel downloads, VERSION the upstream release it holds.
+RELEASE = "1.4.6-dd.20261022.3"
+
+VERSION = RELEASE.split("-")[0]
 
 package_metadata(
     name = "package_metadata",
@@ -28,9 +32,9 @@ package_metadata(
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
-        download_url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz",
+        download_url = "https://github.com/0intro/openscap/releases/download/v{version}/openscap-{version}.tar.gz",
         package = "openscap",
-        version = VERSION,
+        version = RELEASE,
     ),
 )
 
@@ -648,7 +652,7 @@ dd_cc_packaged(
     ],
     dest_dir = "embedded/lib",
     input = ":openscap",
-    version = "33.1.4",
+    version = "33.1.5",
     visibility = ["//visibility:public"],
 )
 
@@ -672,7 +676,7 @@ dd_cc_packaged(
     name = "openscap_sce_pkg",
     dest_dir = "embedded/lib",
     input = ":openscap_sce",
-    version = "33.1.4",
+    version = "33.1.5",
     visibility = ["//visibility:public"],
 )
 

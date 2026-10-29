@@ -90,6 +90,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later
 	bundle.Ch = nil
+	bundle.EnqueuedAt = time.Time{}
 	actual := bundle
 	assert.Equal(t, expected, actual)
 	close(stopStore)
@@ -158,6 +159,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later
 	bundle.Ch = nil
+	bundle.EnqueuedAt = time.Time{}
 	actual := bundle
 	assert.Equal(t, expected, actual)
 	close(stopStore)

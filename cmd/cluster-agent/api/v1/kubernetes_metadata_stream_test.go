@@ -691,6 +691,12 @@ func TestProcessKueueWorkloadEvents(t *testing.T) {
 				},
 				QueueName:        "gpu",
 				ClusterQueueName: "team-a-gpu",
+				PodTemplateLabels: map[string]string{
+					"team": "ccm-allocation",
+				},
+				PodTemplateAnnotations: map[string]string{
+					"workload-owner": "gpu-monitoring",
+				},
 				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 				},
@@ -711,6 +717,12 @@ func TestProcessKueueWorkloadEvents(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"cost-center": "1234",
 	}, entry.annotations)
+	assert.Equal(t, map[string]string{
+		"team": "ccm-allocation",
+	}, entry.podTemplateLabels)
+	assert.Equal(t, map[string]string{
+		"workload-owner": "gpu-monitoring",
+	}, entry.podTemplateAnnotations)
 	assert.Equal(t, []kueuePodSetAssignmentEntry{
 		{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 	}, entry.podSetAssignments)
@@ -749,11 +761,12 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 	}
 	current := map[string]kueueWorkloadEntry{
 		"team-a/job-a": {
-			namespace:        "team-a",
-			name:             "job-a",
-			queueName:        "gpu",
-			clusterQueueName: "team-a-gpu",
-			labels:           map[string]string{"team": "new"},
+			namespace:         "team-a",
+			name:              "job-a",
+			queueName:         "gpu",
+			clusterQueueName:  "team-a-gpu",
+			labels:            map[string]string{"team": "new"},
+			podTemplateLabels: map[string]string{"team": "ccm-allocation"},
 			podSetAssignments: []kueuePodSetAssignmentEntry{
 				{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 			},
@@ -764,11 +777,12 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 
 	assert.ElementsMatch(t, []*pb.KueueWorkload{
 		{
-			Namespace:    "team-a",
-			Name:         "job-a",
-			Queue:        "gpu",
-			ClusterQueue: "team-a-gpu",
-			Labels:       map[string]string{"team": "new"},
+			Namespace:         "team-a",
+			Name:              "job-a",
+			Queue:             "gpu",
+			ClusterQueue:      "team-a-gpu",
+			Labels:            map[string]string{"team": "new"},
+			PodTemplateLabels: map[string]string{"team": "ccm-allocation"},
 			PodSetAssignments: []*pb.KueuePodSetAssignment{
 				{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 			},

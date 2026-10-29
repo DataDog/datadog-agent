@@ -33,6 +33,7 @@ go_library(
         "//comp/forwarder/eventplatform/fx",
         "//comp/forwarder/eventplatformreceiver/impl",
         "//comp/networkpath/traceroute/fx-remote",
+        "//comp/networkpcap/uploader/fx",
         "//comp/privateactionrunner/def",
         "//comp/privateactionrunner/fx",
         "//comp/remote-config/rcclient/def",
