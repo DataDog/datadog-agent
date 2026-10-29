@@ -63,7 +63,6 @@ build do
             # agent.build runs; none are needed at runtime.
             delete "#{install_dir}/embedded/include/libdd_rc.h"
             delete "#{install_dir}/embedded/lib/librc_x509_ffi.a"
-            delete "#{install_dir}/embedded/lib/libaws_lc_fips_crypto.a"
         end
 
         # Size cleanups for the Windows embedded Python (embedded3), mirroring
