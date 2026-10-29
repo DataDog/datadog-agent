@@ -66,10 +66,6 @@ type configManager interface {
 
 	// stop tears down background discovery worker.
 	stop()
-
-	// discoveredChanges returns a channel that emits ConfigChanges produced
-	// asynchronously by the configuration-discovery worker.
-	discoveredChanges() <-chan integration.ConfigChanges
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -92,6 +88,10 @@ type reconcilingConfigManager struct {
 
 	// m synchronizes all operations on this struct.
 	m sync.Mutex
+
+	// publish is called with m held, after each mutation. It must only enqueue
+	// scheduler work and must not call back into the manager. It must not be nil.
+	publish func(integration.ConfigChanges, map[checkid.ID]checkid.ID)
 
 	// activeConfigs contains an entry for each config from the config
 	// providers, keyed by its digest.  This is the "base truth" of configs --
@@ -145,8 +145,9 @@ type reconcilingConfigManager struct {
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer, telStore *actelemetry.Store) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer, telStore *actelemetry.Store, publish func(integration.ConfigChanges, map[checkid.ID]checkid.ID)) configManager {
 	cm := &reconcilingConfigManager{
+		publish:                publish,
 		activeConfigs:          map[string]integration.Config{},
 		activeServices:         map[string]serviceAndADIDs{},
 		templatesByADID:        newMultimap(),
@@ -164,9 +165,10 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 }
 
 // processNewService implements configManager#processNewService.
-func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) (result integration.ConfigChanges) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
+	defer func() { cm.publish(result, nil) }()
 
 	svcID := svc.GetServiceID()
 	if _, found := cm.activeServices[svcID]; found {
@@ -197,9 +199,10 @@ func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) int
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) (result integration.ConfigChanges) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
+	defer func() { cm.publish(result, nil) }()
 
 	svcID := svc.GetServiceID()
 	svcAndADIDs, found := cm.activeServices[svcID]
@@ -228,11 +231,12 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) int
 }
 
 // processNewConfig implements configManager#processNewConfig.
-func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) (integration.ConfigChanges, map[checkid.ID]checkid.ID) {
+func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) (result integration.ConfigChanges, changedIDsOfSecretsWithConfigs map[checkid.ID]checkid.ID) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
+	defer func() { cm.publish(result, changedIDsOfSecretsWithConfigs) }()
 
-	changedIDsOfSecretsWithConfigs := make(map[checkid.ID]checkid.ID)
+	changedIDsOfSecretsWithConfigs = make(map[checkid.ID]checkid.ID)
 
 	digest := config.Digest()
 	if _, found := cm.activeConfigs[digest]; found {
@@ -301,9 +305,10 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
-func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) (result integration.ConfigChanges) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
+	defer func() { cm.publish(result, nil) }()
 
 	var allChanges integration.ConfigChanges
 	for _, config := range configs {
