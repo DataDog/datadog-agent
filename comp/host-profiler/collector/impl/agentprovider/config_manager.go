@@ -109,15 +109,13 @@ func newConfigManager(config config.Component) configManager {
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 
-	symbolUploaderOptions := make(confMap)
-	for _, option := range []string{
-		"enabled", "upload_dynamic_symbols", "upload_gopclntab", "use_http2",
-		"symbol_query_interval", "dry_run", "disable_debug_section_compression",
-	} {
-		key := "hostprofiler.symbol_uploader." + option
-		if config.IsConfigured(key) {
-			symbolUploaderOptions[option] = config.Get(key)
-		}
+	symbolUploaderOptions := config.GetStringMap("hostprofiler.symbol_uploader.options")
+	if symbolUploaderOptions == nil {
+		symbolUploaderOptions = make(confMap)
+	}
+	// An explicitly configured enabled setting takes precedence over the options map.
+	if config.IsConfigured("hostprofiler.symbol_uploader.enabled") {
+		symbolUploaderOptions["enabled"] = config.Get("hostprofiler.symbol_uploader.enabled")
 	}
 
 	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
