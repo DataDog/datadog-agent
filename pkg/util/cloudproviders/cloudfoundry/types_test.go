@@ -454,3 +454,12 @@ func TestIsAllowedTag(t *testing.T) {
 	result = isAllowedTag("includeExcludeTag", includeList, excludeList)
 	assert.EqualValues(t, false, result)
 }
+
+func TestExtractTagsFromAppMeta(t *testing.T) {
+	tags := extractTagsFromAppMeta(map[string]*string{
+		"tags.datadoghq.com/env":     strPtr("prod"),
+		"tags.datadoghq.com/service": nil,
+		"team":                       strPtr("ignored"),
+	})
+	assert.Equal(t, []string{"env:prod"}, tags)
+}

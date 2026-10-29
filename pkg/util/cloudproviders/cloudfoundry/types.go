@@ -279,10 +279,10 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 		} else {
 			appName = ccApp.Name
 
-			labels, annotations := metadataToMaps(ccApp.Metadata)
-			tags := extractTagsFromAppMeta(labels)
-			tags = append(tags, extractTagsFromAppMeta(annotations)...)
-			customTags = append(customTags, tags...)
+			if ccApp.Metadata != nil {
+				customTags = append(customTags, extractTagsFromAppMeta(ccApp.Metadata.Labels)...)
+				customTags = append(customTags, extractTagsFromAppMeta(ccApp.Metadata.Annotations)...)
+			}
 
 			spaceGUID = appSpaceGUID(ccApp)
 			if space, err := ccCache.GetSpace(spaceGUID); err == nil {
@@ -450,10 +450,13 @@ func getVcapApplicationMap(vcap string) (map[string]string, error) {
 	return res, nil
 }
 
-func extractTagsFromAppMeta(meta map[string]string) (tags []string) {
+func extractTagsFromAppMeta(meta map[string]*string) (tags []string) {
 	for k, v := range meta {
+		if v == nil {
+			continue
+		}
 		if after, ok := strings.CutPrefix(k, AutodiscoveryTagsMetaPrefix); ok {
-			tags = append(tags, fmt.Sprintf("%s:%s", after, v))
+			tags = append(tags, fmt.Sprintf("%s:%s", after, *v))
 		}
 	}
 	return
