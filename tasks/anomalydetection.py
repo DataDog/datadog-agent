@@ -36,13 +36,11 @@ from tasks.libs.anomalydetection.eval import (
     DETECTORS,
     EXTRACTORS,
     F1_SCORING_VERSION,
-    SCENARIOS,
     SUPPORTED_CORRELATORS,
     StepLogger,
     _anchor_combos,
     _build_optuna_config,
     _combo_to_config,
-    _ensure_parquets,
     _fmt_wall_dur,
     _full_stack_combo,
     _prepare_eval_output_dir,
@@ -495,6 +493,14 @@ def _local_aws_command(aws_profile: str) -> list[str]:
     return ["aws-vault", "exec", AWS_VAULT_PROFILE, "--", "aws"]
 
 
+def _require_local_scenarios(scenarios: str) -> list[str]:
+    """Require explicit local inputs now that the old GenSim manifest is retired."""
+    names = [name.strip() for name in scenarios.split(",") if name.strip()]
+    if not names:
+        raise Exit("Specify --scenario or --scenarios and provide recordings under --scenarios-dir.")
+    return names
+
+
 @task
 def eval_scenarios(
     ctx,
@@ -524,13 +530,13 @@ def eval_scenarios(
     With --config: JSON params file for testbench; overrides --only when both are set.
 
     Examples:
-        dda inv anomalydetection.eval-scenarios                            # defaults
-        dda inv anomalydetection.eval-scenarios --only scanmw              # scanmw + anomaly_scorer (auto)
-        dda inv anomalydetection.eval-scenarios --only bocpd,anomaly_scorer # explicit
-        dda inv anomalydetection.eval-scenarios --config /tmp/params.json  # custom params
+        dda inv anomalydetection.eval-scenarios --scenarios example # defaults
+        dda inv anomalydetection.eval-scenarios --only scanmw --scenarios example # scanmw + anomaly_scorer (auto)
+        dda inv anomalydetection.eval-scenarios --only bocpd,anomaly_scorer --scenarios example # explicit
+        dda inv anomalydetection.eval-scenarios --config /tmp/params.json --scenarios example # custom params
 
     Args:
-        scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
+        scenario: Run a single local scenario instead of --scenarios (e.g. "213_pagerduty").
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
         only: Comma-separated components to enable (passed as --only to testbench). Auto-adds anomaly_scorer.
@@ -539,11 +545,13 @@ def eval_scenarios(
         config: Path to anomalydetection-testbench JSON params file (--config). Empty: omit flag.
         scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
         timeout: Per-scenario time budget in seconds (rolling: unused time rolls over). 0 = no limit.
-        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+        scenarios: Comma-separated scenario names to run (required for local evaluation).
 
     Returns:
         Main report dict with ``score`` and per-scenario ``metadata``.
     """
+    scenarios_to_run = _require_local_scenarios(scenario or scenarios)
+
     only_flag = ""
     if only:
         components = {name.strip() for name in only.split(",") if name.strip()}
@@ -561,8 +569,6 @@ def eval_scenarios(
         build_testbench(ctx)
         build_scorer(ctx)
 
-    scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
-    scenarios_to_run = [scenario] if scenario else scenarios_list
     scenario_logger = _logger or StepLogger(len(scenarios_to_run), "Scenario")
 
     results = []
@@ -572,8 +578,6 @@ def eval_scenarios(
     for name in scenarios_to_run:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
         scenario_root = os.path.join(scenarios_dir, name)
-        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
-            _ensure_parquets(ctx, name, parquet_dir)
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             # Fallback: check for *.parquet files directly in scenario root
             if not glob.glob(os.path.join(scenario_root, "*.parquet")):
@@ -677,15 +681,17 @@ def eval_tp(
     The passthrough adapter is auto-added if not specified (required for TP scoring).
 
     Examples:
-        dda inv anomalydetection.eval-tp --only scanmw              # scanmw + passthrough (auto)
-        dda inv anomalydetection.eval-tp --only bocpd,passthrough    # explicit
+        dda inv anomalydetection.eval-tp --only scanmw --scenario example # scanmw + passthrough (auto)
+        dda inv anomalydetection.eval-tp --only bocpd,passthrough --scenario example # explicit
 
     Args:
-        scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
+        scenario: Run a single scenario (e.g. "213_pagerduty"). Required; recordings must already exist locally.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
         only: Comma-separated components to enable (passed as --only to testbench). Auto-adds passthrough.
     """
+    scenarios_to_run = _require_local_scenarios(scenario)
+
     if not only:
         print(color_message("--only is required (e.g. --only scanmw)", Color.RED))
         return
@@ -700,14 +706,10 @@ def eval_tp(
         build_testbench(ctx)
         build_scorer(ctx)
 
-    scenarios_to_run = [scenario] if scenario else SCENARIOS
-
     results = []
     for name in scenarios_to_run:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
         scenario_root = os.path.join(scenarios_dir, name)
-        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
-            _ensure_parquets(ctx, name, parquet_dir)
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             if not glob.glob(os.path.join(scenario_root, "*.parquet")):
                 print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
@@ -750,50 +752,6 @@ def eval_tp(
     print_eval_tp_summary(results)
 
 
-# --- Scenario management ---
-
-
-@task
-def download_scenarios(
-    ctx,
-    scenario: str = "",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
-    skip_existing: bool = False,
-):
-    """
-    Download scenario parquet data from S3.
-
-    Resolves the latest recording for each scenario from runs.jsonl in the S3 bucket.
-
-    Args:
-        scenario: Download a single scenario (e.g. "food_delivery_redis"). Default: all.
-        scenarios_dir: Directory containing scenario subdirectories.
-        skip_existing: If True, skip scenarios whose parquet directory already contains files.
-
-    Examples:
-        dda inv anomalydetection.download-scenarios
-        dda inv anomalydetection.download-scenarios --scenario=food_delivery_redis
-    """
-    scenarios_to_download = [scenario] if scenario else SCENARIOS
-    for name in scenarios_to_download:
-        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
-        if skip_existing and os.path.isdir(parquet_dir) and os.listdir(parquet_dir):
-            print(color_message(f"Skipping download for '{name}' — parquet data already present", Color.BLUE))
-            continue
-        # Download to a temp dir first, then swap — preserves existing data if download fails.
-        tmp_parquet_dir = parquet_dir + ".new"
-        if os.path.isdir(tmp_parquet_dir):
-            shutil.rmtree(tmp_parquet_dir)
-        _ensure_parquets(ctx, name, tmp_parquet_dir)
-        if os.path.isdir(tmp_parquet_dir) and os.listdir(tmp_parquet_dir):
-            if os.path.isdir(parquet_dir):
-                shutil.rmtree(parquet_dir)
-            os.rename(tmp_parquet_dir, parquet_dir)
-        else:
-            shutil.rmtree(tmp_parquet_dir, ignore_errors=True)
-            print(color_message(f"Download failed for '{name}', keeping existing data", Color.ORANGE))
-
-
 # --- Combination search ---
 
 
@@ -809,6 +767,7 @@ def eval_combinations(
     overwrite: bool = False,
     force_enable: str = "",
     force_disable: str = "",
+    scenarios: str = "",
 ):
     """
     Run Gaussian F1 eval on n component combinations and rank them.
@@ -838,12 +797,15 @@ def eval_combinations(
         build: Whether to build anomalydetection-testbench and anomalydetection-scorer first.
         force_enable: Comma-separated components always present in every combination.
         force_disable: Comma-separated components never included in any combination.
+        scenarios: Required comma-separated names of local scenarios to evaluate.
 
     Examples:
-        dda inv anomalydetection.eval-combinations --n 20 --seed 42
-        dda inv anomalydetection.eval-combinations --n 5 --output-dir /tmp/ablation
-        dda inv anomalydetection.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch
+        dda inv anomalydetection.eval-combinations --n 20 --seed 42 --scenarios example
+        dda inv anomalydetection.eval-combinations --n 5 --output-dir /tmp/ablation --scenarios example
+        dda inv anomalydetection.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch --scenarios example
     """
+    scenario_names = _require_local_scenarios(scenarios)
+
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
@@ -914,7 +876,8 @@ def eval_combinations(
                 build=False,
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
-                _logger=combo_logger.child(len(SCENARIOS), "Scenario"),
+                scenarios=scenarios,
+                _logger=combo_logger.child(len(scenario_names), "Scenario"),
             )
         except Exception as e:
             combo_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
@@ -1029,9 +992,7 @@ def _bayesian_evaluation_inputs(
     ddeval_options: _DDEvalOptions | None,
 ) -> dict:
     """Return the score-affecting inputs used to validate resumable runs."""
-    selected_scenarios = (
-        sorted(s.strip() for s in scenarios.split(",") if s.strip()) if scenarios else sorted(SCENARIOS)
-    )
+    selected_scenarios = sorted(_require_local_scenarios(scenarios)) if eval_backend == "local" else []
     inputs = {
         "scoring_version": F1_SCORING_VERSION if eval_backend == "local" else "ddeval",
         "scenarios": selected_scenarios if eval_backend == "local" else [],
@@ -1236,7 +1197,7 @@ def eval_bayesian(
         seed: Random seed for TPE sampler reproducibility.
         build: Whether to build testbench and scorer first.
         timeout: Per-scenario time budget in seconds (rolling). 0 = no limit.
-        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+        scenarios: Comma-separated scenario names to run (required for local evaluation).
         eval_backend: Evaluation backend. "local" runs eval_scenarios; "ddeval" submits
             each trial to the remote ddeval workflow and optimizes the returned mean F1.
         ddeval_config_template: Optional JSON experiment config template for ddeval. When omitted, the task
@@ -1260,10 +1221,10 @@ def eval_bayesian(
             Defaults to $OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI.
 
     Examples:
-        dda inv --dep optuna anomalydetection.eval-bayesian
-        dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,scanmw,time_cluster
-        dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd
-        dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42
+        dda inv --dep optuna anomalydetection.eval-bayesian --scenarios example
+        dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,scanmw,time_cluster --scenarios example
+        dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd --scenarios example
+        dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42 --scenarios example
         dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval \
             --ddeval-command ddeval \
             --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
@@ -1428,7 +1389,7 @@ def eval_bayesian(
                     logger=trial_logger,
                 )
             else:
-                scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
+                scenarios_list = _require_local_scenarios(scenarios)
                 report = eval_scenarios(
                     ctx,
                     scenarios_dir=scenarios_dir,
@@ -1640,7 +1601,10 @@ def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
 
 
 def _validate_ddeval_scenario_filter(eval_backend: str, scenarios: str) -> bool:
-    if eval_backend != "ddeval" or not scenarios:
+    if eval_backend == "local":
+        _require_local_scenarios(scenarios)
+        return True
+    if not scenarios:
         return True
     print(
         color_message(
@@ -1932,7 +1896,7 @@ def eval_pipeline(
         force_enable: Comma-separated components always present in every combination.
         force_disable: Comma-separated components never included.
         timeout: Per-scenario time budget in seconds (0 = no limit).
-        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+        scenarios: Comma-separated scenario names to run (required for local evaluation).
         eval_backend: Evaluation backend for each Bayesian trial ("local" or "ddeval").
         ddeval_config_template: Optional JSON experiment config template for ddeval.
         ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
@@ -1953,10 +1917,10 @@ def eval_pipeline(
             Defaults to $OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI.
 
     Examples:
-        dda inv --dep optuna anomalydetection.eval-pipeline
-        dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
-        dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
-        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable scanwelch
+        dda inv --dep optuna anomalydetection.eval-pipeline --scenarios example
+        dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42 --scenarios example
+        dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw --scenarios example
+        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable scanwelch --scenarios example
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
             --ddeval-command ddeval \
             --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
@@ -2033,16 +1997,13 @@ def eval_pipeline(
     combo_run_seeds = [[rng.randint(0, 2**32 - 1) for _ in range(m_runs)] for _ in range(actual_n_combos)]
     tune_seed = rng.randint(0, 2**32 - 1)
 
-    n_scenarios = len([s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS)
+    n_scenarios = len(_require_local_scenarios(scenarios)) if eval_backend == "local" else 0
     total_search_runs = actual_n_combos * m_runs
     total_testbench_runs = total_search_runs * n_trials_search * n_scenarios
 
     if build and eval_backend == "local":
         build_testbench(ctx)
         build_scorer(ctx)
-
-    if eval_backend == "local":
-        download_scenarios(ctx, scenarios_dir=scenarios_dir, skip_existing=True)
 
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Pipeline Eval", Color.BLUE))
@@ -2231,8 +2192,15 @@ def eval_pipeline(
     print(color_message(f"  Final score:   {final_score:.4f}", Color.GREEN))
     print(color_message(f"  Best config:   {best_config_path}", Color.GREEN))
     print(color_message(f"  Report:        {report_path}", Color.GREEN))
-    print(color_message("\n  Verify with:", Color.BOLD))
-    print(color_message(f"    dda inv anomalydetection.eval-scenarios --config {best_config_path}", Color.BOLD))
+    if eval_backend == "local":
+        print(color_message("\n  Verify with:", Color.BOLD))
+        print(
+            color_message(
+                f"    dda inv anomalydetection.eval-scenarios --config {shlex.quote(best_config_path)}"
+                f" --scenarios {shlex.quote(scenarios)} --scenarios-dir {shlex.quote(scenarios_dir)}",
+                Color.BOLD,
+            )
+        )
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     return report
@@ -2287,12 +2255,12 @@ def eval_component(
         disable: Comma-separated components to force-disable from every subset.
         lock: Comma-separated components to lock at Go defaults in every Bayesian run.
         timeout: Per-scenario time budget in seconds (default: 300).
-        scenarios: Comma-separated scenario names (default: all SCENARIOS).
+        scenarios: Comma-separated scenario names (required for local evaluation).
 
     Examples:
-        dda inv --dep optuna anomalydetection.eval-component --component scanmw
-        dda inv --dep optuna anomalydetection.eval-component --component bocpd --seed 42 --n-trials 10
-        dda inv --dep optuna anomalydetection.eval-component --component bocpd --timeout 120
+        dda inv --dep optuna anomalydetection.eval-component --component scanmw --scenarios example
+        dda inv --dep optuna anomalydetection.eval-component --component bocpd --seed 42 --n-trials 10 --scenarios example
+        dda inv --dep optuna anomalydetection.eval-component --component bocpd --timeout 120 --scenarios example
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
     all_known = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
@@ -2300,16 +2268,7 @@ def eval_component(
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
         return
 
-    scenario_names = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else list(SCENARIOS)
-    unknown_scenarios = set(scenario_names) - set(SCENARIOS) if SCENARIOS else set()
-    if unknown_scenarios:
-        print(
-            color_message(
-                f"Error: unknown scenarios: {', '.join(sorted(unknown_scenarios))}. Known: {', '.join(SCENARIOS)}",
-                Color.RED,
-            )
-        )
-        return
+    scenario_names = _require_local_scenarios(scenarios)
 
     force_enable_list = [c.strip() for c in enable.split(",") if c.strip()]
     force_disable_extra_list = [c.strip() for c in disable.split(",") if c.strip()]
@@ -2378,8 +2337,6 @@ def eval_component(
     if build:
         build_testbench(ctx)
         build_scorer(ctx)
-
-    download_scenarios(ctx, scenarios_dir=scenarios_dir, skip_existing=True)
 
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Component Evaluation", Color.BLUE))
