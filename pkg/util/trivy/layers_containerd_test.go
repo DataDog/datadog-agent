@@ -273,3 +273,16 @@ func TestIsNydusImage(t *testing.T) {
 		})
 	}
 }
+
+// TestFakeContainerdContainerConfigFile checks that the direct scan builds the
+// config of an image whose history disagrees with its diff IDs from the image
+// config, where it exported the image.
+func TestFakeContainerdContainerConfigFile(t *testing.T) {
+	var exports int
+	ctr := &fakeContainerdContainer{image: mismatchedImage(&exports)}
+
+	configFile, err := ctr.ConfigFile()
+	require.NoError(t, err)
+	assert.Len(t, configFile.RootFS.DiffIDs, 2)
+	assert.Equal(t, 0, exports)
+}
