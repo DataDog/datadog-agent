@@ -376,7 +376,8 @@ EOF
       POD_DIR="$WORKSPACE_ROOT/results/pods/$POD_NAME"
       mkdir -p "$POD_DIR"
       echo "Collecting recorder output from pod $POD_NAME (container agent)..."
-      if ! (kubectl exec -n "$KUBE_NAMESPACE" "$POD_NAME" -c agent -- tar cf - -C "$RECORDING_OUTPUT_DIR" . | tar xf - -C "$POD_DIR"); then
+      # The recorder may still be flushing: tolerate GNU tar's "file changed as we read it" (exit 1).
+      if ! (kubectl exec -n "$KUBE_NAMESPACE" "$POD_NAME" -c agent -- tar cf - --warning=no-file-changed -C "$RECORDING_OUTPUT_DIR" . | tar xf - -C "$POD_DIR"); then
         COLLECTION_STATUS="failed"
         COLLECTION_ERRORS=$(printf '%s' "$COLLECTION_ERRORS" | jq -c --arg pod "$POD_NAME" '. + ["failed to copy recorder directory from pod " + $pod]')
         continue
