@@ -284,9 +284,69 @@ func TestReplace(t *testing.T) {
 	wg.Wait()
 }
 
+func TestAdd_FilteredOutAfterEmitted(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	store := &reflectorStore{
+		wlmetaStore: wlm,
+		seen:        make(map[string]workloadmeta.EntityID),
+		parser:      kubernetesresourceparsers.NewNodeParser(),
+		filter:      &testNodeFilter{},
+	}
+
+	node := corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-node", UID: "node-uid"},
+	}
+
+	require.NoError(t, store.Add(&node))
+	_, err := wlm.GetKubernetesNode("test-node")
+	require.NoError(t, err)
+
+	// Update the node so that it's filtered out. The entity emitted before
+	// must be unset.
+	node.Labels = map[string]string{"filtered": "true"}
+	require.NoError(t, store.Update(&node))
+	_, err = wlm.GetKubernetesNode("test-node")
+	require.Error(t, err)
+}
+
+func TestAdd_FilteredOutFromStart(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	store := &reflectorStore{
+		wlmetaStore: wlm,
+		seen:        make(map[string]workloadmeta.EntityID),
+		parser:      kubernetesresourceparsers.NewNodeParser(),
+		filter:      &testNodeFilter{},
+	}
+
+	node := corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "test-node",
+			UID:    "node-uid",
+			Labels: map[string]string{"filtered": "true"},
+		},
+	}
+
+	require.NoError(t, store.Add(&node))
+	_, err := wlm.GetKubernetesNode("test-node")
+	require.Error(t, err) // It's filtered out
+
+	require.NoError(t, store.Update(&node))
+	_, err = wlm.GetKubernetesNode("test-node")
+	require.Error(t, err) // Still filtered out
+
+	require.NoError(t, store.Delete(&node))
+}
+
 func mockedWorkloadmeta(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// testNodeFilter filters out nodes with the label filtered=true.
+type testNodeFilter struct{}
+
+func (f *testNodeFilter) filteredOut(entity workloadmeta.Entity) bool {
+	return entity.(*workloadmeta.KubernetesNode).Labels["filtered"] == "true"
 }

@@ -58,7 +58,30 @@ func (r *reflectorStore) Add(obj interface{}) error {
 
 	r.hasSynced = true
 	if r.filter != nil && r.filter.filteredOut(entity) {
-		// Don't store the object in memory if it is filtered out
+		// Don't store the object in memory if it is filtered out. If it was
+		// emitted before, unset the old entity: a later Delete won't do it
+		// because the object is filtered out.
+		uid := string(metaObj.GetUID())
+		oldID, found := r.seen[uid]
+		if !found {
+			return nil
+		}
+
+		delete(r.seen, uid)
+
+		oldEntity, err := entityFromEntityID(oldID)
+		if err != nil {
+			return err
+		}
+
+		r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+			{
+				Type:   workloadmeta.EventTypeUnset,
+				Source: workloadmeta.SourceKubeAPIServer,
+				Entity: oldEntity,
+			},
+		})
+
 		return nil
 	}
 
@@ -258,6 +281,11 @@ func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, er
 
 	case workloadmeta.KindKubernetesKueueWorkload:
 		return &workloadmeta.KubernetesKueueWorkload{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesAutoscaler:
+		return &workloadmeta.KubernetesAutoscaler{
 			EntityID: entityID,
 		}, nil
 	}
