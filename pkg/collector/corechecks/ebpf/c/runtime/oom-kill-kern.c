@@ -95,8 +95,7 @@ int BPF_PROG(fexit__mem_cgroup_css_rstat_flush) {
     return 0;
 }
 
-// Number of attempts at reading the stat items without overlapping a flush step. It is unrolled,
-// rather than looped, so that the program still loads on kernels without bounded loops.
+// Number of attempts at reading the stat items without overlapping a flush step.
 #define CGROUP_MEM_STATS_ATTEMPTS 3
 
 enum cgroup_memory_stat {
@@ -151,7 +150,6 @@ static __always_inline struct mem_cgroup *task_mem_cgroup(struct task_struct *ts
 }
 
 // add_cpu_pending_pages adds the stat updates of a cpu that are not flushed to memcg->vmstats yet.
-// This is what the rstat flusher does. 
 static long add_cpu_pending_pages(u64 cpu, struct cgroup_memory_stats_ctx *c) {
     unsigned long offset = 0;
     if (bpf_probe_read_kernel(&offset, sizeof(offset), (const unsigned long *)&__per_cpu_offset + cpu) < 0)

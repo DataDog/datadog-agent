@@ -740,8 +740,6 @@ func convertStatsV2(in oomStatsV2Layout, emitStats bool) (out model.OOMKillStats
 	return
 }
 
-// cgroupMemoryStat maps the -1 that the eBPF program, like the bpf_mem_cgroup_page_state kfunc,
-// records for a stat item the kernel does not track to 0
 // cgroupMemoryStat converts a cgroup memory stat from pages, as reported by the eBPF program, to
 // bytes. Untracked stat items are reported as 0.
 func cgroupMemoryStat(v uint64) uint64 {

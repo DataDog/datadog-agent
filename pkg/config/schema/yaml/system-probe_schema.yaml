@@ -1859,6 +1859,9 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: |
+          Records the memory usage and memory.stat items of the cgroup of a cgroup OOM kill,
+          which the oom_kill check reports as oom_kill.cgroup_memory.* metrics.
   packet_capture:
     node_type: section
     type: object
