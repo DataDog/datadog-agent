@@ -97,9 +97,9 @@ def dd_agent_go_test(
     importpath = "github.com/DataDog/datadog-agent/" + native.package_name()
     if kwargs.get("importpath") not in (None, importpath):
         fail('{}: expected `importpath = "{}"`, got `importpath = "{}"`'.format(name, importpath, kwargs["importpath"]))
-    visibility = None
     if native.package_name().startswith("test/new-e2e/tests/"):
         kwargs["importpath"] = importpath  # for CI Visibility's module-identity parity
+    visibility = ["//test/new-e2e/tests:__subpackages__"]  # for e2e suites running test binaries remotely
 
     if include_default:
         _test_tag_set_check_name(name)

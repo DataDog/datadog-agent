@@ -25,7 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
+	"github.com/DataDog/datadog-agent/comp/metadata/internal/agentmetadata"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
