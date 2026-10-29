@@ -95,10 +95,10 @@ var almalinux9Bands = map[string]band{
 	"skipped": {0.02, 0.23},
 }
 
-// al2023 skips most rules because ssg-al2023 gates them on a missing kernel-core package
-// at the pinned policy version, so the skip fraction is large and set by the content, not
-// the host. These bands track that content-limited distribution. See distroAmazonLinux2023
-// for the root cause and the follow-up (re-harvest when the fix ships).
+// al2023 skips most rules because ssg-al2023 gates them on a kernel package that the test
+// AMI does not match at the pinned policy version, so the skip fraction is large and set by
+// the content, not the host. These bands track that content-limited distribution. See
+// distroAmazonLinux2023 for the gate and the follow-up (re-harvest once the rules evaluate).
 var al2023Bands = map[string]band{
 	"passed":  {0.17, 0.32},
 	"failed":  {0.00, 0.10},
@@ -131,7 +131,7 @@ var distroUbuntu2404 = distro{
 	os:   os.Ubuntu2404,
 	// The container VM needs Docker pre-baked: ec2docker no longer runtime-installs it
 	// for Ubuntu, and the plain 24.04 AMI lacks it. The -e2e AMI is still Ubuntu 24.04.
-	containerOS: &os.Ubuntu2404E2E,
+	containerOS: &os.Ubuntu2404,
 	frameworkID: "cis-ubuntu2404",
 	family:      debian,
 	minRules:    320,
@@ -145,15 +145,14 @@ var distroAmazonLinux2023 = distro{
 	family:      rhel,
 	minRules:    200,
 	bands:       al2023Bands,
-	// At the pinned SECURITY_AGENT_POLICIES_VERSION, ssg-al2023's system_with_kernel
-	// platform gates most rules on the kernel-core package. AL2023 ships kernel, not
-	// kernel-core, so those rules are not applicable and skip regardless of host state.
-	// The ComplianceAsCode fix (system_with_kernel matching AL2023's kernel package) is
-	// not yet in a released version (latest is ComplianceAsCode v0.1.81). Until a release
-	// with it is pulled into the pinned policy, exercise only the package probe (the
-	// others would land on skipped rules and fail the must-evaluate check) and keep the
-	// wide al2023Bands. Once it lands, drop onlyProbes for the full probe set, restore
-	// normal bands, re-harvest the golden baseline, and raise minRules.
+	// ssg-al2023's system_with_kernel platform gates most rules on an installed kernel
+	// package: kernel-core up to SCAP Security Guide 0.1.81, kernel since 0.1.82. At the
+	// pinned SECURITY_AGENT_POLICIES_VERSION those rules still skip on the test AMI
+	// regardless of host state (182 of 255 at v0.85.1, with 0.1.82). Until they evaluate,
+	// exercise only the package probe (the others would land on skipped rules and fail
+	// the must-evaluate check) and keep the wide al2023Bands. Once they do, drop
+	// onlyProbes for the full probe set, restore normal bands, re-harvest the golden
+	// baseline, and raise minRules.
 	onlyProbes: []string{"package"},
 }
 
@@ -433,9 +432,9 @@ func (s *hostBenchmarksSuite) TestReporting() {
 				// `compliance check --report`. A mismatch means the startup
 				// resolution broke, not that the payload was mangled.
 				assert.Truef(c,
-					strings.HasPrefix(f.HostCCRID, "arn:aws:ec2:") && strings.HasSuffix(f.HostCCRID, wantCCRIDSuffix),
-					"finding %s reached fakeintake with host_ccrid %q, want the EC2 ARN of instance %s",
-					f.RuleID, f.HostCCRID, instanceID)
+					strings.HasPrefix(f.CCRID, "arn:aws:ec2:") && strings.HasSuffix(f.CCRID, wantCCRIDSuffix),
+					"finding %s reached fakeintake with ccrid %q, want the EC2 ARN of instance %s",
+					f.RuleID, f.CCRID, instanceID)
 				break
 			}
 		}

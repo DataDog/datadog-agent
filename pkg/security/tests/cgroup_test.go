@@ -289,6 +289,173 @@ func validateSerializedPodUID(t *testing.T, test *testModule, event *model.Event
 	assert.Equal(t, podUID, payload.Process.Container.PodUID)
 }
 
+// TestCGroupECSTaskID validates that ECS task cgroup paths populate
+// process.container.ecs_task_id, and that the field is serialized in CWS events.
+func TestCGroupECSTaskID(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ECS task ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	const ecsTaskID = "409b8b89ccd746bdb9b5e03418406d96"
+	const containerID = "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_ecs_task_id",
+			Expression: `open.file.path == "{{.Root}}/test-ecs-task-id" && process.container.ecs_task_id == "` + ecsTaskID + `"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testCGroup, err := newCGroup("ecs/"+ecsTaskID+"/"+containerID, "systemd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testCGroup.create(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		testCGroup.remove(t)
+		_ = os.Remove("/sys/fs/cgroup/systemd/ecs/" + ecsTaskID)
+		_ = os.Remove("/sys/fs/cgroup/systemd/ecs")
+	}()
+
+	if err := testCGroup.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.leave(t)
+
+	testFile, testFilePtr, err := test.Path("test-ecs-task-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+		if errno != 0 {
+			return error(errno)
+		}
+		return syscall.Close(int(fd))
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_ecs_task_id")
+		assertFieldEqual(t, event, "open.file.path", testFile)
+		assertFieldEqual(t, event, "process.container.id", containerID)
+		assertFieldEqual(t, event, "process.container.ecs_task_id", ecsTaskID)
+
+		test.validateOpenSchema(t, event)
+		validateSerializedECSTaskID(t, test, event, ecsTaskID)
+	}, "test_cgroup_ecs_task_id")
+}
+
+func validateSerializedECSTaskID(t *testing.T, test *testModule, event *model.Event, ecsTaskID string) {
+	t.Helper()
+
+	serializedEvent, err := test.marshalEvent(event)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		ECSTaskID string `json:"ecs_task_id"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(serializedEvent), &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, ecsTaskID, payload.Container.ECSTaskID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, ecsTaskID, payload.Process.Container.ECSTaskID)
+}
+
+// TestCGroupContainerForkNoExec validates that, in ebpfless mode, a child forked
+// inside a container keeps the container ID before it execs. ebpfless process
+// cache entries only have a cgroup ID, no cgroup path key.
+func TestCGroupContainerForkNoExec(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless only")
+	}
+
+	const containerID = "e7a1c3b5d9f20486a1c3e5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e6a8c0b1d3f5"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_container_fork_no_exec",
+			Expression: `open.file.path == "/dev/null" && process.file.name == "syscall_tester" && process.is_thread && process.container.id == "` + containerID + `"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCGroup, err := newCGroup("docker-"+containerID+".scope", "systemd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testCGroup.create(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.remove(t)
+
+	if err := testCGroup.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.leave(t)
+
+	test.WaitSignalFromRule(t, func() error {
+		_ = exec.Command(syscallTester, "fork").Run()
+		return nil
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_container_fork_no_exec")
+		assert.False(t, event.ProcessContext.IsExec, "process shouldn't be marked as being an exec")
+		assertFieldEqual(t, event, "process.container.id", containerID)
+
+		validateSerializedContainerID(t, test, event, containerID)
+	}, "test_cgroup_container_fork_no_exec")
+}
+
+func validateSerializedContainerID(t *testing.T, test *testModule, event *model.Event, containerID string) {
+	t.Helper()
+
+	serializedEvent, err := test.marshalEvent(event)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		ID string `json:"id"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(serializedEvent), &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, containerID, payload.Container.ID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, containerID, payload.Process.Container.ID)
+}
+
 // TestCGroupPropagation validates cgroup propagation when a process is born into
 // a different cgroup via CLONE_INTO_CGROUP. The "open-event" subtest checks that
 // the child's open is correctly attributed to the new cgroup; the
@@ -741,7 +908,7 @@ func TestCGroupFailedWrite(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	// a cgroup with controllers enabled for its children can't contain processes, writing
+	// a cgroup with domain controllers enabled for its children can't contain processes, writing
 	// to its cgroup.procs file fails with EBUSY
 	parentCGroupPath := "/sys/fs/cgroup/cws-failed-write"
 	if err := os.Mkdir(parentCGroupPath, 0700); err != nil {
@@ -749,8 +916,8 @@ func TestCGroupFailedWrite(t *testing.T) {
 	}
 	defer os.Remove(parentCGroupPath)
 
-	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+pids"), 0700); err != nil {
-		t.Skipf("failed to enable the pids controller: %v", err)
+	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+memory"), 0700); err != nil {
+		t.Skipf("failed to enable the memory controller: %v", err)
 	}
 
 	childCGroupPath := parentCGroupPath + "/child"

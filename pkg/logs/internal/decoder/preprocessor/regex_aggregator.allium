@@ -15,8 +15,8 @@
 --   truncation flow, the multi-line and truncation tag attachment.
 -- Excludes:
 --   - Other Aggregator implementations. PassThroughAggregator,
---     DetectingAggregator, CombiningAggregator and JSONAggregator
---     each live in their own spec modules.
+--     CombiningAggregator and JSONAggregator each live in their
+--     own spec modules.
 --   - The selection logic that decides when a log source uses
 --     RegexAggregator vs another implementation. That is a
 --     preprocessor configuration concern.

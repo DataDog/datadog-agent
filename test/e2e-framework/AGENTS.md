@@ -27,7 +27,7 @@ test/e2e-framework/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
 │   │   └── fakeintake/   # Fakeintake deployment component
-│   ├── os/               # OS descriptors (Ubuntu2204E2E, WindowsServer2025, etc.)
+│   ├── os/               # OS descriptors (Ubuntu2204, WindowsServer2025, etc.)
 │   ├── kubernetes/       # K8s components (KinD, OpenShift, Helm addons)
 │   ├── docker/           # Docker compose components
 │   └── remote/           # Remote host SSH management
@@ -67,7 +67,7 @@ as the AWS example below does.
 // Host on AWS EC2
 awshost.Provisioner(
     awshost.WithRunOptions(
-        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E)),
+        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204)),
         ec2.WithAgentOptions(
             agentparams.WithAgentConfig(config),
             agentparams.WithIntegration("check.d", checkConfig),
@@ -76,14 +76,33 @@ awshost.Provisioner(
 )
 ```
 
-Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve to
-Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
-so a test never installs them at runtime. They are already the Linux defaults
-(`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
-There is no generic runtime install: `PackageManager.RuntimeInstallDocker` (Docker and docker-compose) is the only one, for GCP, Azure and local VMs, and it fails on AWS. Add new dependencies to the AMI instead.
+Every `platforms.json` image is a Packer-built AMI with Docker, the AWS CLI, `jq`,
+`ansible` and friends prebaked, so a test never installs them at runtime. Keys and
+descriptors carry no `-e2e` suffix: that distinction only exists in ami-builder, whose
+`platforms_key` maps its `-e2e` builds to our keys. Passing no OS at all is also
+correct (`UbuntuDefault = Ubuntu2204`, `WindowsServerDefault = WindowsServer2025`).
+There is no generic runtime install: `PackageManager.RuntimeInstallDocker` 
+(Docker and docker-compose) is the only one, for GCP, Azure and local VMs, 
+and it fails on AWS. Add new dependencies to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.
+
+### Kubernetes internet access
+
+AWS Kubernetes test provisioners (`kindvm`, `kubeadm`, and `eks`) default to
+no internet access. Override with `WithRunOptions(kindvm.WithInternetAccess())`,
+the equivalent kubeadm option, or
+`WithRunOptions(eks.WithEKSOptions(eks.WithInternetAccess()))` for EKS.
+Register explicit opt-outs in `test/new-e2e/internet-access.yaml`. Direct scenario
+callers do not inherit these provisioner defaults. EKS Auto Mode requires an
+explicit opt-out; EKS Fargate pods are not covered by the egress restriction.
+
+EKS private networking must allow all IPv4 CIDRs associated with the VPC, not
+just its primary CIDR: nodes and custom-CNI pods can use secondary networks.
+The restricted security groups also allow HTTPS to regional S3 through its
+gateway endpoint, which ECR needs for image layers. Keep the node, pod, and
+control-plane egress rules aligned through `eks.NoInternetEgressRules`.
 
 ### Kubernetes resource ownership
 

@@ -10,6 +10,7 @@ package nvidia
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"unsafe"
 
@@ -358,6 +359,121 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 		Value:      boolToFloat(recoveryAction != nvml.GPU_RECOVERY_ACTION_NONE),
 		Type:       metrics.GaugeType,
 	}}, 0, nil
+}
+
+// gpuHealth reports whether the GPU is lost and whether it is unhealthy: the device plugin
+// marks it unhealthy or NVML asks for a recovery action. It returns errUnsupportedDevice when
+// neither source can ever exist on this device, and another error when one is not readable yet.
+func gpuHealth(device ddnvml.Device, deps *CollectorDependencies) (lost, unhealthy bool, err error) {
+	if _, err := device.GetIndex(); err != nil && ddnvml.IsGPULost(err) {
+		return true, false, nil
+	}
+	known := false
+	devicePlugins := deps != nil && deps.Workloadmeta != nil && env.IsFeaturePresent(env.KubernetesDevicePlugins)
+	if devicePlugins {
+		gpu, gpuErr := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
+		if gpuErr == nil {
+			known = true
+			unhealthy = !gpu.Healthy
+		} else {
+			err = gpuErr
+		}
+	}
+	action, actionErr := fieldValueForField(device, nvml.FI_DEV_GET_GPU_RECOVERY_ACTION, "FI_DEV_GET_GPU_RECOVERY_ACTION")
+	if actionErr == nil {
+		known = true
+		unhealthy = unhealthy || nvml.DeviceGpuRecoveryAction(action) != nvml.GPU_RECOVERY_ACTION_NONE
+	} else if err == nil {
+		err = actionErr
+	}
+	switch {
+	case known:
+		return false, unhealthy, nil
+	case !devicePlugins && ddnvml.IsAPIUnsupportedOnDevice(actionErr, device):
+		return false, false, errUnsupportedDevice
+	default:
+		return false, false, err
+	}
+}
+
+// fabricHealthIssues maps the 2-bit NVML fabric health mask fields to the
+// fabric_issue tag value reported when the field is set to TRUE.
+var fabricHealthIssues = []struct {
+	issue string
+	shift uint32
+	width uint32
+	value uint32
+}{
+	{"bandwidth_degraded", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW, nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE},
+	{"route_recovery", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE},
+	{"route_unhealthy", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_UNHEALTHY, nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE},
+	{"access_timeout_recovery", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ACCESS_TIMEOUT_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE},
+}
+
+// fabricConfigIssues maps the NVML incorrect-configuration values to fabric_issue tag values.
+var fabricConfigIssues = map[uint32]string{
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_SYSGUID:    "misconfigured_sysguid",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_CHASSIS_SN: "misconfigured_chassis_sn",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NO_PARTITION:         "misconfigured_no_partition",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS: "misconfigured_insufficient_nvlinks",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCOMPATIBLE_GPU_FW:  "misconfigured_incompatible_gpu_fw",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION:     "misconfigured_invalid_location",
+}
+
+// fabricHealthSample reports whether the GPU joined its NVLink fabric and the
+// fabric health. GPUs without a fabric (no NVSwitch) are unsupported.
+func fabricHealthSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
+		return nil, 0, errUnsupportedDevice
+	}
+	info, err := device.GetGpuFabricInfoV3()
+	if err != nil {
+		return nil, 0, err
+	}
+	if info.State == nvml.GPU_FABRIC_STATE_NOT_SUPPORTED {
+		return nil, 0, errUnsupportedDevice
+	}
+	return fabricHealthToSamples(info), 0, nil
+}
+
+func fabricHealthToSamples(info nvml.GpuFabricInfo_v3) []Sample {
+	registered := info.State == nvml.GPU_FABRIC_STATE_COMPLETED && nvml.Return(info.Status) == nvml.SUCCESS
+	samples := []Sample{&Metric{
+		Name:  "fabric.registered",
+		Value: boolToFloat(registered),
+		Type:  metrics.GaugeType,
+	}}
+
+	if info.HealthSummary != nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED {
+		unhealthy := info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY ||
+			info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY
+		samples = append(samples, &Metric{
+			Name:  "fabric.health.unhealthy",
+			Value: boolToFloat(unhealthy),
+			Type:  metrics.GaugeType,
+		})
+	}
+
+	// Issues are only reported while set, to avoid one series per possible issue on every GPU.
+	var issues []string
+	for _, field := range fabricHealthIssues {
+		if (info.HealthMask>>field.shift)&field.width == field.value {
+			issues = append(issues, field.issue)
+		}
+	}
+	configValue := (info.HealthMask >> nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION) & nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION
+	if issue, ok := fabricConfigIssues[configValue]; ok {
+		issues = append(issues, issue)
+	}
+	for _, issue := range issues {
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{"fabric_issue:" + issue}},
+			Name:       "fabric.health.issue",
+			Value:      1,
+			Type:       metrics.GaugeType,
+		})
+	}
+	return samples
 }
 
 func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
@@ -852,6 +968,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				return needsRecoverySample(device)
 			},
 		},
+		{
+			Name: "fabric_health",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+				return fabricHealthSample(device)
+			},
+		},
 		// Process memory APIs (stateless - just current snapshot)
 		{
 			Name: "process_memory_usage",
@@ -917,8 +1039,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis = append(apis, apiCallInfo{
 		Name: "device_unavailable",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
-			if !ok || physicalDevice.HasMIGFeatureEnabled {
+			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
 				return nil, 0, errUnsupportedDevice
 			}
 
@@ -930,11 +1051,57 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				value = 1
 			}
 			return []Sample{&Metric{
-				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
+				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}, noWorkloadTags: true},
 				Name:       "device.unavailable",
 				Value:      value,
 				Type:       metrics.GaugeType,
 			}}, 0, nil
+		},
+	})
+
+	// Report the unhealthy and unschedulable reasons on physical devices. A GPU is unavailable
+	// for at most one reason: lost, then unhealthy, then unschedulable, so the lower ones report 0.
+	apis = append(apis, apiCallInfo{
+		Name: "device_unavailable_reasons",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
+				return nil, 0, errUnsupportedDevice
+			}
+			reportUnschedulable := deps != nil && deps.NodeUnschedulable != nil
+			lost, unhealthy, healthErr := gpuHealth(device, deps)
+			healthUnsupported := errors.Is(healthErr, errUnsupportedDevice)
+			if healthUnsupported && !reportUnschedulable {
+				return nil, 0, errUnsupportedDevice
+			}
+
+			var samples []Sample
+			if healthErr == nil {
+				samples = append(samples, &Metric{
+					baseSample: baseSample{tags: []string{"unavailable_reason:unhealthy"}, noWorkloadTags: true},
+					Name:       "device.unavailable",
+					Value:      boolToFloat(unhealthy && !lost),
+					Type:       metrics.GaugeType,
+				})
+			}
+			if reportUnschedulable {
+				// Unknown health does not hold back the node state.
+				for _, p := range deps.NodeUnschedulable.Points() {
+					value := p.Value
+					if lost || unhealthy {
+						value = 0
+					}
+					samples = append(samples, &Metric{
+						baseSample: baseSample{tags: slices.Clone(p.Tags), noWorkloadTags: true},
+						Name:       "device.unavailable",
+						Value:      value,
+						Type:       metrics.GaugeType,
+					})
+				}
+			}
+			if healthErr != nil && !healthUnsupported {
+				return samples, 0, healthErr
+			}
+			return samples, 0, nil
 		},
 	})
 

@@ -77,4 +77,9 @@ type Component interface {
 	// ("host", hostname) otherwise. Callers pass the hostname they already
 	// resolved for the report so Host.Hostname and resource_id can't diverge.
 	ResourceIdentity(hostname string) (resourceType string, resourceID string)
+
+	// ResourceID returns the resource_id outbound reports carry for this
+	// agent, i.e. ResourceIdentity of this agent's hostname. Issues scoped to
+	// the reporting resource append it to their id so both always agree.
+	ResourceID() string
 }

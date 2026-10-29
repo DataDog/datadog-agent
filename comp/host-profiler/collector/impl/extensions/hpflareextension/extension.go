@@ -40,7 +40,7 @@ type DDExtension struct {
 
 // NotifyConfigSnapshot implements the ConfigSnapshotWatcher interface, which allows this extension
 // to be notified of the Collector's effective configuration. See interface:
-// https://github.com/open-telemetry/opentelemetry-collector/blob/v0.162.0/extension/extensioncapabilities/interfaces.go#L88.
+// https://github.com/open-telemetry/opentelemetry-collector/blob/v0.163.0/extension/extensioncapabilities/interfaces.go#L88.
 // This method is called during the startup process by the Collector's Service right after
 // calling Start.
 func (ext *DDExtension) NotifyConfigSnapshot(_ context.Context, configSnapshot extensioncapabilities.ConfigSnapshot) error {

@@ -10,23 +10,21 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 	"testing"
-	"text/template"
 	"time"
 
-	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -51,12 +49,28 @@ import (
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // team: agent-apm
 
+// Environment variables used by fakeAgentBin in TestConfigHostname/external to
+// make the test binary act as a fake `agent hostname` command. They do not use
+// the DD_ prefix so the config loader does not report them as unknown settings.
+const (
+	hostnameHelperEnv         = "TRACE_CONFIG_TEST_HOSTNAME_HELPER"
+	hostnameHelperResponseEnv = "TRACE_CONFIG_TEST_HOSTNAME_RESPONSE"
+	hostnameHelperExitEnv     = "TRACE_CONFIG_TEST_HOSTNAME_EXIT"
+)
+
 func TestMain(m *testing.M) {
+	// When re-executed by fakeAgentBin as `<test binary> hostname`, print the
+	// requested hostname and exit before running any test.
+	if os.Getenv(hostnameHelperEnv) == "1" && len(os.Args) == 2 && os.Args[1] == "hostname" {
+		fmt.Println(os.Getenv(hostnameHelperResponseEnv))
+		code, _ := strconv.Atoi(os.Getenv(hostnameHelperExitEnv))
+		os.Exit(code)
+	}
+
 	// Tests run in containerized CI runners where isOSHostnameUsable returns false.
 	// Default to true so all tests can fall back to os.Hostname() as expected.
 	// TestAcquireHostnameFallbackContainerized overrides this to false explicitly.
@@ -279,9 +293,6 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
-//go:embed testdata/stringcode.go.tmpl
-var stringCodeBody string
-
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
@@ -378,60 +389,29 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
-			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
-		}
-		// makeProgram creates a new binary file which returns the given response and exits to the OS
-		// given the specified code, returning the path of the program.
-		makeProgram := func(t *testing.T, response string, code int) string {
-			if loc := os.Getenv("HOSTNAME_HELPER"); loc != "" {
-				t.Setenv("DD_TEST_HOSTNAME_RESPONSE", response)
-				t.Setenv("DD_TEST_HOSTNAME_EXIT", strconv.Itoa(code))
-				src, err := runfiles.Rlocation(loc)
-				if err != nil {
-					t.Fatal(err)
-				}
-				// Copy out of runfiles: Windows file junctions cannot be exec'd, and
-				// callers os.Remove the returned path.
-				dst := filepath.Join(t.TempDir(), filepath.Base(src))
-				data, err := os.ReadFile(src)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(dst, data, 0700); err != nil {
-					t.Fatal(err)
-				}
-				return dst
-			}
-			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
-			if err != nil {
-				t.Fatal(err)
-			}
-			tmpl, err := template.New("program").Parse(stringCodeBody)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := tmpl.Execute(f, struct {
-				Response string
-				ExitCode int
-			}{response, code}); err != nil {
-				t.Fatal(err)
-			}
-			stat, err := f.Stat()
-			if err != nil {
-				t.Fatal(err)
-			}
-			srcpath := filepath.Join(os.TempDir(), stat.Name())
-			binpath := strings.TrimSuffix(srcpath, ".go")
-			if output, err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).CombinedOutput(); err != nil {
-				t.Fatalf("failed to build hostname test program: %v\n%s", err, output)
-			}
-			os.Remove(srcpath)
-			return binpath
+		// fakeAgentBin returns the path of an executable that, when run as
+		// `<path> hostname`, prints the given response and exits with the given
+		// code. It is the test binary itself; see TestMain.
+		fakeAgentBin := func(t *testing.T, response string, code int) string {
+			t.Setenv(hostnameHelperEnv, "1")
+			t.Setenv(hostnameHelperResponseEnv, response)
+			t.Setenv(hostnameHelperExitEnv, strconv.Itoa(code))
+			// With the test build tag, pkg/util/log's init sets up a debug logger
+			// on stdout, so package inits that log (e.g. pkg/util/defaultpaths on
+			// Windows) would end up in the child's output. Silence it.
+			t.Setenv("DD_LOG_LEVEL", "off")
+			exe, err := os.Executable()
+			require.NoError(t, err)
+			return exe
 		}
 
 		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
+
+		// The non-eudm subtests below build the config with a hostname set, so that
+		// building it does not wait on a gRPC call to the core agent (2s timeout).
+		// They then call acquireHostnameFallback directly, which overwrites the
+		// hostname.
 
 		t.Run("eudm", func(t *testing.T) {
 			for _, tc := range []struct {
@@ -443,8 +423,7 @@ func TestConfigHostname(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					coreConfig := configcomp.NewMock(t)
 					coreConfig.SetInTest("infrastructure_mode", "end_user_device")
-					bin := makeProgram(t, tc.response, 0)
-					defer os.Remove(bin)
+					bin := fakeAgentBin(t, tc.response, 0)
 					cfg := traceconfig.New()
 					cfg.DDAgentBin = bin
 					cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
@@ -455,10 +434,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("good", func(t *testing.T) {
-			bin := makeProgram(t, "host.name", 0)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "host.name", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -469,10 +447,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -482,10 +459,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 
 			cfg := config.Object()
 			require.NotNil(t, cfg)
@@ -497,12 +473,10 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed+containerized", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 0)
 
-			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
-			// then override to false so only acquireHostnameFallback sees it.
-			cfg := buildConfigComponent(t, false).Object()
+			// Only acquireHostnameFallback should see osHostnameUsableFunc=false.
+			cfg := buildConfigComponent(t, true).Object()
 			require.NotNil(t, cfg)
 
 			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
@@ -516,10 +490,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("fallback1", func(t *testing.T) {
-			bin := makeProgram(t, "", 1)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 1)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -529,10 +502,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("fallback2", func(t *testing.T) {
-			bin := makeProgram(t, "some text", 1)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "some text", 1)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -789,6 +761,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, "localhost", cfg.StatsdHost)
 	assert.Equal(t, 8125, cfg.StatsdPort)
+	assert.Equal(t, 8192, cfg.StatsdBufferSize)
 	assert.Equal(t, true, cfg.StatsdEnabled)
 
 	assert.Equal(t, true, cfg.Enabled)
@@ -1222,6 +1195,17 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 4321, cfg.StatsdPort)
+	})
+
+	env = "DD_DOGSTATSD_BUFFER_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "16384")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 16384, cfg.StatsdBufferSize)
 	})
 
 	env = "DD_APM_NON_LOCAL_TRAFFIC"
@@ -2603,6 +2587,43 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
+func TestSetConfigHandlerLogLevel(t *testing.T) {
+	config := buildConfigComponent(t, true)
+
+	handler := config.SetHandler().ServeHTTP
+	ipcComp := ipcmock.New(t)
+
+	// the handler writes to the global config; restore it afterwards
+	original := pkgconfigsetup.Datadog().GetString("log_level")
+	t.Cleanup(func() { pkgconfigsetup.Datadog().Set("log_level", original, configmodel.SourceAgentRuntime) })
+
+	tests := []struct {
+		name   string
+		value  string
+		status int
+	}{
+		{"plain level", "debug", http.StatusOK},
+		{"uppercase level", "DEBUG", http.StatusOK},
+		{"deprecated warning spelling", "warning", http.StatusOK},
+		{"per-package spec", "error,github.com/DataDog/datadog-agent/pkg/trace/...=debug", http.StatusOK},
+		{"invalid level", "verbose", http.StatusInternalServerError},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := httptest.NewRecorder()
+			req := httptest.NewRequest("POST", "/config/set?log_level="+url.QueryEscape(tc.value), nil)
+			req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
+			handler(resp, req)
+
+			assert.Equal(t, tc.status, resp.Code)
+			if tc.status == http.StatusOK {
+				assert.Equal(t, tc.value, pkgconfigsetup.Datadog().GetString("log_level"), "the value must be stored as given")
+			}
+		})
+	}
+}
+
 func buildConfigComponent(t *testing.T, setHostnameInConfig bool) Component {
 	t.Helper()
 
@@ -3031,6 +3052,34 @@ func TestTracesSendToMainEndpoint(t *testing.T) {
 		cfg.Endpoints = cfg.Endpoints[:1]
 		assert.NoError(t, validate(cfg, coreConfig))
 	})
+}
+
+// TestAcquireHostnameCoreAgentUnreachable checks that acquireHostname returns an
+// error when the core agent cannot be reached on the IPC port. The gRPC dial
+// blocks until its 2s timeout, so the TestConfigHostname subtests avoid this path.
+func TestAcquireHostnameCoreAgentUnreachable(t *testing.T) {
+	// Hold a free port and close every connection to it, so that the dial never
+	// reaches a core agent, whether one runs on the host or not.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	port := l.Addr().(*net.TCPAddr).Port
+
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.SetInTest("cmd_host", "127.0.0.1")
+	coreConfig.SetInTest("cmd_port", port)
+	cfg := buildComponent(t, true, coreConfig).Object()
+
+	require.Error(t, acquireHostname(cfg))
 }
 
 func TestAcquireHostnameFallbackEUDM(t *testing.T) {

@@ -41,7 +41,7 @@ dd_agent_go_binary(
     name = "sbomgen",
     embed = [":sbomgen_lib"],
     gotags = SBOMGEN_TAGS,
-    linkmode = "pie",  # keep
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    linkmode = "pie",
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

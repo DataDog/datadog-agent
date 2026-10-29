@@ -31,8 +31,10 @@ device mode, and hardware capabilities:
   `system_probe_prm` represent their respective system-probe GPU monitoring
   features.
 - `optional: true` means an otherwise supported metric may be absent on an
-  individual device, such as a fanless GPU. If emitted, optional metrics still
-  undergo normal support, tag, type, and value validation.
+  individual device, such as a fanless GPU, or for some workloads, such as
+  `device.sharing_fraction` for containers without an assigned fraction. If
+  emitted, optional metrics still undergo normal support, tag, type, and value
+  validation.
 
 Workload-only tagsets are selected separately through
 `ValidationOptions.WorkloadTagsets`. This allows a bare process workload to

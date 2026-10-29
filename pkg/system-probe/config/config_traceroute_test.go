@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -81,7 +82,7 @@ func TestTracerouteModule(t *testing.T) {
 			cfg, err := load()
 			require.NoError(t, err)
 
-			assert.Equal(t, test.expectTracerouteEnabled, cfg.ModuleIsEnabled(TracerouteModule))
+			assert.Equal(t, test.expectTracerouteEnabled, cfg.ModuleIsEnabled(types.TracerouteModule))
 			assert.Equal(t, test.tracerouteEnabled != nil || test.expectTracerouteEnabled, sysprobeCfg.IsConfigured("traceroute.enabled"))
 			assert.Equal(t, test.expectTracerouteEnabled, sysprobeCfg.GetBool("traceroute.enabled"))
 			expectSource := pkgconfigmodel.SourceDefault
@@ -106,7 +107,7 @@ func TestTracerouteModuleUnsetDefaultTrue(t *testing.T) {
 	cfg, err := load()
 	require.NoError(t, err)
 
-	assert.True(t, cfg.ModuleIsEnabled(TracerouteModule))
+	assert.True(t, cfg.ModuleIsEnabled(types.TracerouteModule))
 	assert.True(t, sysprobeCfg.IsConfigured("traceroute.enabled"))
 	assert.True(t, sysprobeCfg.GetBool("traceroute.enabled"))
 	assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, sysprobeCfg.GetSource("traceroute.enabled"))

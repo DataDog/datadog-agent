@@ -36,6 +36,11 @@ dd_agent_go_test(
         "user_test.go",
     ],
     embed = [":windows"],
+    env_inherit = [
+        "CI",
+        "COMPUTERNAME",
+        "DD_TEST_AGENT_USERNAME",
+    ],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
