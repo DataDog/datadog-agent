@@ -19,6 +19,13 @@ const (
 	dataItemHeaderSize = int(unsafe.Sizeof(DataItemHeader{}))
 )
 
+const (
+	// ConditionEvalErrorNilPointer marks a nil dereference in an evaluation error.
+	ConditionEvalErrorNilPointer uint8 = 2
+	// ConditionEvalErrorWhenBit distinguishes condition faults; it must match ebpf/framing.h.
+	ConditionEvalErrorWhenBit uint8 = 4
+)
+
 // MaxDataItemSize is the maximum number of payload bytes the BPF
 // scratch buffer's serialize_whole dispatcher can emit in a single
 // data item (i.e., the largest entry in scratch.h's SIZE_LIST). The

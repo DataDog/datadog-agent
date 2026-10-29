@@ -152,45 +152,9 @@ typedef struct stack_machine {
 
   // Set to true by ConditionCheck when the condition is false.
   bool condition_failed;
-  // "Arm" flag for the condition-evaluation error channel.
-  //
-  // Every condition-leaf abort path (nil deref, OOB, map miss, deref
-  // fail, swiss-map probe failure, @duration absent, etc.) sets this
-  // directly before calling sm_return — but only when the current
-  // expression is a condition (i.e. expr_status_idx == EXPR_STATUS_IDX_NONE).
-  // Capture expressions report errors via the per-expression status
-  // array (EXPR_STATUS_NIL_DEREF, EXPR_STATUS_OOB, EXPR_STATUS_ABSENT)
-  // and must NOT poison this flag. Single-event ConditionBeginOp also
-  // arms it at the start of the condition as belt-and-braces.
-  //
-  // Single-event-kind conditions:
-  //   - SM_OP_CONDITION_BEGIN arms it at the start of the condition.
-  //   - If any leaf aborts, the abort path also arms it (see above),
-  //     so userspace sees a failed condition.
-  //   - The tail SM_OP_CONDITION_CHECK clears it iff the full condition
-  //     tree ran to completion. The intermediate SM_OP_COND_JUMP_IF_*
-  //     ops deliberately do NOT clear it: a short-circuit jump may
-  //     skip a leaf that would have aborted, but leaves that fall
-  //     through can still fault, so the arm must survive until CHECK.
-  //
-  // Split-event-kind conditions (entry-side driver and return-side AST
-  // replay): each entry leaf is its own SM sub-function. The leaf arms
-  // the flag in its prelude, and the success-path
-  // SM_OP_CONDITION_LEAF_COMPLETE clears it; abort paths leave it armed
-  // (and also arm it directly, per above — important for the
-  // return-side replay, which inlines its return leaves and skips
-  // SM_OP_CONDITION_BEGIN). The driver's SM_OP_CONDITION_LEAF_RECORD
-  // reads the flag to derive a 2-bit status, then clears it before the
-  // next leaf. AST-replay SM_OP_CONDITION_LEAF_LOAD sets the flag (and
-  // condition_nil_deref) when it dispatches an errored leaf, and the
-  // tail SM_OP_CONDITION_CHECK_PRESERVE_ERROR deliberately does NOT
-  // clear it so the error survives to event.c.
-  //
-  // event.c surfaces the flag as header->condition_eval_error (0, 1, 2).
+  // Condition aborts leave this armed; later expressions reuse the same flag.
   bool condition_eval_error;
-  // Set to true when a nil pointer dereference causes an expression or
-  // condition evaluation to abort. Used together with condition_eval_error
-  // to distinguish nil-caused failures from other evaluation errors.
+  // Distinguishes nil dereferences from other evaluation errors.
   bool condition_nil_deref;
   // condition_state packs up to 8 per-leaf 2-bit statuses for a split-
   // event-kind condition. Bits [2*i, 2*i+1] hold leaf i's status (one of
@@ -213,6 +177,8 @@ typedef struct stack_machine {
   // out of the verifier's bounds-tracking window for the existing
   // cold-path reset in sm_run).
   uint8_t pending_expr_status;
+  // Keep the condition result before later expressions reuse the error flags.
+  uint8_t condition_error_at_root;
 
   // Dictionary pointer for generic shape functions. Set by
   // SM_OP_PROCESS_GO_DICT_TYPE on entry, propagated through call context
@@ -493,6 +459,7 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->condition_failed = false;
   stack_machine->condition_eval_error = false;
   stack_machine->condition_nil_deref = false;
+  stack_machine->condition_error_at_root = 0;
   stack_machine->condition_state = 0;
   chased_pointers_trie_init(&stack_machine->chased);
   chased_slices_init(&stack_machine->chased_slices);

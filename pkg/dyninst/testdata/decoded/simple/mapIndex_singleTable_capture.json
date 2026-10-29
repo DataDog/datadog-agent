@@ -18,7 +18,7 @@
           {
             "function": "main.mapIndexSingleTable",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1440
+            "lineNumber": 1437
           },
           {
             "function": "main.main",

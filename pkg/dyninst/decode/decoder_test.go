@@ -1382,6 +1382,69 @@ func TestDecoderPanics(t *testing.T) {
 	require.Contains(t, err.Error(), "boom")
 }
 
+type probeDefinitionWithWhen struct{ ir.ProbeDefinition }
+
+func (probeDefinitionWithWhen) GetWhen() json.RawMessage { return json.RawMessage(`true`) }
+
+func TestDecoderCapturesOnExpressionError(t *testing.T) {
+	c := cases[slices.IndexFunc(cases, func(c testCase) bool { return c.probeName == "stringArg" })]
+	irProg := generateIrForProbes(t, "simple", c.goVersion, c.probeName)
+	original := irProg.Probes[0].ProbeDefinition
+	for _, tc := range []struct {
+		name         string
+		evalError    uint8
+		hasWhen      bool
+		wantCaptures bool
+	}{
+		{name: "no error", hasWhen: true, wantCaptures: true},
+		{name: "later expression error", evalError: 1, hasWhen: true, wantCaptures: true},
+		{name: "later nil dereference", evalError: 2, hasWhen: true, wantCaptures: true},
+		{name: "condition error", evalError: 1 | output.ConditionEvalErrorWhenBit, hasWhen: true},
+		{name: "condition nil dereference", evalError: 2 | output.ConditionEvalErrorWhenBit, hasWhen: true},
+		{name: "unconditional expression error", evalError: 1, wantCaptures: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			irProg.Probes[0].ProbeDefinition = original
+			if tc.hasWhen {
+				irProg.Probes[0].ProbeDefinition = probeDefinitionWithWhen{original}
+			}
+			input := c.eventConstructor(t, irProg)
+			header, err := output.Event(input).Header()
+			require.NoError(t, err)
+			header.Condition_eval_error = tc.evalError
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+			require.NoError(t, err)
+			buf, _, err := decoder.Decode(Event{
+				EntryOrLine: output.SingleEvent(input),
+				ServiceName: "foo",
+			}, &noopSymbolicator{}, nil, nil)
+			require.NoError(t, err)
+			var result struct {
+				Debugger struct {
+					Snapshot struct {
+						Captures         json.RawMessage   `json:"captures"`
+						EvaluationErrors []evaluationError `json:"evaluationErrors"`
+					} `json:"snapshot"`
+				} `json:"debugger"`
+			}
+			require.NoError(t, json.Unmarshal(buf, &result))
+			require.Equal(t, tc.wantCaptures, len(result.Debugger.Snapshot.Captures) > 0)
+			if tc.wantCaptures {
+				var decoded eventCaptures
+				require.NoError(t, json.Unmarshal(buf, &decoded))
+				require.Equal(t, simpleStringArgExpected, decoded.Debugger.Snapshot.Captures.Entry.Arguments)
+			}
+			errors := result.Debugger.Snapshot.EvaluationErrors
+			whenError := slices.IndexFunc(errors, func(e evaluationError) bool { return e.Expression == "@when" })
+			wantWhenError := tc.evalError != 0 && (!tc.hasWhen || tc.evalError&output.ConditionEvalErrorWhenBit != 0)
+			require.Equal(t, wantWhenError, whenError >= 0)
+			if whenError >= 0 && tc.evalError&output.ConditionEvalErrorNilPointer != 0 {
+				require.Equal(t, errNilPointerEvaluating.Error(), errors[whenError].Message)
+			}
+		})
+	}
+}
+
 func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
 		return c.probeName == "stringArg"

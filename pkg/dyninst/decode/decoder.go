@@ -378,13 +378,14 @@ func (s *message) init(
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
-	if header.Condition_eval_error != 0 {
+	if header.Condition_eval_error != 0 &&
+		(probe.GetWhen() == nil || header.Condition_eval_error&output.ConditionEvalErrorWhenBit != 0) {
 		whenDSL := probe.GetWhenDSL()
 		if whenDSL == "" {
 			whenDSL = "@when"
 		}
 		msg := "error evaluating condition"
-		if header.Condition_eval_error == 2 {
+		if header.Condition_eval_error&output.ConditionEvalErrorNilPointer != 0 {
 			msg = errNilPointerEvaluating.Error()
 		}
 		s.Debugger.Snapshot.EvaluationErrors = append(
@@ -450,13 +451,14 @@ func (s *message) init(
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
 		}
-		if returnHeader.Condition_eval_error != 0 {
+		if returnHeader.Condition_eval_error != 0 &&
+			(probe.GetWhen() == nil || returnHeader.Condition_eval_error&output.ConditionEvalErrorWhenBit != 0) {
 			whenDSL := probe.GetWhenDSL()
 			if whenDSL == "" {
 				whenDSL = "@when"
 			}
 			msg := "error evaluating condition"
-			if returnHeader.Condition_eval_error == 2 {
+			if returnHeader.Condition_eval_error&output.ConditionEvalErrorNilPointer != 0 {
 				msg = errNilPointerEvaluating.Error()
 			}
 			s.Debugger.Snapshot.EvaluationErrors = append(
@@ -545,10 +547,9 @@ func (s *message) init(
 
 		s.Debugger.Snapshot.stack.frames = stackFrames
 		s.Debugger.Snapshot.Stack = &s.Debugger.Snapshot.stack
-		// Any/all capture expressions also set Condition_eval_error, so require a condition.
-		conditionErrored := header.Condition_eval_error != 0 ||
-			(returnHeader != nil && returnHeader.Condition_eval_error != 0)
-		if !conditionErrored || probe.GetWhen() == nil {
+		conditionErrored := header.Condition_eval_error&output.ConditionEvalErrorWhenBit != 0 ||
+			(returnHeader != nil && returnHeader.Condition_eval_error&output.ConditionEvalErrorWhenBit != 0)
+		if !conditionErrored {
 			s.Debugger.Snapshot.Captures = &s.Debugger.Snapshot.captures
 		}
 	}

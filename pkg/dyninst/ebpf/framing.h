@@ -29,6 +29,8 @@ typedef enum event_pairing_expectation {
   EVENT_PAIRING_RETURN_PANIC_UNWOUND = 9,
 } event_pairing_expectation_t;
 
+#define CONDITION_EVAL_ERROR_WHEN_BIT 4
+
 // The message header used for the event program.
 typedef struct di_event_header {
   // The number of bytes of data items and messages to follow, including
@@ -60,9 +62,7 @@ typedef struct di_event_header {
   // Event pairing expectation marks whether a return event is expected for this
   // event and if not, why not.
   unsigned char event_pairing_expectation;
-  // Set to non-zero when the condition expression could not be fully evaluated
-  // (e.g. nil pointer in the dereference chain). The event is still emitted
-  // (condition error treated as pass) but userspace should report the error.
+  // Low bits encode the error; bit 2 marks a failed condition rather than a later expression.
   unsigned char condition_eval_error;
 
   // Continuation support for events that exceed the 32KiB scratch buffer.

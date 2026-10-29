@@ -2197,7 +2197,7 @@ sm_swiss_map_hash_finish(scratch_buf_t* buf, stack_machine_t* sm) {
     if (!scratch_buf_bounds_check(&gs_off, 1)) return -1;
     uint8_t global_shift = (*buf)[gs_off];
     // Go sets globalShift to 64 for a one-table directory; BPF would mask that shift to 0.
-    uint64_t table_idx = dir_len == 1 ? 0 : hash >> (global_shift & 63);
+    uint64_t table_idx = dir_len == 1 ? 0 : hash >> global_shift;
     target_ptr_t table_ptr;
     if (bpf_probe_read_user(&table_ptr, 8,
                              (void*)(dir_ptr + table_idx * 8)) != 0) {
@@ -3500,6 +3500,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_PREPARE_EVENT_ROOT: {
+    sm->condition_error_at_root = sm->condition_eval_error ?
+        (sm->condition_nil_deref ? 2 : 1) : 0;
     type_t typ = (type_t)sm_read_program_uint32(sm);
     uint32_t data_len = sm_read_program_uint32(sm);
     // This is needed to prevent the reordering of the bounds check underneath
@@ -5106,6 +5108,7 @@ stack_machine_process_frame(global_ctx_t* ctx, frame_data_t* frame_data,
   ctx->stack_machine->condition_failed = false;
   ctx->stack_machine->condition_eval_error = false;
   ctx->stack_machine->condition_nil_deref = false;
+  ctx->stack_machine->condition_error_at_root = 0;
   return sm_run(ctx);
 }
 
