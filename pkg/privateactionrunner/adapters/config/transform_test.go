@@ -473,6 +473,32 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
 		assert.False(t, has)
 	})
+
+	t.Run("kubeactions bundle is not allowed when its private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
+		assert.False(t, has)
+	})
+
+	t.Run("explicit allowlist entries still apply when the kubeactions private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.kubernetes.kubeactions.getResource"})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("getResource"))
+		assert.False(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("deletePod"))
+	})
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {

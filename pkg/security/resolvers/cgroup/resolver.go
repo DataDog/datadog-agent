@@ -191,7 +191,7 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	}
 
 	if !cgroupContext.IsResolved() {
-		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false)
+		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false, dentry.CallerCGroup)
 		if err != nil {
 			seclog.Debugf("failed to fallback to resolve dentry for pid %d and path key %+v: %v", pid, cgroupContext.CGroupPathKey, err)
 			return nil
@@ -206,6 +206,7 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 		containerContext = model.ContainerContext{
 			ContainerID:     containerID,
 			PodUID:          podUID,
+			ECSTaskID:       containerutils.FindECSTaskID(cgroupContext.CGroupID),
 			CreatedAt:       cgroupContext.CreatedAt,
 			ContainerSource: model.ContainerSourceEvent,
 		}
@@ -242,6 +243,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32) *cgroupModel.CacheEntry {
 		containerContext := model.ContainerContext{
 			ContainerID:     cid,
 			PodUID:          containerutils.FindPodUID(cgroup.CGroupID),
+			ECSTaskID:       containerutils.FindECSTaskID(cgroup.CGroupID),
 			CreatedAt:       uint64(cgroup.CreatedAt.UnixNano()),
 			ContainerSource: model.ContainerSourceProcFS,
 		}

@@ -23,6 +23,7 @@ type testOpts struct {
 	disableEnvVarsResolution                bool
 	enableSecurityProfile                   bool
 	securityProfileNodeEvictionTimeout      time.Duration
+	securityProfileSampleRefreshPeriod      time.Duration
 	enableAnomalyDetection                  bool
 	workloadProfileStorageDir               string
 	workloadProfilePersistencePeriod        time.Duration
@@ -30,7 +31,6 @@ type testOpts struct {
 	workloadProfileDifferentiateArgs        bool
 	profilingStartupDelay                   time.Duration
 	profileReportingWaitPersistence         bool
-	eventSamplingSyscallsEnabled            bool
 	eventSamplingOpenRateUnlimited          bool
 	disableDiscarders                       bool
 	disableERPCDentryResolution             bool

@@ -9,6 +9,7 @@
 package sbom
 
 import (
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -98,28 +99,96 @@ func (fq *fileQuerier) queryHash(hash uint64) *sbomtypes.Package {
 	return fq.pkgs[fq.owners[i]]
 }
 
+// fileKeys holds the hashes an access to a file matches in the index, those of
+// its path and usr-merge alias, preceded for Python bytecode by its source's.
+type fileKeys struct {
+	source, sourceAlias, path, alias uint64
+}
+
+// newFileKeys returns the keys of the file at path itself.
+func newFileKeys(path string) fileKeys {
+	return fileKeys{path: murmur3.StringSum64(path), alias: aliasHash(path)}
+}
+
+// newUsageKeys returns the keys of the file at path, preceded by those of the
+// source of Python bytecode, whose package a use of the module credits.
+func newUsageKeys(path string) fileKeys {
+	k := newFileKeys(path)
+	if source, ok := pycSource(path); ok {
+		k.source, k.sourceAlias = murmur3.StringSum64(source), aliasHash(source)
+	}
+	return k
+}
+
+func aliasHash(path string) uint64 {
+	if alias := pathAlias(path); alias != "" {
+		return murmur3.StringSum64(alias)
+	}
+	return 0
+}
+
+// pycSource returns the source dir/name.py of the bytecode Python caches as
+// dir/__pycache__/name.cpython-312.pyc, if path is such bytecode.
+func pycSource(path string) (string, bool) {
+	dir, name := filepath.Split(path)
+	if !strings.HasSuffix(name, ".pyc") || filepath.Base(dir) != "__pycache__" {
+		return "", false
+	}
+	module, _, _ := strings.Cut(name, ".")
+	return filepath.Join(filepath.Dir(filepath.Clean(dir)), module+".py"), true
+}
+
 func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
-	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil {
+	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil || !fq.usrMerged {
 		return pkg
 	}
+	if alias := pathAlias(path); alias != "" {
+		return fq.queryHash(murmur3.StringSum64(alias))
+	}
+	return nil
+}
 
-	// On usr-merged layouts /bin and /usr/bin are the same tree, so the package
-	// database and the resolved exec path may use either prefix for one file.
-	if fq.usrMerged {
-		if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
-			if result := fq.queryHash(murmur3.StringSum64("/usr" + path)); result != nil {
-				return result
-			}
-		}
-
-		if after, ok := strings.CutPrefix(path, "/usr"); ok && (strings.HasPrefix(after, "/bin") || strings.HasPrefix(after, "/sbin") || strings.HasPrefix(after, "/lib")) {
-			if result := fq.queryHash(murmur3.StringSum64(after)); result != nil {
-				return result
-			}
+// queryUsage returns the package a use of the file at path credits: the owner of
+// the source of Python bytecode, else the owner of the file.
+func (fq *fileQuerier) queryUsage(path string) *sbomtypes.Package {
+	if source, ok := pycSource(path); ok {
+		if pkg := fq.queryFile(source); pkg != nil {
+			return pkg
 		}
 	}
+	return fq.queryFile(path)
+}
 
-	return nil
+// queryKeys returns the package owning the source of keys, else the one owning
+// their file.
+func (fq *fileQuerier) queryKeys(k fileKeys) *sbomtypes.Package {
+	if k.source != 0 {
+		if pkg := fq.queryHashes(k.source, k.sourceAlias); pkg != nil {
+			return pkg
+		}
+	}
+	return fq.queryHashes(k.path, k.alias)
+}
+
+// queryHashes returns the package owning the file of hash, or on a usr-merged
+// layout the file of alias, the hash of its alias, when alias is set.
+func (fq *fileQuerier) queryHashes(hash, alias uint64) *sbomtypes.Package {
+	if pkg := fq.queryHash(hash); pkg != nil || !fq.usrMerged || alias == 0 {
+		return pkg
+	}
+	return fq.queryHash(alias)
+}
+
+// pathAlias returns path under the other prefix of a usr-merged layout, where /bin
+// and /usr/bin are one tree, or "" for other paths.
+func pathAlias(path string) string {
+	if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
+		return "/usr" + path
+	}
+	if after, ok := strings.CutPrefix(path, "/usr"); ok && (strings.HasPrefix(after, "/bin") || strings.HasPrefix(after, "/sbin") || strings.HasPrefix(after, "/lib")) {
+		return after
+	}
+	return ""
 }
 
 func (fq *fileQuerier) len() int {

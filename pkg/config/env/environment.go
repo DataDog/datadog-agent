@@ -7,6 +7,7 @@ package env
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -68,6 +69,29 @@ func IsECS() bool {
 // IsECSFargate returns whether the Agent is running in ECS Fargate
 func IsECSFargate() bool {
 	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
+}
+
+// GetPlatformDefault returns the value of platformValues matching the platform the Agent runs on: "fargate" on ECS
+// Fargate, then "container" when containerized, then the OS name (runtime.GOOS), then "other". It returns nil if
+// none matches. The code generated from the config schema uses it for settings with a 'platform_default'.
+func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if IsECSFargate() {
+		if val, found := platformValues["fargate"]; found {
+			return val
+		}
+	}
+	if IsContainerized() {
+		if val, found := platformValues["container"]; found {
+			return val
+		}
+	}
+	if val, found := platformValues[runtime.GOOS]; found {
+		return val
+	}
+	if val, found := platformValues["other"]; found {
+		return val
+	}
+	return nil
 }
 
 // IsECSManagedInstances returns whether the Agent is running in ECS Managed Instances

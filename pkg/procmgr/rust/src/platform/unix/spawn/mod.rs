@@ -13,23 +13,24 @@ use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
 use crate::spawn::SpawnRequest;
 
-use super::{setup_process_group, stderr_inheritable, stdout_inheritable};
+use super::{setup_process_group, spawn_registered, stderr_inheritable, stdout_inheritable};
 use stdio::to_command_stdio;
 
 impl ManagedProcess {
     pub(crate) fn spawn_child_handle(&mut self) -> Result<ProcessHandle> {
         let process_name = self.name();
         info!("[{process_name}] spawn profile: {}", self.profile());
-        let request = SpawnRequest::from_config(process_name, self.config())?;
+        // Unix does not switch users, so the child runs as dd-procmgrd.
+        let request = SpawnRequest::from_config(process_name, self.config(), true)?;
         let mut cmd = request.to_command(stdout_inheritable(), stderr_inheritable());
         setup_process_group(&mut cmd);
-        let child = cmd.spawn().with_context(|| {
+        let child = spawn_registered(|| cmd.spawn()).with_context(|| {
             format!(
                 "[{process_name}] failed to spawn: {}",
                 self.config().command
             )
         })?;
-        Ok(ProcessHandle::from_child(child))
+        Ok(child.into_process_handle())
     }
 }
 

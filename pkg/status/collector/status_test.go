@@ -39,7 +39,18 @@ func (m *mockCollector) AddEventReceiver(_ collectorcomp.EventReceiver) {}
 var (
 	testInventoriesMu   sync.RWMutex
 	testInventoriesData interface{} = map[string]interface{}{}
+
+	testRunnerMu   sync.RWMutex
+	testRunnerData interface{} = map[string]interface{}{}
 )
+
+func init() {
+	// PopulateStatus unconditionally reads the CheckScheduler expvar; register
+	// it so tests that don't care about its contents don't panic on a nil Var.
+	expvar.Publish("CheckScheduler", expvar.Func(func() interface{} {
+		return map[string]interface{}{}
+	}))
+}
 
 func TestMain(m *testing.M) {
 	// Register the inventories expvar once using expvar.Func, matching how the
@@ -49,7 +60,25 @@ func TestMain(m *testing.M) {
 		defer testInventoriesMu.RUnlock()
 		return testInventoriesData
 	}))
+	// Register the runner expvar once, matching how pkg/collector/runner publishes it.
+	expvar.Publish("runner", expvar.Func(func() interface{} {
+		testRunnerMu.RLock()
+		defer testRunnerMu.RUnlock()
+		return testRunnerData
+	}))
 	os.Exit(m.Run())
+}
+
+func setRunnerStats(data map[string]interface{}) {
+	testRunnerMu.Lock()
+	defer testRunnerMu.Unlock()
+	testRunnerData = data
+}
+
+func clearRunnerStats() {
+	testRunnerMu.Lock()
+	defer testRunnerMu.Unlock()
+	testRunnerData = map[string]interface{}{}
 }
 
 func setInventories(checkMetadata map[string][]map[string]string) {
@@ -105,6 +134,38 @@ func TestRender(t *testing.T) {
 			require.Equal(t, result, stringOutput, "HTML rendering is not as expected")
 		})
 	}
+}
+
+func TestPopulateStatus_ExcludesWorkersFromAverageUtilization(t *testing.T) {
+	t.Cleanup(clearRunnerStats)
+
+	setRunnerStats(map[string]interface{}{
+		"Workers": map[string]interface{}{
+			"Instances": map[string]interface{}{
+				"worker_1":          map[string]interface{}{"Utilization": 0.2, "Excluded": false},
+				"worker_2 (shadow)": map[string]interface{}{"Utilization": 1.0, "Excluded": true},
+			},
+		},
+	})
+
+	p := NewProvider(nil)
+	stats := make(map[string]interface{})
+	p.PopulateStatus(stats)
+
+	workerStats, ok := stats["workerStats"].(map[string]interface{})
+	require.True(t, ok, "workerStats missing from status")
+
+	// Only the non-excluded worker should count towards the average and
+	// appear in the top workers list.
+	assert.InDelta(t, 0.2, workerStats["AverageUtilization"], 0.0001)
+
+	topWorkers, ok := workerStats["TopWorkers"].([]struct {
+		Name        string
+		Utilization float64
+	})
+	require.True(t, ok, "TopWorkers missing from status")
+	require.Len(t, topWorkers, 1)
+	assert.Equal(t, "worker_1", topWorkers[0].Name)
 }
 
 func TestCollectCheckMetadata_NilCollector(t *testing.T) {
