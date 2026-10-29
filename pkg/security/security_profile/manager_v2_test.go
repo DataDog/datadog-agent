@@ -1137,6 +1137,31 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 }
 
 func TestManagerV2_seedMountsForWorkload(t *testing.T) {
+	t.Run("skips seeding when mount event type is disabled", func(t *testing.T) {
+		const baseNs = uint32(4026531840)
+
+		m, _ := newInsertionTestManagerV2(t)
+		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{})
+		require.NoError(t, err)
+		m.resolvers.MountResolver = mr
+
+		require.NoError(t, mr.Insert(model.Mount{
+			MountID:        10,
+			NamespaceInode: baseNs,
+			Path:           "/",
+			RootStr:        "/",
+			FSType:         "overlay",
+		}))
+
+		ev := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		ev.ProcessCacheEntry.Process.MntNS = baseNs
+
+		p, inserted := m.insertEventIntoProfile(ev)
+		require.NotNil(t, p)
+		require.True(t, inserted)
+		assert.Empty(t, p.ActivityTree.Mounts)
+	})
+
 	t.Run("seeds cached base and foreign namespaces", func(t *testing.T) {
 		const (
 			baseNs    = uint32(4026531840)
@@ -1144,6 +1169,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		)
 
 		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2EventTypes = append(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.FileMountEventType)
 		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{})
 		require.NoError(t, err)
 		m.resolvers.MountResolver = mr
@@ -1206,6 +1232,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		baseNs := clonedNs ^ 1
 
 		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2EventTypes = append(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.FileMountEventType)
 		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{UseProcFS: true})
 		require.NoError(t, err)
 		m.resolvers.MountResolver = mr

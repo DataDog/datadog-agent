@@ -1261,7 +1261,7 @@ func liveMountIDFromEvent(event *model.Event) uint32 {
 // namespace entered by the event's process. Later changes come from live mount
 // events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
-	if workload == nil {
+	if workload == nil || !m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.FileMountEventType) {
 		return
 	}
 
