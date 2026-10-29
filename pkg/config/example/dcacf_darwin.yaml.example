@@ -195,15 +195,15 @@ api_key:
 ## @param process_manager - custom object - optional
 ## When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
 ## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
-## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
-## This setting is ignored on Linux and does not enable or disable the systemd unit.
+## On Linux, dd-procmgrd is started with the core Agent by systemd (`datadog-agent-procmgr.service`), SysV init, or Upstart.
+## This setting is ignored on Linux and does not enable or disable it.
 #
 # process_manager:
 
 #   # @param enabled - boolean - optional - default: true
 #   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
 #   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
-#   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#   # On Linux, the process manager daemon is started by systemd, SysV init, or Upstart. This option is ignored.
 #
 #   enabled: true
 
