@@ -131,10 +131,13 @@ do_stop()
 	#   1 if daemon was already stopped
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
-	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user $AGENT_USER --exec $AGENTPATH
+	start-stop-daemon --stop --quiet --retry=30 --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
 	RETVAL="$?"
-	rm -f $PIDFILE
-	return $RETVAL
+	# A failed stop can leave the daemon running. The pid file is what stops the next start from launching another one.
+	if [ "$RETVAL" -eq 0 ] || [ "$RETVAL" -eq 1 ]; then
+		rm -f "$PIDFILE"
+	fi
+	return "$RETVAL"
 }
 
 #
@@ -185,7 +188,7 @@ case "$1" in
 
 		echo "Restarting $DESC"
 
-		stop_and_wait
+		stop_and_wait || exit 1
 		start_and_wait
 
 		;;
