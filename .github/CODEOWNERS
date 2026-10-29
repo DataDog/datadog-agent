@@ -599,8 +599,8 @@
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
 
 # serverless-init metadata shares these with serverless-azure-and-gcp
+/comp/metadata/internal/agentmetadata/     @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
 /comp/metadata/internal/util/              @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
-/comp/metadata/agentmetadata/           @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
 
 # pkg
 /pkg/                                                                 @DataDog/agent-runtimes
