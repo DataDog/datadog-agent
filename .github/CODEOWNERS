@@ -796,7 +796,6 @@
 /pkg/privateactionrunner/bundles/remoteaction/rshell                  @DataDog/action-platform @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /pkg/rshell/                                                         @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /.github/workflows/rshell-analysis.yml                               @DataDog/dd-agent-mcp @DataDog/fleet-remediation
-/.github/workflows/rshell.yml                                        @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /.gitlab/test/rshell.yml                                             @DataDog/fleet-remediation
 /pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networkdevices          @DataDog/action-platform @DataDog/network-device-monitoring-core
