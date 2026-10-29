@@ -55,12 +55,10 @@ type pageSizeSuite struct {
 	pageSize int
 }
 
-// pageSizeX64Suite runs on the x64 deb that every pipeline building the Agent deploys, so it
-// catches suite regressions on pull requests.
 type pageSizeX64Suite struct{ pageSizeSuite }
 
-// pageSizeARM64Suite needs the arm64 RPM repository, which is only deployed on main, release and
-// RC pipelines, so it runs in its own job, new-e2e-agent-telemetry-arm64.
+// pageSizeARM64Suite installs the arm64 RPM, which new-e2e-agent-telemetry doesn't pull, so it
+// runs in its own job, new-e2e-agent-telemetry-arm64.
 type pageSizeARM64Suite struct{ pageSizeSuite }
 
 func pageSizeProvisioner(osDesc e2eos.Descriptor) e2e.SuiteOption {
