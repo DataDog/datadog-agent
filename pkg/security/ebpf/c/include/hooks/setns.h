@@ -138,7 +138,9 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval, e
     // before forking it) inherits the host mntns.
     if (retval == 0 && event->after.mnt != 0) {
         u32 pid = bpf_get_current_pid_tgid() >> 32;
-        bpf_map_update_elem(&mntns_cache, &pid, &event->after.mnt, BPF_ANY);
+        // copied to the stack: kernels before 4.18 reject a map value as the value argument
+        u32 mntns = event->after.mnt;
+        bpf_map_update_elem(&mntns_cache, &pid, &mntns, BPF_ANY);
     }
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
