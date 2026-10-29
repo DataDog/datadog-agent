@@ -454,6 +454,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 		copy(outCtx.Syscalls, ctx.Syscalls)
 		copy(outCtx.Tags, ctx.Tags)
 		output.versionContexts[key] = outCtx
+		output.addDistinctTags(outCtx.Tags)
 	}
 
 	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)
