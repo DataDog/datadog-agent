@@ -263,6 +263,7 @@ func callAgentsForServiceFiltered[PbType any, StructuredType any](
 	}
 
 	// Creates a context with a one second deadline for the RPC.
+	callerCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
@@ -288,7 +289,10 @@ func callAgentsForServiceFiltered[PbType any, StructuredType any](
 			resp, err := grpcCall(ctx, remoteAgent, grpc.WaitForReady(true), grpc.Header(&responseHeader))
 
 			if err != nil {
-				registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
+				// A call cut short because the caller gave up is not a failure of the remote agent.
+				if !callerDone(callerCtx) {
+					registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
+				}
 			} else {
 				// Validate session ID if no error occurred
 				if validationErr := remoteAgent.validateSessionID(responseHeader); validationErr != nil {

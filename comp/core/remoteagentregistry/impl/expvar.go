@@ -418,7 +418,10 @@ func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, c
 	}
 	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetTelemetryResponse, err error) remoteExpvarAgentResponse {
 		if err != nil {
-			log.Warnf("Failed to collect expvars from remoteAgent %v: %v", details.SanitizedDisplayName, err)
+			// Failures caused by the caller giving up (e.g. a /debug/vars client disconnecting) are not worth a warning.
+			if !callerDone(ctx) {
+				log.Warnf("Failed to collect expvars from remoteAgent %v: %v", details.SanitizedDisplayName, err)
+			}
 			return remoteExpvarAgentResponse{}
 		}
 		payload, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText)
