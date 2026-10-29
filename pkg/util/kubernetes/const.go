@@ -38,6 +38,10 @@ const (
 	DynamoComponentTypeLabelKey = "nvidia.com/dynamo-component-type"
 	// DynamoSubComponentTypeLabelKey is the Dynamo operator's label for the specific worker role
 	DynamoSubComponentTypeLabelKey = "nvidia.com/dynamo-sub-component-type"
+	// KubeAIGroupName is the API group used by KubeAI resources.
+	KubeAIGroupName = "kubeai.org"
+	// KubeAIModelKind is the kind of the KubeAI resource that owns model pods.
+	KubeAIModelKind = "Model"
 	// RayClusterLabelKey is the KubeRay label for the owning RayCluster.
 	RayClusterLabelKey = "ray.io/cluster"
 	// RayServeLabelKey marks RayService pods; its value controls serving traffic.

@@ -74,6 +74,38 @@ func TestTagsSetup(t *testing.T) {
 	assert.ElementsMatch(t, slices.Concat(serverlessTag.MapToArray(cloudServiceEnhancedUsageMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(tagConfig.EnhancedUsageMetricTags))
 }
 
+// TestApplyCloudServiceOverrides verifies that AWS Lambda MicroVM keeps the 1ms
+// DogStatsD packet buffer flush timeout while other cloud services use the default.
+func TestApplyCloudServiceOverrides(t *testing.T) {
+	const key = "dogstatsd_packet_buffer_flush_timeout"
+
+	tests := []struct {
+		name         string
+		cloudService cloudservice.CloudService
+		keepsDefault bool
+	}{
+		{name: "MicroVM keeps 1ms", cloudService: &cloudservice.MicroVM{}, keepsDefault: false},
+		{name: "LocalService uses the default", cloudService: &cloudservice.LocalService{}, keepsDefault: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			defaultTimeout := cfg.GetDuration(key)
+			// The test is only meaningful if the default differs from the override.
+			assert.NotEqual(t, time.Millisecond, defaultTimeout)
+
+			applyCloudServiceOverrides(tt.cloudService)
+
+			if tt.keepsDefault {
+				assert.Equal(t, defaultTimeout, cfg.GetDuration(key))
+			} else {
+				assert.Equal(t, time.Millisecond, cfg.GetDuration(key))
+			}
+		})
+	}
+}
+
 func TestFxApp(t *testing.T) {
 	fxutil.TestOneShot(t, main)
 }

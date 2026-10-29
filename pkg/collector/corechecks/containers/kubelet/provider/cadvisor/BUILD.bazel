@@ -26,7 +26,7 @@ go_library(
 dd_agent_go_test(
     name = "cadvisor_test",
     srcs = ["provider_test.go"],
-    data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
+    data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],
     embed = [":cadvisor"],
     gotags_sets = [[
         "cel",

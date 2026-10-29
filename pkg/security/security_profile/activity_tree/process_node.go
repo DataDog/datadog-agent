@@ -75,8 +75,7 @@ type ProcessInfo struct {
 // node. The cache entries are deep-copied onto the local copy first: pc := *p is only a
 // shallow copy, so pc.ArgsEntry/EnvsEntry alias the live event's entries, and scrubbing
 // (which rewrites ArgsEntry.Values in place) would otherwise redact the arguments still
-// referenced by the event — e.g. a rule evaluating raw process.args after the V2 profile
-// insert (which happens before rule evaluation) would see the scrubbed values.
+// referenced by the event.
 func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessInfo {
 	pc := *p
 	if pc.ArgsEntry != nil {
@@ -366,32 +365,6 @@ func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchAr
 		return slices.Equal(pi.Argv, argv)
 	}
 	return true
-}
-
-// InsertSyscallSample inserts a syscall sample first-hit and returns whether a
-// new SyscallNode was created and its NodeBase (for cookie mapping).
-func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) (bool, *NodeBase) {
-	syscallID := int(e.Syscalls.SyscallID)
-	at := e.ResolveEventTime()
-
-	if existing, ok := pn.Syscalls[syscallID]; ok {
-		existing.AppendImageTagID(imageTagID, at)
-		return false, &existing.NodeBase
-	}
-
-	if dryRun {
-		return true, nil
-	}
-
-	sn := NewSyscallNode(syscallID, at, imageTagID, Runtime)
-	if pn.Syscalls == nil {
-		pn.Syscalls = make(map[int]*SyscallNode)
-	}
-	pn.Syscalls[syscallID] = sn
-	syscallMask[syscallID] = syscallID
-	stats.SyscallNodes++
-	stats.SizeBytes += sn.size()
-	return true, &sn.NodeBase
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump

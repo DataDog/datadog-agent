@@ -96,7 +96,6 @@ type Profile struct {
 	isEnabled          bool
 	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
 	observedRollups bool
-	seededSyscalls  []uint32
 
 	baseMountNSByCgroup map[uint64]baseMountNSPin
 }
@@ -182,13 +181,6 @@ func WithEventTypes(eventTypes []model.EventType) Opts {
 func WithObservedRollups() Opts {
 	return func(p *Profile) {
 		p.observedRollups = true
-	}
-}
-
-// WithSeededSyscalls sets syscall ids to union into the profile's reported syscall lists.
-func WithSeededSyscalls(ids []uint32) Opts {
-	return func(p *Profile) {
-		p.seededSyscalls = ids
 	}
 }
 
@@ -361,7 +353,7 @@ func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authori
 	p.Lock()
 	defer p.Unlock()
 
-	if nsID == 0 {
+	if cgroupInode == 0 || nsID == 0 {
 		return false
 	}
 	if p.baseMountNSByCgroup == nil {
@@ -377,38 +369,58 @@ func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authori
 			p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: true}
 			return false
 		}
-		// Correcting a wrong guess only stops new mounts from the superseded namespace
-		// counting as base. Mounts already seeded under it keep their flag: nodes are
-		// deduped across namespaces, so they cannot be attributed back to a single one.
-		p.ActivityTree.RemoveBaseMountNamespaceID(cur.nsID)
 	}
 
 	p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: authoritative}
-	p.ActivityTree.AddBaseMountNamespaceID(nsID)
+	p.ActivityTree.SetBaseMountNamespace(cgroupInode, nsID)
 	return true
 }
 
 // RemoveBaseMountNamespace drops the base mount namespace recorded for the workload
-// identified by cgroupInode from the tree's base-namespace set.
+// identified by cgroupInode.
 func (p *Profile) RemoveBaseMountNamespace(cgroupInode uint64) {
 	p.Lock()
 	defer p.Unlock()
 
-	pin, ok := p.baseMountNSByCgroup[cgroupInode]
-	if !ok {
+	if _, ok := p.baseMountNSByCgroup[cgroupInode]; !ok {
 		return
 	}
 	delete(p.baseMountNSByCgroup, cgroupInode)
-	p.ActivityTree.RemoveBaseMountNamespaceID(pin.nsID)
+	p.ActivityTree.RemoveBaseMountNamespace(cgroupInode)
+}
+
+func (p *Profile) ClaimMountNamespaceSeed(cgroupInode uint64, nsID uint32, imageTag string) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	if cgroupInode == 0 || nsID == 0 {
+		return false
+	}
+	if pin, ok := p.baseMountNSByCgroup[cgroupInode]; ok && pin.nsID == nsID {
+		return false
+	}
+	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
+	return p.ActivityTree.ClaimMountNamespaceSeed(imageTagID, nsID)
+}
+
+func (p *Profile) ReleaseMountNamespaceSeed(nsID uint32, imageTag string) {
+	p.Lock()
+	defer p.Unlock()
+
+	if nsID == 0 {
+		return
+	}
+	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
+	p.ActivityTree.ReleaseMountNamespaceSeed(imageTagID, nsID)
 }
 
 // InsertMount inserts a mount into the profile's deduplicated mount table
-func (p *Profile) InsertMount(mnt *model.Mount, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
+func (p *Profile) InsertMount(mnt *model.Mount, cgroupInode uint64, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
 	p.Lock()
 	defer p.Unlock()
 
 	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
-	return p.ActivityTree.InsertMount(mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
+	return p.ActivityTree.InsertMount(cgroupInode, mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
 }
 
 // ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
@@ -796,30 +808,7 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 	p.Lock()
 	defer p.Unlock()
 
-	return unionSyscalls(p.ActivityTree.ComputeSyscallsList(), p.seededSyscalls)
-}
-
-// unionSyscalls returns base ∪ extra, deduplicated and sorted.
-func unionSyscalls(base, extra []uint32) []uint32 {
-	if len(extra) == 0 {
-		return base
-	}
-	seen := make(map[uint32]struct{}, len(base)+len(extra))
-	out := make([]uint32, 0, len(base)+len(extra))
-	for _, s := range base {
-		if _, ok := seen[s]; !ok {
-			seen[s] = struct{}{}
-			out = append(out, s)
-		}
-	}
-	for _, s := range extra {
-		if _, ok := seen[s]; !ok {
-			seen[s] = struct{}{}
-			out = append(out, s)
-		}
-	}
-	slices.Sort(out)
-	return out
+	return p.ActivityTree.ComputeSyscallsList()
 }
 
 // MatchesSelector is used to control how an event should be added to a profile

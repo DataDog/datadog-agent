@@ -264,6 +264,38 @@ func TestNewConfigFiltersFromEnv(t *testing.T) {
 	}, result.filterConfig)
 }
 
+func TestNewConfigBasicTestsStandDownWhenTracerouteDisabled(t *testing.T) {
+	tests := []struct {
+		name                 string
+		standardTests        bool
+		traceroute           any // nil: not configured
+		expectBasic          bool
+		expectStandard       bool
+		expectCollectorStart bool
+	}{
+		{name: "traceroute not configured", expectBasic: true, expectCollectorStart: true},
+		{name: "traceroute explicitly enabled", traceroute: true, expectBasic: true, expectCollectorStart: true},
+		{name: "traceroute explicitly disabled", traceroute: false},
+		// Standard dynamic tests are an explicit opt-in: unchanged when traceroute is disabled.
+		{name: "standard tests, traceroute explicitly disabled", standardTests: true, traceroute: false, expectStandard: true, expectCollectorStart: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sysprobeOverrides := map[string]any{"network_config.enabled": true}
+			if tt.traceroute != nil {
+				sysprobeOverrides["traceroute.enabled"] = tt.traceroute
+			}
+			cfg := newConfig(config.NewMockWithOverrides(t, map[string]any{
+				"network_path.connections_monitoring.enabled": tt.standardTests,
+				"network_path.collector.filters":              []map[string]any{},
+			}), sysprobeconfigmock.NewMockWithOverrides(t, sysprobeOverrides), logmock.New(t))
+			assert.Equal(t, tt.expectBasic, cfg.basicTestsEnabled)
+			assert.Equal(t, tt.expectStandard, cfg.connectionsMonitoringEnabled)
+			assert.Equal(t, tt.expectCollectorStart, cfg.networkPathCollectorEnabled())
+		})
+	}
+}
+
 func TestNewConfigBasicTestsRequireCNM(t *testing.T) {
 	logger := logmock.New(t)
 	empty := map[string]any{"network_path.collector.filters": []map[string]any{}}

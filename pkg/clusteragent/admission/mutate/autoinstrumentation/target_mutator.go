@@ -188,9 +188,11 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if resolved == nil {
 		return false, nil
 	}
+	annotation.Set(pod, annotation.InjectionSource, string(resolved.selectedBy))
+
 	injection := resolved.plan
 	if injection.blocked {
-		annotation.Set(pod, annotation.AppliedPolicy, injection.appliedMetadataJSON)
+		annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
 		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
 		return false, nil
 	}
@@ -231,24 +233,21 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if injection.appliedMetadataJSON != "" {
 		m.addAppliedMetadata(pod, resolved)
 	}
-
 	return true, nil
 }
 
 func (m *TargetMutator) addAppliedMetadata(pod *corev1.Pod, resolved *injectionResolution) {
 	injection := resolved.plan
 	envVarName := AppliedTargetEnvVar
-	annotationKey := annotation.AppliedTarget
 	if resolved.selectedBy == injectionSourceRemoteConfig {
 		envVarName = AppliedPolicyEnvVar
-		annotationKey = annotation.AppliedPolicy
 	}
 
 	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
 		Name:  envVarName,
 		Value: injection.appliedMetadataJSON,
 	}), true)
-	annotation.Set(pod, annotationKey, injection.appliedMetadataJSON)
+	annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as

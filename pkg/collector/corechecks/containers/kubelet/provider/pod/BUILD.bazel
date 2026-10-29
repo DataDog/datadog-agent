@@ -32,7 +32,7 @@ dd_agent_go_test(
         "provider_test.go",
         "provider_time_to_ready_test.go",
     ],
-    data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
+    data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],
     embed = [":pod"],
     gotags_sets = [[
         "cel",

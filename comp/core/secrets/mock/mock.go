@@ -25,6 +25,8 @@ type Mock struct {
 	refreshNowHook        func() (string, error)
 	isValueFromSecretHook func(string) bool
 	isValueFromSecretSet  map[string]struct{}
+	paths                 []string
+	handles               []string
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -144,3 +146,14 @@ func (m *Mock) IsValueFromSecret(value string) bool {
 
 // RemoveOrigin
 func (m *Mock) RemoveOrigin(_ string) {}
+
+// SetPathsAndHandles sets the values returned by GetPathsAndHandles
+func (m *Mock) SetPathsAndHandles(paths []string, handles []string) {
+	m.paths = paths
+	m.handles = handles
+}
+
+// GetPathsAndHandles returns the values set by SetPathsAndHandles
+func (m *Mock) GetPathsAndHandles() ([]string, []string) {
+	return m.paths, m.handles
+}

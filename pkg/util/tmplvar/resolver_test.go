@@ -8,9 +8,11 @@ package tmplvar
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -368,4 +370,46 @@ func TestGetFallbackHost(t *testing.T) {
 	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bar": "172.17.0.2"})
 	assert.Equal(t, "", ip)
 	assert.NotNil(t, err)
+}
+
+func TestAllowEnvVarAgentEnvVars(t *testing.T) {
+	cases := []struct {
+		desc                string
+		allowedAgentEnvVars []string
+		allowed             map[string]bool
+	}{
+		{
+			desc: "default",
+			allowed: map[string]bool{
+				"DD_ENV":          true,
+				"dd_cluster_name": true,
+				"DD_API_KEY":      false,
+				"DB_PASSWORD":     true,
+			},
+		},
+		{
+			desc:                "custom list replaces the default",
+			allowedAgentEnvVars: []string{"dd_api_key"},
+			allowed: map[string]bool{
+				"DD_API_KEY":  true,
+				"DD_ENV":      false,
+				"DB_PASSWORD": true,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			cfg := configmock.New(t)
+			if tc.allowedAgentEnvVars != nil {
+				cfg.SetInTest("ad_allowed_agent_env_vars", tc.allowedAgentEnvVars)
+			}
+			blockedAgentEnvVars = sync.OnceValue(computeBlockedAgentEnvVars)
+			t.Cleanup(func() { blockedAgentEnvVars = sync.OnceValue(computeBlockedAgentEnvVars) })
+
+			for envVar, allowed := range tc.allowed {
+				assert.Equal(t, allowed, allowEnvVar(envVar), envVar)
+			}
+		})
+	}
 }

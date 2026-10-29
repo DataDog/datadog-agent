@@ -27,12 +27,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
@@ -87,7 +88,7 @@ require (
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
@@ -143,6 +144,8 @@ replace github.com/DataDog/datadog-agent/pkg/config/schema => ../../pkg/config/s
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../pkg/config/setup/constants
+
+replace github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../pkg/config/setup/generatedsettings_local
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 

@@ -353,6 +353,7 @@ const (
 	MetricSourceAmazonVpcCni
 	MetricSourceRavendb
 	MetricSourceSglang
+	MetricSourcePanFirewall
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1182,6 +1183,8 @@ func (ms MetricSource) String() string {
 		return "ravendb"
 	case MetricSourceSglang:
 		return "sglang"
+	case MetricSourcePanFirewall:
+		return "pan_firewall"
 	default:
 		return "<unknown>"
 	}
@@ -1898,6 +1901,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceRavendb
 	case "sglang":
 		return MetricSourceSglang
+	case "pan_firewall":
+		return MetricSourcePanFirewall
 	default:
 		return MetricSourceUnknown
 	}

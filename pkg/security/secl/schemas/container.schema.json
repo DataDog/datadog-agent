@@ -9,6 +9,9 @@
         "pod_uid": {
             "type": "string"
         },
+        "ecs_task_id": {
+            "type": "string"
+        },
         "created_at": {
             "$ref": "datetime.schema.json"
         },

@@ -236,6 +236,91 @@ site: datadoghq.com
 	assert.Equal(t, 7778, mgr.hostProfilerConfig.HPFlare.Port)
 }
 
+func TestNewConfigManagerSymbolUploaderReportIntervalFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  symbol_uploader:
+    report:
+      interval: 600
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 600, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+}
+
+func TestNewConfigManagerSymbolUploaderReportIntervalFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_REPORT_INTERVAL", "900")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 900, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+}
+
+func TestNewConfigManagerSymbolUploaderReportIntervalUnsetFallsBackToSchemaDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+	assert.Equal(t, 300, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+}
+
+func TestNewConfigManagerSymbolUploaderReportMaxFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  symbol_uploader:
+    report:
+      max_paths_per_report: 42
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 42, mgr.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport)
+}
+
+func TestNewConfigManagerSymbolUploaderReportMaxFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_REPORT_MAX_PATHS_PER_REPORT", "77")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 77, mgr.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport)
+}
+
+func TestNewConfigManagerSymbolUploaderReportMaxUnsetFallsBackToSchemaDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+	assert.Equal(t, 100, mgr.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport)
+}
+
+func TestNewConfigManagerSymbolUploaderReportInvalidValuesCoercedToZero(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  symbol_uploader:
+    report:
+      interval: abc
+      max_paths_per_report: abc
+`)
+	mgr := newConfigManager(cfg)
+	assert.Equal(t, 0, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+	assert.Equal(t, 0, mgr.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport)
+}
+
 func TestNewConfigManagerProfilingSendToMainEndpointDefault(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, `
 api_key: main-key

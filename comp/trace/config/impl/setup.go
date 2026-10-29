@@ -223,6 +223,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("dogstatsd_port") {
 		c.StatsdPort = core.GetInt("dogstatsd_port")
 	}
+	// Not guarded by IsConfigured, so the schema default applies too.
+	if size := core.GetInt("dogstatsd_buffer_size"); size > 0 {
+		c.StatsdBufferSize = size
+	}
 
 	obsPipelineEnabled, prefix := isObsPipelineEnabled(core)
 	if obsPipelineEnabled {

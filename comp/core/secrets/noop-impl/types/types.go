@@ -41,3 +41,8 @@ func (r *SecretNoop) IsValueFromSecret(_ string) bool {
 
 // RemoveOrigin
 func (r *SecretNoop) RemoveOrigin(_ string) {}
+
+// GetPathsAndHandles returns empty slices for noop
+func (r *SecretNoop) GetPathsAndHandles() ([]string, []string) {
+	return []string{}, []string{}
+}

@@ -29,14 +29,12 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-
-	// imported by the generated code. We duplicate the import here to keep it in go.mod
-	_ "github.com/DataDog/datadog-agent/pkg/config/helper"
 )
 
 const (
@@ -140,9 +138,9 @@ func InitConfigObjects() {
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
 	// Settings that are shared in common between serverless and the full agent, split up by feature / product
-	initCommonBase(config)
+	generatedsettings.InitCommonBase(config)
 	// Settings just for the full agent in general
-	initCoreAgentFull(config)
+	generatedsettings.InitCoreAgentFull(config)
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
@@ -378,25 +376,25 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	defer cancelStartup()
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for _, section := range delegatedAuthKeys {
+	for _, section := range generatedsettings.DelegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
+		orgUUID := config.GetString(section.DelegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		log.Infof("Configuring delegated authentication for '%s'", section.description)
+		log.Infof("Configuring delegated authentication for '%s'", section.Description)
 
 		err := delegatedAuthComp.AddInstance(startupCtx, delegatedauth.InstanceParams{
 			Config:            config,
 			ProviderConfig:    providerConfig,
 			OrgUUID:           orgUUID,
-			RefreshInterval:   config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
-			APIKeyConfigKey:   section.apiKeyPath,
-			AllowAsyncStartup: section.apiKeyPath == "api_key",
+			RefreshInterval:   config.GetInt(section.DelegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey:   section.APIKeyPath,
+			AllowAsyncStartup: section.APIKeyPath == "api_key",
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.Description, err)
 		}
 	}
 
@@ -941,24 +939,4 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 		// update config with the actual effective number of workers
 		config.Set("check_runners", 1, pkgconfigmodel.SourceAgentRuntime)
 	}
-}
-
-func getPlatformDefault(platformValues map[string]interface{}) interface{} {
-	if pkgconfigenv.IsECSFargate() {
-		if val, found := platformValues["fargate"]; found {
-			return val
-		}
-	}
-	if pkgconfigenv.IsContainerized() {
-		if val, found := platformValues["container"]; found {
-			return val
-		}
-	}
-	if val, found := platformValues[runtime.GOOS]; found {
-		return val
-	}
-	if val, found := platformValues["other"]; found {
-		return val
-	}
-	return nil
 }

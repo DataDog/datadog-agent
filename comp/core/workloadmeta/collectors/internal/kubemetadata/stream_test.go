@@ -1414,7 +1414,13 @@ func TestDCAStreamClient_ApplyResponse_KueueWorkloads(t *testing.T) {
 				Name:         "job-a",
 				Queue:        "batch",
 				ClusterQueue: "cluster-batch",
-				Type:         pb.KubeMetadataEventType_SET,
+				PodTemplateLabels: map[string]string{
+					"team": "ccm-allocation",
+				},
+				PodTemplateAnnotations: map[string]string{
+					"workload-owner": "gpu-monitoring",
+				},
+				Type: pb.KubeMetadataEventType_SET,
 			},
 		},
 	})
@@ -1423,6 +1429,8 @@ func TestDCAStreamClient_ApplyResponse_KueueWorkloads(t *testing.T) {
 	assert.Contains(t, update.updatedKueueWorkloads, "default/job-a")
 	require.Contains(t, sc.kueueWorkloads, "default/job-a")
 	assert.Equal(t, "batch", sc.kueueWorkloads["default/job-a"].QueueName)
+	assert.Equal(t, map[string]string{"team": "ccm-allocation"}, sc.kueueWorkloads["default/job-a"].PodTemplateLabels)
+	assert.Equal(t, map[string]string{"workload-owner": "gpu-monitoring"}, sc.kueueWorkloads["default/job-a"].PodTemplateAnnotations)
 
 	// Incremental SET of a new workload adds to the cache.
 	sc.applyResponse(&pb.KubeMetadataStreamResponse{

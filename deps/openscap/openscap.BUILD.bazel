@@ -21,7 +21,7 @@ package(
 
 # RELEASE names the release of github.com/0intro/openscap that
 # openscap.MODULE.bazel downloads, VERSION the upstream release it holds.
-RELEASE = "1.4.6-dd.20261022.1"
+RELEASE = "1.4.6-dd.20261022.3"
 
 VERSION = RELEASE.split("-")[0]
 

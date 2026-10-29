@@ -212,6 +212,17 @@ and its stale source references. Remove the obsolete rule and its unused load ex
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
 
+#### Only add `# keep` when Gazelle would otherwise change the code
+
+A `# keep` comment is only useful when Gazelle would rewrite or drop the value it annotates. Do not add one:
+
+- on attributes Gazelle never manages (`target_compatible_with`, `tags`, `data`, `env`, `gotags`, `linkmode`, ...),
+- on top-level assignments or other non-rule statements,
+- on a value or rule that already matches what Gazelle generates.
+
+To check whether a `# keep` is needed, remove it, run `bazel run //:gazelle -- ./path/to/package`, and keep it only if
+the resulting diff is non-empty. If you do add one, explain why on the same line (`# keep: <reason>`).
+
 #### `test/new-e2e/tests/` is not migrated — exclude new suite directories
 
 Most of `test/new-e2e/tests/` is listed in the root `BUILD.bazel` `# gazelle:exclude` block. Those suites provision real
@@ -745,16 +756,16 @@ binary (e.g. `//pkg/security/generators/backend_doc`, which produces
 output therefore cannot be cross-compiled: it needs a binary built *for* that
 platform and then actually executed.
 
-For Windows, such a generator runs on Linux under `//bazel/tools/wine:wine_run`,
-which uses a pinned Wine (under box64 on aarch64) from its runfiles, never the
-host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
-the generator for `windows_amd64`, a native `run_binary` and a Wine `run_binary`,
-and an `alias` that selects between them on `@platforms//os:windows`. `wine_run`
-only supports Linux x86_64 and aarch64 (4K pages), so on macOS the Wine target
-is skipped as incompatible. Wine is for local regeneration only (it is flaky
-under box64 on CI): tag the Wine target, the alias and its `write_source_file`
-`manual`, and check the committed output with a `diff_test` against the native
-target, which only runs on Windows.
+For Windows, such a generator runs through `@rules_wine`. The module
+downloads a pinned Wine and executes it from a throwaway prefix; on Linux and
+macOS arm64 an x86_64 payload runs under FEX inside a native arm64 Wine. Follow
+the `backend_windows_schema_gen` pattern: a `go_cross_binary` of the generator
+for `windows_amd64`, a native `run_binary` on Windows, a rule that calls
+`windows_actions` elsewhere, and an `alias` that selects on
+`@platforms//os:windows`. Intel macOS has no default distribution. Wine is for
+local regeneration only: tag the Wine target, the alias and its
+`write_source_file` `manual`, and check the committed output with a `diff_test`
+against the native target, which only runs on Windows.
 
 ## Depsets and rule performance
 

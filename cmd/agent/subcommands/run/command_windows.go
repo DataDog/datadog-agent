@@ -84,6 +84,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -152,6 +153,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			traceroute traceroute.Component,
 			healthplatformComp healthplatformdef.Component,
 			ncmComp option.Option[networkconfigmanagement.Component],
+			gpuReadiness *gpu.Readiness,
 
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
@@ -182,6 +184,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				traceroute,
 				healthplatformComp,
 				ncmComp,
+				gpuReadiness,
 			)
 			if err != nil {
 				return err

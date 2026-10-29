@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestKubeDistributionName(t *testing.T) {
@@ -64,6 +65,21 @@ func TestGetNameCLCRunner(t *testing.T) {
 	cfg := mock.New(t)
 	cfg.SetInTest("clc_runner_enabled", true)
 	cfg.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+
+	name, err := GetName(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, name)
+}
+
+// TestGetNameKubeletDisabled ensures GetName returns early without probing the
+// kubelet when otel-agent's configuration leaves it without kubelet access.
+func TestGetNameKubeletDisabled(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+	flavor.SetTestFlavor(t, flavor.OTelAgent)
+
+	cfg := mock.New(t)
+	cfg.SetInTest("otel_standalone", true)
+	cfg.SetInTest("otelcollector.standalone.use_kubelet_collector", false)
 
 	name, err := GetName(context.Background())
 	assert.NoError(t, err)

@@ -14,6 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.83.0
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.83.0
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.83.0
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.83.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/google/go-cmp v0.7.0
@@ -46,6 +47,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.83.0 // indirect
@@ -53,7 +55,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.83.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.83.0 // indirect
@@ -156,7 +157,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
@@ -260,6 +261,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../../../pkg/config/setup/constants
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../../../../../pkg/config/setup/generatedsettings_local
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../../../pkg/discovery/tracermetadata/model

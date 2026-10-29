@@ -211,6 +211,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -330,6 +331,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -426,6 +428,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -837,6 +840,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exec.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`exec.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -973,6 +977,7 @@ A process was terminated
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exit.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`exit.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1445,6 +1450,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`ptrace.tracee.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1564,6 +1570,7 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`ptrace.tracee.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1660,6 +1667,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`ptrace.tracee.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1966,6 +1974,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`setrlimit.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2085,6 +2094,7 @@ A setrlimit command was executed
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`setrlimit.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2181,6 +2191,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`setrlimit.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2392,6 +2403,7 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`signal.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2511,6 +2523,7 @@ A signal was sent
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`signal.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2607,6 +2620,7 @@ A signal was sent
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`signal.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -3123,6 +3137,15 @@ Definition: Amount of data transmitted or received
 
 `*.data_size` has 2 possible prefixes:
 `network_flow_monitor.flows.egress` `network_flow_monitor.flows.ingress`
+
+
+### `*.ecs_task_id` {#common-containercontext-ecs_task_id-doc}
+Type: string
+
+Definition: ECS task ID
+
+`*.ecs_task_id` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
 
 
 ### `*.egid` {#common-credentials-egid-doc}

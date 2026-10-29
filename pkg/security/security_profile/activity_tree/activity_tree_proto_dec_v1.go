@@ -40,6 +40,9 @@ func ProtoDecodeMounts(dest *ActivityTree, nodes []*adproto.MountNode) {
 		}
 		mn := NewMountNode(m.MountPoint, m.MountRoot, m.Filesystem, m.MountFlags, Runtime, 0, time.Time{})
 		mn.InBaseNamespace = m.BaseNamespace
+		if m.BaseNamespace {
+			mn.addBaseNamespaceID(0)
+		}
 		if m.NodeBase != nil {
 			for tag, imageTagTimes := range m.NodeBase.Seen {
 				firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
@@ -47,7 +50,8 @@ func ProtoDecodeMounts(dest *ActivityTree, nodes []*adproto.MountNode) {
 				mn.RecordWithTimestamps(getIDFromTag(tag), firstSeen, lastSeen)
 			}
 		}
-		dest.indexMount(mountNodeKey{mountPoint: m.MountPoint, filesystem: m.Filesystem, mountFlags: m.MountFlags}, mn)
+		dest.indexMount(mountNodeKey{mountPoint: m.MountPoint, filesystem: m.Filesystem, mountFlags: m.MountFlags, inBaseNamespace: m.BaseNamespace}, mn)
+		dest.Stats.SizeBytes += mn.size()
 	}
 }
 

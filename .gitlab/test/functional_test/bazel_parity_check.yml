@@ -1,0 +1,26 @@
+bazel_parity_check:
+  stage: functional_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .bazel:runner:linux-amd64
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_CPU_LIMIT: 8
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+  needs:
+    - agent_deb-x64-a7
+    - agent_rpm-x64-a7
+    - bazel:package:linux-amd64
+  script:
+    - |
+      if [ "$CI_COMMIT_BRANCH" = main ] || [ "$BAZEL_PARITY_SUBMIT" = true ]; then
+        DD_API_KEY=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$AGENT_API_KEY_ORG2" token) || exit $?
+        export DD_API_KEY
+      fi
+    # Inspect ELF files with the same readelf Bazel uses (llvm-readelf is a multi-call binary).
+    - bazel build //bazel/tools:readelf
+    - READELF="$(bazel info execution_root)/$(bazel cquery --output=files //bazel/tools:readelf)"
+    - dda inv -- bazel-parity.check --omnibus-dir "$OMNIBUS_PACKAGE_DIR" --bazel-dir bazel-packages --readelf "$READELF"
+  allow_failure: true

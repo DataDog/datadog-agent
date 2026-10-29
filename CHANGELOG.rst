@@ -2,6 +2,33 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.6:
+
+7.84.6
+======
+
+.. _Release Notes_7.84.6_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-23
+
+- Please refer to the `7.84.6 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7846>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.6_Security Notes:
+
+Security Notes
+--------------
+
+- The embedded Python interpreter now rejects TLS certificate chains that
+  contain one of the compromised eMudhra intermediate CA keys, whichever
+  trust store the chain anchors in. This backports the CPython fix for
+  CVE-2026-115557. On Windows, Python checks no longer trust these chains
+  through the Windows certificate store.
+
+
 .. _Release Notes_7.84.5:
 
 7.84.5
