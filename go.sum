@@ -350,8 +350,8 @@ github.com/bradleyjkemp/cupaloy/v2 v2.8.0 h1:any4BmKE+jGIaMpnU8YgH/I2LPiLBufr6oM
 github.com/bradleyjkemp/cupaloy/v2 v2.8.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
 github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd h1:C0dfBzAdNMqxokqWUysk2KTJSMmqvh9cNW1opdy5+0Q=
 github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd/go.mod h1:CeKhh8xSs3WZAc50xABMxu+FlfAAd5PNumo7NfOv7EE=
-github.com/brycekahle/opentelemetry-ebpf-profiler v0.0.0-20261029181804-b07c7eada6ab h1:u7ER16P+GWKD4J7BJTfgXoS5ax5EEWOdTdZ7q/lxDdY=
-github.com/brycekahle/opentelemetry-ebpf-profiler v0.0.0-20261029181804-b07c7eada6ab/go.mod h1:WPtZMTjf/l96Hbed/vl9ognGwqFgAnGL9dI5BCP45sk=
+github.com/brycekahle/opentelemetry-ebpf-profiler v0.0.0-20261029201225-e9793db3342f h1:pPfi0G9KjXNs26+7GSuj9PO3HlphgQtAe1xzYcph7K4=
+github.com/brycekahle/opentelemetry-ebpf-profiler v0.0.0-20261029201225-e9793db3342f/go.mod h1:WPtZMTjf/l96Hbed/vl9ognGwqFgAnGL9dI5BCP45sk=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
 github.com/bsm/ginkgo/v2 v2.12.0/go.mod h1:SwYbGRRDovPVboqFv0tPTcG1sN61LM1Z4ARdbAV9g4c=
 github.com/bsm/gomega v1.27.10 h1:yeMWxP2pV2fG3FgAODIY8EiRE3dy0aeFYt4l7wh6yKA=
