@@ -1,10 +1,4 @@
 [Unit]
-# Pulled in by the matching Agent unit's Wants= and bound to it, so it is
-# stopped and its RuntimeDirectory removed whenever the Agent stops or fails. The
-# privateactionrunner launcher exits unless the Agent configuration enables the
-# helper; otherwise it replaces itself with the rshell helper, which creates
-# the socket in this unit's RuntimeDirectory and serves it until the Agent
-# stops.
 {{- if .Stable}}
 Description=Datadog rshell privileged helper
 BindsTo=datadog-agent.service
@@ -13,8 +7,6 @@ Conflicts=datadog-agent-exp.service datadog-agent-rshell-privileged-exp.service
 {{- else}}
 Description=Datadog rshell privileged helper experiment
 BindsTo=datadog-agent-exp.service
-# After both core Agent units (as the monolithic runner does) and the stable
-# helper, which shares the socket and must release it before this one binds it.
 After=datadog-agent.service datadog-agent-exp.service datadog-agent-rshell-privileged.service
 Conflicts=datadog-agent.service datadog-agent-rshell-privileged.service
 {{- end}}
@@ -26,11 +18,6 @@ Group=dd-agent
 UMask=0077
 RuntimeDirectory=datadog-agent-rshell
 RuntimeDirectoryMode=0755
-# No EnvironmentFile=: this unit runs as root and {{.EtcDir}} is writable by
-# dd-agent, so sourcing an environment file from there would let dd-agent inject
-# variables (e.g. LD_PRELOAD) into the root launcher before any of its checks
-# run. The launcher needs nothing from it; the only variable it is given is this
-# root-controlled literal baked into the unit.
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner privileged-helper --cfgpath={{.EtcDir}}/datadog.yaml --helper={{.InstallDir}}/embedded/bin/rshell --socket=/run/datadog-agent-rshell/privileged.sock --policy=/etc/datadog-agent-rshell/policy.json
 Restart=on-failure
