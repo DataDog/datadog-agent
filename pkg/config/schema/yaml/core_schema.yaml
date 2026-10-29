@@ -8200,6 +8200,12 @@ properties:
         format: duration
         description: |-
           Interval between profile reports. Must be at least 60 seconds.
+      ebpf_debug_logs:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |-
+          Enables verbose eBPF profiler logging for troubleshooting.
       additional_http_headers:
         node_type: setting
         type: object
