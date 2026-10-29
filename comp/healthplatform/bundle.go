@@ -17,6 +17,7 @@ package healthplatform
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/fx"
 
@@ -34,6 +35,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpupodresources"       // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"         // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/logsprofile"           // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"           // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"       // registers templates via init()
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -107,6 +109,10 @@ func bootstrapBuiltInHealthChecks(
 			for _, once := range registry.GetBuiltInStartupHealthChecks() {
 				go func() {
 					newIDs, err := runner.Run(once.Source, once.Fn)
+					if errors.Is(err, runnerdef.ErrStateUnknown) {
+						logger.Debugf("built-in once-check %q state unknown at startup: %v", once.Source, err)
+						return
+					}
 					if err != nil {
 						logger.Warnf("built-in once-check %q failed at startup: %v", once.Source, err)
 						return

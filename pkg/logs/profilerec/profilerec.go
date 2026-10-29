@@ -206,10 +206,10 @@ func droppedTotal(m *expvar.Map) int64 {
 type LossWindow struct {
 	mu                      sync.Mutex
 	seeded                  bool
-	lastMissed              int64
+	lastDropped, lastMissed int64
 	lastProcessed, lastSent int64
 	lastErrors              int64
-	missedAt                time.Time
+	droppedAt, missedAt     time.Time
 	delivering              bool
 }
 
@@ -219,9 +219,12 @@ func (w *LossWindow) Observe(c Counters, now time.Time) (missedRecently, deliver
 	defer w.mu.Unlock()
 	if !w.seeded {
 		w.seeded, w.delivering = true, true
-		w.lastMissed = c.Missed
+		w.lastDropped, w.lastMissed = c.Dropped, c.Missed
 		w.lastProcessed, w.lastSent, w.lastErrors = c.Processed, c.Sent, c.Errors
 		return false, true
+	}
+	if c.Dropped > w.lastDropped {
+		w.droppedAt = now
 	}
 	if c.Missed > w.lastMissed {
 		w.missedAt = now
@@ -233,10 +236,17 @@ func (w *LossWindow) Observe(c Counters, now time.Time) (missedRecently, deliver
 	case c.Processed > w.lastProcessed || c.Errors > w.lastErrors:
 		w.delivering = false
 	}
-	w.lastMissed = c.Missed
+	w.lastDropped, w.lastMissed = c.Dropped, c.Missed
 	w.lastProcessed, w.lastSent, w.lastErrors = c.Processed, c.Sent, c.Errors
 	missedRecently = !w.missedAt.IsZero() && now.Sub(w.missedAt) <= LossRecencyWindow
 	return missedRecently, w.delivering
+}
+
+// DroppedRecently reports whether destinations dropped logs within LossRecencyWindow of now.
+func (w *LossWindow) DroppedRecently(now time.Time) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return !w.droppedAt.IsZero() && now.Sub(w.droppedAt) <= LossRecencyWindow
 }
 
 // SampleInterval is how often a Sampler observes the counters.
