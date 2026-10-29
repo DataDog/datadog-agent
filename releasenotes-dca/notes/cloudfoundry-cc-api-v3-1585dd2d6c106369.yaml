@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The Cloud Foundry Cluster Agent no longer uses the deprecated Cloud
+    Foundry API v2. Organization quotas are now read from the v3 API, and the
+    UAA endpoint is discovered from the v3 API root instead of ``/v2/info``.
+    Organizations with an unlimited memory quota keep reporting a quota of -1.
