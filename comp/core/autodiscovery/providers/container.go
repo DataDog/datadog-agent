@@ -73,10 +73,11 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter)
 
 	go func() {
+		defer k.workloadmetaStore.Unsubscribe(inCh)
 		for {
 			select {
 			case <-ctx.Done():
-				k.workloadmetaStore.Unsubscribe(inCh)
+				return
 
 			case evBundle, ok := <-inCh:
 				if !ok {
@@ -86,7 +87,13 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 				// send changes even when they're empty, as we
 				// need to signal that an event has been
 				// received, for flow control reasons
-				outCh <- k.processEvents(evBundle)
+				changes := k.processEvents(evBundle)
+				select {
+				case outCh <- changes:
+				case <-ctx.Done():
+					evBundle.Acknowledge()
+					return
+				}
 				evBundle.Acknowledge()
 			}
 		}

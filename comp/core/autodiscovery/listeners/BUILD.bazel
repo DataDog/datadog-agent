@@ -103,6 +103,7 @@ dd_agent_go_test(
         "kubelet_test.go",
         "process_test.go",
         "service_test.go",
+        "shutdown_ec2_test.go",
         "snmp_test.go",
         "static_config_index_test.go",
         "staticconfig_test.go",
