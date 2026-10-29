@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/profilerec"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -43,6 +45,7 @@ var (
 	builder  *Builder
 	warnings *config.Messages
 	errors   *config.Messages
+	sampler  *profilerec.Sampler
 
 	// currentTransport is the current transport used by logs-agent, i.e TCP or HTTP
 	currentTransport Transport
@@ -100,6 +103,29 @@ type ComponentUtilization struct {
 type BackpressureStatus struct {
 	State  string `json:"state"`
 	Reason string `json:"reason"`
+	// Component is the pipeline component driving the state; empty when HEALTHY.
+	Component string `json:"component,omitempty"`
+}
+
+// ProfileRecommendation suggests a logs_config.profile when the agent is losing logs.
+type ProfileRecommendation struct {
+	Profile    string `json:"profile"`
+	Reason     string `json:"reason"`
+	ReasonCode string `json:"reason_code,omitempty"`
+	Bottleneck string `json:"bottleneck,omitempty"`
+}
+
+// PerformanceProfileSetting is one config key set by the active profile, with its effective value and source.
+type PerformanceProfileSetting struct {
+	Key    string `json:"key"`
+	Value  string `json:"value"`
+	Source string `json:"source"`
+}
+
+// PerformanceProfile is the active profile and the settings it controls, or nil when off.
+type PerformanceProfile struct {
+	Name     string                      `json:"name"`
+	Settings []PerformanceProfileSetting `json:"settings,omitempty"`
 }
 
 // Status provides some information about logs-agent.
@@ -115,6 +141,10 @@ type Status struct {
 	UseHTTP              bool                   `json:"use_http"`
 	ComponentUtilization []ComponentUtilization `json:"component_utilization"`
 	Backpressure         BackpressureStatus     `json:"backpressure"`
+	// PerformanceProfile is the active logs performance profile, or nil when off.
+	PerformanceProfile *PerformanceProfile `json:"performance_profile,omitempty"`
+	// ProfileRecommendation suggests a profile when the agent is losing logs, or nil when none.
+	ProfileRecommendation *ProfileRecommendation `json:"profile_recommendation,omitempty"`
 	// BackpressureTable is the preformatted text section, omitted from JSON; use Backpressure and ComponentUtilization for structured access.
 	BackpressureTable string `json:"-"`
 }
@@ -136,13 +166,16 @@ func GetCurrentTransport() Transport {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map, pipelineMonitor metrics.PipelineMonitor) {
+func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map, pipelineMonitor metrics.PipelineMonitor, coreConfig model.Reader) {
 	globalsLock.Lock()
 	defer globalsLock.Unlock()
 
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
-	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars, pipelineMonitor)
+	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars, pipelineMonitor, coreConfig)
+	sampler.Stop()
+	sampler = profilerec.StartSampler(func() profilerec.Counters { return profilerec.ReadCounters(logExpVars) })
+	builder.lossSignals = sampler.Signals
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.
@@ -153,6 +186,8 @@ func Clear() {
 	builder = nil
 	warnings = nil
 	errors = nil
+	sampler.Stop()
+	sampler = nil
 }
 
 // Get returns the status of the logs-agent computed on the fly.

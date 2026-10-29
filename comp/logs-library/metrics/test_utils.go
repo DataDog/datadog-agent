@@ -13,6 +13,7 @@ import "time"
 // than replacing it, so it stays safe while tailer goroutines hold a reference.
 func ResetMissedBytesForTest() {
 	missedBytes.reset()
+	MonitoredPipelineBytesMissed.Set(0)
 	logsAgentRunning.Store(false)
 }
 
