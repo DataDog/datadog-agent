@@ -11,7 +11,9 @@ package tests
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"runtime"
 	"syscall"
 	"testing"
 
@@ -51,25 +53,31 @@ func ownNamespaceIDs(t *testing.T, test *testModule) model.NamespaceIDs {
 	}
 	constants := p.GetConstantFetcherStatus()
 
-	resolved := func(path string, offsets ...string) uint32 {
+	// not /proc/self/ns, which is the main thread's: a locked goroutine exiting on the main thread in
+	// another namespace (TestPivotRoot) wedges it there, while the tester is forked from another thread
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	nsDir := fmt.Sprintf("/proc/self/task/%d/ns/", unix.Gettid())
+
+	resolved := func(name string, offsets ...string) uint32 {
 		for _, offset := range offsets {
 			if !constants.IsPresent(offset) {
 				return 0
 			}
 		}
-		return nsInode(t, path)
+		return nsInode(t, nsDir+name)
 	}
 
 	nsproxy := constantfetch.OffsetNameTaskStructNsproxy
 	return model.NamespaceIDs{
-		MntNS:    resolved("/proc/self/ns/mnt", nsproxy, constantfetch.OffsetNameMntNamespaceNs),
-		NetNS:    resolved("/proc/self/ns/net", nsproxy),
-		PIDNS:    resolved("/proc/self/ns/pid_for_children", nsproxy, constantfetch.OffsetNamePidNamespaceNs),
-		UserNS:   resolved("/proc/self/ns/user", constantfetch.OffsetNameUserNamespaceNs),
-		UTSNS:    resolved("/proc/self/ns/uts", nsproxy, constantfetch.OffsetNameUtsNamespaceNs),
-		IPCNS:    resolved("/proc/self/ns/ipc", nsproxy, constantfetch.OffsetNameIpcNamespaceNs),
-		CgroupNS: resolved("/proc/self/ns/cgroup", nsproxy, constantfetch.OffsetNameCgroupNamespaceNs),
-		TimeNS:   resolved("/proc/self/ns/time", nsproxy, constantfetch.OffsetNameTimeNamespaceNs),
+		MntNS:    resolved("mnt", nsproxy, constantfetch.OffsetNameMntNamespaceNs),
+		NetNS:    resolved("net", nsproxy),
+		PIDNS:    resolved("pid_for_children", nsproxy, constantfetch.OffsetNamePidNamespaceNs),
+		UserNS:   resolved("user", constantfetch.OffsetNameUserNamespaceNs),
+		UTSNS:    resolved("uts", nsproxy, constantfetch.OffsetNameUtsNamespaceNs),
+		IPCNS:    resolved("ipc", nsproxy, constantfetch.OffsetNameIpcNamespaceNs),
+		CgroupNS: resolved("cgroup", nsproxy, constantfetch.OffsetNameCgroupNamespaceNs),
+		TimeNS:   resolved("time", nsproxy, constantfetch.OffsetNameTimeNamespaceNs),
 	}
 }
 
