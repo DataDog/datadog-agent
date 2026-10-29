@@ -8,7 +8,6 @@ package ast
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -52,23 +51,8 @@ func (p printer) sprint(node Node) {
 		p.sprintOp(node.Op.String(), node.Operand)
 	case *Ident:
 		sb.WriteString(node.Name)
-	case *IntLiteral:
-		sb.WriteString(strconv.Itoa(node.Value))
-	case *DurationLiteral:
-		sb.WriteString(strconv.Itoa(node.Value))
-		sb.WriteString("ns")
-	case *StringLiteral:
-		sb.WriteString(strconv.Quote(node.Value))
-	case *PatternLiteral:
-		sb.WriteString("~")
-		sb.WriteString(strconv.Quote(node.Value))
-	case *RegexpLiteral:
-		sb.WriteString("r")
-		sb.WriteString(strconv.Quote(node.Value))
-	case *IPLiteral:
-		sb.WriteString(node.Value)
-	case *CIDRLiteral:
-		sb.WriteString(node.Value)
+	case *Literal:
+		sb.WriteString(node.Value.String())
 	case *VariableRef:
 		sb.WriteString("${")
 		sb.WriteString(node.Name)
@@ -77,27 +61,12 @@ func (p printer) sprint(node Node) {
 		sb.WriteString("%{")
 		sb.WriteString(node.Name)
 		sb.WriteString("}")
-	case *StringArray:
+	case *Array:
 		members := make([]Node, 0, len(node.Members))
 		for _, member := range node.Members {
 			members = append(members, member)
 		}
 		p.sprintArray(members)
-	case *CIDRArray:
-		members := make([]Node, 0, len(node.Members))
-		for _, member := range node.Members {
-			members = append(members, member)
-		}
-		p.sprintArray(members)
-	case *IntArray:
-		sb.WriteString("[")
-		for i, value := range node.Values {
-			if i != 0 {
-				sb.WriteString(" ")
-			}
-			sb.WriteString(strconv.Itoa(value))
-		}
-		sb.WriteString("]")
 	case *IdentArray:
 		sb.WriteString("[")
 		sb.WriteString(strings.Join(node.Names, " "))

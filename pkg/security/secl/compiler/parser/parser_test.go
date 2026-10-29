@@ -78,9 +78,9 @@ func TestEscapedQuoteInString(t *testing.T) {
 
 	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
 	require.True(t, ok)
-	str, ok := sc.Right.(*ast.StringLiteral)
+	str, ok := sc.Right.(*ast.Literal)
 	require.True(t, ok)
-	require.Equal(t, `a\"b`, str.Value)
+	require.Equal(t, ast.MakeString(`a\"b`), str.Value)
 }
 
 func TestEscapedNewlineInString(t *testing.T) {
@@ -90,10 +90,10 @@ b"`)
 
 	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
 	require.True(t, ok)
-	str, ok := sc.Right.(*ast.StringLiteral)
+	str, ok := sc.Right.(*ast.Literal)
 	require.True(t, ok)
-	require.Equal(t, `a\
-b`, str.Value)
+	require.Equal(t, ast.MakeString(`a\
+b`), str.Value)
 }
 
 func TestCompareComplex(t *testing.T) {
@@ -287,9 +287,9 @@ func TestDurationHours(t *testing.T) {
 
 	sc, ok := rule.Root.(*ast.ScalarCompareExpr)
 	require.True(t, ok)
-	duration, ok := sc.Right.(*ast.DurationLiteral)
+	duration, ok := sc.Right.(*ast.Literal)
 	require.True(t, ok)
-	require.Equal(t, int((2 * time.Hour).Nanoseconds()), duration.Value)
+	require.Equal(t, ast.MakeDuration(int((2 * time.Hour).Nanoseconds())), duration.Value)
 }
 
 func TestNumberVariable(t *testing.T) {

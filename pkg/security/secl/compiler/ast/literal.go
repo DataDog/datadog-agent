@@ -18,60 +18,12 @@ type Ident struct {
 	Name string
 }
 
-// IntLiteral is an integer literal: `123`.
-type IntLiteral struct {
+// Literal is a literal value: `true`, `123`, `10s`, `"/etc/passwd"`,
+// `~"/etc/*"`, `r"/etc/.*"`, `127.0.0.1`, `192.168.0.0/24`.
+type Literal struct {
 	Meta
 
-	Value int
-}
-
-// DurationLiteral is a duration literal: `10s`.
-type DurationLiteral struct {
-	Meta
-
-	// Value is the duration in nanoseconds.
-	Value int
-}
-
-// StringLiteral is a string literal: `"/etc/passwd"`.
-type StringLiteral struct {
-	Meta
-
-	// Value is the content of the literal, unquoted. It may hold `${variable}`
-	// and `%{field}` interpolations.
-	Value string
-}
-
-// PatternLiteral is a glob pattern literal: `~"/etc/*"`.
-type PatternLiteral struct {
-	Meta
-
-	// Value is the content of the literal, unquoted.
-	Value string
-}
-
-// RegexpLiteral is a regular expression literal: `r"/etc/.*"`.
-type RegexpLiteral struct {
-	Meta
-
-	// Value is the content of the literal, unquoted.
-	Value string
-}
-
-// IPLiteral is an IP literal: `127.0.0.1`.
-type IPLiteral struct {
-	Meta
-
-	// Value is the textual representation of the IP.
-	Value string
-}
-
-// CIDRLiteral is a CIDR literal: `192.168.0.0/24`.
-type CIDRLiteral struct {
-	Meta
-
-	// Value is the textual representation of the CIDR.
-	Value string
+	Value Value
 }
 
 // VariableRef is a reference to a SECL variable: `${my_var}`.
@@ -93,50 +45,15 @@ type FieldRef struct {
 	Name string
 }
 
-// StringArray is an array literal of strings, patterns and regexps:
-// `["/etc/passwd", ~"/etc/*", r"/etc/.*"]`.
-type StringArray struct {
+// Array is an array literal: `[1, 2]`, `["/etc/passwd", ~"/etc/*"]`,
+// `[127.0.0.1, 192.168.0.0/24]`.
+//
+// Its members are of the same family of kinds: booleans; integers; strings,
+// patterns and regexps; IPs and CIDRs.
+type Array struct {
 	Meta
 
-	Members []StringArrayMember
-}
-
-// StringArrayMember is a member of a StringArray: a *StringLiteral, a
-// *PatternLiteral or a *RegexpLiteral.
-type StringArrayMember interface {
-	Node
-
-	// stringArrayMember closes the union.
-	stringArrayMember()
-}
-
-func (*StringLiteral) stringArrayMember()  {}
-func (*PatternLiteral) stringArrayMember() {}
-func (*RegexpLiteral) stringArrayMember()  {}
-
-// CIDRArray is an array literal of IPs and CIDRs: `[127.0.0.1, 192.168.0.0/24]`.
-type CIDRArray struct {
-	Meta
-
-	Members []CIDRArrayMember
-}
-
-// CIDRArrayMember is a member of a CIDRArray: an *IPLiteral or a *CIDRLiteral.
-type CIDRArrayMember interface {
-	Node
-
-	// cidrArrayMember closes the union.
-	cidrArrayMember()
-}
-
-func (*IPLiteral) cidrArrayMember()   {}
-func (*CIDRLiteral) cidrArrayMember() {}
-
-// IntArray is an array literal of integers: `[1, 2, 3]`.
-type IntArray struct {
-	Meta
-
-	Values []int
+	Members []*Literal
 }
 
 // IdentArray is an array literal of identifiers: `[O_RDONLY, O_WRONLY]`.

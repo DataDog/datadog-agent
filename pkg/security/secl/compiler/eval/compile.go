@@ -145,74 +145,8 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 	case *ast.Ident:
 		return identToEvaluator(node.Name, node.Pos, opts, state)
 
-	case *ast.IntLiteral:
-		return &IntEvaluator{
-			Value:  node.Value,
-			Offset: node.Pos.Offset,
-		}, node.Pos, nil
-
-	case *ast.DurationLiteral:
-		return &IntEvaluator{
-			Value:      node.Value,
-			Offset:     node.Pos.Offset,
-			isDuration: true,
-		}, node.Pos, nil
-
-	case *ast.StringLiteral:
-		str := node.Value
-
-		// contains variables or field references
-		hasVariables := len(variableRegex.FindAllIndex([]byte(str), -1)) > 0
-		hasFieldReferences := len(fieldReferenceRegex.FindAllIndex([]byte(str), -1)) > 0
-		if hasVariables || hasFieldReferences {
-			return stringEvaluatorFromVariable(str, node.Pos, opts, state)
-		}
-
-		return &StringEvaluator{
-			Value:     str,
-			ValueType: ScalarValueType,
-			Offset:    node.Pos.Offset,
-		}, node.Pos, nil
-
-	case *ast.PatternLiteral:
-		return &StringEvaluator{
-			Value:     node.Value,
-			ValueType: PatternValueType,
-			Weight:    PatternWeight,
-			Offset:    node.Pos.Offset,
-		}, node.Pos, nil
-
-	case *ast.RegexpLiteral:
-		return &StringEvaluator{
-			Value:     node.Value,
-			ValueType: RegexpValueType,
-			Weight:    RegexpWeight,
-			Offset:    node.Pos.Offset,
-		}, node.Pos, nil
-
-	case *ast.IPLiteral:
-		ipnet, err := ParseCIDR(node.Value)
-		if err != nil {
-			return nil, node.Pos, NewError(node.Pos, "invalid IP '%s'", node.Value)
-		}
-
-		return &CIDREvaluator{
-			Value:     *ipnet,
-			ValueType: IPNetValueType,
-			Offset:    node.Pos.Offset,
-		}, node.Pos, nil
-
-	case *ast.CIDRLiteral:
-		ipnet, err := ParseCIDR(node.Value)
-		if err != nil {
-			return nil, node.Pos, NewError(node.Pos, "invalid CIDR '%s'", node.Value)
-		}
-
-		return &CIDREvaluator{
-			Value:     *ipnet,
-			ValueType: IPNetValueType,
-			Offset:    node.Pos.Offset,
-		}, node.Pos, nil
+	case *ast.Literal:
+		return literalToEvaluator(node, opts, state)
 
 	case *ast.VariableRef:
 		return evaluatorFromVariable(node.Name, node.Pos, opts)
@@ -220,36 +154,8 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 	case *ast.FieldRef:
 		return evaluatorFromFieldReference(node.Name, node.Pos, state)
 
-	case *ast.IntArray:
-		var evaluator IntArrayEvaluator
-		evaluator.AppendValues(node.Values...)
-		return &evaluator, node.Pos, nil
-
-	case *ast.StringArray:
-		var evaluator StringValuesEvaluator
-		evaluator.AppendMembers(node.Members...)
-		return &evaluator, node.Pos, nil
-
-	case *ast.CIDRArray:
-		var values CIDRValues
-		for _, member := range node.Members {
-			switch member := member.(type) {
-			case *ast.CIDRLiteral:
-				if err := values.AppendCIDR(member.Value); err != nil {
-					return nil, node.Pos, NewError(node.Pos, "invalid CIDR '%s'", member.Value)
-				}
-			case *ast.IPLiteral:
-				if err := values.AppendIP(member.Value); err != nil {
-					return nil, node.Pos, NewError(node.Pos, "invalid IP '%s'", member.Value)
-				}
-			}
-		}
-
-		return &CIDRValuesEvaluator{
-			Value:     values,
-			ValueType: IPNetValueType,
-			Offset:    node.Pos.Offset,
-		}, node.Pos, nil
+	case *ast.Array:
+		return arrayToEvaluator(node)
 
 	case *ast.IdentArray:
 		// Only "Constants" idents are supported, and only string, int and boolean constants are expected.
@@ -278,7 +184,7 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 				if !ok {
 					return nil, node.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type string", name)
 				}
-				evaluator.AppendMembers(&ast.StringLiteral{Value: constant.Value})
+				evaluator.AppendMembers(&ast.Literal{Value: ast.MakeString(constant.Value)})
 			}
 			return &evaluator, node.Pos, nil
 		case reflect.TypeOf(&BoolEvaluator{}):
@@ -296,6 +202,137 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 	}
 
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
+}
+
+// literalToEvaluator compiles a literal.
+func literalToEvaluator(node *ast.Literal, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	switch node.Value.Kind() {
+	case ast.Bool:
+		return &BoolEvaluator{
+			Value: ast.BoolVal(node.Value),
+		}, node.Pos, nil
+
+	case ast.Int:
+		return &IntEvaluator{
+			Value:  ast.IntVal(node.Value),
+			Offset: node.Pos.Offset,
+		}, node.Pos, nil
+
+	case ast.Duration:
+		return &IntEvaluator{
+			Value:      ast.IntVal(node.Value),
+			Offset:     node.Pos.Offset,
+			isDuration: true,
+		}, node.Pos, nil
+
+	case ast.String:
+		str := ast.StringVal(node.Value)
+
+		// contains variables or field references
+		hasVariables := len(variableRegex.FindAllIndex([]byte(str), -1)) > 0
+		hasFieldReferences := len(fieldReferenceRegex.FindAllIndex([]byte(str), -1)) > 0
+		if hasVariables || hasFieldReferences {
+			return stringEvaluatorFromVariable(str, node.Pos, opts, state)
+		}
+
+		return &StringEvaluator{
+			Value:     str,
+			ValueType: ScalarValueType,
+			Offset:    node.Pos.Offset,
+		}, node.Pos, nil
+
+	case ast.Pattern:
+		return &StringEvaluator{
+			Value:     ast.StringVal(node.Value),
+			ValueType: PatternValueType,
+			Weight:    PatternWeight,
+			Offset:    node.Pos.Offset,
+		}, node.Pos, nil
+
+	case ast.Regexp:
+		return &StringEvaluator{
+			Value:     ast.StringVal(node.Value),
+			ValueType: RegexpValueType,
+			Weight:    RegexpWeight,
+			Offset:    node.Pos.Offset,
+		}, node.Pos, nil
+
+	case ast.IP, ast.CIDR:
+		ipnet, err := ParseCIDR(ast.StringVal(node.Value))
+		if err != nil {
+			return nil, node.Pos, NewError(node.Pos, "invalid %s '%s'", node.Value.Kind(), ast.StringVal(node.Value))
+		}
+
+		return &CIDREvaluator{
+			Value:     *ipnet,
+			ValueType: IPNetValueType,
+			Offset:    node.Pos.Offset,
+		}, node.Pos, nil
+	}
+
+	return nil, node.Pos, NewError(node.Pos, "unknown kind of value '%s'", node.Value.Kind())
+}
+
+// arrayToEvaluator compiles an array literal, its kind being the one of its first
+// member.
+func arrayToEvaluator(node *ast.Array) (interface{}, ast.Position, error) {
+	// an empty array, the values of a macro defined by an empty list, is an
+	// array of strings
+	if len(node.Members) == 0 {
+		return &StringValuesEvaluator{}, node.Pos, nil
+	}
+
+	switch node.Members[0].Value.Kind() {
+	case ast.Bool:
+		var evaluator BoolArrayEvaluator
+		for _, member := range node.Members {
+			if member.Value.Kind() != ast.Bool {
+				return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, reflect.Bool)
+			}
+			evaluator.AppendValues(ast.BoolVal(member.Value))
+		}
+		return &evaluator, node.Pos, nil
+
+	case ast.Int:
+		var evaluator IntArrayEvaluator
+		for _, member := range node.Members {
+			if member.Value.Kind() != ast.Int {
+				return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, reflect.Int)
+			}
+			evaluator.AppendValues(ast.IntVal(member.Value))
+		}
+		return &evaluator, node.Pos, nil
+
+	case ast.String, ast.Pattern, ast.Regexp:
+		var evaluator StringValuesEvaluator
+		evaluator.AppendMembers(node.Members...)
+		return &evaluator, node.Pos, nil
+
+	case ast.IP, ast.CIDR:
+		var values CIDRValues
+		for _, member := range node.Members {
+			var err error
+			switch member.Value.Kind() {
+			case ast.CIDR:
+				err = values.AppendCIDR(ast.StringVal(member.Value))
+			case ast.IP:
+				err = values.AppendIP(ast.StringVal(member.Value))
+			default:
+				return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, reflect.Struct)
+			}
+			if err != nil {
+				return nil, node.Pos, NewError(node.Pos, "invalid %s '%s'", member.Value.Kind(), ast.StringVal(member.Value))
+			}
+		}
+
+		return &CIDRValuesEvaluator{
+			Value:     values,
+			ValueType: IPNetValueType,
+			Offset:    node.Pos.Offset,
+		}, node.Pos, nil
+	}
+
+	return nil, node.Pos, NewError(node.Pos, "unknown kind of array '%s'", node.Members[0].Value.Kind())
 }
 
 // A chain of a same associative operation, `a && b && c`, is grouped from the
@@ -437,8 +474,8 @@ func compileBitChain(node *ast.BitExpr, opts *Opts, state *State) (interface{}, 
 // compileArrayOperand compiles the right hand side of a membership test.
 func compileArrayOperand(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
 	// a lone CIDR is an array of one CIDR
-	if cidr, ok := node.(*ast.CIDRLiteral); ok {
-		node = &ast.CIDRArray{Meta: cidr.Meta, Members: []ast.CIDRArrayMember{cidr}}
+	if cidr, ok := node.(*ast.Literal); ok && cidr.Value.Kind() == ast.CIDR {
+		node = &ast.Array{Meta: cidr.Meta, Members: []*ast.Literal{cidr}}
 	}
 
 	return compileNode(node, opts, state)
