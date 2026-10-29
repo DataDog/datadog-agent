@@ -325,6 +325,63 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
         self.assertIn(UPSTART_RUNTIME_DIR, redhat_pre_start)
         self.assertNotIn(UPSTART_RUNTIME_DIR, upstart_main_block(UPSTART_REDHAT))
 
+    def test_sysv_failed_stop_keeps_the_pidfile_and_blocks_restart(self):
+        layout = Layout(self.root)
+        commands = self.root / 'commands'
+        started = self.root / 'started'
+        pidfile = layout.install / 'run' / 'dd-procmgrd.pid'
+        init_functions = self.root / 'init-functions'
+        init_functions.write_text(
+            'init_is_upstart() { return 1; }\n'
+            'log_daemon_msg() { :; }\n'
+            'log_end_msg() { return "$1"; }\n'
+        )
+        write_executable(
+            commands / 'start-stop-daemon',
+            f'''case " $* " in
+  *" --stop "*) exit "$STOP_RC" ;;
+esac
+touch "{started}"
+exit 0
+''',
+        )
+        script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
+        script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
+        script = script.replace('/etc/default/', f'{self.root}/default/')
+        rendered = self.root / 'init-script'
+        rendered.write_text(script)
+        env = self.base_env(f'{commands}:/usr/bin:/bin')
+
+        def run(action, stop_rc):
+            started.unlink(missing_ok=True)
+            pidfile.write_text('4242\n')
+            result = subprocess.run(
+                ['/bin/sh', str(rendered), action],
+                env={**env, 'STOP_RC': str(stop_rc)},
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=30,
+            )
+            return result
+
+        failed_stop = run('stop', 2)
+        self.assertNotEqual(failed_stop.returncode, 0, failed_stop.stdout + failed_stop.stderr)
+        self.assertEqual(pidfile.read_text(), '4242\n')
+        self.assertFalse(started.exists())
+
+        failed_restart = run('restart', 2)
+        self.assertNotEqual(failed_restart.returncode, 0, failed_restart.stdout + failed_restart.stderr)
+        self.assertEqual(pidfile.read_text(), '4242\n')
+        self.assertFalse(started.exists())
+
+        for stop_rc in (0, 1):
+            with self.subTest(stop_rc=stop_rc):
+                stopped = run('stop', stop_rc)
+                self.assertEqual(stopped.returncode, 0, stopped.stdout + stopped.stderr)
+                self.assertFalse(pidfile.exists())
+                self.assertFalse(started.exists())
+
     def test_sysv_start_fails_when_runtime_dir_cannot_be_created(self):
         layout = Layout(self.root)
         commands = self.root / 'commands'
