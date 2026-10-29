@@ -45,21 +45,19 @@ func (s *Setup) setPARDefault(packages []packageWithVersion, goos string, system
 	}
 
 	// A missing key can acquire the installer default on a reinstall, but an
-	// existing true or false is an explicit choice. Leave other PAR settings
+	// existing enabled key is an explicit choice. Leave other PAR settings
 	// (including self_enroll, split_enabled and the allowlist) untouched.
 	data, err := os.ReadFile(filepath.Join(s.configDir, "datadog.yaml"))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read existing Agent configuration: %w", err)
 	}
 	var current struct {
-		PrivateActionRunner struct {
-			Enabled *bool `yaml:"enabled"`
-		} `yaml:"private_action_runner"`
+		PrivateActionRunner map[string]any `yaml:"private_action_runner"`
 	}
 	if err := yaml.Unmarshal(data, &current); err != nil {
 		return fmt.Errorf("read existing PAR setting: %w", err)
 	}
-	if current.PrivateActionRunner.Enabled == nil {
+	if _, configured := current.PrivateActionRunner["enabled"]; !configured {
 		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
 	}
 	return nil
