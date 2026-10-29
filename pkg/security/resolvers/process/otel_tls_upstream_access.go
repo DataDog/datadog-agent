@@ -22,6 +22,10 @@
 //   - VisitRelocations and DynValue are called as the free functions of
 //     otel_tls_upstream_pfelf.go, since the pinned pfelf has neither,
 //   - one nolint, for a fmt.Errorf this repo's linter wants as errors.New.
+//
+// One deviation is not mechanical: the symbol-less TLSDESC selection follows
+// tls/resolve.go of #1853, the merged successor of #1229, which fixed it for
+// aarch64's per-variable descriptors.
 
 //go:build linux
 
@@ -85,9 +89,10 @@ type data struct {
 	elfAddr libpf.Address
 	// offset is a statically-known offset added to the base resolved at runtime.
 	// For local-exec the runtime base is zero, so it holds the full TP-relative
-	// offset. For local-dynamic it holds the symbol's static value (the relocation
-	// only resolves the module, not the per-variable offset). It is zero for the
-	// other models, where the offset is fully resolved at runtime.
+	// offset. For local-dynamic it holds the part of the symbol's static value
+	// the relocation leaves unresolved: all of it for DTPMOD64, which only
+	// resolves the module, and whatever the TLSDESC addend does not cover. It is
+	// zero for the other models, where the offset is fully resolved at runtime.
 	offset uint64
 }
 
@@ -109,8 +114,11 @@ type data struct {
 func resolveTLSAccess(ef *pfelf.File, sym *libpf.Symbol) (*data, error) {
 	var tlsdescAddr, tpmodAddr, tpoffAddr libpf.Address
 	// Module-level relocations (not referencing any symbol) are local-dynamic
-	// candidates: we keep the first one of each dialect as a fallback.
+	// candidates.
 	var tlsdescNoSymAddr, tpmodNoSymAddr libpf.Address
+	var tlsdescNoSymOffset uint64
+	// Below zero so that a descriptor with addend 0 is eligible.
+	matchedAddend := int64(-1)
 
 	if err := visitRelocations(ef, func(r ElfReloc, symName string,
 		relType RelocType) bool {
@@ -128,8 +136,14 @@ func resolveTLSAccess(ef *pfelf.File, sym *libpf.Symbol) (*data, error) {
 		case "":
 			switch relType {
 			case RelTLSDESC:
-				if tlsdescNoSymAddr == 0 {
+				// The descriptor resolves module_base + r.Addend: x86-64
+				// commonly emits one for the whole module (addend 0), aarch64
+				// one per variable. Take the largest addend at or below the
+				// variable's offset and add only what it leaves out.
+				if r.Addend > matchedAddend && r.Addend <= int64(sym.Address) {
 					tlsdescNoSymAddr = libpf.Address(r.Off)
+					matchedAddend = r.Addend
+					tlsdescNoSymOffset = uint64(sym.Address) - uint64(r.Addend)
 				}
 			case RelDTPMOD64:
 				if tpmodNoSymAddr == 0 {
@@ -160,7 +174,7 @@ func resolveTLSAccess(ef *pfelf.File, sym *libpf.Symbol) (*data, error) {
 	switch {
 	case tlsdescNoSymAddr != 0:
 		return &data{access: accessTLSDesc, elfAddr: tlsdescNoSymAddr,
-			offset: uint64(sym.Address)}, nil
+			offset: tlsdescNoSymOffset}, nil
 	case tpmodNoSymAddr != 0:
 		return &data{access: accessLocalDynamic, elfAddr: tpmodNoSymAddr,
 			offset: uint64(sym.Address)}, nil

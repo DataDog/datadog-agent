@@ -28,6 +28,7 @@ _DSO_FLAVORS = {
     "_gnu": _TLS_ALT_DIALECT,
     "_ie": ["-ftls-model=initial-exec"],
     "_ld": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + _TLS_ALT_DIALECT,
+    "_ld_desc": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + TLS_DIALECT,
     "_big": ["-DOTEL_TLS_BIG"] + TLS_DIALECT,
 }
 

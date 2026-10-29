@@ -698,6 +698,7 @@ func TestOTelSpan(t *testing.T) {
 		{name: "linked-glibc-gnu", binary: "otel_tls_linked_glibc_gnu", fixture: "libotel_tls_glibc_gnu.so", execCoverage: true},
 		{name: "linked-glibc-ie", binary: "otel_tls_linked_glibc_ie", fixture: "libotel_tls_glibc_ie.so"},
 		{name: "linked-glibc-ld", binary: "otel_tls_linked_glibc_ld", fixture: "libotel_tls_glibc_ld.so"},
+		{name: "linked-glibc-ld-desc", binary: "otel_tls_linked_glibc_ld_desc", fixture: "libotel_tls_glibc_ld_desc.so"},
 		{name: "linked-glibc-big", binary: "otel_tls_linked_glibc_big", fixture: "libotel_tls_glibc_big.so"},
 
 		// The same shared objects, dlopen'd once the process is already running.
@@ -705,6 +706,7 @@ func TestOTelSpan(t *testing.T) {
 		{name: "dlopen-glibc-gnu", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_gnu.so", dlopen: true},
 		{name: "dlopen-glibc-ie", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ie.so", dlopen: true},
 		{name: "dlopen-glibc-ld", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ld.so", dlopen: true},
+		{name: "dlopen-glibc-ld-desc", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ld_desc.so", dlopen: true},
 		// The one TLSDESC tester resolved through the DTV rather than static TLS.
 		{name: "dlopen-glibc-big", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_big.so", dlopen: true, execCoverage: true},
 	}
