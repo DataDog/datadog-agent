@@ -6236,3 +6236,329 @@ func TestRayClusterWorkloadName(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractTagsFromPodAutoscalers(t *testing.T) {
+	const (
+		namespace  = "my-ns"
+		replicaSet = "my-app-5d4f8b7c9d"
+		workload   = "my-app"
+	)
+	replicaSetOwner := workloadmeta.KubernetesPodOwner{Kind: kubernetes.ReplicaSetKind, Name: replicaSet}
+	rolloutLabels := map[string]string{kubernetes.ArgoRolloutLabelKey: "5d4f8b7c9d"}
+
+	tests := []struct {
+		name            string
+		autoscalers     []*workloadmeta.KubernetesAutoscaler
+		autoscalerKinds []workloadmeta.AutoscalerKind
+		owner           workloadmeta.KubernetesPodOwner
+		labels          map[string]string
+		expectedTags    []string
+	}{
+		{
+			name: "pod with Deployment owner and matching autoscaler",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{newTestAutoscaler(
+				workloadmeta.AutoscalerKindHPA,
+				namespace,
+				"a",
+				workloadmeta.AutoscalerTargetDeployment,
+				workload,
+			)},
+			owner:        workloadmeta.KubernetesPodOwner{Kind: kubernetes.DeploymentKind, Name: workload},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod with StatefulSet owner and matching autoscaler",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{newTestAutoscaler(
+				workloadmeta.AutoscalerKindHPA,
+				namespace,
+				"a",
+				workloadmeta.AutoscalerTargetStatefulSet,
+				workload,
+			)},
+			owner:        workloadmeta.KubernetesPodOwner{Kind: kubernetes.StatefulSetKind, Name: workload},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod with ReplicaSet owner that belongs to an Argo Rollout and matching autoscaler",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{newTestAutoscaler(
+				workloadmeta.AutoscalerKindHPA,
+				namespace,
+				"a",
+				workloadmeta.AutoscalerTargetArgoRollout,
+				workload,
+			)},
+			owner:        replicaSetOwner,
+			labels:       rolloutLabels,
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod with ReplicaSet owner that belongs to a Deployment and matching autoscaler",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{newTestAutoscaler(
+				workloadmeta.AutoscalerKindHPA,
+				namespace,
+				"a",
+				workloadmeta.AutoscalerTargetDeployment,
+				workload,
+			)},
+			owner:        replicaSetOwner,
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod with unsupported owner and matching autoscaler",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{newTestAutoscaler(
+				workloadmeta.AutoscalerKindHPA,
+				namespace,
+				"a",
+				workloadmeta.AutoscalerTargetDeployment,
+				workload,
+			)},
+			// DaemonSet not supported
+			owner:        workloadmeta.KubernetesPodOwner{Kind: kubernetes.DaemonSetKind, Name: workload},
+			expectedTags: []string{},
+		},
+		{
+			name: "multiple autoscalers matched",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{
+				newTestAutoscaler(
+					workloadmeta.AutoscalerKindHPA,
+					namespace,
+					"a",
+					workloadmeta.AutoscalerTargetDeployment,
+					workload,
+				),
+				newTestAutoscaler(
+					workloadmeta.AutoscalerKindVPA,
+					namespace,
+					"b",
+					workloadmeta.AutoscalerTargetDeployment,
+					workload,
+				),
+			},
+			owner:        replicaSetOwner,
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler", "kube_autoscaler_kind:verticalpodautoscaler"},
+		},
+		{
+			name: "no matching autoscaler",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{newTestAutoscaler(
+				workloadmeta.AutoscalerKindHPA,
+				namespace,
+				"a",
+				workloadmeta.AutoscalerTargetDeployment,
+				"other-app",
+			)},
+			owner:        replicaSetOwner,
+			expectedTags: []string{},
+		},
+		{
+			name: "node agent: pod with autoscaler kinds",
+			// Node agents don't have autoscaler entities. The kinds come in the pod.
+			autoscalerKinds: []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindHPA, workloadmeta.AutoscalerKindVPA},
+			owner:           replicaSetOwner,
+			expectedTags:    []string{"kube_autoscaler_kind:horizontalpodautoscaler", "kube_autoscaler_kind:verticalpodautoscaler"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](
+				t,
+				fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() config.Component { return config.NewMock(t) }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				),
+			)
+
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			for _, autoscaler := range test.autoscalers {
+				collector.updateAutoscalerIndex(workloadmeta.EventTypeSet, autoscaler)
+			}
+
+			pod := &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: namespace,
+					Labels:    test.labels,
+				},
+				Owners:          []workloadmeta.KubernetesPodOwner{test.owner},
+				AutoscalerKinds: test.autoscalerKinds,
+			}
+			tagList := taglist.NewTagList()
+			collector.extractTagsFromPodAutoscalers(pod, tagList)
+
+			low, _, _, _ := tagList.Compute()
+			assert.ElementsMatch(t, test.expectedTags, low)
+		})
+	}
+}
+
+func TestRetagAutoscalerDependentPods(t *testing.T) {
+	const namespace = "my-ns"
+	hpaA := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, namespace, "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	// hpaB and kedaA have the same ID as hpaA, so setting them updates hpaA
+	hpaB := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, namespace, "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-b")
+	kedaA := newTestAutoscaler(workloadmeta.AutoscalerKindKEDA, namespace, "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	vpaA := newTestAutoscaler(workloadmeta.AutoscalerKindVPA, namespace, "my-vpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	dpaD := newTestAutoscaler(workloadmeta.AutoscalerKindDPA, namespace, "my-dpa", workloadmeta.AutoscalerTargetDeployment, "app-d")
+
+	pods := []*workloadmeta.KubernetesPod{
+		newTestAutoscaledPod("pod-a1", namespace, "app-a"),
+		newTestAutoscaledPod("pod-a2", namespace, "app-a"),
+		newTestAutoscaledPod("pod-b", namespace, "app-b"),
+		newTestAutoscaledPod("pod-c", namespace, "app-c"),
+		newTestAutoscaledPod("pod-other-ns", "other-ns", "app-a"),
+	}
+	podD := newTestAutoscaledPod("pod-d", namespace, "app-d")
+	podD.Annotations = map[string]string{datadogAutoscalingIDAnnotation: "my-dpa"}
+	pods = append(pods, podD)
+
+	tests := []struct {
+		name        string
+		autoscalers []*workloadmeta.KubernetesAutoscaler
+		events      []workloadmeta.Event
+		// expected has the kube_autoscaler_kind tags of the pods that are
+		// re-tagged. Pods not in the map must not be re-tagged.
+		expected map[string][]string
+	}{
+		{
+			name:   "set",
+			events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: hpaA}},
+			expected: map[string][]string{
+				"pod-a1": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+				"pod-a2": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+		},
+		{
+			name:        "unset",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{hpaA},
+			events:      []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: hpaA}},
+			expected: map[string][]string{
+				"pod-a1": {},
+				"pod-a2": {},
+			},
+		},
+		{
+			name:        "target change",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{hpaA},
+			events:      []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: hpaB}},
+			expected: map[string][]string{
+				"pod-a1": {},
+				"pod-a2": {},
+				"pod-b":  {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+		},
+		{
+			name:        "one of two autoscalers of a target is deleted",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{hpaA, vpaA},
+			events:      []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: vpaA}},
+			expected: map[string][]string{
+				"pod-a1": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+				"pod-a2": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+		},
+		{
+			name:        "autoscaler kind change",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{hpaA},
+			events:      []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: kedaA}},
+			expected: map[string][]string{
+				"pod-a1": {"kube_autoscaler_kind:keda"},
+				"pod-a2": {"kube_autoscaler_kind:keda"},
+			},
+		},
+		{
+			name:        "unset of an unknown autoscaler re-tags nothing",
+			autoscalers: []*workloadmeta.KubernetesAutoscaler{hpaA},
+			events:      []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: vpaA}},
+			expected:    map[string][]string{},
+		},
+		{
+			name:   "dpa from the annotation and from the target ref",
+			events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: dpaD}},
+			expected: map[string][]string{
+				"pod-d": {"kube_autoscaler_kind:datadogpodautoscaler"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](
+				t,
+				fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() config.Component { return config.NewMock(t) }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				),
+			)
+			for _, pod := range pods {
+				store.Set(pod)
+			}
+			processor := &recordingProcessor{}
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, processor)
+
+			for _, autoscaler := range test.autoscalers {
+				collector.updateAutoscalerIndex(workloadmeta.EventTypeSet, autoscaler)
+			}
+
+			collector.processEvents(workloadmeta.EventBundle{Events: test.events, Ch: make(chan struct{})})
+
+			assert.Equal(t, test.expected, podAutoscalerKindTags(processor.tagInfos))
+		})
+	}
+}
+
+func newTestAutoscaler(kind workloadmeta.AutoscalerKind, namespace, name string, targetKind workloadmeta.AutoscalerTargetKind, targetName string) *workloadmeta.KubernetesAutoscaler {
+	return &workloadmeta.KubernetesAutoscaler{
+		EntityID: workloadmeta.GenerateKubernetesAutoscalerEntityID(kind, namespace, name),
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		AutoscalerKind: kind,
+		TargetKind:     targetKind,
+		TargetName:     targetName,
+	}
+}
+
+type recordingProcessor struct {
+	tagInfos []*types.TagInfo
+}
+
+func (p *recordingProcessor) ProcessTagInfo(tagInfos []*types.TagInfo) {
+	p.tagInfos = append(p.tagInfos, tagInfos...)
+}
+
+func newTestAutoscaledPod(id, namespace, deployment string) *workloadmeta.KubernetesPod {
+	return &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   id,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      id,
+			Namespace: namespace,
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.DeploymentKind, Name: deployment}},
+	}
+}
+
+// podAutoscalerKindTags returns the kube_autoscaler_kind tags of the pod tag
+// infos, keyed by pod ID.
+func podAutoscalerKindTags(tagInfos []*types.TagInfo) map[string][]string {
+	res := make(map[string][]string)
+	for _, tagInfo := range tagInfos {
+		if tagInfo.EntityID.GetPrefix() != types.KubernetesPodUID {
+			continue
+		}
+		autoscalerTags := []string{}
+		for _, tag := range tagInfo.LowCardTags {
+			if strings.HasPrefix(tag, tags.KubeAutoscalerKind+":") {
+				autoscalerTags = append(autoscalerTags, tag)
+			}
+		}
+		sort.Strings(autoscalerTags)
+		res[tagInfo.EntityID.GetID()] = autoscalerTags
+	}
+	return res
+}
