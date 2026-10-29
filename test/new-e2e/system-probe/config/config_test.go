@@ -12,46 +12,53 @@ import (
 
 func TestTestEnvVars(t *testing.T) {
 	tests := []struct {
-		name          string
-		arch          string
-		kernelRelease string
-		expected      map[string]string
+		name        string
+		arch        string
+		platformKey string
+		expected    map[string]string
+		expectErr   bool
 	}{
 		{
-			name:          "fentry supported on amazon 5.10 x86_64",
-			arch:          "x86_64",
-			kernelRelease: "5.10.244-240.970.amzn2",
-			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
+			name:        "fentry supported on amazon 5.10 x86_64",
+			arch:        "x86_64",
+			platformKey: "amazon_5.10",
+			expected:    map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
 		},
 		{
-			name:          "fentry not supported on amazon 5.10 arm64",
-			arch:          "arm64",
-			kernelRelease: "5.10.244-240.970.amzn2",
-			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
+			name:        "fentry not supported on amazon 5.10 arm64",
+			arch:        "arm64",
+			platformKey: "amazon_5.10",
+			expected:    map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
 		},
 		{
-			name:          "fentry not supported on fedora 37",
-			arch:          "x86_64",
-			kernelRelease: "6.0.7-301.fc37",
-			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
+			name:        "fentry not supported on fedora 37",
+			arch:        "x86_64",
+			platformKey: "fedora_37",
+			expected:    map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
 		},
 		{
-			name:          "fentry supported on ubuntu 25.10",
-			arch:          "arm64",
-			kernelRelease: "6.17.0-5-generic",
-			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
+			name:        "fentry supported on ubuntu 25.10",
+			arch:        "arm64",
+			platformKey: "ubuntu_25.10",
+			expected:    map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
 		},
 		{
-			name:          "no env vars for unknown (custom) kernels",
-			arch:          "x86_64",
-			kernelRelease: "6.99.0-custom",
-			expected:      map[string]string{},
+			name:        "unknown platform key is an error",
+			arch:        "x86_64",
+			platformKey: "amazon_9.99",
+			expectErr:   true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			envVars, err := TestEnvVars(tc.arch, tc.kernelRelease)
+			envVars, err := TestEnvVars(tc.arch, tc.platformKey)
+			if tc.expectErr {
+				if err == nil {
+					t.Fatalf("expected an error for platform key %q, got env vars %v", tc.platformKey, envVars)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

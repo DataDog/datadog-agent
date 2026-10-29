@@ -244,16 +244,39 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) ([]string, error) {
 // kmtTestEnvVars returns the environment variables communicating the test
 // env vars of the KMT platform this runner is executing on, as defined in
 // test/new-e2e/system-probe/config/platforms.json, to the test binaries.
+//
+// The platform is not inferred from the running kernel: the CI job that
+// provisioned the VM passes the platforms.json architecture and key of the
+// booted image through /job_env.txt (see
+// .gitlab/test/kernel_matrix_testing/common.yml). Local runs can set the
+// same variables directly in the environment.
 func kmtTestEnvVars() ([]string, error) {
-	arch, release, err := getArchAndRelease()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get arch: %w", err)
-	}
-	if arch == "aarch64" {
-		arch = "arm64"
+	arch, key := os.Getenv("DD_KMT_PLATFORM_ARCH"), os.Getenv("DD_KMT_PLATFORM_KEY")
+	if arch == "" || key == "" {
+		if jobEnv, err := os.ReadFile("/job_env.txt"); err == nil {
+			for line := range strings.SplitSeq(string(jobEnv), "\n") {
+				name, val, ok := strings.Cut(line, "=")
+				if !ok {
+					continue
+				}
+				switch name {
+				case "DD_KMT_PLATFORM_ARCH":
+					arch = val
+				case "DD_KMT_PLATFORM_KEY":
+					key = val
+				}
+			}
+		}
 	}
 
-	envVars, err := systemprobeconfig.TestEnvVars(arch, release)
+	if arch == "" || key == "" {
+		// Not a KMT CI run (e.g. local run or custom kernel): no platform
+		// metadata, leave the test env vars unset.
+		fmt.Println("no KMT platform key provided, no test env vars set")
+		return nil, nil
+	}
+
+	envVars, err := systemprobeconfig.TestEnvVars(arch, key)
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +285,7 @@ func kmtTestEnvVars() ([]string, error) {
 	for name, value := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", name, value))
 	}
-	if len(env) == 0 {
-		fmt.Printf("no KMT platform matches kernel %s on %s, no test env vars set\n", release, arch)
-	} else {
-		fmt.Printf("KMT platform test env vars for kernel %s on %s: %s\n", release, arch, strings.Join(env, " "))
-	}
+	fmt.Printf("KMT platform test env vars for %s/%s: %s\n", arch, key, strings.Join(env, " "))
 	return env, nil
 }
 

@@ -46,11 +46,12 @@ func parsePlatforms() (*platforms, error) {
 }
 
 // TestEnvVars returns the test environment variables of the KMT platform
-// matching the given architecture and kernel release (both as reported by
-// uname) as a map of environment variable names to values. arch must be
-// "x86_64" or "arm64". It returns an empty map if no platform matches (e.g.
-// custom kernels).
-func TestEnvVars(arch, kernelRelease string) (map[string]string, error) {
+// entry with the given platform key (e.g. "amazon_5.10") under the given
+// architecture ("x86_64" or "arm64"), as defined in platforms.json. The key is
+// the platforms.json map key, not the kernel version. It returns an error if
+// no entry matches, so that a misidentified platform fails loudly instead of
+// silently skipping tests.
+func TestEnvVars(arch, platformKey string) (map[string]string, error) {
 	plats, err := parsePlatforms()
 	if err != nil {
 		return nil, err
@@ -61,17 +62,14 @@ func TestEnvVars(arch, kernelRelease string) (map[string]string, error) {
 		byArch = plats.Arm64
 	}
 
-	for _, plat := range byArch {
-		if plat.Kernel != kernelRelease {
-			continue
-		}
-
-		envVars := make(map[string]string, len(plat.TestEnvVars))
-		for name, value := range plat.TestEnvVars {
-			envVars[name] = strconv.FormatBool(value)
-		}
-		return envVars, nil
+	plat, ok := byArch[platformKey]
+	if !ok {
+		return nil, fmt.Errorf("no KMT platform %q under arch %q in platforms.json", platformKey, arch)
 	}
 
-	return map[string]string{}, nil
+	envVars := make(map[string]string, len(plat.TestEnvVars))
+	for name, value := range plat.TestEnvVars {
+		envVars[name] = strconv.FormatBool(value)
+	}
+	return envVars, nil
 }
