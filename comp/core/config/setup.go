@@ -92,6 +92,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	for k, v := range p.cliOverride {
 		config.Set(k, v, pkgconfigmodel.SourceCLI)
 	}
+	pkgconfigsetup.SetPrivateActionRunnerDefault(config)
 
 	return nil
 }

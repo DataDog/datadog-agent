@@ -289,6 +289,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		// as it may provide such overrides
 		pkgconfigenv.DetectFeatures(config)
 		pkgconfigmodel.ApplyOverrideFuncs(config)
+		SetPrivateActionRunnerDefault(config)
 	}()
 
 	err := loadCustom(config)

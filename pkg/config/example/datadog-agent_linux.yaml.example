@@ -4692,9 +4692,12 @@ api_key:
 #
 # private_action_runner:
 
-#   # @param enabled - boolean - optional - default: true
-#   # @env DD_PRIVATE_ACTION_RUNNER_ENABLED - boolean - optional - default: true
-#   # Set to false to disable the Private Action Runner.
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_PRIVATE_ACTION_RUNNER_ENABLED - boolean - optional - default: false
+#   # Enable or disable the Private Action Runner explicitly.
+#   # On Linux, automatic enablement is limited to packaged procmgr host split launches,
+#   # outside containers and FIPS, with process_manager.enabled and split_enabled enabled.
+#   # Other Linux launch paths remain disabled unless explicitly enabled.
 #
 #   enabled: true
 

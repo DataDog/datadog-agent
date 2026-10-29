@@ -8,12 +8,51 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+func TestPARDefaultUsesFinalConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name, launch, config, policy string
+		cli                          map[string]interface{}
+		want, explicit               bool
+	}{
+		{name: "fleet enables manager", launch: "true", policy: "process_manager:\n  enabled: true\n", want: true},
+		{name: "fleet cannot opt in an unmarked launcher", policy: "process_manager:\n  enabled: true\n"},
+		{name: "CLI disables split", launch: "true", policy: "process_manager:\n  enabled: true\n", cli: map[string]interface{}{"private_action_runner.split_enabled": false}},
+		{name: "explicit file opt in", config: "private_action_runner:\n  enabled: true\n", want: true, explicit: true},
+		{name: "explicit fleet opt out", launch: "true", policy: "process_manager:\n  enabled: true\nprivate_action_runner:\n  enabled: false\n", explicit: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DD_INTERNAL_PAR_SPLIT_LAUNCH", tc.launch)
+			t.Setenv("DOCKER_DD_AGENT", "")
+			dir := t.TempDir()
+			file := filepath.Join(dir, "datadog.yaml")
+			policyDir := filepath.Join(dir, "policy")
+			require.NoError(t, os.Mkdir(policyDir, 0o700))
+			require.NoError(t, os.WriteFile(file, []byte("process_manager:\n  enabled: false\n"+tc.config), 0o600))
+			require.NoError(t, os.WriteFile(filepath.Join(policyDir, "datadog.yaml"), []byte(tc.policy), 0o600))
+			cfg := configmock.New(t)
+			cfg.Set("private_action_runner.split_enabled", true, model.SourceDefault)
+			params := NewParams("", WithConfFilePath(file), WithFleetPoliciesDirPath(policyDir))
+			params.cliOverride = tc.cli
+			require.NoError(t, setupConfig(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, params))
+			want := tc.want
+			if runtime.GOOS != "linux" && !tc.explicit {
+				want = true // Keep the parent PR's default on other platforms.
+			}
+			require.Equal(t, want, cfg.GetBool("private_action_runner.enabled"))
+		})
+	}
+}
 
 func TestRealConfig(t *testing.T) {
 	// point the ConfFilePath to a valid, but empty config file so that it does
