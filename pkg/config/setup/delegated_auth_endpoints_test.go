@@ -112,6 +112,20 @@ apm_config:
 	assert.Empty(t, rec.recorded)
 }
 
+func TestProcessConfigAdditionalEndpointsAreWithinScope(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+process_config:
+  additional_endpoints:
+    "https://process.agent.second-org.datadoghq.com":
+      - "DELA[org-uuid-1, aws]"
+`)
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+}
+
 // Two directives for the same org under the same domain are distinct destinations for the
 // credential, so they must not collapse: the component keys instances by APIKeyConfigKey, and a
 // collision would silently drop one of them.
