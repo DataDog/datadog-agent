@@ -46,6 +46,7 @@ const (
 	gpuSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 	crdSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
 	kubeCapabilitiesSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
+	autoscaledWorkloadSource  = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesAutoscaler)
 
 	clusterTagNamePrefix = tags.KubeClusterName
 )
