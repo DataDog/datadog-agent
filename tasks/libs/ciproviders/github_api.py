@@ -416,6 +416,12 @@ class GithubAPI:
         """
         return self._github.search_issues(query)
 
+    def create_branch(self, branch_name: str, sha: str):
+        """
+        Create a branch pointing at the given commit.
+        """
+        return self._repository.create_git_ref(ref=f"refs/heads/{branch_name}", sha=sha)
+
     def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
         # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
         base_tree = self._repository.get_git_tree(tree['base_tree'])

@@ -41,22 +41,16 @@ jobs:
           policy: self.update-changelog.create-pr
 
       # Not a sparse checkout: the task copies this git config into its own clone, and reno
-      # cannot read sparse checkouts.
+      # cannot read sparse checkouts. No credentials are kept: the task commits with the GitHub API.
       - name: Checkout the main branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: true
-          token: ${{ steps.octo-sts.outputs.token }}
+          persist-credentials: false
 
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-
-      - name: Set git identity
-        run: |
-          git config --local user.name 'github-actions[bot]'
-          git config --local user.email 'github-actions[bot]@users.noreply.github.com'
 
       - name: Update changelog
         env:

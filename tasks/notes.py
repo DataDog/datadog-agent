@@ -1,9 +1,10 @@
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import create_release_pr
+from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_current_branch, try_git_command
+from tasks.libs.common.git import create_tree, get_current_branch, try_git_command
+from tasks.libs.common.utils import running_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
 from tasks.libs.releasing.version import deduce_version
@@ -86,30 +87,39 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
         )
         ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
 
-        commit_message = f"'Changelog updates for {new_version} release'"
+        if running_in_ci():
+            # The release workflow runs this task in CI, where the local clone has no push
+            # credentials: create the branch and a signed commit with the GitHub API instead.
+            print("Creating signed commits using Github API")
+            tree = create_tree(ctx, base_branch)
+            github = GithubAPI()
+            github.create_branch(update_branch, tree["base_tree"])
+            github.commit_and_push_signed(update_branch, f"Changelog updates for {new_version} release", tree)
+        else:
+            commit_message = f"'Changelog updates for {new_version} release'"
 
-        ok = try_git_command(ctx, f"git commit -m {commit_message}")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
-                    "red",
-                ),
-                code=1,
-            )
+            ok = try_git_command(ctx, f"git commit -m {commit_message}")
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-        # Step 3 - Push and create PR
+            print(color_message("Pushing new branch to the upstream repository", "bold"))
+            res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+            if res.exited is None or res.exited > 0:
+                raise Exit(
+                    color_message(
+                        f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
-                    "red",
-                ),
-                code=1,
-            )
+        # Step 3 - Create PR
 
         create_release_pr(
             f"Changelog update for {new_version} release",
