@@ -722,7 +722,7 @@ type compiledPattern struct {
 	parts []templatePart
 	// specificity orders matching patterns; higher wins.
 	specificity int
-	// directoryOnly patterns never match the last component of a path.
+	// directoryOnly patterns only match directories.
 	directoryOnly bool
 }
 
@@ -1176,8 +1176,8 @@ func alwaysMixed(piece string) bool {
 // lookup miss only checks those, and the size of its next merge round.
 type childIndex struct {
 	patterns []*FileNode
-	// indexedLen is len(children) when patterns was built. Code that swaps
-	// children without changing their count must call reset.
+	// indexedLen is len(children) when patterns was built. Code that removes
+	// or swaps children outside the insert path must call reset.
 	indexedLen int
 	nextMerge  int
 }
@@ -1209,9 +1209,11 @@ func (idx *childIndex) patternsOf(children map[string]*FileNode) []*FileNode {
 	return idx.patterns
 }
 
-// added keeps idx valid after the insert path stored child in children.
+// added keeps idx valid after the insert path stored child in children. An
+// index that was already stale is reset, so the new count can't revive it.
 func (idx *childIndex) added(children map[string]*FileNode, child *FileNode) {
 	if idx.indexedLen != len(children)-1 {
+		idx.reset()
 		return
 	}
 	idx.indexedLen++
@@ -1234,11 +1236,14 @@ func mergeRound(children map[string]*FileNode, idx *childIndex, stats *Stats) {
 	idx.nextMerge = 2 * len(children)
 }
 
-// insertChildAndMerge stores child under name, runs a merge round when due,
-// and returns the node that now owns name: child itself, or the pattern node
-// it was folded into.
+// insertChildAndMerge stores child under name, charges stats for child and
+// its map entry, runs a merge round when due, and returns the node that now
+// owns name: child itself, or the pattern node it was folded into.
 func insertChildAndMerge(children map[string]*FileNode, index **childIndex, name string, child *FileNode, stats *Stats) *FileNode {
 	children[name] = child
+	if stats != nil {
+		stats.SizeBytes += child.size() + stringMapEntryBytes(children, name)
+	}
 	if !pathPatternCfgFrom(stats).Enabled {
 		return child
 	}
@@ -1254,9 +1259,10 @@ func insertChildAndMerge(children map[string]*FileNode, index **childIndex, name
 
 // findChildWithPatternFallback returns the exact-name child if present,
 // otherwise the most specific sibling pattern node matching name.
-// lastComponent excludes directory-only patterns, so a new file never
-// matches them. A disabled config skips the pattern lookup entirely.
-func findChildWithPatternFallback(children map[string]*FileNode, index **childIndex, name string, lastComponent bool, stats *Stats) (*FileNode, bool) {
+// notDirectory, set when name ends the path and isn't a directory, excludes
+// directory-only patterns, so a file never matches them. A disabled config
+// skips the pattern lookup entirely.
+func findChildWithPatternFallback(children map[string]*FileNode, index **childIndex, name string, notDirectory bool, stats *Stats) (*FileNode, bool) {
 	if c, ok := children[name]; ok {
 		return c, true
 	}
@@ -1266,7 +1272,7 @@ func findChildWithPatternFallback(children map[string]*FileNode, index **childIn
 	var best *FileNode
 	for _, child := range indexOf(index).patternsOf(children) {
 		childCompiledPattern := child.matcher()
-		if (lastComponent && childCompiledPattern.directoryOnly) || !childCompiledPattern.matches(name) {
+		if (notDirectory && childCompiledPattern.directoryOnly) || !childCompiledPattern.matches(name) {
 			continue
 		}
 		if best == nil {

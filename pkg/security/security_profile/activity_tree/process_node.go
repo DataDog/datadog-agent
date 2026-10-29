@@ -446,7 +446,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	rawParent, nextRawParentIndex := ExtractFirstParent(rawFilePath)
 	rawRest := rawFilePath[nextRawParentIndex:]
 
-	child, ok := findChildWithPatternFallback(pn.Files, &pn.filesIndex, parent, len(filePath) <= nextParentIndex+1, stats)
+	child, ok := findChildWithPatternFallback(pn.Files, &pn.filesIndex, parent, len(filePath) <= nextParentIndex+1 && !fileEvent.IsDir(), stats)
 	if ok {
 		if child.IsPattern && child.Name != parent && stats != nil {
 			stats.FilePatternLookupHits++
@@ -466,13 +466,11 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			node := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
-			stats.SizeBytes += node.size()
 			owner := insertChildAndMerge(pn.Files, &pn.filesIndex, parent, node, stats)
 			return true, &owner.NodeBase
 		}
 		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 		stats.FileNodes++
-		stats.SizeBytes += newChild.size()
 		owner := insertChildAndMerge(pn.Files, &pn.filesIndex, parent, newChild, stats)
 		rest := filePath[nextParentIndex:]
 		filePath = withPatternComponent(filePath, filePath, parent, owner.Name)
@@ -763,7 +761,9 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 	for filename, file := range pn.Files {
 		shouldRemove, fileRemoved := file.evictImageTag(imageTagID)
 		if shouldRemove {
+			removed += stringMapEntryBytes(pn.Files, filename)
 			delete(pn.Files, filename)
+			pn.filesIndex.reset()
 		}
 		removed += fileRemoved
 	}
@@ -907,8 +907,9 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for path, fileNode := range pn.Files {
 		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if fileNode.SeenIsEmpty() {
-				removedBytes += fileSubtreeSizeBytes(fileNode)
+				removedBytes += fileSubtreeSizeBytes(fileNode) + stringMapEntryBytes(pn.Files, path)
 				delete(pn.Files, path)
+				pn.filesIndex.reset()
 			}
 		}
 	}

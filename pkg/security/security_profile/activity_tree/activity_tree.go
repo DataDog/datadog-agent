@@ -1073,10 +1073,12 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
 		rootNode.TagAllNodes(imageTagID, timestamp)
 	}
+	// every node may have grown a seen slot; the walk costs the same as tagging
+	at.recomputeSizeBytes()
 }
 
 // recomputeSizeBytes walks the full tree and resets Stats.SizeBytes to the accurate current value.
-// Called only from ComputeActivityTreeStats to periodically correct any accumulated drift.
+// Called from ComputeActivityTreeStats and TagAllNodes to correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
 	var total int64
 	openList := make([]*ProcessNode, len(at.ProcessNodes))

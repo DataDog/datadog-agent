@@ -12,7 +12,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -539,6 +541,24 @@ func TestInsertFileEvent_BareAlnumDirectoryKeepsCheckingBelow(t *testing.T) {
 	assert.True(t, insertTestPath(pn, "/var/folders/Zq8wX7vB6n/T/evil", at.Stats, true), "paths below the pattern are still checked")
 }
 
+func TestInsertFileEvent_DirectoryOpenMatchesDirectoryOnlyPattern(t *testing.T) {
+	at, pn := newPatternTestTree()
+	ids := []string{"5nVjCHLMxA", "Qx7bK2pLmZ", "a9Fk3JdW0e"}
+	for _, id := range ids {
+		insertTestEvent(pn, newTestDirOpen("/var/folders/"+id), 1, at.Stats, false)
+		insertTestPath(pn, "/var/folders/"+id+"/T/cache", at.Stats, false)
+	}
+	at.FinalizePatterns()
+	pn.Files["var"] = reloadFileNode(pn.Files["var"])
+	require.Equal(t, []string{"<alnum>"}, childrenNames(pn.Files["var"].Children["folders"].Children))
+
+	assert.False(t, insertTestEvent(pn, newTestDirOpen("/var/folders/"+ids[0]), 1, at.Stats, true), "known directory")
+	assert.False(t, insertTestEvent(pn, newTestDirOpen("/var/folders/Zq8wX7vB6n"), 1, at.Stats, true), "new directory")
+	file := newTestEvent("/var/folders/Zq8wX7vB6n")
+	file.Open.File.Mode = syscall.S_IFREG
+	assert.True(t, insertTestEvent(pn, file, 1, at.Stats, true), "a file must not match a directory-only pattern")
+}
+
 func TestMergeChildren_HexHashesGroupTogether(t *testing.T) {
 	children := map[string]*FileNode{}
 	// "deadbeef" has no digit but still groups with the other hashes
@@ -875,24 +895,50 @@ func insertTestPathNode(pn *ProcessNode, path string, stats *Stats) *NodeBase {
 	return nb
 }
 
-func TestFinalizePatterns_KeepsSizeBytesAccurate(t *testing.T) {
-	at, pn := newPatternTestTree()
-	for _, s := range []string{"aaa", "bbb", "ccc", "ddd"} {
-		insertTestPath(pn, "/tmp/sess-"+s+"/file", at.Stats, false)
-		insertTestPath(pn, "/tmp/sess-"+s+"/other-"+s, at.Stats, false)
-	}
-	drift := func() int64 {
+// Merges subtract real subtree sizes, so every insert, lookup and eviction
+// must charge the same allocations, or the size limit drifts.
+func TestSizeBytes_MatchesRecomputeAcrossMerges(t *testing.T) {
+	at := newSizeTestTree()
+	at.Stats.SetPathPatternConfig(DefaultPathPatternConfig())
+	v1, v2 := at.GetOrInsertImageTag("v1"), at.GetOrInsertImageTag("v2")
+	pn := newSizeTestProcessNode("root")
+	pn.AppendImageTagID(v1, time.Now())
+	pn.AppendImageTagID(v2, time.Now())
+	at.ProcessNodes = []*ProcessNode{pn}
+	at.recomputeSizeBytes()
+	inSync := func(step string) {
+		t.Helper()
 		tracked := at.Stats.SizeBytes
 		at.recomputeSizeBytes()
-		actual := at.Stats.SizeBytes
-		at.Stats.SizeBytes = tracked
-		return tracked - actual
+		assert.Equal(t, at.Stats.SizeBytes, tracked, step)
+		assert.Positive(t, tracked, step)
 	}
 
-	before := drift()
+	// distinct separators keep the families in distinct buckets
+	for _, family := range []string{"job-", "task_", "run."} {
+		for i := 1; i <= 6; i++ {
+			insertTestEvent(pn, newTestEvent("/tmp/"+family+strconv.Itoa(i)+"/config"), v1, at.Stats, false)
+		}
+	}
+	tmp := pn.Files["tmp"]
+	require.Equal(t, []string{"job-<num>", "run.1", "run.2", "run.3", "run.4", "run.5", "run.6", "task_<num>"}, childrenNames(tmp.Children))
+	inSync("insert-time merges")
+
 	at.FinalizePatterns()
-	require.Contains(t, pn.Files["tmp"].Children, "sess-<alpha>")
-	assert.Equal(t, before, drift())
+	require.Equal(t, []string{"job-<num>", "run.<num>", "task_<num>"}, childrenNames(tmp.Children))
+	inSync("finalize")
+
+	insertTestEvent(pn, newTestEvent("/tmp/job-7/config"), v2, at.Stats, false)
+	insertTestEvent(pn, newTestEvent("/tmp/extra/file"), v2, at.Stats, false)
+	open := newTestEvent("/tmp")
+	open.Type = uint32(model.FileOpenEventType)
+	insertTestEvent(pn, open, v1, at.Stats, false)
+	require.NotNil(t, tmp.Open)
+	inSync("lookups under a new tag and enrichment")
+
+	at.EvictImageTag("v2")
+	require.NotContains(t, tmp.Children, "extra")
+	inSync("eviction")
 }
 
 func TestFinalizePatterns_RecordsMovedNodes(t *testing.T) {
@@ -1218,6 +1264,35 @@ func TestFindChildWithPatternFallback_FollowsChildrenChanges(t *testing.T) {
 	delete(children, num.Name)
 	_, ok = findChildWithPatternFallback(children, &index, "42.log", true, stats)
 	assert.False(t, ok)
+
+	children[num.Name] = num
+	_, ok = findChildWithPatternFallback(children, &index, "42.log", true, stats)
+	require.True(t, ok)
+	delete(children, num.Name)
+	insertChildAndMerge(children, &index, "b.log", newTestFileLeaf("b.log"), stats)
+	_, ok = findChildWithPatternFallback(children, &index, "42.log", true, stats)
+	assert.False(t, ok, "an insert restoring the cached count must not revive a removed pattern")
+}
+
+func TestEvictImageTag_DropsEvictedPatternFromIndex(t *testing.T) {
+	stats := enablePatternsTestStats()
+	data := newTestFileLeaf("data")
+	data.AppendImageTagID(2, time.Now())
+	job := &FileNode{Name: "job-<num>", IsPattern: true, NodeBase: NewNodeBase()}
+	job.AppendImageTagID(1, time.Now())
+	data.Children[job.Name] = job
+	_, ok := findChildWithPatternFallback(data.Children, &data.childrenIndex, "job-7", true, stats)
+	require.True(t, ok)
+
+	pruned, _ := data.evictImageTag(1)
+	require.False(t, pruned)
+	require.Empty(t, data.Children)
+	_, ok = findChildWithPatternFallback(data.Children, &data.childrenIndex, "job-7", true, stats)
+	require.False(t, ok)
+
+	insertChildAndMerge(data.Children, &data.childrenIndex, "readme", newTestFileLeaf("readme"), stats)
+	_, ok = findChildWithPatternFallback(data.Children, &data.childrenIndex, "job-7", true, stats)
+	assert.False(t, ok, "the evicted pattern must not match")
 }
 
 func BenchmarkInsertFileEvent_UnmergeableSiblings(b *testing.B) {
@@ -1296,9 +1371,18 @@ func reloadFileNode(fn *FileNode) *FileNode {
 	return protoDecodeFileActivityNode(encoded, func(string) uint64 { return 0 })
 }
 
-func insertTestPath(pn *ProcessNode, path string, stats *Stats, dryRun bool) bool {
+func newTestDirOpen(path string) *model.Event {
 	ev := newTestEvent(path)
-	isNew, _ := pn.InsertFileEvent(&ev.Open.File, ev, 1, Unknown, stats, dryRun, nil, nil)
+	ev.Open.File.Mode = syscall.S_IFDIR
+	return ev
+}
+
+func insertTestPath(pn *ProcessNode, path string, stats *Stats, dryRun bool) bool {
+	return insertTestEvent(pn, newTestEvent(path), 1, stats, dryRun)
+}
+
+func insertTestEvent(pn *ProcessNode, ev *model.Event, imageTagID uint64, stats *Stats, dryRun bool) bool {
+	isNew, _ := pn.InsertFileEvent(&ev.Open.File, ev, imageTagID, Unknown, stats, dryRun, nil, nil)
 	return isNew
 }
 

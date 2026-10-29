@@ -96,6 +96,12 @@ type OpenNode struct {
 
 // size approximates this node's own heap footprint
 func (fn *FileNode) size() int64 {
+	return fn.sizeWithoutChildren() + stringMapBytes(fn.Children)
+}
+
+// sizeWithoutChildren is size minus the children map, which costs a walk of
+// its keys.
+func (fn *FileNode) sizeWithoutChildren() int64 {
 	s := int64(unsafe.Sizeof(*fn))
 	s += seenBytes(fn.NodeBase)
 	s += int64(len(fn.Name))
@@ -106,7 +112,6 @@ func (fn *FileNode) size() int64 {
 		s += int64(unsafe.Sizeof(*fn.Open))
 	}
 	s += sliceBackingBytes(cap(fn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
-	s += stringMapBytes(fn.Children)
 	return s
 }
 
@@ -224,14 +229,18 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		parent, nextParentIndex := ExtractFirstParent(currentPath)
 		if nextParentIndex == 0 {
 			if !dryRun {
+				sizeBefore := currentFn.sizeWithoutChildren()
 				currentFn.enrichFromEvent(event)
+				if stats != nil {
+					stats.SizeBytes += currentFn.sizeWithoutChildren() - sizeBefore
+				}
 			}
 			break
 		}
 		rawParent, nextRawParentIndex := ExtractFirstParent(currentRawPath)
 
 		lastComponent := len(currentPath) <= nextParentIndex+1
-		child, ok := findChildWithPatternFallback(currentFn.Children, &currentFn.childrenIndex, parent, lastComponent, stats)
+		child, ok := findChildWithPatternFallback(currentFn.Children, &currentFn.childrenIndex, parent, lastComponent && !fileEvent.IsDir(), stats)
 		if ok {
 			if child.IsPattern && child.Name != parent && stats != nil {
 				stats.FilePatternLookupHits++
@@ -240,7 +249,11 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
 			currentRawPath = currentRawPath[nextRawParentIndex:]
+			seenBefore := seenBytes(currentFn.NodeBase)
 			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
+			if stats != nil {
+				stats.SizeBytes += seenBytes(currentFn.NodeBase) - seenBefore
+			}
 			continue
 		}
 
@@ -255,12 +268,10 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if lastComponent {
 			leafNode := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, reducedPath, resolvers)
 			stats.FileNodes++
-			stats.SizeBytes += leafNode.size()
 			currentFn = insertChildAndMerge(currentFn.Children, &currentFn.childrenIndex, parent, leafNode, stats)
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, "", resolvers)
-		stats.SizeBytes += newChild.size()
 		currentFn = insertChildAndMerge(currentFn.Children, &currentFn.childrenIndex, parent, newChild, stats)
 		reducedPath = withPatternComponent(reducedPath, currentPath, parent, currentFn.Name)
 		currentPath = currentPath[nextParentIndex:]
@@ -284,7 +295,9 @@ func (fn *FileNode) evictImageTag(imageTagID uint64) (bool, int64) {
 	for filename, child := range fn.Children {
 		shouldRemove, childRemoved := child.evictImageTag(imageTagID)
 		if shouldRemove {
+			removed += stringMapEntryBytes(fn.Children, filename)
 			delete(fn.Children, filename)
+			fn.childrenIndex.reset()
 		}
 		removed += childRemoved
 	}
