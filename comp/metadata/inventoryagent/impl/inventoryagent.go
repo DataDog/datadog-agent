@@ -463,7 +463,13 @@ func (ia *inventoryagent) fetchSecretsMetadata() {
 	if ia.secrets != nil {
 		paths, handles = ia.secrets.GetPathsAndHandles()
 	}
-	scrubbedKeys := filterScrubbedKeys(scrubber.GetStrippedKeys(), paths)
+	// Scrub the configuration to find the keys holding credentials: either known sensitive keys or values that look
+	// like credentials. Defaults are excluded since they are not set by the user, and the secrets layer is excluded
+	// so values resolved from a handle are not reported twice.
+	configScrubber := scrubber.NewWithDefaults()
+	var settings interface{} = ia.conf.AllSettingsWithoutDefaultOrSecrets()
+	configScrubber.ScrubDataObj(&settings)
+	scrubbedKeys := filterScrubbedKeys(configScrubber.GetStrippedKeys(), paths)
 	ia.data["enc_info"] = map[string][]string{
 		"paths":    paths,
 		"handles":  handles,

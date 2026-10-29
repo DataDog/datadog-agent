@@ -1278,3 +1278,101 @@ redis_url: "redis://localhost:6379"
 		})
 	}
 }
+
+func TestGetStrippedKeys(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name: "known sensitive keys",
+			input: `
+username: user1
+password: password123
+snmp:
+  authKey: my-auth-key
+  privKey: my-priv-key
+`,
+			expected: []string{"authKey", "password", "privKey"},
+		},
+		{
+			name: "raw credentials in values",
+			input: `
+dd_url: https://user:secret@example.com
+custom_setting: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+headers: Bearer some-token-value
+`,
+			expected: []string{"custom_setting", "dd_url", "headers"},
+		},
+		{
+			name: "list elements are reported under their parent key",
+			input: `
+forwarder_keys:
+  - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+  - not-a-key
+endpoints:
+  - https://example.com
+  - https://user:secret@example.com
+`,
+			expected: []string{"endpoints", "forwarder_keys"},
+		},
+		{
+			name: "nested keys of structured replacers",
+			input: `
+logs_config:
+  additional_endpoints:
+    - api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+      host: example.com
+`,
+			expected: []string{"api_key"},
+		},
+		{
+			name: "map of endpoints to API keys",
+			input: `
+additional_endpoints:
+  https://example.com:
+    - some-key
+`,
+			expected: []string{"additional_endpoints"},
+		},
+		{
+			name: "empty values, booleans and ENC handles are not reported",
+			input: `
+api_key: ""
+pass_through: true
+password: ENC[my_handle]
+token:
+additional_endpoints: {}
+hostname: my-host
+`,
+			expected: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var data interface{}
+			require.NoError(t, yaml.Unmarshal([]byte(tc.input), &data))
+
+			scrubber := NewWithDefaults()
+			scrubber.ScrubDataObj(&data)
+			assert.Equal(t, tc.expected, scrubber.GetStrippedKeys())
+
+			scrubber.ClearStrippedKeys()
+			assert.Equal(t, []string{}, scrubber.GetStrippedKeys())
+		})
+	}
+}
+
+func TestGetStrippedKeysAddStrippedKeys(t *testing.T) {
+	AddStrippedKeys([]string{"get_stripped_keys_test_key"})
+
+	var data interface{} = map[string]interface{}{
+		"get_stripped_keys_test_key": "value",
+		"other_key":                  "value",
+	}
+	scrubber := NewWithDefaults()
+	scrubber.ScrubDataObj(&data)
+	assert.Equal(t, []string{"get_stripped_keys_test_key"}, scrubber.GetStrippedKeys())
+}

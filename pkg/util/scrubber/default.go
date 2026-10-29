@@ -28,11 +28,9 @@ var (
 
 	defaultReplacement = "********"
 
-	// dynamicReplacers are replacers added at runtime. New Replacer can be added
-	// through configuration or by the secrets package for example. dynamicStrippedKeys
-	// also tracks which keys have been scrubbed, both are protected by the same mutex
+	// dynamicReplacers are replacers added at runtime. New Replacer can be added through configuration or by the
+	// secrets package for example.
 	dynamicReplacers      = []Replacer{}
-	dynamicStrippedKeys   = []string{}
 	dynamicReplacersMutex = sync.Mutex{}
 
 	// defaultVersion is the first version of the agent scrubber.
@@ -205,7 +203,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
-		walk(&data, func(key string, _ any) (bool, any) {
+		walk(&data, func(key string, _ string, _ any) (bool, any) {
 			switch key {
 			// ADD rule info that can be shown
 			case "id", "license":
@@ -676,24 +674,17 @@ func AddStrippedKeys(strippedKeys []string) {
 		DefaultScrubber.AddReplacer(SingleLine, replacer)
 		dynamicReplacersMutex.Lock()
 		dynamicReplacers = append(dynamicReplacers, replacer)
-		dynamicStrippedKeys = append(dynamicStrippedKeys, strippedKeys...)
 		dynamicReplacersMutex.Unlock()
 	}
 }
 
-// GetStrippedKeys returns the YAML keys added through AddStrippedKeys
+// GetStrippedKeys returns the keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON) on the
+// default scrubber.
 func GetStrippedKeys() []string {
-	dynamicReplacersMutex.Lock()
-	res := slices.Clone(dynamicStrippedKeys)
-	dynamicReplacersMutex.Unlock()
-	return res
+	return DefaultScrubber.GetStrippedKeys()
 }
 
-// ClearStrippedKeys clears the YAML keys added through AddStrippedKeys
-// only affects strippedKeys, not the replacers themselves
-// only really useful for tests due to this behavior
+// ClearStrippedKeys forgets the keys recorded by the default scrubber.
 func ClearStrippedKeys() {
-	dynamicReplacersMutex.Lock()
-	dynamicStrippedKeys = []string{}
-	dynamicReplacersMutex.Unlock()
+	DefaultScrubber.ClearStrippedKeys()
 }

@@ -48,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -999,9 +998,6 @@ func TestFetchFleet(t *testing.T) {
 }
 
 func TestFetchSecretsNoComponent(t *testing.T) {
-	scrubber.ClearStrippedKeys()
-	t.Cleanup(scrubber.ClearStrippedKeys)
-
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSecretsMetadata()
 	assert.Equal(t, map[string][]string{"paths": {}, "handles": {}, "scrubbed": {}}, ia.data["enc_info"])
@@ -1013,20 +1009,23 @@ func TestFetchSecrets(t *testing.T) {
 		[]string{"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
 		[]string{"my_key", "secret_one", "secret_two"},
 	)
-	p := getProvides(t, nil, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	p := getProvides(t, map[string]any{
+		// covered by a secret path, so not reported as scrubbed
+		"api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+		// known sensitive key name
+		"network_devices.snmp_traps.users": []any{
+			map[string]any{"user": "user1", "authKey": "my-auth-key", "authProtocol": "sha"},
+		},
+		// raw credential written in a setting that is not known to be sensitive
+		"dd_url": "https://user:secret@example.com",
+	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
 	ia := p.Comp.(*inventoryagent)
-
-	scrubber.ClearStrippedKeys()
-	t.Cleanup(scrubber.ClearStrippedKeys)
-	// "community_strings" is what the secrets component registers for "snmp_traps.community_strings.N" paths, while
-	// "inventoryagent_test_key" mimics a user-provided "scrubber.additional_keys" entry
-	scrubber.AddStrippedKeys([]string{"community_strings", "inventoryagent_test_key"})
 
 	ia.fetchSecretsMetadata()
 	assert.Equal(t, map[string][]string{
 		"paths":    {"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
 		"handles":  {"my_key", "secret_one", "secret_two"},
-		"scrubbed": {"inventoryagent_test_key"},
+		"scrubbed": {"authKey", "dd_url"},
 	}, ia.data["enc_info"])
 }
 
