@@ -52,8 +52,8 @@ func (pc *ParsingContext) BuildRule(expr string) (*ast.Rule, error) {
 }
 
 // BuildMacro parses the expression of a macro, see ParseMacro.
-func (pc *ParsingContext) BuildMacro(expr string) (*ast.Macro, error) {
-	return ParseMacro(expr)
+func (pc *ParsingContext) BuildMacro(id, expr string) (*ast.Macro, error) {
+	return ParseMacro(id, expr)
 }
 
 // BuildExpression parses an expression, see ParseExpression.

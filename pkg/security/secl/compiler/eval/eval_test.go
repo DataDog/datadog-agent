@@ -820,6 +820,43 @@ func TestNestedMacros(t *testing.T) {
 	}
 }
 
+func TestNestedMacrosPartial(t *testing.T) {
+	model := &testModel{}
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]interface{}), nil)
+
+	for _, def := range []struct{ id, expr string }{
+		{"is_passwd", `open.filename == "/etc/passwd" || open.filename == "/etc/shadow"`},
+		{"httpd_passwd", `is_passwd && process.name == "httpd"`},
+	} {
+		macro, err := NewMacro(def.id, def.expr, model, pc, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.MacroStore.Add(macro)
+	}
+
+	rule, err := parseRule(`httpd_passwd`, model, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event := &testEvent{
+		process: testProcess{name: "nginx"},
+		open:    testOpen{filename: "/etc/passwd"},
+	}
+	ctx := NewContext(event)
+
+	result, err := rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.True(t, result, "open.filename shouldn't be a discarder")
+
+	event.open.filename = "/etc/group"
+	result, err = rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.False(t, result, "open.filename should be a discarder")
+}
+
 func TestFieldValidator(t *testing.T) {
 	expr := `process.uid == -100 && open.filename == "/etc/passwd"`
 
@@ -1920,7 +1957,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, "", nil))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, ""))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}

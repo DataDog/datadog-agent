@@ -17,12 +17,12 @@ source ──parse──▶ AST ──passes──▶ AST ──compile──▶
 - `ast` — the AST. One type per construct of the language, all members of the
   closed `ast.Node` union, and the `ast.Position` of the nodes. No dependency on
   the parser, no dependency on the evaluators.
-- `pass` — the compilation passes, each rewriting in place a copy of the tree.
+- `pass` — the compilation passes, each rewriting in place a copy of the tree:
+  macro expansion so far.
 - `eval` — the evaluators, and their construction from the AST (`compile.go`).
   `eval.Compile` walks the AST, type checks it against a `Model`, and returns a
   tree of closures. `eval.Rule` holds the AST of a rule, runs the passes over
-  it and compiles the result on `GenEvaluator`. `eval.Macro` holds the AST of
-  a macro and compiles it on `GenEvaluator`.
+  it and compiles the result on `GenEvaluator`.
 
 ## Conventions
 
@@ -40,12 +40,12 @@ source ──parse──▶ AST ──passes──▶ AST ──compile──▶
 - **Don't resolve names in the parser.** Whether an identifier is a field, a
   constant, a macro or an iterator depends on the `Model` and the `Opts`, which
   are only known at compile time. The AST keeps identifiers as written.
-- **Copy a tree before modifying it.** A tree is cached per expression and
-  shared by the rules using it. The passes run over a copy (`pass.Run`) and
-  modify it in place, and a tree inserted in another one is copied first
-  (`ast.DeepCopy`).
-- **Beware of shared evaluators.** The value of a macro or of a constant is a
-  single evaluator instance reused by every rule referring to it. Compilation
+- **Copy a tree before modifying it.** A tree is cached per expression, shared
+  by the rules using it, and the tree of a macro is inserted in every rule
+  referring to it. The passes run over a copy (`pass.Run`) and modify it in
+  place, and a tree inserted in another one is copied first (`ast.DeepCopy`).
+- **Beware of shared evaluators.** The value of a constant is a single
+  evaluator instance reused by every rule referring to it. Compilation
   mutates its operands in a couple of places (`=~` forcing the value type of its
   right operand, `Unary` flagging its operand as deterministic), which leaks
   across rules; copy rather than add to those.
