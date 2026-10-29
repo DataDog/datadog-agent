@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    On Linux, the Python ``aerospike`` client used by the Aerospike integration
+    now uses the Agent's embedded OpenSSL and zlib instead of its own bundled
+    copies, reducing the installed size of Linux Agent packages by about 9 MiB.

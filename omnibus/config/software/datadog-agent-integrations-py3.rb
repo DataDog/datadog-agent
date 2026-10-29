@@ -11,8 +11,6 @@ dependency 'python3'
 
 python_version = "3.13"
 
-whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
-whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
@@ -45,6 +43,31 @@ build do
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -B -m pip check"
+
+  if linux_target?
+    block "Patch aerospike's openssl and zlib linking" do
+      # The aerospike wheel bundles its own OpenSSL and zlib (~9 MiB). Its extension only needs the OPENSSL_3.0.0
+      # and ZLIB_1.2.0 symbol versions, which the Agent's embedded libraries provide, so we delete the bundled copies
+      # and point the extension at the embedded ones, the same way we do for cryptography and psycopg in FIPS mode.
+      aerospike_libs_folder = "#{site_packages_path}/aerospike.libs"
+      so_to_patch = Dir.glob("#{site_packages_path}/aerospike.cpython-*-linux-gnu.so").fetch(0)
+      replacements = {
+        "libssl-*.so.3" => "libssl.so.3",
+        "libcrypto-*.so.3" => "libcrypto.so.3",
+        "libz-*.so.1*" => "libz.so.1",
+      }
+      replacements.each do |pattern, embedded_lib|
+        matches = Dir.glob("#{aerospike_libs_folder}/#{pattern}")
+        raise "expected exactly one match for '#{pattern}' but got: #{matches}" if matches.size != 1
+        match = matches.fetch(0)
+        shellout! "patchelf --replace-needed #{File.basename(match)} #{embedded_lib} #{so_to_patch}"
+        FileUtils.rm(match)
+      end
+      # With the bundled libraries gone, the wheel's `$ORIGIN`-relative search path is no longer needed, so we
+      # replace it rather than append to it.
+      shellout! "patchelf --set-rpath #{install_dir}/embedded/lib #{so_to_patch}"
+    end
+  end
 
   # Remove openssl copies from libraries that depend on it, and patch as necessary.
   # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder

@@ -76,8 +76,6 @@ MACOS_ALLOWLIST = [
 # version-agnostic regex (any python3.NN segment) so this list does not need
 # to be touched when bumping Python.
 _PY_INTEGRATIONS_ALLOWLIST_TEMPLATES = [
-    r"embedded/lib/python3\.\d+/site-packages/\.libsaerospike",
-    r"embedded/lib/python3\.\d+/site-packages/aerospike\.libs",
     r"embedded/lib/python3\.\d+/site-packages/psycopg_binary\.libs",
     r"embedded/lib/python3\.\d+/site-packages/pymqi",
 ]
