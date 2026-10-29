@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -35,6 +36,16 @@ func GetIPCAddress(config model.Reader) (string, error) {
 	return address, nil
 }
 
+// apmDebugHostFallbackOnce keeps the fallback warning to a single line.
+// Trace telemetry calls APMDebugHost every 45s, and status calls it on every refresh.
+var apmDebugHostFallbackOnce sync.Once
+
+func warnAPMDebugHostFallback(format string, args ...interface{}) {
+	apmDebugHostFallbackOnce.Do(func() {
+		log.Warnf(format, args...)
+	})
+}
+
 // APMDebugHost returns the address the trace-agent debug server binds.
 // The IPC certificate only names 127.0.0.1 and ::1. localhost and any other
 // address use 127.0.0.1 so TLS hostname verification succeeds.
@@ -43,14 +54,14 @@ func APMDebugHost(config model.Reader) string {
 
 	address, err := GetIPCAddress(config)
 	if err != nil {
-		log.Warnf("APM debug server will use %s: %s", ipv4Loopback, err)
+		warnAPMDebugHostFallback("APM debug server will use %s: %s", ipv4Loopback, err)
 		return ipv4Loopback
 	}
 	if host, ok := ipcCertHost(address); ok {
 		return host
 	}
 	if address != "" && address != "localhost" {
-		log.Warnf("APM debug server will use %s: %s is not covered by the IPC certificate", ipv4Loopback, address)
+		warnAPMDebugHostFallback("APM debug server will use %s: %s is not covered by the IPC certificate", ipv4Loopback, address)
 	}
 	return ipv4Loopback
 }
