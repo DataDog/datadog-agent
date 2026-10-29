@@ -30,19 +30,20 @@ const SourcePendingLimit = 64
 // counts record references, not log bodies. Full capacity backpressures callers
 // before ownership transfers; it never acknowledges a rejected registration.
 type Progress struct {
-	mu          sync.Mutex
-	limit       int
-	sourceLimit int
-	next        uint64
-	records     map[uint64]*record
-	sources     map[string]*sourceProgress
-	histories   int
-	space       chan struct{}
-	ready       chan *message.Payload
-	shutdown    chan struct{}
-	finished    chan struct{}
-	sink        sender.Sink
-	stopped     bool
+	mu           sync.Mutex
+	limit        int
+	sourceLimit  int
+	next         uint64
+	records      map[uint64]*record
+	sources      map[string]*sourceProgress
+	histories    int
+	space        chan struct{}
+	ready        chan *message.Payload
+	shutdown     chan struct{}
+	shutdownOnce sync.Once
+	finished     chan struct{}
+	sink         sender.Sink
+	stopped      bool
 }
 
 type record struct {
@@ -248,7 +249,10 @@ func (p *Progress) advance(r *record) {
 		source.queue = source.queue[1:]
 		delete(p.records, front.meta.RoutingToken())
 		if front.generation == source.currentGeneration {
-			p.ready <- message.NewPayload([]*message.MessageMetadata{front.meta}, nil, "", 0)
+			select {
+			case p.ready <- message.NewPayload([]*message.MessageMetadata{front.meta}, nil, "", 0):
+			case <-p.shutdown:
+			}
 		}
 		p.notifySpace()
 	}
@@ -318,14 +322,21 @@ func (p *Progress) OwnsSource(identifier string) bool {
 	return p.sources[identifier] != nil
 }
 
+// StopForwarding interrupts checkpoint publication when the downstream auditor
+// is blocked. Call it on provider cancellation, before waiting for workers that
+// may be publishing outcomes. Unpublished checkpoints are left for replay.
+func (p *Progress) StopForwarding() {
+	p.shutdownOnce.Do(func() { close(p.shutdown) })
+}
+
 // Close releases unresolved reservations without acknowledging them. Call it
 // only after every group sink has stopped producing outcomes.
 func (p *Progress) Close() {
+	p.StopForwarding()
 	p.mu.Lock()
 	if !p.stopped {
 		p.stopped = true
 		close(p.space)
-		close(p.shutdown)
 		close(p.ready)
 		p.records = nil
 		p.sources = nil

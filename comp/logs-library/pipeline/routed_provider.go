@@ -124,6 +124,7 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	context.AfterFunc(ctx, progress.StopForwarding)
 	p := &RoutedProvider{
 		opts: opts, defs: defs, progress: progress,
 		ingress:   make(chan *message.Message, routedIngressCapacity),

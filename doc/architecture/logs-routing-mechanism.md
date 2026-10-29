@@ -2,17 +2,43 @@
 
 The PR adds an HTTP routing mechanism. Agent startup does not enable it; a caller supplies groups and selects them for each record.
 
-Injected setup (schematic; remaining provider dependencies omitted):
+Injected setup (schematic; dependencies and validated HTTP endpoint sets come from the caller):
 
 ```go
-RoutedOptions{
+provider, err := pipeline.NewRoutedProvider(pipeline.RoutedOptions{
+    NumberOfPipelines:         2,
+    Sink:                      auditor,
+    DiagnosticMessageReceiver: diagnosticReceiver,
+    DestinationsContext:       destinationsContext,
+    Hostname:                  hostname,
+    Config:                    cfg,
+    Compression:               compression,
+    Secrets:                   secrets,
     Groups: []routing.Group{
         {ID: "a", Endpoints: endpointsA},
         {ID: "b", Endpoints: endpointsB},
     },
-    Resolve: resolveGroupsAndGeneration,
+    Resolve: func(msg *message.Message) (routing.Selection, error) {
+        // This example has two producers in generation 1. A replacement
+        // producer must use a new generation in both Resolve and SourceInput.
+        switch msg.Origin.Identifier {
+        case "source-x":
+            return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
+        case "source-y":
+            return routing.Selection{Groups: []string{"b"}, Generation: 1}, nil
+        default:
+            return routing.Selection{}, routing.ErrInvalidSelection
+        }
+    },
+})
+if err != nil {
+    return err
 }
 ```
+
+Each producer obtains its channel with `provider.SourceInput(identifier, generation)` and handles the returned error before sending. Messages must carry matching origin identifiers and a non-nil log source. Give launchers `provider.GuardRegistry(registry)` for direct checkpoint writes, start the auditor, then start the provider. After a producer stops and all its output is admitted, call `RetireSource`; `ErrSourcePending` means retry after outstanding delivery completes. Stop producers before stopping the provider.
+
+The existing processor handles rules, tags, and JSON encoding; the existing batch strategy handles batching and compression; each group uses the existing HTTP sender and its reliable endpoint behavior. The routing progress coordinator adds the cross-group completion and ordered source checkpoint semantics that a single sender does not provide.
 
 There is no YAML for group definitions or selection yet. `logs_config.routing.max_groups` only caps the injected groups.
 

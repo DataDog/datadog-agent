@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -459,4 +460,42 @@ func TestAggregateBudgetBackpressuresOtherSources(t *testing.T) {
 	if _, err := p.Register(context.Background(), progressMessage("z", "1"), Selection{Generation: 1}, []string{"b"}); err != nil {
 		t.Fatalf("aggregate capacity did not wake Z: %v", err)
 	}
+}
+
+// A stalled auditor can fill the publication queue even as completed records
+// free admission capacity. Cancellation must release the completion worker.
+func TestProgressCancellationUnblocksFullCheckpointQueue(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sink := &progressTestSink{ch: make(chan *message.Payload)}
+		p, err := NewProgress(1, sink)
+		if err != nil {
+			t.Fatal(err)
+		}
+		finished := make(chan struct{})
+		go func() {
+			defer close(finished)
+			for i := 0; i < 3; i++ {
+				m := progressMessage("file", "10")
+				if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"a"}); err != nil {
+					t.Error(err)
+					return
+				}
+				p.CompleteGroup("a", terminalPayload(m))
+			}
+		}()
+		synctest.Wait()
+		select {
+		case <-finished:
+			t.Fatal("expected publication backpressure")
+		default:
+		}
+		p.StopForwarding()
+		<-finished
+		p.Close()
+		select {
+		case <-sink.ch:
+			t.Fatal("blocked auditor received a checkpoint")
+		default:
+		}
+	})
 }
