@@ -40,7 +40,6 @@ cc_binary(
     name = "checkmodule",
     srcs = [
         "checkmodule.c",
-        "checkpolicy.h",
         "module_compiler.c",
         "module_compiler.h",
         "parse_util.c",
