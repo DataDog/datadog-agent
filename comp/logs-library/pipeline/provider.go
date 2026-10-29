@@ -428,17 +428,7 @@ func (p *provider) Flush(ctx context.Context) {
 	}
 	if p.serverlessMeta.IsEnabled() {
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish,
-		// or until ctx is done. WaitGroup.Wait cannot be cancelled, so wait in a goroutine.
-		sent := make(chan struct{})
-		go func() {
-			p.serverlessMeta.Lock()
-			defer p.serverlessMeta.Unlock()
-			p.serverlessMeta.WaitGroup().Wait()
-			close(sent)
-		}()
-		select {
-		case <-sent:
-		case <-ctx.Done():
-		}
+		// or until ctx is done.
+		p.serverlessMeta.WaitPendingSends(ctx)
 	}
 }
