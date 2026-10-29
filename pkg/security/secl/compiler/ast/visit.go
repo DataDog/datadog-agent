@@ -81,6 +81,9 @@ func (n *UnaryExpr) editChildren(edit func(Node) Node) {
 func (n *Ident) copy() Node                   { c := *n; return &c }
 func (n *Ident) editChildren(func(Node) Node) {}
 
+func (n *BoolLiteral) copy() Node                   { c := *n; return &c }
+func (n *BoolLiteral) editChildren(func(Node) Node) {}
+
 func (n *IntLiteral) copy() Node                   { c := *n; return &c }
 func (n *IntLiteral) editChildren(func(Node) Node) {}
 

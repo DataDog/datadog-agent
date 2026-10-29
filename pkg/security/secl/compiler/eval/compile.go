@@ -145,6 +145,11 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 	case *ast.Ident:
 		return identToEvaluator(node.Name, node.Pos, opts, state)
 
+	case *ast.BoolLiteral:
+		return &BoolEvaluator{
+			Value: node.Value,
+		}, node.Pos, nil
+
 	case *ast.IntLiteral:
 		return &IntEvaluator{
 			Value:  node.Value,

@@ -52,6 +52,8 @@ func (p printer) sprint(node Node) {
 		p.sprintOp(node.Op.String(), node.Operand)
 	case *Ident:
 		sb.WriteString(node.Name)
+	case *BoolLiteral:
+		sb.WriteString(strconv.FormatBool(node.Value))
 	case *IntLiteral:
 		sb.WriteString(strconv.Itoa(node.Value))
 	case *DurationLiteral:

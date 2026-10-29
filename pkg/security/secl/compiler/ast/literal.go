@@ -18,6 +18,14 @@ type Ident struct {
 	Name string
 }
 
+// BoolLiteral is a boolean value. The parser never builds one, `true` and `false`
+// being constants of the model: it is built by the passes.
+type BoolLiteral struct {
+	Meta
+
+	Value bool
+}
+
 // IntLiteral is an integer literal: `123`.
 type IntLiteral struct {
 	Meta
