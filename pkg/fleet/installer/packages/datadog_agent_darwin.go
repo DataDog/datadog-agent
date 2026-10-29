@@ -25,21 +25,29 @@ var datadogAgentPackage = hooks{
 	postInstall: postInstallDatadogAgent,
 }
 
-// agentJob is the core Agent's launchd job.
-const agentJob = "com.datadoghq.agent"
-
-// agentJobs are the Agent's launchd jobs, in the order they are loaded.
-var agentJobs = []string{
-	agentJob,
-	"com.datadoghq.sysprobe",
-	"com.datadoghq.data-plane",
+// datadogAgentLaunchdJobs are the launchd jobs of the Agent package, in the shape of
+// datadogAgentService on Linux.
+type datadogAgentLaunchdJobs struct {
+	// LaunchdMainJobStable is the core Agent's job.
+	LaunchdMainJobStable string
+	// LaunchdJobsStable are the jobs that run normally, in the order they are loaded.
+	LaunchdJobsStable []string
 }
 
-// procmgrJob is the process manager daemon.
-const procmgrJob = "com.datadoghq.procmgr"
-
-// stableJobs are the launchd jobs that run normally, in the order they are loaded.
-var stableJobs = append([]string{procmgrJob}, agentJobs...)
+// agentLaunchdJobs are the jobs the Agent package installs.
+//
+// The process manager is loaded first, so it is up before the processes it will supervise. It
+// is a stable job only: unlike on Linux, it will get no experiment variant, since a configuration
+// experiment swaps the Agent's own jobs, not the daemon that supervises them.
+var agentLaunchdJobs = datadogAgentLaunchdJobs{
+	LaunchdMainJobStable: "com.datadoghq.agent",
+	LaunchdJobsStable: []string{
+		"com.datadoghq.procmgr",
+		"com.datadoghq.agent",
+		"com.datadoghq.sysprobe",
+		"com.datadoghq.data-plane",
+	},
+}
 
 // launchdClient and launchdJobDir are indirected so the hook tests can run without launchd.
 var (
@@ -68,7 +76,7 @@ func installStableJobs(ctx HookContext) (err error) {
 
 	client := launchdClient()
 	var errs []error
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		if err := loadStableJob(ctx, client, label); err != nil {
 			errs = append(errs, err)
 		}
@@ -141,7 +149,7 @@ func postInstallDMG(ctx HookContext) error {
 // here would only stop the next version from installing.
 func preRemoveDatadogAgent(ctx HookContext) error {
 	client := launchdClient()
-	for _, label := range slices.Backward(stableJobs) {
+	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
 		if err := client.Bootout(ctx, label); err != nil {
 			// As in loadStableJob, a job that can't be unloaded keeps its definition, so launchd is
 			// never left running a job whose file is gone, and the postinstall script reloads it.

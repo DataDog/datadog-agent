@@ -105,14 +105,16 @@ func testHookContext(t *testing.T) HookContext {
 }
 
 // TestStableJobsAreTheAgentsOwn pins the job set the install loads: the Agent's own daemons, the
-// process manager first, and nothing else.
+// process manager first, and nothing else, with the core Agent as the main job.
 func TestStableJobsAreTheAgentsOwn(t *testing.T) {
 	assert.Equal(t, []string{
 		"com.datadoghq.procmgr",
 		"com.datadoghq.agent",
 		"com.datadoghq.sysprobe",
 		"com.datadoghq.data-plane",
-	}, stableJobs)
+	}, agentLaunchdJobs.LaunchdJobsStable)
+	assert.Equal(t, "com.datadoghq.agent", agentLaunchdJobs.LaunchdMainJobStable)
+	assert.Contains(t, agentLaunchdJobs.LaunchdJobsStable, agentLaunchdJobs.LaunchdMainJobStable)
 }
 
 func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
@@ -121,7 +123,7 @@ func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 
 	require.NoError(t, installStableJobs(testHookContext(t)))
 
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		path := filepath.Join(dir, label+".plist")
 		content, err := os.ReadFile(path)
 		require.NoError(t, err, "job definition %s was not written", label)
@@ -136,7 +138,7 @@ func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 			enabled = append(enabled, args[1])
 		}
 	}
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.Contains(t, enabled, "system/"+label)
 		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")})
 		assert.Contains(t, *calls, []string{"kickstart", "system/" + label})
@@ -145,13 +147,13 @@ func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 	// Only the stable set is touched.
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	assert.Len(t, entries, len(stableJobs))
+	assert.Len(t, entries, len(agentLaunchdJobs.LaunchdJobsStable))
 }
 
 func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	failing := stableJobs[0]
+	failing := agentLaunchdJobs.LaunchdJobsStable[0]
 	stub := launchdClient
 	launchdClient = func() *launchd.Client {
 		client := stub()
@@ -169,7 +171,7 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), failing)
-	for _, label := range stableJobs[1:] {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable[1:] {
 		assert.Contains(t, *calls, []string{"kickstart", "system/" + label}, "%s was not started", label)
 	}
 }
@@ -186,7 +188,7 @@ func TestPostInstallDMGLoadsTheStableSet(t *testing.T) {
 
 	require.NoError(t, RunHook(ctx))
 
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.FileExists(t, filepath.Join(dir, label+".plist"))
 	}
 }
@@ -212,13 +214,13 @@ func TestPostInstallDMGIsIdempotent(t *testing.T) {
 
 	require.NoError(t, postInstallDMG(ctx))
 	first := map[string][]byte{}
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		content, err := os.ReadFile(filepath.Join(dir, label+".plist"))
 		require.NoError(t, err)
 		first[label] = content
 	}
 	require.NoError(t, postInstallDMG(ctx))
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		content, err := os.ReadFile(filepath.Join(dir, label+".plist"))
 		require.NoError(t, err)
 		assert.Equal(t, first[label], content)
@@ -238,7 +240,7 @@ func TestDatadogAgentPackageHasPreRemove(t *testing.T) {
 func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
 	}
 	ctx := testHookContext(t)
@@ -255,7 +257,7 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 		}
 	}
 	var expected []string
-	for _, label := range slices.Backward(stableJobs) {
+	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
 		expected = append(expected, "system/"+label)
 	}
 	assert.Equal(t, expected, bootedOut)
@@ -269,10 +271,10 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
 	stubLaunchd(t)
 	dir := stubJobDir(t)
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
 	}
-	failing := stableJobs[1]
+	failing := agentLaunchdJobs.LaunchdJobsStable[1]
 	stub := launchdClient
 	launchdClient = func() *launchd.Client {
 		client := stub()
@@ -293,7 +295,7 @@ func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
 
 	require.NoError(t, preRemoveDatadogAgent(testHookContext(t)))
 
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		path := filepath.Join(dir, label+".plist")
 		if label == failing {
 			assert.FileExists(t, path)
@@ -316,7 +318,7 @@ func TestPreRemoveIsIdempotent(t *testing.T) {
 
 			require.NoError(t, preRemoveDatadogAgent(ctx), "package type %s, upgrade %t", packageType, upgrade)
 
-			for _, label := range stableJobs {
+			for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 				assert.Contains(t, *calls, []string{"bootout", "system/" + label}, "package type %s, upgrade %t", packageType, upgrade)
 			}
 			entries, err := os.ReadDir(dir)
@@ -333,7 +335,7 @@ func TestPreRemoveIsIdempotent(t *testing.T) {
 func TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
-	label := stableJobs[0]
+	label := agentLaunchdJobs.LaunchdJobsStable[0]
 	path := filepath.Join(dir, label+".plist")
 	require.NoError(t, os.WriteFile(path, []byte("old definition"), 0o644))
 	stub := launchdClient
