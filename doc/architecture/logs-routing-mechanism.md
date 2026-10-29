@@ -1,30 +1,57 @@
-# Injected log delivery groups
+# Injected log routing: expected behavior
 
-For a concise behavior summary, see [expected routing behavior](logs-routing-expected-behavior.md).
+The PR adds an HTTP routing mechanism. Agent startup does not enable it; a caller supplies groups and selects them for each record.
 
-`pipeline.NewRoutedProvider` is the injection boundary for selective log delivery on the normal, non-serverless HTTP path. Nothing in Agent startup constructs it by default. It can be constructed before the auditor starts, but the caller starts the auditor before `provider.Start`. A caller supplies complete group definitions and resolves the selected group IDs for each original record before processors can reorder records. An empty selection is invalid; intentional exclusion uses `Selection.Excluded`. A checkpointed source supplies a nonzero `Selection.Generation` that changes when the source is replaced under the same registry identifier. For source isolation, the injected launcher obtains a producer-bound channel with `provider.SourceInput(identifier, generation)` and retains that channel for that producer; the generic `NextPipelineChan` interface has no source identity and therefore cannot provide source-specific backpressure. The caller passes `provider.GuardRegistry(registry)` to routed source launchers so source-owned `SetOffset` writes cannot bypass active generation ownership. After each producer stops and all of its decoder output has been admitted, the caller invokes `provider.RetireSource(identifier, generation)`. Ownership is released only after every generation for that identifier retires.
+```mermaid
+flowchart LR
+    X["Source X: A+B"] --> A["Group A sender"]
+    X --> B["Group B sender"]
+    Y["Source Y: B"] --> B
+    A --> EA["A reliable set"]
+    B --> EB["B reliable set"]
+    EA --> P["Per-source progress"]
+    EB --> P
+    P --> C["One saved checkpoint per source"]
+```
 
-Each group has one reliable primary and may have ordinary extra endpoints. The provider creates one existing `Sender` per group, so reliable-first and best-effort extra-copy behavior remain within that group. Distinct groups remain separate obligations even when they use the same hostname and credentials. No destination is inferred from a selection failure, and an invalid record reserves an unresolved source barrier so later records cannot move its checkpoint.
+| Selection | Result |
+| --- | --- |
+| A only or B only | Only the selected group receives the record. No fallback. |
+| A+B | Both groups must finish. B may finish while A remains pending. |
+| Excluded | Intentional local exclusion completes the record. |
+| Empty or invalid | Holds a checkpointed source barrier; no recipient is inferred. |
 
-A nonempty `Group.Stream` declares that its member groups receive the same ordered encoded records with compatible batch limits and compression settings. Selecting only part of such a stream is invalid. One batch strategy serializes and compresses each shared batch once; the immutable encoded bytes are passed to each group's sender. Other streams batch separately, so partial overlap can repeat compression. MRF classification is disabled for this injected path.
+**Queue acceptance is not delivery.** A selected group completes on its sender's terminal reliable outcome. Retryable failures, credential waits, and cancellation leave it pending. Existing permanent HTTP rejection and local processing-loss policies remain terminal.
 
-## Capacity and progress
+## Reliable endpoint sets
 
-The default `logs_config.routing.max_groups` is four; it is read once when the provider is constructed. A configured higher value supports more groups, subject to an aggregate limit of 32 HTTP endpoints, including extras. The routed provider accepts at most 16 processing lanes and caps concurrent HTTP requests across all endpoints at 64. Each endpoint receives at least one request slot. The per-endpoint limit can be lower than `batch_max_concurrent_send` when the aggregate cap applies.
+| Path | Set and required outcome |
+| --- | --- |
+| Default | One sender and endpoint set for all logs. Main is reliable; extras are reliable by default or configured unreliable. Any one reliable endpoint's terminal outcome suffices. |
+| Routed | One sender and endpoint set **per group**. Each group requires a reliable HTTP primary; extras may be reliable or unreliable. Every selected group must finish, but any one reliable endpoint within a group suffices. |
 
-The generic ingress and processed channels each hold at most 256 record references. Each producer-bound input holds one queued record and one record in registration. The progress ledger retains at most 64 records per checkpointed source and 4096 records in aggregate, plus at most 4096 source owners and generation-history entries. A source at 64 pending records pauses its own admission. The per-source processed-dispatch queue holds at most 64 references; its worker may hold one more while waiting on a stream. Source dispatch workers are released when all generations retire. Each declared stream has a 128-record input and a four-payload output. Each group has an independent 32-payload dispatch queue and a 128-payload completion adapter. Fanout offers every selected processing stream, then every selected group, a copy before waiting for congested queues. A successful queue send is remembered and does not complete delivery. An endpoint's destination buffer uses `logs_config.payload_channel_size`, clamped to 1–128. The existing batch byte and message limits remain in force. The routed payload queues hold references to encoded batches; declared identical groups share immutable encoded bytes rather than duplicating them. Byte retention also depends on configured batch limits and the existing sender's destination buffers, so these reference limits are not a measured process-memory ceiling. A stalled group can exhaust its source's 64-record budget without stopping another source that uses a healthy path. Exhaustion of the 4096-record aggregate budget can stop all sources.
+An endpoint does not have its own set. To require delivery to A **and** B, define and select separate groups. The routed definition enforces a reliable primary, **not** one reliable endpoint per group. Unreliable extras cannot complete a group. A declared `Group.Stream` shares batching and compressed bytes for identical selections; selecting only some of its groups is invalid.
 
-The progress ledger separates admission from completion. Only terminal output from a reliable destination resolves a selected group's obligation. An optional unreliable endpoint cannot resolve it. B's completion is recorded even while A remains pending for the same record; their shared source checkpoint waits for both. Processing exclusions and terminal local encoding or batch losses resolve only the affected record or stream obligations. Permanent HTTP rejection retains the existing terminal-loss behavior. Retryable failures, credential waits, cancellation, and queue transfer do not resolve obligations. A source checkpoint advances only through its completed registration prefix. A completion from an obsolete source generation releases resources without advancing the replacement generation. Earlier generations remain rejected after the pending queue drains. Retiring an old producer keeps a newer generation owned; retirement refuses that producer while its records remain pending. History is released only after every generation retires and the queue is empty. Generation values need only be distinct for overlapping replacements; they need not be numerically ordered. Empty source identifiers do not share a checkpoint ledger.
+## Checkpoints and outages
 
-For example, file X selects A and B, file Y selects B, A remains unavailable, and B remains healthy. B can receive X until X's source budget fills. X then pauses, while Y continues and its checkpoint advances after B completes Y's records. A's eventual terminal outcomes release X's safe prefix and notify its waiting admission worker, which resumes automatically. If the aggregate budget fills, Y can pause too. Queue acceptance by B never resolves B's obligation; B's own terminal outcome does. A restart may replay X to B even if B previously completed its copy.
+| Case | Result |
+| --- | --- |
+| Same source, disjoint records | An earlier pending A-only record holds a later completed B-only record's checkpoint. |
+| Different sources | Each checkpoint advances independently until aggregate capacity fills. |
+| X selects A+B; A down, B healthy | B receives X, but X's checkpoint waits for A. At 64 pending X records, X pauses. |
+| Y selects B | Y continues and advances its checkpoint while X is paused. |
+| A recovers | A's terminal outcomes release X's completed prefix; X resumes automatically. |
+| Restart | B may receive duplicates. Replay needs retained input and an older saved checkpoint; without one, existing end-mode behavior may skip data. |
 
-`Flush` sends ordered markers through every producer input, processor, source dispatch worker, and stream batcher. It waits until records accepted before the marker have reached a flushed batch; it does not promise HTTP completion. A deadline or cancellation releases a blocked flush. `Stop` closes admission and gives accepted work five seconds to drain, then cancels blocked source and dispatch workers. It stops processors, batchers, group senders, and completion adapters before releasing unresolved progress. Unfinished obligations are not acknowledged by shutdown. The existing auditor receives safe-prefix metadata and persists it on its normal schedule. There are no per-endpoint checkpoints, durable spool, or exactly-once guarantee. An abrupt restart can replay a pending record when a usable older checkpoint and source data remain. A healthy group can receive a duplicate after restart while another group's copy was still pending. With no checkpoint, the existing end-mode behavior can skip pending data. Startup overrides, deleted source data, invalid registries, and unbuffered network sources do not acquire a recovery guarantee from this mechanism.
+## Limits and lifecycle
 
-## Acceptance checks
+| Area | Rule |
+| --- | --- |
+| Admission | 64 pending records per source; 4096 records and 4096 source owners/history entries in aggregate. Aggregate exhaustion may pause Y too. Selected group copies are not dropped on overflow. |
+| Configuration | `logs_config.routing.max_groups` defaults to 4. At most 32 endpoints, 16 processing lanes, and 64 concurrent HTTP requests. No routing policy; MRF disabled. |
+| Queues | Producer input: one queued plus one registering. Ingress/processed: 256 references each; source dispatch: 64; stream: 128 records/4 payloads; group: 32 dispatch/128 completion payloads; destination: `payload_channel_size` clamped to 1–128. These are reference limits, not a byte ceiling. |
+| Caller | Use `SourceInput` per producer, `GuardRegistry` for direct checkpoint writes, and `RetireSource` after output admission. Start the auditor before the provider. |
+| Replacement | Keep ownership after queue drain; reject obsolete generations. Retire only after pending records finish; history is bounded and released after all generations retire. |
+| Shutdown | `Flush` reaches batches, not HTTP completion, and respects cancellation. `Stop` gives accepted work five seconds, then cancels blocked workers without acknowledging unfinished groups. |
 
-- A record can select A, B, or both. A partial offer retains each unsent obligation; repeated terminal outcomes do not create duplicate progress, and no fallback group receives a copy.
-- With X selecting A+B and Y selecting B, an A outage pauses X at its source budget while Y continues through B and advances its own checkpoint. A terminal A outcome releases X's safe prefix and wakes its admission worker. Aggregate exhaustion can pause both.
-- Replacement generations remain owned after their queues drain; obsolete producers are rejected, and explicit retirement releases both input and progress history when safe.
-- Cancellation releases admission and dispatch waiters without acknowledging pending records. A blocked `Flush` observes its deadline, and a blocked or nil auditor sink does not hang shutdown.
-- Restart coverage must use retained file input and an already persisted checkpoint, without a graceful flush. Without a saved checkpoint, the inherited end-mode limitation remains.
-- Validate the default provider, routed processor and sender behavior, race safety, representative throughput and allocations, and supported platforms before activation.
+There is no durable spool, per-endpoint saved checkpoint, or exactly-once guarantee.
