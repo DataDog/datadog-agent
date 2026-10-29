@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/sassoftware/go-rpmutils"
@@ -180,9 +179,6 @@ func extractCPIO(payload io.Reader, destination *extractionDirectory) error {
 
 // CPIO hardlinks refer directly to a regular member of the same inode group.
 func (destination *extractionDirectory) hardlink(name, target string) error {
-	if err := destination.mkdir(filepath.Dir(name)); err != nil {
-		return err
-	}
 	fi, err := destination.root.Lstat(target)
 	if err != nil {
 		return err
@@ -193,5 +189,7 @@ func (destination *extractionDirectory) hardlink(name, target string) error {
 	if existing, err := destination.root.Lstat(name); err == nil && os.SameFile(fi, existing) {
 		return nil
 	}
-	return destination.root.Link(target, name)
+	return destination.withParents(name, func() error {
+		return destination.root.Link(target, name)
+	})
 }

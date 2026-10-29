@@ -47,8 +47,8 @@ func ExtractRPMPackage(reader io.Reader, directory, kernelUname string, logger t
 // cache. Absolute installation targets become relative links into the cache;
 // relative targets keep their installation meaning. Older cache-prefixed
 // absolute targets are recognized too, so repair can run repeatedly.
-// All accesses stay under os.Root, and symlinked parent directories are rejected
-// before a link is removed or replaced. Repair failures are logged and returned
+// All accesses stay under os.Root, so a symlinked parent cannot redirect the
+// repair outside the cache. Repair failures are logged and returned
 // so the caller discards the incomplete download instead of reusing it.
 func fixKernelModulesSymlinks(destination *extractionDirectory, kernelUname string, logger types.Logger) error {
 	if !filepath.IsLocal(kernelUname) || strings.Contains(kernelUname, "/") || kernelUname == "." {
@@ -89,7 +89,10 @@ func repairModuleSymlink(destination *extractionDirectory, name string, logger t
 		return err
 	}
 	if !filepath.IsAbs(target) {
-		return destination.symlink(name, target)
+		if err := destination.symlink(name, target); err != nil {
+			return err
+		}
+		return checkModuleSymlink(destination, name)
 	}
 
 	// Legacy cache links already include the destination. Check path components
@@ -113,6 +116,16 @@ func repairModuleSymlink(destination *extractionDirectory, name string, logger t
 	}
 	if logger != nil {
 		logger.Debugf("created module symlink from %s to %s", name, target)
+	}
+	return checkModuleSymlink(destination, name)
+}
+
+// checkModuleSymlink rejects a module link that cannot be followed, such as one
+// in a cycle. A missing target is normal when another package supplies the
+// headers later.
+func checkModuleSymlink(destination *extractionDirectory, name string) error {
+	if _, err := destination.root.Stat(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
 	return nil
 }

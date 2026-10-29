@@ -89,13 +89,10 @@ func TestCPIORejectsEscapes(t *testing.T) {
 		entries []cpioEntry
 	}{
 		{"parent path", []cpioEntry{{name: "../sentinel", content: "changed", mode: cpio.S_ISREG}}},
+		{"symlink through symlinked parent", []cpioEntry{{name: "a", mode: cpio.S_ISDIR}, {name: "a/b", content: "..", mode: cpio.S_ISLNK}, {name: "a/b/c", content: "../sentinel", mode: cpio.S_ISLNK}}},
 		{"escaping symlink", []cpioEntry{{name: "link", content: "../", mode: cpio.S_ISLNK}, {name: "link/sentinel", content: "changed", mode: cpio.S_ISREG}}},
-		{"symlinked parent", []cpioEntry{{name: "real", mode: cpio.S_ISDIR}, {name: "link", content: "real", mode: cpio.S_ISLNK}, {name: "link/file", content: "changed", mode: cpio.S_ISREG}}},
-		{"hardlink symlinked parent", []cpioEntry{{name: "real", mode: cpio.S_ISDIR}, {name: "link", content: "real", mode: cpio.S_ISLNK}, {name: "link/file", mode: cpio.S_ISREG, links: 2, inode: 1}, {name: "file", content: "changed", mode: cpio.S_ISREG, links: 2, inode: 1}}},
 		{"ambiguous target", []cpioEntry{{name: "link", content: "other/../file", mode: cpio.S_ISLNK}}},
-		{"cycle", []cpioEntry{{name: "a", content: "b", mode: cpio.S_ISLNK}, {name: "b", content: "a", mode: cpio.S_ISLNK}}},
 		{"overwrite directory", []cpioEntry{{name: "dir", mode: cpio.S_ISDIR}, {name: "dir", content: "changed", mode: cpio.S_ISREG}}},
-		{"overwrite symlink", []cpioEntry{{name: "link", content: "target", mode: cpio.S_ISLNK}, {name: "link", content: "changed", mode: cpio.S_ISREG}}},
 		{"hardlink escape", []cpioEntry{{name: "../sentinel", mode: cpio.S_ISREG, links: 2, inode: 1}, {name: "file", content: "changed", mode: cpio.S_ISREG, links: 2, inode: 1}}},
 		{"device", []cpioEntry{{name: "dev", mode: cpio.S_ISCHR}}},
 		{"fifo", []cpioEntry{{name: "fifo", mode: cpio.S_ISFIFO}}},
@@ -111,6 +108,36 @@ func TestCPIORejectsEscapes(t *testing.T) {
 			require.NoError(t, err)
 			defer destination.root.Close()
 			require.Error(t, extractRPMPayload(io.NopCloser(bytes.NewReader(cpioArchive(tc.entries...))), destination))
+			content, err := os.ReadFile(sentinel)
+			require.NoError(t, err)
+			require.Equal(t, "untouched", string(content))
+		})
+	}
+}
+
+// Links that resolve inside the extraction tree may redirect later entries,
+// but only to paths the archive could write directly; os.Root keeps every
+// operation inside the tree.
+func TestCPIOInTreeSymlinksStayContained(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		entries []cpioEntry
+	}{
+		{"symlinked parent", []cpioEntry{{name: "real", mode: cpio.S_ISDIR}, {name: "link", content: "real", mode: cpio.S_ISLNK}, {name: "link/file", content: "changed", mode: cpio.S_ISREG}}},
+		{"hardlink symlinked parent", []cpioEntry{{name: "real", mode: cpio.S_ISDIR}, {name: "link", content: "real", mode: cpio.S_ISLNK}, {name: "link/file", mode: cpio.S_ISREG, links: 2, inode: 1}, {name: "file", content: "changed", mode: cpio.S_ISREG, links: 2, inode: 1}}},
+		{"cycle", []cpioEntry{{name: "a", content: "b", mode: cpio.S_ISLNK}, {name: "b", content: "a", mode: cpio.S_ISLNK}}},
+		{"overwrite symlink", []cpioEntry{{name: "link", content: "target", mode: cpio.S_ISLNK}, {name: "link", content: "changed", mode: cpio.S_ISREG}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := t.TempDir()
+			dir := filepath.Join(parent, "extract")
+			require.NoError(t, os.Mkdir(dir, 0755))
+			sentinel := filepath.Join(parent, "sentinel")
+			require.NoError(t, os.WriteFile(sentinel, []byte("untouched"), 0600))
+			destination, err := openExtractionDirectory(dir)
+			require.NoError(t, err)
+			defer destination.root.Close()
+			require.NoError(t, extractRPMPayload(io.NopCloser(bytes.NewReader(cpioArchive(tc.entries...))), destination))
 			content, err := os.ReadFile(sentinel)
 			require.NoError(t, err)
 			require.Equal(t, "untouched", string(content))

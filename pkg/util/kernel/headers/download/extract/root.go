@@ -22,10 +22,14 @@ const copyBufferSize = 32 * 1024
 // extractionDirectory provides filesystem operations shared by the tar and CPIO
 // parsers. The caller provides a prepared destination; these methods do not
 // decide whether its parent directory is trusted. Archive entries can create
-// symlinks within the destination, so later entries must not follow those
-// links to write elsewhere. os.Root confines operations to the extraction
-// tree, and the methods below require archive-created parents to be real
-// directories.
+// symlinks within the destination, and later entries may resolve through them.
+// os.Root confines every operation to the extraction tree, so such links can
+// only redirect writes to other paths inside the tree, which the archive can
+// write directly anyway. Symlink targets are the exception: os.Root confines
+// where a link is created, not where it points, and later consumers follow
+// links with ordinary filesystem calls. See symlink. The methods keep no
+// per-archive state: parents are created only when an operation reports that
+// they are missing.
 type extractionDirectory struct {
 	root   *os.Root
 	buffer []byte
@@ -57,39 +61,30 @@ func archivePath(name string) (string, error) {
 	return name, nil
 }
 
-// mkdir checks each component because MkdirAll follows existing directory
-// symlinks. Even a link pointing inside the destination is rejected: later archive
-// entries must not redirect writes through a previously created link.
 func (destination *extractionDirectory) mkdir(name string) error {
-	current := ""
-	for _, part := range strings.Split(name, "/") {
-		current = filepath.Join(current, part)
-		if err := destination.root.Mkdir(current, 0755); err != nil && !errors.Is(err, fs.ErrExist) {
-			return err
-		}
-		fi, err := destination.root.Lstat(current)
-		if err != nil {
-			return err
-		}
-		if !fi.IsDir() {
-			return fmt.Errorf("archive parent %q is not a directory", current)
-		}
-	}
-	return nil
+	return destination.root.MkdirAll(name, 0755)
 }
 
-func (destination *extractionDirectory) write(name string, mode int64, reader io.Reader) error {
+// withParents runs create, and creates the parent directories of name only if
+// create reports that they are missing. Archives usually list a directory
+// before its contents, so the common case costs a single operation.
+func (destination *extractionDirectory) withParents(name string, create func() error) error {
+	err := create()
+	if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
 	if err := destination.mkdir(filepath.Dir(name)); err != nil {
 		return err
 	}
-	if fi, err := destination.root.Lstat(name); err == nil {
-		if !fi.Mode().IsRegular() {
-			return fmt.Errorf("refusing to overwrite non-regular archive entry %q", name)
-		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	return create()
+}
+
+func (destination *extractionDirectory) write(name string, mode int64, reader io.Reader) error {
+	var output *os.File
+	err := destination.withParents(name, func() (err error) {
+		output, err = destination.root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644|os.FileMode(mode&0111))
 		return err
-	}
-	output, err := destination.root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644|os.FileMode(mode&0111))
+	})
 	if err != nil {
 		return err
 	}
@@ -130,23 +125,49 @@ func linkTarget(name, target string) (string, error) {
 	return target, nil
 }
 
+// symlink creates name pointing to target. linkTarget checks the target against
+// the archive path of the link, which matches where the link actually lands only
+// if every parent is a real directory: under a symlinked parent, a lexically
+// local target such as ../sentinel could point outside the tree. Symlinks are
+// rare in header packages, so checking their parents costs little.
 func (destination *extractionDirectory) symlink(name, target string) error {
 	target, err := linkTarget(name, target)
 	if err != nil {
 		return err
 	}
-	if err := destination.mkdir(filepath.Dir(name)); err != nil {
+	if err := destination.realParents(name); err != nil {
 		return err
 	}
-	if old, err := destination.root.Readlink(name); err != nil || old != target {
-		if err := destination.root.Symlink(target, name); err != nil {
-			return err
+	err = destination.root.Symlink(target, name)
+	if errors.Is(err, fs.ErrExist) {
+		// Re-extraction may meet the identical link; anything else is a conflict.
+		if old, readErr := destination.root.Readlink(name); readErr == nil && old == target {
+			return nil
 		}
 	}
-	// Missing targets are normal when another package supplies them later. Other
-	// errors, including cycles and traversal outside the root, reject the archive.
-	if _, err := destination.root.Stat(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	return err
+}
+
+// realParents creates the parents of name and checks that none of them is a
+// symlink. MkdirAll alone would accept a parent that resolves through one.
+func (destination *extractionDirectory) realParents(name string) error {
+	parent := filepath.Dir(name)
+	if parent == "." {
+		return nil
+	}
+	if err := destination.mkdir(parent); err != nil {
 		return err
+	}
+	current := ""
+	for _, part := range strings.Split(parent, "/") {
+		current = filepath.Join(current, part)
+		info, err := destination.root.Lstat(current)
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("symlink parent %q is not a directory", current)
+		}
 	}
 	return nil
 }

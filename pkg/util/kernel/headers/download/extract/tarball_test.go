@@ -107,21 +107,18 @@ func TestTarRejectsEscapes(t *testing.T) {
 		entries []tarEntry
 	}{
 		{"parent path", []tarEntry{{name: "../sentinel", content: "changed", kind: tar.TypeReg}}},
+		{"symlink through symlinked parent", []tarEntry{{name: "a", kind: tar.TypeDir}, {name: "a/b", target: "..", kind: tar.TypeSymlink}, {name: "a/b/c", target: "../sentinel", kind: tar.TypeSymlink}}},
 		{"escaping symlink", []tarEntry{{name: "escape", target: "../", kind: tar.TypeSymlink}, {name: "escape/sentinel", content: "changed", kind: tar.TypeReg}}},
 		{"symlink chain", []tarEntry{{name: "a", target: "b", kind: tar.TypeSymlink}, {name: "b", target: "../", kind: tar.TypeSymlink}}},
 		{"parent after symlink", []tarEntry{{name: "a", kind: tar.TypeDir}, {name: "a/b", target: "..", kind: tar.TypeSymlink}, {name: "a/c", target: "b/../sentinel", kind: tar.TypeSymlink}}},
 		{"late symlink", []tarEntry{{name: "a", kind: tar.TypeDir}, {name: "a/c", target: "b/../sentinel", kind: tar.TypeSymlink}, {name: "a/b", target: "..", kind: tar.TypeSymlink}}},
-		{"cycle", []tarEntry{{name: "a", target: "b", kind: tar.TypeSymlink}, {name: "b", target: "a", kind: tar.TypeSymlink}}},
 		{"hardlink", []tarEntry{{name: "file", content: "ok", kind: tar.TypeReg}, {name: "link", target: "file", kind: tar.TypeLink}}},
-		{"symlinked parent", []tarEntry{{name: "real", kind: tar.TypeDir}, {name: "link", target: "real", kind: tar.TypeSymlink}, {name: "link/file", content: "changed", kind: tar.TypeReg}}},
-		{"symlinked directory entry", []tarEntry{{name: "real", kind: tar.TypeDir}, {name: "link", target: "real", kind: tar.TypeSymlink}, {name: "link", kind: tar.TypeDir}}},
 		{"overwrite directory", []tarEntry{{name: "dir", kind: tar.TypeDir}, {name: "dir", content: "changed", kind: tar.TypeReg}}},
 		{"absolute parent target", []tarEntry{{name: "link", target: "/usr/../sentinel", kind: tar.TypeSymlink}}},
 		{"hardlink escape", []tarEntry{{name: "link", target: "../sentinel", kind: tar.TypeLink}}},
 		{"hardlink to symlink", []tarEntry{{name: "file", content: "ok", kind: tar.TypeReg}, {name: "sym", target: "file", kind: tar.TypeSymlink}, {name: "hard", target: "sym", kind: tar.TypeLink}}},
 		{"unresolved hardlink", []tarEntry{{name: "link", target: "absent", kind: tar.TypeLink}}},
 		{"fifo", []tarEntry{{name: "fifo", kind: tar.TypeFifo}}},
-		{"overwrite symlink", []tarEntry{{name: "target", content: "ok", kind: tar.TypeReg}, {name: "link", target: "target", kind: tar.TypeSymlink}, {name: "link", content: "changed", kind: tar.TypeReg}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			parent := t.TempDir()
@@ -130,6 +127,33 @@ func TestTarRejectsEscapes(t *testing.T) {
 			sentinel := filepath.Join(parent, "sentinel")
 			require.NoError(t, os.WriteFile(sentinel, []byte("untouched"), 0600))
 			require.Error(t, ExtractTarball(bytes.NewReader(tarArchive(t, tc.entries...)), "headers.tgz", dir, nil))
+			content, err := os.ReadFile(sentinel)
+			require.NoError(t, err)
+			require.Equal(t, "untouched", string(content))
+		})
+	}
+}
+
+// Links that resolve inside the extraction tree may redirect later entries,
+// but only to paths the archive could write directly; os.Root keeps every
+// operation inside the tree.
+func TestTarInTreeSymlinksStayContained(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		entries []tarEntry
+	}{
+		{"cycle", []tarEntry{{name: "a", target: "b", kind: tar.TypeSymlink}, {name: "b", target: "a", kind: tar.TypeSymlink}}},
+		{"symlinked parent", []tarEntry{{name: "real", kind: tar.TypeDir}, {name: "link", target: "real", kind: tar.TypeSymlink}, {name: "link/file", content: "changed", kind: tar.TypeReg}}},
+		{"symlinked directory entry", []tarEntry{{name: "real", kind: tar.TypeDir}, {name: "link", target: "real", kind: tar.TypeSymlink}, {name: "link", kind: tar.TypeDir}}},
+		{"overwrite symlink", []tarEntry{{name: "target", content: "ok", kind: tar.TypeReg}, {name: "link", target: "target", kind: tar.TypeSymlink}, {name: "link", content: "changed", kind: tar.TypeReg}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := t.TempDir()
+			dir := filepath.Join(parent, "extract")
+			require.NoError(t, os.Mkdir(dir, 0755))
+			sentinel := filepath.Join(parent, "sentinel")
+			require.NoError(t, os.WriteFile(sentinel, []byte("untouched"), 0600))
+			require.NoError(t, ExtractTarball(bytes.NewReader(tarArchive(t, tc.entries...)), "headers.tgz", dir, nil))
 			content, err := os.ReadFile(sentinel)
 			require.NoError(t, err)
 			require.Equal(t, "untouched", string(content))
