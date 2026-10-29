@@ -26,6 +26,9 @@ type ComponentSnapshot struct {
 	RawBytes int64
 	Windows  WindowStats
 
+	// Measured is false for capacity-only components, whose zero Windows are unobserved.
+	Measured bool
+
 	// history is the live rolling history; Windows is recomputed from it at read time, and it is
 	// cleared on returned copies so the pointer never escapes this package.
 	history *rollingHistory
@@ -85,6 +88,7 @@ func (r *snapshotRegistry) at(now time.Time) []ComponentSnapshot {
 		snap := *s
 		if s.history != nil {
 			snap.Windows = s.history.allStats(now)
+			snap.Measured = true
 		}
 		snap.history = nil
 		result = append(result, snap)

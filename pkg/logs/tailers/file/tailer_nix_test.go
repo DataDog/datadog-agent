@@ -166,6 +166,27 @@ func TestStopAfterFileRotationRealFileMissedBytes(t *testing.T) {
 	require.Equal(t, int64(1), summaries[0].Rotations)
 }
 
+func TestStopAfterFileRotationSkipMissedBytes(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+
+	tailer, _ := newMissedBytesTailer(t, 1024, 4096)
+	tailer.skipMissedBytes = true
+	missedBefore := metrics.BytesMissed.Value()
+
+	tailer.StopAfterFileRotation()
+	tailer.bytesRead.Add(512)
+
+	select {
+	case <-tailer.stop:
+	case <-time.After(10 * time.Second):
+		t.Fatal("rotation close goroutine never finished")
+	}
+
+	require.Equal(t, int64(3072), metrics.BytesMissed.Value()-missedBefore)
+	require.Empty(t, metrics.MissedBytesSnapshot())
+}
+
 // A handoff drain ends once the file goes idle; a plain rotation drain waits out
 // the close timeout.
 func TestStopAfterFileRotationForHandoffEndsWhenIdle(t *testing.T) {
