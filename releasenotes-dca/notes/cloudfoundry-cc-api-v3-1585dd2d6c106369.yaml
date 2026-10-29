@@ -2,6 +2,7 @@
 enhancements:
   - |
     The Cloud Foundry Cluster Agent no longer uses the deprecated Cloud
-    Foundry API v2. Organization quotas are now read from the v3 API, and the
-    UAA endpoint is discovered from the v3 API root instead of ``/v2/info``.
-    Organizations with an unlimited memory quota keep reporting a quota of -1.
+    Foundry API v2. Organization quotas now come from the v3 API, with
+    unlimited memory quotas still reported as ``-1``. Cloud Controller
+    requests now use the ``datadog-cluster-agent`` user agent and time out
+    after 15 minutes.
