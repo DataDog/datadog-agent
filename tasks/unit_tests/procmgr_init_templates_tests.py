@@ -95,10 +95,17 @@ class TestProcmgrInitTemplates(unittest.TestCase):
         }
 
     def test_sysv_start_exports_environment_to_daemon(self):
+        source = SYSV_PROCMGR.read_text()
+        self.assertNotIn('. "$ETC_DIR/environment"', source)
+        self.assertIn('--startas /bin/sh', source)
+        self.assertIn('--exec "$AGENTPATH"', source)
+        self.assertIn('"$0" load-env', source)
+
         layout = Layout(self.root)
         commands = self.root / 'commands'
         started = self.root / 'started'
-        start_env = self.root / 'start.env'
+        argv_path = self.root / 'argv'
+        marker = self.root / 'pwned'
         init_functions = self.root / 'init-functions'
         init_functions.write_text(
             'init_is_upstart() { return 1; }\n'
@@ -107,8 +114,8 @@ class TestProcmgrInitTemplates(unittest.TestCase):
             'log_success_msg() { :; }\n'
             'log_failure_msg() { :; }\n'
         )
-        # Records the environment of the real start. The test call returns 0 before the daemon is
-        # started and 1 after, which is how the script detects a running daemon.
+        # --test reports the daemon running once the pid marker exists. The real start
+        # executes the child shell, which is where the environment file is applied.
         write_executable(
             commands / 'start-stop-daemon',
             f'''case " $* " in
@@ -120,13 +127,35 @@ case " $* " in
 esac
 case " $* " in *" --background "*) ;; *) exit 91 ;; esac
 case " $* " in *" --make-pidfile "*) ;; *) exit 92 ;; esac
-env > "{start_env}"
-touch "{started}"
-exit 0
+case " $* " in *" --exec {layout.binary} "*) ;; *) exit 94 ;; esac
+case " $* " in *" --startas /bin/sh "*) ;; *) exit 95 ;; esac
+printf '%s\\n' "$@" > "{argv_path}"
+while [ $# -gt 0 ]; do
+  if [ "$1" = "--" ]; then
+    shift
+    touch "{started}"
+    exec /bin/sh "$@"
+  fi
+  shift
+done
+exit 93
 ''',
         )
+        (layout.etc / 'environment').write_text(
+            '# comment\n'
+            '; comment\n'
+            '\n'
+            'not-assignment\n'
+            'DD_EXTRA=from-file\n'
+            'DD_INSTALL_DIR=/wrong\n'
+            'DD_CONF_DIR=/wrong\n'
+            'AGENT_USER=root\n'
+            'DD_QUOTED="hello world"\n'
+            f'DD_PAYLOAD=$(touch {marker})\n'
+            f'touch {marker}\n'
+        )
         runtime = self.root / 'var-run' / 'datadog-procmgrd'
-        script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
+        script = render(source, layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
         # The real path is /var/run, which this user cannot create. install still runs.
@@ -144,11 +173,20 @@ exit 0
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(started.exists())
         self.assertTrue(runtime.is_dir())
+        self.assertFalse(marker.exists())
 
-        seen = parse_env(start_env)
+        argv = argv_path.read_text().splitlines()
+        self.assertEqual(argv[argv.index('--chuid') + 1], 'dd-agent')
+        self.assertEqual(argv[argv.index('--exec') + 1], str(layout.binary))
+        self.assertEqual(argv[argv.index('--startas') + 1], '/bin/sh')
+
+        seen = parse_env(layout.env_out)
         for key, value in layout.expected_four().items():
             self.assertEqual(seen.get(key), value, key)
         self.assertEqual(seen.get('DD_EXTRA'), 'from-file')
+        self.assertEqual(seen.get('DD_QUOTED'), 'hello world')
+        self.assertEqual(seen.get('DD_PAYLOAD'), f'$(touch {marker})')
+        self.assertEqual(seen.get('AGENT_USER'), 'root')
         self.assertEqual(seen.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
 
     def test_debian_upstart_exports_environment_before_exec(self):
@@ -222,7 +260,7 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
     def test_runtime_dir_is_created_as_root_before_the_daemon(self):
         sysv = SYSV_PROCMGR.read_text()
         self.assertIn(SYSV_RUNTIME_DIR, sysv)
-        self.assertLess(sysv.index(SYSV_RUNTIME_DIR), sysv.index('--chuid'))
+        self.assertLess(sysv.index(SYSV_RUNTIME_DIR), sysv.index('--chuid "$AGENT_USER"'))
         for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
             with self.subTest(template=template.name):
                 pre_start = upstart_block(template, 'pre-start script')
