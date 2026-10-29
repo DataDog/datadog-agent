@@ -1,0 +1,7 @@
+---
+security:
+  - |
+    Kubernetes Actions (cluster agent): expanded the protected-namespace denylist
+    so actions are rejected when targeting additional sensitive namespaces
+    (fabric / cluster control-plane, deployment-system, and remote-config
+    namespaces), in addition to the existing Kubernetes system namespaces.
