@@ -31,6 +31,7 @@ var (
 	// dynamicReplacers are replacers added at runtime. New Replacer can be added through configuration or by the
 	// secrets package for example.
 	dynamicReplacers      = []Replacer{}
+	dynamicStrippedKeys   = []string{}
 	dynamicReplacersMutex = sync.Mutex{}
 
 	// defaultVersion is the first version of the agent scrubber.
@@ -674,6 +675,24 @@ func AddStrippedKeys(strippedKeys []string) {
 		DefaultScrubber.AddReplacer(SingleLine, replacer)
 		dynamicReplacersMutex.Lock()
 		dynamicReplacers = append(dynamicReplacers, replacer)
+		dynamicStrippedKeys = append(dynamicStrippedKeys, strippedKeys...)
 		dynamicReplacersMutex.Unlock()
 	}
+}
+
+// GetStrippedKeys returns the YAML keys added through AddStrippedKeys
+func GetStrippedKeys() []string {
+	dynamicReplacersMutex.Lock()
+	res := slices.Clone(dynamicStrippedKeys)
+	dynamicReplacersMutex.Unlock()
+	return res
+}
+
+// ClearStrippedKeys clears the YAML keys added through AddStrippedKeys
+// only affects strippedKeys, not the replacers themselves
+// only really useful for tests due to this behavior
+func ClearStrippedKeys() {
+	dynamicReplacersMutex.Lock()
+	dynamicStrippedKeys = []string{}
+	dynamicReplacersMutex.Unlock()
 }

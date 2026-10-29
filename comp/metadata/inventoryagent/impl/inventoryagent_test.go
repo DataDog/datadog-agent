@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -445,9 +446,9 @@ func TestInitData(t *testing.T) {
 		"eks_fargate":                      true,
 		"synthetics.collector.enabled":     true,
 
-		"fips.enabled":                                true,
-		"logs_enabled":                                true,
-		"compliance_config.enabled":                   true,
+		"fips.enabled":              true,
+		"logs_enabled":              true,
+		"compliance_config.enabled": true,
 		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
 		"ec2_prefer_imdsv2":                           true,
@@ -998,9 +999,12 @@ func TestFetchFleet(t *testing.T) {
 }
 
 func TestFetchSecretsNoComponent(t *testing.T) {
+	scrubber.ClearStrippedKeys()
+	t.Cleanup(scrubber.ClearStrippedKeys)
+
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSecretsMetadata()
-	assert.Equal(t, map[string][]string{"paths": {}, "handles": {}}, ia.data["enc_info"])
+	assert.Equal(t, map[string][]string{"paths": {}, "handles": {}, "scrubbed": {}}, ia.data["enc_info"])
 }
 
 func TestFetchSecrets(t *testing.T) {
@@ -1012,11 +1016,82 @@ func TestFetchSecrets(t *testing.T) {
 	p := getProvides(t, nil, nil, fx.Provide(func() secrets.Component { return secretsComp }))
 	ia := p.Comp.(*inventoryagent)
 
+	scrubber.ClearStrippedKeys()
+	t.Cleanup(scrubber.ClearStrippedKeys)
+	// "community_strings" is what the secrets component registers for "snmp_traps.community_strings.N" paths, while
+	// "inventoryagent_test_key" mimics a user-provided "scrubber.additional_keys" entry
+	scrubber.AddStrippedKeys([]string{"community_strings", "inventoryagent_test_key"})
+
 	ia.fetchSecretsMetadata()
 	assert.Equal(t, map[string][]string{
-		"paths":   {"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
-		"handles": {"my_key", "secret_one", "secret_two"},
+		"paths":    {"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+		"handles":  {"my_key", "secret_one", "secret_two"},
+		"scrubbed": {"inventoryagent_test_key"},
 	}, ia.data["enc_info"])
+}
+
+func TestFilterScrubbedKeys(t *testing.T) {
+	tests := []struct {
+		name         string
+		scrubbedKeys []string
+		paths        []string
+		expected     []string
+	}{
+		{
+			name:         "empty",
+			scrubbedKeys: nil,
+			paths:        nil,
+			expected:     []string{},
+		},
+		{
+			name:         "top-level setting",
+			scrubbedKeys: []string{"dd_url", "client_secret"},
+			paths:        []string{"dd_url"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "nested setting",
+			scrubbedKeys: []string{"https", "client_secret"},
+			paths:        []string{"proxy.https"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "slice index uses the parent key",
+			scrubbedKeys: []string{"community_strings", "client_secret"},
+			paths:        []string{"snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			// integration configs use their digest as origin, and paths relative to the resolved section
+			name:         "nested setting from an integration config",
+			scrubbedKeys: []string{"password", "client_secret"},
+			paths:        []string{"a3f9c01b2d4e5f67:auth.password"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "top-level setting from an integration config",
+			scrubbedKeys: []string{"token", "client_secret"},
+			paths:        []string{"a3f9c01b2d4e5f67:token"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "partial key names are not filtered",
+			scrubbedKeys: []string{"proxy", "api"},
+			paths:        []string{"proxy.https", "logs_config.api_key"},
+			expected:     []string{"proxy", "api"},
+		},
+		{
+			name:         "duplicates are removed",
+			scrubbedKeys: []string{"password", "client_secret", "client_secret", "password"},
+			paths:        []string{"password"},
+			expected:     []string{"client_secret"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, filterScrubbedKeys(tt.scrubbedKeys, tt.paths))
+		})
+	}
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {
