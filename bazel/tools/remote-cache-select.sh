@@ -77,22 +77,32 @@ _remote_cache_reachable() {
   return 1
 }
 
+# An existing Vault session lets the credential helper mint tokens without a
+# browser, e.g. after `ddtool auth login` in a Datadog workspace.
+_vault_session_valid() {
+  command -v vault >/dev/null 2>&1 || return 1
+  VAULT_CLIENT_TIMEOUT=5 vault token lookup -address="${VAULT_ADDR:-https://vault.us1.ddbuild.io}" >/dev/null 2>&1
+}
+
 _remote_cache_eligible() {
   local have_token=false
   [ -n "${BUILDBARN_ID_TOKEN-}" ] && have_token=true
 
   if _in_container; then
-    # No interactive Vault login inside containers: require a pre-provided token.
-    if [ "$have_token" != true ]; then
-      >&2 echo "💡 Bazel remote cache skipped: no Buildbarn token in this container. Log in on the host, mint a token, and inject it, e.g.:"
-      # shellcheck disable=SC2016
-      >&2 echo '    export VAULT_ADDR=https://vault.us1.ddbuild.io'
-      >&2 echo '    export BUILDBARN_ID_TOKEN="$('
-      >&2 echo '      vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn \'
-      >&2 echo '      || { vault login -address="$VAULT_ADDR" -method=oidc \'
-      >&2 echo '           && vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn; }'
-      >&2 echo '    )"'
-      >&2 echo "    docker exec -e BUILDBARN_ID_TOKEN -it <container> ..."
+    # A container may not reach a browser for Vault login: require a token or an existing session.
+    if [ "$have_token" != true ] && ! _vault_session_valid; then
+      >&2 echo "💡 Bazel remote cache skipped: no Buildbarn token or Vault session in this container. In a Datadog workspace, run 'ddtool auth login --datacenter us1.ddbuild.io'. Otherwise log in on the host, mint a token, and inject it, e.g.:"
+      # Sample commands are quoted so the workspace shell prints them unchanged.
+      # shellcheck disable=SC2016,SC1003
+      {
+        >&2 echo '    export VAULT_ADDR=https://vault.us1.ddbuild.io'
+        >&2 echo '    export BUILDBARN_ID_TOKEN="$('
+        >&2 echo '      vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn \'
+        >&2 echo '      || { vault login -address="$VAULT_ADDR" -method=oidc \'
+        >&2 echo '           && vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn; }'
+        >&2 echo '    )"'
+        >&2 echo "    docker exec -e BUILDBARN_ID_TOKEN -it <container> ..."
+      }
       return 1
     fi
   elif [ "$have_token" != true ] && ! command -v vault >/dev/null 2>&1; then

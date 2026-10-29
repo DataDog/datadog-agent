@@ -26,8 +26,9 @@ Remote cache selection lives in `bazel/tools/remote-cache-select.sh` (sourced by
 only when the frontend is reachable and a token source exists; a command-line
 `--config=cache` / `--config=no-remote-cache`, or an rc-level
 `common --config=no-remote-cache` in `user.bazelrc` / `~/.bazelrc`, always wins.
-In containers there
-is no interactive Vault login, so a token must be injected via the
+In containers `auto`
+requires an existing Vault session (in a Datadog workspace:
+`ddtool auth login --datacenter us1.ddbuild.io`) or a token injected via the
 `BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
 
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in

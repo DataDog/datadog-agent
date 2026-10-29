@@ -49,6 +49,7 @@ class TestRemoteCacheSelect(unittest.TestCase):
         *,
         curl=0,
         vault=True,
+        vault_session=False,
         probe_seed=None,
         extra_env=None,
         container=False,
@@ -62,7 +63,10 @@ class TestRemoteCacheSelect(unittest.TestCase):
             _link_coreutils(bin_dir)
             _make_stub(bin_dir, "curl", curl)
             if vault:
-                _make_stub(bin_dir, "vault", 0)
+                (bin_dir / "vault").write_text(
+                    f'#!/bin/sh\nif [ "$1 $2" = "token lookup" ]; then exit {0 if vault_session else 2}; fi\nexit 0\n'
+                )
+                (bin_dir / "vault").chmod(0o755)
 
             tmpdir = tmp / "tmp"
             tmpdir.mkdir()
@@ -127,9 +131,19 @@ class TestRemoteCacheSelect(unittest.TestCase):
         self.assertEqual(self._run(policy=None, curl=0, vault=True), "--config=cache")
 
     def test_container_without_token_skips(self):
-        # In a container there is no interactive Vault login; without a token the
-        # build is ineligible regardless of a reachable frontend.
+        # A container may not reach a browser for Vault login; without a token or
+        # a live session the build is ineligible regardless of a reachable frontend.
         self.assertEqual(self._run(policy="auto", curl=0, vault=True, container=True), "")
+
+    def test_container_with_vault_session_enables(self):
+        # e.g. a Datadog workspace after `ddtool auth login`.
+        self.assertEqual(
+            self._run(policy="auto", curl=0, vault=True, vault_session=True, container=True),
+            "--config=cache",
+        )
+
+    def test_container_with_vault_session_unreachable(self):
+        self.assertEqual(self._run(policy="auto", curl=7, vault=True, vault_session=True, container=True), "")
 
     def test_container_with_token_enables(self):
         self.assertEqual(
