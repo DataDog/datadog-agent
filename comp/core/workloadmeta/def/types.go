@@ -2159,6 +2159,14 @@ func (p Process) String(verbose bool) string {
 	return sb.String()
 }
 
+// GetContainerID returns the container ID for the process, either from the Owner field or the ContainerID field.
+func (p *Process) GetContainerID() string {
+	if p.Owner != nil && p.Owner.Kind == KindContainer {
+		return p.Owner.ID
+	}
+	return p.ContainerID
+}
+
 // HostTags is an Entity that represents host tags
 type HostTags struct {
 	EntityID

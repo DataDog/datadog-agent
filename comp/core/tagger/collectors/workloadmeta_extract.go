@@ -443,7 +443,7 @@ func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity
 		return nil
 	}
 
-	containerID := processContainerID(process)
+	containerID := process.GetContainerID()
 	if containerID == "" {
 		return nil
 	}
@@ -477,7 +477,7 @@ func hasPromotableProcessTag(process *workloadmeta.Process) bool {
 
 func (c *WorkloadMetaCollector) addPromotedProcessTags(containerID string, tagList *taglist.TagList) {
 	processes := c.store.ListProcessesWithFilter(func(process *workloadmeta.Process) bool {
-		return processContainerID(process) == containerID
+		return process.GetContainerID() == containerID
 	})
 	for _, key := range promotableProcessTagKeys {
 		if value, ok := agreedProcessTagValue(processes, key); ok {
@@ -509,13 +509,6 @@ func agreedProcessTagValue(processes []*workloadmeta.Process, key string) (strin
 		}
 	}
 	return agreed, agreed != ""
-}
-
-func processContainerID(process *workloadmeta.Process) string {
-	if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
-		return process.Owner.ID
-	}
-	return process.ContainerID
 }
 
 func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*types.TagInfo {
