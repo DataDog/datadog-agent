@@ -60,6 +60,9 @@ func TestGRPCScenarios(t *testing.T) {
 	}
 
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
+		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
+			flake.MarkOnJobName(t, "ubuntu_26.04")
+		}
 		for _, tc := range []struct {
 			name  string
 			isTLS bool
