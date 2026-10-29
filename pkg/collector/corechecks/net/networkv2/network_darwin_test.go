@@ -36,12 +36,14 @@ const netstatTCPStats = `tcp:
 		1143534 acks (for 616095538 bytes)
 `
 
-// netstatTCPStatsUnprivileged is what macOS reports to users other than root
-const netstatTCPStatsUnprivileged = `tcp:
-	0 packet sent
-		0 data packet (0 byte)
-		0 data packet (0 byte) retransmitted
+// netstatTCPStatsSingular has the counters that netstat prints in the singular
+const netstatTCPStatsSingular = `tcp:
+	1 packet sent
+		1 data packet (1448 bytes)
+		1 data packet (1448 bytes) retransmitted
+		0 resend initiated by MTU discovery
 	0 packet received
+		0 ack (for 0 byte)
 `
 
 const netstatTCPSockets = `Active Internet connections (including servers)
@@ -67,6 +69,8 @@ type fakeNetworkStats struct {
 	interfacesErr error
 	netstat       map[string]string
 	netstatErr    error
+	netstatCalls  []string
+	unprivileged  bool
 }
 
 // Interfaces returns the mocked interfaces
@@ -74,9 +78,15 @@ func (n *fakeNetworkStats) Interfaces() ([]darwinInterface, error) {
 	return n.interfaces, n.interfacesErr
 }
 
-// Netstat returns the mocked output of netstat for args
+// Netstat records args and returns the mocked output of netstat for them
 func (n *fakeNetworkStats) Netstat(args ...string) (string, error) {
+	n.netstatCalls = append(n.netstatCalls, strings.Join(args, " "))
 	return n.netstat[strings.Join(args, " ")], n.netstatErr
+}
+
+// Privileged returns whether the mocked check runs as root
+func (n *fakeNetworkStats) Privileged() bool {
+	return !n.unprivileged
 }
 
 // newFakeNetworkStats returns interfaces as a Mac with Wi-Fi, a USB Ethernet adapter, an unused
@@ -308,14 +318,26 @@ collect_count_metrics: true
 	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.sent_packs", mock.Anything, mock.Anything, mock.Anything)
 }
 
-// TestTCPStatsUnprivileged tests that the zeroed TCP counters reported to other users than root
-// are not submitted.
+// TestTCPStatsSingular tests the TCP counters that netstat prints in the singular.
+func TestTCPStatsSingular(t *testing.T) {
+	netStats := newFakeNetworkStats()
+	netStats.netstat["-s -p tcp"] = netstatTCPStatsSingular
+	_, mockSender, err := runCheck(t, netStats, ``)
+	require.NoError(t, err)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_packs", float64(1), "", []string(nil))
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.sent_packs", float64(1), "", []string(nil))
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.rcv_packs", float64(0), "", []string(nil))
+}
+
+// TestTCPStatsUnprivileged tests that the check does not run netstat for the TCP counters, which
+// macOS zeroes for other users than root.
 func TestTCPStatsUnprivileged(t *testing.T) {
 	netStats := newFakeNetworkStats()
-	netStats.netstat["-s -p tcp"] = netstatTCPStatsUnprivileged
+	netStats.unprivileged = true
 	_, mockSender, err := runCheck(t, netStats, ``)
 	require.NoError(t, err)
 
+	assert.NotContains(t, netStats.netstatCalls, "-s -p tcp")
 	for _, metric := range []string{"system.net.tcp.retrans_packs", "system.net.tcp.sent_packs", "system.net.tcp.rcv_packs"} {
 		mockSender.AssertNotCalled(t, "Rate", metric, mock.Anything, mock.Anything, mock.Anything)
 	}

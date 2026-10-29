@@ -12,6 +12,7 @@ import (
 	"math"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/net"
@@ -250,54 +251,60 @@ func TestFormatMacAddress(t *testing.T) {
 // TestNetAdapterCache tests when the MSFT_NetAdapter cache refreshes and waits.
 func TestNetAdapterCache(t *testing.T) {
 	t.Run("first call waits for the first refresh", func(t *testing.T) {
-		cache := newNetAdapterCache(func() ([]msftNetAdapter, error) {
-			return []msftNetAdapter{{InterfaceIndex: 5, MediaDuplexState: mediaDuplexStateFull}}, nil
+		synctest.Test(t, func(t *testing.T) {
+			cache := newNetAdapterCache(func() ([]msftNetAdapter, error) {
+				return []msftNetAdapter{{InterfaceIndex: 5, MediaDuplexState: mediaDuplexStateFull}}, nil
+			})
+			start := time.Now()
+			assert.Equal(t, map[uint32]msftNetAdapter{5: {InterfaceIndex: 5, MediaDuplexState: mediaDuplexStateFull}}, cache.get())
+			assert.Zero(t, time.Since(start), "a query that returns does not wait for the timeout")
 		})
-		assert.Equal(t, map[uint32]msftNetAdapter{5: {InterfaceIndex: 5, MediaDuplexState: mediaDuplexStateFull}}, cache.get())
 	})
 
 	t.Run("refreshes only when stale and keeps the data on error", func(t *testing.T) {
-		var calls atomic.Int32
-		cache := newNetAdapterCache(func() ([]msftNetAdapter, error) {
-			if calls.Add(1) == 1 {
-				return []msftNetAdapter{{InterfaceIndex: 5}}, nil
-			}
-			return nil, errors.New("WMI query failed")
-		})
-		want := map[uint32]msftNetAdapter{5: {InterfaceIndex: 5}}
-		assert.Equal(t, want, cache.get())
-		assert.Equal(t, want, cache.get())
-		assert.EqualValues(t, 1, calls.Load())
+		synctest.Test(t, func(t *testing.T) {
+			var calls atomic.Int32
+			cache := newNetAdapterCache(func() ([]msftNetAdapter, error) {
+				if calls.Add(1) == 1 {
+					return []msftNetAdapter{{InterfaceIndex: 5}}, nil
+				}
+				return nil, errors.New("WMI query failed")
+			})
+			want := map[uint32]msftNetAdapter{5: {InterfaceIndex: 5}}
+			assert.Equal(t, want, cache.get())
+			assert.Equal(t, want, cache.get())
+			assert.EqualValues(t, 1, calls.Load())
 
-		cache.mu.Lock()
-		cache.lastRefresh = time.Now().Add(-netAdapterRefreshInterval)
-		cache.mu.Unlock()
-		cache.get()
-		assert.Eventually(t, func() bool {
-			cache.mu.Lock()
-			defer cache.mu.Unlock()
-			return calls.Load() == 2 && !cache.refreshing
-		}, 5*time.Second, 10*time.Millisecond)
-		assert.Equal(t, want, cache.get())
+			time.Sleep(netAdapterRefreshInterval)
+			cache.get()
+			synctest.Wait()
+			assert.EqualValues(t, 2, calls.Load())
+			assert.Equal(t, want, cache.get())
+			assert.EqualValues(t, 2, calls.Load(), "a failed query is not retried before the next interval")
+		})
 	})
 
 	t.Run("a blocked query only delays the first call", func(t *testing.T) {
-		release := make(chan struct{})
-		var calls atomic.Int32
-		cache := newNetAdapterCache(func() ([]msftNetAdapter, error) {
-			calls.Add(1)
-			<-release
-			return []msftNetAdapter{{InterfaceIndex: 5}}, nil
+		synctest.Test(t, func(t *testing.T) {
+			release := make(chan struct{})
+			var calls atomic.Int32
+			cache := newNetAdapterCache(func() ([]msftNetAdapter, error) {
+				calls.Add(1)
+				<-release
+				return []msftNetAdapter{{InterfaceIndex: 5}}, nil
+			})
+			start := time.Now()
+			assert.Empty(t, cache.get())
+			assert.Equal(t, netAdapterFirstLoadWait, time.Since(start))
+
+			start = time.Now()
+			assert.Empty(t, cache.get())
+			assert.Zero(t, time.Since(start), "later calls do not wait")
+
+			close(release)
+			synctest.Wait()
+			assert.Len(t, cache.get(), 1)
+			assert.EqualValues(t, 1, calls.Load())
 		})
-		cache.firstLoadWait = 10 * time.Millisecond
-		assert.Empty(t, cache.get())
-
-		// The test hangs here if a later call waits too
-		cache.firstLoadWait = time.Hour
-		assert.Empty(t, cache.get())
-
-		close(release)
-		assert.Eventually(t, func() bool { return len(cache.get()) == 1 }, 5*time.Second, 10*time.Millisecond)
-		assert.EqualValues(t, 1, calls.Load())
 	})
 }

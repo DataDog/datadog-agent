@@ -10,11 +10,13 @@ package networkv2
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -62,16 +64,17 @@ var (
 		"LISTEN":      "listen",
 		"CLOSING":     "closing",
 	}
-	// tcpStatsMetrics maps lines of `netstat -s -p tcp` to metrics. macOS only reports these
-	// counters to root, and prints them in the singular when they are 0 or 1.
+	// tcpStatsMetrics maps lines of `netstat -s -p tcp` to metrics. netstat prints the counters
+	// in the singular when they are 0 or 1.
 	tcpStatsMetrics = []struct {
 		pattern *regexp.Regexp
 		metric  string
 	}{
-		{regexp.MustCompile(`(?m)^[ \t]*(\d+) data packets \(\d+ bytes\) retransmitted[ \t]*$`), "system.net.tcp.retrans_packs"},
-		{regexp.MustCompile(`(?m)^[ \t]*(\d+) packets sent[ \t]*$`), "system.net.tcp.sent_packs"},
-		{regexp.MustCompile(`(?m)^[ \t]*(\d+) packets received[ \t]*$`), "system.net.tcp.rcv_packs"},
+		{regexp.MustCompile(`(?m)^[ \t]*(\d+) data packets? \(\d+ bytes?\) retransmitted[ \t]*$`), "system.net.tcp.retrans_packs"},
+		{regexp.MustCompile(`(?m)^[ \t]*(\d+) packets? sent[ \t]*$`), "system.net.tcp.sent_packs"},
+		{regexp.MustCompile(`(?m)^[ \t]*(\d+) packets? received[ \t]*$`), "system.net.tcp.rcv_packs"},
 	}
+	tcpStatsUnprivilegedOnce sync.Once
 )
 
 type networkInstanceConfig struct {
@@ -87,6 +90,7 @@ type networkInstanceConfig struct {
 type networkStats interface {
 	Interfaces() ([]darwinInterface, error)
 	Netstat(args ...string) (string, error)
+	Privileged() bool
 }
 
 type defaultNetworkStats struct {
@@ -109,6 +113,12 @@ func (defaultNetworkStats) Netstat(args ...string) (string, error) {
 	defer cancel()
 	output, err := exec.CommandContext(ctx, "/usr/sbin/netstat", args...).Output()
 	return string(output), err
+}
+
+// Privileged tells whether the check runs as root, the only user that macOS reports TCP
+// statistics to.
+func (defaultNetworkStats) Privileged() bool {
+	return os.Geteuid() == 0
 }
 
 // Run executes the check
@@ -162,6 +172,12 @@ func submitInterfaceMetrics(sender sender.Sender, iface darwinInterface) {
 
 // submitTCPStats submits the TCP packet and retransmission counters of `netstat -s -p tcp`.
 func (c *NetworkCheck) submitTCPStats(sender sender.Sender) {
+	if !c.net.Privileged() {
+		tcpStatsUnprivilegedOnce.Do(func() {
+			log.Debug("Not collecting TCP stats, which macOS only reports to root")
+		})
+		return
+	}
 	output, err := c.net.Netstat("-s", "-p", "tcp")
 	if err != nil {
 		log.Warnf("Unable to get TCP stats from netstat: %s", err)
