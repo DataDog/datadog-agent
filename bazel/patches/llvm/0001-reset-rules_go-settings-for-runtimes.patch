@@ -48,18 +48,16 @@ index 8dff70f..b4402de 100644
  def _cc_stage0_object_impl(ctx):
 diff --git a/toolchain/runtimes/go_settings_reset.bzl b/toolchain/runtimes/go_settings_reset.bzl
 new file mode 100644
-index 0000000..50ba599
+index 0000000..1831296
 --- /dev/null
 +++ b/toolchain/runtimes/go_settings_reset.bzl
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,22 @@
 +"""rules_go settings that runtimes never read but that fork their configuration.
 +
 +Mirrors _reset_transition_dict in rules_go's go/private/rules/transition.bzl.
 +"""
 +
-+_ORIGINAL_SETTINGS = ["msan", "race", "pure", "linkmode", "tags", "pgoprofile"]
-+
-+GO_SETTINGS_RESET = dict({
++GO_SETTINGS_RESET = {
 +    str(Label("@llvm_rules_go//go/private:bootstrap_nogo")): False,
 +    str(Label("@llvm_rules_go//go/config:static")): False,
 +    str(Label("@llvm_rules_go//go/config:msan")): False,
@@ -69,10 +67,13 @@ index 0000000..50ba599
 +    str(Label("@llvm_rules_go//go/config:linkmode")): "auto",
 +    str(Label("@llvm_rules_go//go/config:tags")): [],
 +    str(Label("@llvm_rules_go//go/config:pgoprofile")): Label("@llvm_rules_go//go/config:empty"),
-+}, **{
-+    str(Label("@llvm_rules_go//go/private/rules:original_" + name)): ""
-+    for name in _ORIGINAL_SETTINGS
-+})
++    str(Label("@llvm_rules_go//go/private/rules:original_msan")): "",
++    str(Label("@llvm_rules_go//go/private/rules:original_race")): "",
++    str(Label("@llvm_rules_go//go/private/rules:original_pure")): "",
++    str(Label("@llvm_rules_go//go/private/rules:original_linkmode")): "",
++    str(Label("@llvm_rules_go//go/private/rules:original_tags")): "",
++    str(Label("@llvm_rules_go//go/private/rules:original_pgoprofile")): "",
++}
 diff --git a/toolchain/runtimes/with_cfg_runtimes_common.bzl b/toolchain/runtimes/with_cfg_runtimes_common.bzl
 index 667df43..3917545 100644
 --- a/toolchain/runtimes/with_cfg_runtimes_common.bzl
