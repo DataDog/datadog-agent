@@ -403,6 +403,16 @@ func TestProviderIncludeEnvVars(t *testing.T) {
 	}
 }
 
+func TestProviderInvalidReporterInterval(t *testing.T) {
+	for _, interval := range []string{"59s", "invalid"} {
+		t.Run(interval, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, "api_key: test-key\nhostprofiler:\n  reporter_interval: "+interval)
+			generated := confmap.NewFromStringMap(buildConfig(newConfigManager(cfg), testCollectorParams{}))
+			require.ErrorContains(t, validateOTelConfig(t, generated), "reporter_interval")
+		})
+	}
+}
+
 func TestProviderMethods(t *testing.T) {
 	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 

@@ -33,6 +33,7 @@ type hpFlareConfig struct {
 
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
+	ReporterInterval      string
 	DebugVerbosity        string
 	IncludeEnvVars        string
 	SendErrorFrames       bool
@@ -109,6 +110,7 @@ func newConfigManager(config config.Component) configManager {
 	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
 		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
 	hostProfilerConfig := hostProfilerConfig{
+		ReporterInterval:      config.GetString("hostprofiler.reporter_interval"),
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		IncludeEnvVars:        config.GetString("hostprofiler.include_env_vars"),
 		SendErrorFrames:       config.GetBool("hostprofiler.send_error_frames"),

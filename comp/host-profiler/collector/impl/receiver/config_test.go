@@ -25,6 +25,23 @@ func TestReporterInterval(t *testing.T) {
 	require.Equal(t, 60*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
 }
 
+func TestReporterIntervalValidation(t *testing.T) {
+	for _, interval := range []time.Duration{0, 60*time.Second - time.Nanosecond, 60 * time.Second, 2 * time.Minute} {
+		t.Run(interval.String(), func(t *testing.T) {
+			cfg := defaultConfig(profilerName).(Config)
+			cfg.EbpfCollectorConfig.ReporterInterval = interval
+			cfg.SymbolUploader.Enabled = false
+
+			err := cfg.Validate()
+			if interval < 60*time.Second {
+				require.ErrorContains(t, err, "reporter_interval must be at least 1m0s")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestSendErrorFramesDefault(t *testing.T) {
 	cfg := defaultConfig(profilerName).(Config)
 	require.False(t, cfg.EbpfCollectorConfig.SendErrorFrames)
@@ -96,7 +113,7 @@ func TestSymbolUploader(t *testing.T) {
 
 func TestFlatConfigParsingIsAccepted(t *testing.T) {
 	input := map[string]any{
-		"reporter_interval": "30s",
+		"reporter_interval": "120s",
 		"interpreters": map[string]any{
 			"go": map[string]any{
 				"symbolization": map[string]any{
@@ -113,7 +130,7 @@ func TestFlatConfigParsingIsAccepted(t *testing.T) {
 	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
 	require.NoError(t, err)
 
-	require.Equal(t, 30*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
+	require.Equal(t, 120*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
 	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsSymbolizationDisabled())
 	require.False(t, cfg.SymbolUploader.Enabled)
 

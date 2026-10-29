@@ -33,6 +33,9 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
+	if agent.hostProfilerConfig.ReporterInterval != "" {
+		_ = confmaputils.Set(profiling, "reporter_interval", agent.hostProfilerConfig.ReporterInterval)
+	}
 	if agent.hostProfilerConfig.IncludeEnvVars != "" {
 		_ = confmaputils.Set(profiling, "include_env_vars", agent.hostProfilerConfig.IncludeEnvVars)
 	}

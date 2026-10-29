@@ -8193,6 +8193,13 @@ properties:
     node_type: section
     type: object
     properties:
+      reporter_interval:
+        node_type: setting
+        type: string
+        default: 60s
+        format: duration
+        description: |-
+          Interval between profile reports. Must be at least 60 seconds.
       additional_http_headers:
         node_type: setting
         type: object
