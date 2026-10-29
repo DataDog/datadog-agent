@@ -1,7 +1,3 @@
-extensions:
-  pprof:
-  health_check:
-
 receivers:
   otlp:
     protocols:
@@ -24,10 +20,10 @@ processors:
     cardinality: 2
 
 service:
-  # The `datadog` extension is deliberately not listed here: the converter
-  # autoconfigures it as datadog/dd-autoconfigured from the Agent's api_key,
-  # which is exactly the path this test exercises.
-  extensions: [pprof, health_check]
+  # No `extensions:` list on purpose. The converter then autoconfigures the full
+  # default set, including datadog/dd-autoconfigured, which is the extension whose
+  # forwarder this test watches across a rotation. Declaring any list here would
+  # still work, but leaving it out keeps the test honest about the default shape.
   pipelines:
     traces:
       receivers: [otlp]
