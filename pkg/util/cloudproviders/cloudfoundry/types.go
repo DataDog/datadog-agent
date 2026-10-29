@@ -462,17 +462,6 @@ func extractTagsFromAppMeta(meta map[string]*string) (tags []string) {
 	return
 }
 
-// metadataToMaps converts v3 metadata, whose values are nullable, to plain label and annotation maps
-func metadataToMaps(metadata *resource.Metadata) (labels, annotations map[string]string) {
-	labels = map[string]string{}
-	annotations = map[string]string{}
-	if metadata != nil {
-		mergeMetadata(labels, metadata.Labels)
-		mergeMetadata(annotations, metadata.Annotations)
-	}
-	return labels, annotations
-}
-
 // mergeMetadata adds the non-null entries of metadata that are not already set in dst
 func mergeMetadata(dst map[string]string, metadata map[string]*string) {
 	for key, value := range metadata {
@@ -509,7 +498,12 @@ func (a *CFApplication) extractDataFromV3App(data *resource.App) {
 	case *resource.CNBLifecycle:
 		a.Buildpacks = lifecycle.Buildpacks
 	}
-	a.Labels, a.Annotations = metadataToMaps(data.Metadata)
+	a.Labels = map[string]string{}
+	a.Annotations = map[string]string{}
+	if data.Metadata != nil {
+		mergeMetadata(a.Labels, data.Metadata.Labels)
+		mergeMetadata(a.Annotations, data.Metadata.Annotations)
+	}
 }
 
 func (a *CFApplication) extractDataFromV3Process(data []*resource.Process) {
