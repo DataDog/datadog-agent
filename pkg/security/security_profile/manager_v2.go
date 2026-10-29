@@ -14,7 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"slices"
 	"strconv"
 	"sync"
@@ -86,9 +85,6 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	}
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
-	}
-	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		size += probes.SyscallSamplesMaxEntries
 	}
 	if size == 0 {
 		// lru.New rejects non-positive sizes.
@@ -401,7 +397,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	}
 
 	// Register listener for cgroup creations to exclude host/systemd cgroups from the syscall sampler
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
 			seclog.Errorf("failed to register cgroup creation listener: %v", err)
 		} else {
@@ -493,7 +489,7 @@ func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
 
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		inode := cgce.GetCGroupInode()
 		if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Debugf("couldn't remove cgroup inode %d from exclusion map: %v", inode, err)
@@ -678,7 +674,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -1171,8 +1167,6 @@ func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profi
 		sampleCookie = event.Bind.SampleCookie
 	case model.ConnectEventType:
 		sampleCookie = event.Connect.SampleCookie
-	case model.SyscallsEventType:
-		sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
 	}
 	if sampleCookie == 0 {
 		return
@@ -1403,7 +1397,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
 		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 
@@ -1457,7 +1450,6 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
 		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
@@ -1544,19 +1536,6 @@ func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, w
 	if len(evictedVersions) > 0 {
 		m.purgeCookiesForProfile(secprof, evictedVersions...)
 	}
-}
-
-// seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
-func (m *ManagerV2) seededSyscalls() []uint32 {
-	if !m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		return nil
-	}
-	ids := utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH)
-	out := make([]uint32, len(ids))
-	for i, id := range ids {
-		out[i] = uint32(id)
-	}
-	return out
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos

@@ -576,10 +576,6 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		newEntry, eventNodeBase := node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
 		return newEntry, node, eventNodeBase, nil
 	case model.SyscallsEventType:
-		if event.Syscalls.EventReason == model.SampleReason {
-			newEntry, eventNodeBase := node.InsertSyscallSample(event, imageTagID, at.SyscallsMask, at.Stats, dryRun)
-			return newEntry, node, eventNodeBase, nil
-		}
 		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), node, nil, nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
