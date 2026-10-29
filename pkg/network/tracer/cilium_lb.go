@@ -45,6 +45,10 @@ const (
 
 const ciliumConntrackerModuleName = "network_tracer__cilium_conntracker"
 
+// removedBackendTTL is how long a backend stays cached after it leaves cilium's backends map, so
+// connections that outlive their backend, such as to a deleted pod, still resolve until they're reported.
+const removedBackendTTL = 10 * time.Minute
+
 var ciliumConntrackerTelemetry = struct {
 	getsDuration telemetry.Histogram
 	getsTotal    telemetry.Counter
@@ -94,8 +98,9 @@ type backend4ValueV3 struct {
 }
 
 type backend struct {
-	addr util.Address
-	port uint16
+	addr     util.Address
+	port     uint16
+	lastSeen time.Time
 }
 
 type ciliumLoadBalancerConntracker struct {
@@ -224,22 +229,48 @@ func (clb *ciliumLoadBalancerConntracker) updateBackends() {
 	clb.m.Lock()
 	defer clb.m.Unlock()
 
-	it := clb.backends.Iterate()
+	refreshBackends(clb.backendIDToBackend, clb.backends.Iterate(), time.Now())
+}
+
+// refreshBackends copies the backends from it into cache and evicts backends that haven't been
+// seen for removedBackendTTL. Cilium allocates backend IDs from an increasing counter, so without
+// eviction the cache grows with every backend ever created.
+func refreshBackends(cache map[uint32]backend, it maps.GenericMapIterator[backend4KeyV3, backend4ValueV3], now time.Time) {
 	var k backend4KeyV3
 	var v backend4ValueV3
 	for it.Next(&k, &v) {
-		clb.backendIDToBackend[k.ID] = backend{
-			addr: util.AddressFromNetIP(net.IPv4(v.Address[0], v.Address[1], v.Address[2], v.Address[3])),
-			port: ntohs(v.Port),
+		cache[k.ID] = backend{
+			addr:     util.AddressFromNetIP(net.IPv4(v.Address[0], v.Address[1], v.Address[2], v.Address[3])),
+			port:     ntohs(v.Port),
+			lastSeen: now,
 		}
 	}
 
 	if it.Err() != nil {
+		// a partial walk may not have refreshed every live backend, so skip eviction this round
 		log.Warnf("error iterating lb backends map: %s", it.Err())
+		return
+	}
+
+	for id, b := range cache {
+		if now.Sub(b.lastSeen) > removedBackendTTL {
+			delete(cache, id)
+		}
 	}
 }
 
 // Describe returns all descriptions of the collector
+// touchBackend looks up a backend and marks it seen, so a backend removed from cilium stays cached while
+// cilium's conntrack still points a live connection at it
+func touchBackend(cache map[uint32]backend, id uint32, now time.Time) (backend, bool) {
+	b, ok := cache[id]
+	if ok {
+		b.lastSeen = now
+		cache[id] = b
+	}
+	return b, ok
+}
+
 func (clb *ciliumLoadBalancerConntracker) Describe(chan<- *prometheus.Desc) {
 }
 
@@ -307,7 +338,7 @@ func (clb *ciliumLoadBalancerConntracker) GetTranslationForConn(c *network.Conne
 	clb.m.Lock()
 	defer clb.m.Unlock()
 
-	if b, ok := clb.backendIDToBackend[uint32(ctEntry.BackendID)]; ok && (b.addr != c.Dest || b.port != c.DPort) {
+	if b, ok := touchBackend(clb.backendIDToBackend, uint32(ctEntry.BackendID), startTime); ok && (b.addr != c.Dest || b.port != c.DPort) {
 		return &network.IPTranslation{
 			ReplDstIP:   c.Source,
 			ReplDstPort: c.SPort,

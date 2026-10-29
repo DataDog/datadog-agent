@@ -17,7 +17,6 @@ go_library(
 
 dd_agent_go_binary(
     name = "secret-generic-connector",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/secret-generic-connector/windows_resources:rsrc"],
         "//conditions:default": [],
