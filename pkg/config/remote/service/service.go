@@ -1026,13 +1026,14 @@ func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.C
 		return nil, err
 	}
 
+	productsChanged := false
 	if !s.clients.active(request.Client) {
 		// Trigger a bypass to directly get configurations from the agent.
 		// This will timeout to avoid blocking the tracer if:
 		// - The previous request is still pending
 		// - The triggered request takes too long
 
-		s.clients.seen(request.Client)
+		productsChanged = s.clients.seen(request.Client)
 		s.mu.Unlock()
 
 		response := make(chan struct{})
@@ -1065,7 +1066,7 @@ func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.C
 		return nil, s.mu.lastUpdateErr
 	}
 
-	s.clients.seen(request.Client)
+	productsChanged = s.clients.seen(request.Client) || productsChanged
 	tufVersions, err := s.mu.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
@@ -1091,12 +1092,14 @@ func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.C
 	// subscriptions consistent if they need any additional files. The protocol
 	// is as follows:
 	//
-	//	 1) Check if the client needs a TUF targets update, or if there are any
-	//	 subscriptions that need a complete view of any products for this
-	//   client.
-	//	   a) No update is needed and no subscriptions need a complete view,
+	//	 1) Check if the client needs a TUF targets update, changed its
+	//	 requested products, or if there are any subscriptions that need a
+	//	 complete view of any products for this client.
+	//	   a) No update is needed, no products changed, and no subscriptions
+	//	      need a complete view,
 	//	      return an empty response.
-	//	   b) Update is needed or subscriptions need a complete view, continue.
+	//	   b) An update is needed, products changed, or subscriptions need a
+	//	      complete view, continue.
 	//	 2) Compute two sets of configs:
 	//	   * responseConfigs — files the client is missing vs its cache.
 	//	   * subscriptionOnlyConfigs — extra files required to give some
@@ -1106,16 +1109,21 @@ func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.C
 	//	 4) Split the response files from allFiles.
 	//	 5) Notify subscriptions with the relevant files.
 	//	 6) Return the client's response.
-	//	   a) If there is no TUF update to ship, return an empty response.
+	//	   a) If there is no TUF update to ship and products did not change,
+	//	      return an empty response.
 	//	   b) Otherwise, include new TUF metadata and the client's needed files.
 
 	// (1) Check if either the client or any subscriptions need anything.
-	hasUpdate := tufVersions.DirectorTargets != request.Client.State.TargetsVersion
+	// A changed product set requires the server to recompute and deliver the
+	// configs eligible for the client, even when the repository version is
+	// unchanged. Otherwise a product subscribed to after the initial fetch can
+	// remain invisible until a later targets update.
+	needsDelivery := productsChanged || tufVersions.DirectorTargets != request.Client.State.TargetsVersion
 	interestedSubs, productsNeededForSubs := s.mu.subscriptions.interestedSubscriptions(
 		request.Client,
 	)
 
-	if !hasUpdate && len(productsNeededForSubs) == 0 {
+	if !needsDelivery && len(productsNeededForSubs) == 0 {
 		// (1.a) Neither the client nor any subscriptions need anything.
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
@@ -1185,8 +1193,9 @@ func (s *CoreAgentService) ClientGetConfigs(ctx context.Context, request *pbgo.C
 		)
 	}
 
-	// (6.a) If there is no TUF update to ship, return an empty response.
-	if !hasUpdate {
+	// (6.a) If there is no TUF update to ship and the requested products did
+	// not change, return an empty response.
+	if !needsDelivery {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
 

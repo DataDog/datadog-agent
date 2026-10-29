@@ -39,6 +39,18 @@ func TestClients(t *testing.T) {
 	assert.Empty(t, clients.clients)
 }
 
+func TestClientsSeenReportsProductSetChanges(t *testing.T) {
+	clients := newClients(clock.NewMock(), time.Second)
+	client := &pbgo.Client{Id: "client1", Products: []string{"APM_SAMPLING"}}
+
+	assert.False(t, clients.seen(client))
+	assert.False(t, clients.seen(&pbgo.Client{Id: "client1", Products: []string{"APM_SAMPLING"}}))
+	assert.False(t, clients.seen(&pbgo.Client{Id: "client1", Products: []string{"APM_SAMPLING"}}))
+	assert.True(t, clients.seen(&pbgo.Client{Id: "client1", Products: []string{"DATA_SECURITY_DB_SCAN_TASKS", "APM_SAMPLING"}}))
+	assert.False(t, clients.seen(&pbgo.Client{Id: "client1", Products: []string{"APM_SAMPLING", "DATA_SECURITY_DB_SCAN_TASKS"}}))
+	assert.True(t, clients.seen(&pbgo.Client{Id: "client1", Products: []string{"DATA_SECURITY_DB_SCAN_TASKS"}}))
+}
+
 func TestCacheBypassClientsRateLimit(t *testing.T) {
 	clock := clock.NewMock()
 	cacheBypassClients := rateLimiter{
