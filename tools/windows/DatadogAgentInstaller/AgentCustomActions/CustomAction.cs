@@ -174,12 +174,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult EnableDDServices(Session session)
-        {
-            return Datadog.CustomActions.ServiceCustomAction.EnableDDServices(session);
-        }
-
-        [CustomAction]
         public static ActionResult StopDDServices(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.StopDDServices(session);

@@ -161,6 +161,55 @@ namespace CustomActions.Tests.Service
             ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
         }
 
+        [Theory]
+        [InlineData("1")]
+        [InlineData("true")]
+        [InlineData("TRUE")]
+        public void InstallOnlyEnablesServicesWithoutStartingThem(string installOnly)
+        {
+            SetServices(ServiceCustomAction.ProtectedServices);
+            Session.Object["DD_INSTALL_ONLY"] = installOnly;
+
+            Assert.Equal(ActionResult.Success, Create().StartDDServices());
+
+            ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic), Times.Once);
+            ServiceController.Verify(c => c.SetDelayedAutoStart(Constants.AgentServiceName, true), Times.Once);
+            ServiceController.Verify(c => c.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual), Times.Once);
+            ServiceController.Verify(c => c.SetStartType(Constants.InstallerServiceName, ServiceStartMode.Manual), Times.Once);
+            ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+        }
+
+        [Fact]
+        public void StartActionEnablesAllServicesBeforeStartingCoreAgent()
+        {
+            SetServices(ServiceCustomAction.ProtectedServices);
+            var events = new List<string>();
+            ServiceController.Setup(c => c.SetStartType(It.IsAny<string>(), It.IsAny<ServiceStartMode>()))
+                .Callback<string, ServiceStartMode>((name, _) => events.Add(name));
+            ServiceController.Setup(c => c.StartService(Constants.AgentServiceName, It.IsAny<TimeSpan>()))
+                .Callback(() => events.Add("started"));
+
+            Assert.Equal(ActionResult.Success, Create().StartDDServices());
+
+            Assert.Equal(new[] { Constants.InstallerServiceName, Constants.ProcmgrServiceName,
+                Constants.AgentServiceName, "started" }, events);
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("1")]
+        public void StartActionFailsWithoutStartingServicesWhenEnableFails(string installOnly)
+        {
+            SetServices(ServiceCustomAction.ProtectedServices);
+            Session.Object["DD_INSTALL_ONLY"] = installOnly;
+            ServiceController.Setup(c => c.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual))
+                .Throws(new System.ComponentModel.Win32Exception(5));
+
+            Assert.Equal(ActionResult.Failure, Create().StartDDServices());
+
+            ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+        }
+
         [Fact]
         public void EnableSkipsMissingProcmgr()
         {
