@@ -5503,22 +5503,6 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
-- id: captureAnyIntSlice_cond_toolarge
-  type: LOG_PROBE
-  captureSnapshot: false
-  where:
-    methodName: main.anyAllIntSlice
-  when:
-    dsl: "tag == \"toolarge\""
-    json: {eq: [{ref: "tag"}, "toolarge"]}
-  captureExpressions:
-    - name: "any42"
-      expr:
-        dsl: "any(xs, {@it == 42})"
-        json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
-  sampling:
-    snapshotsPerSecond: 10
-
 - id: captureAllIntSlice_positive
   type: LOG_PROBE
   captureSnapshot: false

@@ -3099,12 +3099,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_EXPR_PREPARE: {
-    if (sm->condition_prelude) {
-      sm->condition_prelude = false;
-    } else if (sm->in_condition) {
-      sm->condition_error = sm_condition_error(sm);
-      sm->in_condition = false;
-    }
     // Start each expression with the condition error flags cleared so that
     // a faulting any/all loop body in a template segment or capture
     // expression cannot leak into the next condition's ConditionCheck.
@@ -4205,14 +4199,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // Arm the eval-error flag. See the lifecycle comment on
     // condition_eval_error in context.h.
     sm->condition_eval_error = true;
-    sm->in_condition = true;
-    sm->condition_prelude = true;
   } break;
 
   case SM_OP_CONDITION_CHECK: {
     sm->condition_eval_error = false;
-    sm->condition_error = 0;
-    sm->in_condition = false;
     if (!scratch_buf_bounds_check(&sm->offset, 1)) {
       return 1;
     }
@@ -4329,8 +4319,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   // SM_OP_CONDITION_LEAF_LOAD during AST replay survives to event.c's
   // header surfacing.
   case SM_OP_CONDITION_CHECK_PRESERVE_ERROR: {
-    sm->condition_error = sm_condition_error(sm);
-    sm->in_condition = false;
     if (!scratch_buf_bounds_check(&sm->offset, 1)) {
       return 1;
     }
