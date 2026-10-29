@@ -761,11 +761,31 @@ func (p *Profile) evictProfileVersion(retainedImageTag string) string {
 		}
 	}
 	// delete image context
+	evictedCtx := p.versionContexts[oldestImageTag]
 	delete(p.versionContexts, oldestImageTag)
+	if evictedCtx != nil {
+		p.removeEvictedVersionTags(evictedCtx.Tags)
+	}
 
 	// then, remove every trace of this version from the tree
 	p.ActivityTree.EvictImageTag(oldestImageTag)
 	return oldestImageTag
+}
+
+// removeEvictedVersionTags drops from the profile tags the tags of an evicted version
+// that no remaining version holds. The caller must hold p.Lock.
+func (p *Profile) removeEvictedVersionTags(evictedTags []string) {
+	p.tags = slices.DeleteFunc(p.tags, func(tag string) bool {
+		if !slices.Contains(evictedTags, tag) {
+			return false
+		}
+		for _, ctx := range p.versionContexts {
+			if ctx != nil && slices.Contains(ctx.Tags, tag) {
+				return false
+			}
+		}
+		return true
+	})
 }
 
 // GetEventTypes returns the event types of the profile
