@@ -14,6 +14,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SYSV_PROCMGR = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.procmgr.in'
+SYSV_ACTION = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.action.in'
 SYSV_AGENT = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.in'
 UPSTART_DEBIAN = REPO_ROOT / 'packages/debian/etc/upstart_debian.procmgr.conf.in'
 UPSTART_REDHAT = REPO_ROOT / 'packages/redhat/etc/upstart_redhat.procmgr.conf.in'
@@ -343,6 +344,14 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
         self.assertEqual(text.count('service datadog-agent-procmgr stop'), 1)
         self.assertLess(text.index('service datadog-agent-procmgr start'), text.index('service datadog-agent-action start'))
         self.assertLess(text.index('service datadog-agent-action stop'), text.index('service datadog-agent-procmgr stop'))
+        # Boot starts each init script on its own. The action script must follow procmgr or its one check selects monolithic mode.
+        action = SYSV_ACTION.read_text()
+        action_start = re.search(r'^# Should-Start:(.*)$', action, re.MULTILINE)
+        action_stop = re.search(r'^# Should-Stop:(.*)$', action, re.MULTILINE)
+        self.assertIsNotNone(action_start)
+        self.assertIsNotNone(action_stop)
+        self.assertIn('datadog-agent-procmgr', action_start.group(1).split())
+        self.assertIn('datadog-agent-procmgr', action_stop.group(1).split())
 
     def test_packaging_wires_expected_files(self):
         debian = (REPO_ROOT / 'packages/debian/etc/BUILD.bazel').read_text()

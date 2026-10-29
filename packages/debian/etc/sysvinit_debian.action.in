@@ -6,6 +6,8 @@
 # Description: Datadog Private Action Runner
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
+# Should-Start: datadog-agent-procmgr
+# Should-Stop: datadog-agent-procmgr
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
 ### END INIT INFO
@@ -53,7 +55,7 @@ runner_status()
 PROCMGR_PIDFILE="$INSTALL_DIR/run/dd-procmgrd.pid"
 PROCMGR_PATH="$INSTALL_DIR/embedded/bin/dd-procmgrd"
 
-# The core Agent starts dd-procmgrd before this service, so one check is enough.
+# Boot and the core Agent both start dd-procmgrd before this check.
 procmgr_running()
 {
 	agent_start_stop_daemon --status --quiet --pidfile "$PROCMGR_PIDFILE" --user "$AGENT_USER" --exec "$PROCMGR_PATH"
