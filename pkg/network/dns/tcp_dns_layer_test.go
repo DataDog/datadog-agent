@@ -259,6 +259,26 @@ func TestDNSResponseHeaderOnly(t *testing.T) {
 		assert.Zero(t, s.Timeouts)
 	})
 
+	t.Run("complete response that fails to decode", func(t *testing.T) {
+		decodingErrors := snooperTelemetry.decodingErrors.Load()
+		h := newTCPDNSHarness(t)
+		sendQuery(h)
+		msg := tcpDNSMessage(t, 7, true, 1)
+		msg[len(msg)-6] = 0x40 // record data length past the end of the message
+		h.feed(udpDNSFrame(t, msg))
+		s := h.finish(syscall.IPPROTO_UDP)
+		assert.Equal(t, uint32(1), s.CountByRcode[0], "still matched from its header")
+		assert.Equal(t, decodingErrors+1, snooperTelemetry.decodingErrors.Load(), "still counted as a decoding error")
+	})
+
+	t.Run("truncated response for a type that isn't recorded is ignored", func(t *testing.T) {
+		successes, headerOnly := snooperTelemetry.successes.Load(), snooperTelemetry.headerOnly.Load()
+		h := newTCPDNSHarness(t)
+		h.feed(udpDNSFrame(t, tcpDNSMessageOfType(t, 7, true, 400, layers.DNSTypeTXT))[:replaySnapLenForTests])
+		assert.Equal(t, successes, snooperTelemetry.successes.Load())
+		assert.Equal(t, headerOnly, snooperTelemetry.headerOnly.Load())
+	})
+
 	t.Run("truncated response with another id doesn't match", func(t *testing.T) {
 		h := newTCPDNSHarness(t)
 		sendQuery(h)
@@ -271,6 +291,8 @@ func TestDNSResponseHeaderOnly(t *testing.T) {
 
 func TestSetResponseFromHeader(t *testing.T) {
 	response := tcpDNSMessage(t, 42, true, 1)
+	questionEnd := dnsHeaderLen + len(tcpDNSDomain) + 2 + 4
+	parser := newDNSParser(layers.LayerTypeEthernet, config.New())
 	tests := []struct {
 		name   string
 		mutate func(msg []byte) []byte
@@ -282,12 +304,22 @@ func TestSetResponseFromHeader(t *testing.T) {
 		{"reserved bit set", func(m []byte) []byte { m[3] |= 0x40; return m }, false},
 		{"no question", func(m []byte) []byte { m[5] = 0; return m }, false},
 		{"shorter than a header", func(m []byte) []byte { return m[:dnsHeaderLen-1] }, false},
+		{"question cut short", func(m []byte) []byte { return m[:questionEnd-1] }, false},
+		{"question type not recorded", func(m []byte) []byte {
+			return tcpDNSMessageOfType(t, 42, true, 0, layers.DNSTypeTXT)
+		}, false},
+		{"question class not IN", func(m []byte) []byte { m[questionEnd-1] = byte(layers.DNSClassCH); return m }, false},
+		{"malformed question name", func(m []byte) []byte { m[dnsHeaderLen] = 0x80; return m }, false},
+		{"compressed question name", func(m []byte) []byte {
+			name := []byte{0xc0, 0x0c}
+			return append(append(append([]byte(nil), m[:dnsHeaderLen]...), name...), m[questionEnd-4:]...)
+		}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pktInfo := dnsPacketInfo{}
 			msg := tt.mutate(append([]byte(nil), response...))
-			require.Equal(t, tt.ok, setResponseFromHeader(msg, &pktInfo))
+			require.Equal(t, tt.ok, parser.setResponseFromHeader(msg, &pktInfo))
 			if tt.ok {
 				assert.Equal(t, uint16(42), pktInfo.transactionID)
 				assert.Equal(t, successfulResponse, pktInfo.pktType)

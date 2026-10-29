@@ -134,10 +134,15 @@ func (p *dnsParser) parseFirstMessageInto(data []byte, t *translation, pktInfo *
 	// segment can still start with a complete message, so take the normal path
 	// whenever the DNS layer was decoded.
 	if err != nil || len(p.layers) == 0 || p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
-		// The whole DNS message isn't available, either because the packet was
-		// cut short by the snaplen or because it's a TCP segment holding part of
-		// a message. A response can still be matched to its query by its header.
+		// The whole DNS message isn't available or couldn't be decoded: the
+		// packet was cut short by the snaplen, it's a TCP segment holding part of
+		// a message, or the message is malformed. A response can still be matched
+		// to its query by its header.
 		if p.collectDNSStats && p.parseResponseHeaderInto(pktInfo) {
+			if err != nil {
+				// the message was complete but failed to decode, so its answers are lost
+				snooperTelemetry.decodingErrors.Inc()
+			}
 			return nil
 		}
 		if p.decoder.Truncated {
@@ -162,6 +167,35 @@ func (p *dnsParser) parseFirstMessageInto(data []byte, t *translation, pktInfo *
 	return nil
 }
 
+// maxDNSNameLen is the maximum length of a domain name in wire format
+const maxDNSNameLen = 255
+
+// questionTypeAndClass returns the type and class of the question that follows
+// the header of msg, or false if the question name is malformed or msg ends
+// before the question does.
+func questionTypeAndClass(msg []byte) (qtype, qclass uint16, ok bool) {
+	i := dnsHeaderLen
+	for i < len(msg) && i-dnsHeaderLen <= maxDNSNameLen {
+		label := int(msg[i])
+		switch {
+		case label == 0:
+			i++
+		case label&0xc0 == 0xc0: // a compression pointer ends the name
+			i += 2
+		case label&0xc0 == 0:
+			i += 1 + label
+			continue
+		default:
+			return 0, 0, false
+		}
+		if i+4 > len(msg) {
+			return 0, 0, false
+		}
+		return binary.BigEndian.Uint16(msg[i:]), binary.BigEndian.Uint16(msg[i+2:]), true
+	}
+	return 0, 0, false
+}
+
 // transport returns the transport layer of the last decoded packet: the last
 // decoded layer, or the one before the DNS layer.
 func (p *dnsParser) transport() gopacket.LayerType {
@@ -183,12 +217,12 @@ func (p *dnsParser) parseResponseHeaderInto(pktInfo *dnsPacketInfo) bool {
 	var ok bool
 	switch p.transport() {
 	case layers.LayerTypeUDP:
-		ok = setResponseFromHeader(p.udpPayload.UDP.LayerPayload(), pktInfo)
+		ok = p.setResponseFromHeader(p.udpPayload.UDP.LayerPayload(), pktInfo)
 	case layers.LayerTypeTCP:
 		payload := p.tcpPayload.TCP.LayerPayload()
 		// The message usually starts after its 2-byte length, but the length
 		// may have been sent in a segment of its own.
-		ok = (len(payload) > 2 && setResponseFromHeader(payload[2:], pktInfo)) || setResponseFromHeader(payload, pktInfo)
+		ok = (len(payload) > 2 && p.setResponseFromHeader(payload[2:], pktInfo)) || p.setResponseFromHeader(payload, pktInfo)
 	}
 	if !ok {
 		return false
@@ -212,14 +246,19 @@ func (p *dnsParser) appendTrailingResponses() {
 	if next-2 < dnsHeaderLen || next > len(payload) {
 		return // the first message doesn't end in this segment
 	}
+	var key Key // the same for every response in the segment
 	for rest := payload[next:]; len(rest) > 2; rest = rest[next:] {
 		length := int(binary.BigEndian.Uint16(rest))
 		if length < dnsHeaderLen {
 			return
 		}
 		response := dnsPacketInfo{partial: true}
-		if setResponseFromHeader(rest[2:], &response) {
-			p.setKey(&response)
+		if p.setResponseFromHeader(rest[2:], &response) {
+			if len(p.trailing) == 0 {
+				p.setKey(&response)
+				key = response.key
+			}
+			response.key = key
 			p.trailing = append(p.trailing, response)
 		}
 		next = 2 + length
@@ -230,9 +269,11 @@ func (p *dnsParser) appendTrailingResponses() {
 }
 
 // setResponseFromHeader reads the ID and response code of a DNS response from
-// the start of msg. A false positive would still need to match the ID of a
-// pending query on the same connection.
-func setResponseFromHeader(msg []byte, pktInfo *dnsPacketInfo) bool {
+// the start of msg, if its question is of a recorded type, as parseAnswerInto
+// requires of whole messages. The question must be complete, which also makes
+// data from the middle of a message very unlikely to pass. A false positive
+// would still need to match the ID of a pending query on the same connection.
+func (p *dnsParser) setResponseFromHeader(msg []byte, pktInfo *dnsPacketInfo) bool {
 	if !isStandardQueryHeader(msg) {
 		return false
 	}
@@ -240,7 +281,12 @@ func setResponseFromHeader(msg []byte, pktInfo *dnsPacketInfo) bool {
 	if flags&0x8000 == 0 { // not a response
 		return false
 	}
+	qtype, qclass, ok := questionTypeAndClass(msg)
+	if !ok || layers.DNSClass(qclass) != layers.DNSClassIN || !p.isWantedQueryType(layers.DNSType(qtype)) {
+		return false
+	}
 	pktInfo.transactionID = binary.BigEndian.Uint16(msg[0:2])
+	pktInfo.queryType = QueryType(qtype)
 	pktInfo.rCode = uint8(flags & 0xf)
 	if pktInfo.rCode == 0 {
 		pktInfo.pktType = successfulResponse

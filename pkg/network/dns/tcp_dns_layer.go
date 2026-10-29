@@ -55,9 +55,11 @@ func (m *tcpWithDNSSupport) NextLayerType() gopacket.LayerType {
 	if m.startsWithCompleteDNSMessage() {
 		return layers.LayerTypeDNS
 	}
-	// The segment holds part of a message split across segments. Decoding it
-	// as DNS would fail, so stop here; the parser can still match a response
-	// from its header (see parseResponseHeaderInto).
+	// The segment doesn't start with a complete standard message: it holds part
+	// of a message split across segments, has no payload, or starts with a
+	// message DNS stats don't use. Stop here rather than decode it as DNS; the
+	// parser can still match a response from its header (see
+	// parseResponseHeaderInto).
 	// TODO: reassemble split messages so their answers reach the reverse DNS cache
 	return gopacket.LayerTypeZero
 }

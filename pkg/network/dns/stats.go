@@ -45,7 +45,7 @@ var statsTelemetry = struct {
 }{
 	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
 	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
-	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "late_responses", []string{}, "Counter measuring the number of DNS responses that arrived after the timeout and were counted as timeouts"),
+	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "late_responses", []string{}, "Counter measuring the number of DNS responses that arrived after the timeout but before their query expired, and were counted as timeouts"),
 	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "unmatched_responses", []string{}, "Counter measuring the number of DNS responses with no pending query: duplicates, responses after their query expired, or queries that were not recorded"),
 }
 
