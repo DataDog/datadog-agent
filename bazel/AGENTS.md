@@ -30,6 +30,26 @@ In containers there
 is no interactive Vault login, so a token must be injected via the
 `BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
 
+Local builds also auto-select the ADMS download mirror independently of the
+remote cache, including builds invoked through `dda inv test`. Selection lives
+in `bazel/tools/adms-select.sh`, with equivalent logic in `tools/bazel.bat`:
+
+- `DD_BAZEL_ADMS=auto` (default) probes
+  `depot-read-api-bzl.us1.ddbuild.io` and injects `--config=adms` when reachable.
+  The probe has a 2s connection timeout and 4s total timeout, rejects HTTP errors,
+  and caches either outcome for 60s in a per-user temporary directory.
+- `DD_BAZEL_ADMS=on` enables ADMS without probing; `off` disables automatic
+  injection. Explicit `--config=adms` still works with `off`.
+- To opt out persistently, add `common --downloader_config=` to `user.bazelrc`
+  or `~/.bazelrc`. Explicit downloader settings (empty or custom) and explicit
+  `--config=adms` / `--config=dd-internal` in either file or on the command line
+  take precedence over automatic injection, including with `on`. Commented
+  settings and definitions of named configs do not affect selection.
+
+CI continues to select ADMS through `--config=ci`; these policies only apply
+when `CI` is unset. This selects Bazel's archive mirror; Go module proxy
+configuration is managed separately.
+
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
 

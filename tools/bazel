@@ -49,7 +49,7 @@ else
   fi
 fi
 
-# Local developer remote cache selection (CI selects its own endpoint above).
+# Local developer cache and download mirror selection (CI selects its own above).
 if [ -z "${CI-}" ]; then
   remote_cache_select="$(dirname "$0")/../bazel/tools/remote-cache-select.sh"
   if [ -f "$remote_cache_select" ]; then
@@ -57,6 +57,13 @@ if [ -z "${CI-}" ]; then
     . "$remote_cache_select"
     cache_config=$(_remote_cache_config "$@") || :
     [ -n "$cache_config" ] && extra_args+=("$cache_config")
+  fi
+  adms_select="$(dirname "$0")/../bazel/tools/adms-select.sh"
+  if [ -f "$adms_select" ]; then
+    # shellcheck source=/dev/null
+    . "$adms_select"
+    adms_config=$(_adms_config "$@") || :
+    [ -n "$adms_config" ] && extra_args+=("$adms_config")
   fi
 fi
 

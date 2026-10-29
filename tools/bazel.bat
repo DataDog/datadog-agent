@@ -52,8 +52,12 @@ if defined XDG_CACHE_HOME (
   )
 )
 
-:: Local developer remote cache selection (CI selects its own endpoint above).
-if not defined CI call :remote_cache_select
+:: Local developer cache and download mirror selection (CI selects its own above).
+if not defined CI (
+  call :remote_cache_select
+  set "_adms_options=%*"
+  call :adms_select
+)
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
 for %%i in ("%~dp0..\.cache") do if defined XDG_CACHE_HOME (set "more_than_260_chars=!XDG_CACHE_HOME!") else set "more_than_260_chars=%%~fi"
@@ -196,4 +200,84 @@ if !errorlevel! neq 0 (
   exit /b 1
 )
 >"%_probe%" echo ok
+exit /b 0
+
+:: ADMS download mirror auto-selection. DD_BAZEL_ADMS=auto (default) | on | off.
+:: Explicit downloader settings and ADMS configs take precedence over injection.
+:adms_select
+call :adms_options_configured && goto :eof
+call :adms_rc_configured && goto :eof
+if not defined DD_BAZEL_ADMS set "DD_BAZEL_ADMS=auto"
+if /i "%DD_BAZEL_ADMS%"=="off" goto :eof
+if /i "%DD_BAZEL_ADMS%"=="on" goto :adms_enable
+if /i not "%DD_BAZEL_ADMS%"=="auto" (
+  >&2 echo 🔴 Unknown DD_BAZEL_ADMS=%DD_BAZEL_ADMS%, expected auto^|on^|off
+  goto :eof
+)
+call :adms_reachable || goto :eof
+:adms_enable
+if defined extra_args (set "extra_args=!extra_args! --config=adms") else set "extra_args=--config=adms"
+goto :eof
+
+:adms_options_configured
+set "_adms_remaining=!_adms_options!"
+set "_adms_next_config="
+:adms_next_option
+if not defined _adms_remaining exit /b 1
+set "_adms_arg="
+for /f "tokens=1*" %%A in ("!_adms_remaining!") do (
+  set "_adms_arg=%%~A"
+  set "_adms_remaining=%%B"
+)
+if not defined _adms_arg exit /b 1
+if "!_adms_arg!"=="--" exit /b 1
+if "!_adms_arg!"=="--config=adms" exit /b 0
+if "!_adms_arg!"=="--config=dd-internal" exit /b 0
+if "!_adms_arg!"=="--downloader_config" exit /b 0
+if "!_adms_arg:~0,20!"=="--downloader_config=" exit /b 0
+if defined _adms_next_config (
+  if "!_adms_arg!"=="adms" exit /b 0
+  if "!_adms_arg!"=="dd-internal" exit /b 0
+)
+set "_adms_next_config="
+if "!_adms_arg!"=="--config" set "_adms_next_config=1"
+goto :adms_next_option
+
+:adms_rc_configured
+for %%R in ("%~dp0..\user.bazelrc" "%USERPROFILE%\.bazelrc") do (
+  if exist "%%~R" for /f "usebackq tokens=1,*" %%S in ("%%~R") do (
+    set "_adms_scope=%%S"
+    if not "!_adms_scope:~0,1!"=="#" if "!_adms_scope::=!"=="!_adms_scope!" (
+      rem Strip inline comments; the prefix preserves empty text before '#'.
+      set "_adms_options=%%T"
+      for /f "tokens=1 delims=#" %%L in ("x!_adms_options!") do set "_adms_options=%%L"
+      set "_adms_options=!_adms_options:~1!"
+      call :adms_options_configured && exit /b 0
+    )
+  )
+)
+exit /b 1
+
+:: ADMS reachability: expire both results after 60s (no downloader fallback).
+:adms_reachable
+set "_adms_dir=%TEMP%\datadog-agent"
+set "_adms_probe=%_adms_dir%\adms-probe"
+if exist "%_adms_probe%" (
+  set "_adms_result="
+  set /p _adms_result=<"%_adms_probe%"
+  set "_adms_age="
+  for /f %%A in ('powershell -NoProfile -Command "[int]((Get-Date)-(Get-Item -LiteralPath $env:_adms_probe).LastWriteTime).TotalSeconds" 2^>nul') do set "_adms_age=%%A"
+  if defined _adms_age if !_adms_age! lss 60 (
+    if "!_adms_result!"=="ok" exit /b 0
+    if "!_adms_result!"=="no" exit /b 1
+  )
+)
+if not exist "%_adms_dir%" mkdir "%_adms_dir%" >nul 2>&1
+:: The root returns HTTP 400; probe a registry resource and reject HTTP errors.
+curl.exe --silent --fail --output NUL --connect-timeout 2 --max-time 4 "https://depot-read-api-bzl.us1.ddbuild.io/bcr.bazel.build/bazel_registry.json" >nul 2>&1
+if !errorlevel! neq 0 (
+  >"%_adms_probe%" echo no
+  exit /b 1
+)
+>"%_adms_probe%" echo ok
 exit /b 0
