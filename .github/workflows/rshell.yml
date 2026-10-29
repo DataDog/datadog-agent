@@ -39,7 +39,7 @@ permissions:
 jobs:
   # The regular Agent Bazel jobs run unit tests and race tests on all platforms.
   integration:
-    name: Bash comparison and Linux sandbox
+    name: Bash comparison and compliance
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -72,11 +72,6 @@ jobs:
         run: make -C pkg/rshell test_against_bash
       - name: Check module compliance
         run: make -C pkg/rshell compliance
-      - name: Test Linux sandbox without cgo
-        run: >-
-          dda inv test --module=pkg/rshell
-          --targets=internal/sandbox/landlock,internal/sandbox/seccomp
-          --bazel-args=--@rules_go//go/config:pure
 
   fuzz-packages:
     runs-on: ubuntu-latest

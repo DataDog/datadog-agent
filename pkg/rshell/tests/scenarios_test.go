@@ -7,6 +7,7 @@ package tests
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -31,6 +32,8 @@ import (
 )
 
 const (
+	// dockerBashImage is the image the Bash comparison runs in, unless
+	// RSHELL_BASH_IMAGE names another (such as a mirror of it).
 	dockerBashImage  = "debian:bookworm-slim"
 	dockerJQVersion  = "1.8.1"
 	dockerJQAMD64SHA = "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
@@ -462,10 +465,12 @@ func TestShellScenariosAgainstBash(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker not found, skipping bash comparison tests")
 	}
-	// Pull the image once before starting the container.
-	pull := exec.Command("docker", "pull", "-q", dockerBashImage)
+	image := cmp.Or(os.Getenv("RSHELL_BASH_IMAGE"), dockerBashImage)
+	// Pull the image once before starting the container. The comparison was
+	// requested, so a failed pull (e.g. a registry rate limit) fails the test.
+	pull := exec.Command("docker", "pull", "-q", image)
 	if out, err := pull.CombinedOutput(); err != nil {
-		t.Skipf("failed to pull %s docker image: %v\n%s", dockerBashImage, err, out)
+		t.Fatalf("failed to pull %s docker image: %v\n%s", image, err, out)
 	}
 
 	// Create a shared temp directory that will be bind-mounted into the container.
@@ -508,7 +513,7 @@ func TestShellScenariosAgainstBash(t *testing.T) {
 
 	cmd := exec.Command("docker", "run", "--rm",
 		"-v", sharedDir+":/work",
-		dockerBashImage, "bash", "/work/runner.sh",
+		image, "bash", "/work/runner.sh",
 	)
 	var dockerStderr bytes.Buffer
 	cmd.Stderr = &dockerStderr

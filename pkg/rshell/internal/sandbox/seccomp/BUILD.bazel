@@ -45,6 +45,37 @@ dd_agent_go_test(
     }),
 )
 
+# The rshell binary is built without cgo (pure = "on"), so run the sandbox tests
+# that way too: the *_purego_linux_test.go enforcement tests only build without cgo.
+dd_agent_go_test(
+    # keep
+    name = "seccomp_pure_test",
+    srcs = [
+        "elevation_purego_linux_test.go",
+        "policy_test.go",
+        "race_disabled_test.go",
+        "race_enabled_test.go",
+        "seccomp_linux_test.go",
+        "seccomp_test.go",
+        "seccomp_unsupported_test.go",
+    ],
+    embed = [":seccomp"],
+    pure = "on",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "@com_github_elastic_go_seccomp_bpf//:go-seccomp-bpf",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
 filegroup(
     name = "source_files",
     srcs = glob(["*.go"]),
