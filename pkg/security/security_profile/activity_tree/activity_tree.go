@@ -198,7 +198,8 @@ type ActivityTree struct {
 	Mounts     []*MountNode
 	mountIndex map[mountNodeKey]*MountNode
 
-	baseMountNamespaceIDs map[uint32]int
+	baseMountNSByCgroup     map[uint64]uint32
+	seededMountNamespaceIDs map[uint64]map[uint32]mountNamespaceSeedState
 
 	imageTagIDs []imageTagEntry
 }
@@ -218,15 +219,16 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
 
 	return &ActivityTree{
-		treeType:              treeType,
-		validator:             validator,
-		pathsReducer:          pathsReducer,
-		Stats:                 NewActivityTreeNodeStats(),
-		CookieToProcessNode:   cache,
-		SyscallsMask:          make(map[int]int),
-		DNSNames:              utils.NewStringKeys(nil),
-		baseMountNamespaceIDs: make(map[uint32]int),
-		mountIndex:            make(map[mountNodeKey]*MountNode),
+		treeType:                treeType,
+		validator:               validator,
+		pathsReducer:            pathsReducer,
+		Stats:                   NewActivityTreeNodeStats(),
+		CookieToProcessNode:     cache,
+		SyscallsMask:            make(map[int]int),
+		DNSNames:                utils.NewStringKeys(nil),
+		baseMountNSByCgroup:     make(map[uint64]uint32),
+		seededMountNamespaceIDs: make(map[uint64]map[uint32]mountNamespaceSeedState),
+		mountIndex:              make(map[mountNodeKey]*MountNode),
 	}
 }
 
@@ -249,7 +251,9 @@ func (at *ActivityTree) removeImageTag(imageTag string) uint64 {
 	for i, entry := range at.imageTagIDs {
 		if entry.inUse && entry.tag == imageTag {
 			at.imageTagIDs[i].inUse = false
-			return uint64(i + 1)
+			id := uint64(i + 1)
+			delete(at.seededMountNamespaceIDs, id)
+			return id
 		}
 	}
 	return 0
@@ -609,9 +613,9 @@ func IsContainerRuntime(entry *model.ProcessContext) bool {
 	return false
 }
 
-// FindRootProcess returns the process this entry would be rooted on in the tree
-// (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
-// runtime processes via isValidRootNode), or nil if there is none.
+// FindRootProcess returns the outermost valid workload process in the entry's
+// ancestor chain (skipping container runtime processes via isValidRootNode),
+// or nil if there is none.
 //
 // The walk stops at the workload boundary: ancestors outside the entry's
 // container (e.g. the host container runtime) are not eligible as the root.
@@ -626,11 +630,10 @@ func FindRootProcess(entry *model.ProcessContext) *model.ProcessContext {
 			break
 		}
 		branch = append(branch, cur)
-		ancestor := GetNextAncestorBinaryOrArgv0(cur)
-		if ancestor == nil {
+		if cur.Ancestor == nil || cur.Ancestor.FileEvent.Inode == 0 {
 			break
 		}
-		cur = &ancestor.ProcessContext
+		cur = &cur.Ancestor.ProcessContext
 	}
 
 	for i := len(branch) - 1; i >= 0; i-- {
@@ -1169,7 +1172,7 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	for _, mn := range at.Mounts {
 		if mn.EvictImageTag(imageTagID) {
 			removedBytes += mn.size()
-			delete(at.mountIndex, mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags})
+			delete(at.mountIndex, mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags, inBaseNamespace: mn.InBaseNamespace})
 			continue
 		}
 		newMounts = append(newMounts, mn)
