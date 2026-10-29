@@ -14,8 +14,43 @@ script
     exit 0
   fi
   # Upstart before 1.4 (RHEL6) has no setuid, so su switches user.
-  # su drops the environment without -m, so the environment is set inside the -c string.
-  exec su -s /bin/sh -c 'if [ -r "{etc_dir}/environment" ]; then set -a; . "{etc_dir}/environment"; set +a; fi; DD_LOG_TO_CONSOLE=false DD_PM_CONFIG_DIR="{install_dir}/processes.d" DD_CONF_DIR="{etc_dir}" DD_PID_DIR="{install_dir}" DD_INSTALL_DIR="{install_dir}" exec "$0" "$@"' dd-agent -- {install_dir}/embedded/bin/dd-procmgrd >> /var/log/datadog/procmgr-errors.log 2>&1
+  # su drops the environment. The heredoc reads the environment file as dd-agent.
+  exec su -s /bin/sh -c 'exec /bin/sh -s -- "$0" "$@"' dd-agent -- \
+    {etc_dir} {install_dir} {install_dir}/embedded/bin/dd-procmgrd \
+    >> /var/log/datadog/procmgr-errors.log 2>&1 <<'END_LOAD_ENV'
+etc=$1
+install=$2
+daemon=$3
+if [ -r "$etc/environment" ]; then
+	while IFS= read -r line || [ -n "$line" ]; do
+		case $line in
+		""|"#"*|";"*) continue ;;
+		esac
+		case $line in
+		*=*) ;;
+		*) continue ;;
+		esac
+		key=${line%%=*}
+		value=${line#*=}
+		case $key in
+		*[!A-Za-z0-9_]*|"") continue ;;
+		[0-9]*) continue ;;
+		esac
+		case $value in
+		\"*\") value=${value#\"}; value=${value%\"} ;;
+		\'*\') value=${value#\'}; value=${value%\'} ;;
+		esac
+		export "$key=$value"
+	done < "$etc/environment"
+fi
+export DD_LOG_TO_CONSOLE=false
+export DD_PM_CONFIG_DIR="$install/processes.d"
+export DD_CONF_DIR="$etc"
+export DD_PID_DIR="$install"
+export DD_INSTALL_DIR="$install"
+exec "$daemon"
+exit 1
+END_LOAD_ENV
 end script
 
 pre-start script

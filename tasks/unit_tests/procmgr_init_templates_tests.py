@@ -245,9 +245,24 @@ exit 98
         self.assertEqual(seen.get('DD_EXTRA'), 'from-file')
         self.assertEqual(seen.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
 
-    def test_redhat_upstart_sets_environment_inside_su_command(self):
+    def test_redhat_upstart_parses_environment_file_as_dd_agent(self):
         layout = Layout(self.root)
+        marker = self.root / 'pwned'
         logfile = self.root / 'procmgr-errors.log'
+        (layout.etc / 'environment').write_text(
+            '# comment\n'
+            '; comment\n'
+            '\n'
+            'not-assignment\n'
+            'DD_EXTRA=from-file\n'
+            'DD_INSTALL_DIR=/wrong\n'
+            'DD_CONF_DIR=/wrong\n'
+            'DD_LOG_TO_CONSOLE=true\n'
+            'AGENT_USER=root\n'
+            'DD_QUOTED="hello world"\n'
+            f'DD_PAYLOAD=$(touch {marker})\n'
+            f'touch {marker}\n'
+        )
         script = render(upstart_main_block(UPSTART_REDHAT), layout.install, layout.etc)
         script = script.replace('/var/log/datadog/procmgr-errors.log', str(logfile))
         script_path = self.root / 'upstart-script.sh'
@@ -273,23 +288,31 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
             check=False,
             timeout=30,
         )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        log = logfile.read_text() if logfile.exists() else ''
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr + log)
+        self.assertFalse(marker.exists())
 
         seen = parse_env(layout.env_out)
         for key, value in layout.expected_four().items():
             self.assertEqual(seen.get(key), value, key)
         self.assertEqual(seen.get('DD_EXTRA'), 'from-file')
+        self.assertEqual(seen.get('DD_QUOTED'), 'hello world')
+        self.assertEqual(seen.get('DD_PAYLOAD'), f'$(touch {marker})')
         self.assertEqual(seen.get('DD_LOG_TO_CONSOLE'), 'false')
+        self.assertEqual(seen.get('AGENT_USER'), 'root')
         self.assertNotIn('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED', seen)
 
-    def test_redhat_su_command_contains_all_variables(self):
+    def test_redhat_su_command_does_not_source_the_environment_file(self):
         template = UPSTART_REDHAT.read_text()
+        self.assertNotIn('. "{etc_dir}/environment"', template)
+        self.assertNotIn('set -a', template)
         match = re.search(r"exec su -s /bin/sh -c '(.*?)' dd-agent --", template, re.DOTALL)
         self.assertIsNotNone(match, 'su -c command not found in the Red Hat procmgr job')
-        command = match.group(1)
+        self.assertEqual(match.group(1), 'exec /bin/sh -s -- "$0" "$@"')
+        heredoc = template.split("<<'END_LOAD_ENV'\n", 1)[1].split('\nEND_LOAD_ENV\n', 1)[0]
         for name in (*FOUR_VARIABLES, 'DD_LOG_TO_CONSOLE'):
-            self.assertIn(f'{name}=', command)
-        self.assertIn('. "{etc_dir}/environment"', command)
+            self.assertIn(f'export {name}=', heredoc)
+        self.assertLess(heredoc.index('export "$key=$value"'), heredoc.index('export DD_LOG_TO_CONSOLE=false'))
 
     def test_runtime_dir_is_created_as_root_before_the_daemon(self):
         sysv = SYSV_PROCMGR.read_text()
