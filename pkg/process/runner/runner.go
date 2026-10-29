@@ -169,7 +169,7 @@ func (l *CheckRunner) runCheck(c checks.Check) {
 
 	msg := &types.Payload{
 		CheckName: c.Name(),
-		Message:   result.Payloads(),
+		Messages:  result.Payloads(),
 	}
 	l.Submitter.Submit(start, c.Name(), msg)
 
@@ -196,7 +196,7 @@ func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOp
 
 	msg := &types.Payload{
 		CheckName: c.Name(),
-		Message:   result.Payloads(),
+		Messages:  result.Payloads(),
 	}
 	l.Submitter.Submit(start, c.Name(), msg)
 	if options.RunStandard {
@@ -210,11 +210,11 @@ func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOp
 
 	rtName := checks.RTName(c.Name())
 	msg = &types.Payload{
-		Message: result.RealtimePayloads(),
+		Messages: result.RealtimePayloads(),
 	}
 	l.Submitter.Submit(start, rtName, msg)
 	if options.RunRealtime {
-		checks.StoreCheckOutput(rtName, msg.Message)
+		checks.StoreCheckOutput(rtName, msg.Messages)
 	}
 }
 

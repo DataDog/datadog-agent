@@ -3,6 +3,8 @@ import unittest
 from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, patch
 
+import invoke.exceptions as ie
+
 from tasks.kernel_matrix_testing import compiler, platforms, tool, vmconfig
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.libs.types.arch import Arch
@@ -246,40 +248,87 @@ class TestCompilerUser(unittest.TestCase):
         exec_.assert_called_once_with("getent passwd 0", user="root")
 
 
+def _proc(code: int) -> MagicMock:
+    return MagicMock(returncode=code)
+
+
+@patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
 class TestEnsureSudoPrivileges(unittest.TestCase):
     def _ctx(self, groups: str) -> MagicMock:
         ctx = MagicMock()
         ctx.run.return_value = MagicMock(ok=True, stdout=groups)
         return ctx
 
-    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
     @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
     @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
-    def test_requests_privileges_when_not_admin(self, *_):
+    def test_requests_privileges_before_authenticating(self, _exists, auth, _root):
         ctx = self._ctx("staff everyone")
+        auth.side_effect = lambda: ctx.run.assert_called_with(f"'{tool.PRIVILEGES_CLI}' --add --reason 'test'")
         tool.ensure_sudo_privileges(ctx, "test")
-        ctx.run.assert_called_with(f"'{tool.PRIVILEGES_CLI}' --add --reason 'test'")
+        auth.assert_called_once()
 
-    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
     @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
     @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
-    def test_noop_when_already_admin(self, *_):
+    def test_already_admin_still_authenticates(self, _exists, auth, _root):
         ctx = self._ctx("staff admin everyone")
         tool.ensure_sudo_privileges(ctx, "test")
         ctx.run.assert_called_once_with("id -Gn", hide=True, warn=True)
+        auth.assert_called_once()
 
-    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
     @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=False)
     @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
-    def test_noop_without_privileges_app(self, *_):
+    def test_without_privileges_app(self, _exists, auth, _root):
         ctx = self._ctx("staff")
         tool.ensure_sudo_privileges(ctx, "test")
         ctx.run.assert_not_called()
+        auth.assert_called_once()
+
+    @patch("tasks.kernel_matrix_testing.tool.authenticate_sudo")
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "linux")
+    def test_linux(self, auth, _root):
+        ctx = self._ctx("staff")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_not_called()
+        auth.assert_called_once()
+
+
+@patch("tasks.kernel_matrix_testing.tool.subprocess.run")
+class TestAuthenticateSudo(unittest.TestCase):
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=True)
+    def test_root(self, _root, run):
+        tool.authenticate_sudo()
+        run.assert_not_called()
 
     @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
-    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
-    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "linux")
-    def test_noop_on_linux(self, *_):
-        ctx = self._ctx("staff")
-        tool.ensure_sudo_privileges(ctx, "test")
-        ctx.run.assert_not_called()
+    def test_cached(self, _root, run):
+        run.return_value = _proc(0)
+        tool.authenticate_sudo()
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], ["sudo", "-n", "true"])
+
+    @patch("tasks.kernel_matrix_testing.tool.sys.stdin")
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    def test_headless(self, _root, stdin, run):
+        stdin.isatty.return_value = False
+        run.return_value = _proc(1)
+        tool.authenticate_sudo()
+        run.assert_called_once()
+
+    @patch("tasks.kernel_matrix_testing.tool.sys.stdin")
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    def test_prompts_on_tty(self, _root, stdin, run):
+        stdin.isatty.return_value = True
+        run.side_effect = [_proc(1), _proc(0)]
+        tool.authenticate_sudo()
+        self.assertEqual(run.call_args.args[0], ["sudo", "-v"])
+
+    @patch("tasks.kernel_matrix_testing.tool.sys.stdin")
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    def test_failure_raises(self, _root, stdin, run):
+        stdin.isatty.return_value = True
+        run.side_effect = [_proc(1), _proc(1)]
+        with self.assertRaises(ie.Exit):
+            tool.authenticate_sudo()

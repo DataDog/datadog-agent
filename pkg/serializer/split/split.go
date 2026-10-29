@@ -15,17 +15,54 @@ import (
 var maxPayloadSizeCompressed = 2 * 1024 * 1024
 var maxPayloadSizeUnCompressed = 64 * 1024 * 1024
 
+// SizeLimit is a bitmap of the payload size limits exceeded by a serialized payload.
+type SizeLimit uint8
+
+const (
+	// CompressedLimit is set when the compressed payload exceeds maxPayloadSizeCompressed.
+	CompressedLimit SizeLimit = 1 << iota
+	// UncompressedLimit is set when the uncompressed payload exceeds maxPayloadSizeUnCompressed.
+	UncompressedLimit
+
+	// WithinLimits means the payload exceeds no size limit.
+	WithinLimits SizeLimit = 0
+)
+
+// String returns the exceeded limits as a bounded set of values, suitable as a telemetry tag.
+func (l SizeLimit) String() string {
+	switch l {
+	case WithinLimits:
+		return "none"
+	case CompressedLimit:
+		return "compressed"
+	case UncompressedLimit:
+		return "uncompressed"
+	case CompressedLimit | UncompressedLimit:
+		return "both"
+	default:
+		return "unknown"
+	}
+}
+
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.JSONMarshaler, compress bool, strategy compression.Component) (bool, []byte, []byte, error) {
+// The returned SizeLimit has a bit set for each limit exceeded by the payload, it is WithinLimits if the payload
+// doesn't need to be split.
+func CheckSizeAndSerialize(m marshaler.JSONMarshaler, compress bool, strategy compression.Component) (SizeLimit, []byte, []byte, error) {
 	compressedPayload, payload, err := serializeMarshaller(m, compress, strategy)
 	if err != nil {
-		return false, nil, nil, err
+		return WithinLimits, nil, nil, err
 	}
 
-	mustBeSplit := tooBigCompressed(compressedPayload) || tooBigUnCompressed(payload)
+	exceeded := WithinLimits
+	if tooBigCompressed(compressedPayload) {
+		exceeded |= CompressedLimit
+	}
+	if tooBigUnCompressed(payload) {
+		exceeded |= UncompressedLimit
+	}
 
-	return mustBeSplit, compressedPayload, payload, nil
+	return exceeded, compressedPayload, payload, nil
 }
 
 // serializeMarshaller serializes the marshaller and returns both the compressed and uncompressed payloads

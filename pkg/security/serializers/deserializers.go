@@ -83,6 +83,7 @@ func newProcess(ps *ProcessSerializer) model.Process {
 	if ps.Container != nil {
 		p.ContainerContext.ContainerID = containerutils.ContainerID(ps.Container.ID)
 		p.ContainerContext.PodUID = ps.Container.PodUID
+		p.ContainerContext.ECSTaskID = ps.Container.ECSTaskID
 	}
 
 	// TODO: credentials
