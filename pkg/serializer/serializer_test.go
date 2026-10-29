@@ -519,7 +519,7 @@ func TestSendMetadata(t *testing.T) {
 	}
 }
 
-func TestSendMetadataScrubsDebugLog(t *testing.T) {
+func TestSendMetadataDoesNotLogPayload(t *testing.T) {
 	var logs bytes.Buffer
 	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&logs, pkglog.DebugLvl)
 	require.NoError(t, err)
@@ -541,8 +541,8 @@ func TestSendMetadataScrubsDebugLog(t *testing.T) {
 	logger.Flush()
 
 	assert.Contains(t, logs.String(), "Sending metadata payload")
-	assert.Contains(t, logs.String(), `"hash_secret_id":"********"`)
-	assert.Contains(t, logs.String(), "my_key")
+	assert.NotContains(t, logs.String(), "enc_info")
+	assert.NotContains(t, logs.String(), "my_key")
 	assert.NotContains(t, logs.String(), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
 }
 
