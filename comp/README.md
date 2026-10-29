@@ -833,13 +833,11 @@ Package tracetelemetry sends telemetry about the trace-agent and its state
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet windows-products
+*Datadog Team*: fleet
 
 Package updater implements the updater component.
 
 ### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
-
-*Datadog Team*: fleet
 
 Package daemonchecker retrieves the running status of the installer daemon
 
@@ -852,8 +850,6 @@ Package localapi is the updater local api component.
 Package localapiclient provides the local API client component.
 
 ### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
-
-*Datadog Team*: fleet
 
 Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
 add it to the inventoryagent payload.
@@ -900,8 +896,6 @@ Package datadogclient provides a client to query the datadog API
 
 ### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
 
-*Datadog Team*: fleet
-
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
 ### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
@@ -932,8 +926,6 @@ and tags from metrics as they are being processed to prevent them from being sen
 to DataDog.
 
 ### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
-
-*Datadog Team*: fleet
 
 Package fleetstatus implements the core status component information provider interface
 
@@ -973,6 +965,12 @@ Package networkconfigmanagement provides the component for retrieving network de
 
 Package networkdevices provides the Agent-side component for NDM.
 
+### [comp/networkpcap/uploader](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpcap/uploader)
+
+*Datadog Team*: cloud-network-monitoring
+
+Package uploader sends network packet captures to the networkpcap intake as streamed multipart uploads
+
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
 *Datadog Team*: windows-products
@@ -993,6 +991,12 @@ last-written timestamp so callers can measure how long the agent was offline.
 
 Package privateactionrunner provides a component that enables private actions executions
 
+### [comp/privateactionrunner/phonehome](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome)
+
+*Datadog Team*: action-platform
+
+Package phonehome defines the core-owned PAR startup gate.
+
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products
@@ -1001,7 +1005,7 @@ Package publishermetadatacache provides a cache for Windows Event Log publisher 
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
-*Datadog Team*: ndm-integrations
+*Datadog Team*: ndm-integrations network-path
 
 Package rdnsquerier provides the reverse DNS querier component.
 

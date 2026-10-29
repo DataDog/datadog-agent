@@ -955,9 +955,11 @@ func newKueueWorkload(workloadMetadata *pb.KueueWorkload) *workloadmeta.Kubernet
 			Annotations: workloadMetadata.Annotations,
 			UID:         workloadMetadata.Uid,
 		},
-		QueueName:         workloadMetadata.Queue,
-		ClusterQueueName:  workloadMetadata.ClusterQueue,
-		PodSetAssignments: workloadmetaKueuePodSetAssignments(workloadMetadata.PodSetAssignments),
+		QueueName:              workloadMetadata.Queue,
+		ClusterQueueName:       workloadMetadata.ClusterQueue,
+		PodSetAssignments:      workloadmetaKueuePodSetAssignments(workloadMetadata.PodSetAssignments),
+		PodTemplateLabels:      workloadMetadata.PodTemplateLabels,
+		PodTemplateAnnotations: workloadMetadata.PodTemplateAnnotations,
 	}
 }
 

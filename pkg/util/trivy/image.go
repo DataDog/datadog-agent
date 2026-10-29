@@ -122,6 +122,12 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		return img.configFile()
 	}
 
+	return img.inspectConfigFile()
+}
+
+// inspectConfigFile returns the config file that the inspect response and the
+// history describe, whose history may disagree with its diff IDs.
+func (img *image) inspectConfigFile() (*v1.ConfigFile, error) {
 	diffIDs, err := img.diffIDs()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get diff IDs: %w", err)
