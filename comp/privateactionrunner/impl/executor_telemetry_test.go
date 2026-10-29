@@ -120,7 +120,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 				return nil, 0, nil
 			},
 		}
-		runner.workflowRunner, err = runners.NewWorkflowRunner(runnerConfig, cfg, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil)
+		runner.workflowRunner, err = runners.NewWorkflowRunner(runnerConfig, cfg, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		require.NoError(t, runner.workflowRunner.Start(context.Background()))
 		<-pollStarted

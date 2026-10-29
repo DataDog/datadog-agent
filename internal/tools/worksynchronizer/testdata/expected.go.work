@@ -3,5 +3,6 @@ go 1.25.7
 use (
 	./comp/core
 	./pkg/util/log
+	./pkg/util/snapshot_local
 	./test/integration
 )

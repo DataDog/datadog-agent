@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -95,10 +97,12 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
 		for _, o := range podOwners {
+			gv, _ := schema.ParseGroupVersion(o.APIVersion)
 			owners = append(owners, workloadmeta.KubernetesPodOwner{
 				Kind:       o.Kind,
 				Name:       o.Name,
 				ID:         o.ID,
+				Group:      gv.Group,
 				Controller: o.Controller,
 			})
 		}

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -238,6 +239,8 @@ func (o *oscapIO) evaluate(ctx context.Context, reqs []xccdfRequest, report func
 // run evaluates reqs with one oscap-io process and calls report with each
 // result. It returns the index of the request after the last one answered,
 // and the reason the process ended before answering every request, if any.
+// The process gets a TMPDIR of its own, removed once it has exited: OpenSCAP
+// removes its temporary files only when it exits cleanly.
 func (o *oscapIO) run(ctx context.Context, reqs []xccdfRequest, report func(xccdfResult)) (int, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -246,6 +249,16 @@ func (o *oscapIO) run(ctx context.Context, reqs []xccdfRequest, report func(xccd
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", errStart, err)
 	}
+	tmp, err := os.MkdirTemp("", "oscap-io-")
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", errStart, err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			log.Warnf("oscap-io %s: %v", o.name, err)
+		}
+	}()
+	cmd.Env = append(cmd.Environ(), "TMPDIR="+tmp)
 	o.stderr.name = o.name
 	cmd.Stderr = &o.stderr
 	cmd.WaitDelay = xccdfWaitDelay

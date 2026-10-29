@@ -29,7 +29,7 @@
 --   Aggregator contract.
 -- Excludes:
 --   - Specific Aggregator implementations. Each Aggregator-
---     fulfilling entity (CombiningAggregator, DetectingAggregator,
+--     fulfilling entity (CombiningAggregator,
 --     PassThroughAggregator, RegexAggregator) lives in its own
 --     spec module and declares fulfils Aggregator against this
 --     contract.
