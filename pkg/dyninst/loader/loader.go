@@ -237,6 +237,9 @@ func (l *Loader) Close() (err error) {
 
 // Program represents a loaded eBPF program.
 type Program struct {
+	// Collection is nil in Programs that tests build without loading
+	// anything into the kernel. Program's methods treat a nil Collection
+	// as one with no maps.
 	Collection   *ebpf.Collection
 	BpfProgram   *ebpf.Program
 	Attachpoints []BPFAttachPoint
@@ -303,6 +306,9 @@ type RuntimeStats struct {
 // eBPF). The returned slice has length equal to the program's probe
 // count.
 func (p *Program) RuntimeStats() []RuntimeStats {
+	if p.Collection == nil {
+		return nil
+	}
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
 		return nil
@@ -351,6 +357,9 @@ const dropNotifyLostAtMapName = "drop_notify_lost_at"
 // because the side-channel ringbuf was full. Returns 0 if no failure has
 // ever been recorded for this program (or if the map is unavailable).
 func (p *Program) DropNotifyLostAt() uint64 {
+	if p.Collection == nil {
+		return 0
+	}
 	m, ok := p.Collection.Maps[dropNotifyLostAtMapName]
 	if !ok {
 		return 0
