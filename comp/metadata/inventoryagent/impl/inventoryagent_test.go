@@ -1076,6 +1076,34 @@ func TestShowMetadataScrubsSecretHashes(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
 }
 
+func TestStatusOmitsSecretHashes(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, nil, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+	ia.fetchSecretsMetadata()
+
+	stats := map[string]interface{}{}
+	require.NoError(t, ia.JSON(false, stats))
+	encInfo := stats["agent_metadata"].(map[string]interface{})["enc_info"].(map[string]interface{})
+	assert.NotContains(t, encInfo, "hash_secret_id")
+	assert.Equal(t, []string{"my_key"}, encInfo["handles"])
+
+	text := new(bytes.Buffer)
+	require.NoError(t, ia.Text(false, text))
+	html := new(bytes.Buffer)
+	require.NoError(t, ia.HTML(false, html))
+	for _, out := range []string{text.String(), html.String()} {
+		assert.Contains(t, out, "my_key")
+		assert.NotContains(t, out, "hash_secret_id")
+		assert.NotContains(t, out, "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
+	}
+
+	// The payload sent to the backend still carries the hashes
+	assert.Contains(t, ia.data["enc_info"], "hash_secret_id")
+}
+
 func TestGetProvidedConfigurationDisable(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": false,
