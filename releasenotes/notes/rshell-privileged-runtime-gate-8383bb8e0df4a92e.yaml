@@ -27,6 +27,11 @@ fixes:
     Agent. It no longer stops when the private action runner service exits,
     for example in split mode, and it no longer creates a boot-time systemd
     ordering cycle that could leave it missing after a reboot. When the
-    helper is enabled but not running, for example because the kernel lacks
-    the Landlock support it needs, restricted shell tasks run without
-    elevation instead of failing.
+    privileged helper is enabled but cannot be reached, for example because
+    the kernel lacks the Landlock support it needs or the helper is not
+    running, ordinary restricted shell commands still run, so non-privileged
+    automation is unaffected. Commands that request elevation fail instead of
+    running unprivileged, because elevation is enforced by the helper's
+    host-local policy, which the ordinary interpreter does not apply. When
+    privileged mode is disabled, all restricted shell commands run through the
+    ordinary interpreter and elevation is rejected.
