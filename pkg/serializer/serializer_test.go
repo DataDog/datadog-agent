@@ -10,6 +10,9 @@ package serializer
 import (
 	"bytes"
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -24,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -36,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -627,4 +632,40 @@ func TestSendWithDisabledKind(t *testing.T) {
 			f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
 		})
 	}
+}
+
+type rawJSONPayload []byte
+
+func (p rawJSONPayload) MarshalJSON() ([]byte, error) { return p, nil }
+
+func TestSendMetadataTooBig(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("serializer_compressor_kind", compression.ZstdKind)
+
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+	dropMetrics := newMetadataDropMetrics(telemetryimpl.NewMock(t))
+	s.metadataDropMetrics = dropMetrics
+
+	// random bytes don't compress, so the payload exceeds the 2MiB compressed limit
+	raw := make([]byte, 3<<20)
+	_, err := cryptorand.Read(raw)
+	require.NoError(t, err)
+	payload, err := json.Marshal(base64.StdEncoding.EncodeToString(raw))
+	require.NoError(t, err)
+
+	err = s.SendMetadata(rawJSONPayload(payload))
+	require.ErrorContains(t, err, "metadata payload was too big to send")
+	f.AssertNotCalled(t, "SubmitMetadata", mock.Anything, mock.Anything)
+
+	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(split.CompressedLimit.String()).Get())
+	assert.Zero(t, dropMetrics.payloads.WithValues(split.UncompressedLimit.String()).Get())
+
+	compressed := dropMetrics.bytes.WithValues("compressed").Get()
+	assert.Equal(t, uint64(1), compressed.Count)
+	assert.Greater(t, compressed.Sum, float64(2<<20))
+	uncompressed := dropMetrics.bytes.WithValues("uncompressed").Get()
+	assert.Equal(t, uint64(1), uncompressed.Count)
+	assert.Equal(t, float64(len(payload)), uncompressed.Sum)
 }

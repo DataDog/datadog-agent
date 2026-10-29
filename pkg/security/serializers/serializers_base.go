@@ -32,6 +32,8 @@ type ContainerContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// Kubernetes pod UID
 	PodUID string `json:"pod_uid,omitempty"`
+	// ECS task ID
+	ECSTaskID string `json:"ecs_task_id,omitempty"`
 	// Source of the container entry (event or procfs)
 	Source string `json:"source,omitempty"`
 	// Creation time of the container

@@ -8199,6 +8199,14 @@ properties:
         default: {}
         additionalProperties:
           type: string
+      include_env_vars:
+        node_type: setting
+        type: string
+        default: ''
+        description: |-
+          Comma-separated names of additional environment variables to collect from profiled processes.
+          These variables are collected in addition to the default service, environment, and version metadata.
+          Only include variables whose values are safe to send with profiles; do not include secrets.
       send_error_frames:
         node_type: setting
         type: boolean

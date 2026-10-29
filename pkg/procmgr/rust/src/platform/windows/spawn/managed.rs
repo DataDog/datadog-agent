@@ -27,8 +27,8 @@ impl ManagedProcess {
         }
     }
 
-    fn spawn_request(&self) -> Result<SpawnRequest> {
-        SpawnRequest::from_config(self.name(), self.config())
+    fn spawn_request(&self, inherit_supervisor_env: bool) -> Result<SpawnRequest> {
+        SpawnRequest::from_config(self.name(), self.config(), inherit_supervisor_env)
     }
 
     fn spawn_agent(&mut self) -> Result<ProcessHandle> {
@@ -43,7 +43,7 @@ impl ManagedProcess {
         };
 
         if credential.reuses_supervisor_token() {
-            let request = self.spawn_request()?;
+            let request = self.spawn_request(true)?;
             return self.spawn_with_supervisor_inherit(&request, &credential);
         }
 
@@ -51,7 +51,7 @@ impl ManagedProcess {
     }
 
     fn spawn_agent_logon(&mut self, credential: &SpawnCredential) -> Result<ProcessHandle> {
-        let request = self.spawn_request()?;
+        let request = self.spawn_request(false)?;
         let job = JobObject::new().with_context(|| {
             format!("[{}] create job object for child supervision", self.name())
         })?;
@@ -67,7 +67,7 @@ impl ManagedProcess {
     }
 
     fn spawn_privileged(&mut self) -> Result<ProcessHandle> {
-        let request = self.spawn_request()?;
+        let request = self.spawn_request(true)?;
         privileged::validate_process_request(self.name(), &request)?;
         privileged::validate_supervisor_is_local_system(self.name())?;
         self.spawn_with_supervisor_inherit(&request, &SpawnCredential::privileged())

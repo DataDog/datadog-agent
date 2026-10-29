@@ -1,0 +1,6 @@
+logs:
+  - type: tcp
+    port: 10000
+    format: syslog
+    service: "my-service"
+    source: "my-client-app"
