@@ -72,6 +72,9 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	if connInfo == nil {
 		return nil, nil
 	}
+	if len(connInfo.GetTokens()) > 0 && len(connInfo.GetTokensV2()) > 0 {
+		return nil, errors.New("connection must not mix legacy and V2 tokens")
+	}
 	tokens, details := privateconnection.ExtractConnectionDetails(connInfo)
 	switch connInfo.CredentialsType {
 	case privateactionspb.CredentialsType_TOKEN_AUTH:
@@ -85,6 +88,9 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_BASIC_AUTH:
+		if len(connInfo.GetTokensV2()) > 0 {
+			return p.resolveV2Credentials(ctx, connInfo.GetTokensV2(), privateconnection.BasicAuthType)
+		}
 		credentialTokens, err := resolveBasicAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
@@ -95,18 +101,33 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
-		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2())
-		if err != nil {
-			return nil, err
-		}
-		tokens, details = privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: resolvedTokens})
-		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
-		if err != nil {
-			return nil, err
-		}
-		return &privateconnection.PrivateCredentials{Tokens: credentialTokens, Type: privateconnection.TokenAuthType, HttpDetails: details}, nil
+		return p.resolveV2Credentials(ctx, connInfo.GetTokensV2(), privateconnection.TokenAuthType)
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
+}
+
+// Token encoding is independent of the authentication type. In particular,
+// BASIC_AUTH can use either legacy file-backed tokens or tokens_v2.
+func (p *privateCredentialResolver) resolveV2Credentials(ctx context.Context, source []*privateactionspb.ConnectionTokenV2, authType privateconnection.AuthType) (*privateconnection.PrivateCredentials, error) {
+	resolvedTokens, err := p.resolveConnectionTokensV2(source)
+	if err != nil {
+		return nil, err
+	}
+	tokens, details := privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: resolvedTokens})
+	credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
+	if err != nil {
+		return nil, err
+	}
+	credentials := &privateconnection.PrivateCredentials{Tokens: credentialTokens, Type: authType, HttpDetails: details}
+	if authType == privateconnection.BasicAuthType {
+		values := credentials.AsTokenMap()
+		_, hasUsername := values[privateconnection.UsernameTokenName]
+		_, hasPassword := values[privateconnection.PasswordTokenName]
+		if !hasUsername || !hasPassword {
+			return nil, errors.New("basic auth requires username and password tokens")
+		}
+	}
+	return credentials, nil
 }
 
 func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
