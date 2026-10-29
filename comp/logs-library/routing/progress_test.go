@@ -221,8 +221,7 @@ func TestObsoleteGenerationCannotBecomeCurrentAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	old := progressMessage("file", "old-10")
-	newer := progressMessage("file", "new-1")
+	old, newer := progressMessage("file", "old-10"), progressMessage("file", "new-1")
 	for _, entry := range []struct {
 		message    *message.Message
 		generation uint64
@@ -236,27 +235,65 @@ func TestObsoleteGenerationCannotBecomeCurrentAgain(t *testing.T) {
 	if got := nextCheckpoint(t, sink.ch); got != "new-1" {
 		t.Fatalf("replacement checkpoint: %q", got)
 	}
-	if p.Pending() != 0 {
-		t.Fatal("source queue did not drain")
+	// The older producer can keep draining after replacement and queue drain.
+	late := progressMessage("file", "old-11")
+	if _, err := p.Register(context.Background(), late, Selection{Generation: 42}, []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	latest := progressMessage("file", "new-2")
+	if _, err := p.Register(context.Background(), latest, Selection{Generation: 7}, []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	p.CompleteGroup("a", terminalPayload(latest))
+	select {
+	case <-sink.ch:
+		t.Fatal("checkpoint crossed pending old-producer record")
+	default:
+	}
+	p.CompleteGroup("a", terminalPayload(late))
+	if got := nextCheckpoint(t, sink.ch); got != "new-2" {
+		t.Fatalf("older producer reclaimed checkpoint ownership: %q", got)
 	}
 	if err := p.RetireSource("file", 42); err != nil {
 		t.Fatal(err)
 	}
-	stale := progressMessage("file", "old-11")
-	if _, err := p.Register(context.Background(), stale, Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrInvalidSelection) {
-		t.Fatalf("obsolete generation reappeared after queue drained: %v", err)
+	if _, err := p.Register(context.Background(), progressMessage("file", "old-12"), Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrObsoleteGeneration) {
+		t.Fatalf("retired generation accepted: %v", err)
 	}
-	if err := p.HoldInvalid(context.Background(), stale); err != nil {
+	if len(sink.ch) != 0 || p.Pending() != 0 {
+		t.Fatal("retired producer changed replacement progress")
+	}
+}
+
+func TestInvalidBarrierDoesNotPreventProducerRetirement(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 1)}
+	p, err := NewProgress(4, sink)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sink.ch) != 0 || p.Pending() != 1 {
-		t.Fatal("stale source record changed the replacement checkpoint")
-	}
-	if err := p.RetireSource("file", 7); err != nil {
+	defer p.Close()
+	m := progressMessage("file", "1")
+	if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Register(context.Background(), progressMessage("file", "old-12"), Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrInvalidSelection) {
-		t.Fatalf("invalid barrier released obsolete generation: %v", err)
+	p.CompleteGroup("a", terminalPayload(m))
+	if got := nextCheckpoint(t, sink.ch); got != "1" {
+		t.Fatal(got)
+	}
+	if err := p.HoldInvalid(context.Background(), progressMessage("file", "2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.RetireSource("file", 1); err != nil {
+		t.Fatalf("barrier prevented producer retirement: %v", err)
+	}
+	if !p.OwnsSource("file") || p.Pending() != 1 {
+		t.Fatal("retirement released unresolved source barrier")
+	}
+	if _, err := p.Register(context.Background(), progressMessage("file", "3"), Selection{Generation: 1}, []string{"a"}); !errors.Is(err, ErrObsoleteGeneration) {
+		t.Fatalf("retired producer accepted: %v", err)
+	}
+	if len(sink.ch) != 0 {
+		t.Fatal("barrier advanced checkpoint")
 	}
 }
 

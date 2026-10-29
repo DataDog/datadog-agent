@@ -1108,3 +1108,80 @@ func TestRoutedProviderPermanentHTTPRejectionIsTerminalLoss(t *testing.T) {
 		t.Fatal("permanent HTTP rejection did not reach existing terminal output")
 	}
 }
+
+func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
+	endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
+	endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.routing.max_groups", 4)
+	sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
+	reported := make(chan error, 1)
+	p, err := NewRoutedProvider(RoutedOptions{
+		NumberOfPipelines: 1, Sink: sink,
+		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Resolve: func(m *message.Message) (routing.Selection, error) {
+			generation := uint64(7)
+			if string(m.GetContent()) == "old" {
+				generation = 42
+			}
+			return routing.Selection{Excluded: true, Generation: generation}, nil
+		},
+		OnError:             func(err error) { reported <- err },
+		DestinationsContext: client.NewDestinationsContext(), Config: cfg,
+		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Start()
+	defer p.Stop()
+	oldInput, err := p.SourceInput("file:test", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentInput, err := p.SourceInput("file:test", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
+	makeRecord := func(content, offset string) *message.Message {
+		m := message.NewMessageWithSource([]byte(content), "info", source, time.Now().UnixNano())
+		m.Origin.Identifier = "file:test"
+		m.Origin.Offset = offset
+		return m
+	}
+	checkpoint := func(want string) {
+		t.Helper()
+		select {
+		case payload := <-sink.ch:
+			if got := payload.MessageMetas[0].Origin.Offset; got != want {
+				t.Fatalf("checkpoint=%q, want %q", got, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("checkpoint %s did not arrive", want)
+		}
+	}
+	oldInput <- makeRecord("old", "old-1")
+	checkpoint("old-1")
+	currentInput <- makeRecord("current", "new-1")
+	checkpoint("new-1")
+	if err := p.RetireSource("file:test", 42); err != nil {
+		t.Fatal(err)
+	}
+	// A caller violating retirement must not poison the replacement source.
+	p.NextPipelineChan() <- makeRecord("old", "old-2")
+	select {
+	case err := <-reported:
+		if !errors.Is(err, routing.ErrObsoleteGeneration) {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("retired producer was not reported")
+	}
+	currentInput <- makeRecord("current", "new-2")
+	checkpoint("new-2")
+	if got := p.progress.Pending(); got != 0 {
+		t.Fatalf("retired producer left %d pending records", got)
+	}
+}

@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	ErrStopped           = errors.New("log routing progress stopped")
-	ErrSourcePending     = errors.New("log routing source still has pending records")
-	ErrUnknownGeneration = errors.New("log routing source generation not owned")
+	ErrObsoleteGeneration = errors.New("log routing source generation retired")
+	ErrStopped            = errors.New("log routing progress stopped")
+	ErrSourcePending      = errors.New("log routing source still has pending records")
+	ErrUnknownGeneration  = errors.New("log routing source generation not owned")
 )
 
 // SourcePendingLimit bounds retained records from one checkpointed source.
@@ -91,7 +92,9 @@ func (p *Progress) forward() {
 
 // Register reserves a record before processing lanes can reorder it. A
 // checkpointed source must supply a nonzero generation. It returns only after
-// capacity is reserved, or with no ownership transfer on error.
+// capacity is reserved, or with no ownership transfer on error. Older, unretired
+// producers may drain without reclaiming current checkpoint ownership; retired
+// producers return ErrObsoleteGeneration.
 func (p *Progress) Register(ctx context.Context, msg *message.Message, selection Selection, groups []string) (uint64, error) {
 	return p.register(ctx, msg, selection, groups, true)
 }
@@ -122,9 +125,9 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		}
 		source := p.sources[identifier]
 		if identifier != "" && requireCompleteSource && source != nil {
-			if retired, seen := source.seenGenerations[selection.Generation]; seen && (retired || selection.Generation != source.currentGeneration) {
+			if retired, seen := source.seenGenerations[selection.Generation]; seen && retired {
 				p.mu.Unlock()
-				return 0, fmt.Errorf("%w: obsolete source generation %d", ErrInvalidSelection, selection.Generation)
+				return 0, fmt.Errorf("%w: %d", ErrObsoleteGeneration, selection.Generation)
 			}
 		}
 		needsOwner := identifier != "" && source == nil
@@ -161,9 +164,9 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		if requireCompleteSource {
 			if _, seen := source.seenGenerations[selection.Generation]; !seen {
 				p.histories++
+				source.currentGeneration = selection.Generation
+				source.seenGenerations[selection.Generation] = false
 			}
-			source.currentGeneration = selection.Generation
-			source.seenGenerations[selection.Generation] = false
 		}
 		source.queue = append(source.queue, r)
 	}
@@ -176,12 +179,13 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 
 // HoldInvalid reserves an unresolved source barrier after a selection failure.
 // Later valid records cannot move a checkpoint past this record. The empty
-// sentinel is not a delivery group and no sender can resolve it.
+// sentinel is not a delivery group and no sender can resolve it. Generation
+// zero distinguishes this source barrier from every valid producer generation.
 func (p *Progress) HoldInvalid(ctx context.Context, msg *message.Message) error {
 	if msg == nil || msg.Origin == nil || msg.Origin.Identifier == "" {
 		return nil
 	}
-	_, err := p.register(ctx, msg, Selection{Generation: 1}, []string{""}, false)
+	_, err := p.register(ctx, msg, Selection{}, []string{""}, false)
 	return err
 }
 

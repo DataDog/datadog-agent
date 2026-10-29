@@ -299,6 +299,11 @@ func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInput
 		}
 		if _, err := p.progress.Register(p.ctx, msg, selection, groups); err != nil {
 			p.report(err)
+			if errors.Is(err, routing.ErrObsoleteGeneration) {
+				// Retirement promises this producer has stopped. A late record
+				// must not create a barrier for the replacement generation.
+				continue
+			}
 			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
 				p.report(holdErr)
 			}
@@ -619,6 +624,9 @@ func (p *RoutedProvider) SourceInput(identifier string, generation uint64) (chan
 	return input, nil
 }
 
+// NextPipelineChan returns shared ingress without per-source admission isolation.
+// A stalled source can block other sources on this channel. Routed launchers
+// requiring independent source progress must use SourceInput instead.
 func (p *RoutedProvider) NextPipelineChan() chan *message.Message { return p.ingress }
 
 // GuardRegistry returns the registry to give routed source launchers. It
@@ -662,6 +670,9 @@ func (p *RoutedProvider) RetireSource(identifier string, generation uint64) erro
 }
 
 func (p *RoutedProvider) GetOutputChan() chan *message.Message { return nil }
+
+// NextPipelineChanWithMonitor returns the same shared ingress as NextPipelineChan
+// and has the same head-of-line blocking limitation. Use SourceInput for isolation.
 func (p *RoutedProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.ingress, nil
 }
