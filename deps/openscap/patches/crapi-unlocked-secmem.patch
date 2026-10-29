@@ -1,0 +1,16 @@
+--- a/src/OVAL/probes/crapi/crapi.c
++++ b/src/OVAL/probes/crapi/crapi.c
+@@ -43,6 +43,13 @@ int crapi_init (void *unused)
+         if (!gcry_check_version(GCRYPT_VERSION))
+                 return(-1);
+ 
++	/*
++	 * In FIPS mode libgcrypt aborts the process when mlock of its secure
++	 * memory pool fails, as it does without CAP_IPC_LOCK or under a seccomp
++	 * filter that denies mlock. Only its self-tests use that pool: crapi
++	 * hashes in ordinary memory.
++	 */
++	gcry_control(GCRYCTL_DISABLE_LOCKED_SECMEM, 0);
+         gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
+ 
+         return(0);
