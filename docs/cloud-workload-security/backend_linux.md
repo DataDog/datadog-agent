@@ -2075,8 +2075,11 @@ Workload Protection events for Linux systems have the following JSON schema:
         "SetNSEvent": {
             "properties": {
                 "nstype": {
-                    "type": "string",
-                    "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
                 },
                 "mntns": {
                     "type": "integer",
@@ -2117,9 +2120,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "additionalProperties": false,
             "type": "object",
-            "required": [
-                "nstype"
-            ],
             "description": "SetNSEventSerializer serializes a setns event"
         },
         "SetSockOptEvent": {
@@ -5828,8 +5828,11 @@ ancestor lineage to find the same value. |
 {
     "properties": {
         "nstype": {
-            "type": "string",
-            "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
         },
         "mntns": {
             "type": "integer",
@@ -5870,9 +5873,6 @@ ancestor lineage to find the same value. |
     },
     "additionalProperties": false,
     "type": "object",
-    "required": [
-        "nstype"
-    ],
     "description": "SetNSEventSerializer serializes a setns event"
 }
 
@@ -5880,7 +5880,7 @@ ancestor lineage to find the same value. |
 
 | Field | Description |
 | ----- | ----------- |
-| `nstype` | Namespace types the thread joined, ANY if the type couldn't be determined |
+| `nstype` | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0 |
 | `mntns` | Mount namespace ID |
 | `netns` | Network namespace ID |
 | `pidns` | ID of the PID namespace future children are created in (pid_for_children) |

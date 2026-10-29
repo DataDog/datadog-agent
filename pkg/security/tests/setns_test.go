@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -84,16 +85,21 @@ func ownNamespaceIDs(t *testing.T, test *testModule) model.NamespaceIDs {
 func TestSetNS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	// nstype carries the namespace types the kernel installed, not the ones the caller asked for,
-	// so a single rule per type covers every way of requesting it
+	// nstype is a bitmask, as a pidfd can request several namespace types at once, and is resolved
+	// from the file descriptor when the caller passed 0: a single rule per type testing its bit
+	// covers every way of requesting it
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_setns_netns",
-			Expression: `setns.nstype == CLONE_NEWNET && process.file.name == "syscall_tester"`,
+			Expression: `setns.nstype & CLONE_NEWNET > 0 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setns_mntns",
-			Expression: `setns.nstype == CLONE_NEWNS && process.file.name == "syscall_tester"`,
+			Expression: `setns.nstype & CLONE_NEWNS > 0 && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_setns_netns_denied",
+			Expression: `setns.nstype & CLONE_NEWNET > 0 && setns.retval == EPERM && process.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -161,6 +167,47 @@ func TestSetNS(t *testing.T) {
 
 			test.validateSetNSSchema(t, event)
 		}, "test_setns_netns")
+	})
+
+	// a pidfd joins several namespace types in a single call
+	t.Run("pidfd", func(t *testing.T) {
+		checkKernelCompatibility(t, "setns doesn't accept a pidfd before 5.8", func(kv *kernel.Version) bool {
+			return kv.Code < kernel.Kernel5_8
+		})
+		own := ownNamespaceIDs(t, test)
+
+		test.WaitSignalFromRule(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "pidfd")
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_setns_netns")
+			assert.Equal(t, "setns", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
+			assert.Equal(t, unix.CLONE_NEWNS|unix.CLONE_NEWNET, event.SetNS.NSType, "wrong namespace types")
+			assert.Equal(t, own, event.SetNS.NamespaceIDs, "joining its own namespaces shouldn't change any namespace")
+			assert.Equal(t, own, event.SetNS.Previous, "wrong namespace IDs before the syscall")
+
+			test.validateSetNSSchema(t, event)
+		}, "test_setns_netns")
+	})
+
+	// Through a pidfd the kernel validates the requested namespaces one type at a time and stops at
+	// the first failure: without CAP_SYS_ADMIN the mount namespace is denied before the network one
+	// is looked at. The network namespace was still requested, so the denied-rule on it must match.
+	t.Run("pidfd-denied", func(t *testing.T) {
+		checkKernelCompatibility(t, "setns doesn't accept a pidfd before 5.8", func(kv *kernel.Version) bool {
+			return kv.Code < kernel.Kernel5_8
+		})
+
+		test.WaitSignalFromRule(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "pidfd-denied")
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_setns_netns_denied")
+			assert.Equal(t, "setns", event.GetType(), "wrong event type")
+			assert.Equal(t, -int64(unix.EPERM), event.SetNS.Retval, "setns should have been denied")
+			assert.Equal(t, unix.CLONE_NEWNS|unix.CLONE_NEWNET, event.SetNS.NSType, "the requested namespace types should all be reported")
+
+			test.validateSetNSSchema(t, event)
+		}, "test_setns_netns_denied")
 	})
 
 	// the tester leaves its network namespace before joining the original one back through a

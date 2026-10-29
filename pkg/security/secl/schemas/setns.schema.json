@@ -21,12 +21,12 @@
             "properties": {
                 "setns": {
                     "type": "object",
-                    "required": [
-                        "nstype"
-                    ],
                     "properties": {
                         "nstype": {
-                            "type": "string"
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
                         },
                         "mntns": {
                             "type": "integer"
