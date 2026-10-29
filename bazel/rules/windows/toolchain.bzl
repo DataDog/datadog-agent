@@ -79,7 +79,7 @@ wine_llvm_toolchain = rule(
     implementation = _wine_llvm_toolchain_impl,
     attrs = {
         "_llvm": attr.label(default = "//:llvm", cfg = "exec", executable = True, allow_files = True),
-        "_nls": attr.label(default = "@wine_linux_x86_64//:nls", cfg = "exec", allow_files = True),
-        "_wmc": attr.label(default = "@wine_linux_x86_64//:wmc", cfg = "exec", executable = True, allow_files = True),
+        "_nls": attr.label(default = "@wine_wmc//:nls", cfg = "exec", allow_files = True),
+        "_wmc": attr.label(default = "@wine_wmc//:wmc", cfg = "exec", executable = True, allow_files = True),
     },
 )
