@@ -28,10 +28,10 @@ type scanner struct {
 	errs *ErrorList
 }
 
-func newScanner(src string, errs *ErrorList) *scanner {
+func newScanner(source, src string, errs *ErrorList) *scanner {
 	return &scanner{
 		src:  src,
-		pos:  ast.Position{Line: 1, Column: 1},
+		pos:  ast.Position{Line: 1, Column: 1, Source: source},
 		errs: errs,
 	}
 }

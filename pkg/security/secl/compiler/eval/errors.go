@@ -54,6 +54,9 @@ type ErrAstToEval struct {
 }
 
 func (r *ErrAstToEval) Error() string {
+	if r.Pos.Source != "" {
+		return fmt.Sprintf("%s: %s in macro `%s`", r.Text, r.Pos, r.Pos.Source)
+	}
 	return fmt.Sprintf("%s: %s", r.Text, r.Pos)
 }
 

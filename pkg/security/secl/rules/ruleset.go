@@ -329,6 +329,10 @@ func (rs *RuleSet) AddMacro(pMacro *PolicyMacro) (*eval.Macro, error) {
 		return nil, nil
 	}
 
+	if _, found := rs.evalOpts.Constants[pMacro.Def.ID]; found {
+		return nil, &ErrMacroLoad{Macro: pMacro, Err: fmt.Errorf("macro '%s' conflicts with constant", pMacro.Def.ID)}
+	}
+
 	var macro *eval.Macro
 
 	switch {
@@ -835,7 +839,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				state := eval.NewState(rs.model, "", rs.evalOpts.MacroStore)
+				state := eval.NewState(rs.model, "")
 
 				evaluator, _, err := eval.Compile(astExpr, rs.evalOpts, state)
 				if err != nil {

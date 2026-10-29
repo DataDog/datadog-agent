@@ -36,7 +36,7 @@ import (
 //
 // On failure, the error is an ErrorList holding every syntax error found.
 func ParseExpression(expr string) (ast.Node, error) {
-	_, root, err := parse(expr)
+	_, root, err := parse("", expr)
 	return root, err
 }
 
@@ -44,29 +44,30 @@ func ParseExpression(expr string) (ast.Node, error) {
 //
 // On failure, the error is an ErrorList holding every syntax error found.
 func ParseRule(expr string) (*ast.Rule, error) {
-	start, root, err := parse(expr)
+	start, root, err := parse("", expr)
 	if err != nil {
 		return nil, err
 	}
 	return &ast.Rule{Meta: ast.At(start), Expr: expr, Root: root}, nil
 }
 
-// ParseMacro parses the expression of a SECL macro.
+// ParseMacro parses the expression of a SECL macro. The positions of the tree are
+// tagged with the ID of the macro.
 //
 // On failure, the error is an ErrorList holding every syntax error found.
-func ParseMacro(expr string) (*ast.Macro, error) {
-	start, root, err := parse(expr)
+func ParseMacro(id, expr string) (*ast.Macro, error) {
+	start, root, err := parse(id, expr)
 	if err != nil {
 		return nil, err
 	}
 	return &ast.Macro{Meta: ast.At(start), Root: root}, nil
 }
 
-// parse parses an expression, and returns the position of its first token and
-// its tree, or its errors.
-func parse(expr string) (start ast.Position, root ast.Node, err error) {
+// parse parses the expression of a source, see ast.Position.Source, and returns
+// the position of its first token and its tree, or its errors.
+func parse(source, expr string) (start ast.Position, root ast.Node, err error) {
 	p := &parser{}
-	p.scanner = newScanner(expr, &p.errs)
+	p.scanner = newScanner(source, expr, &p.errs)
 
 	defer func() {
 		if r := recover(); r != nil {

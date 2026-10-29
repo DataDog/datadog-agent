@@ -435,24 +435,10 @@ func compileBitChain(node *ast.BitExpr, opts *Opts, state *State) (interface{}, 
 }
 
 // compileArrayOperand compiles the right hand side of a membership test.
-//
-// An identifier is resolved as a macro first there, as an array is most often a
-// reference to a macro.
 func compileArrayOperand(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
 	// a lone CIDR is an array of one CIDR
 	if cidr, ok := node.(*ast.CIDRLiteral); ok {
 		node = &ast.CIDRArray{Meta: cidr.Meta, Members: []ast.CIDRArrayMember{cidr}}
-	}
-
-	if ident, ok := node.(*ast.Ident); ok {
-		if state.macros != nil {
-			if macro, ok := state.macros.GetMacroEvaluator(ident.Name); ok {
-				return macro.Value, ident.Pos, nil
-			}
-		}
-
-		// could be an iterator
-		return identToEvaluator(ident.Name, ident.Pos, opts, state)
 	}
 
 	return compileNode(node, opts, state)

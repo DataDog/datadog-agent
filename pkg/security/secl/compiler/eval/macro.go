@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 )
 
 // MacroID - ID of a Macro
@@ -21,32 +22,36 @@ type Macro struct {
 	ID   MacroID
 	Opts *Opts
 
-	evaluator *MacroEvaluator
-	ast       *ast.Macro
+	// ast is the tree of the macro, the compilation passes run over it: the
+	// tree expanded where the macro is referred to.
+	ast *ast.Macro
 }
 
-// MacroEvaluator - Evaluation part of a Macro
-type MacroEvaluator struct {
-	Value     interface{}
-	EventType EventType
-
-	fieldValues map[Field][]FieldValue
-	fields      []Field
-}
-
-// NewMacro parses an expression and returns a new macro
+// NewMacro parses an expression and returns a new macro, the compilation passes
+// run over its tree.
 func NewMacro(id, expression string, model Model, parsingContext *parser.ParsingContext, opts *Opts) (*Macro, error) {
-	macro := &Macro{
-		ID:   id,
-		Opts: opts,
-	}
-
-	if err := macro.Parse(parsingContext, expression); err != nil {
+	astMacro, err := parsingContext.BuildMacro(id, expression)
+	if err != nil {
 		return nil, fmt.Errorf("syntax error: %w", err)
 	}
 
-	if err := macro.GenEvaluator(expression, model); err != nil {
-		return nil, fmt.Errorf("compilation error: %w", err)
+	macro := &Macro{
+		ID:   id,
+		Opts: opts,
+		ast:  pass.Run(astMacro, opts.passes()...).(*ast.Macro),
+	}
+
+	// compiled only to report its errors where it's defined, each rule using it
+	// compiles its own copy
+	state := NewState(model, "")
+	if _, _, err := compileExpr(macro.ast.Root, opts, state); err != nil {
+		if err, ok := err.(*ErrAstToEval); ok && err.Pos.Source == id {
+			return nil, fmt.Errorf("compilation error: macro syntax error: %w", &ErrRuleParse{pos: err.Pos, expr: expression})
+		}
+		return nil, fmt.Errorf("compilation error: macro compilation error: %w", err)
+	}
+	if _, err := EventTypeFromState(model, state); err != nil {
+		return nil, fmt.Errorf("compilation error: macro compilation error: %w", err)
 	}
 
 	return macro, nil
@@ -54,94 +59,15 @@ func NewMacro(id, expression string, model Model, parsingContext *parser.Parsing
 
 // NewStringValuesMacro returns a new macro from an array of strings
 func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error) {
-	var evaluator StringValuesEvaluator
+	pos := ast.At(ast.Position{Source: id})
+	array := &ast.StringArray{Meta: pos}
 	for _, value := range values {
-		fieldValue := FieldValue{
-			Type:  ScalarValueType,
-			Value: value,
-		}
-
-		evaluator.Values.AppendFieldValue(fieldValue)
-	}
-
-	if err := evaluator.Compile(DefaultStringCmpOpts); err != nil {
-		return nil, err
+		array.Members = append(array.Members, &ast.StringLiteral{Meta: pos, Value: value})
 	}
 
 	return &Macro{
-		ID:        id,
-		Opts:      opts,
-		evaluator: &MacroEvaluator{Value: &evaluator},
+		ID:   id,
+		Opts: opts,
+		ast:  &ast.Macro{Root: array},
 	}, nil
-}
-
-// GetEvaluator - Returns the MacroEvaluator of the Macro corresponding to the SECL `Expression`
-func (m *Macro) GetEvaluator() *MacroEvaluator {
-	return m.evaluator
-}
-
-// GetAst - Returns the representation of the SECL `Expression`
-func (m *Macro) GetAst() *ast.Macro {
-	return m.ast
-}
-
-// Parse - Transforms the SECL `Expression` into its AST representation
-func (m *Macro) Parse(parsingContext *parser.ParsingContext, expression string) error {
-	astMacro, err := parsingContext.BuildMacro(expression)
-	if err != nil {
-		return err
-	}
-	m.ast = astMacro
-	return nil
-}
-
-func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*MacroEvaluator, error) {
-	state := NewState(model, field, opts.MacroStore)
-
-	eval, _, err := compileExpr(macro.Root, opts, state)
-	if err != nil {
-		return nil, err
-	}
-
-	eventType, err := EventTypeFromState(model, state)
-	if err != nil {
-		return nil, err
-	}
-
-	return &MacroEvaluator{
-		Value:     eval,
-		EventType: eventType,
-
-		fieldValues: state.fieldValues,
-		fields:      KeysOfMap(state.fieldValues),
-	}, nil
-}
-
-// GenEvaluator - Compiles and generates the evalutor
-func (m *Macro) GenEvaluator(expression string, model Model) error {
-	evaluator, err := macroToEvaluator(m.ast, model, m.Opts, "")
-	if err != nil {
-		if err, ok := err.(*ErrAstToEval); ok {
-			return fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos, expr: expression})
-		}
-		return fmt.Errorf("macro compilation error: %w", err)
-	}
-	m.evaluator = evaluator
-
-	return nil
-}
-
-// GetEventType - Returns the Event Type that the `Expression` handles
-func (m *Macro) GetEventType() EventType {
-	return m.evaluator.EventType
-}
-
-// GetFields - Returns all the Field that the Macro handles included sub-Macro
-func (m *Macro) GetFields() []Field {
-	return m.evaluator.GetFields()
-}
-
-// GetFields - Returns all the Field that the MacroEvaluator handles
-func (m *MacroEvaluator) GetFields() []Field {
-	return m.fields
 }
