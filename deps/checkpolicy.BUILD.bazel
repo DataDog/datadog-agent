@@ -1,4 +1,6 @@
+load("@rules_bison//bison:bison.bzl", "bison")
 load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_flex//flex:flex.bzl", "flex")
 load("@rules_license//rules:license.bzl", "license")
 
 package(default_package_metadata = [":license"])
@@ -10,30 +12,15 @@ license(
     visibility = ["//visibility:public"],
 )
 
-# Same invocations as the upstream Makefile (`bison -y -d`, `flex`).
-genrule(
-    name = "policy_parse_src",
-    srcs = ["policy_parse.y"],
-    outs = [
-        "y.tab.c",
-        "y.tab.h",
-    ],
-    cmd = "M4=$(M4) $(BISON) -y -d -o $(execpath y.tab.c) $<",
-    toolchains = [
-        "@rules_bison//bison:current_bison_toolchain",
-        "@rules_m4//m4:current_m4_toolchain",
-    ],
+# Named `y.tab` so the generated header is `y.tab.h`, which `policy_scan.l` hardcodes via #include.
+bison(
+    name = "y.tab",
+    src = "policy_parse.y",
 )
 
-genrule(
+flex(
     name = "policy_scan_src",
-    srcs = ["policy_scan.l"],
-    outs = ["lex.yy.c"],
-    cmd = "M4=$(M4) $(FLEX) --outfile=$@ $<",
-    toolchains = [
-        "@rules_flex//flex:current_flex_toolchain",
-        "@rules_m4//m4:current_m4_toolchain",
-    ],
+    src = "policy_scan.l",
 )
 
 cc_binary(
@@ -48,14 +35,16 @@ cc_binary(
         "policy_define.h",
         "queue.c",
         "queue.h",
-        ":policy_parse_src",
         ":policy_scan_src",
+        ":y.tab",
     ],
     copts = [
         "-O2",
         "-fno-strict-aliasing",
     ],
     local_defines = ["_GNU_SOURCE"],
+    # policy_define.c uses glibc-only in6_addr.s6_addr32 and htobe32/be32toh.
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = ["@libsepol"],
 )
