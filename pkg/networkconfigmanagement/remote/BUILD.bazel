@@ -27,6 +27,7 @@ dd_agent_go_test(
     name = "remote_test",
     srcs = [
         "cmd_test.go",
+        "fake_server_test.go",
         "retry_test.go",
         "ssh_test.go",
     ],
