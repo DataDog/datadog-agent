@@ -17,13 +17,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// ipcAddressDeprecationOnce keeps the deprecation warning to a single line.
+// Trace telemetry and status call GetIPCAddress on a timer.
+var ipcAddressDeprecationOnce sync.Once
+
 // GetIPCAddress returns the IPC address or an error if the address is not local
 func GetIPCAddress(config model.Reader) (string, error) {
 	var key string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 	// if it is set, use it, otherwise use cmd_host
 	if config.IsConfigured("ipc_address") {
-		log.Warn("ipc_address is deprecated, use cmd_host instead")
+		ipcAddressDeprecationOnce.Do(func() {
+			log.Warn("ipc_address is deprecated, use cmd_host instead")
+		})
 		key = "ipc_address"
 	} else {
 		key = "cmd_host"
