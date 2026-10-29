@@ -125,7 +125,7 @@ func newConfigManager(config config.Component) configManager {
 		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
 	hostProfilerConfig := hostProfilerConfig{
 		ReporterInterval:      config.GetString("hostprofiler.reporter_interval"),
-		EBPFDebugLogs:         config.GetBool("hostprofiler.ebpf_debug_logs"),
+		EBPFDebugLogs:         config.GetBool("hostprofiler.debug.ebpf_logs"),
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		IncludeEnvVars:        config.GetString("hostprofiler.include_env_vars"),
 		SendErrorFrames:       config.GetBool("hostprofiler.send_error_frames"),

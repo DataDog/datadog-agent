@@ -403,6 +403,15 @@ func TestProviderIncludeEnvVars(t *testing.T) {
 	}
 }
 
+func TestProviderEBPFLogsFromEnv(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DEBUG_EBPF_LOGS", "true")
+	cfg := config.NewMockFromYAML(t, "api_key: test-key\nhostprofiler:\n  debug:\n    ebpf_logs: false")
+	generated := buildConfig(newConfigManager(cfg), testCollectorParams{})
+	verbose, _ := confmaputils.Get[bool](generated, "receivers::profiling::verbose_mode")
+	require.True(t, verbose)
+	require.NoError(t, validateOTelConfig(t, confmap.NewFromStringMap(generated)))
+}
+
 func TestProviderInvalidReporterInterval(t *testing.T) {
 	for _, interval := range []string{"59s", "invalid"} {
 		t.Run(interval, func(t *testing.T) {
