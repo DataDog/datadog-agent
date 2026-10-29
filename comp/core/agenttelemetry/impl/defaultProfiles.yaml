@@ -1,4 +1,21 @@
 profiles:
+- name: par-phone-home
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: par_phone_home.state
+        preserve_tags:
+          - state
+          - reason
+      - name: par_phone_home.transitions
+        preserve_tags:
+          - state
+          - reason
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: checks
   metric:
     exclude:
@@ -91,9 +108,6 @@ profiles:
         preserve_tags:
           - truncated
           - line_type
-      - name: logs.auto_multi_line_default_total_lines
-      - name: logs.auto_multi_line_default_would_combine
-      - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
       - name: points.sent
         preserve_tags:
