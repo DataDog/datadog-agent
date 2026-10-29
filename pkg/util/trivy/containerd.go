@@ -213,6 +213,13 @@ type fakeContainerdContainer struct {
 	*image
 }
 
+// ConfigFile returns the config file built from the image config. The direct
+// scan tolerates a history that disagrees with the diff IDs, for which
+// image.ConfigFile exports the whole image.
+func (c *fakeContainerdContainer) ConfigFile() (*v1.ConfigFile, error) {
+	return c.image.inspectConfigFile()
+}
+
 func (c *fakeContainerdContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
 	return c.fakeContainer.LayerByDiffID(hash)
 }

@@ -833,13 +833,11 @@ Package tracetelemetry sends telemetry about the trace-agent and its state
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet windows-products
+*Datadog Team*: fleet
 
 Package updater implements the updater component.
 
 ### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
-
-*Datadog Team*: fleet
 
 Package daemonchecker retrieves the running status of the installer daemon
 
@@ -852,8 +850,6 @@ Package localapi is the updater local api component.
 Package localapiclient provides the local API client component.
 
 ### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
-
-*Datadog Team*: fleet
 
 Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
 add it to the inventoryagent payload.
@@ -900,8 +896,6 @@ Package datadogclient provides a client to query the datadog API
 
 ### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
 
-*Datadog Team*: fleet
-
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
 ### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
@@ -932,8 +926,6 @@ and tags from metrics as they are being processed to prevent them from being sen
 to DataDog.
 
 ### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
-
-*Datadog Team*: fleet
 
 Package fleetstatus implements the core status component information provider interface
 
