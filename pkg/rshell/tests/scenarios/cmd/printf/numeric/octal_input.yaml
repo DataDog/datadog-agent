@@ -1,0 +1,9 @@
+description: Printf converts octal input to decimal.
+input:
+  script: |+
+    printf "%d\n" 0755
+expect:
+  stdout: |+
+    493
+  stderr: ""
+  exit_code: 0

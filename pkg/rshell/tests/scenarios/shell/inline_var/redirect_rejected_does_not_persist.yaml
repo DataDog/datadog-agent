@@ -1,0 +1,19 @@
+# skip: redirect-allowlist behavior is rshell-specific and aborts the script.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt R1 (2026-05-18-initial-audit): a write-redirect on a command with
+  an inline assignment is rejected by the redirect-allowlist and aborts the
+  script. We assert the rejection happens (stderr message + exit 2); the
+  defer-restore of A is exercised internally by the executor but cannot be
+  observed via a subsequent shell command (the script aborts before it
+  runs). The defer-restore correctness is exercised by `multi_assign_all_restored.yaml`.
+input:
+  script: |+
+    A=orig
+    A=leaked echo body > /tmp/forbidden.txt
+    echo unreachable
+expect:
+  stdout: |+
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

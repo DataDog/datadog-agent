@@ -1,0 +1,21 @@
+# Security: an unbounded FILE-operand count (easily reached through shell
+# glob expansion) would open and hold an unbounded number of file
+# descriptors for the duration of the copy, exhausting the embedding
+# process's descriptor table. tee.MaxFileOperands rejects the whole command
+# before any destination is opened.
+description: More than MaxFileOperands (64) FILE operands is rejected before any file is opened.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    args=""
+    for i in {1..65}; do args="$args f$i.txt"; done
+    printf "hi\n" | tee $args
+    ls f1.txt
+expect:
+  stdout: |+
+  stderr: |+
+    tee: too many operands (maximum 64)
+    ls: cannot access 'f1.txt': no such file or directory
+  exit_code: 1
+skip_assert_against_bash: true

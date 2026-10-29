@@ -1,0 +1,11 @@
+# ip route get with unsupported trailing arguments exits 1.
+description: ip route get with unsupported trailing arguments exits 1.
+input:
+  script: |+
+    ip route get 8.8.8.8 from 10.0.0.5
+expect:
+  stdout: |+
+  stderr: |+
+    ip: route get: unsupported argument "from"
+  exit_code: 1
+skip_assert_against_bash: true

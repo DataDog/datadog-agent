@@ -1,0 +1,13 @@
+description: uniq -u prints only lines that are not repeated in mixed input.
+setup:
+  files:
+    - path: input.txt
+      content: "alpha\nbeta\nbeta\ngamma\ndelta\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -u input.txt
+expect:
+  stdout: "alpha\ngamma\nepsilon\n"
+  stderr: ""
+  exit_code: 0

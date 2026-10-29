@@ -1,0 +1,13 @@
+description: Continue with a negative operand is rejected as out of range.
+input:
+  script: |+
+    for i in 1; do
+      continue -1
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "continue"
+    - "-1"
+    - "loop count out of range"
+  exit_code: 1

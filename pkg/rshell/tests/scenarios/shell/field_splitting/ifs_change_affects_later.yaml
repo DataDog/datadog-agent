@@ -1,0 +1,10 @@
+description: "IFS change affects splitting of subsequent expansions in the same script"
+input:
+  script: |
+    A="a:b:c"
+    for w in $A; do echo "[$w]"; done
+    IFS=:
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: "[a:b:c]\n[a]\n[b]\n[c]\n"
+  exit_code: 0

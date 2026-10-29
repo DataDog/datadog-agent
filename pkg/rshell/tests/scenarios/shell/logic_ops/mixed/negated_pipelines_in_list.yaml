@@ -1,0 +1,9 @@
+description: Negated pipeline in and-or list.
+input:
+  script: |+
+    ! false && ! false && echo foo | cat
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

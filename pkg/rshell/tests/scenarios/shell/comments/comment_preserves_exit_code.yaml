@@ -1,0 +1,10 @@
+description: Comment after command does not affect exit code.
+input:
+  script: |+
+    false # this is a comment
+    echo "$?"
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+description: Tilde inside quotes is not tilde expansion and should be allowed.
+input:
+  script: |+
+    echo "~root"
+    echo '~/path'
+expect:
+  stdout: |+
+    ~root
+    ~/path
+  stderr: ""
+  exit_code: 0

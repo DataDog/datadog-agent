@@ -1,0 +1,13 @@
+description: Substitute flags can be combined (e.g., gI for global case-insensitive).
+setup:
+  files:
+    - path: input.txt
+      content: "Foo foo FOO\nBar BAR bar\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/foo/X/gI' input.txt
+expect:
+  stdout: "X X X\nBar BAR bar\n"
+  stderr: ""
+  exit_code: 0

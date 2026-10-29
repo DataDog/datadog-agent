@@ -1,0 +1,13 @@
+description: sed -- treats dash-prefixed filenames as operands.
+setup:
+  files:
+    - path: "-secret.txt"
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/hello/bye/' -- -secret.txt
+expect:
+  stdout: "bye\n"
+  stderr: ""
+  exit_code: 0

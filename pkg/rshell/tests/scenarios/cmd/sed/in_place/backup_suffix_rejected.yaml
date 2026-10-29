@@ -1,0 +1,13 @@
+description: sed -i.bak (attached backup suffix) is rejected since backups are not supported.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i.bak 's/a/b/' file.txt
+expect:
+  stdout: |+
+  stderr: |+
+    sed: invalid option -- '.'
+    Try 'sed --help' for more information.
+  exit_code: 1
+skip_assert_against_bash: true

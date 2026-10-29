@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-18-initial-audit / sort.
+# `sort --compress-program=<binary>` would let the builtin spawn an external
+# process — direct exec bypass of the sandbox. The implementation rejects
+# the flag at `builtins/sort/sort.go:319-321`. This scenario pins that
+# rejection so a regression that re-enabled the flag can't ship silently.
+description: sort --compress-program is rejected (executes a binary).
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    printf 'b\na\n' | sort --compress-program=/bin/cat
+expect:
+  stdout: ""
+  stderr: "sort: --compress-program is not supported (executes a binary)\n"
+  exit_code: 1
+skip_assert_against_bash: true

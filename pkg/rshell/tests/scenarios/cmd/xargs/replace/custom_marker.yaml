@@ -1,0 +1,10 @@
+description: xargs -I XX substitutes each input line into every XX in template args.
+input:
+  script: |+
+    printf 'foo\nbar\n' | xargs -I XX echo 'XX-XX'
+expect:
+  stdout: |+
+    foo-foo
+    bar-bar
+  stderr: |+
+  exit_code: 0

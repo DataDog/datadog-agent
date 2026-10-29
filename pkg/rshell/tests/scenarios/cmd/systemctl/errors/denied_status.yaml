@@ -1,0 +1,12 @@
+# Scenario runners do not grant systemd capabilities by default.
+skip_assert_against_bash: true
+description: systemctl status enforces the exact unit read allowlist
+input:
+  mode: remediation
+  script: |+
+    systemctl status api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: system service "api.service" is not allowed for action "read"
+  exit_code: 1

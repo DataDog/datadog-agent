@@ -1,0 +1,11 @@
+description: Variable expansion works in assignment values.
+input:
+  script: |+
+    a=hello
+    b="$a world"
+    echo "$b"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

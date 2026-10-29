@@ -1,0 +1,10 @@
+description: du rejects --exclude-from (security; reads filtering rules from a file).
+skip_assert_against_bash: true  # intentionally not implemented in rshell
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du --exclude-from=foo .
+expect:
+  stdout: |+
+  stderr_contains: ["du:"]
+  exit_code: 1

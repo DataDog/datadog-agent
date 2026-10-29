@@ -1,0 +1,11 @@
+description: pwd rejects an unknown long flag with a stderr diagnostic and exit 1.
+skip_assert_against_bash: true
+input:
+  script: |+
+    pwd --no-such-flag
+expect:
+  stdout: ""
+  stderr: |+
+    pwd: unrecognized option '--no-such-flag'
+    Try 'pwd --help' for more information.
+  exit_code: 1

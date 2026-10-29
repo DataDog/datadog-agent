@@ -1,0 +1,13 @@
+description: uniq -u produces no output when all lines are duplicated.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -u input.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

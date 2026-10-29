@@ -1,0 +1,9 @@
+description: Negation applies to the pipeline only; the successful negation feeds into && which continues.
+input:
+  script: |+
+    ! false && echo "continued"
+expect:
+  stdout: |+
+    continued
+  stderr: ""
+  exit_code: 0

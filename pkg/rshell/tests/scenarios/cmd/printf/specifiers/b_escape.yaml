@@ -1,0 +1,8 @@
+description: Printf %b specifier interprets backslash escapes in the argument.
+input:
+  script: |+
+    printf "%b\n" 'hello\tworld'
+expect:
+  stdout: "hello\tworld\n"
+  stderr: ""
+  exit_code: 0

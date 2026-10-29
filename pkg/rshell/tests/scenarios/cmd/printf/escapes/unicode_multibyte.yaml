@@ -1,0 +1,11 @@
+description: Printf interprets \u for multi-byte Unicode characters.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # bash outputs literal \u in POSIX locale; rshell always emits UTF-8
+input:
+  script: |+
+    printf "\u00e9\n"
+expect:
+  stdout: |+
+    é
+  stderr: ""
+  exit_code: 0

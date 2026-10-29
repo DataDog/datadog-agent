@@ -1,0 +1,10 @@
+description: Pipe multi-line printf output through head to limit lines.
+input:
+  script: |+
+    printf "one\ntwo\nthree\nfour\nfive\n" | head -n 2
+expect:
+  stdout: |+
+    one
+    two
+  stderr: ""
+  exit_code: 0

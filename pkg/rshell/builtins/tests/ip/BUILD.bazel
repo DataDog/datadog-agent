@@ -1,0 +1,36 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "ip_test",
+    srcs = [
+        "helpers_test.go",
+        "ip_fuzz_test.go",
+        "ip_linux_test.go",
+        "ip_pentest_linux_test.go",
+        "ip_route_fuzz_linux_test.go",
+        "ip_test.go",
+        "ip_vuln_hunt_linux_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    deps = [
+        "//pkg/rshell/internal/interpoption",
+        "//pkg/rshell/interp",
+        "@cc_mvdan_sh_v3//syntax",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/rshell/builtins/ip",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/rshell/builtins/ip",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

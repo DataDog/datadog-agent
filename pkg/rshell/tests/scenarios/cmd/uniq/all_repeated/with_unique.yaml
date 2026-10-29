@@ -1,0 +1,13 @@
+description: uniq --all-repeated --unique collapses to -d behavior (one per duplicate group).
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\nb\nb\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --all-repeated --unique input.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

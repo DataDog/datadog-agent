@@ -1,0 +1,13 @@
+description: "Variables from Env option can be overridden by script assignment"
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+input:
+  interpreter_env:
+    MY_VAR: "initial"
+  script: |
+    echo "$MY_VAR"
+    MY_VAR=overridden
+    echo "$MY_VAR"
+expect:
+  stdout: "initial\noverridden\n"
+  exit_code: 0

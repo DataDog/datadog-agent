@@ -1,0 +1,8 @@
+description: Echo -e with \f (form feed) escape sequence.
+input:
+  script: |+
+    echo -e '\f'
+expect:
+  stdout: "\f\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Script without trailing newline is still executed correctly.
+input:
+  script: "echo hello"
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

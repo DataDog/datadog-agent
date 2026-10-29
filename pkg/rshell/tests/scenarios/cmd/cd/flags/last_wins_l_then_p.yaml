@@ -1,0 +1,15 @@
+description: cd -L -P picks -P (last flag wins).
+setup:
+  files:
+    - path: real/keep
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd -L -P real
+    pwd
+expect:
+  stdout_contains: ["/real"]
+  stdout_contains_windows: ["\\real"]
+  stderr: ""
+  exit_code: 0

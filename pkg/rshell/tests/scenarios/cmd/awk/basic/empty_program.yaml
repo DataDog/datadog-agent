@@ -1,0 +1,22 @@
+description: awk distinguishes an empty program from empty top-level rules.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '' missing.txt
+    awk 'BEGIN { print "action separator accepted" }
+    ; BEGIN { print "trailing separator accepted" };'
+    awk '0; BEGIN { print "pattern separator accepted" }'
+    awk '; BEGIN { print "unreachable" }' 2>/dev/null || printf 'leading empty rule rejected\n'
+    awk 'BEGIN {}; ; BEGIN { print "unreachable" }' 2>/dev/null || printf 'repeated empty rule rejected\n'
+    awk '0
+    ; BEGIN { print "unreachable" }' 2>/dev/null || printf 'empty rule after pattern rejected\n'
+expect:
+  stdout: |+
+    action separator accepted
+    trailing separator accepted
+    pattern separator accepted
+    leading empty rule rejected
+    repeated empty rule rejected
+    empty rule after pattern rejected
+  stderr: |+
+  exit_code: 0

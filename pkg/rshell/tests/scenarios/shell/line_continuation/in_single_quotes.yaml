@@ -1,0 +1,11 @@
+description: >
+  Backslash-newline inside single quotes is literal (no continuation).
+  Single quotes suppress all special treatment of backslash.
+input:
+  script: |+
+    echo 'hel\
+    lo'
+expect:
+  stdout: "hel\\\nlo\n"
+  stderr: ""
+  exit_code: 0

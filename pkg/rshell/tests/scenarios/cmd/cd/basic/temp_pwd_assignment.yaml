@@ -1,0 +1,17 @@
+description: A temporary PWD assignment before cd is captured into OLDPWD; cd's PWD update survives the temp-assignment revert.
+setup:
+  files:
+    - path: parent/b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd parent
+    PWD=/bogus cd b
+    printf '%s|%s\n' "$PWD" "$OLDPWD"
+    pwd
+expect:
+  stdout_contains: ["|/bogus", "/parent/b"]
+  stdout_contains_windows: ["|/bogus", "\\parent\\b"]
+  stderr: ""
+  exit_code: 0

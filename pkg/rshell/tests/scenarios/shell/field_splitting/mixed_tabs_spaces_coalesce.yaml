@@ -1,0 +1,6 @@
+description: "Tabs and spaces mixed in value are coalesced by default IFS"
+input:
+  script: "A=\"one \t two \t three\"\nfor w in $A; do echo \"[$w]\"; done\n"
+expect:
+  stdout: "[one]\n[two]\n[three]\n"
+  exit_code: 0

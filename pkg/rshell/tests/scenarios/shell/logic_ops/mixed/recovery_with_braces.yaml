@@ -1,0 +1,10 @@
+description: Error recovery pattern using brace group after || operator.
+input:
+  script: |+
+    false || { echo "recovered"; true; } && echo "continued"
+expect:
+  stdout: |+
+    recovered
+    continued
+  stderr: ""
+  exit_code: 0

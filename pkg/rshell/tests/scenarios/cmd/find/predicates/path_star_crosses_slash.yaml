@@ -1,0 +1,18 @@
+description: find -path with '*' matches across '/' separators (GNU find behaviour).
+setup:
+  files:
+    - path: d/a/file.txt
+      content: "hello"
+      chmod: 0644
+    - path: d/b/other.txt
+      content: "world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find d -path '*a/file*'
+expect:
+  stdout: |+
+    d/a/file.txt
+  stderr: ""
+  exit_code: 0

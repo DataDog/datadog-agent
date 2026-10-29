@@ -1,0 +1,11 @@
+description: Multiple assignments across lines with variable expansion (inspired by yash simple-p.tst).
+input:
+  script: |+
+    a= b=bar
+    c=$b d=X e=$a
+    echo "[$c] [$d] [$e]"
+expect:
+  stdout: |+
+    [bar] [X] []
+  stderr: ""
+  exit_code: 0

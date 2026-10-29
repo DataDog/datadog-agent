@@ -1,0 +1,18 @@
+description: Star glob expands to matching files.
+setup:
+  files:
+    - path: foo.txt
+      content: ""
+    - path: bar.txt
+      content: ""
+    - path: baz.log
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *.txt
+expect:
+  stdout: |+
+    bar.txt foo.txt
+  stderr: ""
+  exit_code: 0

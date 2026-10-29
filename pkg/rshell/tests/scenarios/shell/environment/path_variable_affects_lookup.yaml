@@ -1,0 +1,11 @@
+# skip: PATH affects external command lookup but we use builtins
+skip_assert_against_bash: true
+description: PATH variable is settable but does not affect builtin lookup.
+input:
+  script: |+
+    PATH=/nonexistent
+    echo hello
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

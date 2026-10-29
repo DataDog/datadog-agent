@@ -1,0 +1,10 @@
+description: pwd succeeds with exit status 0.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    pwd
+    echo $?
+expect:
+  stdout_contains: ["0"]
+  stderr: ""
+  exit_code: 0

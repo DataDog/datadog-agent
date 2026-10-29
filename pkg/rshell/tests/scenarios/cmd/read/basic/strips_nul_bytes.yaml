@@ -1,0 +1,12 @@
+description: |+
+  read silently strips embedded NUL bytes from the input (matches bash).
+  NULs only matter as the delimiter (`-d ''`); in any other configuration
+  they are discarded without being assigned to a NAME.
+input:
+  script: |+
+    printf 'a\0b\0c\n' | { IFS= read -r x; echo "x=[$x]"; }
+expect:
+  stdout: |+
+    x=[abc]
+  stderr: ""
+  exit_code: 0

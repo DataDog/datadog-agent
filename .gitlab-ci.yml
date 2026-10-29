@@ -115,6 +115,8 @@
 
 # Windows-specific e2e tests
 .windows_path_3: &windows_path_3
+  - pkg/rshell/**/*
+  - test/new-e2e/tests/privateactionrunner/**/*
   - test/new-e2e/tests/fleet/**/* # cross platform tests
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*

@@ -1,0 +1,10 @@
+description: Neither branch executes when both conditions fail.
+input:
+  script: |+
+    if false; then echo 1; elif false; then echo 2; fi
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

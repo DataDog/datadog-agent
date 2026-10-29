@@ -1,0 +1,14 @@
+description: grep on a file containing NUL bytes treats the file as binary, reporting "binary file matches" to stderr without printing matching lines.
+setup:
+  files:
+    - path: file.txt
+      content: "found\x00here\nskipline\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep found file.txt
+expect:
+  stdout: ""
+  stderr: "grep: file.txt: binary file matches\n"
+  exit_code: 0

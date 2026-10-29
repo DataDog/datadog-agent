@@ -1,0 +1,10 @@
+description: For loop with semicolons separating do and done clauses.
+input:
+  script: |+
+    for v in 1 2; do echo $v; done
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 0

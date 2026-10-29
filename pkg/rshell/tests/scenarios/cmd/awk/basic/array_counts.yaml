@@ -1,0 +1,23 @@
+description: awk associative array elements support aggregation by field value.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        api 200
+        api 500
+        worker 200
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{ count[$1]++; status[$2] += 1 } END { print count["api"], count["worker"], status[200], status[500] }' input.txt
+    awk 'BEGIN { value=1; print value[1] }' 2>/dev/null
+    printf 'scalar-as-array=%s\n' "$?"
+    awk 'BEGIN { value[1]=1; print value }' 2>/dev/null
+    printf 'array-as-scalar=%s\n' "$?"
+expect:
+  stdout: |+
+    2 1 2 1
+    scalar-as-array=2
+    array-as-scalar=2
+  stderr: |+
+  exit_code: 0

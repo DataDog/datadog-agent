@@ -1,0 +1,10 @@
+description: Five-command alternating and-or chain with recovery.
+input:
+  script: |+
+    false && echo A || false || echo B && echo C
+expect:
+  stdout: |+
+    B
+    C
+  stderr: ""
+  exit_code: 0

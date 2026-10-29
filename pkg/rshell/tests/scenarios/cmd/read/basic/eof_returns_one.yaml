@@ -1,0 +1,17 @@
+description: read returns 1 when stdin is empty (EOF before any data).
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    read X < empty.txt
+    echo "exit=$?"
+    echo "X=[$X]"
+expect:
+  stdout: |+
+    exit=1
+    X=[]
+  stderr: ""
+  exit_code: 0

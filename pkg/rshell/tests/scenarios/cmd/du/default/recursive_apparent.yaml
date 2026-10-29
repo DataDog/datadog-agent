@@ -1,0 +1,19 @@
+description: du --apparent-size on a directory tree emits a line per directory and the operand last.
+setup:
+  files:
+    - path: top/a.txt
+      content: "12345"
+    - path: top/sub/inner.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du --apparent-size top
+expect:
+  # Directory inode/extent sizes are filesystem-dependent, so we assert
+  # only the per-line presence and ordering rather than exact KB counts.
+  stdout_contains:
+    - "\ttop/sub\n"
+    - "\ttop\n"
+  stderr: |+
+  exit_code: 0

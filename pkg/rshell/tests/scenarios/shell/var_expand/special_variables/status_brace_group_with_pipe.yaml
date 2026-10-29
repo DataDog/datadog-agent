@@ -1,0 +1,12 @@
+description: The $? variable reflects pipeline exit when brace group is piped.
+input:
+  script: |+
+    { echo a; echo b; } | cat
+    echo $?
+expect:
+  stdout: |+
+    a
+    b
+    0
+  stderr: ""
+  exit_code: 0

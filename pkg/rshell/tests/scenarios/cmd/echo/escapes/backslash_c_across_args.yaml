@@ -1,0 +1,8 @@
+description: Echo -e with \c in one arg suppresses all subsequent args.
+input:
+  script: |+
+    echo -e 'hello\c' 'world'
+expect:
+  stdout: "hello"
+  stderr: ""
+  exit_code: 0

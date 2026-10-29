@@ -1,0 +1,11 @@
+description: Heredoc with a single content line.
+input:
+  script: |+
+    cat <<EOF
+    just one line
+    EOF
+expect:
+  stdout: |+
+    just one line
+  stderr: ""
+  exit_code: 0

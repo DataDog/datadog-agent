@@ -1,0 +1,10 @@
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+description: grep with no pattern exits 2.
+input:
+  script: |+
+    grep
+expect:
+  stdout: ""
+  stderr_contains: ["grep:"]
+  exit_code: 2

@@ -1,0 +1,9 @@
+description: Echo outputs its arguments to stdout.
+input:
+  script: |+
+    echo abc
+expect:
+  stdout: |+
+    abc
+  stderr: ""
+  exit_code: 0

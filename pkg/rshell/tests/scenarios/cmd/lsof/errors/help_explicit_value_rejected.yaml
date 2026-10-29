@@ -1,0 +1,14 @@
+# skip: lsof is not installed by default in the debian:bookworm-slim
+# comparison image, and this builtin's flag set is a custom subset of real
+# lsof (see builtins/lsof's package doc comment).
+description: lsof --help=true is rejected — --help takes no argument, matching GNU getopt no-argument semantics (df's/free's noArgBool pattern)
+skip_assert_against_bash: true
+input:
+  script: |+
+    lsof --help=true
+expect:
+  stdout: |+
+  stderr: |+
+    lsof: option '--help' doesn't allow an argument
+    Try 'lsof --help' for more information.
+  exit_code: 1

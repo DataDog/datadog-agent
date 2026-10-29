@@ -1,0 +1,17 @@
+description: File content piped from cat to cat transfers correctly.
+setup:
+  files:
+    - path: data.txt
+      content: |+
+        line one
+        line two
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat data.txt | cat
+expect:
+  stdout: |+
+    line one
+    line two
+  stderr: ""
+  exit_code: 0

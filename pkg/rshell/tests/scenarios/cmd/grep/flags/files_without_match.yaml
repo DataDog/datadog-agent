@@ -1,0 +1,20 @@
+description: grep -L prints only filenames of files without matches.
+setup:
+  files:
+    - path: a.txt
+      content: |+
+        foo
+      chmod: 0644
+    - path: b.txt
+      content: |+
+        bar
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -L foo a.txt b.txt
+expect:
+  stdout: |+
+    b.txt
+  stderr: ""
+  exit_code: 0

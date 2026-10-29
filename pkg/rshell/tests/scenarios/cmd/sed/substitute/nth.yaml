@@ -1,0 +1,13 @@
+description: Numeric flag replaces only the Nth occurrence.
+setup:
+  files:
+    - path: input.txt
+      content: "one one one one\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/one/TWO/2' input.txt
+expect:
+  stdout: "one TWO one one\n"
+  stderr: ""
+  exit_code: 0

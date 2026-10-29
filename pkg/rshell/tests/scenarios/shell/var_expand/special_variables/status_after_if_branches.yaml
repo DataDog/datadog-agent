@@ -1,0 +1,19 @@
+description: The $? variable reflects exit status of the last command in each if branch.
+input:
+  script: |+
+    if true; then false; fi
+    echo $?
+    if false; then true; else false; fi
+    echo $?
+    if false; then true; elif true; then true; fi
+    echo $?
+    if false; then echo yes; fi
+    echo $?
+expect:
+  stdout: |+
+    1
+    1
+    0
+    0
+  stderr: ""
+  exit_code: 0

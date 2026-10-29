@@ -1,0 +1,8 @@
+description: tail -v on stdin displays standard input header.
+input:
+  script: |+
+    printf 'hello\nworld\n' | tail -v -n 1
+expect:
+  stdout: "==> standard input <==\nworld\n"
+  stderr: ""
+  exit_code: 0

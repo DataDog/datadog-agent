@@ -1,0 +1,11 @@
+description: Continue exceeding depth continues outermost loop across all iterations.
+input:
+  script: |+
+    for i in 1 2 3; do echo $i; continue 99; done
+expect:
+  stdout: |+
+    1
+    2
+    3
+  stderr: ""
+  exit_code: 0

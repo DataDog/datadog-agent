@@ -1,0 +1,15 @@
+description: "sort -k with end field beyond available fields treats as end-of-line."
+setup:
+  files:
+    - path: data.txt
+      content: "abc\nxyz\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1.2,2.1 data.txt
+    echo ---
+    sort -k 1.2,2.1 -u data.txt
+expect:
+  stdout: "abc\nxyz\n---\nabc\nxyz\n"
+  stderr: ""
+  exit_code: 0

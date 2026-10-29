@@ -1,0 +1,19 @@
+description: jq reads multiple file operands through AllowedPaths.
+setup:
+  files:
+    - path: data/one.json
+      content: |+
+        {"id":1}
+    - path: data/two.json
+      content: |+
+        {"id":2}
+input:
+  allowed_paths: ["data"]
+  script: |+
+    jq -c '.id' data/one.json data/two.json
+expect:
+  stdout: |+
+    1
+    2
+  stderr: |+
+  exit_code: 0

@@ -156,6 +156,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.83.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.83.0
 	github.com/DataDog/datadog-agent/pkg/remoteflags v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/rshell v0.0.0
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.83.3
@@ -217,7 +218,6 @@ require (
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.6
 	github.com/DataDog/jsonapi v0.13.0
-	github.com/DataDog/rshell v0.0.31
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260917081843-fe016948e308
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
@@ -1253,6 +1253,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/remoteflags => ./pkg/remoteflags
+	github.com/DataDog/datadog-agent/pkg/rshell => ./pkg/rshell
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ./pkg/serializer

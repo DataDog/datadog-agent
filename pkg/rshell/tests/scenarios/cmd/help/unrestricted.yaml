@@ -1,0 +1,22 @@
+description: Help with no restrictions shows the rshell header, features, the commands table, and the footer hint. Uses stdout_contains so the test does not need editing each time a new builtin is added — exact registry coverage lives in builtins/tests/help/help_test.go.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "rshell"
+    - "Features:"
+    - "commands            Registered commands run inside the interpreter"
+    - "control-flow        for/while/until/if/&&/||/!/groups/subshells"
+    - "Not supported:"
+    - "arithmetic $((...))"
+    - "case, select"
+    - "Commands"
+    - "echo"
+    - "write arguments to stdout"
+    - "help"
+    - "display help for features and commands"
+    - "Run 'help <feature|command>' for more information on a specific topic."
+  stderr: ""
+  exit_code: 0

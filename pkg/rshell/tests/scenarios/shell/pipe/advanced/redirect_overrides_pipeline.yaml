@@ -1,0 +1,8 @@
+description: Explicit redirection to /dev/null overrides pipeline stdout.
+input:
+  script: |+
+    echo foo >/dev/null | cat
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

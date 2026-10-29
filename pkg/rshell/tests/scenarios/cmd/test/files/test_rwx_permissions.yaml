@@ -1,0 +1,27 @@
+description: "test -r, -w, -x check permissions on files"
+setup:
+  files:
+    - path: readable.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    test -r readable.txt
+    echo "readable: $?"
+    test -w readable.txt
+    echo "writable: $?"
+    test -r nonexistent
+    echo "noread: $?"
+    test -w nonexistent
+    echo "nowrite: $?"
+expect:
+  stdout: |
+    readable: 0
+    writable: 0
+    noread: 1
+    nowrite: 1
+  stderr: ""
+  exit_code: 0
+# skip: uses allowed_paths which the bash harness does not support
+skip_assert_against_bash: true

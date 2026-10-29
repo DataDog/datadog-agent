@@ -1,0 +1,8 @@
+description: Exit status of a bare assignment is 0.
+input:
+  script: |+
+    a=1
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

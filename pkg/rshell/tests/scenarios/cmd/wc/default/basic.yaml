@@ -1,0 +1,13 @@
+description: wc default counts lines, words, bytes.
+setup:
+  files:
+    - path: file.txt
+      content: "a b\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc file.txt
+expect:
+  stdout: "2 3 6 file.txt\n"
+  stderr: ""
+  exit_code: 0

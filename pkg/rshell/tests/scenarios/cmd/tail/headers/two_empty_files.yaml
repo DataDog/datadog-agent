@@ -1,0 +1,15 @@
+description: tail with two empty files still prints headers and blank-line separator.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail a.txt b.txt
+expect:
+  stdout: "==> a.txt <==\n\n==> b.txt <==\n"
+  stderr: ""
+  exit_code: 0

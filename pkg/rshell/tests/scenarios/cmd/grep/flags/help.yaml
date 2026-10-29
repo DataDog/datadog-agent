@@ -1,0 +1,11 @@
+description: grep --help prints usage information and exits with code 0.
+# skip: rshell builtin help output differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    grep --help
+expect:
+  stdout_contains:
+    - "Usage: grep"
+    - "PATTERN"
+  exit_code: 0

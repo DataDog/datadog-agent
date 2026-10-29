@@ -1,0 +1,13 @@
+description: head - explicitly reads from standard input.
+setup:
+  files:
+    - path: src.txt
+      content: "alpha\nbeta\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 2 - < src.txt
+expect:
+  stdout: "alpha\nbeta\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: jq rejects adjacent optional and alternative tokens.
+input:
+  script: |+
+    jq -nc '.a?//2'
+expect:
+  stdout: |+
+  stderr_contains: ["?//"]
+  exit_code: 3

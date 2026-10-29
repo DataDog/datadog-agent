@@ -1,0 +1,12 @@
+description: Multiple true commands all succeed.
+input:
+  script: |+
+    true
+    true
+    true
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

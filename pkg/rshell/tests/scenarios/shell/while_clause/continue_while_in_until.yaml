@@ -1,0 +1,20 @@
+description: continue 2 inside an inner while skips to the next iteration of the enclosing until.
+input:
+  script: |+
+    i=
+    until [ "$i" = aa ]; do
+      i="${i}a"
+      while true; do
+        echo "iter $i"
+        continue 2
+      done
+      echo unreachable
+    done
+    echo "done $i"
+expect:
+  stdout: |+
+    iter a
+    iter aa
+    done aa
+  stderr: |+
+  exit_code: 0

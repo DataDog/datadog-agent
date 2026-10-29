@@ -1,0 +1,8 @@
+description: Printf %d extracts numeric prefix from float input (bash compat).
+input:
+  script: |+
+    printf "%d\n" 3.14
+expect:
+  stdout: "3\n"
+  stderr_contains: ["printf:"]
+  exit_code: 1

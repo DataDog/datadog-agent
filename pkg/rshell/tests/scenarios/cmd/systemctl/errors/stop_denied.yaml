@@ -1,0 +1,12 @@
+# Remediation mode alone does not bypass the exact unit/action allowlist.
+skip_assert_against_bash: true
+description: systemctl stop requires an exact stop grant
+input:
+  mode: remediation
+  script: |+
+    systemctl stop api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: system service "api.service" is not allowed for action "stop"
+  exit_code: 1

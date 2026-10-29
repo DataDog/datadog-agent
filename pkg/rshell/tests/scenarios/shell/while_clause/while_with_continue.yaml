@@ -1,0 +1,14 @@
+description: while loop with continue iterates until its condition fails.
+input:
+  script: |+
+    i=
+    while [ "$i" != aaa ]; do
+      i="${i}a"
+      continue
+    done
+    echo "i=$i"
+expect:
+  stdout: |+
+    i=aaa
+  stderr: |+
+  exit_code: 0

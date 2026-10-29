@@ -1,0 +1,53 @@
+description: Ambiguous output redirects fail before modifying any candidate file.
+setup:
+  files:
+    - path: first second
+      content: |+
+        original
+    - path: first.txt
+      content: |+
+        first
+    - path: second.txt
+      content: |+
+        second
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    target='first second'
+    { echo changed > $target; } 2>/dev/null
+    echo $?
+    { echo changed >> $target; } 2>/dev/null
+    echo $?
+    { echo changed >| $target; } 2>/dev/null
+    echo $?
+    { echo changed 2> $target; } 2>/dev/null
+    echo $?
+    { echo changed 2>> $target; } 2>/dev/null
+    echo $?
+    { echo changed &> $target; } 2>/dev/null
+    echo $?
+    { echo changed &>> $target; } 2>/dev/null
+    echo $?
+    { echo changed > *.txt; } 2>/dev/null
+    echo $?
+    target=
+    { echo changed > $target; } 2>/dev/null
+    echo $?
+    cat 'first second' first.txt second.txt
+expect:
+  stdout: |+
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    original
+    first
+    second
+  stderr: |+
+  exit_code: 0

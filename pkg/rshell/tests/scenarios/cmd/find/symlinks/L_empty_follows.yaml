@@ -1,0 +1,18 @@
+description: find -L -empty follows symlink to empty target file.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/empty_target.txt
+      content: ""
+      chmod: 0644
+    - path: dir/empty_link.txt
+      symlink: empty_target.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -maxdepth 1 -name empty_link.txt -empty
+expect:
+  stdout: |+
+    dir/empty_link.txt
+  stderr: ""
+  exit_code: 0

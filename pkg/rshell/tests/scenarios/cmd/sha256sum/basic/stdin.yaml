@@ -1,0 +1,10 @@
+description: sha256sum hashes standard input when no file operand is given.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    printf abc | sha256sum
+expect:
+  stdout: |+
+    ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  -
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Undefined branch labels are rejected at parse time.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo 'hello' | sed 'bmissing'
+expect:
+  stdout: ""
+  stderr_contains: ["undefined label"]
+  exit_code: 1

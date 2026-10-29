@@ -1,0 +1,9 @@
+description: True and false chained with && and || shows correct flow.
+input:
+  script: |+
+    true && false || echo recovered
+expect:
+  stdout: |+
+    recovered
+  stderr: ""
+  exit_code: 0

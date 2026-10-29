@@ -1,0 +1,14 @@
+description: |+
+  Bash accepts an optional leading `+` on -t TIMEOUT: `read -t +1 v`
+  is a positive 1-second timeout, equivalent to `-t 1`. Verified
+  empirically against bash 5.2.0. Compatible scripts using a signed
+  positive timeout must not fail with "invalid timeout
+  specification".
+input:
+  script: |+
+    echo data | { read -t +1 v; echo "rc=$? v=[$v]"; }
+expect:
+  stdout: |+
+    rc=0 v=[data]
+  stderr: ""
+  exit_code: 0

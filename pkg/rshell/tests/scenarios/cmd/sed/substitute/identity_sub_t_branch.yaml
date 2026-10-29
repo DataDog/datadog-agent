@@ -1,0 +1,12 @@
+description: Identity substitution (s/a/a/) is considered successful for t branching.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -e 's/a/a/' -e 't found' -e 's/b/X/' -e ':found' input.txt
+expect:
+  stdout: "abc\n"
+  exit_code: 0

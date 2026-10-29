@@ -1,0 +1,9 @@
+description: jq composes object and array constructors with select and map.
+input:
+  script: |+
+    printf '%s\n' '{"name":"Ada","items":[1,2,3]}' | jq -c '{name: .name, selected: [.items[] | select(. >= 2)], doubled: (.items | map(. * 2))}'
+expect:
+  stdout: |+
+    {"name":"Ada","selected":[2,3],"doubled":[2,4,6]}
+  stderr: |+
+  exit_code: 0

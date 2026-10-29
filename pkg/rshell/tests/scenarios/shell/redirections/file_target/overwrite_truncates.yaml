@@ -1,0 +1,13 @@
+description: In remediation mode, > overwrites (truncates) an existing file.
+input:
+  script: |+
+    echo first > out.txt
+    echo second > out.txt
+    cat out.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    second
+  stderr: |+
+  exit_code: 0

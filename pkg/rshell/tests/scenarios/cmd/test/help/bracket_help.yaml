@@ -1,0 +1,9 @@
+description: "[ --help prints usage and exits 0"
+input:
+  script: |+
+    [ --help
+expect:
+  stdout_contains: ["Usage:"]
+  exit_code: 0
+# skip: help output format differs from bash
+skip_assert_against_bash: true

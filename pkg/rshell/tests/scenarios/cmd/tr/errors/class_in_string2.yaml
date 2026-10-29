@@ -1,0 +1,8 @@
+description: tr rejects non-upper/lower character classes in STRING2 when translating.
+input:
+  script: |+
+    echo hello | tr a '[:digit:]'
+expect:
+  stdout: ""
+  stderr: "tr: when translating, the only character classes that may appear in\nstring2 are 'upper' and 'lower'\n"
+  exit_code: 1

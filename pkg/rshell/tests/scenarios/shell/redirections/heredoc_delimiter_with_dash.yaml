@@ -1,0 +1,13 @@
+description: Heredoc delimiter starting with dash is not confused with tab-stripping.
+input:
+  script: |+
+    cat << -END
+    foo
+    END
+    -END
+expect:
+  stdout: |+
+    foo
+    END
+  stderr: ""
+  exit_code: 0

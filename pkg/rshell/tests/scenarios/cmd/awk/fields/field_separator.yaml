@@ -1,0 +1,17 @@
+description: awk -F uses a single-character field separator.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        root:x:0
+        agent:x:42
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk -F: '{ print $1, $3 }' input.txt
+expect:
+  stdout: |+
+    root 0
+    agent 42
+  stderr: |+
+  exit_code: 0

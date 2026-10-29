@@ -1,0 +1,13 @@
+description: tee copies stdin to both stdout and the named file.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "hello\n" | tee out.txt
+    cat out.txt
+expect:
+  stdout: |+
+    hello
+    hello
+  stderr: |+
+  exit_code: 0

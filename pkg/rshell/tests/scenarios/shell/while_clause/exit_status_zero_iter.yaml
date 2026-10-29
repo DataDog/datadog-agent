@@ -1,0 +1,12 @@
+description: A while loop that runs zero iterations exits 0 even if its condition fails.
+input:
+  script: |+
+    while false; do
+      false
+    done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=0
+  stderr: |+
+  exit_code: 0

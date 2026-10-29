@@ -1,0 +1,13 @@
+description: uniq -c shows correct counts for varied group sizes.
+setup:
+  files:
+    - path: input.txt
+      content: "x\nx\nx\ny\nz\nz\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -c input.txt
+expect:
+  stdout: "      3 x\n      1 y\n      2 z\n"
+  stderr: ""
+  exit_code: 0

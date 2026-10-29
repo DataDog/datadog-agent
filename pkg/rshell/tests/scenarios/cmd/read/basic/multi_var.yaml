@@ -1,0 +1,9 @@
+description: read with multiple names splits the line on default IFS.
+input:
+  script: |+
+    echo "alpha beta gamma" | { read A B C; echo "$A|$B|$C"; }
+expect:
+  stdout: |+
+    alpha|beta|gamma
+  stderr: ""
+  exit_code: 0

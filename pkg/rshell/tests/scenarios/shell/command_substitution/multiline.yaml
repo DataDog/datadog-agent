@@ -1,0 +1,12 @@
+description: Command substitution with multiline output.
+input:
+  script: |+
+    x=$(printf "line1\nline2\nline3")
+    echo "$x"
+expect:
+  stdout: |+
+    line1
+    line2
+    line3
+  stderr: ""
+  exit_code: 0

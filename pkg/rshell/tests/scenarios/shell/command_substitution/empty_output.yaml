@@ -1,0 +1,10 @@
+description: Command substitution with no output produces empty string.
+input:
+  script: |+
+    x=$(true)
+    echo "[$x]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

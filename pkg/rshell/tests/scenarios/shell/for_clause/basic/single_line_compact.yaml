@@ -1,0 +1,14 @@
+description: For loop written entirely on one line with semicolons.
+input:
+  script: |+
+    for i in a b c; do echo $i; echo --; done
+expect:
+  stdout: |+
+    a
+    --
+    b
+    --
+    c
+    --
+  stderr: ""
+  exit_code: 0

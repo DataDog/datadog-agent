@@ -1,0 +1,8 @@
+description: Negation can be applied to a for loop to invert its exit code.
+input:
+  script: |+
+    ! for i in a; do true; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

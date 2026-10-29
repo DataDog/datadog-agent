@@ -1,0 +1,9 @@
+description: If with test builtin integer equality.
+input:
+  script: |+
+    if [ 42 -eq 42 ]; then echo equal; else echo notequal; fi
+expect:
+  stdout: |+
+    equal
+  stderr: ""
+  exit_code: 0

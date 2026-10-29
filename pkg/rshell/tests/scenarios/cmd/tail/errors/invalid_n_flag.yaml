@@ -1,0 +1,13 @@
+description: tail exits 1 with an error when -n is given a non-numeric value.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n abc file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["tail:"]
+  exit_code: 1

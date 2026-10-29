@@ -1,0 +1,10 @@
+description: Assigning from an unset variable gives an empty string.
+input:
+  script: |+
+    A=$NEVER_SET_VAR
+    echo "[$A]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

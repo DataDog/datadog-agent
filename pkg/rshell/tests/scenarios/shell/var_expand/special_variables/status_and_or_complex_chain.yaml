@@ -1,0 +1,19 @@
+description: Complex and-or chains correctly update $? based on the last executed command.
+input:
+  script: |+
+    false || true && false || true
+    echo $?
+    true && false || false && true
+    echo $?
+    true && true && true
+    echo $?
+    false || false || false
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+    0
+    1
+  stderr: ""
+  exit_code: 0

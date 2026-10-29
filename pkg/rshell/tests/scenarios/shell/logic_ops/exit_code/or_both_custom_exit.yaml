@@ -1,0 +1,8 @@
+description: The exit builtin terminates the script immediately so || right side never runs.
+input:
+  script: |+
+    exit 2 || exit 5
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 2

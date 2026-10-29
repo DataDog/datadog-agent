@@ -1,0 +1,10 @@
+description: Command substitution propagates exit status via $?.
+input:
+  script: |+
+    x=$(exit 3)
+    echo "$?"
+expect:
+  stdout: |+
+    3
+  stderr: ""
+  exit_code: 0

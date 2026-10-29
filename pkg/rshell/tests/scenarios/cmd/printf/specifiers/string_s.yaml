@@ -1,0 +1,9 @@
+description: Printf %s specifier outputs a string argument.
+input:
+  script: |+
+    printf "%s\n" hello
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

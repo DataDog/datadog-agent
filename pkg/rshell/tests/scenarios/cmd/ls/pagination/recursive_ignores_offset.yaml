@@ -1,0 +1,28 @@
+description: ls -R silently ignores --offset.
+# skip: pagination flags are an rshell-specific extension not present in the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: aaa/file.txt
+      content: ""
+      chmod: 0644
+    - path: bbb/file.txt
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -R --offset 100
+expect:
+  stdout: |+
+    .:
+    aaa
+    bbb
+
+    ./aaa:
+    file.txt
+
+    ./bbb:
+    file.txt
+  stderr: ""
+  exit_code: 0

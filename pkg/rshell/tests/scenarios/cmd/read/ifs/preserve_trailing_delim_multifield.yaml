@@ -1,0 +1,25 @@
+description: |+
+  When the absorbed last field of a `read` invocation contains internal
+  IFS characters (ws or non-ws), bash preserves a trailing non-ws IFS
+  character verbatim because the value represents data from multiple
+  fields, not a single field followed by an empty trailing field.
+  Stripping the trailing delim in this case would lose information.
+  Verified empirically against bash 5.2.21:
+    IFS=' ,' read a    <<< 'b a,'    → a="b a,"  (preserve)
+    IFS=' ,' read a    <<< 'b,a,'    → a="b,a,"  (preserve; multiple non-ws IFS)
+    IFS=' ,' read a b  <<< 'a b c,'  → b="b c,"  (preserve; internal ws in absorber)
+    IFS=':'  read a    <<< 'b a:'    → a="b a"   (strip; ' ' is NOT IFS, so single-field)
+input:
+  script: |+
+    printf 'b a,\n'   | { IFS=' ,' read a;   echo "1=[$a]"; }
+    printf 'b,a,\n'   | { IFS=' ,' read a;   echo "2=[$a]"; }
+    printf 'a b c,\n' | { IFS=' ,' read a b; echo "3=[$a][$b]"; }
+    printf 'b a:\n'   | { IFS=':'  read a;   echo "4=[$a]"; }
+expect:
+  stdout: |+
+    1=[b a,]
+    2=[b,a,]
+    3=[a][b c,]
+    4=[b a]
+  stderr: ""
+  exit_code: 0

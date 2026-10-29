@@ -1,0 +1,13 @@
+description: uniq -z uses NUL as line delimiter.
+setup:
+  files:
+    - path: input.txt
+      content: "a\0a\0b"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -z input.txt
+expect:
+  stdout: "a\0b\0"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: Printf formats multiple arguments with multiple specifiers.
+input:
+  script: |+
+    printf "%s %s\n" hello world
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

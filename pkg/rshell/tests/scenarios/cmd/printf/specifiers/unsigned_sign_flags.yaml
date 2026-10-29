@@ -1,0 +1,9 @@
+description: Printf unsigned conversions ignore + and space sign flags (bash compat).
+input:
+  script: |+
+    printf "%+u|% u|%+x|% o\n" 42 42 42 42
+expect:
+  stdout: |+
+    42|42|2a|52
+  stderr: ""
+  exit_code: 0

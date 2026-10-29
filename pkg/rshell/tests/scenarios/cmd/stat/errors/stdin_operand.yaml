@@ -1,0 +1,9 @@
+description: stat -f rejects the standard-input operand.
+input:
+  script: |+
+    stat -f -
+expect:
+  stdout: |+
+  stderr: |+
+    stat: using '-' to denote standard input does not work in file system mode
+  exit_code: 1

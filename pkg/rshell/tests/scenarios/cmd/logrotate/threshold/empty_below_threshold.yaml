@@ -1,0 +1,19 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: an empty file under a non-zero --size reports the below-threshold wording, not the "already empty" wording, which is reserved for a zero threshold.
+setup:
+  files:
+    - path: empty.log
+      content: ""
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --verbose --size 5 empty.log
+    logrotate --dry-run --size 5 empty.log
+expect:
+  stdout: |+
+    logrotate: empty.log: 0 bytes below threshold 5, skipping
+    logrotate: empty.log: would skip, 0 bytes below threshold 5
+  stderr: |+
+  exit_code: 0

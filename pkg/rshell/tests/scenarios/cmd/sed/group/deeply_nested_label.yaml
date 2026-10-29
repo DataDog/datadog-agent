@@ -1,0 +1,13 @@
+description: Labels inside deeply nested groups (3+ levels) are resolved correctly.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '{{:a;s/a/b/;ta;p}}' input.txt
+expect:
+  stdout: "bbb\n"
+  stderr: ""
+  exit_code: 0

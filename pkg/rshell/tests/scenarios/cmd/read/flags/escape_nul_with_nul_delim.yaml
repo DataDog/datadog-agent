@@ -1,0 +1,23 @@
+description: |+
+  With `-d ''` (NUL delimiter) in non-raw mode, a backslash followed by
+  a NUL byte does not let the NUL slip into the assigned value. Bash's
+  general "embedded NULs are stripped" rule applies even in escape
+  position, so the backslash is dropped, the NUL is dropped, and reading
+  continues until the next NUL (or EOF). Subsequent reads still see the
+  next record correctly.
+# Bash's exact behaviour for `\<NUL>` under -d '' diverged between 5.2
+# (CI uses debian:bookworm-slim — bash 5.2.x) and 5.3 (typical macOS
+# Homebrew). bash 5.3 produces x="ab" (NUL stripped, reading
+# continues), while bash 5.2 stops at the NUL and the second read
+# returns "c" rather than "b". rshell intentionally aligns with the
+# 5.3 semantics — embedded NULs are always stripped without breaking
+# record boundaries — so we skip the comparison here.
+skip_assert_against_bash: true
+input:
+  script: |+
+    printf 'a\\\0b\0c' | { IFS= read -d '' x; IFS= read -d '' y; echo "x=[$x] y=[$y]"; }
+expect:
+  stdout: |+
+    x=[ab] y=[c]
+  stderr: ""
+  exit_code: 0

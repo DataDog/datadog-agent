@@ -1,0 +1,21 @@
+description: sort -h breaks ties within the same SI suffix by numeric value.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        10G
+        2G
+        1.5G
+        100G
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h file.txt
+expect:
+  stdout: |+
+    1.5G
+    2G
+    10G
+    100G
+  stderr: |+
+  exit_code: 0

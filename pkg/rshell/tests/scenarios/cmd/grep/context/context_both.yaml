@@ -1,0 +1,22 @@
+description: grep -C prints lines before and after each match.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        aaa
+        bbb
+        ccc
+        ddd
+        eee
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -C 1 ccc file.txt
+expect:
+  stdout: |+
+    bbb
+    ccc
+    ddd
+  stderr: ""
+  exit_code: 0

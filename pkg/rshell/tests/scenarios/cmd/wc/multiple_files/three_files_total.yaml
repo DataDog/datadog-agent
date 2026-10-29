@@ -1,0 +1,17 @@
+description: wc with three files shows per-file counts and a total line.
+setup:
+  files:
+    - path: a.txt
+      content: "one\n"
+    - path: b.txt
+      content: "two three\n"
+    - path: c.txt
+      content: "four\nfive six\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc a.txt b.txt c.txt
+expect:
+  stdout: " 1  1  4 a.txt\n 1  2 10 b.txt\n 2  3 14 c.txt\n 4  6 28 total\n"
+  stderr: ""
+  exit_code: 0

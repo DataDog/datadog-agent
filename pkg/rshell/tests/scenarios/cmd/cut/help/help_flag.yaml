@@ -1,0 +1,10 @@
+description: cut --help prints usage to stdout and exits 0.
+# skip: rshell builtin help output differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    cut --help
+expect:
+  stdout_contains: ["Usage: cut"]
+  stderr: ""
+  exit_code: 0

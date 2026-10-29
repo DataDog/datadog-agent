@@ -1,0 +1,11 @@
+description: xargs -n 1 invokes the command once per item.
+input:
+  script: |+
+    echo 'a b c' | xargs -n 1 echo
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: |+
+  exit_code: 0

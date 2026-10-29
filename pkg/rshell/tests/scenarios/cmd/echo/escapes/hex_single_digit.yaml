@@ -1,0 +1,8 @@
+description: Echo -e with \x followed by a single hex digit.
+input:
+  script: |+
+    echo -e '\x9'
+expect:
+  stdout: "\t\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: Empty stdin produces an empty file and no stdout output.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "" | tee out.txt
+    wc -c < out.txt
+expect:
+  stdout: |+
+    0
+  stderr: |+
+  exit_code: 0

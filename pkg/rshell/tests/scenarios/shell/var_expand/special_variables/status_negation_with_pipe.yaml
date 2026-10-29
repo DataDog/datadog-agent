@@ -1,0 +1,13 @@
+description: Negation inverts the pipeline exit status from the rightmost command.
+input:
+  script: |+
+    ! echo foo | false
+    echo $?
+    ! echo foo | true
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+  stderr: ""
+  exit_code: 0

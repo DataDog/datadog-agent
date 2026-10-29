@@ -1,0 +1,9 @@
+description: Echo treats combined flag-like arguments as flags (bash-compatible).
+input:
+  script: |+
+    echo -ne hello
+    echo -eE world
+expect:
+  stdout: "helloworld\n"
+  stderr: ""
+  exit_code: 0

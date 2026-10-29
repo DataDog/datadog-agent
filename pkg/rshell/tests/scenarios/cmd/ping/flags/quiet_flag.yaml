@@ -1,0 +1,12 @@
+# -q / --quiet flag is accepted (not an unknown flag).
+# Using a broadcast address so the command exits immediately with no network I/O.
+# Note: the quiet output-suppression behaviour is verified in TestPingQuietOutput
+# (requires RSHELL_NET_TEST=1) because it needs a live ICMP round trip.
+description: "ping -q flag is accepted (broadcast rejection before ICMP)"
+input:
+  script: |+
+    ping -q -c 1 255.255.255.255
+expect:
+  stderr: "ping: broadcast destination not allowed: 255.255.255.255\n"
+  exit_code: 1
+skip_assert_against_bash: true

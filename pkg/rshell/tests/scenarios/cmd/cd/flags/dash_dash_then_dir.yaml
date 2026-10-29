@@ -1,0 +1,14 @@
+description: cd -- DIRECTORY treats subsequent arg as a positional regardless of leading dash.
+setup:
+  files:
+    - path: -dashy/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd -- -dashy
+    pwd
+expect:
+  stdout_contains: ["-dashy"]
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: tail -3 (bare numeric shorthand) outputs the last 3 lines, equivalent to tail -n 3.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -3 file.txt
+expect:
+  stdout: "gamma\ndelta\nepsilon\n"
+  stderr: ""
+  exit_code: 0

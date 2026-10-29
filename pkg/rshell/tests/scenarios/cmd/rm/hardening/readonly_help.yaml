@@ -1,0 +1,11 @@
+description: rm --help in read-only mode fails with the same error as rm itself (capability check runs before --help).
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    rm --help
+expect:
+  stdout: |+
+  stderr: |+
+    rm: filesystem capability not available (remediation mode required)
+  exit_code: 1
+skip_assert_against_bash: true

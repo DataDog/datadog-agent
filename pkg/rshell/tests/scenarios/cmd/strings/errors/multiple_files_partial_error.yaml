@@ -1,0 +1,15 @@
+description: strings processes valid files and reports errors for missing ones; exits 1.
+setup:
+  files:
+    - path: good.bin
+      content: |+
+        hello
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings good.bin missing.bin
+expect:
+  stdout: |+
+    hello
+  stderr: "strings: 'missing.bin': No such file\n"
+  exit_code: 1

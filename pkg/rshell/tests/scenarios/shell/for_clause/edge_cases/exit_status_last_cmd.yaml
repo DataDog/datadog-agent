@@ -1,0 +1,13 @@
+description: For loop exit status reflects last command in body.
+input:
+  script: |+
+    for i in 1 2 3; do true; done
+    echo $?
+    for i in 1 2 3; do false; done
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+  stderr: ""
+  exit_code: 0

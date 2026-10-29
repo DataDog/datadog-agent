@@ -1,0 +1,11 @@
+description: |
+  vuln-hunt P2 (2026-05-18-initial-audit): `exit N` inside a brace-grouped
+  while condition exits the shell with status N before the body runs.
+input:
+  script: |+
+    while { exit 7; }; do echo body; done
+    echo unreachable
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 7

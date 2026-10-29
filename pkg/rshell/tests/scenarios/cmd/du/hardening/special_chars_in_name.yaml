@@ -1,0 +1,18 @@
+description: du tolerates spaces and unicode in filenames.
+setup:
+  files:
+    - path: "with space.txt"
+      content: "hello"
+    - path: "café.txt"
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -b "with space.txt"
+    du -b "café.txt"
+expect:
+  stdout_contains:
+    - "5\twith space.txt\n"
+    - "3\tcafé.txt\n"
+  stderr: |+
+  exit_code: 0

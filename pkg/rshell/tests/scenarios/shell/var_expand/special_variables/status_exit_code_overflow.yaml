@@ -1,0 +1,16 @@
+description: Exit codes wrap at 256 (modulo 256) just like bash.
+input:
+  script: |+
+    true | exit 0
+    echo $?
+    true | exit 256
+    echo $?
+    true | exit 257
+    echo $?
+expect:
+  stdout: |+
+    0
+    0
+    1
+  stderr: ""
+  exit_code: 0

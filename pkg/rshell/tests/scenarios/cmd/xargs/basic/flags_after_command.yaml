@@ -1,0 +1,9 @@
+description: xargs passes flags after the command name through to the sub-command (interspersed=false).
+input:
+  script: |+
+    echo a | xargs echo -n hello
+expect:
+  stdout: |-
+    hello a
+  stderr: |+
+  exit_code: 0

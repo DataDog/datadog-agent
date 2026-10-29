@@ -1,0 +1,8 @@
+description: Semicolons separating printf, true, and echo commands execute all in order.
+input:
+  script: |+
+    printf "a "; true; echo "b"
+expect:
+  stdout: "a b\n"
+  stderr: ""
+  exit_code: 0

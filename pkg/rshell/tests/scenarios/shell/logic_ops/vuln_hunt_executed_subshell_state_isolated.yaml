@@ -1,0 +1,10 @@
+description: Executed subshell operands in logic chains do not leak variable state to the parent.
+input:
+  script: |+
+    (X=inside; echo "sub=$X") && echo "parent=$X"
+expect:
+  stdout: |+
+    sub=inside
+    parent=
+  stderr: ""
+  exit_code: 0

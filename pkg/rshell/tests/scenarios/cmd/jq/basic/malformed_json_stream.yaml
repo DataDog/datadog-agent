@@ -1,0 +1,8 @@
+description: jq rejects adjacent primitive tokens that do not form a valid JSON stream boundary.
+input:
+  script: |+
+    printf 'truefalse' | jq -c '.'
+expect:
+  stdout: |+
+  stderr_contains: ["parse error"]
+  exit_code: 5

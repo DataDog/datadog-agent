@@ -1,0 +1,10 @@
+description: "%+f preserves + sign for positive infinity."
+input:
+  script: |+
+    printf "%+f\n" inf
+    printf "%+F\n" inf
+    printf "% f\n" inf
+    printf "%f\n" inf
+expect:
+  stdout: "+inf\n+INF\n inf\ninf\n"
+  exit_code: 0

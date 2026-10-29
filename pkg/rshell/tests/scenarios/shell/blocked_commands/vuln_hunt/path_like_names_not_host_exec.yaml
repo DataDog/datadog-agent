@@ -1,0 +1,24 @@
+# vuln-hunt 2026-05-19-codex / blocked_commands.
+# skip: host executable lookup is intentionally unavailable in the restricted shell.
+skip_assert_against_bash: true
+description: Path-like command names are rejected by the interpreter and never execute host binaries.
+setup:
+  files:
+    - path: script.sh
+      content: |+
+        echo pwned
+      chmod: 0755
+input:
+  script: |+
+    /bin/sh -c 'echo pwned'
+    ./script.sh
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: |+
+    rshell: /bin/sh: unknown command
+    Run 'help' to see available commands.
+    rshell: ./script.sh: unknown command
+    Run 'help' to see available commands.
+  exit_code: 0

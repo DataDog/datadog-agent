@@ -1,0 +1,13 @@
+description: Negation with the print command.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\nbbb\nccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '/bbb/!p' input.txt
+expect:
+  stdout: "aaa\nccc\n"
+  stderr: ""
+  exit_code: 0

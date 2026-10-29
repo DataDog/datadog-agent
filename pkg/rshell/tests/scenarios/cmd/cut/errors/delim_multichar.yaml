@@ -1,0 +1,8 @@
+description: Cut rejects a multi-character delimiter.
+input:
+  script: |+
+    cut -d ab -f1
+expect:
+  stdout: ""
+  stderr_contains: ["cut:"]
+  exit_code: 1

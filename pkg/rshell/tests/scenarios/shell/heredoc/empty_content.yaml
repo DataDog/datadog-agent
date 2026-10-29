@@ -1,0 +1,9 @@
+description: Heredoc with no content lines produces an empty output.
+input:
+  script: |+
+    cat <<EOF
+    EOF
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

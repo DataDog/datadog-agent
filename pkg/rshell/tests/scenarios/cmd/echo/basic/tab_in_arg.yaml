@@ -1,0 +1,8 @@
+description: Echo preserves a tab character inside a quoted argument.
+input:
+  script: |+
+    echo "a	b"
+expect:
+  stdout: "a\tb\n"
+  stderr: ""
+  exit_code: 0

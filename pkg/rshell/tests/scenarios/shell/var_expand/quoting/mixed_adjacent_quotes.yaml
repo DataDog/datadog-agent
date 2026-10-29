@@ -1,0 +1,12 @@
+description: Double-quoted and single-quoted segments can be mixed adjacent to form one word.
+input:
+  script: |+
+    X=hello
+    echo "pre_"'mid'"_$X"
+    echo 'a'"b"'c'
+expect:
+  stdout: |+
+    pre_mid_hello
+    abc
+  stderr: ""
+  exit_code: 0

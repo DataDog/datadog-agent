@@ -1,0 +1,7 @@
+description: Hex format wraps negative -1 to ffffffffffffffff.
+input:
+  script: |+
+    printf "%x\n" -1
+expect:
+  stdout: "ffffffffffffffff\n"
+  exit_code: 0

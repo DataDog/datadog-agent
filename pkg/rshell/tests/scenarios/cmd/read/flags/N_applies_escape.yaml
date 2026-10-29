@@ -1,0 +1,11 @@
+description: read -N (without -r) interprets backslash escapes the same as default mode.
+input:
+  script: |+
+    printf '%s' 'a\bc' | { IFS= read -N 3 x; echo "[$x]"; }
+    printf '%s' 'a\bc' | { IFS= read -N 3 -r x; echo "[$x]"; }
+expect:
+  stdout: |+
+    [abc]
+    [a\b]
+  stderr: ""
+  exit_code: 0

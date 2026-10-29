@@ -1,0 +1,10 @@
+description: Brace syntax works inside double quotes.
+input:
+  script: |+
+    ANIMAL=cat
+    echo "the ${ANIMAL}s"
+expect:
+  stdout: |+
+    the cats
+  stderr: ""
+  exit_code: 0

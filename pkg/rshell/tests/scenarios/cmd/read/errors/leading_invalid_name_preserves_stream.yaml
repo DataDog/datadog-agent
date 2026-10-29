@@ -1,0 +1,19 @@
+description: |+
+  When the first NAME is an invalid identifier, bash rejects the
+  command BEFORE reading any input — the next `read` on the same
+  stdin must therefore see the original first record. A naive
+  implementation that always validates names after readInput has
+  consumed input would leak the first record and the next read
+  would see the second record instead. Verified against bash 5.2.0:
+  `printf 'a\nb\n' | { read 1bad; read next; }` → next="a".
+skip_assert_against_bash: true
+input:
+  script: |+
+    printf 'a\nb\n' | { read 1bad; echo "first rc=$?"; read next; echo "next=[$next]"; }
+expect:
+  stdout: |+
+    first rc=1
+    next=[a]
+  stderr: |+
+    read: `1bad': not a valid identifier
+  exit_code: 0

@@ -1,0 +1,22 @@
+description: vmstat rejects flags not implemented in v1 (disk/partition, forks, slab, timestamp, single-header, version) with exit code 1.
+# skip: these flags are intentionally not registered; procps vmstat supports
+# them but rshell's v1 implementation does not (see the package doc comment).
+skip_assert_against_bash: true
+input:
+  script: |+
+    for f in -d -p -f -m -t -n -V; do
+      vmstat "$f" >/dev/null 2>&1
+      echo "$f:$?"
+    done
+expect:
+  stdout:
+    |+
+    -d:1
+    -p:1
+    -f:1
+    -m:1
+    -t:1
+    -n:1
+    -V:1
+  stderr: |+
+  exit_code: 0

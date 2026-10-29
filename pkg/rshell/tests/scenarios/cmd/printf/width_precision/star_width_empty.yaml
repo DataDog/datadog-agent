@@ -1,0 +1,7 @@
+description: Star width with no argument defaults to 0 width.
+input:
+  script: |+
+    printf "%*s|"
+expect:
+  stdout: "|"
+  exit_code: 0

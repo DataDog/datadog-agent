@@ -1,0 +1,13 @@
+description: uniq normalizes last line without trailing newline.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq input.txt
+expect:
+  stdout: "a\n"
+  stderr: ""
+  exit_code: 0

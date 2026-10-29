@@ -1,0 +1,11 @@
+description: "sort -c returns exit code 2 for read errors (not 1 which means disorder)."
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -c nonexistent.txt
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+expect:
+  stdout: ""
+  stderr_contains: ["nonexistent.txt"]
+  exit_code: 2

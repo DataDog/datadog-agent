@@ -1,0 +1,14 @@
+description: Cut outputs a newline even when input has no trailing newline and byte is beyond line.
+setup:
+  files:
+    - path: input.txt
+      content: "123"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -c4 input.txt
+expect:
+  stdout: "\n"
+  stderr: ""
+  exit_code: 0

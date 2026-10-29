@@ -1,0 +1,10 @@
+description: For loop with empty word list has exit status 0.
+input:
+  script: |+
+    for i in; do echo $i; done
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

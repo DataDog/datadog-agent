@@ -1,0 +1,9 @@
+description: If with test builtin string inequality.
+input:
+  script: |+
+    if [ "hello" != "world" ]; then echo diff; else echo same; fi
+expect:
+  stdout: |+
+    diff
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+description: When all files are missing, cat reports errors for each file.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat missing1.txt missing2.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "cat: missing1.txt:"
+    - "cat: missing2.txt:"
+    - "no such file or directory"
+  exit_code: 1

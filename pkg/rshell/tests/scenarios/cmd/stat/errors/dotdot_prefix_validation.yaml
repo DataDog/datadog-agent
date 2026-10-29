@@ -1,0 +1,19 @@
+description: stat -f validates components before .. instead of cleaning them away.
+setup:
+  files:
+    - path: file
+      content: "data"
+    - path: target
+      content: "target"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f file/../target missing/../target
+expect:
+  stdout: |+
+  stderr_contains:
+    - "file/../target"
+    - "directory"
+    - "missing/../target"
+    - "such file or directory"
+  exit_code: 1

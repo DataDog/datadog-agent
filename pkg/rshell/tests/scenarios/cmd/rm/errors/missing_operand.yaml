@@ -1,0 +1,11 @@
+description: rm with no FILE operands fails with exit 1.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm
+expect:
+  stdout: |+
+  stderr_contains: ["missing operand"]
+  exit_code: 1
+skip_assert_against_bash: true

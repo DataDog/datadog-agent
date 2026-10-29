@@ -1,0 +1,11 @@
+# ip -o link show - oneline link output: verify backslash continuation.
+# Uses no dev filter so it works cross-platform (lo on Linux, lo0 on macOS).
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip -o link show outputs each interface as a single line with backslash continuation"
+input:
+  script: |+
+    ip -o link show
+expect:
+  stdout_contains: ["link/loopback"]
+  exit_code: 0
+skip_assert_against_bash: true

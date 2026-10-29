@@ -1,0 +1,15 @@
+description: $(<file) shortcut reads file contents directly when cat is allowed.
+setup:
+  files:
+    - path: data.txt
+      content: "file content here"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    x=$(<data.txt)
+    echo "$x"
+expect:
+  stdout: |+
+    file content here
+  stderr: ""
+  exit_code: 0

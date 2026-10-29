@@ -1,0 +1,9 @@
+description: "RSHELL_VERSION is set (like BASH_VERSION in bash)"
+skip_assert_against_bash: true
+input:
+  script: |+
+    test -n "$RSHELL_VERSION" && echo set
+expect:
+  stdout: |+
+    set
+  exit_code: 0

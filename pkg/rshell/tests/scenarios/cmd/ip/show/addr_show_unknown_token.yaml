@@ -1,0 +1,13 @@
+# Unknown tokens after the command keyword are rejected with exit 1.
+# This matches real ip behavior: "ip addr show type veth" would filter by type
+# on a real system, but since we do not implement type/scope filters, we reject
+# unknown tokens rather than silently ignoring them (which could mask user errors).
+# skip_assert_against_bash: true because real ip would actually execute the filter.
+description: "unknown tokens after 'show' are rejected with exit 1"
+input:
+  script: |+
+    ip addr show type anytoken
+expect:
+  stderr: "ip: unknown token \"type\" after 'ip addr show'\n"
+  exit_code: 1
+skip_assert_against_bash: true

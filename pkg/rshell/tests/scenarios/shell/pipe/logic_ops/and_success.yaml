@@ -1,0 +1,10 @@
+description: Successful pipe followed by && executes the next command.
+input:
+  script: |+
+    echo abc | cat && echo done
+expect:
+  stdout: |+
+    abc
+    done
+  stderr: ""
+  exit_code: 0

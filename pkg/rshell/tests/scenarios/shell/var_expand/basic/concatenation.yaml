@@ -1,0 +1,13 @@
+description: Variable concatenation with adjacent expansions in double quotes.
+input:
+  script: |+
+    A=hello
+    B=world
+    echo "$A$B"
+    echo "${A}_${B}"
+expect:
+  stdout: |+
+    helloworld
+    hello_world
+  stderr: ""
+  exit_code: 0

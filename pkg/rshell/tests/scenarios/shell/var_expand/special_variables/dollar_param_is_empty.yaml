@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-18-initial-audit / var_expand H7.
+# The `${$}` reference asks for the value of a parameter literally named
+# "$". rshell's blocklist covers $@, $*, $#, $0-$9, $! — but not `$` itself.
+# The interpreter's lookupVar falls through to an empty Variable for any
+# unset name, so `${$}` expands to empty. Replaces the original audit's
+# "manual" verdict line with a checked-in artifact.
+description: ${$} expands to empty (lookupVar fallback) rather than to the host PID.
+input:
+  script: |+
+    echo "[${$}]"
+expect:
+  stdout: "[]\n"
+  stderr: ""
+  exit_code: 0
+skip_assert_against_bash: true

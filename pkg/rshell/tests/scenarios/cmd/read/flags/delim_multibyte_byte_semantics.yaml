@@ -1,0 +1,27 @@
+description: |+
+  `-d DELIM` matches at the BYTE level — bash 5.2 takes the first
+  byte of DELIM and stops at the first occurrence of that byte in
+  the input, even when the byte is part of a multi-byte UTF-8
+  sequence. With a multi-byte UTF-8 delimiter (e.g. `é` =
+  0xC3 0xA9), bash matches and consumes only the leading byte
+  (0xC3), leaving the trailing 0xA9 in the stream — verified by a
+  follow-up `wc -c` over the leftover stream which sees 2 bytes
+  (0xA9 + 'b'), not 1 ('b').
+  Verified empirically against bash 5.2.0:
+    printf 'a\xc3\xa9b' | { read -d $'\xc3' x; wc -c; }
+      → x="a", wc reports 2 bytes remaining
+# wc -c output format diverges between bash's GNU wc (right-justified
+# with leading spaces) and rshell's wc (no padding); skip the bash
+# byte-for-byte assertion. The semantically meaningful part of the
+# scenario — that exactly 2 leftover bytes are visible after the
+# delim match — is preserved.
+skip_assert_against_bash: true
+input:
+  script: |+
+    printf 'a\xc3\xa9b' | { IFS= read -d $'\xc3' x; printf 'x=[%s]\n' "$x"; wc -c; }
+expect:
+  stdout: |+
+    x=[a]
+    2
+  stderr: ""
+  exit_code: 0

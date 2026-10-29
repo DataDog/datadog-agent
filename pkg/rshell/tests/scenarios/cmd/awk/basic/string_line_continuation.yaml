@@ -1,0 +1,10 @@
+description: awk removes escaped physical newlines from string literals.
+input:
+  script: |+
+    awk 'BEGIN { print "a\
+    b" }'
+expect:
+  stdout: |+
+    ab
+  stderr: |+
+  exit_code: 0

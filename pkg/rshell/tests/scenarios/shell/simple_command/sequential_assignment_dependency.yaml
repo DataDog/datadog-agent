@@ -1,0 +1,10 @@
+description: Variable from earlier assignment is available in later assignment.
+input:
+  script: |+
+    a=hello
+    b=$a
+    echo $b
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

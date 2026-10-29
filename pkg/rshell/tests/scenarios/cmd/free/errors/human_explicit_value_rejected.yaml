@@ -1,0 +1,14 @@
+# skip: free is not part of GNU coreutils (it ships in procps-ng), which is
+# not installed in the debian:bookworm-slim comparison image, so there is no
+# real `free` binary to compare against.
+description: free --human=true is rejected — -h/--human takes no argument, matching GNU free's own no-argument -h
+skip_assert_against_bash: true
+input:
+  script: |+
+    free --human=true
+expect:
+  stdout: |+
+  stderr: |+
+    free: option '--human' doesn't allow an argument
+    Try 'free --help' for more information.
+  exit_code: 1

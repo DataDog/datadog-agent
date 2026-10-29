@@ -1,0 +1,13 @@
+description: The = command prints the current line number.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\nbbb\nccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '=' input.txt
+expect:
+  stdout: "1\n2\n3\n"
+  stderr: ""
+  exit_code: 0

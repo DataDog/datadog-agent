@@ -1,0 +1,11 @@
+description: A linebreak after the pipe operator continues the pipeline on the next line.
+input:
+  script: |+
+    echo hello |
+    cat |
+    cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

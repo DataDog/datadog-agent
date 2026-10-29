@@ -1,0 +1,10 @@
+description: >
+  Exit with a floating-point argument is invalid and exits the shell with code 2.
+input:
+  script: |+
+    exit 1.5
+expect:
+  stdout: ""
+  stderr_contains:
+    - "1.5: numeric argument required"
+  exit_code: 2

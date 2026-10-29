@@ -1,0 +1,10 @@
+description: Variable expansion embedded in the middle of a word.
+input:
+  script: |+
+    NAME=world
+    echo "prefix_${NAME}_suffix"
+expect:
+  stdout: |+
+    prefix_world_suffix
+  stderr: ""
+  exit_code: 0

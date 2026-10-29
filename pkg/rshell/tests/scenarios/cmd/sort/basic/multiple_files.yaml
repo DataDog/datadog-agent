@@ -1,0 +1,15 @@
+description: sort concatenates and sorts lines from multiple files.
+setup:
+  files:
+    - path: a.txt
+      content: "cherry\napple\n"
+    - path: b.txt
+      content: "banana\ndate\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort a.txt b.txt
+expect:
+  stdout: "apple\nbanana\ncherry\ndate\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Integer overflow clamps to MaxInt64 with warning and exit 0 (bash compat).
+input:
+  script: |+
+    printf "%d\n" 9223372036854775808
+expect:
+  stdout: "9223372036854775807\n"
+  stderr_contains: ["Numerical result out of range"]
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: jq preserves results emitted before a later runtime error.
+input:
+  script: |+
+    jq -nc '1, (2, 1 / 0)'
+expect:
+  stdout: |+
+    1
+    2
+  stderr_contains: ["zero"]
+  exit_code: 5

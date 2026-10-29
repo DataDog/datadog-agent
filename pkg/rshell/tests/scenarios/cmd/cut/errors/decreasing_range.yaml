@@ -1,0 +1,8 @@
+description: Cut rejects a decreasing range specification.
+input:
+  script: |+
+    cut -f 2-0
+expect:
+  stdout: ""
+  stderr_contains: ["cut:"]
+  exit_code: 1

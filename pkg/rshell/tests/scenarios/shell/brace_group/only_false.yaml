@@ -1,0 +1,8 @@
+description: Brace group containing only false has exit code 1.
+input:
+  script: |+
+    { false; }
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

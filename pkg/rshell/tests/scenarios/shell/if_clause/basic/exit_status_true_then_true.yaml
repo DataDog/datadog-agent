@@ -1,0 +1,10 @@
+description: Exit status of if reflects the body command.
+input:
+  script: |+
+    if true; then true; fi
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: jq -e exits 1 when its last result is false.
+input:
+  script: |+
+    jq -ne 'false'
+expect:
+  stdout: |+
+    false
+  stderr: |+
+  exit_code: 1

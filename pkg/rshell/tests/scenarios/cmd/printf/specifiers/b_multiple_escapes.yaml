@@ -1,0 +1,7 @@
+description: "%b handles multiple escape sequences in one argument."
+input:
+  script: |+
+    printf "%b" 'a\tb\nc'
+expect:
+  stdout: "a\tb\nc"
+  exit_code: 0

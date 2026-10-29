@@ -1,0 +1,9 @@
+description: xargs invokes the named command with initial args followed by input items.
+input:
+  script: |+
+    echo 'a b c' | xargs echo HEAD
+expect:
+  stdout: |+
+    HEAD a b c
+  stderr: |+
+  exit_code: 0

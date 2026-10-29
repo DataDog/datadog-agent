@@ -1,0 +1,15 @@
+description: Continue inside a brace group skips to next iteration of the enclosing for loop.
+input:
+  script: |+
+    for i in 1 2; do
+    { echo $i; continue; }
+    echo not reached
+    done
+    echo done
+expect:
+  stdout: |+
+    1
+    2
+    done
+  stderr: ""
+  exit_code: 0

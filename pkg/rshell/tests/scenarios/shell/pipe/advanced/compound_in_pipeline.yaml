@@ -1,0 +1,9 @@
+description: Brace groups and if statements can appear in a pipeline.
+input:
+  script: |+
+    { echo foo; echo bar; } | tail -n 1
+expect:
+  stdout: |+
+    bar
+  stderr: ""
+  exit_code: 0

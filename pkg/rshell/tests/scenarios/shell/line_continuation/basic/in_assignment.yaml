@@ -1,0 +1,11 @@
+description: Backslash-newline works in variable assignments.
+input:
+  script: |+
+    fo\
+    o=bar
+    echo $foo
+expect:
+  stdout: |+
+    bar
+  stderr: ""
+  exit_code: 0

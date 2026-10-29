@@ -1,0 +1,8 @@
+description: For loop with empty word list produces no output.
+input:
+  script: |+
+    for i in; do echo not reached; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

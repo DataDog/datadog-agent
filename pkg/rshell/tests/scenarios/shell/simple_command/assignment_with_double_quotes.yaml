@@ -1,0 +1,9 @@
+description: Assignment value in double quotes preserves spaces.
+input:
+  script: |+
+    a="hello   world"
+    echo "$a"
+expect:
+  stdout: "hello   world\n"
+  stderr: ""
+  exit_code: 0

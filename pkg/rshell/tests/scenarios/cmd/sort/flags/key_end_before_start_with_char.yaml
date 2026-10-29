@@ -1,0 +1,13 @@
+description: "sort -k with end field before start field but char offset produces non-empty key."
+setup:
+  files:
+    - path: data.txt
+      content: "c\tx\nb\t_ c\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 3,2.3 data.txt
+expect:
+  stdout: "c\tx\nb\t_ c\n"
+  stderr: ""
+  exit_code: 0

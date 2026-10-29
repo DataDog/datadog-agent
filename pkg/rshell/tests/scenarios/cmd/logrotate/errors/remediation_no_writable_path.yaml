@@ -1,0 +1,12 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate in remediation mode with no AllowedPaths configured blames the missing writable root, not the mode.
+input:
+  mode: "remediation"
+  script: |+
+    logrotate --force app.log
+expect:
+  stdout: |+
+  stderr: |+
+    logrotate: no writable path is configured (remediation mode requires an AllowedPaths entry with :rw)
+  exit_code: 1

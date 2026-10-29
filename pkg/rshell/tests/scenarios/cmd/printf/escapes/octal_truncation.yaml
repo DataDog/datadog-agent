@@ -1,0 +1,7 @@
+description: Octal escape consumes at most 3 digits in format string.
+input:
+  script: |+
+    printf "\1234"
+expect:
+  stdout: "S4"
+  exit_code: 0

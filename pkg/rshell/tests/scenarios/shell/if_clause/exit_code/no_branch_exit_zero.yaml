@@ -1,0 +1,11 @@
+description: Exit code is zero when no branch is executed (false condition, no else).
+input:
+  script: |+
+    false
+    if false; then echo yes; fi
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

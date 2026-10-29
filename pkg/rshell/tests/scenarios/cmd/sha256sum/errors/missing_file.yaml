@@ -1,0 +1,9 @@
+description: sha256sum reports a missing file and exits 1.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sha256sum missing
+expect:
+  stdout: |+
+  stderr_contains: ["sha256sum: missing:"]
+  exit_code: 1

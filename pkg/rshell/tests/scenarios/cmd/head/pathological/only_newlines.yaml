@@ -1,0 +1,13 @@
+description: head -n 5 on a file of 100 newlines outputs 5 empty lines.
+setup:
+  files:
+    - path: newlines.txt
+      content: "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 5 newlines.txt
+expect:
+  stdout: "\n\n\n\n\n"
+  stderr: ""
+  exit_code: 0

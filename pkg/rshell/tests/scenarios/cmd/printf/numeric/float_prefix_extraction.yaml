@@ -1,0 +1,8 @@
+description: Float args with trailing garbage use numeric prefix (bash compat).
+input:
+  script: |+
+    printf "%f\n" 1abc
+expect:
+  stdout: "1.000000\n"
+  stderr_contains: ["invalid number"]
+  exit_code: 1

@@ -1,0 +1,15 @@
+description: |+
+  Backslash-newline is always a line continuation in non-raw mode, even
+  when a custom -d delimiter is in effect. Verified against bash:
+  `printf 'a\<newline>b,c' | read -d , x` assigns "ab" (continuation),
+  while `printf 'a\,b,c' | read -d , x` assigns "a,b" (delim escape).
+input:
+  script: |+
+    printf 'a\\\nb,c' | { IFS= read -d , x; echo "x=[$x]"; }
+    printf 'a\\,b,c' | { IFS= read -d , y; echo "y=[$y]"; }
+expect:
+  stdout: |+
+    x=[ab]
+    y=[a,b]
+  stderr: ""
+  exit_code: 0

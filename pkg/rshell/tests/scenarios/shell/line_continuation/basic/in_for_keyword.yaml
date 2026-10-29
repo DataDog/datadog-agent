@@ -1,0 +1,17 @@
+description: Line continuation works across for/in/do/done keywords.
+input:
+  script: |+
+    f\
+    o\
+    r i i\
+    n 1 2; d\
+    o echo $i; d\
+    o\
+    n\
+    e
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 0

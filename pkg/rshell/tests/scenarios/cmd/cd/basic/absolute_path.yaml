@@ -1,0 +1,16 @@
+description: cd to an absolute path within AllowedPaths updates pwd.
+setup:
+  files:
+    - path: sub/inner
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    here=$(pwd)
+    cd "$here/sub"
+    pwd
+expect:
+  stdout_contains: ["/sub"]
+  stdout_contains_windows: ["\\sub"]
+  stderr: ""
+  exit_code: 0

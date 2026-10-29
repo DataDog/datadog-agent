@@ -1,0 +1,14 @@
+description: cat passes through file content containing NUL bytes verbatim.
+setup:
+  files:
+    - path: file.txt
+      content: "before\x00after\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt
+expect:
+  stdout: "before\x00after\n"
+  stderr: ""
+  exit_code: 0

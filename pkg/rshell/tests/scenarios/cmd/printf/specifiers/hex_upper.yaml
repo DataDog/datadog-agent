@@ -1,0 +1,9 @@
+description: Printf %X specifier outputs uppercase hexadecimal.
+input:
+  script: |+
+    printf "%X\n" 255
+expect:
+  stdout: |+
+    FF
+  stderr: ""
+  exit_code: 0

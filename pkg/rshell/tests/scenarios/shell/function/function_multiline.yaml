@@ -1,0 +1,14 @@
+# skip: function declarations are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Multi-line function declaration is blocked.
+input:
+  script: |+
+    myfunc() {
+      echo line1
+      echo line2
+      echo line3
+    }
+expect:
+  stdout: ""
+  stderr: "function declarations are not supported\n"
+  exit_code: 2

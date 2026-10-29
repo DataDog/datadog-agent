@@ -1,0 +1,19 @@
+description: find treats ')' as a path operand, not an expression token.
+setup:
+  files:
+    - path: ")/file.txt"
+      content: "inside paren dir"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    # ')' in path position should be treated as a directory name
+    find ")" -maxdepth 0
+
+    # Also works with expressions after the path
+    find ")" -type f
+expect:
+  stdout: |+
+    )
+    )/file.txt
+  stderr: ""
+  exit_code: 0

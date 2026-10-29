@@ -1,0 +1,12 @@
+description: sed -i requires at least one file operand.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i 's/a/b/'
+expect:
+  stdout: |+
+  stderr: |+
+    sed: no input files
+  exit_code: 1
+skip_assert_against_bash: true

@@ -1,0 +1,16 @@
+description: rm -- treats a flag-like filename as a literal operand, not a flag.
+setup:
+  files:
+    - path: -v
+      content: "data\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm -- -v
+    ls | grep -q '^-v$' && echo found || echo gone
+expect:
+  stdout: |+
+    gone
+  stderr: |+
+  exit_code: 0

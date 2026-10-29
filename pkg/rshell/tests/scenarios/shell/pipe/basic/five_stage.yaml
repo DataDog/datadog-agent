@@ -1,0 +1,9 @@
+description: Five-stage pipeline passes data through all stages.
+input:
+  script: |+
+    echo hello | cat | cat | cat | cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

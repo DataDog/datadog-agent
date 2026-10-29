@@ -1,0 +1,20 @@
+description: find with two consecutive -exec actions — both run for each matched file.
+skip_assert_against_bash: true  # rshell -exec only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -name '*.txt' -exec echo first {} \; -exec echo second {} \;
+expect:
+  stdout: |+
+    first dir/a.txt
+    second dir/a.txt
+  stderr: ""
+  exit_code: 0

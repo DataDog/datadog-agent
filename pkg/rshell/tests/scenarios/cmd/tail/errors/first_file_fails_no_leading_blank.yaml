@@ -1,0 +1,13 @@
+description: When the first file fails to open, the second file's header has no leading blank line.
+setup:
+  files:
+    - path: good.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 1 nonexistent.txt good.txt
+expect:
+  stdout: "==> good.txt <==\nhello\n"
+  stderr_contains: ["tail:"]
+  exit_code: 1

@@ -1,0 +1,18 @@
+description: find -exec cat {} \; reads and prints the content of each matched file.
+skip_assert_against_bash: true  # rshell -exec only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/hello.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:cat
+  script: |+
+    find dir -name 'hello.txt' -exec cat {} \;
+expect:
+  stdout: "hello"
+  stderr: ""
+  exit_code: 0

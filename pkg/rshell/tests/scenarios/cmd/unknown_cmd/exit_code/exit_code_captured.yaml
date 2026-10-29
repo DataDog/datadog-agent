@@ -1,0 +1,11 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: The exit code of an unknown command is captured by $? when using semicolons.
+input:
+  script: |+
+    nonexistent; echo $?
+expect:
+  stdout: |+
+    127
+  stderr_contains: ["nonexistent", "unknown command"]
+  exit_code: 0

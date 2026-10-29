@@ -1,0 +1,9 @@
+description: Printf interprets \u and \U Unicode escapes in %b arguments.
+input:
+  script: |+
+    printf "%b\n" "\u0042"
+expect:
+  stdout: |+
+    B
+  stderr: ""
+  exit_code: 0

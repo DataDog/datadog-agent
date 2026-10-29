@@ -1,0 +1,16 @@
+description: rm LINK/ where LINK is a dangling symlink fails with "no such file or directory" instead of removing LINK, and without leaking internal sandbox error details.
+setup:
+  files:
+    - path: danglink
+      symlink: nonexistent
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm danglink/
+expect:
+  stdout: |+
+  stderr: |+
+    rm: cannot remove 'danglink/': no such file or directory
+  exit_code: 1
+skip_assert_against_bash: true

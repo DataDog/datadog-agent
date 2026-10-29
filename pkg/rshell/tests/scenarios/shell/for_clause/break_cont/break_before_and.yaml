@@ -1,0 +1,8 @@
+description: Break before && operator prevents subsequent commands.
+input:
+  script: |+
+    for i in 1; do break && echo not reached 1; echo not reached 2; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

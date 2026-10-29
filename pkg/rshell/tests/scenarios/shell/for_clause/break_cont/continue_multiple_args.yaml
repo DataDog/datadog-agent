@@ -1,0 +1,12 @@
+description: Continue with multiple arguments produces an error.
+input:
+  script: |+
+    for i in 1; do
+      continue 1 2
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "continue"
+    - "too many arguments"
+  exit_code: 1

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "continue",
+    srcs = ["continue.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/continue",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/loopctl",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

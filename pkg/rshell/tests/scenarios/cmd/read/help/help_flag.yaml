@@ -1,0 +1,10 @@
+description: read --help prints usage to stdout and exits 0.
+# skip: rshell builtin help output differs from bash builtin help
+skip_assert_against_bash: true
+input:
+  script: |+
+    read --help
+expect:
+  stdout_contains: ["Usage:", "NAME"]
+  stderr: ""
+  exit_code: 0

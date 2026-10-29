@@ -1,0 +1,29 @@
+description: |+
+  Bash treats `-t ""` (empty timeout argument) as a zero-timeout
+  poll equivalent to `-t 0`: it probes readiness only, does NOT
+  consume stdin, and leaves NAMEs unchanged. Scripts that pass an
+  empty-timeout variable expecting bash-compatible polling
+  semantics rely on this. Verified empirically against bash 5.2.0:
+  `read -t "" X < file` reports rc=0 (regular files are always
+  pollable) without consuming any data; the next read sees the
+  first line.
+setup:
+  files:
+    - path: data.txt
+      content: |
+        x
+        y
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    X=initial
+    read -t "" X < data.txt
+    echo "rc=$? X=[$X]"
+    read Y < data.txt
+    echo "Y=[$Y]"
+expect:
+  stdout: |+
+    rc=0 X=[initial]
+    Y=[x]
+  stderr: ""
+  exit_code: 0

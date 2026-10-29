@@ -1,0 +1,9 @@
+description: Echo -e with \U Unicode escape produces correct character.
+input:
+  script: |+
+    echo -e '\U00000041'
+expect:
+  stdout: |+
+    A
+  stderr: ""
+  exit_code: 0

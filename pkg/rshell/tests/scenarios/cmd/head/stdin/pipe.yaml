@@ -1,0 +1,13 @@
+description: head works correctly in a pipeline receiving input from cat.
+setup:
+  files:
+    - path: file.txt
+      content: "line01\nline02\nline03\nline04\nline05\nline06\nline07\nline08\nline09\nline10\nline11\nline12\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt | head -n 3
+expect:
+  stdout: "line01\nline02\nline03\n"
+  stderr: ""
+  exit_code: 0

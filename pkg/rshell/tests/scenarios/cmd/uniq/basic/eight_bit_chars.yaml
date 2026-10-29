@@ -1,0 +1,13 @@
+description: uniq handles eight-bit characters correctly.
+setup:
+  files:
+    - path: input.txt
+      content: "ö\nv\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq input.txt
+expect:
+  stdout: "ö\nv\n"
+  stderr: ""
+  exit_code: 0

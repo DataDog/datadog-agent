@@ -1,0 +1,31 @@
+description: "test -x returns true for executable files and false for non-executable"
+setup:
+  files:
+    - path: exec.sh
+      content: "#!/bin/sh\n"
+      chmod: 0755
+    - path: noexec.txt
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    test -x exec.sh
+    echo "exec: $?"
+    test -x noexec.txt
+    echo "noexec: $?"
+    test -x nonexistent
+    echo "missing: $?"
+expect:
+  stdout: |
+    exec: 0
+    noexec: 1
+    missing: 1
+  stdout_windows: |
+    exec: 1
+    noexec: 1
+    missing: 1
+  stderr: ""
+  exit_code: 0
+# skip: uses allowed_paths which the bash harness does not support
+skip_assert_against_bash: true

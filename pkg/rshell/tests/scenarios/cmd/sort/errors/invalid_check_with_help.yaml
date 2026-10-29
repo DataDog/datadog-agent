@@ -1,0 +1,17 @@
+# GNU emits the same error followed by "Valid arguments are:" hints; rshell's
+# error is one line shorter. Both exit 2 and neither prints help — that is the
+# property we lock in here. Skip the byte-for-byte bash check because of the
+# extra hint lines GNU adds.
+description: '`sort --check=bogus --help` exits 2 with `invalid argument` rather than printing help. Validation lives before the `--help` short-circuit in builtins/sort/sort.go, matching GNU sort''s left-to-right option semantics. The trial-parse trim in builtins/builtins.go relies on this ordering to safely honour `--help` after value-taking flags.'
+skip_assert_against_bash: true
+input:
+  script: |+
+    sort --check=bogus --help; echo "code:$?"
+expect:
+  stdout: |+
+    code:2
+  stderr_contains:
+    - "sort:"
+    - "invalid argument"
+    - "--check"
+  exit_code: 0

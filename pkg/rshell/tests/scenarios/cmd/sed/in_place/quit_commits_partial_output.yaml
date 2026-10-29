@@ -1,0 +1,23 @@
+description: sed -i with q commits the partial output produced before quitting.
+setup:
+  files:
+    - path: lines.txt
+      content: |+
+        1
+        2
+        3
+        4
+        5
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i '3q' lines.txt
+    cat lines.txt
+expect:
+  stdout: |+
+    1
+    2
+    3
+  stderr: |+
+  exit_code: 0

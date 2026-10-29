@@ -1,0 +1,8 @@
+description: tr with empty STRING1 and STRING2 passes input through.
+input:
+  script: |+
+    echo hello | tr '' ''
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

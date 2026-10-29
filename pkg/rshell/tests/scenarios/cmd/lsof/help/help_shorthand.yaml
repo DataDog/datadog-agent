@@ -1,0 +1,15 @@
+# skip: lsof is not installed by default in the debian:bookworm-slim
+# comparison image, and this builtin's flag set and output format are
+# intentionally a narrow, custom subset of real lsof (see builtins/lsof's
+# package doc comment), so there is nothing meaningful to compare against.
+description: lsof -h prints usage to stdout (short form of --help)
+skip_assert_against_bash: true
+input:
+  script: |+
+    lsof -h
+expect:
+  stdout_contains:
+    - "Usage: lsof"
+    - "-h, --help"
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: "Explicitly empty variable (VAR=) differs from unset variable"
+input:
+  script: |
+    EMPTY=
+    echo "empty=[$EMPTY]"
+    echo "unset=[$NEVER_SET]"
+    echo "both_blank"
+expect:
+  stdout: "empty=[]\nunset=[]\nboth_blank\n"
+  exit_code: 0

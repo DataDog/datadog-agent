@@ -1,0 +1,13 @@
+description: cat -A shows tabs and line endings together.
+setup:
+  files:
+    - path: input.txt
+      content: "hello\tworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -A input.txt
+expect:
+  stdout: "hello^Iworld$\n"
+  stderr: ""
+  exit_code: 0

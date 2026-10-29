@@ -1,0 +1,9 @@
+description: Break with negation operator.
+input:
+  script: |+
+    for i in 1 2 3; do ! break; echo unreached; done; echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

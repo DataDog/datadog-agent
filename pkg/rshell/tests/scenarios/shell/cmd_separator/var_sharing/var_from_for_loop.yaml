@@ -1,0 +1,9 @@
+description: Variable set inside a for loop body is visible after the loop via separator.
+input:
+  script: |+
+    for i in a b c; do LAST=$i; done; echo $LAST
+expect:
+  stdout: |+
+    c
+  stderr: ""
+  exit_code: 0

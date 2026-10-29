@@ -1,0 +1,13 @@
+description: Substitution with alternate delimiter character.
+setup:
+  files:
+    - path: input.txt
+      content: "/usr/local/bin\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's|/usr/local|/opt|' input.txt
+expect:
+  stdout: "/opt/bin\n"
+  stderr: ""
+  exit_code: 0

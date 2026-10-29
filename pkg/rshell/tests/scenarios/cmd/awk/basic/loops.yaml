@@ -1,0 +1,9 @@
+description: awk supports practical while and for loops with break and continue.
+input:
+  script: |+
+    awk 'BEGIN { for (i = 1; i <= 5; i++) { if (i == 2) continue; if (i == 5) break; sum += i }; j = 0; while (j < 3) { j++; if (j == 2) continue; seen = seen j }; i = 0; for (; i < 3; i++) noinit = noinit i; for (i = 0; i < 3; i++); emptyFor = i; j = 0; while (j++ < 3); emptyWhile = j; print sum, seen, noinit, emptyFor, emptyWhile }'
+expect:
+  stdout: |+
+    8 13 012 3 4
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,14 @@
+description: strings on a file containing only non-printable bytes (NUL and control characters) produces no output because no run of 4+ printable characters exists.
+setup:
+  files:
+    - path: file.bin
+      content: "\x00\x01\x02\x03\x04"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings file.bin
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

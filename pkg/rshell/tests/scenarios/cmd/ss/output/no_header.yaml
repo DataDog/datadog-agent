@@ -1,0 +1,15 @@
+description: ss -H runs successfully (header suppression; exit 0, no stderr).
+# The scenario verifies exit 0 and no stderr. The absence of the Netid header
+# line is asserted in the Go test TestSSLinuxNoHeader (ss_linux_test.go).
+# skip: output depends on live kernel socket state which differs between hosts.
+skip_assert_against_bash: true
+input:
+  # /proc/net is required on Linux; on macOS/Windows ss uses sysctl/iphlpapi.
+  allowed_paths: ["/proc/net"]
+  script: |+
+    ss -anH; echo "done"
+expect:
+  stdout_contains:
+    - "done"
+  stderr: ""
+  exit_code: 0

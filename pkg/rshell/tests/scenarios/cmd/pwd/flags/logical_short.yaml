@@ -1,0 +1,10 @@
+description: pwd -L prints the logical working directory.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    pwd -L
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

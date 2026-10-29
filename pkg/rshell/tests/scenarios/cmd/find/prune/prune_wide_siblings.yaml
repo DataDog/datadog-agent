@@ -1,0 +1,50 @@
+description: find -prune skips one subdirectory among many wide siblings.
+setup:
+  files:
+    - path: dir/skip/hidden.txt
+      content: "hidden"
+      chmod: 0644
+    - path: dir/keep1/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/keep2/b.txt
+      content: "b"
+      chmod: 0644
+    - path: dir/keep3/c.txt
+      content: "c"
+      chmod: 0644
+    - path: dir/keep4/d.txt
+      content: "d"
+      chmod: 0644
+    - path: dir/keep5/e.txt
+      content: "e"
+      chmod: 0644
+    - path: dir/keep6/f.txt
+      content: "f"
+      chmod: 0644
+    - path: dir/keep7/g.txt
+      content: "g"
+      chmod: 0644
+    - path: dir/keep8/h.txt
+      content: "h"
+      chmod: 0644
+    - path: dir/keep9/i.txt
+      content: "i"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name skip -prune -o -type f -print
+expect:
+  stdout_unordered: |+
+    dir/keep1/a.txt
+    dir/keep2/b.txt
+    dir/keep3/c.txt
+    dir/keep4/d.txt
+    dir/keep5/e.txt
+    dir/keep6/f.txt
+    dir/keep7/g.txt
+    dir/keep8/h.txt
+    dir/keep9/i.txt
+  stderr: ""
+  exit_code: 0

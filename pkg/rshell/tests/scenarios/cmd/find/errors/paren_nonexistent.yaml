@@ -1,0 +1,12 @@
+description: find treats ')' as a nonexistent path, not an expression error.
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find ")" -maxdepth 0
+expect:
+  stderr_contains: ["find:"]
+  exit_code: 1

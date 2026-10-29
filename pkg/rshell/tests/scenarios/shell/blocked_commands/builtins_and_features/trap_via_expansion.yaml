@@ -1,0 +1,17 @@
+# vuln-hunt 2026-05-18-initial-audit / signal-handling
+# Confirms the trap rejection survives reaching the command name through
+# variable expansion, i.e. an attacker cannot smuggle `trap` past the
+# command-dispatch gate by hiding the literal in a variable. Companion to
+# the literal-form trap.yaml in this directory.
+skip_assert_against_bash: true
+description: Trap stays blocked when reached through variable expansion.
+input:
+  script: |+
+    T=trap
+    $T 'echo trapped' INT
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: trap: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

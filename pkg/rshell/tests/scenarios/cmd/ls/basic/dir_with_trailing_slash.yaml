@@ -1,0 +1,13 @@
+description: ls handles directory argument with trailing slash.
+setup:
+  files:
+    - path: mydir/file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls mydir/
+expect:
+  stdout: "file.txt\n"
+  stderr: ""
+  exit_code: 0

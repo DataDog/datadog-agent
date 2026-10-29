@@ -1,0 +1,21 @@
+description: awk applies -F and -v FS options in order and treats invalid separators as fatal.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        a:b,c
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk -v FS=: -F, '{ print $1, $2 }' input.txt
+    awk -F, -v FS=: '{ print $1, $2 }' input.txt
+    printf 'x\n' | awk -F '[[' '{ print }'
+    printf 'x\n' | awk -v 'FS=[[' '{ print }'
+expect:
+  stdout: |+
+    a:b c
+    a b,c
+  stderr: |+
+    awk: fatal: invalid regular expression "[[": error parsing regexp: missing closing ]: `[[`
+    awk: fatal: invalid regular expression "[[": error parsing regexp: missing closing ]: `[[`
+  exit_code: 2

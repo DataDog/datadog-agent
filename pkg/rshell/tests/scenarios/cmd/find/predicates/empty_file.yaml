@@ -1,0 +1,23 @@
+description: find -empty matches empty files and directories.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/empty.txt
+      content: ""
+      chmod: 0644
+    - path: dir/notempty.txt
+      content: "data"
+      chmod: 0644
+    - path: dir/emptydir/.keep
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -empty -type f
+expect:
+  stdout_unordered: |+
+    dir/empty.txt
+    dir/emptydir/.keep
+  stderr: ""
+  exit_code: 0

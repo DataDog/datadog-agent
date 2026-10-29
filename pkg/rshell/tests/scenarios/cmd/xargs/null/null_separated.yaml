@@ -1,0 +1,14 @@
+description: xargs -0 splits items on NUL bytes only; whitespace stays literal.
+setup:
+  files:
+    - path: in.bin
+      content: "a b\0c\0d\0"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    xargs -0 < in.bin
+expect:
+  stdout: |+
+    a b c d
+  stderr: |+
+  exit_code: 0

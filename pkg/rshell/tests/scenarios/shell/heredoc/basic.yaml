@@ -1,0 +1,13 @@
+description: Basic heredoc with EOF delimiter.
+input:
+  script: |+
+    cat <<EOF
+    hello
+    world
+    EOF
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

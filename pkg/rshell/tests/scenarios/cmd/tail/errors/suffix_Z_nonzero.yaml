@@ -1,0 +1,13 @@
+description: tail -n 1Z exits 1 (Z suffix overflows int64; GNU tail rejects non-zero counts).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 1Z file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["invalid"]
+  exit_code: 1

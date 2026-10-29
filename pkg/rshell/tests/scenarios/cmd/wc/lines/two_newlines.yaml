@@ -1,0 +1,13 @@
+description: wc -l counts 2 for two newline-terminated lines.
+setup:
+  files:
+    - path: file.txt
+      content: "x\ny\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -l file.txt
+expect:
+  stdout: "2 file.txt\n"
+  stderr: ""
+  exit_code: 0

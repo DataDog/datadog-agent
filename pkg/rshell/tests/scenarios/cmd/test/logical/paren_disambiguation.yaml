@@ -1,0 +1,19 @@
+description: "test POSIX 3-arg disambiguation inside parenthesized subexpressions"
+input:
+  script: |+
+    # Inner ( "" -o "x" ) — -o is a logical OR operator inside parens, not 3-arg binary
+    test '(' "" -o "x" ')'
+    echo "paren-or: $?"
+    # Inner ( "a" = "b" ) — binary = inside parens
+    test '(' "a" = "a" ')'
+    echo "paren-eq: $?"
+    # Nested: ! ( "a" = "b" ) — negated grouping
+    test '!' '(' "a" = "b" ')'
+    echo "not-paren-neq: $?"
+expect:
+  stdout: |
+    paren-or: 0
+    paren-eq: 0
+    not-paren-neq: 0
+  stderr: ""
+  exit_code: 0

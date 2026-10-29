@@ -1,0 +1,12 @@
+description: Heredoc combined with && runs the next command when cat succeeds.
+input:
+  script: |+
+    cat <<EOF && echo ok
+    hello
+    EOF
+expect:
+  stdout: |+
+    hello
+    ok
+  stderr: ""
+  exit_code: 0

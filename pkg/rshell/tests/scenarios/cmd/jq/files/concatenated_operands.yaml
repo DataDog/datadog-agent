@@ -1,0 +1,18 @@
+description: jq treats multiple file operands as one concatenated JSON input stream.
+setup:
+  files:
+    - path: data/part-one.json
+      content: |+
+        {"joined":
+    - path: data/part-two.json
+      content: |+
+        true}
+input:
+  allowed_paths: ["data"]
+  script: |+
+    jq -c '.' data/part-one.json data/part-two.json
+expect:
+  stdout: |+
+    {"joined":true}
+  stderr: |+
+  exit_code: 0

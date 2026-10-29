@@ -1,0 +1,12 @@
+description: Variables modified inside a brace group are visible outside (shared scope).
+input:
+  script: |+
+    V=1
+    { V=2; echo inner $V; }
+    echo outer $V
+expect:
+  stdout: |+
+    inner 2
+    outer 2
+  stderr: ""
+  exit_code: 0

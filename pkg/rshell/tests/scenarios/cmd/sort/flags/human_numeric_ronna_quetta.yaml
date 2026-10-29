@@ -1,0 +1,26 @@
+description: |+
+  sort -h recognises R (ronna) and Q (quetta) suffixes per the GNU sort
+  manual's "kKMGTPEZYRQ" table. R sorts above Y; Q sorts above R.
+# skip: debian:bookworm-slim ships a reference coreutils build that predates the R/Q suffixes
+# (added in 9.4). Newer GNU sort matches our ordering.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        1Q
+        1R
+        1Y
+        1000Y
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h file.txt
+expect:
+  stdout: |+
+    1Y
+    1000Y
+    1R
+    1Q
+  stderr: |+
+  exit_code: 0

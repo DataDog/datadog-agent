@@ -1,0 +1,26 @@
+description: Complex expression with AND, OR, NOT, and parentheses.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.go
+      content: "b"
+      chmod: 0644
+    - path: dir/c.md
+      content: "c"
+      chmod: 0644
+    - path: dir/d.txt
+      content: "dddd"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f '(' -name '*.txt' -o -name '*.go' ')' -not -name 'a*'
+expect:
+  stdout_unordered: |+
+    dir/b.go
+    dir/d.txt
+  stderr: ""
+  exit_code: 0

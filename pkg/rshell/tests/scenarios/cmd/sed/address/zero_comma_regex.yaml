@@ -1,0 +1,13 @@
+description: "The 0,/re/ address allows the regex to match on line 1 (unlike 1,/re/)."
+setup:
+  files:
+    - path: input.txt
+      content: "foo\nbar\nfoo\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '0,/foo/s/foo/FOO/' input.txt
+expect:
+  stdout: "FOO\nbar\nfoo\n"
+  stderr: ""
+  exit_code: 0

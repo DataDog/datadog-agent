@@ -1,0 +1,12 @@
+description: Inline variable with spaces in quoted value restores correctly after command.
+input:
+  script: |+
+    X="hello world"
+    X="changed value" echo test
+    echo "$X"
+expect:
+  stdout: |+
+    test
+    hello world
+  stderr: ""
+  exit_code: 0

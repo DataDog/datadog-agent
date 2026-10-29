@@ -1,0 +1,17 @@
+description: vmstat -s prints a labeled counter summary, one entry per line.
+# skip: vmstat is not present in debian:bookworm-slim, and counters reflect
+# live host state.
+skip_assert_against_bash: true
+# skip: vmstat is not supported on Windows (see AGENTS.md); this scenario
+# requires real output, which only exists on Linux/macOS.
+skip_windows: true
+input:
+  script: |+
+    vmstat -s; echo "code:$?"
+expect:
+  stdout_contains:
+    - "total memory"
+    - "total swap"
+    - "code:0"
+  stderr: |+
+  exit_code: 0

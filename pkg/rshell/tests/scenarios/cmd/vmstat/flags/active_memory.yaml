@@ -1,0 +1,17 @@
+description: vmstat -a swaps the memory header columns to inact/active instead of buff/cache.
+# skip: vmstat is not present in debian:bookworm-slim, and output reflects
+# live host state.
+skip_assert_against_bash: true
+# skip: vmstat is not supported on Windows (see AGENTS.md); this scenario
+# requires real output, which only exists on Linux/macOS.
+skip_windows: true
+input:
+  script: |+
+    vmstat -a; echo "code:$?"
+expect:
+  stdout_contains:
+    - "inact"
+    - "active"
+    - "code:0"
+  stderr: |+
+  exit_code: 0

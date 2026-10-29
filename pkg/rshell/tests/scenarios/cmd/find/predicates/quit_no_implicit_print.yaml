@@ -1,0 +1,14 @@
+description: find -quit alone produces no output (suppresses implicit -print).
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -quit
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

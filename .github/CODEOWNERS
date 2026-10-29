@@ -794,6 +794,9 @@
 /pkg/procmgr/rust/src/transport/named_pipe.rs                         @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/privateactionrunner/                                             @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction/rshell                  @DataDog/action-platform @DataDog/dd-agent-mcp @DataDog/fleet-remediation
+/pkg/rshell/                                                         @DataDog/dd-agent-mcp @DataDog/fleet-remediation
+/.github/workflows/rshell-analysis.yml                               @DataDog/dd-agent-mcp @DataDog/fleet-remediation
+/.gitlab/test/rshell.yml                                             @DataDog/fleet-remediation
 /pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networkdevices          @DataDog/action-platform @DataDog/network-device-monitoring-core
 /pkg/privateactionrunner/bundles/remoteaction/networks                @DataDog/action-platform @Datadog/network-path
@@ -1003,6 +1006,7 @@
 /tasks/new_e2e_tests.py                                         @DataDog/agent-devx
 /tasks/process_agent.py                                         @DataDog/container-experiences
 /tasks/privateactionrunner.py                                   @DataDog/action-platform
+/tasks/rshell.py                                                @DataDog/fleet-remediation
 /tasks/system_probe.py                                          @DataDog/ebpf-platform
 /tasks/ebpf.py                                                  @DataDog/ebpf-platform
 /tasks/kmt.py                                                   @DataDog/ebpf-platform

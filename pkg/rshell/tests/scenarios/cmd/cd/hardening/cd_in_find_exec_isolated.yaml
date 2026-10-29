@@ -1,0 +1,22 @@
+description: cd inside find -execdir runs in a child context and cannot mutate the parent's working directory.
+# bash forks a process for each -exec invocation, so cd in -exec is
+# silently isolated. We model the same isolation by disabling the
+# ChangeDir callback in RunCommand-spawned children — cd in -exec
+# fails fast with "not supported", which is intentionally stricter
+# than bash's silent fork.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: outer/inner/leaf
+      content: ""
+    - path: target/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    here=$(pwd)
+    find outer -type d -name inner -execdir cd /tmp 2>/dev/null \;
+    if [ "$(pwd)" = "$here" ]; then echo isolated; else echo leaked; fi
+expect:
+  stdout_contains: ["isolated"]
+  exit_code: 0

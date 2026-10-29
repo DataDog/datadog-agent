@@ -1,0 +1,18 @@
+# skip: case statements and AllowedPaths sandbox failures are rshell-specific behavior.
+skip_assert_against_bash: true
+description: A case statement input redirect must not open files before case validation rejects the statement.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    case x in x) echo matched;; esac < secret/data.txt
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

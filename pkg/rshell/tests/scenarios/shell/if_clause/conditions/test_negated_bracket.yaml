@@ -1,0 +1,11 @@
+description: If with negated test builtin.
+input:
+  script: |+
+    if ! [ "a" = "b" ]; then echo different; else echo same; fi
+    if ! [ "a" = "a" ]; then echo different; else echo same; fi
+expect:
+  stdout: |+
+    different
+    same
+  stderr: ""
+  exit_code: 0

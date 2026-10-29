@@ -1,0 +1,12 @@
+description: "Inline # comment after q with exit code is accepted."
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'q1#done' input.txt
+expect:
+  stdout: "line1\n"
+  exit_code: 1

@@ -1,0 +1,8 @@
+description: The true builtin exits successfully with no output.
+input:
+  script: |+
+    true
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

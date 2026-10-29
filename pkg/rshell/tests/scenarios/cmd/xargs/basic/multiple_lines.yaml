@@ -1,0 +1,17 @@
+description: xargs joins items across multiple newline-separated input lines.
+setup:
+  files:
+    - path: in.txt
+      content: |+
+        alpha
+        beta
+        gamma
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    xargs < in.txt
+expect:
+  stdout: |+
+    alpha beta gamma
+  stderr: |+
+  exit_code: 0

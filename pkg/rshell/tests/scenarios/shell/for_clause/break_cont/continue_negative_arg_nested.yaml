@@ -1,0 +1,23 @@
+description: Continue with an out-of-range negative operand unwinds every enclosing loop, matching break -- not just the innermost loop, and not a continue of the outermost loop.
+input:
+  script: |+
+    for i in 1 2; do
+      echo outer $i
+      for j in 1 2; do
+        echo inner $i $j
+        continue -1
+        echo unreached $i $j
+      done
+      echo after-inner $i
+    done
+    echo done
+expect:
+  stdout: |+
+    outer 1
+    inner 1 1
+    done
+  stderr_contains:
+    - "continue"
+    - "-1"
+    - "loop count out of range"
+  exit_code: 0
