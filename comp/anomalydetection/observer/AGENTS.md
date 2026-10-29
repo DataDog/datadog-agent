@@ -142,9 +142,9 @@ BOCPD attaches a rolling MAD score only on emitted detections. It reads the 60
 strictly preceding stored observations for the same series and aggregation,
 using `abs(value - median) / max(1.4826 * MAD, sqrt(MinVariance))`. The shared
 scratch space is allocated on the first emission; no per-series history is added.
-Missing history or non-finite arithmetic leaves the score unavailable. Default
-scorer contributions remain medium; an explicit BOCPD threshold entry opts into
-numeric buckets, with missing BOCPD scores still falling back to medium. The score
+Missing history or non-finite arithmetic leaves the score unavailable. The scorer
+uses provisional BOCPD bucket boundaries `[2, 3, 6, 10]` by default, with missing
+or invalid BOCPD scores falling back to medium. The score
 measures point extremeness rather than changepoint confidence or incident impact.
 
 ### Bounded series admission

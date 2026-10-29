@@ -37,8 +37,9 @@ npm run dev
 ## Evals
 
 BOCPD detections carry a raw rolling MAD score when 60 prior observations are
-available. Default scorer contributions remain medium. To experiment with score
-buckets, add a `bocpd` entry under the existing scorer thresholds in a JSON config:
+available. The scorer uses boundaries `[2, 3, 6, 10]` by default for xlow, low,
+medium, high and xhigh. Missing or invalid MAD stays medium. To override the
+boundaries, set the `bocpd` scorer thresholds in a JSON config:
 
 ```json
 {
@@ -53,8 +54,7 @@ buckets, add a `bocpd` entry under the existing scorer thresholds in a JSON conf
 }
 ```
 
-These boundaries are an experimental example, not calibrated defaults. Missing
-MAD history retains medium. The score measures point extremeness relative to
+These defaults are provisional. The score measures point extremeness relative to
 recent noise, not the probability of a fault. In the initial 12-recording research
 prototype, mean F1 fell from 0.0992 to 0.0935 while pooled F1 rose from 0.0788 to
 0.0961; those results came from a separate source snapshot and are not validation

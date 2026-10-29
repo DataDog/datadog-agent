@@ -113,8 +113,8 @@ func TestBOCPDScoreDetectorIntegration(t *testing.T) {
 	require.NotNil(t, got[0].Score)
 	assert.Equal(t, 40.0, *got[0].Score)
 	assert.Equal(t, int64(61), got[0].Timestamp)
-	assert.Equal(t, 2, anomalyLevel(got[0], DefaultAnomalyScorerConfig().AnomalyScorerConfig), "default remains medium despite a large score")
-	assert.Equal(t, 1.0, contributorWeight(got[0], DefaultAnomalyScorerConfig().AnomalyScorerConfig))
+	assert.Equal(t, 4, anomalyLevel(got[0], DefaultAnomalyScorerConfig().AnomalyScorerConfig), "default thresholds map a large MAD score to xhigh")
+	assert.Equal(t, 3.0, contributorWeight(got[0], DefaultAnomalyScorerConfig().AnomalyScorerConfig))
 
 	d.Reset()
 	storage = newDetectorTestStorage()
@@ -128,14 +128,13 @@ func TestBOCPDScoreDetectorIntegration(t *testing.T) {
 	got = d.Detect(storage, 13).Anomalies
 	require.Len(t, got, 1)
 	assert.Nil(t, got[0].Score, "a real early detection still has no MAD reference")
+	assert.Equal(t, 2, anomalyLevel(got[0], DefaultAnomalyScorerConfig().AnomalyScorerConfig))
+	assert.Equal(t, 1.0, contributorWeight(got[0], DefaultAnomalyScorerConfig().AnomalyScorerConfig))
 }
 
 func TestBOCPDScoreScorerFallbackAndBoundaries(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
-	// Experimental boundaries are opt-in and are not added to the defaults.
-	_, exists := cfg.DetectorThresholds["bocpd"]
-	require.False(t, exists)
-	cfg.DetectorThresholds["bocpd"] = [4]float64{2, 3, 6, 10}
+	require.Equal(t, [4]float64{2, 3, 6, 10}, cfg.DetectorThresholds["bocpd"])
 	for _, tc := range []struct {
 		score float64
 		level int
