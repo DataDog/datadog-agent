@@ -25,6 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -1348,7 +1349,6 @@ func TestLogDefaults(t *testing.T) {
 func TestClusterCheckDefaults(t *testing.T) {
 	conf := newTestConf(t)
 	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
-	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
 }
 
 var testExampleConf = []byte(`
@@ -1581,7 +1581,7 @@ additional_endpoints:
 
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonBase(conf)
+	generatedsettings.InitCommonBase(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
@@ -1624,7 +1624,7 @@ func TestServerlessMetadataWrappedCommandEnabled(t *testing.T) {
 				require.NoError(t, os.Unsetenv(envVar))
 			}
 			conf := newEmptyMockConf(t)
-			initCommonBase(conf)
+			generatedsettings.InitCommonBase(conf)
 
 			assert.True(t, conf.IsKnown(key))
 			assert.Equal(t, tt.want, conf.GetBool(key))

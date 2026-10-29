@@ -51,6 +51,8 @@ func TestAdmissionProbeSuite(t *testing.T) {
 	e2e.Run(t, &admissionProbeSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(admissionProbeHelmValues),
 				),
