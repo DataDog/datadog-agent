@@ -173,7 +173,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 	// programs count. Without them the check would always pass, so the stats are not collected.
 	emitStats := uint64(0)
 	if cfg.EmitCgroupMemoryStats {
-		if progSpec.Type == bpflib.Tracing {
+		if progSpec.Type != bpflib.Tracing {
 			log.Warnf("cgroup memory stats disabled: %s is used instead of %s", progSpec.Name, oomFentryName)
 		} else if err := cgroupMemoryStatsSupported(); err != nil {
 			log.Warnf("cgroup memory stats disabled: %s", err)
