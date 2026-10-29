@@ -42,6 +42,8 @@ The existing processor handles rules, tags, and JSON encoding; the existing batc
 
 There is no YAML for group definitions or selection yet. `logs_config.routing.max_groups` only caps the injected groups.
 
+**Delivery flow and checkpoint safety:** solid arrows show log delivery; dotted arrows show terminal outcome notifications and checkpoint publication. The in-memory coordinator tracks each source separately. X's checkpoint waits for both A and B; Y's waits only for B. The auditor persists each source's last consecutive completed position for restart.
+
 ```mermaid
 flowchart LR
     X["Source X: A+B"] --> A["Group A sender"]
@@ -49,17 +51,20 @@ flowchart LR
     Y["Source Y: B"] --> B
     A --> EA["A reliable set"]
     B --> EB["B reliable set"]
-    EA --> P["Per-source progress"]
-    EB --> P
-    P --> C["One saved checkpoint per source"]
+    EA -.->|"Group A terminal outcome"| P["In-memory completion tracking per source"]
+    EB -.->|"Group B terminal outcome"| P
+    P -.->|"Advance only through consecutive completed records"| C["Auditor persists one restart position per source"]
 ```
 
 | Selection | Result |
 | --- | --- |
 | A only or B only | Only the selected group receives the record. No fallback. |
 | A+B | Both groups must finish. B may finish while A remains pending. |
-| Excluded | Intentional local exclusion completes the record. |
-| Empty or invalid | Holds a checkpointed source barrier; no recipient is inferred. |
+| Explicitly excluded (`Excluded: true`, no groups) | The caller intentionally chooses not to deliver this record. It completes locally; the source checkpoint can pass it once earlier records finish. |
+| Empty selection (`Excluded: false`, no groups) | No delivery decision was supplied. For a checkpointed source, hold this record unresolved so the checkpoint cannot skip it. |
+| Invalid selection (for example, an unknown group or exclusion combined with recipients) | Report the selection error and hold the checkpointed source at this record. Do not infer a recipient or acknowledge the record. |
+
+These cases distinguish an intentional policy decision from a missing or broken decision. Treating an empty or invalid selection as exclusion would silently skip a log after restart. `Excluded` is an injected API flag, not a YAML routing rule. An unresolved selection barrier has no automatic repair path in this provider; recovery requires correcting the selection and replaying retained input from a safe checkpoint.
 
 **Queue acceptance is not delivery.** A selected group completes on its sender's terminal reliable outcome. Retryable failures, credential waits, and cancellation leave it pending. Existing permanent HTTP rejection and local processing-loss policies remain terminal.
 
