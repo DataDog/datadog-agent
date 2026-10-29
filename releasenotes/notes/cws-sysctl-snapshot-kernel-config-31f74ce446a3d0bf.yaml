@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CWS: Sysctl snapshots now find the host kernel configuration through the root
+    of the host init process when the host ``/boot`` directory isn't mounted in the
+    system-probe container. When no kernel configuration is available, snapshots are
+    sent without the kernel compilation configuration instead of failing and logging
+    ``kernel config not found`` every hour.
