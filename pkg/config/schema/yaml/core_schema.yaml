@@ -8278,6 +8278,38 @@ properties:
         node_type: section
         type: object
         properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            description: |-
+              Uploads debug symbols to Datadog for native and Go symbolization.
+              Disabling uploads can leave profiles with unresolved frames.
+          upload_dynamic_symbols:
+            node_type: setting
+            type: boolean
+            default: false
+          upload_go_pcln_tab:
+            node_type: setting
+            type: boolean
+            default: true
+          use_http2:
+            node_type: setting
+            type: boolean
+            default: false
+          symbol_query_interval:
+            node_type: setting
+            type: string
+            default: 5s
+            format: duration
+          dry_run:
+            node_type: setting
+            type: boolean
+            default: false
+          disable_debug_section_compression:
+            node_type: setting
+            type: boolean
+            default: false
           report:
             node_type: section
             type: object

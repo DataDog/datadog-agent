@@ -413,6 +413,38 @@ func TestProviderInvalidReporterInterval(t *testing.T) {
 	}
 }
 
+func TestProviderSymbolUploaderOptions(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_ENABLED", "false")
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+hostprofiler:
+  symbol_uploader:
+    enabled: true
+    upload_dynamic_symbols: true
+    upload_go_pcln_tab: false
+    use_http2: true
+    symbol_query_interval: 0s
+    dry_run: true
+    disable_debug_section_compression: true
+`)
+	generated := confmap.NewFromStringMap(buildConfig(newConfigManager(cfg), testCollectorParams{}))
+	require.NoError(t, validateOTelConfig(t, generated))
+
+	profiling, err := generated.Sub("receivers::profiling")
+	require.NoError(t, err)
+	receiverConfig := receiver.NewFactory(version.BundledProfilerName).CreateDefaultConfig().(receiver.Config)
+	require.NoError(t, profiling.Unmarshal(&receiverConfig))
+	require.NoError(t, receiverConfig.Validate())
+	uploader := receiverConfig.SymbolUploader
+	require.False(t, uploader.Enabled)
+	require.True(t, uploader.UploadDynamicSymbols)
+	require.False(t, uploader.UploadGoPCLnTab)
+	require.True(t, uploader.UseHTTP2)
+	require.Zero(t, uploader.SymbolQueryInterval)
+	require.True(t, uploader.DryRun)
+	require.True(t, uploader.DisableDebugSectionCompression)
+}
+
 func TestProviderMethods(t *testing.T) {
 	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 

@@ -42,6 +42,7 @@ type hostProfilerConfig struct {
 	DDProfiling           ddProfilingConfig
 	HealthMetrics         healthMetricsConfig
 	HPFlare               hpFlareConfig
+	SymbolUploaderOptions confMap
 	SymbolUploaderReport  symbolUploaderReportConfig
 }
 
@@ -108,6 +109,17 @@ func newConfigManager(config config.Component) configManager {
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 
+	symbolUploaderOptions := make(confMap)
+	for _, option := range []string{
+		"enabled", "upload_dynamic_symbols", "upload_go_pcln_tab", "use_http2",
+		"symbol_query_interval", "dry_run", "disable_debug_section_compression",
+	} {
+		key := "hostprofiler.symbol_uploader." + option
+		if config.IsConfigured(key) {
+			symbolUploaderOptions[option] = config.Get(key)
+		}
+	}
+
 	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
 		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
 	hostProfilerConfig := hostProfilerConfig{
@@ -129,6 +141,7 @@ func newConfigManager(config config.Component) configManager {
 		HPFlare: hpFlareConfig{
 			Port: config.GetInt("hostprofiler.hpflare.port"),
 		},
+		SymbolUploaderOptions: symbolUploaderOptions,
 		SymbolUploaderReport: symbolUploaderReportConfig{
 			Interval:          config.GetInt("hostprofiler.symbol_uploader.report.interval"),
 			MaxPathsPerReport: config.GetInt("hostprofiler.symbol_uploader.report.max_paths_per_report"),

@@ -46,6 +46,12 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | `hostprofiler.send_error_frames` | bool   | `false` | Includes unwind error frames in profiles for troubleshooting. |
 | `hostprofiler.include_env_vars` | string (comma-separated) | _(empty)_ | Collects additional environment variables from profiled processes without replacing the default metadata collection. Only include variables whose values are safe to send with profiles; do not include secrets. Can also be set with `DD_HOSTPROFILER_INCLUDE_ENV_VARS`. |
 
+### Symbol uploader
+
+| Name | Values | Default | Description |
+|:-----|:-------|:--------|:------------|
+| `hostprofiler.symbol_uploader.enabled` | bool | `true` | Uploads debug symbols to Datadog using the Agent's profiling intake destinations and API keys. Disabling it can leave native and Go frames unresolved. |
+
 ### Symbol upload report
 
 The Host Profiler periodically logs the status of symbol uploads. These options control how often the status is logged.

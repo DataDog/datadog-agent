@@ -44,6 +44,9 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	}
 	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
+	for option, value := range agent.hostProfilerConfig.SymbolUploaderOptions {
+		_ = confmaputils.Set(profiling, "symbol_uploader::"+option, value)
+	}
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
