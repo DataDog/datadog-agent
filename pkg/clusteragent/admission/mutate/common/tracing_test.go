@@ -89,7 +89,10 @@ func TestMutateTracing(t *testing.T) {
 			}
 			if !tt.fail && !tt.decodeFail {
 				require.Equal(t, strconv.FormatBool(tt.patch), mutation.Tag("patch_present"))
-				require.Equal(t, mutation.SpanID(), spans["cluster_agent.admission.prepare_patch"].ParentID())
+				patchSpan := spans["cluster_agent.admission.prepare_patch"]
+				require.NotNil(t, patchSpan)
+				require.Equal(t, mutation.SpanID(), patchSpan.ParentID())
+				require.Equal(t, "test", patchSpan.Tag("resource.name"))
 			} else {
 				require.Nil(t, spans["cluster_agent.admission.prepare_patch"])
 			}

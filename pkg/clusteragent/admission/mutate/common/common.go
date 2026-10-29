@@ -99,7 +99,7 @@ func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationTy
 
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
-	patchSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.prepare_patch")
+	patchSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.prepare_patch", tracer.ResourceName(mutationType))
 	defer finishMutationSpan(patchSpan, &retErr)
 	afterJSON, err := json.Marshal(pod)
 	if err != nil {

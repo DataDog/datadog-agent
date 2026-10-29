@@ -11,12 +11,12 @@ All names below have the prefix `cluster_agent.admission.`:
 
 ```text
 request                       inbound admission handling (span.kind=server)
-  mutate                      pod decode, baseline snapshot, normalization
+  mutate                      entire shared pod mutation flow, including child spans
     mutate_pod                mutation callback, including selection/early exits
     prepare_patch             serialization, JSON diff, patch encoding
 ```
 
-Request, mutate, and callback resource names identify the fixed webhook name.
+All four spans use the fixed webhook name as their resource name.
 This gives SSI, autoscaling, standalone tags/config, and other shared pod mutation
 routes coarse timing without instrumenting their internals. Only `request` is a
 server span; mutation spans are internal. Validation, non-pod operations, and
