@@ -8,6 +8,9 @@
 package receiver
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +41,47 @@ func TestReporterIntervalValidation(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestProbeExtensionsWarning(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		probes []string
+	}{
+		{name: "default"},
+		{name: "configured", probes: []string{"offcpu", "kprobe/vfs_open", "uprobe/custom"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := defaultConfig(profilerName).(Config)
+			cfg.SymbolUploader.Enabled = false
+			require.NoError(t, confmap.NewFromStringMap(map[string]any{"probes": tt.probes}).Unmarshal(&cfg))
+
+			var logs bytes.Buffer
+			previousLogger := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+			t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+			require.NoError(t, cfg.Validate())
+			require.Len(t, cfg.EbpfCollectorConfig.Probes, len(tt.probes))
+			for i, probe := range cfg.EbpfCollectorConfig.Probes {
+				require.Equal(t, tt.probes[i], probe.String())
+			}
+
+			if len(tt.probes) == 0 {
+				require.Empty(t, logs.String())
+				return
+			}
+			var record struct {
+				Level   string   `json:"level"`
+				Message string   `json:"msg"`
+				Probes  []string `json:"probes"`
+			}
+			require.NoError(t, json.Unmarshal(logs.Bytes(), &record))
+			require.Equal(t, "WARN", record.Level)
+			require.Contains(t, record.Message, "probe extensions are not supported by Datadog ingestion at the time of this release")
+			require.Equal(t, tt.probes, record.Probes)
 		})
 	}
 }
