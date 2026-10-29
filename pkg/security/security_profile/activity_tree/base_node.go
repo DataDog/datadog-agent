@@ -140,3 +140,24 @@ func (b *NodeBase) EachSeen(fn func(id uint64, firstSeen, lastSeen int64)) {
 		fn(entry.id, entry.firstSeen, entry.lastSeen)
 	}
 }
+
+func (b *NodeBase) mergeSeen(other *NodeBase) {
+	for _, entry := range other.seen {
+		merged := false
+		for i, cur := range b.seen {
+			if cur.id == entry.id {
+				if entry.firstSeen != 0 && (cur.firstSeen == 0 || entry.firstSeen < cur.firstSeen) {
+					b.seen[i].firstSeen = entry.firstSeen
+				}
+				if entry.lastSeen > cur.lastSeen {
+					b.seen[i].lastSeen = entry.lastSeen
+				}
+				merged = true
+				break
+			}
+		}
+		if !merged {
+			b.seen = append(b.seen[:len(b.seen):len(b.seen)], entry)
+		}
+	}
+}

@@ -51,7 +51,11 @@ func (h *DeleteJobHandler) Run(
 	if err != nil {
 		return nil, util.DefaultActionError(fmt.Errorf("error getting headers and API URL: %w", err))
 	}
-	jobURL := fmt.Sprintf("%s/job/%s/", domainAndHeaders.Domain, encodeJobNameForUrl(inputs.JobName))
+	encodedJobName, err := encodeJobNameForUrl(inputs.JobName)
+	if err != nil {
+		return nil, util.DefaultActionError(fmt.Errorf("invalid job name: %w", err))
+	}
+	jobURL := fmt.Sprintf("%s/job/%s/", domainAndHeaders.Domain, encodedJobName)
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, jobURL, nil)
 	if err != nil {
 		return nil, util.DefaultActionError(fmt.Errorf("error creating request: %w", err))

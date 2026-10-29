@@ -46,7 +46,7 @@ func TestConfigEndpoint(t *testing.T) {
 		},
 		{
 			name:    "valid",
-			reqBody: `{"client":{"id":"test_client"}}`,
+			reqBody: `{"client":{"id":"test_client","is_tracer":true}}`,
 
 			enabled:            true,
 			valid:              true,
@@ -78,6 +78,40 @@ func TestConfigEndpoint(t *testing.T) {
 			assert.Nil(err)
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
 			assert.Equal(tc.response, string(body))
+		})
+	}
+}
+
+func TestConfigEndpointRejectsNonTracers(t *testing.T) {
+	tcs := []struct {
+		name    string
+		reqBody string
+	}{
+		{name: "null request", reqBody: `null`},
+		{name: "missing client", reqBody: `{}`},
+		{name: "null client", reqBody: `{"client":null}`},
+		{name: "missing client type", reqBody: `{"client":{"id":"test_client"}}`},
+		{name: "is_tracer false", reqBody: `{"client":{"id":"test_client","is_tracer":false}}`},
+		{name: "tracer metadata without is_tracer", reqBody: `{"client":{"id":"test_client","client_tracer":{"service":"test"}}}`},
+		{name: "agent", reqBody: `{"client":{"id":"test_client","is_agent":true,"client_agent":{}}}`},
+		{name: "updater", reqBody: `{"client":{"id":"test_client","is_updater":true,"client_updater":{}}}`},
+		{name: "agent and updater", reqBody: `{"client":{"id":"test_client","is_agent":true,"is_updater":true,"client_agent":{},"client_updater":{}}}`},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			grpc := &agentGRPCConfigFetcher{}
+			grpc.Test(t)
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			handler := ConfigHandler(rcv, grpc, &config.AgentConfig{}, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+			req := httptest.NewRequest(http.MethodPost, "/v0.7/config", strings.NewReader(tc.reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Equal(t, "client.is_tracer must be true for tracer config requests\n", rec.Body.String())
+			grpc.AssertNotCalled(t, "ClientGetConfigs", mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -119,12 +153,6 @@ func TestUpstreamRequest(t *testing.T) {
 				},
 			},
 			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","container_tags":["baz:qux"]}}}`,
-		},
-		{
-			name:                    "no tracer",
-			tracerReq:               `{"client":{"id":"test_client"}}`,
-			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
-			cfg:                     &config.AgentConfig{},
 		},
 		{
 			name:                    "tracer service and env are normalized",
