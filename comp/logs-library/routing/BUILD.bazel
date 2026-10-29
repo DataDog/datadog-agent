@@ -13,8 +13,8 @@ go_library(
     deps = [
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
-        "//comp/logs/auditor/def",
         "//pkg/logs/message",
+        "//pkg/logs/types",
     ],
 )
 
@@ -27,7 +27,6 @@ dd_agent_go_test(
     embed = [":routing"],
     deps = [
         "//comp/logs/agent/config",
-        "//comp/logs/auditor/def",
         "//pkg/logs/message",
         "//pkg/logs/sources",
     ],

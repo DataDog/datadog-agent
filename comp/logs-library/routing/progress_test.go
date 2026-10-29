@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -23,7 +22,7 @@ type progressTestSink struct{ ch chan *message.Payload }
 func (s *progressTestSink) Channel() chan *message.Payload { return s.ch }
 
 type progressTestRegistry struct {
-	auditor.Registry
+	Registry
 	offsets map[string]string
 }
 

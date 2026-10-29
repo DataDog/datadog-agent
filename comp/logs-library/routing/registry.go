@@ -5,18 +5,30 @@
 
 package routing
 
-import auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+import "github.com/DataDog/datadog-agent/pkg/logs/types"
+
+// Registry is the source checkpoint contract accepted by routing. The Agent's
+// auditor.Registry satisfies it without importing the Agent root module into
+// this standalone library.
+type Registry interface {
+	GetOffset(identifier string) string
+	GetTailingMode(identifier string) string
+	GetFingerprint(identifier string) *types.Fingerprint
+	KeepAlive(identifier string)
+	SetTailed(identifier string, isTailed bool)
+	SetOffset(identifier string, offset string)
+}
 
 // GuardRegistry mediates source-owned direct checkpoint writes, including the
 // Windows event log's initial bookmark save. A direct write while a source
 // generation is owned cannot bypass the safe prefix, even after its queue
 // drains. Ordinary auditor output continues through the existing channel.
-func (p *Progress) GuardRegistry(registry auditor.Registry) auditor.Registry {
+func (p *Progress) GuardRegistry(registry Registry) Registry {
 	return &guardedRegistry{Registry: registry, progress: p}
 }
 
 type guardedRegistry struct {
-	auditor.Registry
+	Registry
 	progress *Progress
 }
 

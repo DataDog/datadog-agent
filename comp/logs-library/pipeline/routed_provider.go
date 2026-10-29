@@ -26,7 +26,6 @@ import (
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -631,7 +630,7 @@ func (p *RoutedProvider) NextPipelineChan() chan *message.Message { return p.ing
 
 // GuardRegistry returns the registry to give routed source launchers. It
 // prevents source-owned writes from bypassing outstanding group obligations.
-func (p *RoutedProvider) GuardRegistry(registry auditor.Registry) auditor.Registry {
+func (p *RoutedProvider) GuardRegistry(registry routing.Registry) routing.Registry {
 	return p.progress.GuardRegistry(registry)
 }
 

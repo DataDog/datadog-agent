@@ -49,6 +49,7 @@ dd_agent_go_test(
         "//comp/logs-library/metrics",
         "//comp/logs-library/routing",
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
         "//comp/logs/auditor/mock",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/message",

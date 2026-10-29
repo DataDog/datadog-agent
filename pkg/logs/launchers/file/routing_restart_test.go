@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -26,6 +27,13 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
+)
+
+// Keep the standalone library's registry contract compatible in both directions
+// without requiring it to import the Agent root module.
+var (
+	_ auditor.Registry = routing.Registry(nil)
+	_ routing.Registry = auditor.Registry(nil)
 )
 
 type replaySink struct{ ch chan *message.Payload }
