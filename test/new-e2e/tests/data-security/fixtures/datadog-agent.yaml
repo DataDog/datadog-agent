@@ -1,3 +1,4 @@
+log_level: debug
 shared_library_check:
   enabled: true
 data_security:
