@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
@@ -220,8 +219,6 @@ func (s *testInjectorStats) fetchInjectorStats() (map[string]interface{}, error)
 // TestDefaultSkipListCounter tests that the V3 skip-list counters track a process skipped by the
 // driver's default skip list.
 func (s *testInjectorStats) TestDefaultSkipListCounter() {
-	flake.Mark(s.T())
-
 	s.installCurrentAgentVersionWithAPMInject(
 		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
