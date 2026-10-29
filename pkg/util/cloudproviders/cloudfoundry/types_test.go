@@ -14,11 +14,9 @@ import (
 	"code.cloudfoundry.org/bbs/models"
 	"github.com/cloudfoundry/go-cfclient/v3/resource"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
-
-func strPtr(s string) *string { return &s }
-
-func intPtr(i int) *int { return &i }
 
 var v3App1 = resource.App{
 	Name:          "name_of_app_cc",
@@ -26,8 +24,8 @@ var v3App1 = resource.App{
 	Resource:      resource.Resource{GUID: "random_app_guid"},
 	Relationships: resource.AppRelationships{Space: resource.ToOneRelationship{Data: &resource.Relationship{GUID: "space_guid_1"}}},
 	Metadata: &resource.Metadata{
-		Labels:      map[string]*string{"tags.datadoghq.com/env": strPtr("test-env"), "toto": strPtr("tata")},
-		Annotations: map[string]*string{"tags.datadoghq.com/service": strPtr("test-service"), "foo": strPtr("bar")},
+		Labels:      map[string]*string{"tags.datadoghq.com/env": pointer.Ptr("test-env"), "toto": pointer.Ptr("tata")},
+		Annotations: map[string]*string{"tags.datadoghq.com/service": pointer.Ptr("test-service"), "foo": pointer.Ptr("bar")},
 	},
 }
 
@@ -66,7 +64,7 @@ var v3Org2 = resource.Organization{
 
 var cfOrgQuota1 = resource.OrganizationQuota{
 	Name:     "org_quota_name_1",
-	Apps:     resource.AppsQuota{TotalMemoryInMB: intPtr(10240)},
+	Apps:     resource.AppsQuota{TotalMemoryInMB: pointer.Ptr(10240)},
 	Resource: resource.Resource{GUID: "org_quota_guid_1"},
 }
 
@@ -457,9 +455,9 @@ func TestIsAllowedTag(t *testing.T) {
 
 func TestExtractTagsFromAppMeta(t *testing.T) {
 	tags := extractTagsFromAppMeta(map[string]*string{
-		"tags.datadoghq.com/env":     strPtr("prod"),
+		"tags.datadoghq.com/env":     pointer.Ptr("prod"),
 		"tags.datadoghq.com/service": nil,
-		"team":                       strPtr("ignored"),
+		"team":                       pointer.Ptr("ignored"),
 	})
 	assert.Equal(t, []string{"env:prod"}, tags)
 }

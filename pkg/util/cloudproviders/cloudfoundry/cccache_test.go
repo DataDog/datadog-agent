@@ -20,38 +20,31 @@ import (
 	"github.com/cloudfoundry/go-cfclient/v3/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // testCCClient implements CCClientI for testing
 type testCCClient struct{}
 
-// copies returns pointers to copies of the given values, so the cache cannot mutate the test fixtures
-func copies[T any](values ...T) []*T {
-	res := make([]*T, 0, len(values))
-	for _, v := range values {
-		res = append(res, &v)
-	}
-	return res
-}
-
 func (t testCCClient) ListApps(_ int) ([]*resource.App, error) {
-	return copies(v3App1, v3App2), nil
+	return []*resource.App{&v3App1, &v3App2}, nil
 }
 
 func (t testCCClient) ListOrganizations(_ int) ([]*resource.Organization, error) {
-	return copies(v3Org1, v3Org2), nil
+	return []*resource.Organization{&v3Org1, &v3Org2}, nil
 }
 
 func (t testCCClient) ListSpaces(_ int) ([]*resource.Space, error) {
-	return copies(v3Space1, v3Space2), nil
+	return []*resource.Space{&v3Space1, &v3Space2}, nil
 }
 
 func (t testCCClient) ListProcesses(_ int) ([]*resource.Process, error) {
-	return copies(cfProcess1, cfProcess2), nil
+	return []*resource.Process{&cfProcess1, &cfProcess2}, nil
 }
 
 func (t testCCClient) ListOrgQuotas(_ int) ([]*resource.OrganizationQuota, error) {
-	return copies(cfOrgQuota1, cfOrgQuota2), nil
+	return []*resource.OrganizationQuota{&cfOrgQuota1, &cfOrgQuota2}, nil
 }
 
 func (t testCCClient) ListSidecarsByApp(guid string, _ int) ([]CFSidecar, error) {
@@ -64,7 +57,7 @@ func (t testCCClient) ListSidecarsByApp(guid string, _ int) ([]CFSidecar, error)
 }
 
 func (t testCCClient) ListIsolationSegments(_ int) ([]*resource.IsolationSegment, error) {
-	return copies(cfIsolationSegment1, cfIsolationSegment2), nil
+	return []*resource.IsolationSegment{&cfIsolationSegment1, &cfIsolationSegment2}, nil
 }
 
 func (t testCCClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
@@ -88,9 +81,9 @@ func (t testCCClient) GetIsolationSegmentOrganizationGUID(guid string) (string, 
 func (t testCCClient) GetApp(guid string) (*resource.App, error) {
 	switch guid {
 	case v3App1.GUID:
-		return copies(v3App1)[0], nil
+		return &v3App1, nil
 	case v3App2.GUID:
-		return copies(v3App2)[0], nil
+		return &v3App2, nil
 	}
 	return nil, fmt.Errorf("could not find app with guid %s", guid)
 }
@@ -98,9 +91,9 @@ func (t testCCClient) GetApp(guid string) (*resource.App, error) {
 func (t testCCClient) GetSpace(guid string) (*resource.Space, error) {
 	switch guid {
 	case v3Space1.GUID:
-		return copies(v3Space1)[0], nil
+		return &v3Space1, nil
 	case v3Space2.GUID:
-		return copies(v3Space2)[0], nil
+		return &v3Space2, nil
 	}
 	return nil, fmt.Errorf("could not find space with guid %s", guid)
 }
@@ -108,16 +101,16 @@ func (t testCCClient) GetSpace(guid string) (*resource.Space, error) {
 func (t testCCClient) GetOrganization(guid string) (*resource.Organization, error) {
 	switch guid {
 	case v3Org1.GUID:
-		return copies(v3Org1)[0], nil
+		return &v3Org1, nil
 	case v3Org2.GUID:
-		return copies(v3Org2)[0], nil
+		return &v3Org2, nil
 	}
 	return nil, fmt.Errorf("could not find organization with guid %s", guid)
 }
 
 func (t testCCClient) ListProcessesByApp(guid string, _ int) ([]*resource.Process, error) {
 	if guid == v3App1.GUID {
-		return copies(cfProcess1, cfProcess2), nil
+		return []*resource.Process{&cfProcess1, &cfProcess2}, nil
 	}
 	return nil, fmt.Errorf("could not find processes for app with guid %s", guid)
 }
@@ -442,7 +435,7 @@ func (f *flakyCCClient) ListProcesses(_ int) ([]*resource.Process, error) {
 	defer f.mu.Unlock()
 	p1 := cfProcess1
 	p1.Instances = f.instances
-	return copies(p1, cfProcess2), nil
+	return []*resource.Process{&p1, &cfProcess2}, nil
 }
 
 func newFlakyCCCache(t *testing.T, client *flakyCCClient) *CCCache {
@@ -592,8 +585,8 @@ func TestOrgsJSONCompatibility(t *testing.T) {
 		Suspended:     suspended,
 		Relationships: resource.QuotaRelationship{Quota: resource.ToOneRelationship{Data: &resource.Relationship{GUID: "quota_guid"}}},
 		Metadata: &resource.Metadata{
-			Labels:      map[string]*string{"label": strPtr("label_value")},
-			Annotations: map[string]*string{"annotation": strPtr("annotation_value")},
+			Labels:      map[string]*string{"label": pointer.Ptr("label_value")},
+			Annotations: map[string]*string{"annotation": pointer.Ptr("annotation_value")},
 		},
 		Resource: resource.Resource{GUID: "org_guid", CreatedAt: time.Date(2021, 3, 17, 10, 39, 43, 0, time.UTC)},
 	}
