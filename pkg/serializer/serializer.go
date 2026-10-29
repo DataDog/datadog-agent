@@ -129,6 +129,8 @@ type Serializer struct {
 
 	zlibV3WarnOnce        sync.Once
 	endpointMetricFilters map[string]*metricsserializer.EndpointMetricFilter
+
+	metadataDropMetrics *metadataDropMetrics
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -150,6 +152,7 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 		jsonExtraHeadersWithCompression:     make(http.Header),
 		protobufExtraHeadersWithCompression: make(http.Header),
 		logger:                              logger,
+		metadataDropMetrics:                 defaultMetadataDropMetrics,
 	}
 
 	initExtraHeaders(s)
@@ -362,14 +365,15 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 }
 
 func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
-	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
+	exceeded, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
 	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
 
-	if mustSplit {
+	if exceeded != split.WithinLimits {
+		s.metadataDropMetrics.record(exceeded, len(compressedPayload), len(payload))
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
 	}
 
