@@ -228,6 +228,22 @@ func (s *packageAgentSuite) TestPrivilegedRshellHelperLifecycle() {
 	s.assertRshellHelper(false)
 	s.host.Run("sudo systemctl start " + agentUnit)
 	s.assertRshellHelper(true)
+
+	// The root launcher refuses to exec a helper binary that is not a trusted
+	// regular file, so a symlink (whose target a non-root user could later
+	// swap) cannot hand it root execution. Replace the helper with a symlink
+	// and confirm the service refuses to start it rather than following the
+	// link. The path is the one the launcher's --helper points at.
+	const helperBin = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell"
+	s.host.Run("sudo systemctl stop " + rshellServiceUnit)
+	s.host.Run(fmt.Sprintf("sudo mv %[1]s %[1]s.real && sudo ln -s /bin/true %[1]s", helperBin))
+	defer s.host.Run(fmt.Sprintf("sudo rm -f %[1]s && sudo mv %[1]s.real %[1]s", helperBin))
+	s.host.Run("sudo systemctl reset-failed " + rshellServiceUnit + " 2>/dev/null || true")
+	s.host.Run("sudo systemctl start " + rshellServiceUnit + " 2>/dev/null || true")
+	s.Require().Eventually(func() bool {
+		journal := s.host.Run("sudo journalctl -u " + rshellServiceUnit + " --no-pager -o cat | tail -n 30")
+		return !s.socketExists(rshellSocketPath) && strings.Contains(journal, "not a regular file")
+	}, time.Minute, time.Second, "the launcher did not refuse the symlinked helper binary")
 }
 
 // TestPrivilegedRshellSurvivesReboot verifies that an enabled helper comes

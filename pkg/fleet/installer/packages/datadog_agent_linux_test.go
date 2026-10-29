@@ -112,3 +112,31 @@ func TestLegacyPrivilegedRshellSocketLinksAreRemoved(t *testing.T) {
 	_, err := os.Lstat(unrelated)
 	assert.NoError(t, err, "unrelated socket links must be kept")
 }
+
+// TestEnsureRootExecutablesRejectSymlink restores the regular-file validation
+// the permission consolidation dropped: a symlinked root-executed binary must
+// abort the install rather than have Permission.Ensure follow it and chown the
+// target to root.
+func TestEnsureRootExecutablesRejectSymlink(t *testing.T) {
+	for _, rel := range rootExecutableRelPaths {
+		t.Run(rel, func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0755))
+			require.NoError(t, os.Symlink("/tmp/attacker-controlled", filepath.Join(root, rel)))
+			err := ensureRootExecutablesAreRegularFiles(HookContext{Context: context.Background(), PackagePath: root})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "not a regular file")
+		})
+	}
+}
+
+// TestEnsureRootExecutablesAcceptRegularOrAbsent accepts regular files and
+// tolerates a binary a given package flavor does not ship.
+func TestEnsureRootExecutablesAcceptRegularOrAbsent(t *testing.T) {
+	root := t.TempDir()
+	// Only one of the two present: the other being absent must not error.
+	rel := rootExecutableRelPaths[0]
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("#!/bin/true\n"), 0755))
+	assert.NoError(t, ensureRootExecutablesAreRegularFiles(HookContext{Context: context.Background(), PackagePath: root}))
+}
