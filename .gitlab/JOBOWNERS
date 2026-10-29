@@ -26,8 +26,6 @@ tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
 tests_gpu                               @DataDog/accelerator-telemetry
 tests_windows-x64                       @DataDog/windows-products
-tests_windows_sysprobe*                 @DataDog/windows-products
-tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent-security
 tests_flavor_*                          @DataDog/agent-runtimes
 tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
 tests_serverless-init*                  @DataDog/serverless-azure-and-gcp
