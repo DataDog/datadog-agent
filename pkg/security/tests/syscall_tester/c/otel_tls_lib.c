@@ -32,6 +32,13 @@ __attribute__((visibility("default")))
 #endif
 __thread struct otel_thread_ctx_record *otel_thread_ctx_v1 = NULL;
 
+#ifdef OTEL_TLS_BIG
+// Far more TLS than glibc keeps spare for objects loaded after startup, so a
+// dlopen of this object gets dynamic TLS. Exported so that --gc-sections keeps
+// it unreferenced.
+__thread char otel_tls_big[128 * 1024];
+#endif
+
 // otel_record_mode selects what a command leaves in otel_thread_ctx_v1 before
 // making its syscall.
 enum otel_record_mode {

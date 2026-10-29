@@ -590,7 +590,8 @@ var _ = declare(TestOTelSpan, testOpts{discardRuntime: true})
 // TestOTelSpan covers OTel Thread Local Context Record span collection across
 // every TLS access model a tracer can publish the record through: local-exec
 // from a main executable, both dialects of general-dynamic, initial-exec and
-// local-dynamic from a shared object linked at startup or dlopen'd.
+// local-dynamic from a shared object linked at startup or dlopen'd, and TLSDESC
+// resolving to dynamic TLS.
 func TestOTelSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 	skipIfNoThreadPointer(t)
@@ -697,12 +698,15 @@ func TestOTelSpan(t *testing.T) {
 		{name: "linked-glibc-gnu", binary: "otel_tls_linked_glibc_gnu", fixture: "libotel_tls_glibc_gnu.so", execCoverage: true},
 		{name: "linked-glibc-ie", binary: "otel_tls_linked_glibc_ie", fixture: "libotel_tls_glibc_ie.so"},
 		{name: "linked-glibc-ld", binary: "otel_tls_linked_glibc_ld", fixture: "libotel_tls_glibc_ld.so"},
+		{name: "linked-glibc-big", binary: "otel_tls_linked_glibc_big", fixture: "libotel_tls_glibc_big.so"},
 
 		// The same shared objects, dlopen'd once the process is already running.
 		{name: "dlopen-glibc", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc.so", dlopen: true, execCoverage: true},
 		{name: "dlopen-glibc-gnu", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_gnu.so", dlopen: true},
 		{name: "dlopen-glibc-ie", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ie.so", dlopen: true},
 		{name: "dlopen-glibc-ld", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ld.so", dlopen: true},
+		// The one TLSDESC tester resolved through the DTV rather than static TLS.
+		{name: "dlopen-glibc-big", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_big.so", dlopen: true, execCoverage: true},
 	}
 
 	// loadOTelTesterVariant materializes a spec's artifacts, dropping the variant

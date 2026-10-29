@@ -21,12 +21,14 @@ _TLS_ALT_DIALECT = select({
 # The access models, mirroring the matrix the upstream profiler builds for its
 # own integration tests (open-telemetry/opentelemetry-ebpf-profiler#1229).
 # local-dynamic only appears when the TLS symbol is hidden, hence
-# OTEL_TLS_HIDDEN.
+# OTEL_TLS_HIDDEN. A small TLSDESC module dlopen'd still lands in static TLS;
+# OTEL_TLS_BIG is what makes one resolve through the DTV.
 _DSO_FLAVORS = {
     "": TLS_DIALECT,
     "_gnu": _TLS_ALT_DIALECT,
     "_ie": ["-ftls-model=initial-exec"],
     "_ld": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + _TLS_ALT_DIALECT,
+    "_big": ["-DOTEL_TLS_BIG"] + TLS_DIALECT,
 }
 
 def otel_tls_dsos(name):
