@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +27,6 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessinitimpl "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -41,12 +41,35 @@ func (l *metadataLifecycle) Append(hook compdef.Hook) { l.hooks = append(l.hooks
 
 type metadataRecordingSerializer struct {
 	serializer.MetricSerializer
-	payloads []*agentmetadata.Payload
+	payloads []*sentMetadataPayload
 }
 
 func (s *metadataRecordingSerializer) SendMetadata(payload marshaler.JSONMarshaler) error {
-	s.payloads = append(s.payloads, payload.(*agentmetadata.Payload))
+	sent, err := decodeMetadataPayload(payload)
+	if err != nil {
+		return err
+	}
+	s.payloads = append(s.payloads, sent)
 	return nil
+}
+
+// sentMetadataPayload holds the fields of a sent metadata payload that the
+// tests check, decoded from its JSON.
+type sentMetadataPayload struct {
+	UUID     string                 `json:"uuid"`
+	Metadata map[string]interface{} `json:"agent_metadata"`
+}
+
+func decodeMetadataPayload(payload marshaler.JSONMarshaler) (*sentMetadataPayload, error) {
+	raw, err := payload.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var sent sentMetadataPayload
+	if err := json.Unmarshal(raw, &sent); err != nil {
+		return nil, err
+	}
+	return &sent, nil
 }
 
 // gcpMetadataTransport supplies the real GCP lookups with deterministic values
@@ -79,7 +102,7 @@ func clearPlatformEnv(t *testing.T) {
 // collectPlatformMetadata warms the provider through the main tag path, runs
 // one metadata collection, and stops the component. ok is false when the
 // metadata payload is not eligible for collection.
-func collectPlatformMetadata(t *testing.T, provider serverlessdef.CloudServiceMetadataProvider, enabled bool) (payloads []*agentmetadata.Payload, ok bool) {
+func collectPlatformMetadata(t *testing.T, provider serverlessdef.CloudServiceMetadataProvider, enabled bool) (payloads []*sentMetadataPayload, ok bool) {
 	configmock.New(t)
 	configureTags(provider.(cloudservice.CloudService))
 	synctest.Test(t, func(t *testing.T) {

@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessinitimpl "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -42,20 +41,24 @@ import (
 type lockedMetadataSerializer struct {
 	serializer.MetricSerializer
 	mu       sync.Mutex
-	payloads []*agentmetadata.Payload
+	payloads []*sentMetadataPayload
 }
 
 func (s *lockedMetadataSerializer) SendMetadata(payload marshaler.JSONMarshaler) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.payloads = append(s.payloads, payload.(*agentmetadata.Payload))
+	sent, err := decodeMetadataPayload(payload)
+	if err != nil {
+		return err
+	}
+	s.payloads = append(s.payloads, sent)
 	return nil
 }
 
-func (s *lockedMetadataSerializer) sent() []*agentmetadata.Payload {
+func (s *lockedMetadataSerializer) sent() []*sentMetadataPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]*agentmetadata.Payload{}, s.payloads...)
+	return append([]*sentMetadataPayload{}, s.payloads...)
 }
 
 type microVMMetadataTelemetry struct{}
