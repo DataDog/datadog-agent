@@ -60,7 +60,8 @@ func NewMockServerlessMeta(isEnabled bool) *MockServerlessMeta {
 		}
 	}
 	return &MockServerlessMeta{
-		isEnabled: isEnabled,
+		pendingSends: newPendingSends(),
+		isEnabled:    isEnabled,
 	}
 }
 

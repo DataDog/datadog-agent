@@ -78,10 +78,11 @@ type ServerlessMeta interface {
 
 // NewServerlessMeta creates a new ServerlessMeta instance.
 func NewServerlessMeta(isEnabled bool) ServerlessMeta {
+	// The counter is created even when disabled, so its methods are harmless if called without checking IsEnabled.
 	if isEnabled {
 		return &serverlessMetaImpl{pendingSends: newPendingSends(), senderDoneChan: make(chan *sync.WaitGroup), enabled: isEnabled}
 	}
-	return &serverlessMetaImpl{}
+	return &serverlessMetaImpl{pendingSends: newPendingSends()}
 }
 
 // serverlessMetaImpl is a struct that contains essential control structures for serverless mode.

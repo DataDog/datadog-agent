@@ -155,3 +155,13 @@ func TestPendingSendsWaitEndingEarlyDoesNotBlockAdds(t *testing.T) {
 		assert.Fail(t, "the wait did not return once all sends were done")
 	}
 }
+
+func TestDisabledServerlessMetaPendingSendsAreHarmless(t *testing.T) {
+	for _, meta := range []ServerlessMeta{NewServerlessMeta(false), NewMockServerlessMeta(false)} {
+		assert.NotPanics(t, func() {
+			meta.AddPendingSend()
+			meta.PendingSendDone()
+			meta.WaitPendingSends(context.Background())
+		})
+	}
+}
