@@ -9556,6 +9556,14 @@ properties:
             - datadoghq.com
             items:
               type: string
+          validation_request_id:
+            node_type: setting
+            type: string
+            default: ''
+            description: |
+              Testing only. When set, sketches sent over v3 go to beta_route, the
+              validation-only intake route, with this value as their validation
+              request ID. Leave empty to send them to the regular v3 route.
           max_compressed_payload_size:
             node_type: setting
             type: integer

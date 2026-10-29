@@ -131,6 +131,16 @@ func v3BetaShadowEndpoint(config config.Component, kind metricsKind) transaction
 	}
 }
 
+// metricsValidationRequestID returns the fixed validation ID under which v3 metrics
+// of this kind go to the validation-only v3beta route, or "" to keep the regular v3
+// route. Only sketches support it, for the staging validation of OTel histograms.
+func metricsValidationRequestID(config config.Component, kind metricsKind) string {
+	if kind == metricsKindSeries {
+		return ""
+	}
+	return config.GetString("serializer_experimental_use_v3_api.sketches.validation_request_id")
+}
+
 // metricsShadowSites returns the list of Datadog sites for which v3beta shadow
 // sampling is enabled for this kind. Sites are matched against the resolved v2
 // destination via configutils.ExtractSiteFromURL. Defaults to US1 only.
@@ -237,6 +247,13 @@ func (s *Serializer) buildPipelinesWithMRF(kind metricsKind, rng prng, mrfFilter
 			}
 
 		default:
+			// With a fixed validation ID, v3 metrics go to the v3beta route, where the
+			// intake only validates them and never stores them.
+			if id := metricsValidationRequestID(s.config, kind); id != "" && useV3 {
+				dest.Endpoint = v3BetaShadowEndpoint(s.config, kind)
+				dest.ValidationBatchID = id
+			}
+
 			shadowV3 := !useV3 && metricsShadowAllowed(resolver, kind, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
 			if shadowV3 {
 				dest.ValidationBatchID = s.genUUID()
