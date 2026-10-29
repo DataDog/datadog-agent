@@ -34,6 +34,42 @@ var (
 	majorVersion = flag.String("major-version", "6", "major version to test (6, 7)")
 )
 
+// centos6BaseRepo points the CentOS 6 base/updates/extras repos at the 6.10 vault archive, with the CERN and
+// kernel.org vault mirrors as ordered fallbacks. Same content as the ami-builder CentOS-6-vault.repo.
+const centos6BaseRepo = `[base]
+name=CentOS-6.10 - Base
+baseurl=http://vault.centos.org/6.10/os/$basearch/
+        http://linuxsoft.cern.ch/centos-vault/6.10/os/$basearch/
+        http://archive.kernel.org/centos-vault/6.10/os/$basearch/
+failovermethod=priority
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
+skip_if_unavailable=1
+timeout=30
+
+[updates]
+name=CentOS-6.10 - Updates
+baseurl=http://vault.centos.org/6.10/updates/$basearch/
+        http://linuxsoft.cern.ch/centos-vault/6.10/updates/$basearch/
+        http://archive.kernel.org/centos-vault/6.10/updates/$basearch/
+failovermethod=priority
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
+skip_if_unavailable=1
+timeout=30
+
+[extras]
+name=CentOS-6.10 - Extras
+baseurl=http://vault.centos.org/6.10/extras/$basearch/
+        http://linuxsoft.cern.ch/centos-vault/6.10/extras/$basearch/
+        http://archive.kernel.org/centos-vault/6.10/extras/$basearch/
+failovermethod=priority
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
+skip_if_unavailable=1
+timeout=30
+`
+
 type rpmTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 
@@ -65,7 +101,7 @@ func TestRpmScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test RPM package on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osVers)
-			slice := strings.Split(strings.TrimSuffix(osVers, "-e2e"), "-")
+			slice := strings.Split(osVers, "-")
 			var version float64
 			if len(slice) == 2 {
 				version, err = strconv.ParseFloat(slice[1], 64)
@@ -138,6 +174,13 @@ func (is *rpmTestSuite) TestRpm() {
 		yumrepo, repogpgcheck, protocol, protocol, protocol, protocol)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
+
+	if is.osVersion < 7 {
+		// vault.centos.org intermittently returns HTTP 403 on the CentOS 6.10 repodata, so add fallback
+		// mirrors and let yum skip the base repos if they are all unreachable.
+		_, err = fileManager.WriteFile("/etc/yum.repos.d/CentOS-Base.repo", []byte(centos6BaseRepo))
+		require.NoError(is.T(), err)
+	}
 
 	is.T().Run("install the RPM package", func(t *testing.T) {
 		VMclient.Host.MustExecute("sudo yum makecache -y")
