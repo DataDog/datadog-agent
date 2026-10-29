@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
+	"github.com/DataDog/datadog-agent/comp/metadata/internal/agentmetadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"

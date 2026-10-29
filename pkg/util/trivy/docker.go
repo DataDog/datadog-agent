@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 
 	dimage "github.com/moby/moby/api/types/image"
 	"github.com/moby/moby/client"
@@ -105,6 +106,13 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 type fakeDockerContainer struct {
 	*image
 	*fakeContainer
+}
+
+// ConfigFile returns the config file built from the inspect response. The
+// direct scan tolerates a history that disagrees with the diff IDs, for which
+// image.ConfigFile exports the whole image.
+func (c *fakeDockerContainer) ConfigFile() (*v1.ConfigFile, error) {
+	return c.image.inspectConfigFile()
 }
 
 func (c *fakeDockerContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {

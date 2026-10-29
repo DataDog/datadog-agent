@@ -23,7 +23,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
+	"github.com/DataDog/datadog-agent/comp/metadata/internal/agentmetadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"

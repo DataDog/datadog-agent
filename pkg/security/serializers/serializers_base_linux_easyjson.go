@@ -3290,6 +3290,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			} else {
 				out.PodUID = string(in.String())
 			}
+		case "ecs_task_id":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ECSTaskID = string(in.String())
+			}
 		case "source":
 			if in.IsNull() {
 				in.Skip()
@@ -3347,6 +3353,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			out.RawString(prefix)
 		}
 		out.String(string(in.PodUID))
+	}
+	if in.ECSTaskID != "" {
+		const prefix string = ",\"ecs_task_id\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.ECSTaskID))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"
