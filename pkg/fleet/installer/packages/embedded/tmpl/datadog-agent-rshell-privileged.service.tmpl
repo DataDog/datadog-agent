@@ -26,7 +26,11 @@ Group=dd-agent
 UMask=0077
 RuntimeDirectory=datadog-agent-rshell
 RuntimeDirectoryMode=0755
-EnvironmentFile=-{{.EtcDir}}/environment
+# No EnvironmentFile=: this unit runs as root and {{.EtcDir}} is writable by
+# dd-agent, so sourcing an environment file from there would let dd-agent inject
+# variables (e.g. LD_PRELOAD) into the root launcher before any of its checks
+# run. The launcher needs nothing from it; the only variable it is given is this
+# root-controlled literal baked into the unit.
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner privileged-helper --cfgpath={{.EtcDir}}/datadog.yaml --helper={{.InstallDir}}/embedded/bin/rshell --socket=/run/datadog-agent-rshell/privileged.sock --policy=/etc/datadog-agent-rshell/policy.json
 Restart=on-failure

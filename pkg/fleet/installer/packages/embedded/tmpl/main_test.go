@@ -56,7 +56,11 @@ func TestPrivilegedRshellUnit(t *testing.T) {
 		// The socket lives outside /run/datadog, the Agent's RuntimeDirectory.
 		assert.Contains(t, unit, "RuntimeDirectory=datadog-agent-rshell\n", name)
 		assert.Contains(t, unit, "RuntimeDirectoryMode=0755\n", name)
-		assert.Contains(t, unit, "EnvironmentFile=-"+want.etcDir+"/environment\n", name)
+		// No EnvironmentFile=: this unit runs as root and EtcDir is writable by
+		// dd-agent, so sourcing an env file from there would let dd-agent inject
+		// variables (e.g. LD_PRELOAD) into the root launcher before its checks.
+		assert.NotRegexp(t, regexp.MustCompile(`(?m)^EnvironmentFile=`), unit,
+			name+": a root unit must not source an env file from the dd-agent-writable config dir")
 		assert.Contains(t, unit, "ExecStart="+want.installDir+"/embedded/bin/privateactionrunner privileged-helper"+
 			" --cfgpath="+want.etcDir+"/datadog.yaml"+
 			" --helper="+want.installDir+"/embedded/bin/rshell"+
