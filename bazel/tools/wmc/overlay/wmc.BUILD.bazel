@@ -1,8 +1,9 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_bison//bison:bison.bzl", "bison_cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 
-cc_binary(
-    name = "wmc",
-    srcs = [
+cc_library(
+    name = "wmc_headers",
+    hdrs = [
         "include/apisetcconv.h",
         "include/basetsd.h",
         "include/concurrencysal.h",
@@ -34,30 +35,51 @@ cc_binary(
         "include/winnt.h",
         "include/winternl.h",
         "tools/tools.h",
-        "tools/wmc/lang.c",
         "tools/wmc/lang.h",
-        "tools/wmc/mcl.c",
-        "tools/wmc/mcy.tab.c",
-        "tools/wmc/mcy.tab.h",
-        "tools/wmc/po.c",
-        "tools/wmc/utils.c",
         "tools/wmc/utils.h",
-        "tools/wmc/wmc.c",
         "tools/wmc/wmc.h",
         "tools/wmc/wmctypes.h",
-        "tools/wmc/write.c",
         "tools/wmc/write.h",
-    ],
-    additional_compiler_inputs = ["include/winnt.rh"],
-    copts = [
-        "-D__WINESRC__",
-        "-DWINE_UNIX_LIB",
     ],
     includes = [
         "include",
         "tools/wmc",
     ],
+    textual_hdrs = ["include/winnt.rh"],
+)
+
+# mcl.c includes "mcy.tab.h". The target name is that header's basename.
+bison_cc_library(
+    name = "mcy.tab",
+    src = "tools/wmc/mcy.y",
+    copts = [
+        "-D__WINESRC__",
+        "-DWINE_UNIX_LIB",
+    ],
+    linkstatic = True,
+    deps = [":wmc_headers"],
+)
+
+cc_binary(
+    name = "wmc",
+    srcs = [
+        "tools/wmc/lang.c",
+        "tools/wmc/mcl.c",
+        "tools/wmc/po.c",
+        "tools/wmc/utils.c",
+        "tools/wmc/wmc.c",
+        "tools/wmc/write.c",
+    ],
+    copts = [
+        "-D__WINESRC__",
+        "-DWINE_UNIX_LIB",
+    ],
+    linkstatic = True,
     visibility = ["//visibility:public"],
+    deps = [
+        ":mcy.tab",
+        ":wmc_headers",
+    ],
 )
 
 filegroup(

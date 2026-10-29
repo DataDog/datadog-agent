@@ -622,8 +622,6 @@ wine_wmc_repository(
     name = "wine_wmc",
     build_file = "//bazel/tools/wmc:overlay/wmc.BUILD.bazel",
     config_h = "//bazel/tools/wmc:overlay/config.h",
-    parser_c = "//bazel/tools/wmc:overlay/mcy.tab.c",
-    parser_h = "//bazel/tools/wmc:overlay/mcy.tab.h",
     sha256 = "98b21b4ebdf7d9e2baa4a3508514285cf449f455603f82d3364b014c0e79b793",
     strip_prefix = "wine-wine-11.20",
     urls = ["https://codeload.github.com/wine-mirror/wine/tar.gz/refs/tags/wine-11.20"],
