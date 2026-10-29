@@ -420,7 +420,7 @@ func TestProviderSymbolUploaderOptions(t *testing.T) {
 				t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_OPTIONS", `{
   "enabled": true,
   "upload_dynamic_symbols": true,
-  "upload_go_pcln_tab": false,
+  "upload_gopclntab": false,
   "use_http2": true,
   "symbol_query_interval": "0s",
   "dry_run": true,
@@ -435,7 +435,7 @@ hostprofiler:
     options:
       enabled: false
       upload_dynamic_symbols: true
-      upload_go_pcln_tab: false
+      upload_gopclntab: false
       use_http2: true
       symbol_query_interval: 0s
       dry_run: false
