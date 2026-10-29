@@ -473,7 +473,9 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 			}
 
 			// set the env here so the tearDown can call diagnose too if it fails
-			bs.env = newEnv
+			if bs.env == nil {
+				bs.env = newEnv
+			}
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 

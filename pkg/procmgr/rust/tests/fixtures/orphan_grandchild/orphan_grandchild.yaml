@@ -1,0 +1,5 @@
+command: {{python}}
+args:
+  - {{script}}
+  - {{root}}
+restart: never
