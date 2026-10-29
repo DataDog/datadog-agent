@@ -198,7 +198,7 @@ FROM cdb_objects WHERE object_type = 'VIEW' AND /*RELATIONS*/`
 
 // These 21c+ views are optional and separately granted.
 const blockchainTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
-	table_inactivity_retention, hash_algorithm, table_version
+	table_inactivity_retention, hash_algorithm, /*TABLE_VERSION*/ AS table_version
 FROM cdb_blockchain_tables WHERE /*RELATIONS*/`
 
 const immutableTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
@@ -1356,6 +1356,14 @@ func (c *Check) defaultValueColumn() string {
 	return "c.data_default"
 }
 
+func (c *Check) blockchainTableVersionColumn() string {
+	major, _, _ := strings.Cut(c.dbVersion, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
+		return "table_version"
+	}
+	return "NULL"
+}
+
 // SEARCH_CONDITION_VC exists from 12c; earlier versions require LONG SEARCH_CONDITION.
 func (c *Check) conditionColumn() string {
 	major, _, _ := strings.Cut(c.dbVersion, ".")
@@ -1687,7 +1695,8 @@ func (c *Check) tableDetailsForPageWithRelations(ctx context.Context, allowed ma
 		}
 	}
 
-	blockchainErr := c.queryDetails(ctx, "blockchain", blockchainTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
+	blockchainQuery := strings.Replace(blockchainTablesQuery, "/*TABLE_VERSION*/", c.blockchainTableVersionColumn(), 1)
+	blockchainErr := c.queryDetails(ctx, "blockchain", blockchainQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
 	immutableErr := c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(false))
 	for key := range allowed {
 		at(key.conID, key.owner, key.table).PropertiesIncomplete = blockchainErr != nil || immutableErr != nil

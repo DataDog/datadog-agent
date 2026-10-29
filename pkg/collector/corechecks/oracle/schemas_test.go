@@ -1505,40 +1505,75 @@ func TestTableDetailsExternalLocationsConcat(t *testing.T) {
 }
 
 func TestTableDetailsBlockchainAndImmutableRetention(t *testing.T) {
-	c, _, dbMock, closeDB := newSchemaCheck(t)
-	defer closeDB()
+	for _, tc := range []struct {
+		version      string
+		column       string
+		tableVersion string
+	}{
+		{"12.1.0.2.0", "NULL", ""},
+		{"12.2.0.1.0", "NULL", ""},
+		{"19.0.0.0.0", "NULL", ""},
+		{"21.3.0.0.0", "NULL", ""},
+		{"23.0.0.0.0", "table_version", "v2"},
+		{"26.0.0.0.0", "table_version", "v2"},
+		{"unknown", "NULL", ""},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			c, _, dbMock, closeDB := newSchemaCheck(t)
+			defer closeDB()
+			c.dbVersion = tc.version
+			dbMock.MatchExpectationsInOrder(false)
+			var tableVersion any
+			if tc.tableVersion != "" {
+				tableVersion = tc.tableVersion
+			}
+			dbMock.ExpectQuery(regexp.QuoteMeta("hash_algorithm, " + tc.column + " AS table_version FROM cdb_blockchain_tables")).WillReturnRows(
+				sqlmock.NewRows([]string{
+					"CON_ID", "SCHEMA_NAME", "TABLE_NAME", "ROW_RETENTION", "ROW_RETENTION_LOCKED",
+					"TABLE_INACTIVITY_RETENTION", "HASH_ALGORITHM", "TABLE_VERSION",
+				}).AddRow(3, "APP", "LEDGER", 90, "YES", 30, "SHA2_512", tableVersion))
+			dbMock.ExpectQuery("cdb_immutable_tables").WillReturnRows(
+				sqlmock.NewRows([]string{
+					"CON_ID", "SCHEMA_NAME", "TABLE_NAME", "ROW_RETENTION", "ROW_RETENTION_LOCKED",
+					"TABLE_INACTIVITY_RETENTION",
+				}).AddRow(3, "APP", "AUDIT_LOG", 365, "NO", nil))
+			for _, view := range []string{"cdb_mviews", "cdb_tab_comments", "cdb_indexes", "cdb_constraints", "cdb_external_tables", "cdb_part_tables"} {
+				dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+			}
 
-	dbMock.MatchExpectationsInOrder(false)
-	dbMock.ExpectQuery("cdb_blockchain_tables").WillReturnRows(
-		sqlmock.NewRows([]string{
-			"CON_ID", "SCHEMA_NAME", "TABLE_NAME", "ROW_RETENTION", "ROW_RETENTION_LOCKED",
-			"TABLE_INACTIVITY_RETENTION", "HASH_ALGORITHM", "TABLE_VERSION",
-		}).AddRow(3, "APP", "LEDGER", 90, "YES", 30, "SHA2_512", "v2"))
-	dbMock.ExpectQuery("cdb_immutable_tables").WillReturnRows(
-		sqlmock.NewRows([]string{
-			"CON_ID", "SCHEMA_NAME", "TABLE_NAME", "ROW_RETENTION", "ROW_RETENTION_LOCKED",
-			"TABLE_INACTIVITY_RETENTION",
-		}).AddRow(3, "APP", "AUDIT_LOG", 365, "NO", nil))
+			allowed := map[tableKey]struct{}{
+				{conID: 3, owner: "APP", table: "LEDGER"}:    {},
+				{conID: 3, owner: "APP", table: "AUDIT_LOG"}: {},
+				{conID: 3, owner: "APP", table: "ORDERS"}:    {},
+			}
+			details := c.tableDetails(context.Background(), allowed, nil)
+			require.NoError(t, dbMock.ExpectationsWereMet())
 
-	allowed := map[tableKey]struct{}{
-		{conID: 3, owner: "APP", table: "LEDGER"}:    {},
-		{conID: 3, owner: "APP", table: "AUDIT_LOG"}: {},
+			ledger := details[tableKey{conID: 3, owner: "APP", table: "LEDGER"}].Blockchain
+			require.NotNil(t, ledger)
+			require.NotNil(t, ledger.RowRetentionDays)
+			assert.Equal(t, int64(90), *ledger.RowRetentionDays)
+			assert.True(t, ledger.RowRetentionLocked)
+			assert.Equal(t, "SHA2_512", ledger.HashAlgorithm)
+			assert.Equal(t, tc.tableVersion, ledger.TableVersion)
+
+			audit := details[tableKey{conID: 3, owner: "APP", table: "AUDIT_LOG"}].Immutable
+			require.NotNil(t, audit)
+			assert.False(t, audit.RowRetentionLocked)
+			assert.Nil(t, audit.InactivityRetentionDays, "a NULL inactivity retention must stay nil, not zero")
+			assert.Empty(t, audit.HashAlgorithm, "immutable tables carry no hash algorithm")
+
+			var event schemaEvent
+			collector := newSchemaCollector(t, &c, func(payload []byte) {
+				require.NoError(t, json.Unmarshal(payload, &event))
+			}, details, map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
+			collector.add(schemaRowDB{ConID: 3, Owner: "APP", TableName: "ORDERS", Temporary: "Y", IotType: "-", ClusterName: "-"})
+			collector.finish()
+			orders := findTable([]schemaEvent{event}, "APP", "ORDERS")
+			require.NotNil(t, orders)
+			assert.Equal(t, []string{"temporary"}, orders.Properties)
+		})
 	}
-	details := c.tableDetails(context.Background(), allowed, nil)
-
-	ledger := details[tableKey{conID: 3, owner: "APP", table: "LEDGER"}].Blockchain
-	require.NotNil(t, ledger)
-	require.NotNil(t, ledger.RowRetentionDays)
-	assert.Equal(t, int64(90), *ledger.RowRetentionDays)
-	assert.True(t, ledger.RowRetentionLocked)
-	assert.Equal(t, "SHA2_512", ledger.HashAlgorithm)
-	assert.Equal(t, "v2", ledger.TableVersion)
-
-	audit := details[tableKey{conID: 3, owner: "APP", table: "AUDIT_LOG"}].Immutable
-	require.NotNil(t, audit)
-	assert.False(t, audit.RowRetentionLocked)
-	assert.Nil(t, audit.InactivityRetentionDays, "a NULL inactivity retention must stay nil, not zero")
-	assert.Empty(t, audit.HashAlgorithm, "immutable tables carry no hash algorithm")
 }
 
 func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
