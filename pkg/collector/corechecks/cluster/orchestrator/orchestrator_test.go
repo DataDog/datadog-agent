@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -69,7 +70,7 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 		manifestBuffer:        NewManifestBuffer(chk),
 		activatedCollectors:   map[string]struct{}{},
 		initializedCollectors: map[string]struct{}{},
-		startedInformers:      map[cache.SharedInformer]struct{}{},
+		startedInformers:      map[cache.Store]struct{}{},
 	}
 	bundle.importCollectorsFromInventory()
 	bundle.prepareExtraSyncTimeout()
@@ -112,7 +113,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle.stopCh = make(chan struct{})
 	bundle.initializedCollectors = map[string]struct{}{}
-	bundle.startedInformers = map[cache.SharedInformer]struct{}{}
+	bundle.startedInformers = map[cache.Store]struct{}{}
 	bundle.Initialize()
 
 	_, err := bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
@@ -234,6 +235,33 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 		assert.Empty(t, orchCheck.orchestratorConfig.ExtraTags)
 	})
+}
+
+// On a Cluster Check Runner the infrastructure mode tag comes from the Cluster
+// Agent's tagger stream, which can connect after the check is configured.
+func TestOrchCheckInfraTagsArrivingAfterConfigure(t *testing.T) {
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetGlobalTags([]string{"tag1:value1"}, nil, nil, nil)
+	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+	assert.Equal(t, []string{"tag1:value1"}, orchCheck.orchestratorConfig.ExtraTags)
+
+	orchCheck.refreshInfraTags()
+	assert.Equal(t, []string{"tag1:value1"}, orchCheck.orchestratorConfig.ExtraTags)
+
+	fakeTagger.SetTags(taggertypes.GetInfraTagsEntityID(), "remote", []string{"infra_mode:cloud_cost_only"}, nil, nil, nil)
+	orchCheck.refreshInfraTags()
+	assert.Equal(t, []string{"tag1:value1", "infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+
+	orchCheck.refreshInfraTags()
+	assert.Equal(t, []string{"tag1:value1", "infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
 }
 
 func TestOrchestratorCheckConfigure(t *testing.T) {

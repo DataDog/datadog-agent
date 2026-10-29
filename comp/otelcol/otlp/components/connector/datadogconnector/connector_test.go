@@ -5,7 +5,9 @@ package datadogconnector
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	otelstats "github.com/DataDog/datadog-agent/pkg/trace/otel/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -557,6 +560,83 @@ func TestSpanDerivedPrimaryTags(t *testing.T) {
 	assert.Equal(t, []string{"team:checkout"}, sp.Stats[0].Stats[0].Stats[0].AdditionalMetricTags)
 }
 
+// TestPeerTagsFollowRegistrySwap verifies that peer tags added by a semantic
+// registry swap (e.g. a Remote Config update) after the connector was created
+// are copied onto the spans fed to the concentrator and show up in the stats.
+func TestPeerTagsFollowRegistrySwap(t *testing.T) {
+	original := semantics.DefaultRegistry()
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.BucketInterval = time.Second
+	cfg.Traces.PeerTagsAggregation = true
+
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	// Swap in a registry identical to the live one, except that the peer.service
+	// concept gains a new precursor attribute.
+	const customPeerTag = "x.custom.peer"
+	concepts := make(map[string]semantics.ConceptMapping)
+	for concept, tags := range original.GetAllEquivalences() {
+		concepts[string(concept)] = semantics.ConceptMapping{Canonical: string(concept), Fallbacks: tags}
+	}
+	peerService := concepts[string(semantics.ConceptPeerService)]
+	peerService.Fallbacks = append(slices.Clone(peerService.Fallbacks), semantics.TagInfo{Name: customPeerTag, Provider: semantics.ProviderDatadog, Type: semantics.ValueTypeString})
+	concepts[string(semantics.ConceptPeerService)] = peerService
+	payload, err := json.Marshal(map[string]any{
+		"version":  "test-peer-tags-swap",
+		"metadata": map[string]string{"content_hash": "test-peer-tags-swap"},
+		"concepts": concepts,
+	})
+	require.NoError(t, err)
+	custom, err := semantics.NewRegistryFromJSON(payload)
+	require.NoError(t, err)
+	require.NotContains(t, connector.concentrator.PeerTagKeys(), customPeerTag, "the custom peer tag must only arrive through the registry swap")
+	semantics.UpdateRegistry(custom)
+
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().PutStr("service.name", "svc")
+	res.Attributes().PutStr("deployment.environment.name", "my-env")
+
+	s := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	s.SetName("name")
+	s.SetKind(ptrace.SpanKindClient)
+	s.SetTraceID(testTraceID)
+	s.SetSpanID(testSpanID1)
+	s.Attributes().PutStr(customPeerTag, "remote-svc")
+
+	require.NoError(t, connector.ConsumeTraces(t.Context(), td))
+
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	metrics := metricsSink.AllMetrics()
+	require.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+	require.NoError(t, proto.Unmarshal(msg, sp))
+
+	require.Len(t, sp.Stats, 1)
+	require.Len(t, sp.Stats[0].Stats, 1)
+	require.Len(t, sp.Stats[0].Stats[0].Stats, 1)
+	assert.Equal(t, []string{customPeerTag + ":remote-svc"}, sp.Stats[0].Stats[0].Stats[0].PeerTags)
+}
+
 type errorSink struct {
 	consumertest.MetricsSink
 	mu         sync.Mutex
@@ -794,7 +874,7 @@ func TestReadOnlyTracesProduceIdenticalStats(t *testing.T) {
 
 	inputsFor := func(td ptrace.Traces) []stats.Input {
 		return otelstats.OTLPTracesToConcentratorInputsWithObfuscation(
-			td, connector.tcfg, connector.ctagKeys, connector.peerTagKeys,
+			td, connector.tcfg, connector.ctagKeys, connector.concentrator.PeerTagKeys(),
 			connector.primaryTagKeys, connector.obfuscator)
 	}
 
@@ -870,4 +950,92 @@ func TestConsumeReadOnlyTracesConcurrent(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Equal(t, before, marshalTraces(t, shared))
+}
+
+// TestAgentIgnoreResources covers how the span filter of ignoredRootsFilter fits in ConsumeTraces;
+// see root_filter_test.go for the root filter itself.
+func TestAgentIgnoreResources(t *testing.T) {
+	for _, tt := range []struct {
+		name               string
+		traces             ptrace.Traces
+		agentIgnore        []string
+		connectorIgnore    []string
+		wantStatsResources []string
+	}{
+		{
+			name: "matching root drops the trace with its children",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore:        []string{"(GET|POST) /health"},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name: "root is matched before the connector's ignore_resources removes it",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+			}),
+			agentIgnore:     []string{"(GET|POST) /health"},
+			connectorIgnore: []string{"GET /healthcheck"},
+		},
+		{
+			name: "root is matched before obfuscation",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindClient, map[string]string{"db.system": "redis", "db.statement": "SET key value"}},
+			}),
+			agentIgnore: []string{"^SET key value$"},
+		},
+		{
+			name: "resource with client-computed stats still gets no stats",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "_dd.stats_computed": "true"}},
+				{2, 2, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore: []string{"(GET|POST) /health"},
+		},
+		{
+			name: "false client-computed stats marker does not keep ignored traces",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "_dd.stats_computed": "false"}},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore:        []string{"(GET|POST) /health"},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name: "no agent ignore_resources keeps every trace",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+			}),
+			wantStatsResources: []string{"GET /healthcheck", "SELECT ?"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentIgnoreResources(tt.agentIgnore))
+			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+			cfg.Traces.IgnoreResources = tt.connectorIgnore
+			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
+			require.NoError(t, err)
+			connector := tconn.(*traceToMetricConnector)
+			before := marshalTraces(t, tt.traces)
+
+			require.NoError(t, connector.ConsumeTraces(t.Context(), tt.traces))
+
+			var resources []string
+			for _, csp := range connector.concentrator.Flush(true).Stats {
+				for _, b := range csp.Stats {
+					for _, s := range b.Stats {
+						resources = append(resources, s.Resource)
+					}
+				}
+			}
+			assert.ElementsMatch(t, tt.wantStatsResources, resources)
+			assert.Equal(t, before, marshalTraces(t, tt.traces), "input traces must not be modified")
+		})
+	}
 }

@@ -56,8 +56,8 @@ It's encouraged that both submitters and reviewers take a look at these guidelin
 
 We have safety measures to protect our repository. As an external contributor, you are required to:
 
-1. Sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
 1. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from GitHub](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+1. If you haven't signed our [Contributor License Agreement](https://gist.github.com/bits-bot/55bdc97a4fdad52d97feb4d6c3d1d618) (CLA) yet, you will be asked to sign it with an acknowledgement comment in your first PR.
 
 ### Keep it small, focused
 

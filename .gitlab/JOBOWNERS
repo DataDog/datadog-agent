@@ -26,8 +26,6 @@ tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
 tests_gpu                               @DataDog/accelerator-telemetry
 tests_windows-x64                       @DataDog/windows-products
-tests_windows_sysprobe*                 @DataDog/windows-products
-tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent-security
 tests_flavor_*                          @DataDog/agent-runtimes
 tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
 tests_serverless-init*                  @DataDog/serverless-azure-and-gcp
@@ -61,6 +59,7 @@ cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
 # AIX/ppc64 jobs
 tests_aix-ppc64                       @DataDog/agent-devx @DataDog/agent-runtimes
 package_aix-ppc64                     @DataDog/agent-build @DataDog/agent-runtimes
+deploy_packages_aix-ppc64             @DataDog/agent-delivery @DataDog/agent-runtimes
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
@@ -68,6 +67,7 @@ generate_minimized_btfs_*            @DataDog/ebpf-platform
 # Package build
 *agent_dmg*                          @DataDog/agent-build
 bazel:*                              @DataDog/agent-build
+bazel_parity_check                   @DataDog/agent-build
 datadog-agent-*                      @DataDog/agent-build
 datadog-ot-agent-*                   @DataDog/agent-build
 dogstatsd-*                          @DataDog/agent-build
@@ -165,6 +165,7 @@ deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
 deploy_mutable_secret_generic_connector_tags*  @Datadog/agent-delivery
 deploy_mutable_dca_tags*               @Datadog/agent-delivery
 deploy_mutable_ot_standalone_tags*     @Datadog/agent-delivery
+deploy_mutable_host_profiler_tags*     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
@@ -184,7 +185,7 @@ integration_tests_windows*    @DataDog/windows-products
 integration_tests_otel        @DataDog/opentelemetry-agent
 docker_image_build_otel       @DataDog/opentelemetry-agent
 build_otel_agent_*            @DataDog/opentelemetry-agent
-build_host_profiler_*         @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
+build_host_profiler_*         @DataDog/agent-build @DataDog/profiling-full-host
 profiler_deps_check           @DataDog/profiling-full-host
 ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent

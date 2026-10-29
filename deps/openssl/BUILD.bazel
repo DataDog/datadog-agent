@@ -1,4 +1,12 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+# openssl-sys points its downstream links at OPENSSL_DIR/lib, which rules_rs only stages for openssl-sys itself.
+cc_library(
+    name = "openssl_sys_link_inputs",
+    additional_linker_inputs = ["@openssl//:gen_dir"],
+    visibility = ["//visibility:public"],
+)
 
 sh_test(
     name = "check_no_sandbox_paths",

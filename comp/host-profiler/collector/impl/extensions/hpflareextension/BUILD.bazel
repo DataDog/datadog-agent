@@ -42,6 +42,7 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
         "@io_opentelemetry_go_collector_config_confignet//:confignet",
         "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_extension_extensioncapabilities//:extensioncapabilities",
         "@org_uber_go_zap//:zap",
     ],
 )

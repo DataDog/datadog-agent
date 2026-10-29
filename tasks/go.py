@@ -21,7 +21,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from tasks.libs.build.bazel import bazel, bazel_not_found_message
+from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
@@ -30,7 +30,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
-from tasks.schema.generate import schema_codegen
+from tasks.schema.generate import GENERATED_SETTINGS_DIR, schema_codegen
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -343,8 +343,12 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     time: report how long each of tidy's subtasks took.
     """
     _check_valid_mods()
+    # `go mod tidy` in the in-repo generatedsettings module needs its generated code
+    if os.path.isdir(GENERATED_SETTINGS_DIR):
+        schema_codegen(ctx)
     timings = []
-    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose, timings if time else None)
+    use_bazel = shutil.which("bazel") and is_bazel_workspace()
+    (_bazel_tidy if use_bazel else _go_only_tidy)(ctx, verbose, timings if time else None)
     for result in sorted(timings, reverse=True):
         print(f"{result.duration:6.2f}s  {result.name}", file=sys.stderr)
 
@@ -358,7 +362,9 @@ def _timed_step(name, timings, f):
 
 
 def _go_only_tidy(ctx, verbose: bool, timings=None):
-    _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
+    # Pre-Bazel branches don't use a Go workspace either
+    if os.path.exists("go.work"):
+        _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
 
     if os.name != 'nt':  # not windows
         import resource
@@ -376,7 +382,8 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
     def _tidy_all_modules():
         promises = []
         for mod in get_default_modules().values():
-            with ctx.cd(mod.full_path()):
+            # tidy the go.mod go.work uses, as `go mod tidy` in Bazel's //:go_mod_tidy_all does
+            with ctx.cd(os.path.abspath(mod.workspace_dir())):
                 # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
                 promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 
@@ -385,7 +392,8 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
 
     _timed_step("go mod tidy (all modules)", timings, _tidy_all_modules)
 
-    print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
+    if is_bazel_workspace():
+        print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
 
 
 def _bazel_tidy(ctx, verbose: bool, timings=None):
@@ -428,7 +436,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.9 linux/amd64"
+    # result is like "go version go1.26.10 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

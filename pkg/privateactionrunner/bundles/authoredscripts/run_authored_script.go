@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package com_datadoghq_authoredscripts
 
 import (
@@ -35,7 +33,7 @@ func NewRunAuthoredScriptHandler(catalog authoredscriptssupport.Catalog, agentHT
 	environment := installerenv.FromEnv()
 	materializer, err := authoredscriptsoci.NewMaterializer(environment, agentHTTPClient)
 	if err == nil {
-		handler.artifactResolver, err = authoredscriptssupport.NewUserArtifactResolver(materializer)
+		handler.artifactResolver, err = authoredscriptssupport.NewDefaultArtifactResolver(materializer)
 	}
 	handler.artifactResolverInitErr = err
 	return handler
@@ -64,13 +62,13 @@ func (h *RunAuthoredScriptHandler) Run(
 		return nil, errors.New("authored-script task is required")
 	}
 
-	executionFQN := task.GetExecutionFQN()
+	fqn := task.GetFQN()
 	if err := h.catalog.WaitForReady(ctx); err != nil {
 		return nil, fmt.Errorf("waiting for authored-script catalog: %w", err)
 	}
-	descriptor, err := h.catalog.Lookup(executionFQN)
+	descriptor, err := h.catalog.Lookup(fqn)
 	if err != nil {
-		return nil, fmt.Errorf("could not look up authored-script package %q: %w", executionFQN, err)
+		return nil, fmt.Errorf("could not look up authored-script package %q: %w", fqn, err)
 	}
 	if h.artifactResolverInitErr != nil {
 		return nil, fmt.Errorf("could not initialize authored-script artifact resolver: %w", h.artifactResolverInitErr)
@@ -81,9 +79,9 @@ func (h *RunAuthoredScriptHandler) Run(
 
 	artifact, err := h.artifactResolver.Resolve(ctx, descriptor)
 	if err != nil {
-		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", executionFQN, err)
+		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", fqn, err)
 	}
-	scriptPackage, err := authoredscriptssupport.LoadPackage(executionFQN, descriptor, artifact)
+	scriptPackage, err := authoredscriptssupport.LoadPackage(fqn, descriptor, artifact)
 	if err != nil {
 		return nil, err
 	}

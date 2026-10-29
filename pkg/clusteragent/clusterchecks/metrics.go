@@ -53,4 +53,7 @@ var (
 	predictedUtilization = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("cluster_checks", "predicted_utilization",
 		[]string{"node", le.JoinLeaderLabel}, "Utilization predicted by the rebalance algorithm",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	configsNoEligibleWorker = telemetryimpl.GetCompatComponent().NewCounterWithOpts("cluster_checks", "configs_without_eligible_worker",
+		[]string{le.JoinLeaderLabel}, "Total occurrences of cluster check configs that could not be placed on any compatible worker (their runner group is likely down)",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

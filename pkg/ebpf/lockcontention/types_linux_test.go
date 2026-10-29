@@ -9,9 +9,9 @@ import (
 )
 
 func TestCgoAlignment_LockRange(t *testing.T) {
-	ebpftest.TestCgoAlignment[LockRange](t)
+	ebpftest.AssertCgoAlignment[LockRange](t)
 }
 
 func TestCgoAlignment_ContentionData(t *testing.T) {
-	ebpftest.TestCgoAlignment[ContentionData](t)
+	ebpftest.AssertCgoAlignment[ContentionData](t)
 }

@@ -41,9 +41,6 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	pbTask := &privateactionspb.PrivateActionTask{
 		OrgId:          42,
 		TaskId:         "task-id",
-		BundleId:       "com.datadoghq.helm",
-		ActionName:     "addRepo",
-		ExecutionFqn:   "com.datadoghq.authoredscripts.helm.addRepo",
 		Inputs:         &structpb.Struct{},
 		ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-id"},
 		ExpirationTime: timestamppb.New(time.Now().Add(time.Minute)),
@@ -52,7 +49,7 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	require.NoError(t, err)
 	digest := sha256.Sum256(data)
 	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{ExecutionFQN: "com.datadoghq.other.action", SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
+	task.Data.Attributes = &types.Attributes{SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
 		Data: data, HashType: privateactionspb.HashType_SHA256,
 		Signatures: []*privateactionspb.Signature{{
 			KeyId: "key-id", KeyType: privateactionspb.KeyType_ED25519,
@@ -70,10 +67,6 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	got, err := verifier.UnwrapTask(task)
 
 	require.NoError(t, err)
-	require.NotNil(t, got)
-	require.NotNil(t, got.Data.Attributes)
-	assert.Equal(t, "com.datadoghq.helm.addRepo", got.GetFQN())
-	assert.Equal(t, pbTask.ExecutionFqn, got.Data.Attributes.ExecutionFQN)
 	require.NotNil(t, got.Data.Attributes.VerificationKey)
 	assert.Equal(t, "key-id", got.Data.Attributes.VerificationKey.ID)
 	assert.Equal(t, types.KeyTypeED25519, got.Data.Attributes.VerificationKey.KeyType)
@@ -113,7 +106,6 @@ func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
 	got := mapPbTaskToStruct(&privateactionspb.PrivateActionTask{Inputs: &structpb.Struct{}})
 
 	assert.Nil(t, got.Data.Attributes.SystemInputs)
-	assert.Empty(t, got.Data.Attributes.ExecutionFQN)
 }
 
 func TestTaskVerifierRejectsUnsignedTask(t *testing.T) {
