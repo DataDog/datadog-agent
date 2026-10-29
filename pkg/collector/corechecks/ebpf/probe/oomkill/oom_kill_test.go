@@ -59,6 +59,65 @@ func TestOOMKillCompile(t *testing.T) {
 }
 
 func TestOOMKillProbe(t *testing.T) {
+	testOOMKillProbes(t)
+}
+
+// kptrRestrictChildEnv is set in the environment of the test binary that
+// TestOOMKillProbeKptrRestrict runs the probe tests in
+const kptrRestrictChildEnv = "OOM_KILL_TEST_KPTR_RESTRICT_CHILD"
+
+// TestOOMKillProbeKptrRestrict runs the probe tests, for both the fentry and kprobe programs, with
+// kernel.kptr_restrict set to 2, so that /proc/kallsyms hides kernel addresses even from root.
+//
+// The tests run in a new process of the test binary, so that no kernel address read before the
+// restriction, e.g. by cilium/ebpf which caches them for the lifetime of the process, is reused.
+func TestOOMKillProbeKptrRestrict(t *testing.T) {
+	if os.Getenv(kptrRestrictChildEnv) != "" {
+		require.True(t, kallsymsRestricted(t), "kallsyms addresses should be hidden by kptr_restrict")
+		testOOMKillProbes(t)
+		return
+	}
+
+	setKptrRestrict(t, "2")
+	exe, err := os.Executable()
+	require.NoError(t, err)
+	cmd := exec.Command(exe, "-test.run=^"+t.Name()+"$", "-test.v")
+	cmd.Env = append(os.Environ(), kptrRestrictChildEnv+"=1")
+	out, err := cmd.CombinedOutput()
+	t.Logf("tests with kptr_restrict=2:\n%s", out)
+	require.NoError(t, err, "tests with kptr_restrict=2 failed")
+}
+
+// setKptrRestrict sets kernel.kptr_restrict for the duration of the test
+func setKptrRestrict(t *testing.T, value string) {
+	const path = "/proc/sys/kernel/kptr_restrict"
+	orig, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, []byte(value), 0))
+	t.Cleanup(func() {
+		if err := os.WriteFile(path, orig, 0); err != nil {
+			t.Errorf("failed to restore %s: %s", path, err)
+		}
+	})
+}
+
+// kallsymsRestricted reports whether /proc/kallsyms shows a zero address for nr_cpu_ids, one of the
+// kernel variables the cgroup memory stats read
+func kallsymsRestricted(t *testing.T) bool {
+	data, err := os.ReadFile("/proc/kallsyms")
+	require.NoError(t, err)
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[2] == "nr_cpu_ids" {
+			return strings.Trim(fields[0], "0") == ""
+		}
+	}
+	require.FailNow(t, "nr_cpu_ids not found in /proc/kallsyms")
+	return false
+}
+
+// testOOMKillProbes runs testOOMKillProbe for the fentry and kprobe programs, in every build mode
+func testOOMKillProbes(t *testing.T) {
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		if kv < kernel.VersionCode(4, 9, 0) {
 			t.Skipf("Kernel version %v is not supported by the OOM probe", kv)

@@ -44,10 +44,29 @@ static __always_inline bool emit_cgroup_memory_stats() {
 #define READ_ONCE(x) (*(const volatile typeof(x) *)&(x))
 #endif
 
-extern const void mem_cgroup_stats_index __ksym __weak;
+/*
+ * Addresses of kernel variables, which kernel BTF does not describe since it only has the per-cpu
+ * ones. system-probe patches them in when the cgroup memory stats are collected, from a kallsyms
+ * bpf iterator, which is not subject to kptr_restrict unlike /proc/kallsyms. They are 0 otherwise.
+ */
+static __always_inline const u8 *mem_cgroup_stats_index_addr() {
+    __u64 val = 0;
+    LOAD_CONSTANT("mem_cgroup_stats_index_addr", val);
+    return (const u8 *)val;
+}
+
 // Used to locate the per-cpu copies of memcg->vmstats_percpu, like per_cpu_ptr() does.
-extern const void __per_cpu_offset __ksym __weak;
-extern const void nr_cpu_ids __ksym __weak;
+static __always_inline const unsigned long *per_cpu_offset_addr() {
+    __u64 val = 0;
+    LOAD_CONSTANT("per_cpu_offset_addr", val);
+    return (const unsigned long *)val;
+}
+
+static __always_inline const unsigned int *nr_cpu_ids_addr() {
+    __u64 val = 0;
+    LOAD_CONSTANT("nr_cpu_ids_addr", val);
+    return (const unsigned int *)val;
+}
 
 /*
  * `memcg_flush_seq` is a sequence count of the memcg stats flush steps. It is odd while
@@ -124,11 +143,12 @@ static __always_inline long mem_cgroup_stats_slot(int idx) {
     if (bpf_core_field_size(struct memcg_vmstats, state) >= bpf_core_enum_value(enum memcg_stat_item, MEMCG_NR_STAT) * sizeof(long))
         return idx;
 
-    if (!&mem_cgroup_stats_index)
+    const u8 *stats_index = mem_cgroup_stats_index_addr();
+    if (!stats_index)
         return -1;
 
     u8 slot = 0xff;
-    bpf_probe_read_kernel(&slot, sizeof(slot), (const u8 *)&mem_cgroup_stats_index + idx);
+    bpf_probe_read_kernel(&slot, sizeof(slot), stats_index + idx);
     if (slot == 0xff)
         return -1;
     return slot;
@@ -152,7 +172,7 @@ static __always_inline struct mem_cgroup *task_mem_cgroup(struct task_struct *ts
 // add_cpu_pending_pages adds the stat updates of a cpu that are not flushed to memcg->vmstats yet.
 static long add_cpu_pending_pages(u64 cpu, struct cgroup_memory_stats_ctx *c) {
     unsigned long offset = 0;
-    if (bpf_probe_read_kernel(&offset, sizeof(offset), (const unsigned long *)&__per_cpu_offset + cpu) < 0)
+    if (bpf_probe_read_kernel(&offset, sizeof(offset), per_cpu_offset_addr() + cpu) < 0)
         return 1;
 
     struct memcg_vmstats_percpu *statc = (struct memcg_vmstats_percpu *)((unsigned long)c->pcpu + offset);
@@ -248,8 +268,8 @@ static __always_inline void get_cgroup_memory_stats(struct task_struct *tsk, str
     };
 
     u32 nr_cpus = 0;
-    if (c.pcpu && &__per_cpu_offset && &nr_cpu_ids && bpf_helper_exists(BPF_FUNC_loop))
-        bpf_probe_read_kernel(&nr_cpus, sizeof(nr_cpus), &nr_cpu_ids);
+    if (c.pcpu && per_cpu_offset_addr() && nr_cpu_ids_addr() && bpf_helper_exists(BPF_FUNC_loop))
+        bpf_probe_read_kernel(&nr_cpus, sizeof(nr_cpus), nr_cpu_ids_addr());
 
     __u64 *seq = memcg_flush_seq_ptr();
     if (!seq)

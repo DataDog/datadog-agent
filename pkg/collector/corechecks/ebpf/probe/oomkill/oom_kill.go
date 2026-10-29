@@ -173,14 +173,13 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 	// programs count. Without them the check would always pass, so the stats are not collected.
 	emitStats := uint64(0)
 	if cfg.EmitCgroupMemoryStats {
-		if progSpec.Type != bpflib.Tracing {
-			log.Warnf("cgroup memory stats disabled: %s is used instead of %s", progSpec.Name, oomFentryName)
-		} else if err := cgroupMemoryStatsSupported(); err != nil {
+		if addrs, err := cgroupMemoryStatsKernelAddresses(spec, progSpec); err != nil {
 			log.Warnf("cgroup memory stats disabled: %s", err)
-		} else if err := memcgFlushTrackingSupported(spec); err != nil {
-			log.Warnf("cgroup memory stats disabled, memcg stats flushes cannot be tracked: %s", err)
 		} else {
 			emitStats = 1
+			for sym, name := range kernelVariableConsts {
+				rewriteConstant(spec, name, addrs[sym])
+			}
 		}
 	}
 	if emitStats == 0 {
@@ -460,6 +459,21 @@ func (k *Probe) attach() error {
 	return nil
 }
 
+// cgroupMemoryStatsKernelAddresses returns the address of the kernel variables of
+// kernelVariableConsts if the cgroup memory stats can be collected.
+func cgroupMemoryStatsKernelAddresses(spec *bpflib.CollectionSpec, progSpec *bpflib.ProgramSpec) (map[string]uint64, error) {
+	if progSpec.Type != bpflib.Tracing {
+		return nil, fmt.Errorf("%s is used instead of %s", progSpec.Name, oomFentryName)
+	}
+	if err := cgroupMemoryStatsSupported(); err != nil {
+		return nil, err
+	}
+	if err := memcgFlushTrackingSupported(spec); err != nil {
+		return nil, fmt.Errorf("memcg stats flushes cannot be tracked: %w", err)
+	}
+	return kernelVariableAddresses()
+}
+
 // cgroupMemoryStatsSupported returns nil if the cgroup memory stats can be collected on the running
 // kernel.
 func cgroupMemoryStatsSupported() error {
@@ -471,6 +485,46 @@ func cgroupMemoryStatsSupported() error {
 		return fmt.Errorf("kernel %s is older than 6.8", kv)
 	}
 	return nil
+}
+
+// kernelVariableConsts maps the kernel variables the cgroup memory stats read to the LOAD_CONSTANT
+// of the eBPF program set to their address. Kernel BTF only describes the per-cpu variables, so
+// they cannot be typed ksyms.
+var kernelVariableConsts = map[string]string{
+	"__per_cpu_offset":       "per_cpu_offset_addr",
+	"nr_cpu_ids":             "nr_cpu_ids_addr",
+	"mem_cgroup_stats_index": "mem_cgroup_stats_index_addr",
+}
+
+// kernelVariableAddresses returns the address of the kernel variables of kernelVariableConsts. They
+// are read with a kallsyms bpf iterator, which unlike /proc/kallsyms is not subject to
+// kptr_restrict.
+func kernelVariableAddresses() (map[string]uint64, error) {
+	syms := make([]string, 0, len(kernelVariableConsts))
+	for sym := range kernelVariableConsts {
+		syms = append(syms, sym)
+	}
+
+	addrs, err := ebpf.GetKernelSymbolsAddressesWithKallsymsIterator(syms...)
+	if addrs == nil {
+		return nil, fmt.Errorf("read kernel symbol addresses: %w", err)
+	}
+
+	required := []string{"__per_cpu_offset", "nr_cpu_ids"}
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("detect kernel version: %w", err)
+	}
+	// mem_cgroup_stats_index only exists, and is only needed, from 6.10.
+	if kv >= kernel.VersionCode(6, 10, 0) {
+		required = append(required, "mem_cgroup_stats_index")
+	}
+	for _, sym := range required {
+		if addrs[sym] == 0 {
+			return nil, fmt.Errorf("address of kernel symbol %s not found", sym)
+		}
+	}
+	return addrs, nil
 }
 
 // memcgFlushTrackingSupported returns nil if the memcg flush programs of spec can be loaded and
