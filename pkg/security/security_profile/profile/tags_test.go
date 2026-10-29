@@ -47,6 +47,26 @@ func TestProfileStoresTagsOfEveryTrackedImageTag(t *testing.T) {
 	}, p.GetTags())
 }
 
+// TestEvictedVersionTagsAreRemoved checks that evicting a version drops the tags only it
+// held, and keeps the tags shared with a remaining version or owned by the profile itself.
+func TestEvictedVersionTagsAreRemoved(t *testing.T) {
+	p := New(WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "app", Tag: "*"}))
+	p.AddTags([]string{"host:h", "container_id:c1", "image_name:app", "image_tag:v1"})
+
+	require.Empty(t, p.PrepareNewVersion("v1", []string{"container_id:c1", "image_name:app", "image_tag:v1"}, 2, 1))
+	require.Empty(t, p.PrepareNewVersion("v2", []string{"container_id:c2", "image_name:app", "image_tag:v2"}, 2, 2))
+	require.Equal(t, []string{"v1"}, p.PrepareNewVersion("v3", []string{"container_id:c3", "image_name:app", "image_tag:v3"}, 2, 3))
+
+	assert.ElementsMatch(t, []string{
+		"host:h",
+		"image_name:app",
+		"container_id:c2",
+		"image_tag:v2",
+		"container_id:c3",
+		"image_tag:v3",
+	}, p.GetTags())
+}
+
 // TestPrepareNewVersionMergesImageTagTags checks the legacy path that learns a new image tag.
 func TestPrepareNewVersionMergesImageTagTags(t *testing.T) {
 	p := New(WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "app", Tag: "*"}))
