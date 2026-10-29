@@ -9624,6 +9624,16 @@ properties:
           command contains no sensitive information.
         env_vars:
         - DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED
+      metadata_runtime:
+        node_type: setting
+        type: string
+        default: ''
+        description: |
+          Application runtime to report in serverless-init metadata. When set, it takes
+          priority over the runtime that serverless-init detects from the platform and
+          the wrapped command.
+        env_vars:
+        - DD_SERVERLESS_INIT_METADATA_RUNTIME
       logs_enabled:
         node_type: setting
         type: boolean
