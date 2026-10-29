@@ -28,8 +28,13 @@ can produce a patch even when the callback returns false. No skip-path
 optimization is introduced. Request failures have a bounded `failure_stage`;
 `admission.allowed` and HTTP status are separate because mutation failures can
 remain fail-open with HTTP 200. Policy denials, including their explanations,
-are admission outcomes rather than internal errors. Panics mark the active
-request and mutation spans as errors without recording the panic value or
+are admission outcomes rather than internal errors. Validators set a request-local
+`ProcessingFailed` flag for internal failures: the shared validation helper does
+so when its callback returns an error, and the DatadogInstrumentation validator
+when request decoding fails. This marks the request span as failed even if the
+admission response is a denial. The flag carries no error text and does not change
+the response. Panics mark
+active request and mutation spans as errors without recording the panic value or
 changing panic propagation.
 
 New tags contain fixed operational names, booleans, bounded failure stages, and
@@ -40,9 +45,10 @@ and cluster/service tags are unchanged.
 
 ## Validation and follow-up
 
-Run focused tests with `dda inv test --targets=./cmd/cluster-agent/admission,./pkg/clusteragent/admission/mutate/...`
+Run focused tests with `dda inv test --targets=./cmd/cluster-agent/admission,./pkg/clusteragent/admission/mutate/...,./pkg/clusteragent/admission/validate/...`
 and build with `dda inv cluster-agent.build`, or use the corresponding Bazel
-tests. Tests cover hierarchy, request versions, privacy, errors, injection,
+tests. Tests cover hierarchy, request versions, privacy, policy denials versus
+processing errors, injection,
 no-injection, and normalization-only patches. The common package includes
 `BenchmarkMutateTracingDisabled`; compare base and feature revisions using the
 same benchmark and toolchain rather than benchmarking mocktracer.

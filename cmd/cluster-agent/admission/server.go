@@ -60,6 +60,9 @@ func maxRequestBodyBytes() int64 {
 type Request struct {
 	// Context is canceled when the HTTP admission request is canceled.
 	Context context.Context
+	// ProcessingFailed distinguishes internal webhook failures from policy denials
+	// for tracing only. It does not change the admission response.
+	ProcessingFailed bool
 	// UID is the unique identifier of the AdmissionRequest
 	UID types.UID
 	// Name is the name of the object
@@ -204,6 +207,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	r = r.WithContext(ctx)
 	statusCode := http.StatusOK
 	var spanErr error
+	var processingFailed bool
 	defer func() {
 		if p := recover(); p != nil {
 			span.SetTag("failure_stage", "panic")
@@ -221,9 +225,11 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	}
 	recordResponse := func(response *admiv1.AdmissionResponse) {
 		span.SetTag("admission.allowed", response.Allowed)
-		// Denials can include a policy explanation without a processing failure.
-		// Our mutation response helper reports processing errors by failing open.
-		if webhookType == admicommon.MutatingWebhook && response.Allowed && response.Result != nil && response.Result.Message != "" {
+		// Validation reports processing failures explicitly: denied responses alone
+		// cannot distinguish errors from policy explanations. Our mutation response
+		// helper reports processing errors by failing open.
+		mutationFailed := webhookType == admicommon.MutatingWebhook && response.Allowed && response.Result != nil && response.Result.Message != ""
+		if processingFailed || mutationFailed {
 			spanErr = errAdmissionRequest
 			span.SetTag("failure_stage", "webhook")
 		}
@@ -312,6 +318,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 				APIClient:     apiClient,
 			}
 			admissionResponse = webhookFunc(&admissionRequest)
+			processingFailed = admissionRequest.ProcessingFailed
 		}
 
 		recordResponse(admissionResponse)
@@ -346,6 +353,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 				APIClient:     apiClient,
 			}
 			admissionResponse = webhookFunc(&admissionRequest)
+			processingFailed = admissionRequest.ProcessingFailed
 		}
 
 		recordResponse(admissionResponse)

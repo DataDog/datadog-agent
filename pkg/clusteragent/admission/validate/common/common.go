@@ -25,6 +25,7 @@ type ValidationFunc func(request *admission.Request, ns string, cl dynamic.Inter
 func Validate(request *admission.Request, webhookName string, v ValidationFunc, dc dynamic.Interface) (bool, error) {
 	validated, err := v(request, request.Namespace, dc)
 	if err != nil {
+		request.ProcessingFailed = true
 		metrics.ValidationAttempts.Inc(webhookName, metrics.StatusError, strconv.FormatBool(false), err.Error())
 		return false, fmt.Errorf("failed to validate admission request: %w", err)
 	}

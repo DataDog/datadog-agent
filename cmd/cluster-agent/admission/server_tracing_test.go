@@ -150,26 +150,39 @@ func TestAdmissionTracingPreservesPanic(t *testing.T) {
 	require.Nil(t, spans["cluster_agent.admission.prepare_patch"])
 }
 
-// A policy denial is an admission outcome, not necessarily an internal failure.
-func TestAdmissionTracingPolicyDenial(t *testing.T) {
+// Policy denials and internal validation failures can have identical responses.
+func TestAdmissionTracingResponseOutcomes(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		webhookType admicommon.WebhookType
-		result      *metav1.Status
+		name             string
+		version          string
+		webhookType      admicommon.WebhookType
+		result           *metav1.Status
+		processingFailed bool
 	}{
 		{name: "reason only", webhookType: admicommon.ValidatingWebhook, result: &metav1.Status{Reason: metav1.StatusReasonForbidden}},
 		// DatadogInstrumentation policy denials supply a message without a reason.
 		{name: "validation message", webhookType: admicommon.ValidatingWebhook, result: &metav1.Status{Message: "sensitive-policy-explanation"}},
 		{name: "mutation denial", webhookType: admicommon.MutatingWebhook, result: &metav1.Status{Message: "sensitive-policy-explanation"}},
+		{name: "validation failure v1", webhookType: admicommon.ValidatingWebhook, result: &metav1.Status{Message: "sensitive-processing-error"}, processingFailed: true},
+		{name: "validation failure v1beta1", version: "v1beta1", webhookType: admicommon.ValidatingWebhook, result: &metav1.Status{Message: "sensitive-processing-error"}, processingFailed: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			mt := mocktracer.Start()
 			defer mt.Stop()
 			s := newTestServer(t)
-			s.Register("/test", "test", tt.webhookType, func(*Request) *admiv1.AdmissionResponse {
+			s.Register("/test", "test", tt.webhookType, func(req *Request) *admiv1.AdmissionResponse {
+				if tt.processingFailed {
+					req.ProcessingFailed = true
+					return admicommon.ValidationResponse(false, errors.New(tt.result.Message))
+				}
 				return &admiv1.AdmissionResponse{Allowed: false, Result: tt.result}
 			}, nil, nil)
-			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(`{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","request":{"uid":"test"}}`))
+			version := tt.version
+			if version == "" {
+				version = "v1"
+			}
+			body := fmt.Sprintf(`{"apiVersion":"admission.k8s.io/%s","kind":"AdmissionReview","request":{"uid":"test"}}`, version)
+			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
 			req.Header.Set("Content-Type", jsonContentType)
 			w := httptest.NewRecorder()
 			s.mux.ServeHTTP(w, req)
@@ -182,8 +195,13 @@ func TestAdmissionTracingPolicyDenial(t *testing.T) {
 			spans := mt.FinishedSpans()
 			require.Len(t, spans, 1)
 			require.Equal(t, "false", spans[0].Tag("admission.allowed"))
-			require.Nil(t, spans[0].Tag("error.message"))
-			require.Nil(t, spans[0].Tag("failure_stage"))
+			if tt.processingFailed {
+				require.Equal(t, errAdmissionRequest.Error(), spans[0].Tag("error.message"))
+				require.Equal(t, "webhook", spans[0].Tag("failure_stage"))
+			} else {
+				require.Nil(t, spans[0].Tag("error.message"))
+				require.Nil(t, spans[0].Tag("failure_stage"))
+			}
 			require.NotContains(t, fmt.Sprint(spans[0].Tags()), "sensitive-")
 		})
 	}
