@@ -14,12 +14,16 @@ import (
 )
 
 func TestConnectionTrackerStopsWithoutConnections(t *testing.T) {
-	synctest.Test(t, func(_ *testing.T) {
-		tracker := NewConnectionTracker("test", 0)
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewConnectionTracker("test", time.Hour)
 		tracker.Start()
+		start := time.Now()
 		tracker.Stop()
 		tracker.Stop()
 		synctest.Wait()
+		if !time.Now().Equal(start) {
+			t.Fatal("idle tracker waited for the connection close delay")
+		}
 	})
 }
 

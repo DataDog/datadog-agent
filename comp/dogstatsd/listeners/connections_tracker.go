@@ -123,7 +123,9 @@ func (t *ConnectionTracker) HandleConnections() {
 				}
 			}
 
-			time.Sleep(t.closeDelay)
+			if len(t.connections) != 0 {
+				time.Sleep(t.closeDelay)
+			}
 
 			for c := range t.connections {
 				// Then, we finish closing the connection.
