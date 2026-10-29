@@ -859,7 +859,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
+	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -1253,11 +1253,24 @@ type KubernetesNodeStatus struct {
 	OperatingSystem         string `json:"operatingSystem"`
 }
 
+// KubernetesNodeCondition is a node condition without timestamps, which change on
+// every kubelet heartbeat.
+type KubernetesNodeCondition struct {
+	Type   string
+	Status string
+}
+
 // KubernetesNode is an Entity representing a Kubernetes Node.
 type KubernetesNode struct {
 	EntityID
 	EntityMeta
+	// Status is served as is by the cluster agent /api/v1/info/node endpoint, so it
+	// only holds the kubelet info. The fields below are not part of that wire format.
 	Status KubernetesNodeStatus
+	// Conditions are the node conditions, reduced to type and status.
+	Conditions []KubernetesNodeCondition
+	// Unschedulable mirrors node.Spec.Unschedulable (set by `kubectl cordon`).
+	Unschedulable bool
 }
 
 // GetID implements Entity#GetID.
@@ -1296,6 +1309,10 @@ func (n KubernetesNode) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ContainerRuntimeVersion:", n.Status.ContainerRuntimeVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", n.Status.Architecture)
 		_, _ = fmt.Fprintln(&sb, "OperatingSystem:", n.Status.OperatingSystem)
+		_, _ = fmt.Fprintln(&sb, "Unschedulable:", n.Unschedulable)
+		for _, c := range n.Conditions {
+			_, _ = fmt.Fprintf(&sb, "Condition: %s=%s\n", c.Type, c.Status)
+		}
 	}
 	return sb.String()
 }
@@ -1654,9 +1671,11 @@ type KueuePodSetAssignment struct {
 type KubernetesKueueWorkload struct {
 	EntityID
 	EntityMeta
-	QueueName         string
-	ClusterQueueName  string
-	PodSetAssignments []KueuePodSetAssignment
+	QueueName              string
+	ClusterQueueName       string
+	PodSetAssignments      []KueuePodSetAssignment
+	PodTemplateLabels      map[string]string
+	PodTemplateAnnotations map[string]string
 }
 
 // GetID implements Entity#GetID.
@@ -1691,6 +1710,8 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
 	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
 	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	_, _ = fmt.Fprintln(&sb, "Pod Template Labels:", mapToScrubbedJSONString(w.PodTemplateLabels))
+	_, _ = fmt.Fprintln(&sb, "Pod Template Annotations:", mapToScrubbedJSONString(w.PodTemplateAnnotations))
 	return sb.String()
 }
 
@@ -2269,6 +2290,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+
+	// EnqueuedAt is the time at which the Store sent the bundle to the
+	// subscriber's channel. Subscribers can use it to measure how long the
+	// bundle waited in the channel.
+	EnqueuedAt time.Time
 }
 
 // Acknowledge acknowledges that the subscriber has handled the event.
@@ -2313,6 +2339,9 @@ type GPUShare struct {
 	// Fraction is the fraction of the GPU assigned to the container, in (0, 1],
 	// or 0 when the container shares the GPU but its share is unknown.
 	Fraction float64
+	// Memory is the GPU memory, in bytes, that the container is allowed to
+	// use, or 0 when the container shares the GPU but its memory is unknown.
+	Memory uint64
 }
 
 // GPUDeviceType is an enum to identify the type of the GPU device.
@@ -2388,6 +2417,27 @@ type GPU struct {
 	// FabricCliqueID identifies the P2P clique within the NVLink fabric cluster.
 	// It is meaningful only when FabricClusterUUID is set.
 	FabricCliqueID uint32
+
+	// ChassisSerial is the serial number of the chassis (rack) containing the GPU,
+	// reported on rack-scale systems such as GB200 NVL72. Empty otherwise.
+	ChassisSerial string
+
+	// SlotNumber, TrayIndex and ModuleID locate the GPU inside the chassis.
+	// They are meaningful only when ChassisSerial is set.
+	SlotNumber uint8
+	TrayIndex  uint8
+	ModuleID   uint8
+
+	// BoardSerial is the board serial number, shared by the GPUs of one
+	// superchip on GB200. It is set only when ChassisSerial is set.
+	BoardSerial string
+
+	// FabricGUID is the GPU's NVLink fabric GUID from NVML platform info (not an
+	// InfiniBand HCA GUID). Empty when not reported.
+	FabricGUID string
+
+	// NUMANode is the NUMA node closest to the GPU. Nil when not reported.
+	NUMANode *int
 
 	// NVLinkVersion is the version reported by the GPU's NVLink links.
 	NVLinkVersion string

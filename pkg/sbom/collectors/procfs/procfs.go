@@ -48,7 +48,8 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	scanPath, err := getPath(request)
 	if err != nil {
 		return sbom.ScanResult{
-			Error: err,
+			RequestID: request.ID(),
+			Error:     err,
 		}
 	}
 

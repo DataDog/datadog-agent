@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
@@ -24,28 +25,38 @@ type lossLessMapper struct {
 	cfg           translatorConfig
 	logger        *zap.Logger
 	warnedMetrics sync.Map
+	// summaries maps Summary points with deltas; set by WithSummaryCumulativeToDelta.
+	summaries mapper
 }
 
 // newLossLessMapper creates a new lossLessMapper without a cache.
 // This mapper emits raw values from OTLP delta Sums as Datadog Counts,
 // and OTLP cumulative values (like Summary count/sum) as Datadog Gauges
-// instead of computing deltas.
+// instead of computing deltas, unless WithSummaryCumulativeToDelta is set.
 func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
-	return &lossLessMapper{
+	m := &lossLessMapper{
 		cfg:    cfg,
 		logger: logger,
 	}
+	if cfg.SummaryCumulativeToDelta {
+		m.summaries = newDefaultMapper(newTTLCache(cfg.sweepInterval, cfg.deltaTTL), logger, cfg)
+	}
+	return m
 }
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedMetrics)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.GaugeInterval, &m.warnedMetrics)
 }
 
 const (
 	// deltaSumRateAttributeKey is the datapoint-level attribute that signals
 	// a delta sum should be emitted as a Datadog rate instead of a count.
 	deltaSumRateAttributeKey = "datadog.metric.as_type"
+
+	// gaugeIntervalAttributeKey declares the reporting cadence in whole seconds.
+	// Gauge start timestamps do not describe a reporting interval.
+	gaugeIntervalAttributeKey = "datadog.gauge.interval"
 )
 
 // metricWarnings tracks which one-shot errors have been emitted for a
@@ -67,6 +78,7 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
+	gaugeInterval bool,
 	warnedMetrics *sync.Map,
 ) {
 	for i := 0; i < slice.Len(); i++ {
@@ -93,6 +105,12 @@ func mapNumberMetrics(
 		var interval int64
 		if inferInterval && dt == Count {
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
+		}
+
+		if dt == Gauge && gaugeInterval {
+			if declared, ok := p.Attributes().Get(gaugeIntervalAttributeKey); ok && declared.Type() == pcommon.ValueTypeInt && declared.Int() > 0 {
+				interval = declared.Int()
+			}
 		}
 
 		pointDt := dt
@@ -143,9 +161,13 @@ func mapNumberMetrics(
 }
 
 // MapSummaryMetrics maps summary datapoints to Datadog metrics.
-// Since lossLessMapper doesn't use a cache, count and sum are emitted as Gauges
-// with the current value, rather than as delta Counts.
+// Without a cache, count and sum are emitted as Gauges with the current value,
+// rather than as delta Counts.
 func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.SummaryDataPointSlice) {
+	if m.summaries != nil {
+		m.summaries.MapSummaryMetrics(ctx, consumer, dims, slice)
+		return
+	}
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {

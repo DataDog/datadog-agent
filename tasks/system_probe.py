@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import glob
 import itertools
 import json
@@ -28,7 +27,6 @@ from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -48,8 +46,6 @@ BPF_TAG = "bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
-TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
-E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
     "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
@@ -160,10 +156,9 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """Download and build libpcap as a static library in the agent dev directory.
     The library is not rebuilt if it already exists.
     """
-    embedded_path = get_embedded_path(ctx)
-    assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "embedded", "lib", "libpcap.a")
-    if os.path.exists(target_file):
+    embedded_path = get_embedded_path()
+    target_file = embedded_path / "embedded" / "lib" / "libpcap.a"
+    if target_file.exists():
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
         if version == LIBPCAP_VERSION:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
@@ -174,13 +169,12 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     return
 
 
-def get_libpcap_cgo_flags(ctx):
+def get_libpcap_cgo_flags():
     """Return CGO flags for the development tree where build_libpcap installs its output."""
-    embedded_path = get_embedded_path(ctx)
-    assert embedded_path, "Failed to find embedded path"
+    embedded_path = get_embedded_path()
     return {
-        'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
-        'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
+        'CGO_CFLAGS': f"-I{embedded_path / 'embedded' / 'include'}",
+        'CGO_LDFLAGS': f"-L{embedded_path / 'embedded' / 'lib'}",
     }
 
 
@@ -268,7 +262,7 @@ def build_sysprobe_binary(
 
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx, arch=arch_obj, env=env)
-        cgo_flags = get_libpcap_cgo_flags(ctx)
+        cgo_flags = get_libpcap_cgo_flags()
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -440,17 +434,6 @@ def get_test_timeout(pkg):
     return None
 
 
-@contextlib.contextmanager
-def chdir(dirname=None):
-    curdir = os.getcwd()
-    try:
-        if dirname is not None:
-            os.chdir(dirname)
-        yield
-    finally:
-        os.chdir(curdir)
-
-
 def go_package_dirs(packages, build_tags):
     """
     Retrieve a list of all packages we want to test
@@ -480,130 +463,6 @@ def go_package_dirs(packages, build_tags):
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
     return [p for p in target_packages if len(p) > 0]
-
-
-BUILD_COMMIT = os.path.join(E2E_ARTIFACT_DIR, "build.commit")
-
-
-def clean_build(ctx):
-    if not os.path.exists(E2E_ARTIFACT_DIR):
-        return True
-
-    if not os.path.exists(BUILD_COMMIT):
-        return True
-
-    # if this build happens on a new commit do it cleanly
-    with open(BUILD_COMMIT) as f:
-        build_commit = f.read().rstrip()
-        curr_commit = get_commit_sha(ctx)
-        if curr_commit != build_commit:
-            return True
-
-    return False
-
-
-def full_pkg_path(name):
-    return os.path.join(os.getcwd(), name[name.index("pkg") :])
-
-
-@task
-def e2e_prepare(ctx, ci=False, packages=""):
-    """
-    Compile test suite for e2e tests
-    """
-    build_tags = [NPM_TAG]
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-
-    target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
-
-    # Clean up previous build
-    if os.path.exists(E2E_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
-        shutil.rmtree(E2E_ARTIFACT_DIR)
-    elif packages != "":
-        packages = [full_pkg_path(name) for name in packages.split(",")]
-        # make sure valid packages were provided.
-        for pkg in packages:
-            if pkg not in target_packages:
-                raise Exit(f"Unknown target packages {pkg} specified")
-
-        target_packages = packages
-
-    if os.path.exists(BUILD_COMMIT):
-        os.remove(BUILD_COMMIT)
-
-    os.makedirs(E2E_ARTIFACT_DIR, exist_ok=True)
-
-    # clean target_packages only
-    for pkg_dir in target_packages:
-        test_dir = pkg_dir.lstrip(os.getcwd())
-        if os.path.exists(os.path.join(E2E_ARTIFACT_DIR, test_dir)):
-            shutil.rmtree(os.path.join(E2E_ARTIFACT_DIR, test_dir))
-
-    # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
-    # These artifacts will be "vendored" inside:
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/testsuite
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/netlink/testsuite
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/testsuite
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/bytecode/testsuite
-    for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(E2E_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
-        target_bin = "testsuite"
-        if is_windows:
-            target_bin = "testsuite.exe"
-
-        test(
-            ctx,
-            packages=pkg,
-            skip_object_files=(i != 0),
-            bundle_ebpf=False,
-            output_path=os.path.join(target_path, target_bin),
-        )
-
-        # copy ancillary data, if applicable
-        for extra in ["testdata", "build"]:
-            extra_path = os.path.join(pkg, extra)
-            if os.path.isdir(extra_path):
-                shutil.copytree(extra_path, os.path.join(target_path, extra))
-
-        for gobin in [
-            "external_unix_proxy_server",
-            "fmapper",
-            "gotls_client",
-            "gotls_server",
-            "grpc_external_server",
-            "prefetch_file",
-            "fake_server",
-            "sample_service",
-            "standalone_attacher",
-        ]:
-            src_file_path = os.path.join(pkg, f"{gobin}.go")
-            if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
-                binary_path = os.path.join(target_path, gobin)
-                with chdir(pkg):
-                    go_build(
-                        ctx, f"{gobin}.go", build_tags=["test"], ldflags="-extldflags '-static'", bin_path=binary_path
-                    )
-
-        for cbin in TEST_HELPER_CBINS:
-            source = Path(pkg) / "testdata" / f"{cbin}.c"
-            if not is_windows and source.is_file():
-                binary = Path(target_path) / cbin
-                ctx.run(f"clang -static -o {binary} {source}")
-
-    copy_files = [
-        "/opt/datadog-agent/embedded/bin/clang-bpf",
-        "/opt/datadog-agent/embedded/bin/llc-bpf",
-    ]
-
-    files_dir = os.path.join(E2E_ARTIFACT_DIR, "..")
-    for cf in copy_files:
-        if os.path.exists(cf):
-            shutil.copy(cf, files_dir)
-
-    bazel("run", "//internal/tools:install_gotestsum", "--", f"--destdir={files_dir}")
-    go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json", env={"CGO_ENABLED": "0"})
-    ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
 def get_linux_header_dirs(

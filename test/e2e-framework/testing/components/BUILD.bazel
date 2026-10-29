@@ -34,6 +34,7 @@ go_library(
         "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
         "//test/e2e-framework/testing/utils/e2e/client/ecs",
         "//test/fakeintake/client",
+        "@io_k8s_apimachinery//pkg/util/version",
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//tools/clientcmd",
     ],
