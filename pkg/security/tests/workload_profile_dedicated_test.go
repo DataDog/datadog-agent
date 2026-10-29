@@ -601,8 +601,8 @@ func TestWorkloadProfileDedicatedAnomalyTags(t *testing.T) {
 
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedTags)
 
-// TestWorkloadProfileDedicatedTags checks that the tags sent with a profile shared by several image tags and containers
-// cover all of them.
+// TestWorkloadProfileDedicatedTags checks that each version context of a profile shared by several image tags and
+// containers holds the tags of its own containers, and that the tags sent with the profile cover all of them.
 func TestWorkloadProfileDedicatedTags(t *testing.T) {
 	skipIfNoWorkloadProfileEnv(t)
 
@@ -624,13 +624,21 @@ func TestWorkloadProfileDedicatedTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// the profile format doesn't hold the tags of the profile, the live profile does and they are sent with it to the backend
 	live := m.GetProfile(*p.GetWorkloadSelector())
 	if live == nil {
 		t.Fatal("no live profile")
 	}
-	tags := live.GetTags()
-	if !assert.NotEmpty(t, tags, "the live profile should hold tags") {
+	for imageTag, instance := range map[string]*dockerCmdWrapper{"v1": v1Instance, "v2": v2Instance} {
+		versionTags, ok := live.GetVersionContextTags(imageTag)
+		if !assert.True(t, ok, "the profile should hold the %s version", imageTag) {
+			continue
+		}
+		assert.Equal(t, []string{imageTag}, tagValues(versionTags, "image_tag"), "the %s version should only hold its own image tag", imageTag)
+		assert.Equal(t, []string{instance.containerID}, tagValues(versionTags, "container_id"), "the %s version should only hold the container id of its container", imageTag)
+	}
+
+	tags := live.GetDumpTags()
+	if !assert.NotEmpty(t, tags, "the profile should be sent with tags") {
 		return
 	}
 	if imageTags := tagValues(tags, "image_tag"); len(imageTags) > 0 {
@@ -644,7 +652,7 @@ func TestWorkloadProfileDedicatedTags(t *testing.T) {
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedEvictedVersionTags)
 
 // TestWorkloadProfileDedicatedEvictedVersionTags checks that, once the max number of image tags is reached, the tags
-// of the evicted image tag and of its container are removed from the profile.
+// of the evicted image tag and of its container are no longer sent with the profile.
 func TestWorkloadProfileDedicatedEvictedVersionTags(t *testing.T) {
 	skipIfNoWorkloadProfileEnv(t)
 
@@ -671,16 +679,15 @@ func TestWorkloadProfileDedicatedEvictedVersionTags(t *testing.T) {
 	v1Instance, v2Instance, p := startTwoImageTagsWorkload(t, test, tagger, syscallTester)
 	selector := *p.GetWorkloadSelector()
 
-	// the profile format doesn't hold the tags of the profile, the live profile does and they are sent with it to the backend
-	liveTags := func() []string {
+	dumpTags := func() []string {
 		live := m.GetProfile(selector)
 		if live == nil {
 			t.Fatal("no live profile")
 		}
-		return live.GetTags()
+		return live.GetDumpTags()
 	}
 
-	tags := liveTags()
+	tags := dumpTags()
 	assert.ElementsMatch(t, []string{"v1", "v2"}, tagValues(tags, "image_tag"))
 	assert.ElementsMatch(t, []string{v1Instance.containerID, v2Instance.containerID}, tagValues(tags, "container_id"))
 
@@ -693,9 +700,9 @@ func TestWorkloadProfileDedicatedEvictedVersionTags(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, []string{"v2", "v3"}, m.GetProfile(selector).GetVersions(), "v1 should have been evicted")
-	tags = liveTags()
-	assert.ElementsMatch(t, []string{"v2", "v3"}, tagValues(tags, "image_tag"), "the image tag of the evicted version should be removed from the profile tags")
-	assert.ElementsMatch(t, []string{v2Instance.containerID, v3Instance.containerID}, tagValues(tags, "container_id"), "the container id of the evicted version should be removed from the profile tags")
+	tags = dumpTags()
+	assert.ElementsMatch(t, []string{"v2", "v3"}, tagValues(tags, "image_tag"), "the image tag of the evicted version shouldn't be sent with the profile")
+	assert.ElementsMatch(t, []string{v2Instance.containerID, v3Instance.containerID}, tagValues(tags, "container_id"), "the container id of the evicted version shouldn't be sent with the profile")
 }
 
 // Profile lifecycle

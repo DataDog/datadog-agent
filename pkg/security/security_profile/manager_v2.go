@@ -1332,11 +1332,7 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	secprof, loaded := m.loadProfileFromStorage(selector, event)
 	if !loaded {
 		// Create a new profile if not found in storage
-		var err error
-		secprof, err = m.createNewProfile(selector, event)
-		if err != nil {
-			return nil, err
-		}
+		secprof = m.createNewProfile(selector, event)
 		seclog.Debugf("created new profile for selector %s", selector.String())
 	} else {
 		seclog.Debugf("loaded profile from storage for selector %s", selector.String())
@@ -1400,8 +1396,9 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	return secprof, true
 }
 
-// createNewProfile initializes a new profile with all required metadata and tags
-func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, error) {
+// createNewProfile initializes a new profile with all required metadata. The tags of the
+// workloads are held by the version contexts of the profile, see ensureVersionContext.
+func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, event *model.Event) *profile.Profile {
 	secprof := profile.New(
 		profile.WithPathsReducer(m.pathsReducer),
 		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
@@ -1433,12 +1430,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	secprof.Header.Host = m.hostname
 	secprof.Header.Source = ActivityDumpSource
 
-	// Resolve and add tags
-	if err := m.resolveAndAddProfileTags(secprof); err != nil {
-		return nil, err
-	}
-
-	return secprof, nil
+	return secprof
 }
 
 // resolveAndSaveSecurityContext resolves the container's declared SecurityContext
@@ -1465,29 +1457,8 @@ func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id c
 	secprof.SaveSecurityContext(key, sc)
 }
 
-// resolveAndAddProfileTags resolves tags for the profile's workload and adds them to the profile
-func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
-	var workloadID containerutils.WorkloadID
-	if len(secprof.Metadata.ContainerID) > 0 {
-		workloadID = containerutils.ContainerID(secprof.Metadata.ContainerID)
-	} else if len(secprof.Metadata.CGroupContext.CGroupID) > 0 {
-		workloadID = secprof.Metadata.CGroupContext.CGroupID
-	}
-
-	if workloadID == nil {
-		return nil
-	}
-
-	tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	if err != nil {
-		return err
-	}
-	secprof.AddTags(tags)
-	return nil
-}
-
 // ensureVersionContext creates or refreshes a version context and evicts surplus versions.
-// Existing contexts keep the tags of the workload that introduced the version.
+// The tags of the workload that the version context doesn't hold yet are added to it.
 func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
 	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 	evictedVersions := secprof.PrepareNewVersion(tag, workloadTags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, nowNano)
@@ -1512,8 +1483,8 @@ func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadI
 			instance.Lock()
 			if instance.GetWorkloadID() == id {
 				ctx.Name = prof.Metadata.Name
-				if profileContext, ok := prof.GetVersionContext(imageTag); ok {
-					ctx.Tags = profileContext.Tags
+				if tags, ok := prof.GetVersionContextTags(imageTag); ok {
+					ctx.Tags = tags
 				}
 				instance.Unlock()
 				prof.InstancesLock.Unlock()

@@ -50,6 +50,21 @@ type VersionContext struct {
 	Tags []string
 }
 
+// AddTags adds to the version context the tags it doesn't hold yet. Two values of the
+// same tag name are both kept, so that each workload running this version contributes its tags.
+func (ctx *VersionContext) AddTags(tags []string) {
+	ctx.Tags = appendMissingTags(ctx.Tags, tags)
+}
+
+func appendMissingTags(dst []string, tags []string) []string {
+	for _, tag := range tags {
+		if tag != "" && !slices.Contains(dst, tag) {
+			dst = append(dst, tag)
+		}
+	}
+	return dst
+}
+
 // EventTypeState defines an event type state
 type EventTypeState struct {
 	LastAnomalyNano uint64
@@ -428,9 +443,7 @@ func (p *Profile) FakeOverweight() {
 	p.ActivityTree.Stats.ProcessNodes = 99999
 }
 
-// AddTags adds tags to the profile. A tag name already present is left unchanged:
-// this keeps a single value per name for tags that describe the profile as a whole.
-// Tags contributed by each tracked image tag are merged separately, see addDistinctTags.
+// AddTags adds tags to the profile
 func (p *Profile) AddTags(tags []string) {
 	p.Lock()
 	defer p.Unlock()
@@ -445,18 +458,6 @@ func (p *Profile) AddTags(tags []string) {
 		if !slices.Contains(existingTagNames, tagName) {
 			p.tags = append(p.tags, tag)
 		}
-	}
-}
-
-// addDistinctTags appends tags the profile does not already store. The caller must
-// hold p.Lock. Unlike AddTags, two values of the same tag name are both kept, so
-// every image tag the profile tracks contributes its own tags.
-func (p *Profile) addDistinctTags(tags []string) {
-	for _, tag := range tags {
-		if tag == "" || slices.Contains(p.tags, tag) {
-			continue
-		}
-		p.tags = append(p.tags, tag)
 	}
 }
 
@@ -483,6 +484,23 @@ func (p *Profile) GetTags() []string {
 
 	tags := make([]string, len(p.tags))
 	copy(tags, p.tags)
+	return tags
+}
+
+// GetDumpTags returns the tags sent with a dump of the profile: the profile tags, then the
+// tags of each version context, each distinct tag once.
+func (p *Profile) GetDumpTags() []string {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.getDumpTags()
+}
+
+func (p *Profile) getDumpTags() []string {
+	tags := slices.Clone(p.tags)
+	for _, ctx := range p.getTimeOrderedVersionContexts() {
+		tags = appendMissingTags(tags, ctx.Tags)
+	}
 	return tags
 }
 
@@ -631,6 +649,20 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	return ctx, ok
 }
 
+// GetVersionContextTags returns the tags of the given version if any. The version context
+// tags grow as new workloads are seen, the returned slice is clipped so that appending to it
+// doesn't write to the version context.
+func (p *Profile) GetVersionContextTags(imageTag string) ([]string, bool) {
+	p.Lock()
+	defer p.Unlock()
+
+	ctx, ok := p.versionContexts[imageTag]
+	if !ok {
+		return nil, false
+	}
+	return slices.Clip(ctx.Tags), true
+}
+
 // UpdateVersionContextLastSeen refreshes an existing version's last seen timestamp.
 // It returns false if the version has already been evicted.
 func (p *Profile) UpdateVersionContextLastSeen(imageTag string, nowTimestamp uint64) bool {
@@ -702,7 +734,8 @@ func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteri
 	return globalState // AutoLearning or StableEventType
 }
 
-// PrepareNewVersion creates a version context or refreshes its last seen timestamp.
+// PrepareNewVersion creates a version context or refreshes its last seen timestamp, and
+// adds to it the tags it doesn't hold yet.
 // It evicts the least recently seen versions to enforce maxImageTags, retaining at
 // least one version and never evicting the version being observed.
 func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
@@ -714,13 +747,10 @@ func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags
 		ctx = &VersionContext{
 			EventTypeState: make(map[model.EventType]*EventTypeState),
 			FirstSeenNano:  nowTimestamp,
-			Tags:           slices.Clone(tags),
 		}
 		p.versionContexts[imageTag] = ctx
-		// a profile is shared by every image tag it tracks, so its own tag list keeps
-		// each of their tags, not only the ones of the first container
-		p.addDistinctTags(tags)
 	}
+	ctx.AddTags(tags)
 	ctx.LastSeenNano = nowTimestamp
 
 	// Also trim profiles loaded from disk with more versions than the current limit.
@@ -737,9 +767,6 @@ func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
 	defer p.Unlock()
 
 	p.versionContexts[version] = ctx
-	if ctx != nil {
-		p.addDistinctTags(ctx.Tags)
-	}
 }
 
 func (p *Profile) evictProfileVersion(retainedImageTag string) string {
@@ -761,31 +788,11 @@ func (p *Profile) evictProfileVersion(retainedImageTag string) string {
 		}
 	}
 	// delete image context
-	evictedCtx := p.versionContexts[oldestImageTag]
 	delete(p.versionContexts, oldestImageTag)
-	if evictedCtx != nil {
-		p.removeEvictedVersionTags(evictedCtx.Tags)
-	}
 
 	// then, remove every trace of this version from the tree
 	p.ActivityTree.EvictImageTag(oldestImageTag)
 	return oldestImageTag
-}
-
-// removeEvictedVersionTags drops from the profile tags the tags of an evicted version
-// that no remaining version holds. The caller must hold p.Lock.
-func (p *Profile) removeEvictedVersionTags(evictedTags []string) {
-	p.tags = slices.DeleteFunc(p.tags, func(tag string) bool {
-		if !slices.Contains(evictedTags, tag) {
-			return false
-		}
-		for _, ctx := range p.versionContexts {
-			if ctx != nil && slices.Contains(ctx.Tags, tag) {
-				return false
-			}
-		}
-		return true
-	})
 }
 
 // GetEventTypes returns the event types of the profile
