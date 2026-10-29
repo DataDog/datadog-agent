@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.75.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4
+	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.75.4
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.12.0
@@ -13,30 +13,30 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect

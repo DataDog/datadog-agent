@@ -23,9 +23,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.69.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-go/v5 v5.6.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect

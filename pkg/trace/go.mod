@@ -18,14 +18,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0
-	github.com/DataDog/datadog-agent/pkg/template v0.72.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/Microsoft/go-winio v0.6.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -55,11 +55,11 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.6 // indirect
