@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["runtime.go"],
+    srcs = [
+        "runtime.go",
+        "serverlessinit.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/impl",
     visibility = ["//visibility:public"],
     deps = select({
