@@ -180,8 +180,9 @@ func questionTypeAndClass(msg []byte) (qtype, qclass uint16, ok bool) {
 		switch {
 		case label == 0:
 			i++
-		case label&0xc0 == 0xc0: // a compression pointer ends the name
-			i += 2
+		case label&0xc0 == 0xc0:
+			// the question is the first name in the message, so it can't point to an earlier one
+			return 0, 0, false
 		case label&0xc0 == 0:
 			i += 1 + label
 			continue
@@ -253,7 +254,7 @@ func (p *dnsParser) appendTrailingResponses() {
 			return
 		}
 		response := dnsPacketInfo{partial: true}
-		if p.setResponseFromHeader(rest[2:], &response) {
+		if p.setResponseFromHeader(rest[2:min(2+length, len(rest))], &response) {
 			if len(p.trailing) == 0 {
 				p.setKey(&response)
 				key = response.key
@@ -274,11 +275,16 @@ func (p *dnsParser) appendTrailingResponses() {
 // data from the middle of a message very unlikely to pass. A false positive
 // would still need to match the ID of a pending query on the same connection.
 func (p *dnsParser) setResponseFromHeader(msg []byte, pktInfo *dnsPacketInfo) bool {
-	if !isStandardQueryHeader(msg) {
+	if len(msg) < dnsHeaderLen {
 		return false
 	}
+	// Unlike isStandardQueryHeader, the reserved Z bit isn't checked, so that
+	// responses from servers that set it still match; the question check below
+	// is what rejects data from the middle of a message.
 	flags := binary.BigEndian.Uint16(msg[2:4])
-	if flags&0x8000 == 0 { // not a response
+	isResponse := flags&0x8000 != 0
+	opcode := (flags >> 11) & 0xf
+	if !isResponse || opcode != 0 || binary.BigEndian.Uint16(msg[4:6]) != 1 {
 		return false
 	}
 	qtype, qclass, ok := questionTypeAndClass(msg)

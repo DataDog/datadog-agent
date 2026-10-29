@@ -301,11 +301,11 @@ func TestSetResponseFromHeader(t *testing.T) {
 		{"response", func(m []byte) []byte { return m }, true},
 		{"query", func(m []byte) []byte { m[2] &^= 0x80; return m }, false},
 		{"non-standard opcode", func(m []byte) []byte { m[2] |= 0x10; return m }, false},
-		{"reserved bit set", func(m []byte) []byte { m[3] |= 0x40; return m }, false},
+		{"reserved bit set", func(m []byte) []byte { m[3] |= 0x40; return m }, true},
 		{"no question", func(m []byte) []byte { m[5] = 0; return m }, false},
 		{"shorter than a header", func(m []byte) []byte { return m[:dnsHeaderLen-1] }, false},
 		{"question cut short", func(m []byte) []byte { return m[:questionEnd-1] }, false},
-		{"question type not recorded", func(m []byte) []byte {
+		{"question type not recorded", func(_ []byte) []byte {
 			return tcpDNSMessageOfType(t, 42, true, 0, layers.DNSTypeTXT)
 		}, false},
 		{"question class not IN", func(m []byte) []byte { m[questionEnd-1] = byte(layers.DNSClassCH); return m }, false},
@@ -313,7 +313,7 @@ func TestSetResponseFromHeader(t *testing.T) {
 		{"compressed question name", func(m []byte) []byte {
 			name := []byte{0xc0, 0x0c}
 			return append(append(append([]byte(nil), m[:dnsHeaderLen]...), name...), m[questionEnd-4:]...)
-		}, true},
+		}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

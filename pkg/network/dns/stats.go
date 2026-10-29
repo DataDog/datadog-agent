@@ -56,7 +56,10 @@ type dnsPacketInfo struct {
 	rCode         uint8    // responseCode
 	question      Hostname // only relevant for query packets
 	queryType     QueryType
-	partial       bool // the response was read from its header only, so it has no answers
+	// partial is set when the response was read from its header only, so it
+	// has no answers. Only the parser and the snooper use it, and they aren't
+	// built on Windows without npm.
+	partial bool //nolint:unused
 }
 
 type stateKey struct {
