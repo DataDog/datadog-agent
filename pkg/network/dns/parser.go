@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"runtime"
-	"slices"
 	"syscall"
 	"time"
 
@@ -67,9 +66,9 @@ type dnsParser struct {
 	collectDNSDomains  bool
 	recordedQueryTypes map[layers.DNSType]struct{}
 
-	// extraResponses holds responses found after the first message of the last
+	// trailing holds the responses found after the first message of the last
 	// TCP segment passed to ParseInto. It is reused across calls.
-	extraResponses []dnsPacketInfo
+	trailing []dnsPacketInfo
 }
 
 func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
@@ -115,8 +114,20 @@ func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
 	}
 }
 
-func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInfo) error {
-	p.extraResponses = p.extraResponses[:0]
+// ParseInto decodes the DNS message at the start of data into pktInfo. For a
+// TCP segment, it also returns the responses that follow the first message,
+// read from their headers only. They are returned even when the first message
+// gives an error, and the slice is reused by the next call.
+func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInfo) ([]dnsPacketInfo, error) {
+	p.trailing = p.trailing[:0]
+	err := p.parseFirstMessageInto(data, t, pktInfo)
+	if p.collectDNSStats && p.transport() == layers.LayerTypeTCP {
+		p.appendTrailingResponses()
+	}
+	return p.trailing, err
+}
+
+func (p *dnsParser) parseFirstMessageInto(data []byte, t *translation, pktInfo *dnsPacketInfo) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
 	// If there is a DNS layer then it would be the last layer. A truncated TCP
@@ -148,10 +159,20 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 
 	p.setKey(pktInfo)
 	pktInfo.transactionID = p.dnsPayload.ID
-	if pktInfo.pktType != query && slices.Contains(p.layers, layers.LayerTypeTCP) {
-		p.appendTrailingResponses(pktInfo)
-	}
 	return nil
+}
+
+// transport returns the transport layer of the last decoded packet: the last
+// decoded layer, or the one before the DNS layer.
+func (p *dnsParser) transport() gopacket.LayerType {
+	n := len(p.layers)
+	if n > 0 && p.layers[n-1] == layers.LayerTypeDNS {
+		n--
+	}
+	if n == 0 {
+		return gopacket.LayerTypeZero
+	}
+	return p.layers[n-1]
 }
 
 // parseResponseHeaderInto fills pktInfo from the fixed header of a DNS response
@@ -160,10 +181,10 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 // the query. It returns false if the payload doesn't start with a response header.
 func (p *dnsParser) parseResponseHeaderInto(pktInfo *dnsPacketInfo) bool {
 	var ok bool
-	switch {
-	case slices.Contains(p.layers, layers.LayerTypeUDP):
+	switch p.transport() {
+	case layers.LayerTypeUDP:
 		ok = setResponseFromHeader(p.udpPayload.UDP.LayerPayload(), pktInfo)
-	case slices.Contains(p.layers, layers.LayerTypeTCP):
+	case layers.LayerTypeTCP:
 		payload := p.tcpPayload.TCP.LayerPayload()
 		// The message usually starts after its 2-byte length, but the length
 		// may have been sent in a segment of its own.
@@ -178,21 +199,33 @@ func (p *dnsParser) parseResponseHeaderInto(pktInfo *dnsPacketInfo) bool {
 }
 
 // appendTrailingResponses records the responses that follow the first message
-// of a TCP segment, as happens with pipelined queries. Only their headers are read.
-func (p *dnsParser) appendTrailingResponses(first *dnsPacketInfo) {
+// of a TCP segment, as happens with pipelined queries. Only their headers are
+// read. Messages are delimited by their length fields, so one that isn't a
+// response is skipped, and the walk stops at an implausible length or at the
+// end of the segment.
+func (p *dnsParser) appendTrailingResponses() {
 	payload := p.tcpPayload.TCP.LayerPayload()
-	rest := payload[2+int(binary.BigEndian.Uint16(payload)):]
-	for len(rest) > 2 {
+	if len(payload) < 2 {
+		return
+	}
+	next := 2 + int(binary.BigEndian.Uint16(payload))
+	if next-2 < dnsHeaderLen || next > len(payload) {
+		return // the first message doesn't end in this segment
+	}
+	for rest := payload[next:]; len(rest) > 2; rest = rest[next:] {
 		length := int(binary.BigEndian.Uint16(rest))
-		extra := dnsPacketInfo{key: first.key, partial: true}
-		if length < dnsHeaderLen || !setResponseFromHeader(rest[2:], &extra) {
+		if length < dnsHeaderLen {
 			return
 		}
-		p.extraResponses = append(p.extraResponses, extra)
-		if 2+length > len(rest) {
+		response := dnsPacketInfo{partial: true}
+		if setResponseFromHeader(rest[2:], &response) {
+			p.setKey(&response)
+			p.trailing = append(p.trailing, response)
+		}
+		next = 2 + length
+		if next > len(rest) {
 			return
 		}
-		rest = rest[2+length:]
 	}
 }
 

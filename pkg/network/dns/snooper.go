@@ -167,24 +167,22 @@ func (s *socketFilterSnooper) processPacket(data []byte, info filter.PacketInfo,
 	pktInfo := dnsPacketInfo{}
 
 	parser := s.parserFor(info)
-	err := parser.ParseInto(data, t, &pktInfo)
+	trailing, err := parser.ParseInto(data, t, &pktInfo)
 	// count every truncated packet, including those still matched from their header
 	if parser.decoder.Truncated {
 		snooperTelemetry.truncatedPkts.Inc()
 	}
-	if err != nil {
-		switch err {
-		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
-		case errTruncated: // counted above
-		default:
-			snooperTelemetry.decodingErrors.Inc()
-		}
-		return nil
+	switch err {
+	case nil:
+		s.processPacketInfo(&pktInfo, t, ts)
+	case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
+	case errTruncated: // counted above
+	default:
+		snooperTelemetry.decodingErrors.Inc()
 	}
-
-	s.processPacketInfo(&pktInfo, t, ts)
-	for i := range parser.extraResponses {
-		s.processPacketInfo(&parser.extraResponses[i], t, ts)
+	// responses after the first message of a TCP segment, which can be wanted even when the first one isn't
+	for i := range trailing {
+		s.processPacketInfo(&trailing[i], t, ts)
 	}
 	return nil
 }

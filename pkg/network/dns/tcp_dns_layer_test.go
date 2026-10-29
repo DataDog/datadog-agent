@@ -93,14 +93,15 @@ func (h *tcpDNSHarness) feed(frame []byte) {
 	require.NoError(h.t, h.snooper.processPacket(frame, nil, h.now))
 }
 
-// finish sweeps every pending query (as the expiry ticker eventually would) and returns the stats.
-func (h *tcpDNSHarness) finish() Stats {
+// finish sweeps every pending query (as the expiry ticker eventually would) and
+// returns the stats of the test domain over the given transport protocol.
+func (h *tcpDNSHarness) finish(protocol uint8) Stats {
 	h.snooper.statKeeper.removeExpiredStates(h.now.Add(time.Hour))
 	key := Key{
 		ServerIP:   util.AddressFromNetIP(tcpDNSServerIP),
 		ClientIP:   util.AddressFromNetIP(tcpDNSClientIP),
 		ClientPort: tcpDNSClientPort,
-		Protocol:   syscall.IPPROTO_TCP,
+		Protocol:   protocol,
 	}
 	all := h.snooper.statKeeper.GetAndResetAllStats()
 	return all[key][ToHostname(tcpDNSDomain)][TypeA]
@@ -171,7 +172,7 @@ func TestTCPDNSReassembly(t *testing.T) {
 				h.sendFromClient(withTCPLength(tcpDNSMessage(t, uint16(i), false, 0)))
 			}
 			tt.responses(h)
-			stats := h.finish()
+			stats := h.finish(syscall.IPPROTO_TCP)
 
 			assert.Equal(t, uint32(tt.queries), stats.CountByRcode[0], "every answer should be matched to its query")
 			assert.Zero(t, stats.Timeouts, "answered queries must not be counted as timeouts")
@@ -189,31 +190,60 @@ func TestTrailingResponseNeedsPlausibleLength(t *testing.T) {
 	// the second response follows a length field too small for a DNS header
 	payload := append(withTCPLength(tcpDNSMessage(t, 1, true, 1)), 0, 0)
 	h.sendFromServer(append(payload, tcpDNSMessage(t, 2, true, 1)...))
-	stats := h.finish()
+	stats := h.finish(syscall.IPPROTO_TCP)
 	assert.Equal(t, uint32(1), stats.CountByRcode[0])
 	assert.Equal(t, uint32(1), stats.Timeouts)
+}
+
+func TestTrailingResponses(t *testing.T) {
+	t.Run("after a response for a query type that isn't recorded", func(t *testing.T) {
+		h := newTCPDNSHarness(t)
+		h.sendFromClient(withTCPLength(tcpDNSMessageOfType(t, 1, false, 0, layers.DNSTypeTXT)))
+		h.sendFromClient(withTCPLength(tcpDNSMessage(t, 2, false, 0)))
+		payload := withTCPLength(tcpDNSMessageOfType(t, 1, true, 0, layers.DNSTypeTXT))
+		h.sendFromServer(append(payload, withTCPLength(tcpDNSMessage(t, 2, true, 1))...))
+		stats := h.finish(syscall.IPPROTO_TCP)
+		assert.Equal(t, uint32(1), stats.CountByRcode[0])
+		assert.Zero(t, stats.Timeouts)
+	})
+
+	t.Run("after a message that isn't a standard response", func(t *testing.T) {
+		h := newTCPDNSHarness(t)
+		h.sendFromClient(withTCPLength(tcpDNSMessage(t, 1, false, 0)))
+		h.sendFromClient(withTCPLength(tcpDNSMessage(t, 3, false, 0)))
+		formErr := tcpDNSMessage(t, 9, true, 0)
+		formErr[3] = formErr[3]&0xf0 | byte(layers.DNSResponseCodeFormErr)
+		formErr[5] = 0 // no question
+		payload := append(withTCPLength(tcpDNSMessage(t, 1, true, 1)), withTCPLength(formErr)...)
+		h.sendFromServer(append(payload, withTCPLength(tcpDNSMessage(t, 3, true, 1))...))
+		stats := h.finish(syscall.IPPROTO_TCP)
+		assert.Equal(t, uint32(2), stats.CountByRcode[0])
+		assert.Zero(t, stats.Timeouts)
+	})
+
+	t.Run("after a first response that can't be decoded", func(t *testing.T) {
+		h := newTCPDNSHarness(t)
+		h.sendFromClient(withTCPLength(tcpDNSMessage(t, 1, false, 0)))
+		h.sendFromClient(withTCPLength(tcpDNSMessage(t, 2, false, 0)))
+		broken := tcpDNSMessage(t, 1, true, 1)
+		broken[len(broken)-6] = 0x40 // record data length past the end of the message
+		h.sendFromServer(append(withTCPLength(broken), withTCPLength(tcpDNSMessage(t, 2, true, 1))...))
+		stats := h.finish(syscall.IPPROTO_TCP)
+		assert.Equal(t, uint32(2), stats.CountByRcode[0])
+		assert.Zero(t, stats.Timeouts)
+	})
 }
 
 func TestDNSResponseHeaderOnly(t *testing.T) {
 	sendQuery := func(h *tcpDNSHarness) {
 		h.feed(udpDNSFrameFrom(t, tcpDNSClientIP, tcpDNSServerIP, tcpDNSClientPort, 53, tcpDNSMessage(t, 7, false, 0)))
 	}
-	udpKey := Key{
-		ServerIP:   util.AddressFromNetIP(tcpDNSServerIP),
-		ClientIP:   util.AddressFromNetIP(tcpDNSClientIP),
-		ClientPort: tcpDNSClientPort,
-		Protocol:   syscall.IPPROTO_UDP,
-	}
-	stats := func(h *tcpDNSHarness) Stats {
-		h.snooper.statKeeper.removeExpiredStates(h.now.Add(time.Hour))
-		return h.snooper.statKeeper.GetAndResetAllStats()[udpKey][ToHostname(tcpDNSDomain)][TypeA]
-	}
 
 	t.Run("udp response truncated by the snaplen", func(t *testing.T) {
 		h := newTCPDNSHarness(t)
 		sendQuery(h)
 		h.feed(udpDNSFrame(t, tcpDNSMessage(t, 7, true, 400))[:4096])
-		s := stats(h)
+		s := h.finish(syscall.IPPROTO_UDP)
 		assert.Equal(t, uint32(1), s.CountByRcode[0])
 		assert.Zero(t, s.Timeouts)
 	})
@@ -224,7 +254,7 @@ func TestDNSResponseHeaderOnly(t *testing.T) {
 		msg := tcpDNSMessage(t, 7, true, 400)
 		msg[3] = msg[3]&0xf0 | byte(layers.DNSResponseCodeServFail)
 		h.feed(udpDNSFrame(t, msg)[:4096])
-		s := stats(h)
+		s := h.finish(syscall.IPPROTO_UDP)
 		assert.Equal(t, uint32(1), s.CountByRcode[uint32(layers.DNSResponseCodeServFail)])
 		assert.Zero(t, s.Timeouts)
 	})
@@ -233,7 +263,7 @@ func TestDNSResponseHeaderOnly(t *testing.T) {
 		h := newTCPDNSHarness(t)
 		sendQuery(h)
 		h.feed(udpDNSFrame(t, tcpDNSMessage(t, 8, true, 400))[:4096])
-		s := stats(h)
+		s := h.finish(syscall.IPPROTO_UDP)
 		assert.Zero(t, s.CountByRcode[0])
 		assert.Equal(t, uint32(1), s.Timeouts)
 	})
@@ -291,7 +321,7 @@ func BenchmarkParseDNSPacket(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				pktInfo := dnsPacketInfo{}
-				_ = parser.ParseInto(f.frame, tr, &pktInfo)
+				_, _ = parser.ParseInto(f.frame, tr, &pktInfo)
 			}
 		})
 	}
@@ -317,15 +347,20 @@ func udpDNSFrameFrom(t testing.TB, src, dst net.IP, sport, dport uint16, msg []b
 	return append([]byte(nil), buf.Bytes()...)
 }
 
-// tcpDNSMessage builds a DNS query (response=false) or a NOERROR response with numAnswers A records.
+// tcpDNSMessage builds an A query (response=false) or a NOERROR response with numAnswers A records.
 func tcpDNSMessage(t testing.TB, id uint16, response bool, numAnswers int) []byte {
+	return tcpDNSMessageOfType(t, id, response, numAnswers, layers.DNSTypeA)
+}
+
+// tcpDNSMessageOfType is tcpDNSMessage with the given question type.
+func tcpDNSMessageOfType(t testing.TB, id uint16, response bool, numAnswers int, qtype layers.DNSType) []byte {
 	dns := &layers.DNS{
 		ID:           id,
 		QR:           response,
 		RD:           true,
 		RA:           response,
 		ResponseCode: layers.DNSResponseCodeNoErr,
-		Questions:    []layers.DNSQuestion{{Name: []byte(tcpDNSDomain), Type: layers.DNSTypeA, Class: layers.DNSClassIN}},
+		Questions:    []layers.DNSQuestion{{Name: []byte(tcpDNSDomain), Type: qtype, Class: layers.DNSClassIN}},
 	}
 	for i := 0; i < numAnswers; i++ {
 		dns.Answers = append(dns.Answers, layers.DNSResourceRecord{

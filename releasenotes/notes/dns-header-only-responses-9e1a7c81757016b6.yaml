@@ -8,8 +8,8 @@
 ---
 fixes:
   - |
-    Cloud Network Monitoring no longer reports DNS timeouts for queries whose
-    responses were split across several TCP segments or cut short by the
-    packet capture size. Such responses are now matched to their query from
-    the DNS header, which is common for resolvers such as NodeLocal DNSCache
-    that forward queries over TCP.
+    Cloud Network Monitoring now matches DNS responses that are split across
+    TCP segments, sent several to a segment, or cut short by the packet
+    capture size, by reading their DNS header. Their queries were reported as
+    DNS timeouts before. This mostly affects resolvers that forward queries
+    over TCP, such as NodeLocal DNSCache.

@@ -14,10 +14,11 @@ import (
 
 var _ gopacket.DecodingLayer = &udpWithDNSSupport{}
 
-// udpWithDNSSupport wraps layers.UDP to always decode the payload as DNS,
-// regardless of the port number. This is necessary because gopacket's UDP layer
-// has port-based heuristics that may try to decode port 5353 as mDNS or other
-// protocols instead of standard DNS.
+// udpWithDNSSupport wraps layers.UDP to decode the payload as DNS regardless of
+// the port number. This is necessary because gopacket's UDP layer has
+// port-based heuristics that may try to decode port 5353 as mDNS or other
+// protocols instead of standard DNS. Payloads cut short by the snaplen are not
+// decoded (see NextLayerType).
 type udpWithDNSSupport struct {
 	layers.UDP
 }
