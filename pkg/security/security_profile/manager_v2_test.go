@@ -801,7 +801,7 @@ func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *test
 			require.False(t, inserted)
 			assert.Greater(t, v1.LastSeenNano, uint64(2), "known activities must refresh the version's last seen time")
 			assert.Equal(t, uint64(1), v1.FirstSeenNano)
-			assert.Equal(t, originalTags, v1.Tags, "refreshing a version must keep the tags of its first workload")
+			assert.Equal(t, append(originalTags, "service:another-container"), v1.Tags, "refreshing a version must add the tags it doesn't hold yet")
 
 			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
 			assert.False(t, inserted, "activities shared with a retained version must stay learned")
