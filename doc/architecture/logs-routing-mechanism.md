@@ -1,104 +1,125 @@
 # Injected log routing: expected behavior
 
-The PR adds an HTTP routing mechanism. Agent startup does not enable it; a caller supplies groups and selects them for each record.
+The PR adds an HTTP routing mechanism. Agent startup does not enable it. A caller supplies delivery groups and selects groups for each record.
 
-Injected setup (schematic; dependencies and validated HTTP endpoint sets come from the caller):
+## What is a routing group?
 
-```go
-provider, err := pipeline.NewRoutedProvider(pipeline.RoutedOptions{
-    NumberOfPipelines:         2,
-    Sink:                      auditor,
-    DiagnosticMessageReceiver: diagnosticReceiver,
-    DestinationsContext:       destinationsContext,
-    Hostname:                  hostname,
-    Config:                    cfg,
-    Compression:               compression,
-    Secrets:                   secrets,
-    Groups: []routing.Group{
-        {ID: "a", Endpoints: endpointsA},
-        {ID: "b", Endpoints: endpointsB},
-    },
-    Resolve: func(msg *message.Message) (routing.Selection, error) {
-        // This example has two producers in generation 1. A replacement
-        // producer must use a new generation in both Resolve and SourceInput.
-        switch msg.Origin.Identifier {
-        case "source-x":
-            return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
-        case "source-y":
-            return routing.Selection{Groups: []string{"b"}, Generation: 1}, nil
-        default:
-            return routing.Selection{}, routing.ErrInvalidSelection
-        }
-    },
-})
-if err != nil {
-    return err
-}
+A routing group contains one reliable primary endpoint and optional extra endpoints. It uses one existing `Sender` and its normal reliable-endpoint behavior.
+
+```text
+Group A → organization A
+Group B → organization B
+
+Record 1 selects A   → A only
+Record 2 selects A+B → both groups
+Record 3 selects B   → B only
 ```
 
-Each producer obtains its channel with `provider.SourceInput(identifier, generation)` and handles the returned error before sending. Messages must carry matching origin identifiers and a non-nil log source. Give launchers `provider.GuardRegistry(registry)` for direct checkpoint writes, start the auditor, then start the provider. After a producer stops and all its output is admitted, call `RetireSource`; `ErrSourcePending` means retry after outstanding delivery completes. Stop producers before stopping the provider.
+Every selected group must reach a terminal outcome. Within each group, any one reliable endpoint’s terminal outcome completes that group’s obligation.
 
-The existing processor handles rules, tags, and JSON encoding; the existing batch strategy handles batching and compression; each group uses the existing HTTP sender and its reliable endpoint behavior. The routing progress coordinator adds the cross-group completion and ordered source checkpoint semantics that a single sender does not provide.
+To make both destinations mandatory, place them in separate groups. Unreliable extras cannot complete a group.
 
-There is no YAML for group definitions or selection yet. `logs_config.routing.max_groups` only caps the injected groups.
+## Configuration and caller inputs
 
-**Delivery flow and checkpoint safety:** solid arrows show log delivery; dotted arrows show terminal outcome notifications and checkpoint publication. The in-memory coordinator tracks each source separately. X's checkpoint waits for both A and B; Y's waits only for B. The auditor persists each source's last consecutive completed position for restart.
+This single structure shows the setting and caller inputs. **Only `logs_config.routing.max_groups` is actual YAML configuration.**
 
-```mermaid
-flowchart LR
-    X["Source X: A+B"] --> A["Group A sender"]
-    X --> B["Group B sender"]
-    Y["Source Y: B"] --> B
-    A --> EA["A reliable set"]
-    B --> EB["B reliable set"]
-    EA -.->|"Group A terminal outcome"| P["In-memory completion tracking per source"]
-    EB -.->|"Group B terminal outcome"| P
-    P -.->|"Advance only through consecutive completed records"| C["Auditor persists one restart position per source"]
+The `caller_inputs` section is schematic, not an accepted configuration format. The caller supplies those values through the Go API.
+
+```yaml
+logs_config:
+  routing:
+    max_groups: 4 # New setting. Caps groups but does not activate routing.
+
+caller_inputs: # Schematic representation of new Go API inputs.
+  groups:
+    - id: a
+      endpoints: <validated HTTP endpoint set for organization A>
+      stream: "" # Optional. Share only explicitly declared identical streams.
+    - id: b
+      endpoints: <validated HTTP endpoint set for organization B>
+      stream: ""
+  selection: # One resolved decision per record, not a routing rule.
+    groups: [a, b] # Select A only, B only, or both.
+    excluded: false # Use true with no groups for intentional exclusion.
+    generation: 1 # Change for a replacement source producer.
 ```
 
-| Selection | Result |
+Definitions: [configuration schema](../../pkg/config/schema/yaml/logs_config.yaml), [`Group` and `Selection`](../../comp/logs-library/routing/definitions.go).
+
+Groups with the same nonempty `stream` share batching and compressed bytes. Every selection must include all groups in that stream.
+
+Delivery uses the existing processor, batch strategy, and HTTP sender. The routing coordinator tracks selected groups and safe source progress.
+
+The caller also owns source startup, replacement, and shutdown. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
+
+## Selection behavior
+
+| Caller decision | Result |
 | --- | --- |
 | A only or B only | Only the selected group receives the record. No fallback. |
 | A+B | Both groups must finish. B may finish while A remains pending. |
-| Explicitly excluded (`Excluded: true`, no groups) | The caller intentionally chooses not to deliver this record. It completes locally; the source checkpoint can pass it once earlier records finish. |
-| Empty selection (`Excluded: false`, no groups) | No delivery decision was supplied. For a checkpointed source, hold this record unresolved so the checkpoint cannot skip it. |
-| Invalid selection (for example, an unknown group or exclusion combined with recipients) | Report the selection error and hold the checkpointed source at this record. Do not infer a recipient or acknowledge the record. |
+| `Excluded: true`, no groups | Intentional exclusion. The record completes locally. Its checkpoint can pass it once earlier records finish. |
+| No groups, `Excluded: false` | Missing decision. Hold the checkpointed source at this record without delivery. |
+| Invalid selection | Report the error and hold the checkpointed source at this record. Do not infer recipients or acknowledge it. |
 
-These cases distinguish an intentional policy decision from a missing or broken decision. Treating an empty or invalid selection as exclusion would silently skip a log after restart. `Excluded` is an injected API flag, not a YAML routing rule. An unresolved selection barrier has no automatic repair path in this provider; recovery requires correcting the selection and replaying retained input from a safe checkpoint.
+An unknown group or exclusion combined with recipients makes a selection invalid.
 
-**Queue acceptance is not delivery.** A selected group completes on its sender's terminal reliable outcome. Retryable failures, credential waits, and cancellation leave it pending. Existing permanent HTTP rejection and local processing-loss policies remain terminal.
+These cases distinguish intentional exclusion from a missing or broken decision. An unresolved selection barrier has no automatic repair path.
 
-## Reliable endpoint sets
+Recovery needs corrected selection and retained input replay from a safe checkpoint.
 
-| Path | Set and required outcome |
-| --- | --- |
-| Default | One sender and endpoint set for all logs. Main is reliable; extras are reliable by default or configured unreliable. Any one reliable endpoint's terminal outcome suffices. |
-| Routed | One sender and endpoint set **per group**. Each group requires a reliable HTTP primary; extras may be reliable or unreliable. Every selected group must finish, but any one reliable endpoint within a group suffices. |
+**Queue acceptance is not delivery.** Retryable failures, credential waits, and cancellation leave selected groups pending.
 
-An endpoint does not have its own set. To require delivery to A **and** B, define and select separate groups. The routed definition enforces a reliable primary, **not** one reliable endpoint per group. Unreliable extras cannot complete a group. A declared `Group.Stream` shares batching and compressed bytes for identical selections; selecting only some of its groups is invalid.
+Existing permanent HTTP rejection and local processing-loss policies remain terminal. A terminal outcome does not always mean successful delivery.
 
-## Checkpoints and outages
+## Checkpoints during endpoint outages
 
-| Case | Result |
-| --- | --- |
-| Same source, disjoint records | An earlier pending A-only record holds a later completed B-only record's checkpoint. |
-| Different sources | Each checkpoint advances independently until aggregate capacity fills. |
-| X selects A+B; A down, B healthy | B receives X, but X's checkpoint waits for A. At 64 pending X records, X pauses. |
-| Y selects B | Y continues and advances its checkpoint while X is paused. |
-| A recovers | A's terminal outcomes release X's completed prefix; X resumes automatically. |
-| Restart | B may receive duplicates. Replay needs retained input and an older saved checkpoint; without one, existing end-mode behavior may skip data. |
+This section answers two questions: when does a source pause, and can other sources continue?
 
-## Limits and lifecycle
+**Existing on both paths:** the auditor saves one checkpoint per source, not per endpoint.
 
-This table defines the injected provider's operating limits and the caller's integration responsibilities. The capacity and queue rows explain when ingestion can pause and how much work can be retained. The caller, replacement, and shutdown rows explain how to manage producers and source generations without advancing checkpoints past unfinished delivery. These are implementation constraints and API requirements, not a complete user-facing routing configuration.
+**New on the routed path:** a coordinator holds that checkpoint behind any earlier record with unresolved selected-group obligations.
 
-| Area | Rule |
-| --- | --- |
-| Admission | 64 pending records per source; 4096 records and 4096 source owners/history entries in aggregate. Aggregate exhaustion may pause Y too. Selected group copies are not dropped on overflow. |
-| Configuration | `logs_config.routing.max_groups` defaults to 4. At most 32 endpoints, 16 processing lanes, and 64 concurrent HTTP requests. No routing policy; MRF disabled. |
-| Queues | Producer input: one queued plus one registering. Ingress/processed: 256 references each; source dispatch: 64; stream: 128 records/4 payloads; group: 32 dispatch/128 completion payloads; destination: `payload_channel_size` clamped to 1–128. These are reference limits, not a byte ceiling. |
-| Caller | Use `SourceInput` per producer, `GuardRegistry` for direct checkpoint writes, and `RetireSource` after output admission. Start the auditor before the provider. |
-| Replacement | Keep ownership after queue drain; reject obsolete generations. Retire only after pending records finish; history is bounded and released after all generations retire. |
-| Shutdown | `Flush` reaches batches, not HTTP completion, and respects cancellation. `Stop` gives accepted work five seconds, then cancels blocked workers without acknowledging unfinished groups. |
+The default path has no cross-group obligation ledger. One reliable endpoint’s terminal outcome can advance its checkpoint while another endpoint remains unavailable.
+
+```text
+File X → groups A and B
+File Y → group B only
+```
+
+The X/Y cases below describe the routed path. A and B are separate selected groups, not extras inside one endpoint set.
+
+| Behavior case | New or inherited? | Delivery and checkpoint result |
+| --- | --- | --- |
+| A and B stay healthy | New routed coordination | Each source advances after its selected groups finish. |
+| A becomes unavailable, B stays healthy | New routed coordination | B receives X’s records while capacity remains. X’s checkpoint stays behind unresolved A deliveries. |
+| X reaches its source limit | New routed admission limit | X pauses without overflow drops. B then receives no newly admitted X records. |
+| X pauses, Y still has capacity | New routed source isolation | Y continues through B and advances its checkpoint while aggregate capacity remains available. |
+| A recovers | Existing HTTP retries, new routed capacity release | Terminal outcomes release X’s completed prefix and capacity. X resumes automatically. |
+| Aggregate capacity fills | New routed aggregate limits | Other sources, including Y, can pause too. |
+| Agent restarts | Existing replay mechanism, new cross-group replay consequence | B can receive duplicates because A held X’s checkpoint. Replay needs retained input and an older saved checkpoint. |
+| No usable saved checkpoint exists | Inherited on both paths | Existing end-mode behavior can skip pending data. Routing adds no initial-checkpoint guarantee. |
+
+X’s checkpoint cannot bypass an earlier pending record, even if a later record selects only healthy B.
+
+Independent checkpoints do not mean unlimited isolation. Aggregate capacity exhaustion can pause otherwise healthy sources too.
+
+## New limits introduced by this PR
+
+**These are new routed-path limits, not inherited default-path limits.** The PR sets these values in code, not customer configuration.
+
+The default path does not gain these limits. The separate `max_groups` setting above is also new and defaults to four.
+
+| Internal limit | Value | Definition |
+| --- | --- | --- |
+| Pending records per checkpointed source | 64 | `routing.SourcePendingLimit` in [progress.go](../../comp/logs-library/routing/progress.go). Counts retained records, not file size. |
+| Aggregate progress | 4096 records, 4096 source owners, and 4096 generation-history entries | `routedProgressCapacity` in [routed_provider.go](../../comp/logs-library/pipeline/routed_provider.go), enforced by `Progress`. |
+| Total endpoints, including extras | 32 | `routing.MaxEndpoints` in [definitions.go](../../comp/logs-library/routing/definitions.go). |
+| Processing lanes | At most 16 | Validation in `NewRoutedProvider`. |
+| Concurrent HTTP requests | At most 64 across all endpoints | `routedHTTPRequests` in `routed_provider.go`. |
+
+These limits bound retained references and concurrent work, not total process memory in bytes. Overflow causes backpressure, not new selected-group drops.
+
+The PR also adds bounded routing queues. Existing sender and batch limits remain separate. See `routed_provider.go` for the new queue constants.
 
 There is no durable spool, per-endpoint saved checkpoint, or exactly-once guarantee.
