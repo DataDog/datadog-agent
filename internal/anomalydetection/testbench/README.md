@@ -36,6 +36,30 @@ npm run dev
 
 ## Evals
 
+BOCPD detections carry a raw rolling MAD score when 60 prior observations are
+available. Default scorer contributions remain medium. To experiment with score
+buckets, add a `bocpd` entry under the existing scorer thresholds in a JSON config:
+
+```json
+{
+  "components": {
+    "bocpd": {"enabled": true},
+    "anomaly_scorer": {
+      "enabled": true,
+      "correlation_events": true,
+      "detector_thresholds": {"bocpd": [2, 3, 6, 10]}
+    }
+  }
+}
+```
+
+These boundaries are an experimental example, not calibrated defaults. Missing
+MAD history retains medium. The score measures point extremeness relative to
+recent noise, not the probability of a fault. In the initial 12-recording research
+prototype, mean F1 fell from 0.0992 to 0.0935 while pooled F1 rose from 0.0788 to
+0.0961; those results came from a separate source snapshot and are not validation
+of this branch. Use matched inputs and scorer settings when comparing mappings.
+
 Here is the proper way to evaluate a new component using workspaces + tmux:
 
 ```sh

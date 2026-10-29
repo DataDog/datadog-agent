@@ -136,6 +136,17 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+### BOCPD point scores
+
+BOCPD attaches a rolling MAD score only on emitted detections. It reads the 60
+strictly preceding stored observations for the same series and aggregation,
+using `abs(value - median) / max(1.4826 * MAD, sqrt(MinVariance))`. The shared
+scratch space is allocated on the first emission; no per-series history is added.
+Missing history or non-finite arithmetic leaves the score unavailable. Default
+scorer contributions remain medium; an explicit BOCPD threshold entry opts into
+numeric buckets, with missing BOCPD scores still falling back to medium. The score
+measures point extremeness rather than changepoint confidence or incident impact.
+
 ### Bounded series admission
 
 Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,

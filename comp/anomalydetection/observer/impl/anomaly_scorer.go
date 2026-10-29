@@ -93,8 +93,13 @@ func anomalySeverityLabel(level int) string {
 // anomalyLevel assigns a 0–4 level to an anomaly.
 // If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
 // compared against its four boundaries. Detectors without an entry (including
-// unscored detectors such as bocpd) default to Medium (level 2).
+// bocpd until its scores are calibrated) default to Medium (level 2).
 func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	// BOCPD can emit before 60 reference observations are available. Preserve
+	// its existing medium contribution even when custom thresholds are present.
+	if a.DetectorName == "bocpd" && (a.Score == nil || !finiteBOCPDScore(*a.Score)) {
+		return 2
+	}
 	if thresholds, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
@@ -114,6 +119,9 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 // calibrated levelWeights. It is used only to rank retained top anomalies; the
 // scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
+	if a.DetectorName == "bocpd" && (a.Score == nil || !finiteBOCPDScore(*a.Score)) {
+		return levelWeights[2]
+	}
 	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
 	if !ok {
 		return levelWeights[2] // uncalibrated detectors retain Medium's weight
