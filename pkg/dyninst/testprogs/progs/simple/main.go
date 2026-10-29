@@ -266,8 +266,8 @@ func main() {
 		PtrArr: &[2]*indexMemberStruct{&elem1, &elem2},
 	}, "wrapper")
 
-	// Map index tests: one-table directory, small, large, and key-not-found.
-	mapIndexSingleTable(makeLargeMapWithKeyLen(8, 100))
+	// Map index expression tests: small maps (≤8 entries, no directory),
+	// large maps (>8 entries, uses directory + probing), and key-not-found.
 	mapIndexIntKey(map[int]string{1: "one", 2: "two", 3: "three"})
 	mapIndexStringKey(map[string]int{"alpha": 100, "beta": 200, "gamma": 300})
 	largeMap := make(map[string]int)
@@ -280,7 +280,7 @@ func main() {
 	// Map index tests for different key length tiers (AES hash lanes).
 	// Each tier uses a large map (>8 entries) to exercise the full
 	// hash → table → group → slot lookup path.
-	mapIndexKeyLen8(makeLargeMapWithKeyLen(8, 1000))     // 1-16 byte tier
+	mapIndexKeyLen8(makeLargeMapWithKeyLen(8, 100))      // 1-16 byte tier, one-table directory
 	mapIndexKeyLen24(makeLargeMapWithKeyLen(24, 1000))   // 17-32 byte tier
 	mapIndexKeyLen48(makeLargeMapWithKeyLen(48, 1000))   // 33-64 byte tier
 	mapIndexKeyLen96(makeLargeMapWithKeyLen(96, 1000))   // 65-128 byte tier
@@ -1429,9 +1429,4 @@ func anyAllIntSliceOfSlice(xs [][]int, tag string) {
 //go:noinline
 func anyAllIntSliceOfMap(xs []map[string]int, tag string) {
 	fmt.Println("anyAllIntSliceOfMap", len(xs), tag)
-}
-
-//go:noinline
-func mapIndexSingleTable(m map[string]int) {
-	fmt.Println(len(m))
 }
