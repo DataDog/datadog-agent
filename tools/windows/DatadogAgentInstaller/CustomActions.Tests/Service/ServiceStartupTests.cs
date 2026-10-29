@@ -202,8 +202,8 @@ namespace CustomActions.Tests.Service
         {
             SetServices(ServiceCustomAction.ProtectedServices);
             List<ServiceCustomAction.StartupSettings> saved = null;
-            Assert.Throws<TimeoutException>(() => ServiceCustomAction.DisableServices(ServiceController.Object,
-                settings => saved = settings, () => throw new TimeoutException("service did not stop")));
+            Assert.Throws<System.TimeoutException>(() => ServiceCustomAction.DisableServices(ServiceController.Object,
+                settings => saved = settings, () => throw new System.TimeoutException("service did not stop")));
             Assert.True(ServiceCustomAction.RestoreServiceStartup(Session.Object, ServiceController.Object, saved));
             ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic), Times.Once);
             ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
