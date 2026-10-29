@@ -14,6 +14,7 @@ import (
 	"maps"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -3299,7 +3300,7 @@ func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
 	v, ok, err2 = jsonquery.RunSingleOutput(".payload.agent_bsod.agent_metadata.page_size", topPayload)
 	require.NoError(t, err2)
 	require.True(t, ok)
-	assert.Equal(t, fmt.Sprint(os.Getpagesize()), v)
+	assert.Equal(t, strconv.Itoa(os.Getpagesize()), v)
 }
 
 func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {

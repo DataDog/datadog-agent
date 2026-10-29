@@ -108,9 +108,10 @@ type AgentMetadataPayload struct {
 	// ecsfargate...). They are copied into every metrics and event payload, so telemetry can be
 	// split by environment without correlating payloads.
 	Features []string `json:"features"`
-	// PageSize is the host's memory page size in bytes. It is set when the kernel is built, so it
-	// differs between hosts of the same architecture (4KiB, 16KiB or 64KiB on arm64), and
-	// containers report the page size of their host.
+	// PageSize is the base memory page size, in bytes, of the kernel the Agent runs on. It differs
+	// between hosts of the same architecture (4KiB, 16KiB or 64KiB on arm64 Linux, 16KiB on Apple
+	// silicon), and containers report the page size of their host. Huge pages, Windows large
+	// pages and AIX's larger per-segment pages are not reflected.
 	PageSize int `json:"page_size"`
 }
 
