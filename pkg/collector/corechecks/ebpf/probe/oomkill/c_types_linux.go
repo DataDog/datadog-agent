@@ -36,8 +36,8 @@ type cgroupMemoryStats struct {
 const cgroupMemStatsUnstable = 0x1
 
 type statsKey struct {
-	Ts        uint64
-	Tgid      uint64
-	Cpu       uint32
-	Pad_cgo_0 [4]byte
+	Ts   uint64
+	Tgid uint64
+	Cpu  uint32
+	Pad  uint32
 }

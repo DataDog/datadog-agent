@@ -277,81 +277,93 @@ static __always_inline void get_cgroup_memory_stats(struct task_struct *tsk, str
 }
 #endif // COMPILE_CORE
 
-static __always_inline int handle_oom_kill(struct oom_control *oc) {
-    struct oom_stats new = {};
-    struct stats_key k = {
-        .ts = bpf_ktime_get_ns(),
-        .pid_tgid = bpf_get_current_pid_tgid(),
-        .cpu = bpf_get_smp_processor_id(),
-    };
-    u32 pid = k.pid_tgid >> 32;
-    new.trigger_pid = pid;
-
-    bpf_memset(&new, 0, sizeof(new));
-    bpf_memset(&k, 0, sizeof(k));
+static __always_inline struct task_struct* handle_oom_kill(struct oom_control *oc, struct stats_key *k, struct oom_stats* stats) {
+    u32 pid = k->pid_tgid >> 32;
+    stats->trigger_pid = pid;
 
     struct task_struct *p = (struct task_struct *)BPF_CORE_READ(oc, chosen);
     if (!p) {
         return 0;
     }
 
-    get_cgroup_name_for_task(p, new.cgroup_name, sizeof(new.cgroup_name));
-    BPF_CORE_READ_INTO(&new.victim_pid, p, pid);
-    BPF_CORE_READ_INTO(&new.score, oc, chosen_points);
+    get_cgroup_name_for_task(p, stats->cgroup_name, sizeof(stats->cgroup_name));
+    BPF_CORE_READ_INTO(&stats->victim_pid, p, pid);
+    BPF_CORE_READ_INTO(&stats->score, oc, chosen_points);
 #ifdef COMPILE_CORE
     if (bpf_core_field_exists(p->signal->oom_score_adj)) {
-        BPF_CORE_READ_INTO(&new.score_adj, p, signal, oom_score_adj);
+        BPF_CORE_READ_INTO(&stats->score_adj, p, signal, oom_score_adj);
     }
 #else
     struct signal_struct *sig;
     bpf_probe_read_kernel(&sig, sizeof(sig), &p->signal);
-    bpf_probe_read_kernel(&new.score_adj, sizeof(new.score_adj), &sig->oom_score_adj);
+    bpf_probe_read_kernel(&stats->score_adj, sizeof(stats->score_adj), &sig->oom_score_adj);
 #endif
     if (bpf_helper_exists(BPF_FUNC_get_current_comm)) {
-        bpf_get_current_comm(new.trigger_comm, sizeof(new.trigger_comm));
+        bpf_get_current_comm(stats->trigger_comm, sizeof(stats->trigger_comm));
     }
 
-    BPF_CORE_READ_INTO(&new.victim_comm, p, comm);
-    new.victim_comm[TASK_COMM_LEN - 1] = 0;
+    BPF_CORE_READ_INTO(&stats->victim_comm, p, comm);
+    stats->victim_comm[TASK_COMM_LEN - 1] = 0;
 
     struct mem_cgroup *memcg = NULL;
 #ifdef COMPILE_CORE
     if (bpf_core_field_exists(oc->totalpages)) {
-        BPF_CORE_READ_INTO(&new.pages, oc, totalpages);
+        BPF_CORE_READ_INTO(&stats->pages, oc, totalpages);
     }
     if (bpf_core_field_exists(oc->memcg)) {
         BPF_CORE_READ_INTO(&memcg, oc, memcg);
     }
 #else
-    bpf_probe_read_kernel(&new.pages, sizeof(new.pages), &oc->totalpages);
+    bpf_probe_read_kernel(&stats->pages, sizeof(stats->pages), &oc->totalpages);
     bpf_probe_read_kernel(&memcg, sizeof(memcg), &oc->memcg);
 #endif
 
-    new.memcg_oom = memcg != NULL ? 1 : 0;
+    stats->memcg_oom = memcg != NULL ? 1 : 0;
+
+    return p;
+}
+
+SEC("fentry/oom_kill_process")
+int BPF_PROG(fentry__oom_kill_process, struct oom_control *oc) {
+    struct oom_stats stats = {};
+    struct stats_key k = {
+        .ts = bpf_ktime_get_ns(),
+        .pid_tgid = bpf_get_current_pid_tgid(),
+        .cpu = bpf_get_smp_processor_id(),
+    };
+    bpf_memset(&stats, 0, sizeof(stats));
+
+    struct task_struct* victim = handle_oom_kill(oc, &k, &stats);
+    if (!victim)
+        return 0;
 
 #ifdef COMPILE_CORE
-    if (new.memcg_oom && emit_cgroup_memory_stats())
-        get_cgroup_memory_stats(p, &new);
+    if (stats.memcg_oom && emit_cgroup_memory_stats())
+        get_cgroup_memory_stats(victim, &stats);
 #endif
 
-    bpf_map_update_elem(&oom_stats, &k, &new, BPF_NOEXIST);
+    bpf_map_update_elem(&oom_stats, &k, &stats, BPF_NOEXIST);
 
     return 0;
 }
 
-/*
- * Two entry points for the same logic: system-probe loads the fentry one when the kernel supports
- * fentry on oom_kill_process, and the kprobe one otherwise.
- */
-
-SEC("fentry/oom_kill_process")
-int BPF_PROG(fentry__oom_kill_process, struct oom_control *oc) {
-    return handle_oom_kill(oc);
-}
-
 SEC("kprobe/oom_kill_process")
 int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
-    return handle_oom_kill(oc);
+    struct oom_stats stats = {};
+    struct stats_key k = {
+        .ts = bpf_ktime_get_ns(),
+        .pid_tgid = bpf_get_current_pid_tgid(),
+        .cpu = bpf_get_smp_processor_id(),
+    };
+    bpf_memset(&stats, 0, sizeof(stats));
+
+    struct task_struct* victim = handle_oom_kill(oc, &k, &stats);
+    if (!victim)
+        return 0;
+
+    bpf_map_update_elem(&oom_stats, &k, &stats, BPF_NOEXIST);
+
+    return 0;
 }
 
 char _license[] SEC("license") = "GPL";

@@ -604,16 +604,18 @@ func rewriteConstant(spec *bpflib.CollectionSpec, name string, value uint64) {
 	}
 }
 
-// selectProgram keeps the fentry program in spec if the kernel supports fentry on oom_kill_process,
-// and the kprobe program otherwise.
-// Both run the same logic; fentry is preferred because its link can be pinned from 5.7 instead of
+// selectProgram keeps the fentry program in spec if the kernel supports fentry on oom_kill_process
+// and the function pointer loads of the fentry program, and the kprobe program otherwise.
+// Both run the same logic. Fentry is preferred because its link can be pinned from 5.7 instead of
 // 5.15 for the kprobe's perf event link.
 func selectProgram(spec *bpflib.CollectionSpec) (*bpflib.ProgramSpec, error) {
 	progName, unused := oomKprobeName, oomFentryName
-	if err := supportsFentry(oomHookName); err == nil {
-		progName, unused = oomFentryName, oomKprobeName
-	} else {
+	if err := supportsFentry(oomHookName); err != nil {
 		log.Debugf("fentry is not supported on %s, using kprobe: %s", oomHookName, err)
+	} else if err := funcPointerLoadSupported(); err != nil {
+		log.Debugf("function pointer loads are not supported, using kprobe on %s: %s", oomHookName, err)
+	} else {
+		progName, unused = oomFentryName, oomKprobeName
 	}
 
 	if s, ok := spec.Programs[progName]; ok {
@@ -622,6 +624,36 @@ func selectProgram(spec *bpflib.CollectionSpec) (*bpflib.ProgramSpec, error) {
 	}
 
 	return nil, fmt.Errorf("program '%s' not found", progName)
+}
+
+// funcPointerLoadSupported loads a program with an unreachable load of the address of one of its
+// functions, like the load of the bpf_loop callback of the cgroup memory stats in the fentry
+// program when they are not collected. On older kernels check for ldimm64 is performed before
+// deadcode elimination so we must ensure that callbacks are supported before attempting loads on
+// these kernels.
+func funcPointerLoadSupported() error {
+	const callback = "callback"
+	prog, err := bpflib.NewProgramWithOptions(&bpflib.ProgramSpec{
+		Type: bpflib.SocketFilter,
+		Instructions: asm.Instructions{
+			asm.Mov.Imm(asm.R0, 0),
+			asm.JEq.Imm(asm.R0, 0, "exit"),
+			asm.Instruction{
+				OpCode:   asm.LoadImmOp(asm.DWord),
+				Dst:      asm.R2,
+				Src:      asm.PseudoFunc,
+				Constant: -1,
+			}.WithReference(callback),
+			asm.Return().WithSymbol("exit"),
+			asm.Mov.Imm(asm.R0, 0).WithSymbol(callback),
+			asm.Return(),
+		},
+		License: "GPL",
+	}, bpflib.ProgramOptions{LogDisabled: true})
+	if err != nil {
+		return fmt.Errorf("load test program: %w", err)
+	}
+	return prog.Close()
 }
 
 // Close releases all associated resources.

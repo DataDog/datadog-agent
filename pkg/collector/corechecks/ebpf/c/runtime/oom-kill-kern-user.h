@@ -31,6 +31,7 @@ struct stats_key {
     __u64 ts;
     __u64 pid_tgid;
     __u32 cpu;
+    __u32 pad;
 };
 
 struct oom_stats {
