@@ -963,7 +963,7 @@ func Test_fetchValues_errors(t *testing.T) {
 			batchSize:     10,
 			ScalarOIDs:    []string{},
 			ColumnOIDs:    []string{"1.1", "2.2"},
-			expectedError: errors.New("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1]` using GetNext: getnext error"),
+			expectedError: errors.New("failed to fetch oids with GetBulk batching: failed to fetch column oids: fetch column: failed getting oids `[1.1]` using GetBulk: bulk error; GetNext fallback also failed: failed to fetch column oids: fetch column: failed getting oids `[1.1]` using GetNext: getnext error"),
 		},
 	}
 	for _, tt := range tests {
@@ -996,7 +996,7 @@ func Test_fetchValues_columnFailureKeepsScalars(t *testing.T) {
 
 	values, err := Fetch(sess, []string{"1.1.1.1.0"}, []string{"1.1.2"}, NewOidBatchSizeOptimizers(1), checkconfig.DefaultBulkMaxRepetitions)
 
-	assert.EqualError(t, err, "failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1.2]` using GetNext: request timeout (after 3 retries)")
+	assert.EqualError(t, err, "failed to fetch oids with GetBulk batching: failed to fetch column oids: fetch column: failed getting oids `[1.1.2]` using GetBulk: request timeout (after 3 retries); GetNext fallback also failed: failed to fetch column oids: fetch column: failed getting oids `[1.1.2]` using GetNext: request timeout (after 3 retries)")
 	expectedValues := &valuestore.ResultValueStore{
 		ScalarValues: valuestore.ScalarResultValuesType{
 			"1.1.1.1.0": {Value: float64(10)},
@@ -1567,7 +1567,7 @@ func Test_batchSizeOptimizers(t *testing.T) {
 				lastRefreshTs: now,
 			},
 			expectedValues: nil,
-			expectedError:  errors.New("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1.1]` using GetNext: next error"),
+			expectedError:  errors.New("failed to fetch oids with GetBulk batching: failed to fetch column oids: fetch column: failed getting oids `[1.1.1]` using GetBulk: bulk error; GetNext fallback also failed: failed to fetch column oids: fetch column: failed getting oids `[1.1.1]` using GetNext: next error"),
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
 				snmpGetOptimizer: &oidBatchSizeOptimizer{
 					snmpOperation:           snmpGet,
