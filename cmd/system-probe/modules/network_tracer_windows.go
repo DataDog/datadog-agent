@@ -17,6 +17,7 @@ import (
 	"time"
 
 	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -74,5 +75,9 @@ func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 		utils.WriteAsJSON(req, w, tags, utils.CompactOutput)
 	})
 
+	return nil
+}
+
+func enableNetNSContainerAttribution(_ context.Context, _ *tracer.Tracer, _ module.FactoryDependencies) error {
 	return nil
 }

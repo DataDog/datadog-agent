@@ -55,6 +55,10 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	if err := enableNetNSContainerAttribution(ctx, t, deps); err != nil {
+		log.Warnf("network namespace container attribution disabled: %s", err)
+	}
+
 	var connsSender sender.Sender
 	if ncfg.DirectSend {
 		connsSender, err = sender.New(ctx, t, sender.Dependencies{
