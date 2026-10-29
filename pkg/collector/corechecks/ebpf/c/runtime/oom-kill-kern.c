@@ -287,7 +287,8 @@ static __always_inline int handle_oom_kill(struct oom_control *oc) {
     u32 pid = k.pid_tgid >> 32;
     new.trigger_pid = pid;
 
-    bpf_memset(new, 0, sizeof(new));
+    bpf_memset(&new, 0, sizeof(new));
+    bpf_memset(&k, 0, sizeof(k));
 
     struct task_struct *p = (struct task_struct *)BPF_CORE_READ(oc, chosen);
     if (!p) {
