@@ -312,6 +312,7 @@ dd_agent_go_test(
         "testdata/decoded/simple/anyStructSlice_I32inRange.json",
         "testdata/decoded/simple/bigMapArg.json",
         "testdata/decoded/simple/captureAllIntSlice_positive.json",
+        "testdata/decoded/simple/captureAnyIntSlice_cond_toolarge.json",
         "testdata/decoded/simple/captureAnyIntSlice_eq42.json",
         "testdata/decoded/simple/captureAnyPtrIntSlice_unguarded.json",
         "testdata/decoded/simple/captureAnyStructSlice_I32eq300.json",
