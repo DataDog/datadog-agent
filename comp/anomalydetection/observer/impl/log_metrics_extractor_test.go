@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"hash/fnv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -169,4 +170,20 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 	assert.Equal(t, "Request completed in 45ms", ctxA.Example)
 	assert.Equal(t, "Request completed in 45ms", ctxB.Example)
 	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+}
+
+func TestLogMetricsExtractor_MaxEvalBytesCapsSignature(t *testing.T) {
+	// Logs that differ only after the first MaxEvalBytes bytes share a series.
+	prefix := strings.Repeat("a", 16)
+	capped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MaxEvalBytes: len(prefix)})
+	a := capped.ProcessLog(&mockLogView{content: prefix + " 123"})
+	b := capped.ProcessLog(&mockLogView{content: prefix + " xyz"})
+	require.Len(t, a.Metrics, 1)
+	require.Len(t, b.Metrics, 1)
+	assert.Equal(t, a.Metrics[0].Name, b.Metrics[0].Name)
+
+	uncapped := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+	c := uncapped.ProcessLog(&mockLogView{content: prefix + " 123"})
+	d := uncapped.ProcessLog(&mockLogView{content: prefix + " xyz"})
+	assert.NotEqual(t, c.Metrics[0].Name, d.Metrics[0].Name)
 }

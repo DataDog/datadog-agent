@@ -47,6 +47,8 @@ const LogMetricsExtractorName = "log_metrics_extractor"
 // - Unstructured logs: pattern frequency -> Sum aggregation
 //
 // This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
+// It is not safe for concurrent use: its signature generator reuses scratch
+// buffers, so ProcessLog relies on the engine calling extractors one log at a time.
 type LogMetricsExtractor struct {
 	config             LogMetricsExtractorConfig
 	signatureGenerator *logsignature.Generator
