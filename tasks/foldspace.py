@@ -10,10 +10,10 @@ from invoke import task
 
 from tasks.libs.common.utils import join_command
 
-# DataDog/foldspace ryan.hall/memory-bounds, the top of stack #126.
+# DataDog/foldspace ryan.hall/client-cpu-fixes, the top of stack #126.
 # Keep in sync with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
-FOLDSPACE_GIT_COMMIT = "5a44a28dbc12aecc1eca2afe377856a13178ca80"
+FOLDSPACE_GIT_COMMIT = "0e3dcce7366a69581703d8a71a1b41e46c353ce8"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
 
 
