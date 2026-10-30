@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/status
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/template v0.86.0-rc.1
 	github.com/dustin/go-humanize v1.1.0
 	github.com/fatih/color v1.19.0
 	github.com/spf13/cast v1.10.0
