@@ -16,19 +16,21 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-type scrubCallback = func(string, interface{}) (bool, interface{})
+// scrubCallback is called on every map entry and on every string in a slice. key is the map key, or "" for slice
+// elements, while parent is the closest enclosing map key, or "" at the top level.
+type scrubCallback = func(key string, parent string, value interface{}) (bool, interface{})
 
-func walkSlice(data []interface{}, callback scrubCallback) {
+func walkSlice(data []interface{}, parent string, callback scrubCallback) {
 	for i, k := range data {
 		switch v := k.(type) {
 		case map[interface{}]interface{}:
 			walkHash(v, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			walkSlice(v, parent, callback)
 		case map[string]interface{}:
 			walkStringMap(v, callback)
 		case string:
-			if match, newValue := callback("", v); match {
+			if match, newValue := callback("", parent, v); match {
 				data[i] = newValue
 			}
 		}
@@ -37,8 +39,9 @@ func walkSlice(data []interface{}, callback scrubCallback) {
 
 func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 	for k, v := range data {
-		if keyString, ok := k.(string); ok {
-			if match, newValue := callback(keyString, v); match {
+		keyString, isString := k.(string)
+		if isString {
+			if match, newValue := callback(keyString, keyString, v); match {
 				data[keyString] = newValue
 				continue
 			}
@@ -48,14 +51,14 @@ func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 		case map[interface{}]interface{}:
 			walkHash(v, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			walkSlice(v, keyString, callback)
 		}
 	}
 }
 
 func walkStringMap(data map[string]interface{}, callback scrubCallback) {
 	for k, v := range data {
-		if match, newValue := callback(k, v); match {
+		if match, newValue := callback(k, k, v); match {
 			data[k] = newValue
 			continue
 		}
@@ -63,7 +66,7 @@ func walkStringMap(data map[string]interface{}, callback scrubCallback) {
 		case map[string]interface{}:
 			walkStringMap(v, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			walkSlice(v, k, callback)
 		}
 
 	}
@@ -80,22 +83,23 @@ func walk(data *interface{}, callback scrubCallback) {
 	case map[interface{}]interface{}:
 		walkHash(v, callback)
 	case []interface{}:
-		walkSlice(v, callback)
+		walkSlice(v, "", callback)
 	case map[string]interface{}:
 		walkStringMap(v, callback)
 	case string:
-		if match, newValue := callback("", v); match {
+		if match, newValue := callback("", "", v); match {
 			*data = newValue
 		}
 	}
 }
 
-// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
+// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes. The keys whose
+// values get scrubbed are recorded, see GetStrippedKeys.
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	walk(data, c.scrubDataValue)
 }
 
-func (c *Scrubber) scrubDataValue(key string, value interface{}) (bool, interface{}) {
+func (c *Scrubber) scrubDataValue(key string, parent string, value interface{}) (bool, interface{}) {
 	str, isString := value.(string)
 	if isString && IsEnc(str) {
 		return false, ""
@@ -117,9 +121,20 @@ func (c *Scrubber) scrubDataValue(key string, value interface{}) (bool, interfac
 				// If ProcessValue returned a string, still apply the value-content pass
 				// so embedded credentials (e.g. API keys in a JSON-encoded string) get scrubbed.
 				if resultStr, ok := result.(string); ok {
+					if mayHoldCredential(value) {
+						c.addStrippedKey(key)
+					}
 					return true, c.scrubYamlText(resultStr)
 				}
+				// Structured results (ex: additional_endpoints, private_action_runner) are only recorded
+				// if they contain a scrubbed leaf. Replacers that re-enter ScrubDataObj record nested keys.
+				if containsReplacement(result) {
+					c.addStrippedKey(key)
+				}
 				return true, result
+			}
+			if mayHoldCredential(value) {
+				c.addStrippedKey(key)
 			}
 			return true, defaultReplacement
 		}
@@ -128,10 +143,57 @@ func (c *Scrubber) scrubDataValue(key string, value interface{}) (bool, interfac
 	if isString {
 		scrubbed := c.scrubYamlText(str)
 		if scrubbed != str {
+			// the value itself looks like a credential (ex: a raw API key or a password in a URL)
+			c.addStrippedKey(parent)
 			return true, scrubbed
 		}
 	}
 	return false, ""
+}
+
+// mayHoldCredential returns false if value holds no data that could be a credential, such as an empty value or a
+// boolean. This avoids recording keys like "pass_through: false" that only match a sensitive key pattern.
+func mayHoldCredential(value interface{}) bool {
+	switch v := value.(type) {
+	case nil, bool:
+		return false
+	case string:
+		return strings.TrimSpace(v) != ""
+	case map[string]interface{}:
+		return len(v) != 0
+	case map[interface{}]interface{}:
+		return len(v) != 0
+	case []interface{}:
+		return len(v) != 0
+	}
+	return true
+}
+
+// containsReplacement returns true if any leaf of data was replaced by defaultReplacement
+func containsReplacement(data interface{}) bool {
+	switch v := data.(type) {
+	case string:
+		return v == defaultReplacement
+	case map[string]interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	case map[interface{}]interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ScrubYaml scrubs credentials from the given YAML by loading the data and scrubbing the object instead of the
@@ -198,7 +260,7 @@ func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := c.scrubYamlNode(&document, make(map[*yaml.Node]struct{})); err != nil {
+	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{})); err != nil {
 		return nil, err
 	}
 
@@ -214,7 +276,7 @@ func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (c *Scrubber) scrubYamlNode(node *yaml.Node, visited map[*yaml.Node]struct{}) error {
+func (c *Scrubber) scrubYamlNode(node *yaml.Node, parent string, visited map[*yaml.Node]struct{}) error {
 	if node == nil {
 		return nil
 	}
@@ -230,7 +292,7 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, visited map[*yaml.Node]struct{
 	switch node.Kind {
 	case yaml.DocumentNode, yaml.SequenceNode:
 		for _, child := range node.Content {
-			if err := c.scrubYamlNode(child, visited); err != nil {
+			if err := c.scrubYamlNode(child, parent, visited); err != nil {
 				return err
 			}
 		}
@@ -245,7 +307,7 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, visited map[*yaml.Node]struct{
 			if decodedKeyString, ok := decodedKey.(string); ok {
 				keyValue = decodedKeyString
 			}
-			if err := c.scrubYamlNode(key, visited); err != nil {
+			if err := c.scrubYamlNode(key, parent, visited); err != nil {
 				return err
 			}
 
@@ -255,10 +317,10 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, visited map[*yaml.Node]struct{
 			}
 			if matched, replacement := c.scrubYamlDataValue(keyValue, decoded); matched {
 				replaceYamlNode(value, replacement)
-				if err := c.scrubYamlNode(value, visited); err != nil {
+				if err := c.scrubYamlNode(value, keyValue, visited); err != nil {
 					return err
 				}
-			} else if err := c.scrubYamlNode(value, visited); err != nil {
+			} else if err := c.scrubYamlNode(value, keyValue, visited); err != nil {
 				return err
 			}
 		}
@@ -268,7 +330,7 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, visited map[*yaml.Node]struct{
 			return err
 		}
 		if str, ok := decoded.(string); ok {
-			if matched, replacement := c.scrubDataValue("", str); matched {
+			if matched, replacement := c.scrubDataValue("", parent, str); matched {
 				replaceYamlNode(node, replacement)
 			}
 		}
@@ -288,7 +350,7 @@ func (c *Scrubber) scrubYamlText(value string) string {
 }
 
 func (c *Scrubber) scrubYamlDataValue(key string, value interface{}) (bool, interface{}) {
-	if matched, replacement := c.scrubDataValue(key, value); matched {
+	if matched, replacement := c.scrubDataValue(key, key, value); matched {
 		return true, replacement
 	}
 

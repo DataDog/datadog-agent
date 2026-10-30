@@ -71,6 +71,7 @@ func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, t
 			k8sCollectors.NewReplicaSetCollectorVersions(tagger),
 			k8sCollectors.NewRoleBindingCollectorVersions(tagger),
 			k8sCollectors.NewRoleCollectorVersions(tagger),
+			k8sCollectors.NewSecretCollectorVersions(tagger),
 			k8sCollectors.NewServiceAccountCollectorVersions(tagger),
 			k8sCollectors.NewServiceCollectorVersions(tagger),
 			k8sCollectors.NewStatefulSetCollectorVersions(tagger),
