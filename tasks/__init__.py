@@ -84,6 +84,7 @@ from tasks import (
     selinux,
     setup,
     skaffold,
+    smp,
     system_probe,
     systray,
     testwasher,
@@ -278,6 +279,7 @@ ns.add_collection(kind_node_image)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
+ns.add_collection(smp)
 ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
