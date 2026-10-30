@@ -708,8 +708,8 @@ class TestGetTeams(unittest.TestCase):
 
 
 class TestNotifyCommunityPR(unittest.TestCase):
-    def notify(self, teams):
-        pr = MagicMock(title=' Fix a typo ', html_url='https://github.com/DataDog/datadog-agent/pull/1')
+    def notify(self, teams, title=' Fix a typo '):
+        pr = MagicMock(title=title, html_url='https://github.com/DataDog/datadog-agent/pull/1')
         with (
             patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock,
             patch('slack_sdk.WebClient') as web_mock,
@@ -727,6 +727,13 @@ class TestNotifyCommunityPR(unittest.TestCase):
         post.assert_called_once_with(
             channel='#team-a',
             text=':pr: *New Community PR*\nFix a typo <https://github.com/DataDog/datadog-agent/pull/1|DataDog/datadog-agent#1>',
+        )
+
+    def test_escape_title(self):
+        post = self.notify(teams=['@datadog/team-a'], title='<!channel> & co')
+        post.assert_called_once_with(
+            channel='#team-a',
+            text=':pr: *New Community PR*\n&lt;!channel&gt; &amp; co <https://github.com/DataDog/datadog-agent/pull/1|DataDog/datadog-agent#1>',
         )
 
     def test_skip_unmapped_team(self):

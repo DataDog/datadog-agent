@@ -42,6 +42,9 @@ jobs:
           github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
             const label = process.env.HEAD_REPO === `${context.repo.owner}/${context.repo.repo}` ? 'internal' : 'community';
+            if (context.payload.pull_request.labels.some(l => l.name === label)) {
+              return;
+            }
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,

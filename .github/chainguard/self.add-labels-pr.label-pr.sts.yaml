@@ -6,8 +6,8 @@ subject: repo:DataDog/datadog-agent:pull_request
 # Keep pull_request_target only: on pull_request, a PR could edit the workflow and get the token.
 claim_pattern:
   event_name: pull_request_target
-  ref: refs/heads/.+
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add-label-pr\.yml@refs/heads/.+
+  ref: refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add-label-pr\.yml@refs/heads/main
 
 permissions:
   contents: read

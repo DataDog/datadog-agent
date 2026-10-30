@@ -199,7 +199,8 @@ def notify_community_pr(_, repo='', pr_id=-1):
     channels = list(set(channels))
 
     # Create message
-    title = pr.title.strip()
+    # Escape Slack control characters: the title comes from an external contributor
+    title = pr.title.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message
