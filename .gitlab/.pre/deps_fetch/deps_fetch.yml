@@ -96,12 +96,7 @@ go_tools_deps:
   extends: .cache
   tags: ["arch:amd64", "specific:true"]
   script:
-    # Older shared caches can omit gotestsum, which the E2E jobs still require.
-    - |
-      if [ -f go_tools_bin.tar.zst ] && [ -f modcache_tools.tar.zst ] && \
-         zstd -dc go_tools_bin.tar.zst | tar tf - | grep -x './gotestsum' > /dev/null; then
-        exit 0
-      fi
+    - if [ -f go_tools_bin.tar.zst ] && [ -f modcache_tools.tar.zst ]; then exit 0; fi
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
     - |
