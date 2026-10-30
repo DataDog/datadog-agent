@@ -10,7 +10,11 @@ go_library(
 
 dd_agent_go_test(
     name = "filewriter_test",
-    srcs = ["file_writer_test.go"],
+    srcs = [
+        "file_writer_fifo_test.go",
+        "file_writer_test.go",
+        "file_writer_unix_test.go",
+    ],
     embed = [":filewriter"],
     deps = [
         "@com_github_stretchr_testify//assert",
