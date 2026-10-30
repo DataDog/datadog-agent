@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The ``DD_API_KEY``, ``DD_SITE``, ``DD_DD_URL``, ``DD_URL`` and ``DD_SKIP_SSL_VALIDATION``
+    environment variables no longer override the metrics settings of the OSS Datadog exporter
+    of ``opentelemetry-collector-contrib``. A collector that relied on them must set ``api.key``,
+    ``api.site``, ``metrics.endpoint`` or ``tls.insecure_skip_verify`` in each exporter configuration.
+fixes:
+  - |
+    The OSS Datadog exporter of ``opentelemetry-collector-contrib`` no longer lets the
+    ``DD_API_KEY``, ``DD_SITE``, ``DD_DD_URL``, ``DD_URL`` and ``DD_SKIP_SSL_VALIDATION``
+    environment variables of the process override the ``api.key``, ``api.site``,
+    ``metrics.endpoint`` and ``tls.insecure_skip_verify`` settings of each exporter instance
+    when exporting metrics. Several Datadog exporters in the same
+    collector now send metrics with their own API key instead of the value of ``DD_API_KEY``.
