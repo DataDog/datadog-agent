@@ -18,7 +18,6 @@ SYSV_ACTION = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.action.in'
 SYSV_AGENT = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.in'
 UPSTART_DEBIAN = REPO_ROOT / 'packages/debian/etc/upstart_debian.procmgr.conf.in'
 UPSTART_REDHAT = REPO_ROOT / 'packages/redhat/etc/upstart_redhat.procmgr.conf.in'
-FOUR_VARIABLES = ('DD_PM_CONFIG_DIR', 'DD_CONF_DIR', 'DD_PID_DIR', 'DD_INSTALL_DIR')
 SYSV_RUNTIME_DIR = '/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2'
 UPSTART_RUNTIME_DIR = '/usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1'
 PARENT_SPLIT = 'true'
@@ -245,9 +244,23 @@ exit 98
         self.assertEqual(seen.get('DD_EXTRA'), 'from-file')
         self.assertEqual(seen.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
 
-    def test_redhat_upstart_parses_environment_file_as_dd_agent(self):
+    def test_redhat_upstart_execs_the_daemon_without_a_supervisor(self):
+        template = UPSTART_REDHAT.read_text()
+        self.assertNotIn('exec su', template)
+        self.assertNotIn('runuser', template)
+        self.assertNotIn('. "{etc_dir}/environment"', template)
+        self.assertNotIn('set -a', template)
+        main = upstart_main_block(UPSTART_REDHAT)
+        self.assertLess(main.index('export "$key=$value"'), main.index('export DD_PROCMGR_RUN_AS_USER=dd-agent'))
+        self.assertLess(
+            main.index('export DD_PROCMGR_RUN_AS_USER=dd-agent'),
+            main.index('exec "{install_dir}/embedded/bin/dd-procmgrd"'),
+        )
+
         layout = Layout(self.root)
         marker = self.root / 'pwned'
+        supervisor = self.root / 'supervisor-called'
+        daemon_pid = self.root / 'daemon.pid'
         logfile = self.root / 'procmgr-errors.log'
         (layout.etc / 'environment').write_text(
             '# comment\n'
@@ -258,39 +271,35 @@ exit 98
             'DD_INSTALL_DIR=/wrong\n'
             'DD_CONF_DIR=/wrong\n'
             'DD_LOG_TO_CONSOLE=true\n'
+            'DD_PROCMGR_RUN_AS_USER=root\n'
             'AGENT_USER=root\n'
             'DD_QUOTED="hello world"\n'
             f'DD_PAYLOAD=$(touch {marker})\n'
             f'touch {marker}\n'
         )
-        script = render(upstart_main_block(UPSTART_REDHAT), layout.install, layout.etc)
+        write_executable(layout.binary, f'echo $$ > "{daemon_pid}"\nenv > "{layout.env_out}"\nexit 0\n')
+        script = render(main, layout.install, layout.etc)
         script = script.replace('/var/log/datadog/procmgr-errors.log', str(logfile))
         script_path = self.root / 'upstart-script.sh'
         script_path.write_text(script)
 
         commands = self.root / 'commands'
-        # su without -m drops the environment, so the fake clears it before running the shell.
-        write_executable(
-            commands / 'su',
-            '''[ "$1" = -s ] && [ "$3" = -c ] && [ "$5" = dd-agent ] && [ "$6" = -- ] || exit 97
-shell=$2
-command=$4
-shift 6
-exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
-''',
-        )
+        for name in ('su', 'runuser', 'sudo'):
+            write_executable(commands / name, f'echo {name} > "{supervisor}"\nexit 99\n')
 
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ['/bin/sh', str(script_path)],
             env=self.base_env(f'{commands}:/usr/bin:/bin'),
             text=True,
-            capture_output=True,
-            check=False,
-            timeout=30,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
+        stdout, stderr = proc.communicate(timeout=30)
         log = logfile.read_text() if logfile.exists() else ''
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr + log)
+        self.assertEqual(proc.returncode, 0, stdout + stderr + log)
         self.assertFalse(marker.exists())
+        self.assertFalse(supervisor.exists())
+        self.assertEqual(int(daemon_pid.read_text().strip()), proc.pid)
 
         seen = parse_env(layout.env_out)
         for key, value in layout.expected_four().items():
@@ -299,20 +308,9 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
         self.assertEqual(seen.get('DD_QUOTED'), 'hello world')
         self.assertEqual(seen.get('DD_PAYLOAD'), f'$(touch {marker})')
         self.assertEqual(seen.get('DD_LOG_TO_CONSOLE'), 'false')
+        self.assertEqual(seen.get('DD_PROCMGR_RUN_AS_USER'), 'dd-agent')
         self.assertEqual(seen.get('AGENT_USER'), 'root')
-        self.assertNotIn('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED', seen)
-
-    def test_redhat_su_command_does_not_source_the_environment_file(self):
-        template = UPSTART_REDHAT.read_text()
-        self.assertNotIn('. "{etc_dir}/environment"', template)
-        self.assertNotIn('set -a', template)
-        match = re.search(r"exec su -s /bin/sh -c '(.*?)' dd-agent --", template, re.DOTALL)
-        self.assertIsNotNone(match, 'su -c command not found in the Red Hat procmgr job')
-        self.assertEqual(match.group(1), 'exec /bin/sh -s -- "$0" "$@"')
-        heredoc = template.split("<<'END_LOAD_ENV'\n", 1)[1].split('\nEND_LOAD_ENV\n', 1)[0]
-        for name in (*FOUR_VARIABLES, 'DD_LOG_TO_CONSOLE'):
-            self.assertIn(f'export {name}=', heredoc)
-        self.assertLess(heredoc.index('export "$key=$value"'), heredoc.index('export DD_LOG_TO_CONSOLE=false'))
+        self.assertEqual(seen.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
 
     def test_procmgr_stop_waits_for_par_control(self):
         sysv = SYSV_PROCMGR.read_text()
