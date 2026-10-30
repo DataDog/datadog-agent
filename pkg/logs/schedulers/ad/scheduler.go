@@ -8,7 +8,9 @@ package ad
 
 import (
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -32,6 +34,19 @@ import (
 type Scheduler struct {
 	mgr      schedulers.SourceManager
 	listener *adlistener.ADListener
+
+	// sourcesByConfig records the sources created for each scheduled config,
+	// keyed by the config's FastDigest (the identity autodiscovery uses to
+	// track scheduled configs), to report when more than one logs config is
+	// scheduled for the same container.
+	sourcesByConfig map[uint64]trackedConfig
+	mu              sync.Mutex
+}
+
+// trackedConfig is a scheduled config's name and the sources created for it.
+type trackedConfig struct {
+	name    string
+	sources []*sourcesPkg.LogSource
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
@@ -46,7 +61,7 @@ func New(ac autodiscovery.Component) schedulers.Scheduler {
 // The name must be unique within autodiscovery — registering two schedulers
 // with the same name causes the second to silently replace the first.
 func NewNamed(ac autodiscovery.Component, name string) schedulers.Scheduler {
-	sch := &Scheduler{}
+	sch := &Scheduler{sourcesByConfig: make(map[uint64]trackedConfig)}
 	sch.listener = adlistener.NewADListener(name, ac, sch.Schedule, sch.Unschedule)
 	return sch
 }
@@ -61,6 +76,10 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 func (s *Scheduler) Stop() {
 	s.listener.StopListener()
 	s.mgr = nil
+
+	s.mu.Lock()
+	s.sourcesByConfig = make(map[uint64]trackedConfig)
+	s.mu.Unlock()
 }
 
 // Schedule creates new sources and services from a list of integration configs.
@@ -86,6 +105,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			}
 
 			filtered := s.filterConflictingSources(sources, config.Provider)
+			s.trackSources(config, filtered)
 			for _, source := range filtered {
 				s.mgr.AddSource(source)
 			}
@@ -159,6 +179,17 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				continue
 			}
 
+			// Autodiscovery should have at most one logs config scheduled for
+			// a given ServiceID. If another one is still scheduled, removing
+			// all the sources below also removes its sources, and since
+			// autodiscovery considers it scheduled it will not send it again:
+			// its logs stop until it is rescheduled. Report it so this case
+			// can be identified.
+			if others := s.untrackSources(config, identifier); len(others) > 0 {
+				log.Warnf("Unscheduling logs config %s removed all logs sources of %s while logs config(s) %s are still scheduled for the same container: the container's logs stop until the Agent restarts",
+					configName(config), config.ServiceID, strings.Join(others, ", "))
+			}
+
 			// remove all the sources for this ServiceID.  This makes the
 			// implicit, and not-quite-correct assumption that we only ever
 			// receive one config for a given ServiceID, and that it generates
@@ -177,6 +208,65 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			continue
 		}
 	}
+}
+
+// trackSources records the sources created for config, and logs when another
+// scheduled config already has sources for the same container.
+func (s *Scheduler) trackSources(config integration.Config, sources []*sourcesPkg.LogSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.sourcesByConfig == nil {
+		s.sourcesByConfig = make(map[uint64]trackedConfig)
+	}
+	digest := config.FastDigest()
+	identifiers := make(map[string]struct{}, len(sources))
+	for _, source := range sources {
+		if source.Config.Identifier != "" {
+			identifiers[source.Config.Identifier] = struct{}{}
+		}
+	}
+	for identifier := range identifiers {
+		if others := s.configsWithIdentifierLocked(identifier, digest); len(others) > 0 {
+			log.Infof("Logs config %s scheduled for %s while logs config(s) %s are still scheduled for the same container",
+				configName(config), config.ServiceID, strings.Join(others, ", "))
+		}
+	}
+
+	tracked := s.sourcesByConfig[digest]
+	tracked.name = configName(config)
+	tracked.sources = append(tracked.sources, sources...)
+	s.sourcesByConfig[digest] = tracked
+}
+
+// untrackSources forgets config and returns the names of the other scheduled
+// configs that have sources for identifier.
+func (s *Scheduler) untrackSources(config integration.Config, identifier string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	digest := config.FastDigest()
+	delete(s.sourcesByConfig, digest)
+	return s.configsWithIdentifierLocked(identifier, digest)
+}
+
+// configsWithIdentifierLocked returns the sorted names of the scheduled
+// configs, other than the one with the excluded digest, that have a source for
+// identifier. s.mu must be held.
+func (s *Scheduler) configsWithIdentifierLocked(identifier string, excluded uint64) []string {
+	var names []string
+	for digest, tracked := range s.sourcesByConfig {
+		if digest == excluded {
+			continue
+		}
+		if slices.ContainsFunc(tracked.sources, func(source *sourcesPkg.LogSource) bool {
+			return source.Config.Identifier == identifier
+		}) {
+			names = append(names, tracked.name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // newSources returns true if the config can be mapped to sources.
