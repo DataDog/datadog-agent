@@ -423,6 +423,43 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		m.HandleSampleRefresh(3)
 		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
+
+	t.Run("cookie_retargeted_while_waiting_for_lock", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2(t)
+		prof := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}))
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+		folded := activity_tree.NewNodeBase()
+		survivor := activity_tree.NewNodeBase()
+		initialTime := time.Now().Add(-time.Hour)
+		for _, nb := range []*activity_tree.NodeBase{&processNode.NodeBase, &folded, &survivor} {
+			nb.AppendImageTagID(imageTagID, initialTime)
+		}
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: &folded,
+			imageTag:      "v1",
+		})
+
+		prof.Lock()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			m.HandleSampleRefresh(1)
+		}()
+		require.Eventually(t, func() bool { return m.sampleRefreshHits.Load() == 1 }, 5*time.Second, time.Millisecond)
+		m.retargetSampleCookies(prof, map[*activity_tree.NodeBase]*activity_tree.NodeBase{&folded: &survivor})
+		prof.Unlock()
+		<-done
+
+		_, survivorLastSeen, _ := survivor.GetSeenTimes(imageTagID)
+		assert.Greater(t, survivorLastSeen, initialTime.UnixNano())
+		_, foldedLastSeen, _ := folded.GetSeenTimes(imageTagID)
+		assert.Equal(t, initialTime.UnixNano(), foldedLastSeen)
+	})
 }
 
 // monotonicFieldHandlers mimics the eBPF field handler: Timestamp stays zero until
