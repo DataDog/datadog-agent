@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconf
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.86.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.86.0-rc.1
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.69.0
 	go.opentelemetry.io/collector/component/componenttest v0.163.0
@@ -21,15 +21,15 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.71.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.86.0-rc.1 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.1 // indirect

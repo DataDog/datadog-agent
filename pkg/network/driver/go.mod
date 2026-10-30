@@ -3,21 +3,21 @@ module github.com/DataDog/datadog-agent/pkg/network/driver
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.86.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.86.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.86.0-rc.1
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.12.0
 	golang.org/x/sys v0.49.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.86.0-rc.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
