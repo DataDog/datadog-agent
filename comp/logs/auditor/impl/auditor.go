@@ -23,7 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-const defaultFlushPeriod = 1 * time.Second
+// defaultFlushPeriod is the interval between registry writes while the agent
+// is running. Each write syncs the file and its directory. Stop writes once
+// more after acknowledgements queued at shutdown have been applied.
+const defaultFlushPeriod = 5 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
@@ -284,7 +287,10 @@ func (a *registryAuditor) run() {
 		case <-a.health.C:
 		case payload, isOpen := <-a.inputChan:
 			if !isOpen {
-				// inputChan has been closed, no need to update the registry anymore
+				// A closed channel yields every buffered payload before this
+				// receive, so the in-memory registry already includes the acks
+				// that were queued when Stop closed the input. Stop writes that
+				// registry after this loop exits.
 				return
 			}
 			// update the registry with the new entry
