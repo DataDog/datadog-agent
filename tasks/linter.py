@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import sys
 from collections import defaultdict
 from fnmatch import fnmatch
@@ -338,7 +339,9 @@ def releasenote_reused_uids(ctx, files=None, only_changed=False):
     merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
     if files:
         candidates = [f.strip() for f in files.split(',') if f.strip()]
-        added = [f for f in candidates if not ctx.run(f"git cat-file -e HEAD:{f}", warn=True, hide=True).ok]
+        added = [
+            f for f in candidates if not ctx.run(f"git cat-file -e {shlex.quote(f'HEAD:{f}')}", warn=True, hide=True).ok
+        ]
     else:
         # Renames keep the UID and show up as R, not A, so they are not flagged.
         result = ctx.run(f"git diff --name-only --diff-filter=A {merge_base} -- {notes_pathspec}", hide=True)
