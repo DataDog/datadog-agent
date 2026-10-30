@@ -55,6 +55,9 @@ const (
 	Identity Compression = 1
 	// Zstd compresses each body at Config.ZstdLevel.
 	Zstd Compression = 2
+	// JSplit encodes each body as the JSON split, each part its own zstd
+	// frame. Config.ZstdLevel does not apply.
+	JSplit Compression = 3
 )
 
 // Admission is what the library did with an offered record, or with a flush.
@@ -211,9 +214,10 @@ type Config struct {
 	ReconnectBackoffCap    time.Duration
 	DrainTimeout           time.Duration
 	StreamLifetime         time.Duration
-	// FirstBatchID is the id a stream's first batch takes, which every later
-	// batch on that stream counts up from.
-	FirstBatchID uint32
+	// PatternSightingsBeforeAdmission is how many times a new pattern shape
+	// is sent in its stateless form before the next sighting defines it. Zero
+	// defines a pattern for every shape on its first sighting.
+	PatternSightingsBeforeAdmission uint32
 }
 
 // Record is one log offered to the library.
