@@ -14,36 +14,46 @@ script
   if [ ! -x {install_dir}/embedded/bin/dd-procmgrd ]; then
     exit 0
   fi
-  # RHEL 6 Upstart has no setuid stanza, so the daemon drops privileges itself.
-  if [ -r "{etc_dir}/environment" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      case $line in
-      ""|"#"*|";"*) continue ;;
-      esac
-      case $line in
-      *=*) ;;
-      *) continue ;;
-      esac
-      key=${line%%=*}
-      value=${line#*=}
-      case $key in
-      *[!A-Za-z0-9_]*|"") continue ;;
-      [0-9]*) continue ;;
-      esac
-      case $value in
-      \"*\") value=${value#\"}; value=${value%\"} ;;
-      \'*\') value=${value#\'}; value=${value%\'} ;;
-      esac
-      export "$key=$value"
-    done < "{etc_dir}/environment"
-  fi
-  export DD_LOG_TO_CONSOLE=false
-  export DD_PM_CONFIG_DIR="{install_dir}/processes.d"
-  export DD_CONF_DIR="{etc_dir}"
-  export DD_PID_DIR="{install_dir}"
-  export DD_INSTALL_DIR="{install_dir}"
-  export DD_PROCMGR_RUN_AS_USER=dd-agent
-  exec "{install_dir}/embedded/bin/dd-procmgrd" >> /var/log/datadog/procmgr-errors.log 2>&1
+  # RHEL 6 Upstart has no setuid stanza. chroot drops uid and execs, so this pid stays the daemon.
+  # --groups is required: coreutils 8.4 otherwise keeps root's supplementary groups.
+  groups=$(/usr/bin/id -G dd-agent) || exit 1
+  groups=$(printf '%s\n' "$groups" | tr ' ' ',')
+  group=$(/usr/bin/id -gn dd-agent) || exit 1
+  exec /usr/sbin/chroot --userspec="dd-agent:$group" --groups="$groups" / /bin/sh -s -- \
+    "{etc_dir}" "{install_dir}" "{install_dir}/embedded/bin/dd-procmgrd" <<'END_LOAD_ENV'
+etc=$1
+install=$2
+daemon=$3
+if [ -r "$etc/environment" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case $line in
+    ""|"#"*|";"*) continue ;;
+    esac
+    case $line in
+    *=*) ;;
+    *) continue ;;
+    esac
+    key=${line%%=*}
+    value=${line#*=}
+    case $key in
+    *[!A-Za-z0-9_]*|"") continue ;;
+    [0-9]*) continue ;;
+    esac
+    case $value in
+    \"*\") value=${value#\"}; value=${value%\"} ;;
+    \'*\') value=${value#\'}; value=${value%\'} ;;
+    esac
+    export "$key=$value"
+  done < "$etc/environment"
+fi
+export DD_LOG_TO_CONSOLE=false
+export DD_PM_CONFIG_DIR="$install/processes.d"
+export DD_CONF_DIR="$etc"
+export DD_PID_DIR="$install"
+export DD_INSTALL_DIR="$install"
+exec "$daemon" >> /var/log/datadog/procmgr-errors.log 2>&1 </dev/null
+exit 1
+END_LOAD_ENV
   exit 1
 end script
 

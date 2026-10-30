@@ -38,9 +38,6 @@ fn run() -> anyhow::Result<i32> {
     use log::info;
     use std::sync::Arc;
 
-    // Single-threaded here, which the privilege drop requires.
-    dd_procmgrd::platform::maybe_drop_privileges()?;
-
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PROCMGR",
         level: log::Level::Info,
