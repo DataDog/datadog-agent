@@ -19,7 +19,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/log/fx",
         "//comp/core/secrets/fx-noop",
-        "//pkg/config/setup",
+        "//pkg/config/helper",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",

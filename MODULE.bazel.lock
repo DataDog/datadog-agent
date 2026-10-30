@@ -268,8 +268,8 @@
     "https://bcr.bazel.build/modules/rules_python/1.7.0/MODULE.bazel": "d01f995ecd137abf30238ad9ce97f8fc3ac57289c8b24bd0bf53324d937a14f8",
     "https://bcr.bazel.build/modules/rules_python/1.8.0/MODULE.bazel": "c151c025dbcc93d8f62ab68ecc313c9176a868a0e6386981bf2a12aec77cbe7b",
     "https://bcr.bazel.build/modules/rules_python/1.9.0/MODULE.bazel": "afc3a05f29f09f2d3ee95ad99a145250dab41a2b2d8d6f82cc91936b3213282c",
-    "https://bcr.bazel.build/modules/rules_python/2.4.5/MODULE.bazel": "5a070795714c70d9841c2c19897ebd1177d46d74961193425521da006942d321",
-    "https://bcr.bazel.build/modules/rules_python/2.4.5/source.json": "04cc90b07e4f0abba225743fa138e12a3dee6f04a92ec3741112e83fbf100dc1",
+    "https://bcr.bazel.build/modules/rules_python/2.4.6/MODULE.bazel": "edd87d5af3d4cc3c6e233c4450209bad2f4d6124d24c647670ee8062cfdf822e",
+    "https://bcr.bazel.build/modules/rules_python/2.4.6/source.json": "2e5154205999e263cdee7399111b09acfb9361a205f29e95af93f9423be674d6",
     "https://bcr.bazel.build/modules/rules_robolectric/4.14.1.2/MODULE.bazel": "d44fec647d0aeb67b9f3b980cf68ba634976f3ae7ccd6c07d790b59b87a4f251",
     "https://bcr.bazel.build/modules/rules_robolectric/4.14.1.2/source.json": "37c10335f2361c337c5c1f34ed36d2da70534c23088062b33a8bdaab68aa9dea",
     "https://bcr.bazel.build/modules/rules_rs/0.1.3/MODULE.bazel": "aa52bc031c1d894ca4920fedc96d5479e78ed8e10be6e877097a7d83b18c398a",
@@ -696,7 +696,7 @@
     "@@rules_python+//python/uv:uv.bzl%uv": {
       "general": {
         "bzlTransitiveDigest": "RH0xYDM+3D/BJrY901xKB9oHbAVDI7DBo6UhvEjliCw=",
-        "usagesDigest": "edpKmFBkQ4I0qOntMCa4FelwVLSs/wYE4iWPeEspAxg=",
+        "usagesDigest": "XRZOpOa3Ptb82+J12oqlM1gHuCL7k4dID6s0jzgPGVM=",
         "recordedInputs": [
           "REPO_MAPPING:rules_python+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_python+,platforms platforms"
@@ -1839,8 +1839,8 @@
             "https://files.pythonhosted.org/packages/39/a4/5180d9afc57e8fca05601dd652bdff19604c218814037fe90ffc7625a50a/docutils-0.23.tar.gz": "sha256:746f5060322511280a1e50eb76846ed6bf2342984b2ac04dc42caa1a8d78799e"
           },
           "hatchling": {
-            "https://files.pythonhosted.org/packages/5f/80/91f51f439c05d4ec4623c22928ce16a938d6d793bf709477830823497859/hatchling-1.32.4-py3-none-any.whl": "sha256:08ecf7548fb48205e7f213d70c71e67b8271b7242093dc3f1da578b42c734a2c",
-            "https://files.pythonhosted.org/packages/f6/97/b5312f01a8c6daf729a9d272dd442e0c546dbcc630495788786c4b567ed0/hatchling-1.32.4.tar.gz": "sha256:c4468f73144c054d2aab4ef0f0378c43b9878bf07f8ffd6b79690e970d375f07"
+            "https://files.pythonhosted.org/packages/32/64/4afe5dd77b2939a93e8c9513f8082dbd049ecba9c1484a379a0f6ae29d6b/hatchling-1.33.0-py3-none-any.whl": "sha256:415290b84f464d2884303fca8974d38e7b85579069fab02a15db0828fbb1446d",
+            "https://files.pythonhosted.org/packages/7a/f1/e47b937226ae3b093bbd0132eb0b7ee5bfad12c2b5324afd10ae49946b05/hatchling-1.33.0.tar.gz": "sha256:4c422bd4d554fcff5de5b73e9596f85e41e9f97f7e553d8f7595ecb31a627bef"
           },
           "id": {
             "https://files.pythonhosted.org/packages/42/77/de194443bf38daed9452139e960c632b0ef9f9a5dd9ce605fdf18ca9f1b1/id-1.6.1-py3-none-any.whl": "sha256:f5ec41ed2629a508f5d0988eda142e190c9c6da971100612c4de9ad9f9b237ca",
