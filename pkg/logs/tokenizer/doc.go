@@ -47,4 +47,32 @@
 // or their TokensToString form change without a ProfileVersion bump.
 // Consumers that store token streams, or strings made from them, should
 // record ProfileVersion with them.
+//
+// # Performance
+//
+// The tokenizer runs on every log line the Agent handles, so its cost is part
+// of its contract too:
+//
+//   - a call reads only the first maxEvalBytes bytes of the line (all of it
+//     when maxEvalBytes is 0), in time linear in what it reads; bytes past the
+//     window cost nothing;
+//   - on a warm Tokenizer (one that has already read a line at least as dense),
+//     TokenizeBorrowed, Limit, IsMatch and IsImportant make no heap
+//     allocations; Tokenize makes 2, and TokensToString, Clone and Retained
+//     make 1 (an empty line makes none);
+//   - a Tokenizer with a window of 10 to 64 bytes, like the Logs default of 60,
+//     allocates nothing after NewTokenizer; any other Tokenizer's buffers stop
+//     growing once it has read its densest line.
+//
+// perf_contract_test.go enforces the allocation and buffer rules, linear time
+// and the window bound in every unit test run, including the race detector and
+// coverage runs in CI (the two timing checks skip on Windows, whose clock is
+// too coarse for them); reproduce the race runs locally with
+// dda inv test --targets=./pkg/logs/tokenizer --race. CPU time needs a
+// before-and-after comparison on one machine: after changing this package, run
+// perf_compare.sh. It runs BenchmarkConsumer and BenchmarkConsumerMatch,
+// each consumer's per-line calls at its production window, against the merge
+// base, and fails if one of them, or their geomean, is more than 5% slower, or
+// if one allocates more. When a new package starts tokenizing logs, add it to
+// consumers in consumer_benchmark_test.go.
 package tokenizer
