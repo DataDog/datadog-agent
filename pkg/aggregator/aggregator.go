@@ -310,6 +310,9 @@ type BufferedAggregator struct {
 	// observerHandle is set at startup and copied into newly created CheckSamplers.
 	observerHandle observer.Handle
 
+	// periodicFlushChecks holds the names of the checks whose CheckSamplers commit on every flush.
+	periodicFlushChecks map[string]struct{}
+
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan metricname.Matcher
 	flushFilterList metricname.Matcher
@@ -385,6 +388,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		globalTags:                  tagger.GlobalTags,
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
+		periodicFlushChecks:         newPeriodicFlushChecks(pkgconfigsetup.Datadog().GetStringSlice("check_sampler_periodic_flush_checks")),
 
 		filterListChan:    make(chan metricname.Matcher),
 		flushFilterList:   filterList.GetMetricFilterList(),
@@ -801,6 +805,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushMutex.Lock()
 	defer agg.flushMutex.Unlock()
+	agg.commitDecomposableCheckMetrics()
 	agg.flushSeriesAndSketches(trigger)
 	// notify the triggerer that we're done flushing the series and sketches
 	if trigger.blockChan != nil {
@@ -810,6 +815,34 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushEvents(trigger.time, trigger.waitForSerializer)
 	agg.flushOrchestratorManifests(trigger.time, trigger.waitForSerializer)
 	agg.updateChecksTelemetry()
+}
+
+// commitDecomposableCheckMetrics commits the decomposable metrics of the checks with periodic
+// flush enabled, so that long check runs don't have to hold all their metrics until they finish.
+func (agg *BufferedAggregator) commitDecomposableCheckMetrics() {
+	if len(agg.periodicFlushChecks) == 0 {
+		return
+	}
+
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	// Taken under agg.mu like check commit timestamps, so that commits are stamped in the
+	// order they run (see CheckSampler.commitDecomposable).
+	now := timeNowNano()
+	for _, checkSampler := range agg.checkSamplers {
+		if checkSampler.periodicFlush {
+			checkSampler.commitDecomposable(now, &agg.flushFilterList)
+		}
+	}
+}
+
+func newPeriodicFlushChecks(names []string) map[string]struct{} {
+	checks := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		checks[name] = struct{}{}
+	}
+	return checks
 }
 
 // Stop stops the aggregator, blocking until the run() goroutine exits.
@@ -1055,5 +1088,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)
 	}
+	_, cs.periodicFlush = agg.periodicFlushChecks[checkid.IDToCheckName(id)]
 	agg.checkSamplers[id] = cs
 }

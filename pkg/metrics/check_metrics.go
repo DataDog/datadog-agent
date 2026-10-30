@@ -116,6 +116,29 @@ func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]
 	return cm.metrics.Flush(timestamp)
 }
 
+// FlushDecomposable flushes the decomposable metrics (see Metric.isDecomposable), and returns
+// their context keys.
+func (cm *CheckMetrics) FlushDecomposable(timestamp float64) ([]*Serie, map[ckey.ContextKey]error, []ckey.ContextKey) {
+	var series []*Serie
+	var keys []ckey.ContextKey
+	errors := make(map[ckey.ContextKey]error)
+
+	for contextKey, metric := range cm.metrics {
+		if !metric.isDecomposable() {
+			continue
+		}
+		// Not sampled since expired, so there is nothing to flush. Don't return the key for
+		// cleanup, it will cause Expire to update extend the deadline, making it stick forver.
+		if _, waiting := cm.deadlines[contextKey]; waiting {
+			continue
+		}
+		series = flushToSeries(contextKey, metric, timestamp, series, errors)
+		keys = append(keys, contextKey)
+	}
+
+	return series, errors, keys
+}
+
 // RemoveExpired removes stateful metrics that have expired before the given timestamp.
 func (cm *CheckMetrics) RemoveExpired(timestamp float64) {
 	removed := 0.0

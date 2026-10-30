@@ -6216,6 +6216,19 @@ properties:
     default: true
     tags:
     - full-agent-only:true
+  check_sampler_periodic_flush_checks:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    tags:
+    - full-agent-only:true
+    comment: |-
+      Names of the checks whose metrics are sent on every Agent flush, to reduce the
+      memory used by checks with long runs or many metrics, which otherwise hold every
+      metric in memory until the run ends. For these checks, gauge, count and monotonic
+      count values are sent without waiting for the check run to end.
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
     type: string
