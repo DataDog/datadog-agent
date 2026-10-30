@@ -95,7 +95,7 @@ func NewNativeCore(cfg Config) (Core, error) {
 	native.reconnect_backoff_cap_nanos = C.uint64_t(cfg.ReconnectBackoffCap)
 	native.drain_timeout_nanos = C.uint64_t(cfg.DrainTimeout)
 	native.stream_lifetime_nanos = C.uint64_t(cfg.StreamLifetime)
-	native.first_batch_id = C.uint32_t(cfg.FirstBatchID)
+	native.pattern_sightings_before_admission = C.uint32_t(cfg.PatternSightingsBeforeAdmission)
 
 	classes := make([]C.uint8_t, len(cfg.Endpoints))
 	for i, e := range cfg.Endpoints {
@@ -420,7 +420,8 @@ func goString(s C.foldspace_str) string {
 func assertABINumbering() {
 	if Compression(C.FOLDSPACE_ENCODING_DEFAULT) != Default ||
 		Compression(C.FOLDSPACE_ENCODING_IDENTITY) != Identity ||
-		Compression(C.FOLDSPACE_ENCODING_ZSTD) != Zstd {
+		Compression(C.FOLDSPACE_ENCODING_ZSTD) != Zstd ||
+		Compression(C.FOLDSPACE_ENCODING_JSPLIT) != JSplit {
 		panic("foldspace: Compression constants in types.go do not match foldspace_go.h")
 	}
 	if Admission(C.FOLDSPACE_ADMISSION_ACCEPTED) != Accepted ||

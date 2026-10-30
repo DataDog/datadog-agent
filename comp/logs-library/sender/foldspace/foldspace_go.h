@@ -46,10 +46,10 @@ enum foldspace_status {
   FOLDSPACE_ERR_MAX_OPEN_BUFFERS_ZERO = 19,
   FOLDSPACE_ERR_MAX_OPEN_BYTES_ZERO = 20,
   FOLDSPACE_ERR_MAX_OPEN_BYTES_BELOW_ONE_BUFFER = 21,
-  FOLDSPACE_ERR_FIRST_BATCH_ID_AT_CEILING = 23,
   FOLDSPACE_ERR_CONFIG_VALUE_OUT_OF_RANGE = 24,
   FOLDSPACE_ERR_STREAM_LIFETIME_ZERO = 25,
-  FOLDSPACE_ERR_DRAIN_TIMEOUT_ZERO = 26
+  FOLDSPACE_ERR_DRAIN_TIMEOUT_ZERO = 26,
+  FOLDSPACE_ERR_MAX_PAYLOAD_BYTES_ABOVE_PROTOCOL = 27
 };
 
 /* Delivery class of one sender, passed as an ordered array at construction.
@@ -71,7 +71,9 @@ enum foldspace_sender_class {
 enum foldspace_encoding {
   FOLDSPACE_ENCODING_DEFAULT = 0,
   FOLDSPACE_ENCODING_IDENTITY = 1,
-  FOLDSPACE_ENCODING_ZSTD = 2
+  FOLDSPACE_ENCODING_ZSTD = 2,
+  /* The JSON split, each part its own zstd frame; zstd_level does not apply. */
+  FOLDSPACE_ENCODING_JSPLIT = 3
 };
 
 /* What the library did with an offered record, or with a flush. */
@@ -163,9 +165,12 @@ typedef struct {
   uint64_t reconnect_backoff_cap_nanos;
   uint64_t drain_timeout_nanos;
   uint64_t stream_lifetime_nanos;
-  uint32_t first_batch_id;
   foldspace_eviction dictionary_eviction;
   foldspace_eviction pattern_eviction;
+  /* Sightings a new pattern shape spends in its stateless form before the
+   * next one admits it to the pattern table. Zero admits every shape on its
+   * first sighting. */
+  uint32_t pattern_sightings_before_admission;
   /* The longest body the pattern extractor tokenizes; a longer one is sent
    * raw. Zero asks for the library's default. */
   uint64_t max_patterned_body_bytes;

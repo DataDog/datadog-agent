@@ -201,3 +201,69 @@ func TestNativeRefusesZeroDurations(t *testing.T) {
 		})
 	}
 }
+
+// sendFirstRecord offers one record to a fresh core built from cfg, opens the
+// stream it dials, acks every batch, and returns the size of each batch in
+// send order once the record is durable.
+func sendFirstRecord(t *testing.T, cfg Config, body string) []int {
+	t.Helper()
+	core, err := NewNativeCore(cfg)
+	require.NoError(t, err)
+	t.Cleanup(core.Close)
+
+	admission, _ := core.PushLog(Record{Body: []byte(body), TimestampMillis: time.Now().UnixMilli()},
+		uint64(time.Now().UnixNano()), 1, AllSenders(1))
+	require.Equal(t, Accepted, admission)
+	flushed, _ := core.Flush()
+	require.Equal(t, Accepted, flushed)
+	opening := core.PollSender(0)
+	require.Len(t, opening, 1)
+	require.Equal(t, OpenStream, opening[0].Kind)
+	core.HandleStreamOpened(0, opening[0].Stream)
+
+	var sizes []int
+	for _, e := range core.PollSender(0) {
+		if e.Kind != SendBatch {
+			continue
+		}
+		sizes = append(sizes, len(e.Batch.Bytes()))
+		e.Batch.Release()
+		core.HandleAck(0, opening[0].Stream, e.BatchID, AckOK)
+	}
+	var durable bool
+	for _, n := range core.PollNotifications() {
+		durable = durable || n.Kind == PayloadDurable
+	}
+	require.True(t, durable, "the record should be durable once every batch is acked")
+	return sizes
+}
+
+// TestNativePatternSightingsBeforeAdmission checks that the gate count crosses
+// the ABI: at zero the first record of a shape defines its pattern, so the
+// rule batch ahead of the payload carries the define and the payload refers to
+// it, and at one the record is sent in its stateless form.
+func TestNativePatternSightingsBeforeAdmission(t *testing.T) {
+	const body = "request 1234 served in 56 ms"
+
+	cfg := nativeTestConfig()
+	cfg.PatternSightingsBeforeAdmission = 0
+	everyShape := sendFirstRecord(t, cfg, body)
+
+	cfg.PatternSightingsBeforeAdmission = 1
+	repeatedOnly := sendFirstRecord(t, cfg, body)
+
+	require.Len(t, everyShape, 2)
+	require.Len(t, repeatedOnly, 2)
+	require.Greater(t, everyShape[0], repeatedOnly[0], "with no gate the rule batch carries the new pattern's define")
+	require.Less(t, everyShape[1], repeatedOnly[1], "with no gate the payload references the pattern rather than carrying the body")
+}
+
+// TestNativeJSplitRoundTrip checks that a core encoding the JSON split seals a
+// batch and makes the record durable once it is acked.
+func TestNativeJSplitRoundTrip(t *testing.T) {
+	cfg := nativeTestConfig()
+	cfg.Compression = JSplit
+	for _, size := range sendFirstRecord(t, cfg, "request 1234 served in 56 ms") {
+		require.Positive(t, size)
+	}
+}
