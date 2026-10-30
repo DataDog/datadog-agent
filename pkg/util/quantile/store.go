@@ -6,6 +6,7 @@
 package quantile
 
 import (
+	"math"
 	"slices"
 	"sort"
 	"unsafe"
@@ -15,7 +16,7 @@ var _ memSized = (*sparseStore)(nil)
 
 type sparseStore struct {
 	bins  binList
-	count int
+	count uint64
 }
 
 // Cols returns an array of k and n.
@@ -30,7 +31,7 @@ func (s *sparseStore) Cols() (k []int32, n []uint32) {
 	// TODO: do this better.
 	for i, b := range s.bins {
 		k[i] = int32(b.k)
-		n[i] = uint32(b.n)
+		n[i] = b.n
 	}
 
 	return
@@ -54,60 +55,97 @@ func (s *sparseStore) MemSize() (used, allocated int) {
 
 // trimLeft ensures that len(a) <= maxBucketCap. We set maxBucketCap rather high
 // by default to avoid trimming as much as possible.
-func trimLeft(a []bin, maxBucketCap int) []bin {
-	// XXX:
-	// 1. Work through overflow cause
-	// 2. CompressMode enum
-
-	// TODO: Research alternate compression methods
-	//
-	// (1) Remove closest buckets
-	// (2) re-gamma (kinda like hdr histogram)
+//
+// As CollapsingLowestDenseStore in sketches-go does, the observations of the
+// lowest bins collapse into the lowest bin kept. That bin can only count
+// maxBinWidth of them: trimLeft returns the observations that did not fit.
+func trimLeft(a []bin, maxBucketCap int) ([]bin, uint64) {
 	if maxBucketCap == 0 || len(a) <= maxBucketCap {
-		return a
+		return a, 0
 	}
 
-	var (
-		nRemove = len(a) - maxBucketCap
+	nRemove := len(a) - maxBucketCap
 
-		missing  int
-		overflow = getOverflowList()
-	)
+	var missing uint64
+	for _, b := range a[:nRemove] {
+		missing += uint64(b.n)
+	}
 
-	// TODO|PROD: Benchmark a better overflow scheme.
-	// In theory, if we always have the smaller overflow in the lower bucket, we
-	// can guarantee that only 1 extra bin is needed for overflow.
-	// For example:
+	lost := a[nRemove].incrSafe(missing)
+	copy(a, a[nRemove:])
 
-	// fmt = (<k>:<n>[ <k>:<num overflow>])
-	//                               NEW        CURRENT
-	// 1) (0:1) + (0:max*2)       = (0:1 0:2)  (0:1 0:max 0:max)
-	// 2) (0:1 0:max) + (0:max-1) = (0:0 0:2)  (0:max 0:max)
-	for i := 0; i < nRemove; i++ {
-		missing += int(a[i].n)
+	return a[:maxBucketCap], lost
+}
 
-		if missing > maxBinWidth {
-			overflow = append(overflow, bin{
-				k: a[i].k,
-				n: maxBinWidth,
-			})
+// A run holds the observations of a key that appendSafe splits into bins.
+type run struct {
+	k Key
+	n uint64
+}
 
-			missing -= maxBinWidth
+// binsFor returns how many bins appendSafe gives n observations.
+func binsFor(n uint64) uint64 {
+	if n <= maxBinWidth {
+		return 1
+	}
+
+	b := n / maxBinWidth
+	if n%maxBinWidth != 0 {
+		b++
+	}
+	return b
+}
+
+// addSat returns a + b, saturating at the largest uint64.
+func addSat(a, b uint64) uint64 {
+	if c := a + b; c >= a {
+		return c
+	}
+	return math.MaxUint64
+}
+
+// appendTrimmed appends to dst the bins appendSafe gives runs, sorted by key, as
+// trimLeft trims them to limit. It only lays out the bins trimLeft keeps, so what
+// it allocates does not grow with the counts of runs.
+func appendTrimmed(dst []bin, runs []run, limit int) []bin {
+	// Walk down from the highest run until there are no more bins to keep.
+	first, keep := 0, uint64(limit)
+	if limit > 0 {
+		for first = len(runs); first > 0; first-- {
+			b := binsFor(runs[first-1].n)
+			if b > keep {
+				break
+			}
+			keep -= b
 		}
 	}
 
-	missing = a[nRemove].incrSafe(missing)
-	if missing > 0 {
-		overflow = appendSafe(overflow, a[nRemove].k, missing)
+	if first == 0 {
+		for _, r := range runs {
+			dst = appendSafe(dst, r.k, r.n)
+		}
+		return dst
 	}
 
-	overflowLen := len(overflow)
+	// runs[first-1] keeps its highest keep bins, which are full ones. The rest of
+	// it, and the runs below, collapse into the lowest bin kept.
+	var missing uint64
+	for _, r := range runs[:first-1] {
+		missing = addSat(missing, r.n)
+	}
+	r := runs[first-1]
+	missing = addSat(missing, r.n-keep*maxBinWidth)
 
-	copy(a, overflow)
-	copy(a[overflowLen:], a[nRemove:])
-	putOverflowList(overflow)
+	lowest := len(dst)
+	for i := uint64(0); i < keep; i++ {
+		dst = append(dst, bin{k: r.k, n: maxBinWidth})
+	}
+	for _, r := range runs[first:] {
+		dst = appendSafe(dst, r.k, r.n)
+	}
+	dst[lowest].incrSafe(missing)
 
-	return a[:maxBucketCap+overflowLen]
+	return dst
 }
 
 func (s *sparseStore) merge(c *Config, o *sparseStore) {
@@ -130,13 +168,14 @@ func (s *sparseStore) merge(c *Config, o *sparseStore) {
 		case sIdx >= s.bins.Len(), s.bins[sIdx].k > ob.k:
 			tmp = append(tmp, ob)
 		case s.bins[sIdx].k == ob.k:
-			n := int(ob.n) + int(s.bins[sIdx].n)
+			n := uint64(ob.n) + uint64(s.bins[sIdx].n)
 			tmp = appendSafe(tmp, ob.k, n)
 			sIdx++
 		}
 	}
 	tmp = append(tmp, s.bins[sIdx:]...)
-	tmp = trimLeft(tmp, c.binLimit)
+	tmp, lost := trimLeft(tmp, c.binLimit)
+	s.count -= lost
 	s.bins = s.bins.ensureLen(len(tmp))
 	copy(s.bins, tmp)
 	putBinList(tmp)
@@ -150,6 +189,13 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 		return kcs[i].k < kcs[j].k
 	})
 
+	// appendSafe gives a count past maxBinWidth as many bins as it takes, which
+	// trimLeft would mostly drop: lay out only the bins trimLeft keeps.
+	if slices.ContainsFunc(kcs, func(kc KeyCount) bool { return uint64(kc.n) > maxBinWidth }) {
+		s.insertLargeCounts(c, kcs)
+		return
+	}
+
 	// TODO|PERF: Add a non-allocating fast path. When every key is already contained
 	// in the sketch (and no overflow happens) we can just directly update.
 	tmp := getBinList()
@@ -161,7 +207,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 	for sIdx < len(s.bins) && keyIdx < len(kcs) {
 		b := s.bins[sIdx]
 		vk := kcs[keyIdx].k
-		kn := int(kcs[keyIdx].n)
+		kn := uint64(kcs[keyIdx].n)
 
 		switch {
 		case b.k < vk:
@@ -173,7 +219,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 			s.count += kn
 			keyIdx++
 		default:
-			tmp = appendSafe(tmp, b.k, int(b.n)+kn)
+			tmp = appendSafe(tmp, b.k, uint64(b.n)+kn)
 			s.count += kn
 			sIdx++
 			keyIdx++
@@ -183,13 +229,14 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 	tmp = append(tmp, s.bins[sIdx:]...)
 
 	for keyIdx < len(kcs) {
-		kn := int(kcs[keyIdx].n)
+		kn := uint64(kcs[keyIdx].n)
 		tmp = appendSafe(tmp, kcs[keyIdx].k, kn)
 		s.count += kn
 		keyIdx++
 	}
 
-	tmp = trimLeft(tmp, c.binLimit)
+	tmp, lost := trimLeft(tmp, c.binLimit)
+	s.count -= lost
 
 	// TODO|PERF: reallocate if cap(s.bins) >> len(s.bins)
 	s.bins = s.bins.ensureLen(len(tmp))
@@ -197,8 +244,54 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 	putBinList(tmp)
 }
 
+// insertLargeCounts is insertCounts for counts that can take any number of bins:
+// it merges them with the bins as runs, and only lays out the bins trimLeft keeps.
+func (s *sparseStore) insertLargeCounts(c *Config, kcs []KeyCount) {
+	runs := getRunList()
+
+	var (
+		sIdx, keyIdx int
+	)
+
+	for sIdx < len(s.bins) && keyIdx < len(kcs) {
+		b := s.bins[sIdx]
+		vk := kcs[keyIdx].k
+		kn := uint64(kcs[keyIdx].n)
+
+		switch {
+		case b.k < vk:
+			runs = append(runs, run{k: b.k, n: uint64(b.n)})
+			sIdx++
+		case b.k > vk:
+			runs = append(runs, run{k: vk, n: kn})
+			keyIdx++
+		default:
+			runs = append(runs, run{k: b.k, n: addSat(uint64(b.n), kn)})
+			sIdx++
+			keyIdx++
+		}
+	}
+
+	for _, b := range s.bins[sIdx:] {
+		runs = append(runs, run{k: b.k, n: uint64(b.n)})
+	}
+
+	for _, kc := range kcs[keyIdx:] {
+		runs = append(runs, run{k: kc.k, n: uint64(kc.n)})
+	}
+
+	tmp := appendTrimmed(getBinList(), runs, c.binLimit)
+	putRunList(runs)
+
+	s.bins = s.bins.ensureLen(len(tmp))
+	copy(s.bins, tmp)
+	// Counts that large can add up past what the bins count.
+	s.count = s.bins.nSum()
+	putBinList(tmp)
+}
+
 func (s *sparseStore) insert(c *Config, keys []Key) {
-	s.count += len(keys)
+	s.count += uint64(len(keys))
 
 	// TODO|PERF: A custom uint16 sort should easily beat slices.Sort.
 	// TODO|PERF: Would it be cheaper to sort float64s and then convert to keys?
@@ -223,11 +316,11 @@ func (s *sparseStore) insert(c *Config, keys []Key) {
 		case b.k > vk:
 			// When vk[i] == vk[i+1] we need to make sure they go in the same bucket.
 			kn := bufCountLeadingEqual(keys, keyIdx)
-			tmp = appendSafe(tmp, vk, kn)
+			tmp = appendSafe(tmp, vk, uint64(kn))
 			keyIdx += kn
 		default:
 			kn := bufCountLeadingEqual(keys, keyIdx)
-			tmp = appendSafe(tmp, b.k, int(b.n)+kn)
+			tmp = appendSafe(tmp, b.k, uint64(b.n)+uint64(kn))
 			sIdx++
 			keyIdx += kn
 		}
@@ -237,11 +330,12 @@ func (s *sparseStore) insert(c *Config, keys []Key) {
 
 	for keyIdx < len(keys) {
 		kn := bufCountLeadingEqual(keys, keyIdx)
-		tmp = appendSafe(tmp, keys[keyIdx], kn)
+		tmp = appendSafe(tmp, keys[keyIdx], uint64(kn))
 		keyIdx += kn
 	}
 
-	tmp = trimLeft(tmp, c.binLimit)
+	tmp, lost := trimLeft(tmp, c.binLimit)
+	s.count -= lost
 
 	// TODO|PERF: reallocate if cap(s.bins) >> len(s.bins)
 	s.bins = s.bins.ensureLen(len(tmp))

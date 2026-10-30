@@ -416,7 +416,7 @@ func snapshotBins(s *Sketch) []bin {
 	k, n := s.Cols()
 	result := make([]bin, len(k))
 	for i := range k {
-		result[i] = bin{k: Key(k[i]), n: uint16(n[i])}
+		result[i] = bin{k: Key(k[i]), n: n[i]}
 	}
 	return result
 }
