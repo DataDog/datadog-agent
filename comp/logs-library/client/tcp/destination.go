@@ -73,6 +73,10 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 			d.sendAndRetry(payload, output, isRetrying)
 		}
 		d.updateRetryState(nil, isRetrying)
+		if d.conn != nil {
+			d.connManager.CloseConnection(d.conn)
+			d.conn = nil
+		}
 		stop <- struct{}{}
 	}()
 	return stop
@@ -102,7 +106,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			return
 		}
 
-		_, err = d.conn.Write(frame)
+		err = d.conn.SetWriteDeadline(time.Now().Add(connectionTimeout))
+		if err == nil {
+			_, err = d.conn.Write(frame)
+			if err == nil {
+				_ = d.conn.SetWriteDeadline(time.Time{})
+			}
+		}
 		if err != nil {
 			d.connManager.CloseConnection(d.conn)
 			d.conn = nil
@@ -178,7 +188,10 @@ func CheckConnectivityDiagnose(endpoint config.Endpoint, timeoutSeconds int) (ur
 	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
 	defer cancel()
 
-	_, err = connManager.NewConnection(ctx)
+	conn, err := connManager.NewConnection(ctx)
+	if conn != nil {
+		connManager.CloseConnection(conn)
+	}
 
 	return fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port), err
 }
