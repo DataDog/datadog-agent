@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestFactoryOrderMainThenAdditional(t *testing.T) {
@@ -35,6 +36,39 @@ func TestFactoryOrderMainThenAdditional(t *testing.T) {
 	assert.Equal(t, "extra.example:443", dest.Senders[1].Address)
 	assert.Equal(t, Reliable, dest.Senders[0].Class)
 	assert.Equal(t, Reliable, dest.Senders[1].Class)
+}
+
+func TestCredentialStateFollowsDelegatedAuth(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 32)
+	cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+
+	const directive = "DELA[some-org-uuid, aws]"
+	main := config.NewEndpoint("0123456789abcdef", "api_key", "main.example", 443, config.EmptyPathPrefix, true)
+	pending := config.NewEndpoint(directive, model.DelaLogsEndpointsKey, "awaiting.example", 443, config.EmptyPathPrefix, true)
+	stranded := config.NewEndpoint(directive, "logs_config.api_key", "stranded.example", 443, config.EmptyPathPrefix, true)
+	endpoints := config.NewMockEndpoints([]config.Endpoint{main, pending, stranded})
+	endpoints.Main = main
+
+	dest, err := BuildDestinationConfig(cfg, endpoints)
+	require.NoError(t, err)
+	transport := NewGRPCTransport(dest)
+
+	for sender, want := range []struct{ ready, awaiting bool }{
+		{ready: true},
+		{awaiting: true},
+		{},
+	} {
+		ready, awaiting := transport.CredentialState(SenderID(sender))
+		assert.Equal(t, want.ready, ready, "sender %d ready", sender)
+		assert.Equal(t, want.awaiting, awaiting, "sender %d awaiting", sender)
+	}
+	assert.Empty(t, dest.Senders[1].APIKey(), "a pending directive is never sent as a key")
+
+	var _ CredentialGate = transport
+	ready, awaiting := (&GRPCTransport{specs: []SenderSpec{{}}}).CredentialState(0)
+	assert.True(t, ready, "a sender with no credential state is always ready")
+	assert.False(t, awaiting)
 }
 
 func TestUnreliableExtra(t *testing.T) {
