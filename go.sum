@@ -120,6 +120,8 @@ github.com/DataDog/gopacket v0.0.0-20261021172430-e6ca44b48f3b h1:xaT+r8mj7PAW4R
 github.com/DataDog/gopacket v0.0.0-20261021172430-e6ca44b48f3b/go.mod h1:pLZxrHTaT9Wk9CvZpg2vyEzSP/QEmU89D3Mv23EQeb4=
 github.com/DataDog/jsonapi v0.13.0 h1:ebIqG50aEGjjl/Hg8TVUsm6Fiw9T6IT1WZRC8aL8OQE=
 github.com/DataDog/jsonapi v0.13.0/go.mod h1:FUSGF3bwMARlVfXEoFo9R/CVlYYy9BGL4C/Prf6Ke3M=
+github.com/DataDog/jsonapi v0.14.0 h1:OvXfzOwn1QQsBMw6KEe8vLlt7dRItc7rzS/iCMnLhFg=
+github.com/DataDog/jsonapi v0.14.0/go.mod h1:FUSGF3bwMARlVfXEoFo9R/CVlYYy9BGL4C/Prf6Ke3M=
 github.com/DataDog/kube-state-metrics/v2 v2.20.1-dd.1 h1:gqmOQ+H0gTcl7p1y3eGEWgK9gwydDjM/8p2q2a27XkE=
 github.com/DataDog/kube-state-metrics/v2 v2.20.1-dd.1/go.mod h1:1xxFEecNuwhg7QrtI+jPmwVXOTG3pMB8Wtn5cw/aqe4=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
