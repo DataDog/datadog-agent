@@ -1048,6 +1048,7 @@
 /tasks/libs/releasing/                                          @DataDog/agent-delivery
 /tasks/schema/                                                  @DataDog/fleet-automation
 /tasks/unit_tests/bazel_tests.py                                @DataDog/agent-build
+/tasks/unit_tests/bazel_remote_cache_tests.py                   @DataDog/agent-build
 /tasks/unit_tests/components_tests.py                           @DataDog/agent-runtimes
 /tasks/unit_tests/build_tags_tests.py                           @DataDog/agent-build
 /tasks/unit_tests/libs/build/                                   @DataDog/agent-build

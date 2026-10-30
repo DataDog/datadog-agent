@@ -222,6 +222,7 @@ go_library(
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/log",
         "//pkg/util/option",
+        "//pkg/util/sigdanger",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_dd_trace_go_v2//profiler",

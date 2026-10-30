@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    The ``statsd_metric_blocklist`` and ``statsd_metric_blocklist_match_prefix`` settings are
+    now formally deprecated in favor of ``metric_filterlist`` and
+    ``metric_filterlist_match_prefix``. Configurations using only the deprecated names continue
+    to work. If both old and new names are configured, ``metric_filterlist`` takes precedence;
+    keep only ``metric_filterlist`` to avoid ambiguity.
