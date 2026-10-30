@@ -65,6 +65,7 @@ dd_agent_go_test(
         "containerd_test.go",
         "event_builder_test.go",
         "image_test.go",
+        "network_linux_test.go",
     ],
     embed = [":containerd"],
     gotags_sets = [[
