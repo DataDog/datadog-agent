@@ -7,18 +7,24 @@ go_library(
         "config.go",
         "exec.go",
         "ioscmd.go",
+        "session.go",
         "show.go",
         "validate.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/ioscmd",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/networkconfigmanagement/types"],
 )
 
 dd_agent_go_test(
     name = "ioscmd_test",
-    srcs = ["ioscmd_test.go"],
+    srcs = [
+        "ioscmd_test.go",
+        "session_test.go",
+    ],
     embed = [":ioscmd"],
     deps = [
+        "//pkg/networkconfigmanagement/types",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

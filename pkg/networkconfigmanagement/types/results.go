@@ -59,3 +59,10 @@ type RollbackResponse struct {
 	ErrorCode      string      `json:"error_code,omitempty"`
 	ErrorMsg       string      `json:"error_msg,omitempty"`
 }
+
+// RunIOSCommandsResponse is the JSON body returned by the /agent/ncm/run-ios-commands endpoint.
+type RunIOSCommandsResponse struct {
+	CommandResults []*CommandResult `json:"command_results"`
+	ErrorCode      string           `json:"error_code,omitempty"`
+	ErrorMsg       string           `json:"error_msg,omitempty"`
+}
