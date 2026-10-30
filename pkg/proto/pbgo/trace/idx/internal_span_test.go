@@ -1063,6 +1063,11 @@ func TestSetPromotedAttributeOnConvertedSpanLeavesNoStaleCopy(t *testing.T) {
 				assert.NotContains(t, v, "old-", "attribute %q kept a stale value", k)
 			}
 			assert.Equal(t, "kept-other", attrs["other"])
+			// The attributes are kept, in sync with the fields.
+			assert.Equal(t, "new-env", attrs["env"])
+			assert.Equal(t, "new-version", attrs["version"])
+			assert.Equal(t, "new-component", attrs["component"])
+			assert.Equal(t, "server", attrs["span.kind"])
 			for _, k := range []string{"env", "version", "component", "span.kind"} {
 				got, ok := span.GetAttributeAsString(k)
 				assert.True(t, ok)
@@ -1083,5 +1088,15 @@ func TestSetPromotedAttributeOnConvertedSpanLeavesNoStaleCopy(t *testing.T) {
 		fresh.SetAttributeFromString("span.kind", "new-kind")
 		assert.Empty(t, rawStringAttributes(fresh))
 		assert.Equal(t, SpanKind_SPAN_KIND_UNSPECIFIED, fresh.Kind())
+	})
+
+	t.Run("no attribute is added", func(t *testing.T) {
+		// Spans that never held these keys as attributes (e.g. native v1) only get the field.
+		span := NewInternalSpan(NewStringTable(), &Span{})
+		span.SetAttributeFromString("env", "new-env")
+		span.SetAttributeFromString("span.kind", "server")
+		assert.Empty(t, rawStringAttributes(span))
+		assert.Equal(t, "new-env", span.Env())
+		assert.Equal(t, SpanKind_SPAN_KIND_SERVER, span.Kind())
 	})
 }

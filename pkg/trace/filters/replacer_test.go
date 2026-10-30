@@ -360,13 +360,7 @@ func TestReplaceV1ConvertedV04PromotedTags(t *testing.T) {
 					Meta: map[string]string{"span.kind": "kind-" + secret},
 				})
 			}
-			bts, err := pb.Traces{trace}.MarshalMsg(nil)
-			require.NoError(t, err)
-			tp := &idx.InternalTracerPayload{}
-			_, err = tp.UnmarshalMsgConverted(bts)
-			require.NoError(t, err)
-			require.Len(t, tp.Chunks, 1)
-			require.Len(t, tp.Chunks[0].Spans, len(trace))
+			tp := decodeConvertedV04(t, trace)
 
 			NewReplacer(parseRulesFromString(tc.rules)).ReplaceV1(tp.Chunks[0])
 
@@ -399,4 +393,65 @@ func TestReplaceV1ConvertedV04PromotedTags(t *testing.T) {
 			assert.False(t, bytes.Contains(encoded, []byte(secret)), "encoded payload contains %q", secret)
 		})
 	}
+}
+
+// decodeConvertedV04 encodes trace as a v0.4 msgpack payload and decodes it through the
+// converted (v0.4 -> idx) path used by the trace-agent.
+func decodeConvertedV04(t *testing.T, trace pb.Trace) *idx.InternalTracerPayload {
+	t.Helper()
+	bts, err := pb.Traces{trace}.MarshalMsg(nil)
+	require.NoError(t, err)
+	tp := &idx.InternalTracerPayload{}
+	_, err = tp.UnmarshalMsgConverted(bts)
+	require.NoError(t, err)
+	require.Len(t, tp.Chunks, 1)
+	require.Len(t, tp.Chunks[0].Spans, len(trace))
+	return tp
+}
+
+// TestReplaceV1ConvertedV04PromotedTagsRuleSequence checks that, on spans decoded from a v0.4
+// msgpack payload, a named rule on a promoted key neither hides that key from later rules nor
+// alters it when its pattern does not match.
+func TestReplaceV1ConvertedV04PromotedTagsRuleSequence(t *testing.T) {
+	t.Run("named then wildcard", func(t *testing.T) {
+		tp := decodeConvertedV04(t, pb.Trace{{
+			Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 1,
+			Meta: map[string]string{"component": "prefix-SECRET"},
+		}})
+		NewReplacer(parseRulesFromString([][3]string{
+			{"component", "prefix-", ""},
+			{"*", "SECRET", "?"},
+		})).ReplaceV1(tp.Chunks[0])
+
+		span := tp.Chunks[0].Spans[0]
+		assert.Equal(t, "?", span.Component())
+		for k, v := range span.Attributes() {
+			assert.NotContains(t, v.AsString(tp.Strings), "SECRET", "attribute %q", tp.Strings.Get(k))
+		}
+	})
+
+	t.Run("non-matching named rules", func(t *testing.T) {
+		tp := decodeConvertedV04(t, pb.Trace{{
+			Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 1,
+			Meta: map[string]string{"env": "prod", "span.kind": "custom-kind"},
+		}})
+		span := tp.Chunks[0].Spans[0]
+		before := make(map[uint32]string)
+		for k, v := range span.Attributes() {
+			before[k] = v.AsString(tp.Strings)
+		}
+
+		NewReplacer(parseRulesFromString([][3]string{
+			{"env", "^staging$", "dev"},
+			{"span.kind", "^client$", "server"},
+		})).ReplaceV1(tp.Chunks[0])
+
+		after := make(map[uint32]string)
+		for k, v := range span.Attributes() {
+			after[k] = v.AsString(tp.Strings)
+		}
+		assert.Equal(t, before, after)
+		assert.Equal(t, "prod", span.Env())
+		assert.Equal(t, idx.SpanKind_SPAN_KIND_INTERNAL, span.Kind())
+	})
 }
