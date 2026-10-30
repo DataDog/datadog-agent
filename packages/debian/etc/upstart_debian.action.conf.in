@@ -13,14 +13,23 @@ normal exit 0
 console log
 env DD_LOG_TO_CONSOLE=false
 
-# Runs as root: initctl's private socket is root-only.
+# Runs as root so --chuid can switch to dd-agent.
 script
-  # datadog-agent-procmgr starts on the same event, so wait (bounded) for it. Without it,
-  # split mode cannot run par-control, so fall back to the monolithic runner.
+  # start/running is only the procmgr shell. Wait until dd-procmgrd is listening.
+  # Without that socket, fall back to the monolithic runner.
   procmgr_running=false
   attempt=0
   while [ "$attempt" -lt 10 ]; do
-    if initctl status datadog-agent-procmgr 2>/dev/null | grep -q 'start/running'; then
+    # 00010000: listening. 0001: stream socket. 01: listener state.
+    if awk '
+      $4 == "00010000" &&
+      $5 == "0001" &&
+      $6 == "01" &&
+      $NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
+        ready = 1
+      }
+      END { exit !ready }
+    ' /proc/net/unix; then
       procmgr_running=true
       break
     fi

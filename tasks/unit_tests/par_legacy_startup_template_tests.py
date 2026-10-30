@@ -394,20 +394,46 @@ log_failure_msg() { echo "$*"; }''',
                         service('stop')
 
     def test_upstart_script_forces_monolithic_only_without_procmgr(self):
+        socket = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
+        # Flags 00010000, type 0001, state 01: a listening stream socket in /proc/net/unix.
+        listening = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {socket}\n'
+        cases = (
+            ('absent', None, False, 'false', 'monolithic mode'),
+            ('listening', listening, True, 'true', 'split mode from config'),
+            (
+                'connected',
+                f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {socket}\n',
+                False,
+                'false',
+                'monolithic mode',
+            ),
+            (
+                'other-path',
+                '0000000000000000: 00000002 00000000 00010000 0001 01 12345 /tmp/other.sock\n',
+                False,
+                'false',
+                'monolithic mode',
+            ),
+            (
+                'not-listening',
+                f'0000000000000000: 00000002 00000000 00000000 0001 01 12345 {socket}\n',
+                False,
+                'false',
+                'monolithic mode',
+            ),
+        )
         for template in UPSTART_TEMPLATES:
-            for state, split, mode in (
-                ('stop/waiting', 'false', 'monolithic mode'),
-                ('start/running', 'true', 'split mode from config'),
-            ):
-                with self.subTest(template=template.name, state=state), tempfile.TemporaryDirectory() as tmp:
+            for name, row, ready, split, mode in cases:
+                with self.subTest(template=template.name, socket=name), tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp)
                     binary = root / 'embedded/bin/privateactionrunner'
                     binary.parent.mkdir(parents=True)
                     self.executable(binary, 'echo "split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED-}"\n')
                     # Upstart's script/end script delimiters are syntax, not layout comments.
                     text = template.read_text()
-                    self.assertIn('initctl status datadog-agent-procmgr', text)
-                    self.assertNotIn('initctl --system', text)
+                    self.assertIn(socket, text)
+                    self.assertIn('$4 == "00010000"', text)
+                    self.assertNotIn('initctl', text)
                     if template.name.startswith('upstart_debian'):
                         self.assertNotIn('\nsetuid ', f'\n{text}')
                         command = text.split('exec start-stop-daemon', 1)[1].split('end script', 1)[0]
@@ -417,6 +443,12 @@ log_failure_msg() { echo "$*"; }''',
                     self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
                     script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
                     logfile = root / 'errors.log'
+                    unix_table = root / 'unix'
+                    if row is not None:
+                        unix_table.write_text(
+                            'Num       RefCount Protocol Flags    Type St Inode Path\n' + row
+                        )
+                    script = script.replace('/proc/net/unix', str(unix_table))
                     script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
                     self.executable(
                         root / 'su',
@@ -424,13 +456,6 @@ log_failure_msg() { echo "$*"; }''',
 command=$4
 shift 6
 exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
-''',
-                    )
-                    # Fake initctl reports the procmgr job state; fake sleep keeps the bounded wait instant.
-                    self.executable(
-                        root / 'initctl',
-                        '''[ "$1" = status ] && [ "$2" = datadog-agent-procmgr ] || exit 1
-echo "datadog-agent-procmgr $PROCMGR_STATE"
 ''',
                     )
                     self.executable(
@@ -460,7 +485,6 @@ exit 98
                             **os.environ,
                             'PATH': f'{tmp}:/usr/bin:/bin',
                             'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
-                            'PROCMGR_STATE': state,
                         },
                         text=True,
                         capture_output=True,
@@ -470,7 +494,7 @@ exit 98
                     output = result.stdout + (logfile.read_text() if logfile.exists() else '')
                     self.assertIn(mode, output)
                     # Red Hat su clears the environment, so an inherited true does not reach the runner.
-                    if template.name.startswith('upstart_redhat') and state == 'start/running':
+                    if template.name.startswith('upstart_redhat') and ready:
                         self.assertNotIn('split=false', output)
                     else:
                         self.assertIn(f'split={split}', output)
