@@ -64,4 +64,6 @@ Open `http://localhost:5173` in your browser.
 - **Middle-drag** to pan when zoomed
 - **Shift+click** correlations to multi-select
 - **Resize** sidebar by dragging right edge
+- **Anomaly count** below each metric expands or collapses its anomaly list.
+  Lists start collapsed; clicking a chart marker opens the matching details.
 - Tree buttons: Expand / Collapse / Focus (hide unselected)
