@@ -80,6 +80,8 @@ const (
 	replicaSetKey = "replicaset"
 	// podKey represents the KSM label key pod
 	podKey = "pod"
+	// uidKey represents the KSM label key uid
+	uidKey = "uid"
 )
 
 var extendedCollectors = map[string]string{
@@ -356,9 +358,19 @@ type KSMCheck struct {
 	rolloutTracker             *customresources.RolloutTracker
 	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
 	namespaceTagsErrorLogLimit *log.Limit
+	// Autoscaler tags for the current run, by pod uid and by pod owner, in
+	// node_kubelet mode
+	podAutoscalerTags      map[string][]string
+	podOwnerAutoscalerTags map[podOwner][]string
 	// Autoscaler tags cached for the current run, by workload, in the DCA and
 	// CLC runners
 	workloadAutoscalerTags map[autoscaledWorkload][]string
+}
+
+type podOwner struct {
+	kind      string
+	namespace string
+	name      string
 }
 
 type autoscaledWorkload struct {
@@ -1030,7 +1042,10 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 	// (via aggregator flush). Skip per-pod transformer/mapper dispatch to avoid
 	// double-emission of per-pod metrics already produced by node-agents.
 	aggregatesOnly := k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection
-	k.workloadAutoscalerTags = nil
+	k.podAutoscalerTags, k.podOwnerAutoscalerTags, k.workloadAutoscalerTags = nil, nil, nil
+	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection && k.workloadmetaStore != nil {
+		k.podAutoscalerTags, k.podOwnerAutoscalerTags = autoscalerTagsFromPods(k.workloadmetaStore.ListKubernetesPods())
+	}
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			if suppressClusterAggregates && isClusterAggregateSourceMetric(metricFamily.Name) {
@@ -1185,7 +1200,16 @@ func (k *KSMCheck) hostnameAndTags(metricName string, labels map[string]string, 
 		tagList = append(tagList, namespaceTags...)
 	}
 
-	if resourceNamespace != "" {
+	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection {
+		// Node agents don't have autoscaled workload entities, but they have
+		// the autoscaler kinds of their pods in workloadmeta
+		if uid := labels[uidKey]; uid != "" {
+			tagList = append(tagList, k.podAutoscalerTags[uid]...)
+		} else {
+			// Aggregated series have no uid. They get the tags of their owner.
+			tagList = append(tagList, k.podOwnerAutoscalerTags[podOwner{kind: ownerKind, namespace: resourceNamespace, name: ownerName}]...)
+		}
+	} else if resourceNamespace != "" {
 		for _, workload := range autoscaledWorkloads(metricName, labels, resourceNamespace, ownerKind, ownerName, isArgoRollout) {
 			tagList = append(tagList, k.autoscaledWorkloadTags(workload)...)
 		}
@@ -1211,6 +1235,41 @@ func (k *KSMCheck) autoscaledWorkloadTags(workload autoscaledWorkload) []string 
 	}
 	k.workloadAutoscalerTags[workload] = autoscalerTags
 	return autoscalerTags
+}
+
+func autoscalerKindTags(kinds []workloadmeta.AutoscalerKind) []string {
+	autoscalerTags := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		autoscalerTags = append(autoscalerTags, tags.KubeAutoscalerKind+":"+string(kind))
+	}
+	return autoscalerTags
+}
+
+// autoscalerTagsFromPods returns the kube_autoscaler_kind tags of the given
+// pods by uid, and of their owners. Owners are keyed like in the aggregated
+// series: as is for pod.count, and with ReplicaSets turned into Deployments for
+// the .total series (see containerResourceOwnerGenerator in
+// customresources/pod.go).
+func autoscalerTagsFromPods(pods []*workloadmeta.KubernetesPod) (autoscalerTagsByUID map[string][]string, autoscalerTagsByOwner map[podOwner][]string) {
+	autoscalerTagsByUID = make(map[string][]string)
+	autoscalerTagsByOwner = make(map[podOwner][]string)
+	for _, pod := range pods {
+		if len(pod.AutoscalerKinds) == 0 {
+			continue
+		}
+
+		podTags := autoscalerKindTags(pod.AutoscalerKinds)
+		autoscalerTagsByUID[pod.ID] = podTags
+		for _, owner := range pod.Owners {
+			autoscalerTagsByOwner[podOwner{kind: owner.Kind, namespace: pod.Namespace, name: owner.Name}] = podTags
+			if owner.Kind == kubernetes.ReplicaSetKind {
+				if deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name); deployment != "" {
+					autoscalerTagsByOwner[podOwner{kind: kubernetes.DeploymentKind, namespace: pod.Namespace, name: deployment}] = podTags
+				}
+			}
+		}
+	}
+	return autoscalerTagsByUID, autoscalerTagsByOwner
 }
 
 // autoscaledWorkloads returns the workloads whose kube_autoscaler_kind tags a
