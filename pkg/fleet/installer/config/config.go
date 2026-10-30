@@ -49,6 +49,15 @@ const (
 var (
 	// secRegex matches SEC[...] placeholders in config patches
 	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
+	// resRegex matches RES[...] placeholders in config patches
+	resRegex = regexp.MustCompile(`RES\[([^\]"]*)\]`)
+	// resQuotedRegex matches RES[...] placeholders that make up an entire JSON value
+	resQuotedRegex = regexp.MustCompile(`"RES\[([^\]"]*)\]"`)
+)
+
+const (
+	// defaultRestoreFile is the config file RES[...] placeholders read from when no file is given.
+	defaultRestoreFile = "/datadog.yaml"
 )
 
 // Directories is the directories of the config.
@@ -117,6 +126,11 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 		return err
 	}
 	defer root.Close()
+	// Restores must be resolved before any operation runs so they read the original files.
+	err = replaceRestores(o, root)
+	if err != nil {
+		return fmt.Errorf("could not replace restores: %w", err)
+	}
 	for _, operation := range o.FileOperations {
 		err := operation.apply(ctx, root)
 		if err != nil {
@@ -124,6 +138,115 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 		}
 	}
 	return nil
+}
+
+// replaceRestores replaces RES[...] placeholders with values read from the config files
+// under root as they are before any operation is applied.
+//
+// A placeholder is either RES[a.b.c], which reads the dotted key from /datadog.yaml, or
+// RES[/conf.d/x.d/conf.yaml:a.b.c], which reads it from the given config file. A
+// placeholder must make up an entire JSON string ("RES[...]") and is replaced by the
+// original value as JSON, keeping its type; a missing file or key yields null, which removes
+// the key in a merge patch.
+func replaceRestores(operations *Operations, root *os.Root) error {
+	files := make(map[string]map[string]any)
+	lookup := func(ref string) (any, error) {
+		file, key := defaultRestoreFile, ref
+		if strings.HasPrefix(ref, "/") {
+			var ok bool
+			file, key, ok = strings.Cut(ref, ":")
+			if !ok {
+				return nil, fmt.Errorf("invalid restore %q: expected RES[/path/to/file.yaml:key]", ref)
+			}
+		}
+		if key == "" {
+			return nil, fmt.Errorf("invalid restore %q: empty key", ref)
+		}
+		if strings.HasPrefix(file, "/managed") || getConfigFileSpec(file) == nil {
+			return nil, fmt.Errorf("invalid restore %q: reading config file %s is not allowed", ref, file)
+		}
+		content, ok := files[file]
+		if !ok {
+			var err error
+			content, err = readConfigFile(root, file)
+			if err != nil {
+				return nil, err
+			}
+			files[file] = content
+		}
+		var value any = content
+		for _, part := range strings.Split(key, ".") {
+			m, ok := value.(map[string]any)
+			if !ok {
+				return nil, nil
+			}
+			value, ok = m[part]
+			if !ok {
+				return nil, nil
+			}
+		}
+		return value, nil
+	}
+	replace := func(raw []byte) ([]byte, error) {
+		if !resRegex.Match(raw) {
+			return raw, nil
+		}
+		if resRegex.Match(resQuotedRegex.ReplaceAll(raw, nil)) {
+			return nil, errors.New("restores must replace an entire value, RES[...] found inside a value")
+		}
+		var replaceErr error
+		raw = resQuotedRegex.ReplaceAllFunc(raw, func(match []byte) []byte {
+			value, err := lookup(string(resQuotedRegex.FindSubmatch(match)[1]))
+			if err != nil {
+				replaceErr = err
+				return match
+			}
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				replaceErr = err
+				return match
+			}
+			return encoded
+		})
+		if replaceErr != nil {
+			return nil, replaceErr
+		}
+		return raw, nil
+	}
+	for i := range operations.FileOperations {
+		operation := &operations.FileOperations[i]
+		if resRegex.MatchString(operation.Transform) {
+			return errors.New("restores are not supported in jq transforms, use arguments instead")
+		}
+		var err error
+		operation.Patch, err = replace(operation.Patch)
+		if err != nil {
+			return err
+		}
+		operation.Arguments, err = replace(operation.Arguments)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// readConfigFile reads and parses the config file at the given path under root.
+// A missing file is treated as empty.
+func readConfigFile(root *os.Root, file string) (map[string]any, error) {
+	contentBytes, err := root.ReadFile(strings.TrimPrefix(file, "/"))
+	if os.IsNotExist(err) {
+		return map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not read config file %q: %w", file, err)
+	}
+	content := make(map[string]any)
+	err = yaml.Unmarshal(contentBytes, &content)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse config file %q as YAML (fix the syntax error reported below and retry): %w", file, err)
+	}
+	return convertYAML2UnmarshalToJSONMarshallable(content).(map[string]any), nil
 }
 
 // FileOperation is the operation to perform on a config.
