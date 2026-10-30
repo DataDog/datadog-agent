@@ -75,6 +75,16 @@ func buildClient(ctx context.Context, target string, opts Options, cred Credenti
 	return c, nil
 }
 
+// mapPacketError classifies a response whose PDU carries a nonzero error status.
+func mapPacketError(status gosnmp.SNMPError) string {
+	switch status {
+	case gosnmp.AuthorizationError:
+		return failure.AuthenticationFailed
+	default:
+		return failure.Unknown
+	}
+}
+
 func mapError(err error) string {
 	switch {
 	case errors.Is(err, gosnmp.ErrWrongDigest):

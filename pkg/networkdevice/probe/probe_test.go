@@ -100,10 +100,23 @@ func TestScanReturnsTheCollectedResultsWithItsContextError(t *testing.T) {
 	})
 
 	assert.ErrorIs(t, err, context.Canceled)
-	assert.Less(t, len(results), 3)
-	for _, r := range results {
-		assert.NotEmpty(t, r.Target)
-	}
+	require.Len(t, results, 1, "the second target is never dispatched")
+	assert.Equal(t, "a", results[0].Target)
+}
+
+func TestScanDispatchesNothingWhenItsContextIsAlreadyCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var calls atomic.Int64
+
+	results, err := scan(ctx, 2, []string{"a", "b", "c"}, func(_ context.Context, target string) Result {
+		calls.Add(1)
+		return Result{Target: target}
+	})
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, calls.Load())
+	assert.Empty(t, results)
 }
 
 func TestScanOneRunsOnlyTheConfiguredProbes(t *testing.T) {
