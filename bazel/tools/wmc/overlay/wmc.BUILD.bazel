@@ -1,0 +1,89 @@
+load("@rules_bison//bison:bison.bzl", "bison_cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+cc_library(
+    name = "wmc_headers",
+    hdrs = [
+        "include/apisetcconv.h",
+        "include/basetsd.h",
+        "include/concurrencysal.h",
+        "include/config.h",
+        "include/driverspecs.h",
+        "include/excpt.h",
+        "include/fibersapi.h",
+        "include/guiddef.h",
+        "include/libloaderapi.h",
+        "include/memoryapi.h",
+        "include/minwinbase.h",
+        "include/minwindef.h",
+        "include/namespaceapi.h",
+        "include/ntdef.h",
+        "include/processthreadsapi.h",
+        "include/realtimeapiset.h",
+        "include/sal.h",
+        "include/specstrings.h",
+        "include/specstrings_strict.h",
+        "include/synchapi.h",
+        "include/sysinfoapi.h",
+        "include/threadpoolapiset.h",
+        "include/timezoneapi.h",
+        "include/winapifamily.h",
+        "include/winbase.h",
+        "include/windef.h",
+        "include/winerror.h",
+        "include/winnls.h",
+        "include/winnt.h",
+        "include/winternl.h",
+        "tools/tools.h",
+        "tools/wmc/lang.h",
+        "tools/wmc/utils.h",
+        "tools/wmc/wmc.h",
+        "tools/wmc/wmctypes.h",
+        "tools/wmc/write.h",
+    ],
+    includes = [
+        "include",
+        "tools/wmc",
+    ],
+    textual_hdrs = ["include/winnt.rh"],
+)
+
+# mcl.c includes "mcy.tab.h". The target name is that header's basename.
+bison_cc_library(
+    name = "mcy.tab",
+    src = "tools/wmc/mcy.y",
+    copts = [
+        "-D__WINESRC__",
+        "-DWINE_UNIX_LIB",
+    ],
+    linkstatic = True,
+    deps = [":wmc_headers"],
+)
+
+cc_binary(
+    name = "wmc",
+    srcs = [
+        "tools/wmc/lang.c",
+        "tools/wmc/mcl.c",
+        "tools/wmc/po.c",
+        "tools/wmc/utils.c",
+        "tools/wmc/wmc.c",
+        "tools/wmc/write.c",
+    ],
+    copts = [
+        "-D__WINESRC__",
+        "-DWINE_UNIX_LIB",
+    ],
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":mcy.tab",
+        ":wmc_headers",
+    ],
+)
+
+filegroup(
+    name = "nls",
+    srcs = glob(["nls/*.nls"]),
+    visibility = ["//visibility:public"],
+)

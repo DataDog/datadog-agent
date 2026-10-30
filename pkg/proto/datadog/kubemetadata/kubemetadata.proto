@@ -67,6 +67,18 @@ message KueueWorkload {
   string uid = 7;
   repeated KueuePodSetAssignment pod_set_assignments = 8;
   KubeMetadataEventType type = 9;
+  map<string, string> pod_template_labels = 10;
+  map<string, string> pod_template_annotations = 11;
+}
+
+message KAIPodGroup {
+  string namespace = 1;
+  string name = 2;
+  string queue = 3;
+  map<string, string> labels = 4;
+  map<string, string> annotations = 5;
+  string uid = 6;
+  KubeMetadataEventType type = 7;
 }
 
 message KubeMetadataStreamResponse {
@@ -76,4 +88,5 @@ message KubeMetadataStreamResponse {
   repeated KueueQueue kueue_queues = 4;
   repeated KueueResourceFlavor kueue_resource_flavors = 5;
   repeated KueueWorkload kueue_workloads = 6;
+  repeated KAIPodGroup kai_pod_groups = 7;
 }

@@ -66,6 +66,8 @@ func podsRequiredAtStartup(cfg config.Reader) bool {
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
 		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
+		// The kube metadata stream sends each node the KAI PodGroups of its pods.
+		shouldHaveKAIMetadata(cfg) ||
 		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
 		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }
@@ -331,12 +333,27 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue Workload resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, c.config)
 				if err != nil {
 					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
 					continue
 				}
 				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+	}
+
+	if shouldHaveKAIMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kaiPodGroupGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover KAI PodGroup resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				// Not added to objectStores: the PodGroups RBAC may be missing
+				// with older Helm charts or Operators, and it must not block
+				// readiness.
+				reflector, _ := newKAIPodGroupStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
 				go reflector.Run(ctx.Done())
 			}
 		}

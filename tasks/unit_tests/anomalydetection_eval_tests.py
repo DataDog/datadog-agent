@@ -5,10 +5,18 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from invoke.exceptions import Exit
+
 from tasks.anomalydetection import (
     _bayesian_evaluation_inputs,
     _load_completed_bayesian_report,
+    _validate_ddeval_scenario_filter,
+    eval_bayesian,
+    eval_combinations,
+    eval_component,
+    eval_pipeline,
     eval_scenarios,
+    eval_tp,
 )
 from tasks.libs.anomalydetection.eval import (
     ABLATION_CORRELATORS,
@@ -191,6 +199,50 @@ class TestPipelineResume(unittest.TestCase):
 
 
 class TestLocalF1Pipeline(unittest.TestCase):
+    def test_missing_scenarios_abort_before_build_or_output_changes(self):
+        tasks = [
+            (eval_scenarios, {}),
+            (eval_tp, {"only": "bocpd"}),
+            (eval_combinations, {}),
+            (eval_bayesian, {}),
+            (eval_pipeline, {}),
+            (eval_component, {"component": "bocpd"}),
+        ]
+        for task, kwargs in tasks:
+            with (
+                self.subTest(task=task.name),
+                patch.dict("sys.modules", {"optuna": Mock()}),
+                patch("tasks.anomalydetection.build_testbench") as build,
+                patch("tasks.anomalydetection._prepare_eval_output_dir") as prepare_output,
+                self.assertRaisesRegex(Exit, "Specify --scenario or --scenarios"),
+            ):
+                task.body(Mock(), **kwargs)
+            build.assert_not_called()
+            prepare_output.assert_not_called()
+
+    def test_ddeval_keeps_its_remote_dataset_default(self):
+        self.assertTrue(_validate_ddeval_scenario_filter("ddeval", ""))
+        inputs = _bayesian_evaluation_inputs(
+            scenarios_dir="/unused",
+            sigma=30.0,
+            timeout=0,
+            scenarios="",
+            lock="",
+            eval_backend="ddeval",
+            ddeval_options=None,
+        )
+        self.assertEqual(inputs["scenarios"], [])
+
+    def test_combinations_forward_explicit_scenarios_to_replay(self):
+        with (
+            tempfile.TemporaryDirectory() as output_dir,
+            patch("tasks.anomalydetection.eval_scenarios", return_value={"score": 1.0}) as replay,
+            patch("builtins.print"),
+        ):
+            eval_combinations.body(Mock(), n=1, output_dir=output_dir, build=False, scenarios="scenario-a,scenario-b")
+        self.assertEqual(replay.call_args.kwargs["scenarios"], "scenario-a,scenario-b")
+        self.assertEqual(replay.call_args.kwargs["_logger"].total, 2)
+
     def test_only_includes_scorer_and_preserves_recovery_results(self):
         with tempfile.TemporaryDirectory() as root:
             parquet = os.path.join(root, "example", "parquet")

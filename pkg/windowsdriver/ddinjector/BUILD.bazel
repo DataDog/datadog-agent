@@ -17,6 +17,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/core/telemetry/def",
             "//pkg/util/log",
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

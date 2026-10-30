@@ -16,6 +16,7 @@ package systeminfo
 */
 import "C"
 import (
+	"errors"
 	"strings"
 	"unsafe"
 )
@@ -72,4 +73,15 @@ func getChassisType(productName string, modelIdentifier string) string {
 	}
 
 	return "Other"
+}
+
+// LocalHostName returns macOS's current Bonjour hostname without the .local suffix.
+// It is independent of Collect and does not normalize the name.
+func LocalHostName() (string, error) {
+	name := C.copyLocalHostName()
+	if name == nil {
+		return "", errors.New("macOS LocalHostName is unavailable")
+	}
+	defer C.free(unsafe.Pointer(name))
+	return C.GoString(name), nil
 }

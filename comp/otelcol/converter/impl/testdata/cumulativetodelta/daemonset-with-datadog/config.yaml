@@ -1,0 +1,15 @@
+# Interaction of the datadog and Gateway rules: a pipeline exporting to both, a
+# datadog-only pipeline and a Gateway-only pipeline each get the processor exactly
+# once, defined a single time under processors.
+processors:
+service:
+  pipelines:
+    metrics/mixed:
+      receivers: [otlp]
+      exporters: [datadog, otlphttp]
+    metrics/dd:
+      receivers: [otlp]
+      exporters: [datadog]
+    metrics/gw:
+      receivers: [otlp]
+      exporters: [otlphttp]

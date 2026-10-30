@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -50,15 +49,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		return errors.New("message passed to encoder isn't rendered")
 	}
 
-	ts := msg.ServerlessExtra.Timestamp
-	if ts.IsZero() {
-		ts = time.Now().UTC()
-		if msg.ParsingExtra.Timestamp != "" && j.useContainerTimestamp {
-			if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
-				ts = logTime
-			}
-		}
-	}
+	ts := msg.LogTimestamp(j.useContainerTimestamp)
 
 	encoded, err := json.Marshal(jsonPayload{
 		Message:   ValidUtf8Bytes(msg.GetContent()),

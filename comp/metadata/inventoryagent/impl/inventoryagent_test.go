@@ -7,31 +7,37 @@ package inventoryagentimpl
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -46,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -61,7 +66,7 @@ type testDeps struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
-	Capabilities   *iainterface.Capabilities `optional:"true"`
+	Secrets        secrets.Component `optional:"true"`
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -72,7 +77,7 @@ func makeRequires(deps testDeps) Requires {
 		Serializer:     deps.Serializer,
 		IPCClient:      deps.IPCClient,
 		Hostname:       deps.Hostname,
-		Capabilities:   deps.Capabilities,
+		Secrets:        deps.Secrets,
 	}
 }
 
@@ -119,245 +124,6 @@ func TestGetPayload(t *testing.T) {
 	assert.True(t, payload.Timestamp > startTime)
 	assert.Equal(t, "hostname-for-test", payload.Hostname)
 	assert.Equal(t, 1234, payload.Metadata["test"])
-}
-
-func TestCapabilitiesFullAgentMetadataRefresh(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		capabilities *iainterface.Capabilities
-		wantFetches  int
-	}{
-		{name: "absent capabilities", wantFetches: 1},
-		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, wantFetches: 1},
-		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil)},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
-			originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
-			t.Cleanup(func() {
-				fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
-				fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
-			})
-			fetches := map[string]int{}
-			fetcher := func(name, remoteConfig string) func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) {
-				return func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
-					fetches[name]++
-					return remoteConfig, nil
-				}
-			}
-			fetchSecurityConfig = fetcher("security", "compliance_config:\n  enabled: true")
-			fetchProcessConfig = fetcher("process", "process_config:\n  process_collection:\n    enabled: true")
-			fetchTraceConfig = fetcher("trace", "apm_config:\n  enabled: true")
-			fetchSystemProbeConfig = fetcher("system-probe", "network_config:\n  enabled: true")
-
-			var options []fx.Option
-			if tt.capabilities != nil {
-				options = append(options, fx.Supply(tt.capabilities))
-			}
-			if tt.wantFetches == 0 {
-				options = append(options, fx.Decorate(func(ipc.HTTPClient) ipc.HTTPClient { return nil }))
-			}
-			p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil, options...)
-			ia := p.Comp.(*inventoryagent)
-			configDir := t.TempDir()
-			configmock.New(t).SetConfigFile(filepath.Join(configDir, "datadog.yaml"))
-			fleetDir := filepath.Join(configDir, "managed", "datadog-agent", "stable")
-			if err := os.MkdirAll(fleetDir, 0700); err != nil {
-				t.Fatal(err)
-			}
-			ia.Set("resource_id", "test-resource")
-			ia.Set("flavor", "embedded-test")
-			ia.Set("config_dd_url", "explicit-url")
-			for index, value := range []string{"first", "second"} {
-				ia.conf.Set("site", value+".example.com", pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("logs_enabled", index == 0, pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("config_id", value, pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("fleet_layers", []string{value}, pkgconfigmodel.SourceAgentRuntime)
-				applicationConfig := []byte("service: " + value)
-				fleetConfig := []byte("service: fleet-" + value)
-				for path, contents := range map[string][]byte{
-					filepath.Join(configDir, "application_monitoring.yaml"): applicationConfig,
-					filepath.Join(fleetDir, "application_monitoring.yaml"):  fleetConfig,
-				} {
-					if err := os.WriteFile(path, contents, 0600); err != nil {
-						t.Fatal(err)
-					}
-				}
-				payload := ia.getPayload().(*Payload)
-
-				assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
-				assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
-				assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
-				assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
-				assert.Contains(t, payload.Metadata, "install_method_tool")
-				assert.Equal(t, "embedded-test", payload.Metadata["flavor"])
-				assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
-				assert.Equal(t, uuid.GetUUID(), payload.UUID)
-				for _, field := range []string{"full_configuration", "agent_runtime_configuration"} {
-					assert.Contains(t, payload.Metadata[field], "site: "+value+".example.com", field)
-				}
-				for name, field := range map[string]string{
-					"security":     "feature_cspm_enabled",
-					"process":      "feature_process_enabled",
-					"trace":        "feature_apm_enabled",
-					"system-probe": "feature_networks_enabled",
-				} {
-					assert.Equal(t, (index+1)*tt.wantFetches, fetches[name], name)
-					if tt.wantFetches == 0 {
-						assert.NotContains(t, payload.Metadata, field)
-					} else {
-						assert.Equal(t, true, payload.Metadata[field], field)
-					}
-				}
-				// Local collectors are intentionally skipped too, even with populated inputs.
-				for field, expected := range map[string]any{
-					"config_site":                         value + ".example.com",
-					"feature_logs_enabled":                index == 0,
-					"fleet_policies_applied":              []string{value},
-					"config_id":                           value,
-					"application_monitoring_config":       applicationConfig,
-					"application_monitoring_config_fleet": fleetConfig,
-				} {
-					if tt.wantFetches == 0 {
-						assert.NotContains(t, payload.Metadata, field)
-					} else {
-						assert.Equal(t, expected, payload.Metadata[field], field)
-					}
-				}
-				if tt.wantFetches == 0 {
-					assert.Equal(t, "explicit-url", payload.Metadata["config_dd_url"], "skipping refresh must not filter explicitly set fields")
-				} else {
-					assert.Equal(t, ia.conf.GetString("dd_url"), payload.Metadata["config_dd_url"], "default refresh replaces explicitly set collector fields")
-				}
-			}
-		})
-	}
-}
-
-func TestCapabilitiesReadiness(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		capabilities *iainterface.Capabilities
-		deferred     bool
-	}{
-		{name: "absent capabilities"},
-		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}},
-		{name: "deferred capability", capabilities: &iainterface.Capabilities{DeferUntilReady: true}, deferred: true},
-		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil), deferred: true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			serializerMock := serializermock.NewMetricSerializer(t)
-			options := []fx.Option{fx.Decorate(func(serializer.MetricSerializer) serializer.MetricSerializer {
-				return serializerMock
-			})}
-			if tt.capabilities != nil {
-				options = append(options, fx.Supply(tt.capabilities))
-			}
-			p := getProvides(t, map[string]any{"inventories_first_run_delay": 0}, nil, options...)
-			ia := p.Comp.(*inventoryagent)
-			require.NotNil(t, p.Provider.Callback, "a deferred provider must remain registered")
-			if !tt.deferred {
-				serializerMock.On("SendMetadata", mock.Anything).Return(nil).Twice()
-			}
-
-			// Exercise the published callback immediately after construction, before injection.
-			assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
-			p.Comp.Set("resource_id", "complete-resource")
-			p.Comp.Submit()
-			data, err := ia.GetAsJSON()
-			if tt.deferred {
-				assert.EqualError(t, err, "inventory metadata is not ready")
-				assert.Nil(t, data)
-				assert.True(t, ia.LastCollect.IsZero())
-				assert.True(t, ia.RefreshTriggered())
-				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
-
-				serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
-					return payload.Metadata["resource_id"] == "complete-resource"
-				})).Return(nil).Once()
-				p.Comp.SetReady(true)
-				p.Comp.Submit()
-				data, err = ia.GetAsJSON()
-			}
-			require.NoError(t, err)
-			assert.Contains(t, string(data), `"resource_id": "complete-resource"`)
-			assert.False(t, ia.LastCollect.IsZero())
-			assert.False(t, ia.RefreshTriggered())
-			serializerMock.AssertExpectations(t)
-		})
-	}
-}
-
-func TestCapabilitiesReadinessDoesNotEnableInventory(t *testing.T) {
-	p := getProvides(t, map[string]any{"inventories_enabled": false}, nil,
-		fx.Supply(iainterface.NewServerlessCapabilities(func() string {
-			t.Fatal("disabled inventory must not resolve identity")
-			return ""
-		})))
-	ia := p.Comp.(*inventoryagent)
-	p.Comp.SetReady(true)
-	p.Comp.Submit()
-	assert.False(t, ia.Enabled)
-	assert.Nil(t, p.Provider.Callback)
-	assert.Nil(t, ia.MetadataProvider().Callback)
-	assert.True(t, ia.LastCollect.IsZero())
-	_, err := ia.GetAsJSON()
-	assert.EqualError(t, err, "inventory metadata is disabled")
-}
-
-func TestCapabilitiesPayloadUUID(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		withResolver bool
-		resolvedUUID string
-	}{
-		{name: "nil resolver"},
-		{name: "empty override", withResolver: true},
-		{name: "override", withResolver: true, resolvedUUID: "process-uuid"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			originalGetUUID := uuid.GetUUID
-			t.Cleanup(func() { uuid.GetUUID = originalGetUUID })
-			hostUUIDCalls := 0
-			uuid.GetUUID = func() string {
-				hostUUIDCalls++
-				return "host-uuid"
-			}
-			resolvedUUID := tt.resolvedUUID
-			resolverCalls := 0
-			var resolver func() string
-			if tt.withResolver {
-				resolver = func() string {
-					resolverCalls++
-					return resolvedUUID
-				}
-			}
-			p := getProvides(t, nil, nil, fx.Supply(iainterface.NewServerlessCapabilities(resolver)))
-			ia := p.Comp.(*inventoryagent)
-			first := ia.getPayload().(*Payload)
-			if resolvedUUID == "" {
-				assert.Equal(t, "host-uuid", first.UUID)
-				assert.Equal(t, 1, hostUUIDCalls)
-			} else {
-				assert.Equal(t, resolvedUUID, first.UUID)
-				assert.Zero(t, hostUUIDCalls)
-			}
-			resolvedUUID = "next-instance-uuid"
-			second := ia.getPayload().(*Payload)
-			if tt.withResolver {
-				assert.Equal(t, resolvedUUID, second.UUID)
-				assert.Equal(t, 2, resolverCalls)
-				if tt.resolvedUUID == "" {
-					assert.Equal(t, 1, hostUUIDCalls)
-				} else {
-					assert.Zero(t, hostUUIDCalls)
-				}
-			} else {
-				assert.Equal(t, "host-uuid", second.UUID)
-				assert.Equal(t, 2, hostUUIDCalls)
-			}
-		})
-	}
 }
 
 func TestInitDataErrorInstallInfo(t *testing.T) {
@@ -993,6 +759,185 @@ func TestFetchFleet(t *testing.T) {
 	assert.Equal(t, "my-config", ia.data["config_id"].(string))
 }
 
+func TestFetchSecretsNoComponent(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchSecretsMetadata()
+	assert.Equal(t, map[string]interface{}{
+		"paths":          []string{},
+		"handles":        []string{},
+		"scrubbed":       []string{},
+		"hash_secret_id": map[string]string{},
+	}, ia.data["enc_info"])
+}
+
+func TestFetchSecrets(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles(
+		[]string{"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+		[]string{"my_key", "secret_one", "secret_two"},
+	)
+	// "secret_two" has no resolved value and is omitted from the hashes
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value", "secret_one": "secret_one_value"})
+	p := getProvides(t, map[string]any{
+		// covered by a secret path, so not reported as scrubbed
+		"api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+		// known sensitive key name
+		"network_devices.snmp_traps.users": []any{
+			map[string]any{"user": "user1", "authKey": "my-auth-key", "authProtocol": "sha"},
+		},
+		// raw credential written in a setting that is not known to be sensitive
+		"dd_url": "https://user:secret@example.com",
+	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+
+	ia.fetchSecretsMetadata()
+	assert.Equal(t, map[string]interface{}{
+		"paths":   []string{"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+		"handles": []string{"my_key", "secret_one", "secret_two"},
+		"hash_secret_id": map[string]string{
+			"my_key":     "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
+			"secret_one": "c9941a386f3401c35efab67c9a302b4f13317d0d018ae6697b531dce994a8008",
+		},
+		"scrubbed": []string{"authKey", "dd_url"},
+	}, ia.data["enc_info"])
+}
+
+func TestFetchSecretsOmitted(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, map[string]any{"metadata_skip_secrets": true}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+
+	ia.data["enc_info"] = "stale"
+	ia.fetchSecretsMetadata()
+	assert.NotContains(t, ia.data, "enc_info")
+}
+
+func TestFlareScrubsSecretHashes(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, map[string]any{"inventories_enabled": true}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+
+	fb := flarehelpers.NewFlareBuilderMock(t, false)
+	require.NoError(t, p.FlareProvider.FlareFiller.Callback(t.Context(), fb))
+
+	content, err := os.ReadFile(filepath.Join(fb.Root, "metadata", "inventory", "agent.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"hash_secret_id": "********"`)
+	assert.Contains(t, string(content), `"my_key"`)
+	assert.NotContains(t, string(content), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
+}
+
+func TestShowMetadataScrubsSecretHashes(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, map[string]any{"inventories_enabled": true}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+
+	rec := httptest.NewRecorder()
+	ia.writePayloadAsJSON(rec, httptest.NewRequest(http.MethodGet, "/metadata/inventory-agent", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"hash_secret_id": "********"`)
+	assert.Contains(t, rec.Body.String(), `"my_key"`)
+	assert.NotContains(t, rec.Body.String(), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
+}
+
+func TestStatusOmitsSecretHashes(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, nil, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+	ia.fetchSecretsMetadata()
+
+	stats := map[string]interface{}{}
+	require.NoError(t, ia.JSON(false, stats))
+	encInfo := stats["agent_metadata"].(map[string]interface{})["enc_info"].(map[string]interface{})
+	assert.NotContains(t, encInfo, "hash_secret_id")
+	assert.Equal(t, []string{"my_key"}, encInfo["handles"])
+
+	text := new(bytes.Buffer)
+	require.NoError(t, ia.Text(false, text))
+	html := new(bytes.Buffer)
+	require.NoError(t, ia.HTML(false, html))
+	for _, out := range []string{text.String(), html.String()} {
+		assert.Contains(t, out, "my_key")
+		assert.NotContains(t, out, "hash_secret_id")
+		assert.NotContains(t, out, "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
+	}
+
+	// The payload sent to the backend still carries the hashes
+	assert.Contains(t, ia.data["enc_info"], "hash_secret_id")
+}
+
+func TestFilterScrubbedKeys(t *testing.T) {
+	tests := []struct {
+		name         string
+		scrubbedKeys []string
+		paths        []string
+		expected     []string
+	}{
+		{
+			name:         "empty",
+			scrubbedKeys: nil,
+			paths:        nil,
+			expected:     []string{},
+		},
+		{
+			name:         "top-level setting",
+			scrubbedKeys: []string{"dd_url", "client_secret"},
+			paths:        []string{"dd_url"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "nested setting",
+			scrubbedKeys: []string{"https", "client_secret"},
+			paths:        []string{"proxy.https"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "slice index uses the parent key",
+			scrubbedKeys: []string{"community_strings", "client_secret"},
+			paths:        []string{"snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			// integration configs use their digest as origin, and paths relative to the resolved section
+			name:         "nested setting from an integration config",
+			scrubbedKeys: []string{"password", "client_secret"},
+			paths:        []string{"a3f9c01b2d4e5f67:auth.password"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "top-level setting from an integration config",
+			scrubbedKeys: []string{"token", "client_secret"},
+			paths:        []string{"a3f9c01b2d4e5f67:token"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "partial key names are not filtered",
+			scrubbedKeys: []string{"proxy", "api"},
+			paths:        []string{"proxy.https", "logs_config.api_key"},
+			expected:     []string{"proxy", "api"},
+		},
+		{
+			name:         "duplicates are removed",
+			scrubbedKeys: []string{"password", "client_secret", "client_secret", "password"},
+			paths:        []string{"password"},
+			expected:     []string{"client_secret"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, filterScrubbedKeys(tt.scrubbedKeys, tt.paths))
+		})
+	}
+}
+
 func TestGetProvidedConfigurationDisable(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": false,
@@ -1009,6 +954,101 @@ func TestGetProvidedConfigurationDisable(t *testing.T) {
 	assert.NotContains(t, payload.Metadata, "remote_configuration")
 	assert.NotContains(t, payload.Metadata, "cli_configuration")
 	assert.NotContains(t, payload.Metadata, "source_local_configuration")
+	assert.Empty(t, payload.FilesMetadata)
+}
+
+func TestGetPayloadFilesMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+	configmock.New(t).SetConfigFile(filepath.Join(tmpDir, "datadog.yaml"))
+
+	originalFetchSystemProbeFilename := fetchSystemProbeFilename
+	defer func() {
+		fetchSystemProbeFilename = originalFetchSystemProbeFilename
+	}()
+	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
+		return filepath.Join(tmpDir, "system-probe.yaml")
+	}
+
+	configFiles := map[string]string{
+		filepath.Join(tmpDir, "datadog.yaml"): `# comments are not safe to report
+second: 2
+first: "preserve this style"
+unknown_setting:
+  nested: untouched
+api_key: datadog-secret
+`,
+		filepath.Join(tmpDir, "system-probe.yaml"):           "network_config:\n  enabled: true\nauth_token: system-probe-secret\n",
+		filepath.Join(tmpDir, "security-agent.yaml"):         "runtime_security_config:\n  enabled: true\npassword: security-secret\n",
+		filepath.Join(tmpDir, "application_monitoring.yaml"): "tracing:\n  enabled: true\napi_key: application-secret\n",
+	}
+	for path, contents := range configFiles {
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
+	}
+
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	payload := ia.getPayload().(*Payload)
+	require.Len(t, payload.FilesMetadata, len(configFiles))
+	for path := range configFiles {
+		rawfile, found := payload.FilesMetadata[path]
+		require.True(t, found)
+		assert.NotContains(t, rawfile.RawConfig, "-secret")
+
+		hash := sha256.Sum256([]byte(rawfile.RawConfig))
+		assert.Equal(t, hex.EncodeToString(hash[:]), rawfile.Hash)
+	}
+
+	datadogRawConfig := payload.FilesMetadata[filepath.Join(tmpDir, "datadog.yaml")].RawConfig
+	assert.Less(t, strings.Index(datadogRawConfig, "second:"), strings.Index(datadogRawConfig, "first:"))
+	assert.Contains(t, datadogRawConfig, `first: "preserve this style"`)
+	assert.Contains(t, datadogRawConfig, "unknown_setting:\n  nested: untouched")
+	assert.NotContains(t, datadogRawConfig, "comments are not safe to report")
+}
+
+func TestGetPayloadFilesMetadataSkipsUnsafeAndMissingFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	datadogConfigPath := filepath.Join(tmpDir, "datadog.yaml")
+	configmock.New(t).SetConfigFile(datadogConfigPath)
+	require.NoError(t, os.WriteFile(datadogConfigPath, []byte("api_key: [invalid"), 0600))
+
+	originalFetchSystemProbeFilename := fetchSystemProbeFilename
+	defer func() {
+		fetchSystemProbeFilename = originalFetchSystemProbeFilename
+	}()
+	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
+		return filepath.Join(tmpDir, "system-probe.yaml")
+	}
+
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	payload := ia.getPayload().(*Payload)
+	assert.Empty(t, payload.FilesMetadata)
+}
+
+func TestGetPayloadFilesMetadataWithoutMainConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	systemProbeConfigPath := filepath.Join(tmpDir, "system-probe.yaml")
+	require.NoError(t, os.WriteFile(systemProbeConfigPath, []byte("network_config:\n  enabled: true\n"), 0600))
+
+	originalFetchSystemProbeFilename := fetchSystemProbeFilename
+	defer func() {
+		fetchSystemProbeFilename = originalFetchSystemProbeFilename
+	}()
+	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
+		return systemProbeConfigPath
+	}
+
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	payload := ia.getPayload().(*Payload)
+	require.Len(t, payload.FilesMetadata, 1)
+	assert.Contains(t, payload.FilesMetadata, systemProbeConfigPath)
 }
 
 func TestGetProvidedConfiguration(t *testing.T) {

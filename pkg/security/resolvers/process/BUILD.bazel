@@ -267,6 +267,7 @@ dd_agent_go_test(
     srcs = [
         "go_labels_test.go",
         "otel_tls_test.go",
+        "resolver_ebpfless_test.go",
         "resolver_test.go",
     ],
     data = glob(["testdata/**"]) + select({

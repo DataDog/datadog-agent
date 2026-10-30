@@ -683,6 +683,16 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
 
+	// Path pattern metrics
+
+	// MetricSecurityProfileV2PathPatternsFileNodesMerged counts FileNode siblings absorbed by path-pattern merging.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsFileNodesMerged = newRuntimeMetric(".security_profile_v2.path_patterns.file_nodes_merged")
+
+	// MetricSecurityProfileV2PathPatternsLookupHits counts path components absorbed by an existing pattern node instead of a node of their own name.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsLookupHits = newRuntimeMetric(".security_profile_v2.path_patterns.lookup_hits")
+
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
 	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
 	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
@@ -698,6 +708,22 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricEventSampleSentBelowThreshold is the name of the metric used to report events allowed below the pressure threshold
+	// Tags: event_type
+	MetricEventSampleSentBelowThreshold = newRuntimeMetric(".event_sample.sent_below_threshold")
+
+	// MetricEventSampleAllowedBetween is the name of the metric used to report events allowed by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleAllowedBetween = newRuntimeMetric(".event_sample.allowed_between")
+
+	// MetricEventSampleDroppedBetween is the name of the metric used to report events dropped by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleDroppedBetween = newRuntimeMetric(".event_sample.dropped_between")
+
+	// MetricEventSampleDroppedAboveCritical is the name of the metric used to report events dropped above the critical pressure threshold
+	// Tags: event_type
+	MetricEventSampleDroppedAboveCritical = newRuntimeMetric(".event_sample.dropped_above_critical")
 
 	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
 	// Tags: -
