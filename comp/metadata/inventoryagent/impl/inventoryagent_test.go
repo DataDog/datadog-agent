@@ -1257,6 +1257,14 @@ func TestGetPayloadFilesMetadataSkipsUnsafeAndMissingFiles(t *testing.T) {
 	configmock.New(t).SetConfigFile(datadogConfigPath)
 	require.NoError(t, os.WriteFile(datadogConfigPath, []byte("api_key: [invalid"), 0600))
 
+	originalFetchSystemProbeFilename := fetchSystemProbeFilename
+	defer func() {
+		fetchSystemProbeFilename = originalFetchSystemProbeFilename
+	}()
+	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
+		return filepath.Join(tmpDir, "system-probe.yaml")
+	}
+
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": true,
 	}, nil)
