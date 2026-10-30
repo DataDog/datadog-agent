@@ -515,6 +515,15 @@ func ScrubYaml(data []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubYaml(data)
 }
 
+// ScrubYamlPreserveStructure scrubs credentials from YAML while preserving
+// key order and scalar styles, using the default scrubber.
+// Some fields such as `additional_endpoints` may lose order. This is acceptable behavior,
+// since this setting isn't really used too often, and already has some strange edge-cases
+// we handle specially.
+func ScrubYamlPreserveStructure(data []byte) ([]byte, error) {
+	return DefaultScrubber.ScrubYamlPreserveStructure(data)
+}
+
 // ScrubYamlString scrubs credentials from the given YAML string by loading the data and scrubbing the object instead of
 // the serialized string, using the default scrubber.
 func ScrubYamlString(data string) (string, error) {
