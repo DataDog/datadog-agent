@@ -6,6 +6,7 @@
 package semantics
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,12 +43,18 @@ func TestPDataMapAccessor(t *testing.T) {
 		assert.False(t, ok)
 	})
 
-	t.Run("GetInt64 rejects Double", func(t *testing.T) {
+	t.Run("GetInt64 converts whole Double only", func(t *testing.T) {
 		m := pcommon.NewMap()
 		m.PutDouble("code", 200.0)
 		a := NewPDataMapAccessor(m)
-		_, ok := a.GetInt64("code")
-		assert.False(t, ok)
+		v, ok := a.GetInt64("code")
+		assert.True(t, ok)
+		assert.Equal(t, int64(200), v)
+		for _, f := range []float64{200.5, math.Inf(1), math.NaN()} {
+			m.PutDouble("other", f)
+			_, ok = a.GetInt64("other")
+			assert.False(t, ok, "%v", f)
+		}
 	})
 
 	t.Run("GetFloat64", func(t *testing.T) {
@@ -55,9 +62,10 @@ func TestPDataMapAccessor(t *testing.T) {
 		assert.True(t, ok)
 		assert.InDelta(t, 3.14, v, 0.001)
 
-		// GetFloat64 is strict: returns false for non-Double pdata types.
-		_, ok = accessor.GetFloat64("http.status_code")
-		assert.False(t, ok)
+		// Int converts; Str returns false.
+		v, ok = accessor.GetFloat64("http.status_code")
+		assert.True(t, ok)
+		assert.Equal(t, 200.0, v)
 
 		_, ok = accessor.GetFloat64("http.method")
 		assert.False(t, ok)
@@ -91,10 +99,10 @@ func TestNewOTelSpanAccessor(t *testing.T) {
 		assert.Equal(t, int64(500), v)
 	})
 
-	t.Run("GetFloat64 rejects Int", func(t *testing.T) {
-		// http.status_code is ValueTypeInt; GetFloat64 is strict and only accepts Double.
-		_, ok := accessor.GetFloat64("http.status_code")
-		assert.False(t, ok)
+	t.Run("GetFloat64 converts Int", func(t *testing.T) {
+		v, ok := accessor.GetFloat64("http.status_code")
+		assert.True(t, ok)
+		assert.Equal(t, 500.0, v)
 	})
 }
 

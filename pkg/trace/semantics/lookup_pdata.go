@@ -6,6 +6,8 @@
 package semantics
 
 import (
+	"math"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
@@ -29,22 +31,39 @@ func (a PDataMapAccessor) GetString(key string) string {
 	return v.Str()
 }
 
-// GetInt64 returns the attribute value as int64 if the underlying pdata type is Int.
+// GetInt64 returns the attribute value as int64 for Int, or for a Double holding an exact integer.
 func (a PDataMapAccessor) GetInt64(key string) (int64, bool) {
 	v, ok := a.attrs.Get(key)
-	if !ok || v.Type() != pcommon.ValueTypeInt {
+	if !ok {
 		return 0, false
 	}
-	return v.Int(), true
+	switch v.Type() {
+	case pcommon.ValueTypeInt:
+		return v.Int(), true
+	case pcommon.ValueTypeDouble:
+		f := v.Double()
+		i := int64(f)
+		if float64(i) != f || math.IsInf(f, 0) || math.IsNaN(f) {
+			return 0, false
+		}
+		return i, true
+	}
+	return 0, false
 }
 
-// GetFloat64 returns the attribute value as float64 if the underlying pdata type is Double.
+// GetFloat64 returns the attribute value as float64 for Double or Int.
 func (a PDataMapAccessor) GetFloat64(key string) (float64, bool) {
 	v, ok := a.attrs.Get(key)
-	if !ok || v.Type() != pcommon.ValueTypeDouble {
+	if !ok {
 		return 0, false
 	}
-	return v.Double(), true
+	switch v.Type() {
+	case pcommon.ValueTypeDouble:
+		return v.Double(), true
+	case pcommon.ValueTypeInt:
+		return float64(v.Int()), true
+	}
+	return 0, false
 }
 
 // OTelSpanAccessor provides typed access to combined span and resource attributes.

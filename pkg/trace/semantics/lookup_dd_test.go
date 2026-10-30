@@ -155,11 +155,22 @@ func TestDDSpanAccessorV1(t *testing.T) {
 		assert.Equal(t, 1.5, v)
 	})
 
-	t.Run("GetFloat64 returns false for int attribute", func(t *testing.T) {
+	t.Run("GetFloat64 converts int attribute", func(t *testing.T) {
 		s := newTestSpanV1()
 		s.SetAttributeFromString("http.status_code", "200") // stored as IntValue
 		a := NewDDSpanAccessorV1(s)
-		_, ok := a.GetFloat64("http.status_code")
+		v, ok := a.GetFloat64("http.status_code")
+		assert.True(t, ok)
+		assert.Equal(t, 200.0, v)
+	})
+
+	t.Run("GetFloat64 returns false for bool attribute", func(t *testing.T) {
+		st := idx.NewStringTable()
+		s := idx.NewInternalSpan(st, &idx.Span{Attributes: map[uint32]*idx.AnyValue{
+			st.Add("flag"): {Value: &idx.AnyValue_BoolValue{BoolValue: true}},
+		}})
+		a := NewDDSpanAccessorV1(s)
+		_, ok := a.GetFloat64("flag")
 		assert.False(t, ok)
 	})
 
