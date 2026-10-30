@@ -33,6 +33,7 @@ go_library(
             "//pkg/diagnose/connectivity",
             "//pkg/diagnose/firewallscanner",
             "//pkg/diagnose/ports",
+            "//pkg/gui/bootstrap",
             "//pkg/util/log",
             "//pkg/util/system",
             "//pkg/util/winutil",

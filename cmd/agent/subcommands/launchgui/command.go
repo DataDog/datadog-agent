@@ -7,6 +7,7 @@
 package launchgui
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -20,6 +21,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/gui/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -71,17 +73,30 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component, client ip
 		return err
 	}
 
-	intentToken, err := endpoint.DoGet()
+	res, err := endpoint.DoGet()
 	if err != nil {
 		return err
 	}
 
+	var intentToken bootstrap.Token
+	if err := json.Unmarshal(res, &intentToken); err != nil {
+		return fmt.Errorf("unable to decode the GUI intent token: %w", err)
+	}
+
 	guiAddress := net.JoinHostPort(guiHost, guiPort)
 
-	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://" + guiAddress + "/auth?intent=" + string(intentToken))
+	// Hand the intent token to the browser through a file only this user can
+	// read, rather than through the URL: a URL ends up in the argv of the OS
+	// URL-opener and of the browser it spawns, where any other local user could
+	// read it (VULN-92705).
+	bootstrap.Sweep()
+	pageURL, err := bootstrap.Write(guiAddress, intentToken)
 	if err != nil {
-		return fmt.Errorf("error opening GUI: %s", err.Error())
+		return err
+	}
+
+	if err := open(pageURL); err != nil {
+		return fmt.Errorf("error opening GUI: %w (open %s to continue manually)", err, pageURL)
 	}
 
 	fmt.Printf("GUI opened at %s\n", guiAddress)
