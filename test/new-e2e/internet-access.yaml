@@ -548,10 +548,6 @@ entries:
   function: TestPackages
   status: debt
   reason: Runs apt upgrade curl and apt/dnf/yum/pip installs for ansible, and the public install script.
-- file: test/new-e2e/tests/installer/unix/package_agent_selinux_test.go
-  function: TestPackageAgentSELinux
-  status: debt
-  reason: Uses the installer suite's public install script and package downloads; should use a QA-account mirror.
 - file: test/new-e2e/tests/installer/unix/package_agent_fapolicyd_test.go
   function: TestPackageAgentFapolicyd
   status: debt
