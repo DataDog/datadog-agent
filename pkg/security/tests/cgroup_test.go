@@ -289,6 +289,94 @@ func validateSerializedPodUID(t *testing.T, test *testModule, event *model.Event
 	assert.Equal(t, podUID, payload.Process.Container.PodUID)
 }
 
+// TestCGroupECSTaskID validates that ECS task cgroup paths populate
+// process.container.ecs_task_id, and that the field is serialized in CWS events.
+func TestCGroupECSTaskID(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ECS task ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	const ecsTaskID = "409b8b89ccd746bdb9b5e03418406d96"
+	const containerID = "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_ecs_task_id",
+			Expression: `open.file.path == "{{.Root}}/test-ecs-task-id" && process.container.ecs_task_id == "` + ecsTaskID + `"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testCGroup, err := newCGroup("ecs/"+ecsTaskID+"/"+containerID, "systemd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testCGroup.create(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		testCGroup.remove(t)
+		_ = os.Remove("/sys/fs/cgroup/systemd/ecs/" + ecsTaskID)
+		_ = os.Remove("/sys/fs/cgroup/systemd/ecs")
+	}()
+
+	if err := testCGroup.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.leave(t)
+
+	testFile, testFilePtr, err := test.Path("test-ecs-task-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+		if errno != 0 {
+			return error(errno)
+		}
+		return syscall.Close(int(fd))
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_ecs_task_id")
+		assertFieldEqual(t, event, "open.file.path", testFile)
+		assertFieldEqual(t, event, "process.container.id", containerID)
+		assertFieldEqual(t, event, "process.container.ecs_task_id", ecsTaskID)
+
+		test.validateOpenSchema(t, event)
+		validateSerializedECSTaskID(t, test, event, ecsTaskID)
+	}, "test_cgroup_ecs_task_id")
+}
+
+func validateSerializedECSTaskID(t *testing.T, test *testModule, event *model.Event, ecsTaskID string) {
+	t.Helper()
+
+	serializedEvent, err := test.marshalEvent(event)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		ECSTaskID string `json:"ecs_task_id"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(serializedEvent), &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, ecsTaskID, payload.Container.ECSTaskID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, ecsTaskID, payload.Process.Container.ECSTaskID)
+}
+
 // TestCGroupContainerForkNoExec validates that, in ebpfless mode, a child forked
 // inside a container keeps the container ID before it execs. ebpfless process
 // cache entries only have a cgroup ID, no cgroup path key.

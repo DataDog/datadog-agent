@@ -865,27 +865,6 @@ func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
 	}
 }
 
-// mergeSeen widens, for every image tag of src, b's first/last seen range
-// (unix nanoseconds, 0 = unset).
-func (b *NodeBase) mergeSeen(src *NodeBase) {
-	src.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
-		for i := range b.seen {
-			e := &b.seen[i]
-			if e.id != id {
-				continue
-			}
-			if firstSeen != 0 && (e.firstSeen == 0 || firstSeen < e.firstSeen) {
-				e.firstSeen = firstSeen
-			}
-			if lastSeen > e.lastSeen {
-				e.lastSeen = lastSeen
-			}
-			return
-		}
-		b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: id, firstSeen: firstSeen, lastSeen: lastSeen})
-	})
-}
-
 func generationPriority(t NodeGenerationType) int {
 	switch t {
 	case Snapshot:

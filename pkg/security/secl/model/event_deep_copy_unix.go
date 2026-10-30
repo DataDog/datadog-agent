@@ -411,6 +411,7 @@ func deepCopyContainerContext(fieldToCopy ContainerContext, c deepCopyContext) C
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
+	copied.ECSTaskID = fieldToCopy.ECSTaskID
 	copied.PodUID = fieldToCopy.PodUID
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable, c)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags, c)

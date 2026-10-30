@@ -10,9 +10,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // payloadStats counts what a single payload contributed. Accumulated as the

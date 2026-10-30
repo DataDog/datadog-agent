@@ -45,7 +45,6 @@ is_windows = sys.platform == "win32"
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
-CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
 BAZEL_TARGET = "//cmd/security-agent:security-agent"
 
@@ -692,44 +691,6 @@ def go_generate_check(ctx):
         for file in dirty_files:
             print(f"* {file}")
         raise Exit(code=1)
-
-
-E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
-
-
-@task
-def e2e_prepare_win(ctx):
-    """
-    Compile test suite for CWS windows new-e2e tests
-    """
-
-    out_binary = "testsuite.exe"
-
-    testsuite_out_dir = E2E_ARTIFACT_DIR
-    # Clean up previous build
-    if os.path.exists(testsuite_out_dir):
-        shutil.rmtree(testsuite_out_dir)
-
-    testsuite_out_path = os.path.join(testsuite_out_dir, out_binary)
-    build_functional_tests(
-        ctx,
-        bundle_ebpf=False,
-        race=False,
-        output=testsuite_out_path,
-        skip_linters=True,
-    )
-
-    # build the ETW tests binary also
-    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
-    srcpath = 'pkg/security/probe'
-    build_functional_tests(
-        ctx,
-        output=testsuite_out_path,
-        srcpath=srcpath,
-        bundle_ebpf=False,
-        race=False,
-        skip_linters=True,
-    )
 
 
 @task

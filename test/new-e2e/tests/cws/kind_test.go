@@ -76,6 +76,8 @@ func TestKindSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			awskubernetes.Provisioner(
 				awskubernetes.WithRunOptions(
+					// No fakeintake: the agent reports to the real Datadog backend and receives policies through Remote Config.
+					scenkind.WithInternetAccess(),
 					scenkind.WithVMOptions(
 						ec2.WithOS(osDesc),
 					),

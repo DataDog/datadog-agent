@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1170,4 +1171,194 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 	assert.EqualValues(t, maxPending, m.queueSize.Load())
 	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
 	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
+}
+
+func TestManagerV2_seedMountsForWorkload(t *testing.T) {
+	t.Run("seeds cached base and foreign namespaces", func(t *testing.T) {
+		const (
+			baseNs    = uint32(4026531840)
+			foreignNs = uint32(4026531841)
+		)
+
+		m, _ := newInsertionTestManagerV2(t)
+		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{})
+		require.NoError(t, err)
+		m.resolvers.MountResolver = mr
+
+		require.NoError(t, mr.Insert(model.Mount{
+			MountID:        10,
+			NamespaceInode: baseNs,
+			Path:           "/",
+			RootStr:        "/",
+			FSType:         "overlay",
+		}))
+		require.NoError(t, mr.Insert(model.Mount{
+			MountID:        20,
+			NamespaceInode: foreignNs,
+			Path:           "/host-etc",
+			RootStr:        "/etc",
+			FSType:         "ext4",
+		}))
+
+		ev := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		rootEntry := ev.ProcessCacheEntry
+		rootEntry.Process.MntNS = baseNs
+
+		childEntry := model.NewPlaceholderProcessCacheEntry(43, 43, false)
+		childEntry.ContainerContext = rootEntry.ContainerContext
+		childEntry.FileEvent = rootEntry.FileEvent
+		childEntry.Process.MntNS = foreignNs
+		childEntry.Ancestor = rootEntry
+		ev.ProcessCacheEntry = childEntry
+		ev.ProcessContext = &childEntry.ProcessContext
+
+		p, inserted := m.insertEventIntoProfile(ev)
+		require.NotNil(t, p)
+		require.True(t, inserted)
+
+		tagID := p.ActivityTree.GetImageTagID("v1")
+		require.NotZero(t, tagID)
+
+		mountsByPath := make(map[string]*activity_tree.MountNode, len(p.ActivityTree.Mounts))
+		for _, mn := range p.ActivityTree.Mounts {
+			mountsByPath[mn.MountPoint] = mn
+		}
+
+		require.Contains(t, mountsByPath, "/")
+		assert.True(t, mountsByPath["/"].InBaseNamespace,
+			"pre-existing mounts from the root process namespace must be seeded with base_namespace=true")
+		assert.True(t, mountsByPath["/"].HasImageTag(tagID))
+
+		require.Contains(t, mountsByPath, "/host-etc")
+		assert.False(t, mountsByPath["/host-etc"].InBaseNamespace,
+			"pre-existing mounts from a foreign namespace entered via setns must be seeded with base_namespace=false")
+		assert.True(t, mountsByPath["/host-etc"].HasImageTag(tagID))
+	})
+
+	t.Run("syncs uncached cloned mount namespace from procfs on exec event", func(t *testing.T) {
+		var st unix.Stat_t
+		require.NoError(t, unix.Stat("/proc/self/ns/mnt", &st))
+		clonedNs := uint32(st.Ino)
+		require.NotZero(t, clonedNs)
+		baseNs := clonedNs ^ 1
+
+		m, _ := newInsertionTestManagerV2(t)
+		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{UseProcFS: true})
+		require.NoError(t, err)
+		m.resolvers.MountResolver = mr
+
+		require.NoError(t, mr.Insert(model.Mount{
+			MountID:        1,
+			NamespaceInode: baseNs,
+			Path:           "/container-base",
+			RootStr:        "/",
+			FSType:         "overlay",
+		}))
+
+		ev := newTestEventV2(model.ExecEventType, "v1", "known")
+		rootEntry := ev.ProcessCacheEntry
+		rootEntry.Process.MntNS = baseNs
+
+		selfPid := uint32(os.Getpid())
+		childEntry := model.NewPlaceholderProcessCacheEntry(selfPid, selfPid, false)
+		childEntry.ContainerContext = rootEntry.ContainerContext
+		childEntry.FileEvent = rootEntry.FileEvent
+		childEntry.Process.MntNS = clonedNs
+		childEntry.Ancestor = rootEntry
+		ev.ProcessCacheEntry = childEntry
+		ev.ProcessContext = &childEntry.ProcessContext
+
+		p, inserted := m.insertEventIntoProfile(ev)
+		require.NotNil(t, p)
+		require.True(t, inserted)
+
+		var foundBase, foundSyncedCloned bool
+		for _, mn := range p.ActivityTree.Mounts {
+			if mn.MountPoint == "/container-base" && mn.InBaseNamespace {
+				foundBase = true
+			}
+			if mn.MountPoint == "/proc" && !mn.InBaseNamespace {
+				foundSyncedCloned = true
+			}
+		}
+		assert.True(t, foundBase, "base namespace mount should be seeded with base_namespace=true")
+		assert.True(t, foundSyncedCloned, "uncached cloned namespace should be synced from /proc/<pid>/mountinfo on exec and seeded with base_namespace=false")
+	})
+
+	t.Run("retries foreign namespace seed after failed sync and keeps live mount event as runtime", func(t *testing.T) {
+		var st unix.Stat_t
+		require.NoError(t, unix.Stat("/proc/self/ns/mnt", &st))
+		clonedNs := uint32(st.Ino)
+		require.NotZero(t, clonedNs)
+		baseNs := clonedNs ^ 1
+
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2EventTypes = append(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.FileMountEventType)
+		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{UseProcFS: true})
+		require.NoError(t, err)
+		m.resolvers.MountResolver = mr
+
+		require.NoError(t, mr.Insert(model.Mount{
+			MountID:        1,
+			NamespaceInode: baseNs,
+			Path:           "/container-base",
+			RootStr:        "/",
+			FSType:         "overlay",
+		}))
+
+		// First event in clonedNs uses an exited PID (0xffffffff), so procfs sync fails and yields 0 mounts.
+		evDead := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		rootEntry := evDead.ProcessCacheEntry
+		rootEntry.Process.MntNS = baseNs
+
+		deadChild := model.NewPlaceholderProcessCacheEntry(0x7fffffff, 0x7fffffff, false)
+		deadChild.ContainerContext = rootEntry.ContainerContext
+		deadChild.FileEvent = rootEntry.FileEvent
+		deadChild.Process.MntNS = clonedNs
+		deadChild.Ancestor = rootEntry
+		evDead.ProcessCacheEntry = deadChild
+		evDead.ProcessContext = &deadChild.ProcessContext
+
+		p, inserted := m.insertEventIntoProfile(evDead)
+		require.NotNil(t, p)
+		require.True(t, inserted)
+
+		// Next event is a live FileMountEventType from a live PID in clonedNs whose mount was already inserted into MountResolver.
+		liveMount := model.Mount{
+			MountID:        99999,
+			NamespaceInode: clonedNs,
+			Path:           "/mnt/live-mount",
+			RootStr:        "/",
+			FSType:         "tmpfs",
+			Origin:         model.MountOriginEvent,
+		}
+		require.NoError(t, mr.Insert(liveMount))
+
+		selfPid := uint32(os.Getpid())
+		evMount := newTestEventV2(model.FileMountEventType, "v1", "known")
+		evMount.Mount.Mount = liveMount
+		liveChild := model.NewPlaceholderProcessCacheEntry(selfPid, selfPid, false)
+		liveChild.ContainerContext = rootEntry.ContainerContext
+		liveChild.FileEvent = rootEntry.FileEvent
+		liveChild.Process.MntNS = clonedNs
+		liveChild.Ancestor = rootEntry
+		evMount.ProcessCacheEntry = liveChild
+		evMount.ProcessContext = &liveChild.ProcessContext
+
+		p, inserted = m.insertEventIntoProfile(evMount)
+		require.NotNil(t, p)
+		assert.True(t, inserted, "live mount event must not be pre-inserted as Snapshot during seeding")
+
+		var foundProcSnapshot, foundLiveRuntime bool
+		for _, mn := range p.ActivityTree.Mounts {
+			if mn.MountPoint == "/proc" && !mn.InBaseNamespace && mn.GenerationType == activity_tree.Snapshot {
+				foundProcSnapshot = true
+			}
+			if mn.MountPoint == "/mnt/live-mount" && !mn.InBaseNamespace && mn.GenerationType == activity_tree.Runtime {
+				foundLiveRuntime = true
+			}
+		}
+		assert.True(t, foundProcSnapshot, "pre-existing mounts in clonedNs must be synced and seeded as Snapshot")
+		assert.True(t, foundLiveRuntime, "triggering live mount event must be inserted as Runtime")
+	})
 }
