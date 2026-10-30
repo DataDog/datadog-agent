@@ -53,6 +53,7 @@
 /.agents/skills/update-otel-deps/               @DataDog/opentelemetry-agent
 /.agents/skills/write-e2e/                      @DataDog/agent-devx
 /.agents/skills/locate-config-setting/          @DataDog/fleet-automation
+/.agents/skills/onboardhealthsignal/            @DataDog/fleet-remediation
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                                  # do not notify anyone
 /.go-version                                    @DataDog/agent-runtimes @DataDog/agent-build
