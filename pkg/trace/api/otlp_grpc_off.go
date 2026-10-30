@@ -20,4 +20,7 @@ func (o *OTLPReceiver) Start() {
 	}
 }
 
-func (o *OTLPReceiver) stopGRPC() {}
+func (o *OTLPReceiver) stopGRPC() {
+	// grpcsrv is never set without the otlp tag; reference it so the shared field isn't unused.
+	_ = o.grpcsrv
+}
