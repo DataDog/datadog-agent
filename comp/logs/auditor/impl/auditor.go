@@ -24,8 +24,8 @@ import (
 )
 
 // defaultFlushPeriod is the interval between registry writes while the agent
-// is running. Each write syncs the file and its directory. Stop writes once
-// more after acknowledgements queued at shutdown have been applied.
+// is running. Stop writes once more after acknowledgements queued at shutdown
+// have been applied.
 const defaultFlushPeriod = 5 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 

@@ -307,12 +307,12 @@ func (suite *AuditorTestSuite) TestShutdownFlushPersistsBufferedAcks() {
 	}
 
 	suite.a.cleanupRegistry()
-	suite.NoError(suite.a.flushRegistry())
+	suite.Require().NoError(suite.a.flushRegistry())
 
 	data, err := os.ReadFile(suite.testRegistryPath)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	var registry JSONRegistry
-	suite.NoError(json.Unmarshal(data, &registry))
+	suite.Require().NoError(json.Unmarshal(data, &registry))
 	suite.Equal("10", registry.Registry["file:/var/log/a.log"].Offset)
 	suite.Equal("40", registry.Registry["file:/var/log/b.log"].Offset)
 }
@@ -324,9 +324,9 @@ func (suite *AuditorTestSuite) TestStopWritesRegistry() {
 	suite.a.Stop()
 
 	data, err := os.ReadFile(suite.testRegistryPath)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	var registry JSONRegistry
-	suite.NoError(json.Unmarshal(data, &registry))
+	suite.Require().NoError(json.Unmarshal(data, &registry))
 	suite.Equal("25", registry.Registry["file:/var/log/app.log"].Offset)
 }
 
