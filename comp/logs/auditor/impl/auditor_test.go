@@ -6,6 +6,7 @@
 package auditorimpl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
@@ -270,6 +272,62 @@ func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	}
 	auditor = newAuditor(deps)
 	suite.Equal("*auditorimpl.nonAtomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
+}
+
+func (suite *AuditorTestSuite) ackPayload(identifier, offset string, ingestionTimestamp int64) *message.Payload {
+	origin := message.NewOrigin(suite.source)
+	origin.Identifier = identifier
+	origin.Offset = offset
+	return message.NewPayload([]*message.MessageMetadata{{
+		Origin:             origin,
+		IngestionTimestamp: ingestionTimestamp,
+	}}, nil, "", 0)
+}
+
+// TestShutdownFlushPersistsBufferedAcks queues acknowledgements, closes the
+// input the way Stop does, and checks the registry file written afterward.
+// The run loop must apply every buffered payload before it treats the closed
+// channel as exit, or those offsets never reach disk.
+func (suite *AuditorTestSuite) TestShutdownFlushPersistsBufferedAcks() {
+	suite.a.health = kubehealthmock.NewMockRegistrar().RegisterLiveness("logs-agent")
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.entryTTL = 23 * time.Hour
+	suite.a.messageChannelSize = 4
+	suite.a.createChannels()
+
+	suite.a.inputChan <- suite.ackPayload("file:/var/log/a.log", "10", 1)
+	suite.a.inputChan <- suite.ackPayload("file:/var/log/b.log", "40", 2)
+	close(suite.a.inputChan)
+
+	go suite.a.run()
+	select {
+	case <-suite.a.done:
+	case <-time.After(time.Second):
+		suite.FailNow("auditor did not exit after its input channel closed")
+	}
+
+	suite.a.cleanupRegistry()
+	suite.NoError(suite.a.flushRegistry())
+
+	data, err := os.ReadFile(suite.testRegistryPath)
+	suite.NoError(err)
+	var registry JSONRegistry
+	suite.NoError(json.Unmarshal(data, &registry))
+	suite.Equal("10", registry.Registry["file:/var/log/a.log"].Offset)
+	suite.Equal("40", registry.Registry["file:/var/log/b.log"].Offset)
+}
+
+func (suite *AuditorTestSuite) TestStopWritesRegistry() {
+	suite.a.entryTTL = 23 * time.Hour
+	suite.a.Start()
+	suite.a.SetOffset("file:/var/log/app.log", "25")
+	suite.a.Stop()
+
+	data, err := os.ReadFile(suite.testRegistryPath)
+	suite.NoError(err)
+	var registry JSONRegistry
+	suite.NoError(json.Unmarshal(data, &registry))
+	suite.Equal("25", registry.Registry["file:/var/log/app.log"].Offset)
 }
 
 func TestScannerTestSuite(t *testing.T) {
