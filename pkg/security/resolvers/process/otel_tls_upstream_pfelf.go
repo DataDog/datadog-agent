@@ -169,7 +169,7 @@ func visitRelocationsForSection(f *pfelf.File, visitor func(ElfReloc, string, Re
 	}
 
 	rdr := pfbufio.NewReader(relaSection, 0, int64(relaSection.Size))
-	defer pfbufio.PutReader(rdr)
+	defer rdr.Release()
 
 	rela := &elf.Rela64{}
 	sym := &elf.Sym64{}
@@ -225,7 +225,7 @@ func dynValue(f *pfelf.File, tag elf.DynTag) ([]uint64, error) {
 				vals = append(vals, dyn.Val)
 			}
 		}
-		pfbufio.PutReader(rdr)
+		rdr.Release()
 	}
 	return vals, nil
 }

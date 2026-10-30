@@ -74,8 +74,8 @@ github.com/tklauser/numcpus v0.12.0 h1:NR85qdvHA9pFse3x3weVZ0r0ST8R6l5RHbZrlRaqo
 github.com/tklauser/numcpus v0.12.0/go.mod h1:ABHeXzJnr/qqwguhClkZKT1/8VABcYrsyUiUGobwWJg=
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
-go.opentelemetry.io/collector/confmap v1.69.0 h1:PfCZR4752WXa0cDKEOphnboLNLTJhrvjvnM8OUD847w=
-go.opentelemetry.io/collector/confmap v1.69.0/go.mod h1:B3mmFRAkl0x24l2/oM8KAApgI1JDEnew8BMzqJ08rMw=
+go.opentelemetry.io/collector/confmap v1.70.0 h1:0w76mtbNO+/6v5W6WEu9mRRwJkn/4XzbBEBJSIlpFg0=
+go.opentelemetry.io/collector/confmap v1.70.0/go.mod h1:iz09kNLs9nTQt8w2CEJg5CxlrjEyh100iYopYnCfOAk=
 go.opentelemetry.io/collector/confmap/provider/envprovider v1.69.0 h1:OA08ftB0HbqbMputrQpon8EU2YktcjlGV/lcq2c2c/8=
 go.opentelemetry.io/collector/confmap/provider/envprovider v1.69.0/go.mod h1:QXbpYvw32D57KyHfmPpFRVE/EgICGMC9u1RS4KHTXbE=
 go.opentelemetry.io/collector/confmap/provider/fileprovider v1.69.0 h1:LOhRnVcW8Ol2LYfddCcxX/7QrORDDjSaE+HA3tSguF4=
@@ -86,10 +86,10 @@ go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.69.0 h1:ODypzoQm
 go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.69.0/go.mod h1:ACFuEHPo96HH84arDAuVHlPNgPOgKOHGFkoIB1eJigQ=
 go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.69.0 h1:pnDhdn9tiA6AQqh4VJ/hRHReQvAvad0rAljrZqetTco=
 go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.69.0/go.mod h1:E/rO5TsYdxz6D1qaxG8Lrtgb2PbPEhdR/QUUDLkY7ZY=
-go.opentelemetry.io/collector/featuregate v1.69.0 h1:RapEMYjBfvt9IUP3ypQ9Y7/g21nwRzvtKO3dSOCCL6E=
-go.opentelemetry.io/collector/featuregate v1.69.0/go.mod h1:dRYifiJa2vQ6LWpPwHny4mL82mnGWsWEVeVWw+DhYJw=
-go.opentelemetry.io/collector/internal/testutil v0.163.0 h1:JR65ZHtuOP1E5cJZKl4ub/UFHQ7xo3KN/Iryhtc0P5E=
-go.opentelemetry.io/collector/internal/testutil v0.163.0/go.mod h1:RUvWdMZGEBicc0C3teDcnTrifUX8HB4AJ4l8pMONURU=
+go.opentelemetry.io/collector/featuregate v1.70.0 h1:yXJP5pi2xq+bVRG+8d4/ue13/GSoCmozp2Cb5ExE+Zs=
+go.opentelemetry.io/collector/featuregate v1.70.0/go.mod h1:dRYifiJa2vQ6LWpPwHny4mL82mnGWsWEVeVWw+DhYJw=
+go.opentelemetry.io/collector/internal/testutil v0.164.0 h1:3UsU+N8FfYjclzMlw7oH+qyaP0KqwqCe3ILrW8icuy4=
+go.opentelemetry.io/collector/internal/testutil v0.164.0/go.mod h1:5NTFUqDo6AanqaznxeJhE1Eexjm8TQe7NyjckhRIWYk=
 go.uber.org/atomic v1.12.0 h1:BvcXdFKuviU4fTL/f+SxdQ5qJX/Jix8pAkgdUcb3XOE=
 go.uber.org/atomic v1.12.0/go.mod h1:I6c4cg+6HCxRjfjSsYtApoFILnpc0CGUdGkXVqbYVNk=
 go.uber.org/dig v1.19.0 h1:BACLhebsYdpQ7IROQ1AGPjrXcP5dF80U3gKoFzbaq/4=
