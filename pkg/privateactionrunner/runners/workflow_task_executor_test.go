@@ -253,6 +253,91 @@ func TestWorkflowTaskExecutorValidatesExecutionFQN(t *testing.T) {
 	}
 }
 
+func TestWorkflowTaskExecutorRoutesNewPublicActionToAuthoredScript(t *testing.T) {
+	const (
+		publicBundle = "com.datadoghq.hosts"
+		actionName   = "diskUtilization"
+		scriptBundle = "com.datadoghq.authoredscripts"
+		executionFQN = scriptBundle + ".hosts." + actionName
+	)
+
+	tests := []struct {
+		name      string
+		allowlist map[string]sets.Set[string]
+		wantError string
+	}{
+		{
+			name:      "public FQN is allowlisted",
+			allowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+		},
+		{
+			name:      "execution FQN cannot authorize public action",
+			allowlist: map[string]sets.Set[string]{scriptBundle + ".hosts": sets.New(actionName)},
+			wantError: "not allowlisted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scriptAction := &recordingAction{}
+			scriptHandler := &fakeBundle{action: scriptAction}
+			// Use an exact fake bundle here; the node-only registry fallback has its own test.
+			registry := &privatebundles.Registry{Bundles: map[string]types.Bundle{
+				scriptBundle + ".hosts": scriptHandler,
+			}}
+			require.Nil(t, registry.GetBundle(publicBundle))
+			executor := &WorkflowTaskExecutor{
+				registry: registry,
+				config: &config.Config{
+					ActionsAllowlist: tt.allowlist,
+					MetricsClient:    &statsd.NoOpClient{},
+				},
+			}
+			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+			task.Data.Attributes.ExecutionFQN = executionFQN
+
+			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.Nil(t, output)
+				assert.False(t, scriptAction.called)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "executed", output)
+				assert.True(t, scriptAction.called)
+				require.Same(t, task, scriptAction.task)
+				assert.Equal(t, publicBundle+"."+actionName, scriptAction.task.GetFQN())
+			}
+			assert.Equal(t, actionName, scriptHandler.gotActionName)
+		})
+	}
+}
+
+func TestWorkflowTaskExecutorRejectsMismatchedAuthoredScript(t *testing.T) {
+	const (
+		publicBundle = "com.datadoghq.hosts"
+		actionName   = "diskUtilization"
+		scriptBundle = "com.datadoghq.authoredscripts"
+	)
+	scriptAction := &recordingAction{}
+	executor := &WorkflowTaskExecutor{
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+			scriptBundle: &fakeBundle{action: scriptAction},
+		}},
+		config: &config.Config{
+			ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+			MetricsClient:    &statsd.NoOpClient{},
+		},
+	}
+	task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+	task.Data.Attributes.ExecutionFQN = scriptBundle + ".hosts.deleteDisk"
+
+	output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+	require.ErrorContains(t, err, "does not match public action")
+	assert.Nil(t, output)
+	assert.False(t, scriptAction.called)
+}
+
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 	verifyErr := errors.New("verification failed")
 	dequeuedTask := newWorkflowTask("wrapper-task", "wrapper-bundle", "wrapper-action", "job-id")
