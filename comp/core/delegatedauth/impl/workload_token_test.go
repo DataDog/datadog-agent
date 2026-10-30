@@ -53,7 +53,7 @@ func TestWorkloadTokenUsesSelectedInstance(t *testing.T) {
 				require.Equal(t, "org-for-"+key, auth.OrgUUID)
 				require.Equal(t, request, got)
 				// Status reads and refresh-state updates must remain possible during exchange.
-				d.mu.Lock()
+				require.True(t, d.mu.TryLock(), "workload proof generation must not hold the component lock")
 				d.mu.Unlock()
 				return "proof-for-" + key, nil
 			}},
