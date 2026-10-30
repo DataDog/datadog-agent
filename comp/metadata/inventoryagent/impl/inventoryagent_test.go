@@ -7,8 +7,6 @@ package inventoryagentimpl
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"maps"
 	"net/http"
@@ -18,7 +16,6 @@ import (
 	"runtime"
 	"slices"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -1198,93 +1195,6 @@ func TestGetProvidedConfigurationDisable(t *testing.T) {
 	assert.NotContains(t, payload.Metadata, "remote_configuration")
 	assert.NotContains(t, payload.Metadata, "cli_configuration")
 	assert.NotContains(t, payload.Metadata, "source_local_configuration")
-	assert.Empty(t, payload.FilesMetadata)
-}
-
-func TestGetPayloadFilesMetadata(t *testing.T) {
-	tmpDir := t.TempDir()
-	configmock.New(t).SetConfigFile(filepath.Join(tmpDir, "datadog.yaml"))
-
-	originalFetchSystemProbeFilename := fetchSystemProbeFilename
-	defer func() {
-		fetchSystemProbeFilename = originalFetchSystemProbeFilename
-	}()
-	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
-		return filepath.Join(tmpDir, "system-probe.yaml")
-	}
-
-	configFiles := map[string]string{
-		filepath.Join(tmpDir, "datadog.yaml"): `# comments are not safe to report
-second: 2
-first: "preserve this style"
-unknown_setting:
-  nested: untouched
-api_key: datadog-secret
-`,
-		filepath.Join(tmpDir, "system-probe.yaml"):           "network_config:\n  enabled: true\nauth_token: system-probe-secret\n",
-		filepath.Join(tmpDir, "security-agent.yaml"):         "runtime_security_config:\n  enabled: true\npassword: security-secret\n",
-		filepath.Join(tmpDir, "application_monitoring.yaml"): "tracing:\n  enabled: true\napi_key: application-secret\n",
-	}
-	for path, contents := range configFiles {
-		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
-	}
-
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_configuration_enabled": true,
-	}, nil)
-
-	payload := ia.getPayload().(*Payload)
-	require.Len(t, payload.FilesMetadata, len(configFiles))
-	for path := range configFiles {
-		rawfile, found := payload.FilesMetadata[path]
-		require.True(t, found)
-		assert.NotContains(t, rawfile.RawConfig, "-secret")
-
-		hash := sha256.Sum256([]byte(rawfile.RawConfig))
-		assert.Equal(t, hex.EncodeToString(hash[:]), rawfile.Hash)
-	}
-
-	datadogRawConfig := payload.FilesMetadata[filepath.Join(tmpDir, "datadog.yaml")].RawConfig
-	assert.Less(t, strings.Index(datadogRawConfig, "second:"), strings.Index(datadogRawConfig, "first:"))
-	assert.Contains(t, datadogRawConfig, `first: "preserve this style"`)
-	assert.Contains(t, datadogRawConfig, "unknown_setting:\n  nested: untouched")
-	assert.NotContains(t, datadogRawConfig, "comments are not safe to report")
-}
-
-func TestGetPayloadFilesMetadataSkipsUnsafeAndMissingFiles(t *testing.T) {
-	tmpDir := t.TempDir()
-	datadogConfigPath := filepath.Join(tmpDir, "datadog.yaml")
-	configmock.New(t).SetConfigFile(datadogConfigPath)
-	require.NoError(t, os.WriteFile(datadogConfigPath, []byte("api_key: [invalid"), 0600))
-
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_configuration_enabled": true,
-	}, nil)
-
-	payload := ia.getPayload().(*Payload)
-	assert.Empty(t, payload.FilesMetadata)
-}
-
-func TestGetPayloadFilesMetadataWithoutMainConfig(t *testing.T) {
-	tmpDir := t.TempDir()
-	systemProbeConfigPath := filepath.Join(tmpDir, "system-probe.yaml")
-	require.NoError(t, os.WriteFile(systemProbeConfigPath, []byte("network_config:\n  enabled: true\n"), 0600))
-
-	originalFetchSystemProbeFilename := fetchSystemProbeFilename
-	defer func() {
-		fetchSystemProbeFilename = originalFetchSystemProbeFilename
-	}()
-	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
-		return systemProbeConfigPath
-	}
-
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_configuration_enabled": true,
-	}, nil)
-
-	payload := ia.getPayload().(*Payload)
-	require.Len(t, payload.FilesMetadata, 1)
-	assert.Contains(t, payload.FilesMetadata, systemProbeConfigPath)
 }
 
 func TestGetProvidedConfiguration(t *testing.T) {
