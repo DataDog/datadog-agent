@@ -600,6 +600,10 @@
 /comp/core/remoteagent/impl-trace         @DataDog/agent-runtimes @DataDog/agent-apm
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
 
+# serverless-init metadata shares these with serverless-azure-and-gcp
+/comp/metadata/internal/agentmetadata/     @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
+/comp/metadata/internal/util/              @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
+
 # Host profiler: core profiling features are owned by profiling-full-host only;
 # the rest of comp/host-profiler is shared with opentelemetry-agent (see bundle.go)
 /comp/host-profiler/cgroup/                 @DataDog/profiling-full-host
