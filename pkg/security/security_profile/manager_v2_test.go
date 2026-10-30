@@ -423,6 +423,43 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		m.HandleSampleRefresh(3)
 		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
+
+	t.Run("cookie_retargeted_while_waiting_for_lock", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2(t)
+		prof := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}))
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+		folded := activity_tree.NewNodeBase()
+		survivor := activity_tree.NewNodeBase()
+		initialTime := time.Now().Add(-time.Hour)
+		for _, nb := range []*activity_tree.NodeBase{&processNode.NodeBase, &folded, &survivor} {
+			nb.AppendImageTagID(imageTagID, initialTime)
+		}
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: &folded,
+			imageTag:      "v1",
+		})
+
+		prof.Lock()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			m.HandleSampleRefresh(1)
+		}()
+		require.Eventually(t, func() bool { return m.sampleRefreshHits.Load() == 1 }, 5*time.Second, time.Millisecond)
+		m.retargetSampleCookies(prof, map[*activity_tree.NodeBase]*activity_tree.NodeBase{&folded: &survivor})
+		prof.Unlock()
+		<-done
+
+		_, survivorLastSeen, _ := survivor.GetSeenTimes(imageTagID)
+		assert.Greater(t, survivorLastSeen, initialTime.UnixNano())
+		_, foldedLastSeen, _ := folded.GetSeenTimes(imageTagID)
+		assert.Equal(t, initialTime.UnixNano(), foldedLastSeen)
+	})
 }
 
 // monotonicFieldHandlers mimics the eBPF field handler: Timestamp stays zero until
@@ -1137,6 +1174,31 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 }
 
 func TestManagerV2_seedMountsForWorkload(t *testing.T) {
+	t.Run("skips seeding when mount event type is disabled", func(t *testing.T) {
+		const baseNs = uint32(4026531840)
+
+		m, _ := newInsertionTestManagerV2(t)
+		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{})
+		require.NoError(t, err)
+		m.resolvers.MountResolver = mr
+
+		require.NoError(t, mr.Insert(model.Mount{
+			MountID:        10,
+			NamespaceInode: baseNs,
+			Path:           "/",
+			RootStr:        "/",
+			FSType:         "overlay",
+		}))
+
+		ev := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		ev.ProcessCacheEntry.Process.MntNS = baseNs
+
+		p, inserted := m.insertEventIntoProfile(ev)
+		require.NotNil(t, p)
+		require.True(t, inserted)
+		assert.Empty(t, p.ActivityTree.Mounts)
+	})
+
 	t.Run("seeds cached base and foreign namespaces", func(t *testing.T) {
 		const (
 			baseNs    = uint32(4026531840)
@@ -1144,6 +1206,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		)
 
 		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2EventTypes = append(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.FileMountEventType)
 		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{})
 		require.NoError(t, err)
 		m.resolvers.MountResolver = mr
@@ -1206,6 +1269,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		baseNs := clonedNs ^ 1
 
 		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2EventTypes = append(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.FileMountEventType)
 		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{UseProcFS: true})
 		require.NoError(t, err)
 		m.resolvers.MountResolver = mr

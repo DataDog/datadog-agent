@@ -8,6 +8,7 @@ go_library(
     srcs = [
         "config.go",
         "configured_component.go",
+        "metric_filter.go",
         "recorder.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl",
@@ -17,7 +18,11 @@ go_library(
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/recorder/def",
         "//comp/core/config",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/util/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//comp/def",
+        "//pkg/tagset",
         "//pkg/util/option",
     ],
 )
@@ -26,6 +31,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "component_test.go",
+        "metric_filter_test.go",
         "recorder_test.go",
     ],
     embed = [":impl"],
@@ -37,6 +43,9 @@ dd_agent_go_test(
         "//comp/anomalydetection/recorder/def",
         "//comp/core/config",
         "//comp/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/util/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/metrics",
         "//pkg/tagset",
         "//pkg/util/option",

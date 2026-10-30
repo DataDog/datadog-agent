@@ -131,7 +131,8 @@
 
 /.gitlab/.ci-linters.yml                                                  @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
-/.gitlab/.post/*                                                          @DataDog/agent-devx
+/.gitlab/aix/*                                                            @DataDog/agent-build @DataDog/agent-runtimes
+/.gitlab/.post/*                                                        @DataDog/agent-devx
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
@@ -855,7 +856,6 @@
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/nodename/                                        @DataDog/opentelemetry-agent
-/pkg/util/metricname/                                                 @DataDog/agent-metric-pipelines
 /pkg/util/podman/                                                     @DataDog/container-integrations
 /pkg/util/port/                                                       @DataDog/agent-runtimes
 /pkg/util/port/portlist/*windows*.go                                  @DataDog/windows-products
@@ -1048,6 +1048,7 @@
 /tasks/libs/releasing/                                          @DataDog/agent-delivery
 /tasks/schema/                                                  @DataDog/fleet-automation
 /tasks/unit_tests/bazel_tests.py                                @DataDog/agent-build
+/tasks/unit_tests/bazel_remote_cache_tests.py                   @DataDog/agent-build
 /tasks/unit_tests/components_tests.py                           @DataDog/agent-runtimes
 /tasks/unit_tests/build_tags_tests.py                           @DataDog/agent-build
 /tasks/unit_tests/libs/build/                                   @DataDog/agent-build

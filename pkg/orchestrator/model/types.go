@@ -91,6 +91,8 @@ const (
 	K8sKubeletConfig = 29
 	// K8sConfigMap represents a Kubernetes ConfigMap
 	K8sConfigMap = 30
+	// K8sSecret represents a Kubernetes Secret
+	K8sSecret = 31
 	// ECSTask represents an ECS Task
 	ECSTask = 150
 )
@@ -124,6 +126,7 @@ func NodeTypes() []NodeType {
 		K8sReplicaSet,
 		K8sRole,
 		K8sRoleBinding,
+		K8sSecret,
 		K8sService,
 		K8sServiceAccount,
 		K8sStatefulSet,
@@ -194,6 +197,8 @@ func (n NodeType) String() string {
 		return "PodDisruptionBudget"
 	case K8sConfigMap:
 		return "ConfigMap"
+	case K8sSecret:
+		return "Secret"
 	case K8sEndpointSlice:
 		return "EndpointSlice"
 	case K8sKubeletConfig:
@@ -232,6 +237,7 @@ func (n NodeType) Orchestrator() string {
 		K8sReplicaSet,
 		K8sRole,
 		K8sRoleBinding,
+		K8sSecret,
 		K8sService,
 		K8sServiceAccount,
 		K8sStatefulSet,

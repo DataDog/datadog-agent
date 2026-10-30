@@ -220,6 +220,19 @@ func callAgentsForService[PbType any, StructuredType any](
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
 	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
 ) []StructuredType {
+	return callAgentsForServiceFiltered(context.Background(), registry, service, nil, grpcCall, resultProcessor)
+}
+
+// callAgentsForServiceFiltered is like callAgentsForService, but only calls agents accepted by agentFilter (when
+// non-nil), and bounds the calls by the given context in addition to the registry's query timeout.
+func callAgentsForServiceFiltered[PbType any, StructuredType any](
+	ctx context.Context,
+	registry *remoteAgentRegistry,
+	service remoteAgentServiceName,
+	agentFilter func(remoteagentregistry.RegisteredAgent) bool,
+	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
+	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
+) []StructuredType {
 	queryTimeout := registry.conf.GetDuration("remote_agent.registry.query_timeout")
 
 	var wg sync.WaitGroup
@@ -231,6 +244,9 @@ func callAgentsForService[PbType any, StructuredType any](
 	for _, remoteAgent := range registry.agentMap {
 		// Skip the remoteAgent if the service is not implemented.
 		if !slices.Contains(remoteAgent.services, service) {
+			continue
+		}
+		if agentFilter != nil && !agentFilter(remoteAgent.RegisteredAgent) {
 			continue
 		}
 		filteredAgents = append(filteredAgents, remoteAgent)
@@ -247,7 +263,8 @@ func callAgentsForService[PbType any, StructuredType any](
 	}
 
 	// Creates a context with a one second deadline for the RPC.
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	callerCtx := ctx
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
 	wg.Add(agentsLen)
@@ -272,7 +289,10 @@ func callAgentsForService[PbType any, StructuredType any](
 			resp, err := grpcCall(ctx, remoteAgent, grpc.WaitForReady(true), grpc.Header(&responseHeader))
 
 			if err != nil {
-				registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
+				// A call cut short because the caller gave up is not a failure of the remote agent.
+				if !callerDone(callerCtx) {
+					registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
+				}
 			} else {
 				// Validate session ID if no error occurred
 				if validationErr := remoteAgent.validateSessionID(responseHeader); validationErr != nil {

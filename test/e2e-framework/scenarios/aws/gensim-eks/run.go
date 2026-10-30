@@ -544,8 +544,8 @@ func deployOrchestratorJob(
 				Template: corev1.PodTemplateSpecArgs{
 					Metadata: metav1.ObjectMetaArgs{
 						Annotations: pulumi.StringMap{
-							// Keep the orchestrator's scenario timeline out of the recorder.
-							"ad.datadoghq.com/orchestrator.logs_exclude": pulumi.String("true"),
+							// Keep the orchestrator's scenario timeline out of the recording.
+							"ad.datadoghq.com/orchestrator.exclude": pulumi.String("true"),
 						},
 					},
 					Spec: corev1.PodSpecArgs{

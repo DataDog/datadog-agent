@@ -24,6 +24,7 @@ func Module() fxutil.Module {
 		fx.Provide(func() option.Option[recorder.WriterFactory] {
 			return option.New[recorder.WriterFactory](recorderparquet.Factory{})
 		}),
+		fxutil.ProvideComponentConstructor(recorderimpl.NewMetricFilter),
 		fxutil.ProvideComponentConstructor(recorderimpl.NewConfiguredComponent),
 	)
 }

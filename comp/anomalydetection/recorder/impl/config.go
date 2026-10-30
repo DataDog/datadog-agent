@@ -8,6 +8,7 @@
 package recorderimpl
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,7 +20,7 @@ import (
 func writerConfig(cfg config.Component) (recorder.WriterConfig, error) {
 	outputDir := cfg.GetString("anomaly_detection.recording.output_dir")
 	if strings.TrimSpace(outputDir) == "" {
-		return recorder.WriterConfig{}, fmt.Errorf("anomaly_detection.recording.output_dir not set")
+		return recorder.WriterConfig{}, errors.New("anomaly_detection.recording.output_dir not set")
 	}
 
 	flushValue := strings.TrimSpace(cfg.GetString("anomaly_detection.recording.flush_interval"))
