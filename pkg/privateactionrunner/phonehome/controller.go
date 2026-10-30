@@ -142,7 +142,7 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		}
 		switch p.Detail.State {
 		case pb.ProcessState_STARTING, pb.ProcessState_RUNNING, pb.ProcessState_STOPPING:
-			return set("handed_off", "existing_process_left_untouched", 0)
+			return set("skipped", "existing_process_left_untouched", 0)
 		case pb.ProcessState_SKIPPED, pb.ProcessState_STOPPED, pb.ProcessState_CREATED:
 		default:
 			return set("blocked", "previous_process_exit_requires_review", 0)
@@ -172,5 +172,5 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	if _, err := c.pm.Start(startCtx, &pb.StartRequest{NameOrUuid: control.Uuid}); err != nil {
 		return set("blocked", "launch_outcome_unknown_requires_review", 0)
 	}
-	return set("handed_off", "supervisor_start_acknowledged", 0)
+	return set("passed", "supervisor_start_acknowledged", 0)
 }

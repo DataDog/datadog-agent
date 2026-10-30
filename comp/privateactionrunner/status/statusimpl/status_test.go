@@ -109,7 +109,8 @@ func TestPhoneHomeStartupStatus(t *testing.T) {
 	for _, state := range []phonehome.State{
 		{State: "waiting", Reason: "missing_enrollment_scope", NextCheck: "2026-10-23T10:01:00Z"},
 		{State: "blocked", Reason: "launch_outcome_unknown_requires_review"},
-		{State: "handed_off", Reason: "supervisor_start_acknowledged"},
+		{State: "passed", Reason: "supervisor_start_acknowledged"},
+		{State: "skipped", Reason: "existing_process_left_untouched"},
 	} {
 		t.Run(state.State, func(t *testing.T) {
 			provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &state}}

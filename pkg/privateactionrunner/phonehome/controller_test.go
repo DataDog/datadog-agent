@@ -90,7 +90,7 @@ func TestRCOnlyStartupProductionSource(t *testing.T) {
 					f.c.step(context.Background())
 					require.Equal(t, 1, f.pm.starts, "later RC enablement needs no restart")
 				}
-				require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+				require.Equal(t, State{State: "passed", Reason: "supervisor_start_acknowledged"}, f.state)
 				require.NoFileExists(t, f.cfg.GetString(par.IdentityFilePath), "the gate does not enroll")
 				f.c.step(context.Background())
 				require.Equal(t, 1, f.pm.starts)
@@ -104,6 +104,7 @@ func TestStartupDoesNotReplayOrStopChildren(t *testing.T) {
 		for _, executor := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/executor=%t", state, executor), func(t *testing.T) {
 				f := newFixture(t)
+				f.rc.rc = &pbgo.OrgStatusResponse{}
 				if executor {
 					f.pm.executor.State = state
 				} else {
@@ -111,6 +112,12 @@ func TestStartupDoesNotReplayOrStopChildren(t *testing.T) {
 				}
 				require.Zero(t, f.c.step(context.Background()))
 				require.Zero(t, f.pm.starts)
+				switch state {
+				case pb.ProcessState_RUNNING, pb.ProcessState_STARTING, pb.ProcessState_STOPPING:
+					require.Equal(t, State{State: "skipped", Reason: "existing_process_left_untouched"}, f.state)
+				default:
+					require.Equal(t, State{State: "blocked", Reason: "previous_process_exit_requires_review"}, f.state)
+				}
 			})
 		}
 	}
@@ -165,7 +172,7 @@ func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
 		require.Zero(t, f.c.step(context.Background()))
 		require.NoError(t, pm.startContextErr, "Start must not inherit an exhausted preflight deadline")
 		require.Equal(t, 1, pm.starts)
-		require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+		require.Equal(t, State{State: "passed", Reason: "supervisor_start_acknowledged"}, f.state)
 		f.c.step(context.Background())
 		require.Equal(t, 1, pm.starts)
 	})

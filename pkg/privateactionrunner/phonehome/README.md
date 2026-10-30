@@ -49,7 +49,9 @@ Old POC `.phone-home` attempt journals block new startup rather than silently di
 pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
 The previous recovery experiment is retained in backup refs, outside this scoped stack.
 
-Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
+Internal `par_phone_home` expvar reports `waiting`, `blocked`, `passed`, or `skipped` and a bounded reason.
+`passed` means Start was acknowledged, not that enrollment or action readiness succeeded.
+`skipped` means an already-active child was left untouched without checking prerequisites.
 No new `datadog-agent status` fields are added here; those belong to PR 4.
 
 ## AAA discovery (PR 3)
