@@ -10,14 +10,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
-	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -25,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -42,8 +38,6 @@ import (
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -66,14 +60,12 @@ func resolveClientComputedStats(attrs pcommon.Map, fromHeader bool) bool {
 	return s != "" && s != "false"
 }
 
-var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
-
-// OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
-// data on two ports for both plain HTTP and gRPC.
+// OTLPReceiver converts OTLP resource spans into Datadog payloads. In builds with the
+// otlp tag it can additionally accept traces from the core Agent over gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
 	wg                 sync.WaitGroup      // waits for a graceful shutdown
-	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	grpcsrv            grpcServer          // the running GRPC server on a started receiver, if enabled
 	out                chan<- *Payload     // the outgoing payload channel
 	conf               *config.AgentConfig // receiver config
 	cidProvider        IDProvider          // container ID provider
@@ -127,52 +119,6 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
-// Start starts the OTLPReceiver, if any of the servers were configured as active.
-func (o *OTLPReceiver) Start() {
-	cfg := o.conf.OTLPReceiver
-	if cfg.GRPCPort != 0 {
-		var ln net.Listener
-		var err error
-		// When using the trace-loader, the OTLP listener might be provided as an already opened file descriptor
-		// so we try to get a listener from it, and fallback to listening on the given address if it fails
-		if grpcFDStr, ok := os.LookupEnv("DD_OTLP_CONFIG_GRPC_FD"); ok {
-			ln, err = loader.GetListenerFromFD(grpcFDStr, "otlp_conn")
-			if err == nil {
-				log.Debugf("Using OTLP listener from file descriptor %s", grpcFDStr)
-			} else {
-				log.Errorf("Error creating OTLP listener from file descriptor %s: %v", grpcFDStr, err)
-			}
-		}
-		if ln == nil {
-			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
-			ln, err = loader.GetTCPListener(net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.GRPCPort)))
-		}
-
-		if err != nil {
-			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
-		} else {
-			opts := []grpc.ServerOption{
-				grpc.MaxRecvMsgSize(o.grpcMaxRecvMsgSize),
-				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
-			}
-
-			// OTLP trace ingestion doesn't need generic gRPC metrics interceptors
-			// since we collect business-specific metrics (spans, traces, payloads) via StatsD
-
-			o.grpcsrv = grpc.NewServer(opts...)
-			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
-			o.wg.Add(1)
-			go func() {
-				defer o.wg.Done()
-				if err := o.grpcsrv.Serve(ln); err != nil {
-					log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
-				}
-			}()
-			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.GRPCPort)
-		}
-	}
-}
-
 // Stop stops any running server.
 func (o *OTLPReceiver) Stop() {
 	o.mu.Lock()
@@ -182,36 +128,8 @@ func (o *OTLPReceiver) Stop() {
 		log.Warn("Stop called on already stopped OTLPReceiver")
 		return
 	}
-	if o.grpcsrv != nil {
-		go o.grpcsrv.Stop()
-	}
+	o.stopGRPC()
 	o.wg.Wait()
-}
-
-// Export implements ptraceotlp.Server
-func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
-	defer o.timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
-	md, _ := metadata.FromIncomingContext(ctx)
-	_ = o.statsd.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
-	o.processRequest(ctx, http.Header(md), in)
-	return ptraceotlp.NewExportResponse(), nil
-}
-
-func tagsFromHeaders(h http.Header) []string {
-	tags := []string{"endpoint_version:opentelemetry_grpc_v1"}
-	if v := fastHeaderGet(h, header.Lang); v != "" {
-		tags = append(tags, "lang:"+v)
-	}
-	if v := fastHeaderGet(h, header.LangVersion); v != "" {
-		tags = append(tags, "lang_version:"+v)
-	}
-	if v := fastHeaderGet(h, header.LangInterpreter); v != "" {
-		tags = append(tags, "interpreter:"+v)
-	}
-	if v := fastHeaderGet(h, header.LangInterpreterVendor); v != "" {
-		tags = append(tags, "lang_vendor:"+v)
-	}
-	return tags
 }
 
 // fastHeaderGet returns the given key from the header, avoiding the caonical transformation of key

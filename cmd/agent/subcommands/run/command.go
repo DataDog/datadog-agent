@@ -161,9 +161,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
-	"github.com/DataDog/datadog-agent/comp/otelcol"
-	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	phonehomefx "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/fx"
@@ -298,7 +295,6 @@ func run(log log.Component,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
 	_ processAgent.Component,
-	_ otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
@@ -496,13 +492,6 @@ func getSharedFxOption() fx.Option {
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		dogstatsdhttpfx.Module(),
-		fx.Provide(func(logsagent option.Option[logsAgent.Component]) option.Option[logsagentpipeline.Component] {
-			if la, ok := logsagent.Get(); ok {
-				return option.New[logsagentpipeline.Component](la)
-			}
-			return option.None[logsagentpipeline.Component]()
-		}),
-		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
 		procmgrFlareFx.Module(),
 		procmgrStatusFx.Module(),

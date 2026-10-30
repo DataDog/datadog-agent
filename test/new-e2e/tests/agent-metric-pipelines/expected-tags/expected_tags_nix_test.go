@@ -31,24 +31,15 @@ const (
 	gaugeMetric = "e2e.expectedtags.gauge"
 	distMetric  = "e2e.expectedtags.dist"
 
-	otlpGaugeMetric = "e2e.expectedtags.otlp.gauge"
-	otlpDistMetric  = "e2e.expectedtags.otlp.dist"
-
 	infrastructureModeTag = "infra_mode:cloud_cost_only"
 )
 
 // baseAgentConfig keeps the tagging window open for the whole suite. The deadline is anchored
 // to Agent process start, which happens during provisioning, so it has to outlast that too.
-// The OTLP receiver covers Agent OTLP ingest, which tags metrics outside the aggregator.
 const baseAgentConfig = `
 expected_tags_duration: 30m
 tags:
   - ` + hostTag + `
-otlp_config:
-  receiver:
-    protocols:
-      http:
-        endpoint: localhost:4318
 `
 
 // v1AgentConfig ships series as JSON on /api/v1/series.
@@ -136,23 +127,6 @@ func (s *expectedTagsSuite) sendStatsd(c *assert.CollectT, payload string) {
 	s.Env().RemoteHost.MustExecuteOn(c, fmt.Sprintf(`bash -c 'echo -n "%s" > /dev/udp/127.0.0.1/8125'`, payload))
 }
 
-// sendOTLP posts one OTLP/HTTP JSON metric to the Agent's OTLP receiver from the remote host.
-func (s *expectedTagsSuite) sendOTLP(c *assert.CollectT, metric string) {
-	payload := `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[` + metric + `]}]}]}`
-	s.Env().RemoteHost.MustExecuteOn(c, fmt.Sprintf(`curl -sSf -H 'Content-Type: application/json' -d '%s' http://localhost:4318/v1/metrics`, payload))
-}
-
-func otlpGauge(name string) string {
-	return fmt.Sprintf(`{"name":%q,"gauge":{"dataPoints":[{"asDouble":1,"timeUnixNano":"%d"}]}}`, name, time.Now().UnixNano())
-}
-
-// otlpDeltaHistogram returns a delta histogram, which the default histogram mode sends as a sketch.
-func otlpDeltaHistogram(name string) string {
-	now := time.Now()
-	return fmt.Sprintf(`{"name":%q,"histogram":{"aggregationTemporality":1,"dataPoints":[{"startTimeUnixNano":"%d","timeUnixNano":"%d","count":"1","sum":1,"bucketCounts":["0","1"],"explicitBounds":[0.5]}]}}`,
-		name, now.Add(-10*time.Second).UnixNano(), now.UnixNano())
-}
-
 // TestHostTagsOnSeries keeps a gauge flowing until a flush delivers it to the intake carrying
 // the host tag. FilterMetrics merges the v1, v2 and v3 series endpoints, so the same assertion
 // covers whichever encoder this suite's config selected.
@@ -177,30 +151,6 @@ func (s *expectedTagsV2Suite) TestHostTagsOnSketches() {
 			client.WithTags[*aggregator.Sketch]([]string{hostTag}))
 		require.NoError(c, err)
 		assert.NotEmpty(c, sketches, "no %s sketch tagged %q has reached the intake yet", distMetric, hostTag)
-	}, 5*time.Minute, 10*time.Second)
-}
-
-// TestHostTagsOnOTLPSeries covers Agent OTLP ingest, which tags series in its serializer exporter.
-func (s *expectedTagsSuite) TestHostTagsOnOTLPSeries() {
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.sendOTLP(c, otlpGauge(otlpGaugeMetric))
-
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(otlpGaugeMetric,
-			client.WithTags[*aggregator.MetricSeries]([]string{hostTag}))
-		require.NoError(c, err)
-		assert.NotEmpty(c, metrics, "no OTLP %s series tagged %q has reached the intake yet", otlpGaugeMetric, hostTag)
-	}, 5*time.Minute, 10*time.Second)
-}
-
-// TestHostTagsOnOTLPSketches covers OTLP histograms sent as sketches. Only the v2 suite runs it.
-func (s *expectedTagsV2Suite) TestHostTagsOnOTLPSketches() {
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		s.sendOTLP(c, otlpDeltaHistogram(otlpDistMetric))
-
-		sketches, err := s.Env().FakeIntake.Client().FilterSketches(otlpDistMetric,
-			client.WithTags[*aggregator.Sketch]([]string{hostTag}))
-		require.NoError(c, err)
-		assert.NotEmpty(c, sketches, "no OTLP %s sketch tagged %q has reached the intake yet", otlpDistMetric, hostTag)
 	}, 5*time.Minute, 10*time.Second)
 }
 

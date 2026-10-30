@@ -150,7 +150,7 @@ func buildBinaries(verbose bool) error {
 	if verbose {
 		log.Printf("agent: installing in %s...", binpath)
 	}
-	cmd := utiltest.IsolatedGoBuildCmd(tmpDir, binpath, "-tags", "otlp", "github.com/DataDog/datadog-agent/cmd/trace-agent")
+	cmd := utiltest.IsolatedGoBuildCmd(tmpDir, binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent")
 	o, err := cmd.CombinedOutput()
 	if err != nil {
 		if verbose {
