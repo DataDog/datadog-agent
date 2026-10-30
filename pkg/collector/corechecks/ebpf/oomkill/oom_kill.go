@@ -10,6 +10,7 @@ package oomkill
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -129,6 +130,10 @@ func (m *OOMKillCheck) Run() error {
 		// submit counter metric
 		sender.Count("oom_kill.oom_process.count", 1, "", tags)
 
+		if line.CgroupMemory != nil {
+			submitCgroupMemoryStats(sender, line.CgroupMemory, tags)
+		}
+
 		// submit event with a few more details
 		event := event.Event{
 			AlertType:      event.AlertTypeError,
@@ -161,4 +166,23 @@ func (m *OOMKillCheck) Run() error {
 
 	sender.Commit()
 	return nil
+}
+
+// submitCgroupMemoryStats submits the memory stats of the cgroup of an OOM kill, in bytes, with the
+// tags of the OOM kill. Stats that may be off because they were read during a memcg stats flush are
+// tagged with unstable.
+func submitCgroupMemoryStats(s sender.Sender, mem *model.CgroupMemoryStats, tags []string) {
+	// clip so that appending does not write into the backing array of tags, which the event uses
+	tags = slices.Clip(tags)
+	if mem.Unstable {
+		tags = append(tags, "unstable")
+	}
+
+	s.Gauge("oom_kill.cgroup_memory.usage", float64(mem.Usage), "", tags)
+	s.Gauge("oom_kill.cgroup_memory.active_anon", float64(mem.ActiveAnon), "", tags)
+	s.Gauge("oom_kill.cgroup_memory.inactive_anon", float64(mem.InactiveAnon), "", tags)
+	s.Gauge("oom_kill.cgroup_memory.active_file", float64(mem.ActiveFile), "", tags)
+	s.Gauge("oom_kill.cgroup_memory.inactive_file", float64(mem.InactiveFile), "", tags)
+	s.Gauge("oom_kill.cgroup_memory.unevictable", float64(mem.Unevictable), "", tags)
+	s.Gauge("oom_kill.cgroup_memory.kernel", float64(mem.Kernel), "", tags)
 }

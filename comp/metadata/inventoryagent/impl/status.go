@@ -8,6 +8,7 @@ package inventoryagentimpl
 import (
 	"embed"
 	"io"
+	"maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -43,7 +44,14 @@ func (ia *inventoryagent) HTML(_ bool, buffer io.Writer) error {
 }
 
 func (ia *inventoryagent) populateStatus(stats map[string]interface{}) {
-	stats["agent_metadata"] = ia.Get()
+	data := ia.Get()
+	// The secret hashes are only meant for the backend, never display them in the status output
+	if encInfo, ok := data["enc_info"].(map[string]interface{}); ok {
+		encInfo = maps.Clone(encInfo)
+		delete(encInfo, "hash_secret_id")
+		data["enc_info"] = encInfo
+	}
+	stats["agent_metadata"] = data
 }
 
 func (ia *inventoryagent) getStatusInfo() map[string]interface{} {

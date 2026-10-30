@@ -403,6 +403,72 @@ func TestProviderIncludeEnvVars(t *testing.T) {
 	}
 }
 
+func TestProviderEBPFLogsFromEnv(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DEBUG_EBPF_LOGS", "true")
+	cfg := config.NewMockFromYAML(t, "api_key: test-key\nhostprofiler:\n  debug:\n    ebpf_logs: false")
+	generated := buildConfig(newConfigManager(cfg), testCollectorParams{})
+	verbose, _ := confmaputils.Get[bool](generated, "receivers::profiling::verbose_mode")
+	require.True(t, verbose)
+	require.NoError(t, validateOTelConfig(t, confmap.NewFromStringMap(generated)))
+}
+
+func TestProviderInvalidReporterInterval(t *testing.T) {
+	for _, interval := range []string{"59s", "invalid"} {
+		t.Run(interval, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, "api_key: test-key\nhostprofiler:\n  reporter_interval: "+interval)
+			generated := confmap.NewFromStringMap(buildConfig(newConfigManager(cfg), testCollectorParams{}))
+			require.ErrorContains(t, validateOTelConfig(t, generated), "reporter_interval")
+		})
+	}
+}
+
+func TestProviderSymbolUploaderOptions(t *testing.T) {
+	for _, source := range []string{"yaml", "env"} {
+		t.Run(source, func(t *testing.T) {
+			if source == "env" {
+				t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_OPTIONS", `{
+  "enabled": true,
+  "upload_dynamic_symbols": true,
+  "upload_gopclntab": false,
+  "use_http2": true,
+  "symbol_query_interval": "0s",
+  "dry_run": true,
+  "disable_debug_section_compression": true
+}`)
+				t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_ENABLED", "false")
+			}
+			cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+hostprofiler:
+  symbol_uploader:
+    options:
+      enabled: false
+      upload_dynamic_symbols: true
+      upload_gopclntab: false
+      use_http2: true
+      symbol_query_interval: 0s
+      dry_run: false
+      disable_debug_section_compression: true
+`)
+			generated := confmap.NewFromStringMap(buildConfig(newConfigManager(cfg), testCollectorParams{}))
+			require.NoError(t, validateOTelConfig(t, generated))
+
+			profiling, err := generated.Sub("receivers::profiling")
+			require.NoError(t, err)
+			receiverConfig := receiver.NewFactory(version.BundledProfilerName).CreateDefaultConfig().(receiver.Config)
+			require.NoError(t, profiling.Unmarshal(&receiverConfig))
+			uploader := receiverConfig.SymbolUploader
+			require.False(t, uploader.Enabled)
+			require.True(t, uploader.UploadDynamicSymbols)
+			require.False(t, uploader.UploadGoPCLnTab)
+			require.True(t, uploader.UseHTTP2)
+			require.Zero(t, uploader.SymbolQueryInterval)
+			require.Equal(t, source == "env", uploader.DryRun)
+			require.True(t, uploader.DisableDebugSectionCompression)
+		})
+	}
+}
+
 func TestProviderMethods(t *testing.T) {
 	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 

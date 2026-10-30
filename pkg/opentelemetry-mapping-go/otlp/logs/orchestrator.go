@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
@@ -153,13 +152,6 @@ func pullLogToManifestFromMap(k8sResource map[string]interface{}) (*agentmodel.M
 //   - k8sResource: The Kubernetes resource as a map (already unmarshaled from JSON)
 //   - isTerminated: true if this represents a deleted resource (watch mode only)
 func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminated bool) (*agentmodel.Manifest, error) {
-	// Check if the resource kind should be skipped for security reasons
-	kind, _ := k8sResource["kind"].(string)
-	group, _ := k8sResource["apiVersion"].(string)
-	if shouldSkipResourceKind(kind, group) {
-		return nil, fmt.Errorf("skipping unsupported resource kind: %s (contains sensitive data)", kind)
-	}
-
 	// Extract metadata
 	metadata, ok := k8sResource["metadata"].(map[string]interface{})
 	if !ok || metadata == nil {
@@ -173,6 +165,7 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 
 	resourceVersion, _ := metadata["resourceVersion"].(string)
 	apiVersion, _ := k8sResource["apiVersion"].(string)
+	kind, _ := k8sResource["kind"].(string)
 	var nodeName string
 	switch kind {
 	case "Pod":
@@ -459,15 +452,4 @@ func buildCommonTags() []string {
 	return []string{
 		"otel_receiver:k8sobjectsreceiver",
 	}
-}
-
-// shouldSkipResourceKind returns true if the Kubernetes resource kind should be skipped
-// for security or data sensitivity reasons. This matches the behavior of the orchestrator
-// collector which skips secrets and configmaps as they can contain sensitive data.
-func shouldSkipResourceKind(kind string, group string) bool {
-	if group == "v1" && (strings.ToLower(kind) == "secret" || strings.ToLower(kind) == "configmap") {
-		return true
-	}
-
-	return false
 }

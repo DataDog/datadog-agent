@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
@@ -57,6 +58,10 @@ type Collector struct {
 	osScanner   ospkg.Scanner
 	langScanner langpkg.Scanner
 	vulnClient  vulnerability.Client
+
+	// warnDockerExport logs, once, that the direct scan exports the Docker
+	// images whose layers the Agent cannot read.
+	warnDockerExport sync.Once
 }
 
 var globalCollector *Collector
