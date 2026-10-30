@@ -77,7 +77,7 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 - **POSIX-only tools** — do the text manipulation in Python instead of piping through `sed`, `grep` or `cp`.
 - **Encoding** — pass `encoding="utf-8"` to `ctx.run` for any command carrying non-ASCII text.
 
-To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`.
+To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`. `MockContext` matches command strings exactly, so its keys must carry the quoting `join_command` adds (`shlex` quotes `HEAD~1` as `'HEAD~1'`).
 
 ## Shelling Out to Pulumi
 
