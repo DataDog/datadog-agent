@@ -16,6 +16,8 @@ import (
 	"math"
 	"slices"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // maxReportedInstanceFailures caps the instances listed by CheckRequirement.Verify, as a check
@@ -42,24 +44,16 @@ type CheckInstanceStats struct {
 type RunnerStats map[string]map[string]CheckInstanceStats
 
 // ParseRunnerStats extracts the runner stats from the output of `agent status --json`. The
-// log lines the Agent may print before the JSON document are skipped: they are never in JSON,
-// as one-shot commands like `agent status` ignore log_format_json.
+// output must be the JSON document alone: the command logs to the standard output too,
+// unless its log level is off, its default when DD_LOG_LEVEL isn't set. The Agent containers
+// set it, so run the command with `env -u DD_LOG_LEVEL`.
 func ParseRunnerStats(output string) (RunnerStats, error) {
-	start := 0
-	if !strings.HasPrefix(output, "{") {
-		start = strings.Index(output, "\n{") + 1
-		if start == 0 {
-			return nil, errors.New("no JSON document in the status output")
-		}
-	}
-
 	var status struct {
 		RunnerStats struct {
 			Checks RunnerStats `json:"Checks"`
 		} `json:"runnerStats"`
 	}
-	// Decode rather than Unmarshal, so that trailing log lines are ignored too.
-	if err := json.NewDecoder(strings.NewReader(output[start:])).Decode(&status); err != nil {
+	if err := json.Unmarshal([]byte(output), &status); err != nil {
 		return nil, fmt.Errorf("unable to parse the status output: %w", err)
 	}
 	if status.RunnerStats.Checks == nil {
@@ -71,11 +65,7 @@ func ParseRunnerStats(output string) (RunnerStats, error) {
 // MetricSamples returns the number of metric samples the instances of check emitted in
 // their last run that emitted any.
 func (s RunnerStats) MetricSamples(check string) int64 {
-	var samples int64
-	for _, instance := range s[check] {
-		samples += instance.MetricSamples
-	}
-	return samples
+	return lo.SumBy(lo.Values(s[check]), func(instance CheckInstanceStats) int64 { return instance.MetricSamples })
 }
 
 // CheckRequirement is what the instances of a check must meet in the runner stats of an
