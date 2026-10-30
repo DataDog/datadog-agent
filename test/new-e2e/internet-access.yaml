@@ -156,42 +156,6 @@ entries:
   function: TestOTelAgentHostmetricsReceiver
   status: debt
   reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/metrics_attributes_as_tags_test.go
-  function: TestOTLPIngestMetricsAttributesAsTags
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/pipelines_sampling_test.go
-  function: TestOTLPIngestSampling
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/pipelines_test.go
-  function: TestOTLPIngest
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
-  function: TestOTLPIngestOpNameV2Override
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
-  function: TestOTLPIngestOpNameV2SpanRecvrV1
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
-  function: TestOTLPIngestOpNameV2SpanRecvrV2
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
-  function: TestOTLPIngestOpV2OverrideRemapping
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/receive_resource_spans_v2_test.go
-  function: TestOTLPIngestSpanReceiverV2
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
-- file: test/new-e2e/tests/otel/otlp-ingest/logs_tags_as_ddtags_test.go
-  function: TestOTLPIngestLogsTagsAsDDTags
-  status: debt
-  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
 - file: test/new-e2e/tests/process/k8s_test.go
   function: K8sSuite.TestProcessCheckWithNPM
   status: debt
