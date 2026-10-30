@@ -89,6 +89,15 @@ func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool("remote_configuration.enabled")
 }
 
+// IsNetworkPathBasicTestsEnabled returns true if Network Path basic Dynamic Tests are enabled
+func IsNetworkPathBasicTestsEnabled(cfg pkgconfigmodel.Reader) bool {
+	// Disable basic tests for GovCloud if they're not explicitly enabled
+	if IsFed(cfg) && !cfg.IsConfigured("network_path.connections_monitoring.basic_tests_enabled") {
+		return false
+	}
+	return cfg.GetBool("network_path.connections_monitoring.basic_tests_enabled")
+}
+
 // IsFed returns true if the Agent is running in a gov environment
 func IsFed(cfg pkgconfigmodel.Reader) bool {
 	isFipsAgent, _ := pkgfips.Enabled()

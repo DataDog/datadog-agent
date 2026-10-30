@@ -25,6 +25,7 @@ go_library(
         "//pkg/config/create",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/utils",
         "//pkg/system-probe/config/types",
         "//pkg/util/defaultpaths",
         "//pkg/util/flavor",

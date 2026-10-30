@@ -1911,7 +1911,8 @@ properties:
             description: Enables basic Network Path Dynamic Tests for a representative subset of
               eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
               system-probe traceroute. Set to false to opt out. Standard connection-monitoring
-              Dynamic Tests take precedence when both options are enabled.
+              Dynamic Tests take precedence when both options are enabled. In GovCloud and when
+              FIPS is enabled, basic tests are off unless this option is set explicitly.
           eudm_basic_tests_enabled:
             node_type: setting
             type: boolean

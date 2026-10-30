@@ -97,6 +97,34 @@ func TestTracerouteModule(t *testing.T) {
 	}
 }
 
+func TestTracerouteModuleGovBasicTests(t *testing.T) {
+	boolPtr := func(value bool) *bool { return &value }
+	tests := []struct {
+		name                    string
+		basicTestsEnabled       *bool
+		expectTracerouteEnabled bool
+	}{
+		{name: "basic tests unset are off in gov"},
+		{name: "basic tests explicitly enabled in gov", basicTestsEnabled: boolPtr(true), expectTracerouteEnabled: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			coreCfg := mock.New(t)
+			sysprobeCfg := mock.NewSystemProbe(t)
+			coreCfg.SetInTest("site", "ddog-gov.com")
+			if test.basicTestsEnabled != nil {
+				coreCfg.SetInTest("network_path.connections_monitoring.basic_tests_enabled", *test.basicTestsEnabled)
+			}
+			sysprobeCfg.SetInTest("network_config.enabled", true)
+
+			cfg, err := load()
+			require.NoError(t, err)
+
+			assert.Equal(t, test.expectTracerouteEnabled, cfg.ModuleIsEnabled(types.TracerouteModule))
+		})
+	}
+}
+
 func TestTracerouteModuleUnsetDefaultTrue(t *testing.T) {
 	mock.New(t)
 	sysprobeCfg := mock.NewSystemProbe(t)
