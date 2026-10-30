@@ -468,11 +468,19 @@ func (ia *inventoryagent) fetchFleetMetadata() {
 	ia.data["config_id"] = ia.conf.GetString("config_id")
 }
 
-// fetchSecretsMetadata reports where secrets appear in the configuration and which handles are used
+// fetchSecretsMetadata reports where secrets appear in the configuration, which handles are used and the hash of
+// their values. The hashes are stored under a key the default scrubber recognizes, so they are scrubbed from flares
+// and from the 'show-metadata' output.
 func (ia *inventoryagent) fetchSecretsMetadata() {
+	if ia.conf.GetBool("metadata_skip_secrets") {
+		delete(ia.data, "enc_info")
+		return
+	}
 	paths, handles := []string{}, []string{}
+	hashes := map[string]string{}
 	if ia.secrets != nil {
 		paths, handles = ia.secrets.GetPathsAndHandles()
+		hashes = ia.secrets.GetHashValues(handles)
 	}
 	// Scrub the configuration to find the keys holding credentials: either known sensitive keys or values that look
 	// like credentials. Defaults are excluded since they are not set by the user, and the secrets layer is excluded
@@ -481,10 +489,11 @@ func (ia *inventoryagent) fetchSecretsMetadata() {
 	var settings interface{} = ia.conf.AllSettingsWithoutDefaultOrSecrets()
 	configScrubber.ScrubDataObj(&settings)
 	scrubbedKeys := filterScrubbedKeys(configScrubber.GetStrippedKeys(), paths)
-	ia.data["enc_info"] = map[string][]string{
-		"paths":    paths,
-		"handles":  handles,
-		"scrubbed": scrubbedKeys,
+	ia.data["enc_info"] = map[string]interface{}{
+		"paths":          paths,
+		"handles":        handles,
+		"scrubbed":       scrubbedKeys,
+		"hash_secret_id": hashes,
 	}
 }
 
@@ -544,8 +553,13 @@ func (ia *inventoryagent) refreshMetadata() {
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := ia.GetAsJSON()
+	data, err := ia.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, err, 500)
+		return
+	}
+	// Scrub by key name, as the flare does, so that sensitive fields such as the secret hashes are not exposed
+	scrubbed, err := scrubber.ScrubJSON(data)
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return

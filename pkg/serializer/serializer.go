@@ -370,7 +370,7 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
+	s.logger.Debugf("Sending metadata payload")
 
 	if exceeded != split.WithinLimits {
 		s.metadataDropMetrics.record(exceeded, len(compressedPayload), len(payload))

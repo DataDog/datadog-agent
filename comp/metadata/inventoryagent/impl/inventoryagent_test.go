@@ -11,6 +11,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,6 +28,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -1003,7 +1006,12 @@ func TestFetchFleet(t *testing.T) {
 func TestFetchSecretsNoComponent(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSecretsMetadata()
-	assert.Equal(t, map[string][]string{"paths": {}, "handles": {}, "scrubbed": {}}, ia.data["enc_info"])
+	assert.Equal(t, map[string]interface{}{
+		"paths":          []string{},
+		"handles":        []string{},
+		"scrubbed":       []string{},
+		"hash_secret_id": map[string]string{},
+	}, ia.data["enc_info"])
 }
 
 func TestFetchSecrets(t *testing.T) {
@@ -1012,6 +1020,8 @@ func TestFetchSecrets(t *testing.T) {
 		[]string{"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
 		[]string{"my_key", "secret_one", "secret_two"},
 	)
+	// "secret_two" has no resolved value and is omitted from the hashes
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value", "secret_one": "secret_one_value"})
 	p := getProvides(t, map[string]any{
 		// covered by a secret path, so not reported as scrubbed
 		"api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
@@ -1025,11 +1035,87 @@ func TestFetchSecrets(t *testing.T) {
 	ia := p.Comp.(*inventoryagent)
 
 	ia.fetchSecretsMetadata()
-	assert.Equal(t, map[string][]string{
-		"paths":    {"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
-		"handles":  {"my_key", "secret_one", "secret_two"},
-		"scrubbed": {"authKey", "dd_url"},
+	assert.Equal(t, map[string]interface{}{
+		"paths":   []string{"api_key", "snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+		"handles": []string{"my_key", "secret_one", "secret_two"},
+		"hash_secret_id": map[string]string{
+			"my_key":     "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
+			"secret_one": "c9941a386f3401c35efab67c9a302b4f13317d0d018ae6697b531dce994a8008",
+		},
+		"scrubbed": []string{"authKey", "dd_url"},
 	}, ia.data["enc_info"])
+}
+
+func TestFetchSecretsOmitted(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, map[string]any{"metadata_skip_secrets": true}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+
+	ia.data["enc_info"] = "stale"
+	ia.fetchSecretsMetadata()
+	assert.NotContains(t, ia.data, "enc_info")
+}
+
+func TestFlareScrubsSecretHashes(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, map[string]any{"inventories_enabled": true}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+
+	fb := flarehelpers.NewFlareBuilderMock(t, false)
+	require.NoError(t, p.FlareProvider.FlareFiller.Callback(t.Context(), fb))
+
+	content, err := os.ReadFile(filepath.Join(fb.Root, "metadata", "inventory", "agent.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"hash_secret_id": "********"`)
+	assert.Contains(t, string(content), `"my_key"`)
+	assert.NotContains(t, string(content), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
+}
+
+func TestShowMetadataScrubsSecretHashes(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, map[string]any{"inventories_enabled": true}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+
+	rec := httptest.NewRecorder()
+	ia.writePayloadAsJSON(rec, httptest.NewRequest(http.MethodGet, "/metadata/inventory-agent", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"hash_secret_id": "********"`)
+	assert.Contains(t, rec.Body.String(), `"my_key"`)
+	assert.NotContains(t, rec.Body.String(), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
+}
+
+func TestStatusOmitsSecretHashes(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})
+	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value"})
+	p := getProvides(t, nil, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+	ia.fetchSecretsMetadata()
+
+	stats := map[string]interface{}{}
+	require.NoError(t, ia.JSON(false, stats))
+	encInfo := stats["agent_metadata"].(map[string]interface{})["enc_info"].(map[string]interface{})
+	assert.NotContains(t, encInfo, "hash_secret_id")
+	assert.Equal(t, []string{"my_key"}, encInfo["handles"])
+
+	text := new(bytes.Buffer)
+	require.NoError(t, ia.Text(false, text))
+	html := new(bytes.Buffer)
+	require.NoError(t, ia.HTML(false, html))
+	for _, out := range []string{text.String(), html.String()} {
+		assert.Contains(t, out, "my_key")
+		assert.NotContains(t, out, "hash_secret_id")
+		assert.NotContains(t, out, "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
+	}
+
+	// The payload sent to the backend still carries the hashes
+	assert.Contains(t, ia.data["enc_info"], "hash_secret_id")
 }
 
 func TestFilterScrubbedKeys(t *testing.T) {

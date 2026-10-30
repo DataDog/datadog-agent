@@ -9,7 +9,9 @@ package secretsimpl
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -885,6 +887,24 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 		handles = append(handles, entry.handle)
 	}
 	return paths, handles
+}
+
+// GetHashValues returns the SHA-256 hash (hex encoded) of the cached secret value for each given handle. Handles
+// without a value in the cache are omitted from the result.
+func (r *secretResolver) GetHashValues(handles []string) map[string]string {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	hashes := make(map[string]string, len(handles))
+	for _, handle := range handles {
+		secretValue, ok := r.cache[handle]
+		if !ok {
+			continue
+		}
+		sum := sha256.Sum256([]byte(secretValue))
+		hashes[handle] = hex.EncodeToString(sum[:])
+	}
+	return hashes
 }
 
 // performRefresh executes the actual secret refresh operation
