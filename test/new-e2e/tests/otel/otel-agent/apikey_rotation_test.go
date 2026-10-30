@@ -8,7 +8,9 @@ package otelagent
 
 import (
 	"context"
+	"crypto/rand"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -58,9 +60,9 @@ const (
 	apiKeyHandleSecret = "otel-apikey-handle"
 	apiKeyHandleKey    = "api-key"
 
-	// Two distinct, well-formed but fake API keys.
+	// The starting value: well-formed but fake. The value rotated *to* is generated
+	// per attempt instead, see rotatedAPIKey.
 	apiKeyBeforeRotation = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	apiKeyAfterRotation  = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 	// The core Agent serves its config API on this port and the otel-agent's configsync
 	// polls it. Both default to disabled (agent_ipc.config_refresh_interval is 0), so
@@ -76,6 +78,20 @@ const (
 	// The converter names the extension it autoconfigures from the Agent's api_key.
 	ddExtensionInstance = "datadog/dd-autoconfigured"
 )
+
+// rotatedAPIKey returns a fresh well-formed fake key to rotate to.
+//
+// The target has to differ on every attempt: this suite retries over reused
+// infrastructure ("No change in provisioners, skipping environment update"), and
+// rewriting the value the secret already holds is a no-op that triggers no rotation at
+// all, so a fixed target makes every retry fail for the wrong reason.
+func rotatedAPIKey(t *testing.T) string {
+	t.Helper()
+	buf := make([]byte, 16)
+	_, err := rand.Read(buf)
+	require.NoError(t, err)
+	return hex.EncodeToString(buf)
+}
 
 // apiKeyRotationTestSuite verifies that a rotated Datadog API key reaches the
 // `datadog` extension's own forwarder, not just the exporter's (OTAGENT-1353).
@@ -283,7 +299,7 @@ func (s *apiKeyRotationTestSuite) TestAPIKeyReachesDatadogExtension() {
 	secrets := s.Env().KubernetesCluster.Client().CoreV1().Secrets(apiKeyRotationNamespace)
 	sec, err := secrets.Get(ctx, apiKeyRotationSecret, metav1.GetOptions{})
 	require.NoError(s.T(), err)
-	sec.Data[apiKeyRotationKey] = []byte(apiKeyAfterRotation)
+	sec.Data[apiKeyRotationKey] = []byte(rotatedAPIKey(s.T()))
 	_, err = secrets.Update(ctx, sec, metav1.UpdateOptions{})
 	require.NoError(s.T(), err)
 
