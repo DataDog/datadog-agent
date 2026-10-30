@@ -64,9 +64,10 @@ if [ ! -x $AGENTPATH ]; then
 	exit 0
 fi
 
-# load-env runs as dd-agent. Read both here, and read the admin file last so it wins.
-if [ -r /etc/datadog-agent/datadog-agent-procmgr ]; then
-	. /etc/datadog-agent/datadog-agent-procmgr
+# load-env runs as dd-agent. Compare the installer file as text: dd-agent can replace it.
+# Source the admin file last so it wins.
+if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+	DATADOG_ENABLED=no
 fi
 if [ -r "/etc/default/${NAME}" ]; then
 	. "/etc/default/${NAME}"

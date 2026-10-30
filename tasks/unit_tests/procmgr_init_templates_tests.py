@@ -387,13 +387,15 @@ exec "$@"
         self.assertFalse(daemon_pid.exists())
         self.assertFalse(layout.env_out.exists())
 
-    def test_procmgr_reads_the_installer_file_before_the_admin_file(self):
+    def test_procmgr_compares_the_installer_file_before_sourcing_the_admin_file(self):
+        compare = f'cat {INSTALLER_PROCMGR_DEFAULTS}'
         sysv = SYSV_PROCMGR.read_text()
-        self.assertLess(sysv.index(INSTALLER_PROCMGR_DEFAULTS), sysv.index('/etc/default/${NAME}'))
+        self.assertNotIn(f'. {INSTALLER_PROCMGR_DEFAULTS}', sysv)
+        self.assertLess(sysv.index(compare), sysv.index('/etc/default/${NAME}'))
         for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
             text = template.read_text()
-            self.assertEqual(text.count(INSTALLER_PROCMGR_DEFAULTS), text.count('/etc/default/datadog-agent-procmgr'))
-            self.assertLess(text.index(INSTALLER_PROCMGR_DEFAULTS), text.index('/etc/default/datadog-agent-procmgr'))
+            self.assertNotIn(f'. {INSTALLER_PROCMGR_DEFAULTS}', text)
+            self.assertLess(text.index(compare), text.index('. /etc/default/datadog-agent-procmgr'))
 
     def test_upstart_exits_when_the_defaults_file_disables_procmgr(self):
         installer = self.root / 'datadog-agent-procmgr'
@@ -441,6 +443,23 @@ exec "$@"
                         )
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                         self.assertEqual(called.exists(), not disabled)
+                payload = self.root / 'pwned'
+                payload.unlink(missing_ok=True)
+                installer.write_text(f'DATADOG_ENABLED=no\ntouch "{payload}"\n')
+                admin.unlink(missing_ok=True)
+                called.unlink(missing_ok=True)
+                script = render(block, install, self.root / 'etc')
+                script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
+                script = script.replace('/etc/default/datadog-agent-procmgr', str(admin))
+                reached = f'touch "{called}"; exit 0'
+                script = script.replace(UPSTART_RUNTIME_DIR, reached)
+                script = script.replace('groups=$(/usr/bin/id -G dd-agent) || exit 1', reached)
+                result = subprocess.run(
+                    ['/bin/sh', '-c', script], text=True, capture_output=True, check=False, timeout=15
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertFalse(payload.exists())
+                self.assertTrue(called.exists())
 
     def test_procmgr_stop_waits_for_par_control(self):
         sysv = SYSV_PROCMGR.read_text()

@@ -11,8 +11,9 @@ kill timeout 200
 console output
 
 script
-  if [ -r /etc/datadog-agent/datadog-agent-procmgr ]; then
-    . /etc/datadog-agent/datadog-agent-procmgr
+  # Compare the installer file as text. dd-agent can replace it, so do not source it.
+  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+    DATADOG_ENABLED=no
   fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then
     . /etc/default/datadog-agent-procmgr
@@ -67,8 +68,9 @@ END_LOAD_ENV
 end script
 
 pre-start script
-  if [ -r /etc/datadog-agent/datadog-agent-procmgr ]; then
-    . /etc/datadog-agent/datadog-agent-procmgr
+  # Compare the installer file as text. dd-agent can replace it, so do not source it.
+  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+    DATADOG_ENABLED=no
   fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then
     . /etc/default/datadog-agent-procmgr
