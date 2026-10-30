@@ -7,6 +7,7 @@ package probe
 
 import (
 	"context"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -50,41 +51,52 @@ func TestScanKeepsEveryOtherResultWhenOneTargetFails(t *testing.T) {
 	assert.True(t, results[2].Ping.Success)
 }
 
-func TestScanNeverRunsMoreTargetsThanWorkers(t *testing.T) {
-	var running, peak atomic.Int64
-
-	_, err := scan(context.Background(), 2, []string{"a", "b", "c", "d", "e", "f"}, func(_ context.Context, target string) Result {
-		current := running.Add(1)
-		for {
-			observed := peak.Load()
-			if current <= observed || peak.CompareAndSwap(observed, current) {
-				break
-			}
+// recordPeak tracks the highest number of callbacks in flight at once.
+func recordPeak(running, peak *atomic.Int64) int64 {
+	current := running.Add(1)
+	for {
+		observed := peak.Load()
+		if current <= observed || peak.CompareAndSwap(observed, current) {
+			break
 		}
-		time.Sleep(5 * time.Millisecond)
+	}
+	return current
+}
+
+func TestScanNeverRunsMoreTargetsThanWorkers(t *testing.T) {
+	const workers = 2
+	var running, peak, started atomic.Int64
+	// Holds the first batch until the whole budget is in flight, so the peak is
+	// reached without waiting on the scheduler.
+	barrier := make(chan struct{})
+
+	_, err := scan(context.Background(), workers, []string{"a", "b", "c", "d", "e", "f"}, func(_ context.Context, target string) Result {
+		recordPeak(&running, &peak)
+		if started.Add(1) == workers {
+			close(barrier)
+		}
+		<-barrier
 		running.Add(-1)
 		return Result{Target: target}
 	})
 
 	require.NoError(t, err)
-	assert.LessOrEqual(t, peak.Load(), int64(2))
+	assert.Equal(t, int64(workers), peak.Load(), "the whole budget runs at once, and never more than it")
 }
 
 func TestScanClampsANonPositiveWorkerCountToOne(t *testing.T) {
-	var peak atomic.Int64
-	var running atomic.Int64
+	var running, peak atomic.Int64
 
-	_, err := scan(context.Background(), 0, []string{"a", "b", "c"}, func(_ context.Context, target string) Result {
-		current := running.Add(1)
-		if current > peak.Load() {
-			peak.Store(current)
-		}
-		time.Sleep(time.Millisecond)
+	results, err := scan(context.Background(), 0, []string{"a", "b", "c"}, func(_ context.Context, target string) Result {
+		recordPeak(&running, &peak)
+		// Yields so a second callback would be observed if one were dispatched.
+		runtime.Gosched()
 		running.Add(-1)
 		return Result{Target: target}
 	})
 
-	require.NoError(t, err)
+	require.NoError(t, err, "a zero worker count must not deadlock on an unbuffered semaphore")
+	require.Len(t, results, 3)
 	assert.Equal(t, int64(1), peak.Load())
 }
 
