@@ -10,6 +10,8 @@ import (
 	"math/rand"
 	"testing"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -201,6 +203,151 @@ func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
 			}
 		}
 	})
+}
+
+type rejectedMetricTelemetryCase struct {
+	name      string
+	warmName  string
+	hotName   string
+	alternate bool
+}
+
+func rejectedMetricTelemetryCases() []rejectedMetricTelemetryCase {
+	return []rejectedMetricTelemetryCase{
+		{name: "warm_handle_source/hot_handle_source", warmName: "kubernetes.pod.count", hotName: "kubernetes.pod.count"},
+		{name: "warm_handle_source/hot_agent_source", warmName: "kubernetes.pod.count", hotName: "datadog.agent.running"},
+		{name: "warm_agent_source/hot_handle_source", warmName: "datadog.agent.running", hotName: "kubernetes.pod.count"},
+		{name: "warm_handle_source/alternate_sources", warmName: "kubernetes.pod.count", alternate: true},
+		{name: "warm_handle_source/alternate_sources_no_telemetry", warmName: "kubernetes.pod.count", alternate: true},
+	}
+}
+
+// rejectedMetricNameForIteration selects the timed sample, alternating locally per parallel worker.
+func rejectedMetricNameForIteration(tc rejectedMetricTelemetryCase, iteration int) string {
+	if iteration%2 == 0 {
+		return "datadog.agent.running"
+	}
+	return "kubernetes.pod.count"
+}
+
+func BenchmarkHandleObserveMetricRejectedTelemetry(b *testing.B) {
+	for _, tc := range rejectedMetricTelemetryCases() {
+		tc := tc
+		b.Run(tc.name, func(b *testing.B) {
+			var telemetryComp telemetry.Component
+			withTelemetry := tc.name != "warm_handle_source/alternate_sources_no_telemetry"
+			if withTelemetry {
+				telemetryComp = telemetryimpl.NewMock(b)
+			}
+
+			h := &handle{
+				source: "check",
+				filter: newV1MetricFilter(b),
+			}
+			if withTelemetry {
+				h.telemetry = newObserverTelemetry(telemetryComp)
+			}
+			checkSample := highLoadMetric("kubernetes.pod.count")
+			agentSample := highLoadMetric("datadog.agent.running")
+			checkContextKey := testContextKeyFor(checkSample)
+			agentContextKey := testContextKeyFor(agentSample)
+
+			sampleFor := func(name string) (observerdef.MetricView, uint64) {
+				if name == "datadog.agent.running" {
+					return agentSample, agentContextKey
+				}
+				return checkSample, checkContextKey
+			}
+			warmName := tc.warmName
+			warmSample, warmContextKey := sampleFor(warmName)
+
+			// Initialize the cache and its first counter before timing.
+			if h.observeMetricAndReportDrop(warmSample, warmContextKey) {
+				b.Fatal("expected warm-up metric to be rejected by processing rules")
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			if !tc.alternate {
+				sample, contextKey := sampleFor(tc.hotName)
+				b.RunParallel(func(pb *testing.PB) {
+					for pb.Next() {
+						if h.observeMetricAndReportDrop(sample, contextKey) {
+							panic("expected metric to be rejected by processing rules")
+						}
+					}
+				})
+			} else {
+				b.RunParallel(func(pb *testing.PB) {
+					localIteration := 0
+					for pb.Next() {
+						name := rejectedMetricNameForIteration(tc, localIteration)
+						sample, contextKey := sampleFor(name)
+						if h.observeMetricAndReportDrop(sample, contextKey) {
+							panic("expected metric to be rejected by processing rules")
+						}
+						localIteration++
+					}
+				})
+			}
+			b.StopTimer()
+			// Drain any interval tail so all variants assert the same totals.
+			publishFilteredMetricsForTest(h)
+
+			if telemetryComp == nil {
+				return
+			}
+
+			checkCount := 0
+			agentCount := 0
+			if tc.warmName == "kubernetes.pod.count" {
+				checkCount++
+			} else {
+				agentCount++
+			}
+			if tc.hotName == "kubernetes.pod.count" {
+				checkCount += b.N
+			} else {
+				agentCount += b.N
+			}
+			if tc.alternate {
+				// Per-source splits vary by scheduling; verify the exact total.
+				requireFilteredMetricCounterTotal(b, 1+float64(b.N), telemetryComp)
+				return
+			}
+			// Verify only sources with traffic; unused series may be absent or zero.
+			requireCounterMetricValueBySource(b, "check", float64(checkCount), telemetryComp)
+			requireCounterMetricValueBySource(b, observerdef.AgentNamespace, float64(agentCount), telemetryComp)
+		})
+	}
+}
+
+func requireFilteredMetricCounterTotal(b testing.TB, want float64, telemetryComp telemetry.Component) {
+	b.Helper()
+
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	metricName := "observer__" + telemetryFilteredMetrics
+	var total float64
+	var found bool
+	for _, family := range metricFamilies {
+		if family.GetName() != metricName {
+			continue
+		}
+		found = true
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+	}
+	if !found {
+		b.Fatalf("counter %q not found", metricName)
+	}
+	if total != want {
+		b.Fatalf("filtered metric counter total %v, want %v", total, want)
+	}
 }
 
 func newV1MetricFilter(b *testing.B) *metricsFilterRules {
