@@ -12,6 +12,7 @@ from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.trace_dupcheck import CORPUS_INPUTS, DUPCHECK_DIR, render_diff, render_without_baseline
 from tasks.schema.generate import schema_codegen
 
+
 @task
 def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
     """

@@ -51,6 +51,7 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
     ],
 )
 
+
 def containerized_integration_tests(
     ctx: Context,
     integration_tests_config: IntegrationTestsConfig,
