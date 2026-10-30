@@ -9,6 +9,19 @@
 package collectorimpl
 
 import (
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
+	"go.opentelemetry.io/ebpf-profiler/probes/oom"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -23,17 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
-	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -119,6 +121,7 @@ func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(e.traceAgent, e.log),
 		hpflareextension.NewFactoryForAgent(e.ipcComp),
+		oom.NewFactory(),
 	}
 }
 

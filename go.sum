@@ -128,8 +128,6 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f2 h1:DMcXVtUo0r4nkrWveBpGVJh4IpV8c0/2Dhn7b2eX3uQ=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f2/go.mod h1:oPuhDZCT1we/kWoN8ZTCDe+t5iIozE2tQ4/hN+NPuFk=
 github.com/DataDog/rshell v0.0.31 h1:56sIGJUkMn4SwSgDCRRzOEK+uZtsOFugfl20KLAwrMc=
 github.com/DataDog/rshell v0.0.31/go.mod h1:2vGMdL2WRACtk0BPgC94z/DanMQxjRiQNkunoVt053s=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
@@ -352,6 +350,8 @@ github.com/bradleyjkemp/cupaloy/v2 v2.8.0 h1:any4BmKE+jGIaMpnU8YgH/I2LPiLBufr6oM
 github.com/bradleyjkemp/cupaloy/v2 v2.8.0/go.mod h1:bm7JXdkRd4BHJk9HpwqAI8BoAY1lps46Enkdqw6aRX0=
 github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd h1:C0dfBzAdNMqxokqWUysk2KTJSMmqvh9cNW1opdy5+0Q=
 github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd/go.mod h1:CeKhh8xSs3WZAc50xABMxu+FlfAAd5PNumo7NfOv7EE=
+github.com/brycekahle/opentelemetry-ebpf-profiler v0.0.0-20261029201225-e9793db3342f h1:pPfi0G9KjXNs26+7GSuj9PO3HlphgQtAe1xzYcph7K4=
+github.com/brycekahle/opentelemetry-ebpf-profiler v0.0.0-20261029201225-e9793db3342f/go.mod h1:WPtZMTjf/l96Hbed/vl9ognGwqFgAnGL9dI5BCP45sk=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
 github.com/bsm/ginkgo/v2 v2.12.0/go.mod h1:SwYbGRRDovPVboqFv0tPTcG1sN61LM1Z4ARdbAV9g4c=
 github.com/bsm/gomega v1.27.10 h1:yeMWxP2pV2fG3FgAODIY8EiRE3dy0aeFYt4l7wh6yKA=
@@ -1332,8 +1332,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreat
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.164.1/go.mod h1:ExF8V1aw8EnUs/b5skY60y5u1wS8lkO2nWBUd25opz4=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.164.1 h1:421pgYJSkmvyMprV/bAEqeI2muDU6jJMCzX79DQjyT0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.164.1/go.mod h1:D3hSlzkWtljOUqaaXLgErVw9QIuQeBEGhFLS/y635Sg=
-github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20261012114705-2b1781f8d2d6 h1:QQKx0G0y2MlTeYYHm9I94r3us3lQ5GMPJJZ0iiyaTvw=
-github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20261012114705-2b1781f8d2d6/go.mod h1:Yx8X+YSew1eapWwDNomynaAmFL5xG9cjzJKbT21sKGE=
+github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20261020082046-1ae91cf2c9a7 h1:MGzsbpR6xtinyx3LUXRlcuvFAlcsj7C/kYUvbAFVS8o=
+github.com/open-telemetry/sig-profiling/profcheck v0.0.0-20261020082046-1ae91cf2c9a7/go.mod h1:h5QXzn/6qQY+R0GKrUnSOjThUBb3Sc4ujoGTSzEe+PM=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
@@ -2125,8 +2125,8 @@ golang.org/x/crypto v0.23.0/go.mod h1:CKFgDieR+mRhux2Lsu27y0fO304Db0wZe70UKqHu0v
 golang.org/x/crypto v0.31.0/go.mod h1:kDsLvtWBEx7MV9tJOj9bnXsPbxwJQ6csT/x4KIN4Ssk=
 golang.org/x/crypto v0.58.0 h1:COkYLr4k7nDI4r6QtMML2AfzeIswWHAJthLS6K/M/54=
 golang.org/x/crypto v0.58.0/go.mod h1:Xh+kl5A+M0gMiWDytH2Hhr5Z7WbNCpv/eB/EFgfSk+w=
-golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 h1:pQo5TwmxKJvI8k39uYS2Gqkk8OXWxX/TMSis2Twp1AQ=
-golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49/go.mod h1:DBoxwWhjaW8DJJw/YeM4zpeOKMC1FMXSblsYy+1mFSw=
+golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e h1:HgI6W1OolKK6tcV74is+rl9SMT0njsHlp0TbQiGXI/A=
+golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e/go.mod h1:DBoxwWhjaW8DJJw/YeM4zpeOKMC1FMXSblsYy+1mFSw=
 golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f h1:+lI8cDJ4uceLipg2f1ODay7fEuLkk0BIHXd6PB8icxo=
 golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f/go.mod h1:PqrXSW65cXDZH0k4IeUbhmg/bcAZDbzNz3byBpKCsXo=
 golang.org/x/lint v0.0.0-20210508222113-6edffad5e616/go.mod h1:3xt1FjdF8hUf6vQPIChWIBhFzV8gjjsPE/fR3IyQdNY=

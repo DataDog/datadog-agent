@@ -14,6 +14,7 @@ extensions:
             period: 30
     hpflare:
         endpoint: localhost:7778
+    oom: {}
 processors:
     cumulativetodelta: {}
     filter:
@@ -64,6 +65,7 @@ receivers:
 service:
     extensions:
         - hpflare
+        - oom
         - ddprofiling
     pipelines:
         metrics:

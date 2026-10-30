@@ -3025,7 +3025,6 @@ core,go.opentelemetry.io/ebpf-profiler/internal/linux,Apache-2.0,Copyright The O
 core,go.opentelemetry.io/ebpf-profiler/internal/log,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/internal/perfutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/ebpf-profiler/interpreter/apmint,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/beam,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/dotnet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/go,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3058,6 +3057,8 @@ core,go.opentelemetry.io/ebpf-profiler/nativeunwind/stackdeltatypes,Apache-2.0,C
 core,go.opentelemetry.io/ebpf-profiler/nopanicslicereader,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/pacmask,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/periodiccaller,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/probes/oom,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/probes/oom/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/process,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/process/processcontext,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/processmanager,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3074,6 +3075,7 @@ core,go.opentelemetry.io/ebpf-profiler/stringutil,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/ebpf-profiler/successfailurecounter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/support,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/times,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/tls,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tracer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/util,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors

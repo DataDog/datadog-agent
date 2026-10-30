@@ -10,6 +10,7 @@ exporters:
 extensions:
     hpflare:
         endpoint: localhost:9999
+    oom: {}
 processors:
     cumulativetodelta: {}
     filter:
@@ -60,6 +61,7 @@ receivers:
 service:
     extensions:
         - hpflare
+        - oom
     pipelines:
         metrics:
             exporters:
