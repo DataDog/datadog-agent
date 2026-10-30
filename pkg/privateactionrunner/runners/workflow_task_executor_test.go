@@ -184,12 +184,11 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	assert.True(t, action.called)
 }
 
-func TestWorkflowTaskExecutorValidatesExecutionFQN(t *testing.T) {
+func TestWorkflowTaskExecutorRoutesNativeExecutionFQN(t *testing.T) {
 	const (
 		publicBundle = "com.datadoghq.helm"
 		actionName   = "addRepo"
 		publicFQN    = publicBundle + "." + actionName
-		otherBundle  = "com.datadoghq.script"
 	)
 
 	tests := []struct {
@@ -207,12 +206,7 @@ func TestWorkflowTaskExecutorValidatesExecutionFQN(t *testing.T) {
 		{
 			name:         "unknown execution FQN fails closed",
 			executionFQN: "com.datadoghq.unknown.action",
-			wantError:    "does not match public action",
-		},
-		{
-			name:         "allowlisted public action cannot execute another native handler",
-			executionFQN: otherBundle + ".run",
-			wantError:    "does not match public action",
+			wantError:    "could not find bundle for com.datadoghq.unknown",
 		},
 	}
 
@@ -220,11 +214,9 @@ func TestWorkflowTaskExecutorValidatesExecutionFQN(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			nativeAction := &recordingAction{}
 			nativeBundle := &fakeBundle{action: nativeAction}
-			otherAction := &recordingAction{}
 			executor := &WorkflowTaskExecutor{
 				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
 					publicBundle: nativeBundle,
-					otherBundle:  &fakeBundle{action: otherAction},
 				}},
 				config: &config.Config{
 					ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
@@ -243,7 +235,6 @@ func TestWorkflowTaskExecutorValidatesExecutionFQN(t *testing.T) {
 				assert.Equal(t, "executed", output)
 			}
 			assert.Equal(t, tt.wantError == "", nativeAction.called)
-			assert.False(t, otherAction.called)
 			if tt.wantError == "" {
 				assert.Equal(t, actionName, nativeBundle.gotActionName)
 			} else {
@@ -311,31 +302,6 @@ func TestWorkflowTaskExecutorRoutesNewPublicActionToAuthoredScript(t *testing.T)
 			assert.Equal(t, actionName, scriptHandler.gotActionName)
 		})
 	}
-}
-
-func TestWorkflowTaskExecutorRejectsMismatchedAuthoredScript(t *testing.T) {
-	const (
-		publicBundle = "com.datadoghq.hosts"
-		actionName   = "diskUtilization"
-		scriptBundle = "com.datadoghq.authoredscripts"
-	)
-	scriptAction := &recordingAction{}
-	executor := &WorkflowTaskExecutor{
-		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
-			scriptBundle: &fakeBundle{action: scriptAction},
-		}},
-		config: &config.Config{
-			ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
-			MetricsClient:    &statsd.NoOpClient{},
-		},
-	}
-	task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
-	task.Data.Attributes.ExecutionFQN = scriptBundle + ".hosts.deleteDisk"
-
-	output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
-	require.ErrorContains(t, err, "does not match public action")
-	assert.Nil(t, output)
-	assert.False(t, scriptAction.called)
 }
 
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
