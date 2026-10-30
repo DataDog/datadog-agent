@@ -38,6 +38,13 @@
 
 tests_linux-x64-py3:
   extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
+  # Trial: conduit beside this job only. `build:` so after_script's `bazel info` does not open BES.
+  before_script:
+    - $CI_PROJECT_DIR/tools/ci/conduit.sh start
+    - printf '%s\n' 'build --bes_backend=grpc://127.0.0.1:8080' 'build --bes_upload_mode=nowait_for_upload_complete' 'build --build_event_publish_all_actions' >> user.bazelrc
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/conduit.sh stop || true
+    - !reference [.bazel:coverage:linux, after_script]
 
 tests_linux-arm64-py3:
   extends: [.bazel:runner:linux-arm64, .bazel:coverage:linux]
