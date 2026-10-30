@@ -21,6 +21,7 @@ const SYSTEM_PROBE: &str = "/opt/datadog-agent/embedded/bin/system-probe";
 const SECURITY_AGENT: &str = "/opt/datadog-agent/embedded/bin/security-agent";
 const OTEL_AGENT: &str = "/opt/datadog-agent/embedded/bin/otel-agent";
 const DATA_PLANE: &str = "/opt/datadog-agent/embedded/bin/agent-data-plane";
+const PAR_CONTROL: &str = "/opt/datadog-agent/embedded/bin/par-control";
 
 const CATALOG: &[(&str, &str)] = &[
     (
@@ -50,6 +51,12 @@ const CATALOG: &[(&str, &str)] = &[
     (
         "datadog-agent-data-plane.yaml",
         include_str!("../../../../Dockerfiles/agent/processes.d/aio/datadog-agent-data-plane.yaml"),
+    ),
+    (
+        "datadog-agent-par-control.yaml",
+        include_str!(
+            "../../../../Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml"
+        ),
     ),
 ];
 
@@ -175,6 +182,18 @@ fn aio_optional_binaries_require_condition_path_exists() {
             "{name} condition_path_exists"
         );
     }
+}
+
+#[test]
+fn aio_par_control_skips_when_the_binary_is_absent() {
+    let configs = load_shipped_catalog();
+    let par_control = configs
+        .get("datadog-agent-par-control")
+        .expect("par-control");
+    assert_eq!(
+        par_control.condition_path_exists.as_deref(),
+        Some(PAR_CONTROL)
+    );
 }
 
 #[test]
@@ -304,6 +323,16 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
     assert_eq!(
         top_names,
         ["datadog-agent-action-executor", "datadog-agent-par-control",]
+    );
+    let par_control = top
+        .processes
+        .iter()
+        .find(|process| process.name == "datadog-agent-par-control")
+        .expect("par-control");
+    assert_eq!(
+        par_control.config.condition_path_exists.as_deref(),
+        Some(PAR_CONTROL),
+        "par-control must be skipped when the FIPS image omits the binary"
     );
 
     let catalog = load_configs(&aio).expect("aio directory parses");
