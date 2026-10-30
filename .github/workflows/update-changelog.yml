@@ -1,0 +1,59 @@
+name: Update changelog
+# The agent release workflow finds the run it dispatched by the correlation ID in the run name.
+run-name: "Update changelog for ${{ inputs.release_branch }} [${{ inputs.correlation_id }}]"
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Release branch to update the changelog on (for example 7.86.x)"
+        required: true
+        type: string
+      correlation_id:
+        description: "ID set by the caller to find this run"
+        required: false
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  update_changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
+    environment:
+      name: main
+    steps:
+      - name: Check release branch name
+        env:
+          RELEASE_BRANCH: ${{ inputs.release_branch }}
+        run: |
+          if [[ ! "$RELEASE_BRANCH" =~ ^7\.[0-9]+\.x$ ]]; then
+            echo "Invalid release branch: $RELEASE_BRANCH (expected 7.XX.x)" >&2
+            exit 1
+          fi
+
+      - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.update-changelog.create-pr
+
+      # Not a sparse checkout: the task copies this git config into its own clone, and reno
+      # cannot read sparse checkouts. No credentials are kept: the task commits with the GitHub API.
+      - name: Checkout the main branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Update changelog
+        env:
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          RELEASE_BRANCH: ${{ inputs.release_branch }}
+        run: dda inv -- -e notes.update-changelog -r "$RELEASE_BRANCH"

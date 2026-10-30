@@ -416,6 +416,23 @@ class GithubAPI:
         """
         return self._github.search_issues(query)
 
+    def create_branch(self, branch_name: str, sha: str, reset: bool = False):
+        """
+        Create a branch pointing at the given commit.
+        With reset, an existing branch without an open PR is moved to the commit instead, for
+        example a branch left by a failed run or by a PR closed without merge.
+        """
+        try:
+            return self._repository.create_git_ref(ref=f"refs/heads/{branch_name}", sha=sha)
+        except GithubException as e:
+            if not reset or e.status != 422:
+                raise
+        if self.get_pr_for_branch(branch_name).totalCount > 0:
+            raise Exit(f"Branch {branch_name} already exists with an open PR", code=1)
+        ref = self._repository.get_git_ref(f"heads/{branch_name}")
+        ref.edit(sha=sha, force=True)
+        return ref
+
     def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
         # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
         base_tree = self._repository.get_git_tree(tree['base_tree'])
