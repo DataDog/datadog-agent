@@ -8,8 +8,10 @@
 package uprobes
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,17 +34,52 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	"golang.org/x/time/rate"
 )
 
 const (
-	testModuleName   = "mock-module"
-	testAttacherName = "mock"
+	testModuleName             = "mock-module"
+	testAttacherName           = "mock"
+	syncRateLimitTestTimeout   = 250 * time.Millisecond
+	syncRateLimitRetryInterval = time.Second
 )
 
 func TestCanCreateAttacher(t *testing.T) {
 	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{}, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
 	require.NoError(t, err)
 	require.NotNil(t, ua)
+	require.Equal(t, defaultSyncAttachRate, ua.config.SyncAttachRate)
+	require.Equal(t, defaultSyncAttachBurst, ua.config.SyncAttachBurst)
+}
+
+func TestAttacherConfigValidatesSyncAttachmentLimiter(t *testing.T) {
+	tests := []struct {
+		name    string
+		rate    rate.Limit
+		burst   int
+		wantErr string
+	}{
+		{name: "infinite rate", rate: rate.Inf, burst: 1},
+		{name: "negative rate", rate: -1, burst: 1, wantErr: "sync attachment rate must be non-negative"},
+		{name: "not a number rate", rate: rate.Limit(math.NaN()), burst: 1, wantErr: "sync attachment rate must be non-negative"},
+		{name: "negative burst", rate: 1, burst: -1, wantErr: "sync attachment burst must be positive"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := AttacherConfig{
+				SyncAttachRate:  tt.rate,
+				SyncAttachBurst: tt.burst,
+			}
+			config.SetDefaults()
+
+			if tt.wantErr == "" {
+				require.NoError(t, config.Validate())
+				return
+			}
+			require.ErrorContains(t, config.Validate(), tt.wantErr)
+		})
+	}
 }
 
 func TestInternalProcessesRegex(t *testing.T) {
@@ -894,6 +931,61 @@ func TestSync(t *testing.T) {
 		require.NoError(t, ua.Sync(true, true))
 		mockRegistry.AssertExpectations(tt)
 	})
+}
+
+func TestSyncRateLimitsAttachments(t *testing.T) {
+	selfPID, err := kernel.RootNSPID()
+	require.NoError(t, err)
+
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 1, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
+		{Pid: 2, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
+		{Pid: uint32(selfPID), Cmdline: "datadog-agent/bin/system-probe", Command: "sysprobe", Exe: "sysprobe"},
+	})
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{{
+			Targets: AttachToExecutable,
+		}},
+	}, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
+	require.NoError(t, err)
+
+	mockRegistry := &MockFileRegistry{}
+	firstAttachment := make(chan struct{}, 1)
+	mockRegistry.On("Register", "/bin/bash", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) {
+			select {
+			case firstAttachment <- struct{}{}:
+			default:
+			}
+		}).
+		Return(nil)
+	ua.fileRegistry = mockRegistry
+	// The limiter's initial token permits the first PID. The second PID then waits
+	// for a new token, until cancelling the sync context proves Sync was waiting for
+	// the next permit without relying on a timing assertion.
+	ua.syncAttachLimiter = rate.NewLimiter(rate.Every(syncRateLimitRetryInterval), 1)
+
+	syncDone := make(chan error, 1)
+	go func() {
+		syncDone <- ua.Sync(true, false)
+	}()
+
+	select {
+	case <-firstAttachment:
+	case <-time.After(syncRateLimitTestTimeout):
+		t.Fatal("first sync attachment did not happen")
+	}
+
+	ua.syncCancel()
+	select {
+	case err := <-syncDone:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(syncRateLimitTestTimeout):
+		t.Fatal("sync did not stop after its context was canceled")
+	}
+	mockRegistry.AssertNumberOfCalls(t, "Register", 1)
+	mockRegistry.AssertExpectations(t)
 }
 
 func TestParseSymbolFromEBPFProbeName(t *testing.T) {
