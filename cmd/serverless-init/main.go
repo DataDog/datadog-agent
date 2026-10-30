@@ -47,6 +47,10 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessinitfx "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -54,6 +58,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"go.uber.org/fx"
 
@@ -204,6 +209,9 @@ func preloadEarly() {
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
 
+	// Send the first metadata payload as soon as resource identity is known.
+	setOverride("inventories_first_run_delay", 0)
+
 	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
 	setOverride("data_plane.enabled", false)
 	setOverride("data_plane.dogstatsd.enabled", false)
@@ -232,6 +240,13 @@ func setOverride(key string, val interface{}) {
 	if current != nil && current != val {
 		log.Debugf("serverless-init: overriding user-configured %s=%v with %v", key, current, val)
 	}
+}
+
+func wrappedCommand() []string {
+	if len(os.Args) <= 1 {
+		return nil
+	}
+	return os.Args[1:]
 }
 
 // applyCloudServiceOverrides sets the config overrides that depend on the detected
@@ -323,8 +338,17 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
+		fx.Provide(func() serverlessdef.CloudServiceMetadataProvider { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
+		fx.Supply(serverlessdef.Params{
+			Sidecar:        modeConf.SidecarMode,
+			Tags:           tagConfig.Tags,
+			WrappedCommand: wrappedCommand(),
+		}),
+		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
+		serverlessinitfx.Module(),
+		runnerfx.Module(),
 		delegatedauthfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
@@ -385,10 +409,12 @@ func run(
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
+	_ runner.Component,
+	metadata serverlessdef.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux,
+		cloudService, tagConfig, metricTags, demux, metadata,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -404,7 +430,9 @@ func run(
 	//   4. logs agent flushes any buffered records — bounded by
 	//      logsFlushTimeout (1.5 s).
 	//   5. run() returns; Fx OnStop hooks fire in reverse construction order,
-	//      and the metrics pipeline flushes itself (no external orchestration):
+	//      and the metrics pipeline flushes itself (no external orchestration).
+	//      The metadata stop hook, with its bounded identity wait, runs before
+	//      the metrics pipeline hooks:
 	//        5a. dsdServer.stop() — gated by dogstatsd_flush_incomplete_buckets
 	//            (set in preloadEarly) — closes stopChan; each worker flushes its
 	//            batcher (batcher.flush() → AggregateSamples → samplesChan push)
@@ -422,7 +450,7 @@ func run(
 	//            the drain and the flush are bounded together by
 	//            aggregator_stop_timeout (2 s).
 	//        5c. SharedForwarder.Stop() — drains in-flight HTTP transactions —
-	//            bounded by forwarder_stop_timeout (2 s).
+	//            bounded by forwarder_stop_timeout.
 	defer flushLogsAgent(logConfig.FlushTimeout, logsAgent)
 	defer tracingCtx.TraceAgent.Stop()
 	defer func() {
@@ -459,6 +487,7 @@ func setup(
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
+	metadata serverlessdef.Component,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -518,6 +547,7 @@ func setup(
 					metricAgent.SetEnhancedUsageMetricTags(tags)
 				}),
 				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+				Metadata:            metadata,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -559,6 +589,7 @@ func setup(
 				metricAgent.SetEnhancedUsageMetricTags(tags)
 			}),
 			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+			Metadata:            metadata,
 		},
 	}
 
