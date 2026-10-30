@@ -64,13 +64,13 @@ func TestLogHandoffRejectsSourceOnlyAndMinSeverityBeforeSnapshot(t *testing.T) {
 	assert.Empty(t, ch)
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryFilteredLogs, nil).GetCounter().GetValue())
 
-	// Below min_severity rejects before copying tags or reading content.
+	// Below min_severity rejects before reading tags or content.
 	h.ObserveLog(&precheckOnlyLogView{source: "docker", status: "info"})
 	assert.Empty(t, ch)
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryFilteredLogs, nil).GetCounter().GetValue())
 }
 
-func TestLogHandoffSnapshotsReusableLogFieldsAndPreservesTagOrder(t *testing.T) {
+func TestLogHandoffSnapshotsReusableLogFieldsAndRetainsImmutableTags(t *testing.T) {
 	rules, err := logsfilter.NewRules([]logsfilter.ProcessingRule{
 		{Name: "keep_prod_api", Type: "include_at_match", Tags: []string{"env:prod", "service:api"}},
 		{Name: "drop_all", Type: "exclude_at_match"},
@@ -99,13 +99,12 @@ func TestLogHandoffSnapshotsReusableLogFieldsAndPreservesTagOrder(t *testing.T) 
 	h.ObserveLog(sample)
 	after := time.Now()
 
-	// Mutate caller-owned slice and struct fields after ObserveLog returns.
-	callerTags[0] = "mutated:true"
-	callerTags[1] = "service:other"
+	// Replace the caller's fields; tags remain shared and immutable.
 	sample.source = "mutated-source"
 	sample.content = "mutated-content"
 	sample.status = "debug"
 	sample.hostname = "host-b"
+	sample.tags = []string{"service:other"}
 
 	queued := <-ch
 	require.NotNil(t, queued.log)
@@ -115,6 +114,7 @@ func TestLogHandoffSnapshotsReusableLogFieldsAndPreservesTagOrder(t *testing.T) 
 	assert.Equal(t, "info", queued.log.GetStatus())
 	assert.Equal(t, "host-a", queued.log.GetHostname())
 	assert.Equal(t, []string{"zeta:1", "service:api", "alpha:2", "env:prod"}, queued.log.Tags())
+	require.Same(t, &callerTags[0], &queued.log.tags[0])
 	assert.GreaterOrEqual(t, queued.log.GetTimestampUnixMilli(), before.UnixMilli())
 	assert.LessOrEqual(t, queued.log.GetTimestampUnixMilli(), after.UnixMilli())
 
@@ -122,6 +122,27 @@ func TestLogHandoffSnapshotsReusableLogFieldsAndPreservesTagOrder(t *testing.T) 
 	assert.True(t, admitted)
 	assert.Empty(t, reason)
 	assert.Equal(t, []string{"zeta:1", "service:api", "alpha:2", "env:prod"}, queued.log.Tags())
+	assert.Equal(t, callerTags, queued.log.Tags())
+}
+
+func TestLogHandoffRetainsNilAndEmptyTags(t *testing.T) {
+	for _, tags := range [][]string{nil, {}} {
+		ch := make(chan observation, 1)
+		h := &handle{ch: ch, source: "logs"}
+		h.ObserveLog(&logObs{
+			source: "nginx", content: "GET /health 200", status: "info",
+			tags: tags, hostname: "host-a", timestampMs: 1,
+		})
+
+		queued := <-ch
+		require.NotNil(t, queued.log)
+		assert.Empty(t, queued.log.Tags())
+		if tags == nil {
+			assert.Nil(t, queued.log.tags)
+		} else {
+			assert.NotNil(t, queued.log.tags)
+		}
+	}
 }
 
 func TestLogAdmissionExcludedLogsDoNotChargeRateBudgetAndUseAdmissionTime(t *testing.T) {
