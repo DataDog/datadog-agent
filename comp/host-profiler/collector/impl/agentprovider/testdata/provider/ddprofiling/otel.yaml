@@ -65,8 +65,8 @@ receivers:
 service:
     extensions:
         - hpflare
-        - ddprofiling
         - oom
+        - ddprofiling
     pipelines:
         metrics:
             exporters:
