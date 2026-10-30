@@ -26,6 +26,9 @@ The payload is a JSON dict with the following fields
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
 - `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
+- `files_metadata` - **dict of string to object**: the scrubbed contents of the configuration files, keyed by file path. YAML setting order is preserved, while comments are omitted to avoid possibly outputting secrets. Each object contains:
+  - `raw_config` - **string**: the scrubbed configuration file.
+  - `hash` - **string**: the SHA-256 hash of `raw_config`.
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
   - `agent_version` - **string**: the version of the Agent.
@@ -44,6 +47,10 @@ The payload is a JSON dict with the following fields
   - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
   - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
   - `diagnostics` - **dict of string to JSON type**: the result of series of connectivity checks performed on the agent including description, error and metadata
+  - `enc_info` - **dict of string to array of string**: the paths of secret settings, their handles, and scrubbed leafs (scrubbed)
+    - `paths` - **array of strings**: the paths of settings that contain secrets
+    - `handles` - **array of strings**: the handles that correspond to these paths
+    - `scrubbed` - **array of strings**: the keys of non-default settings whose values were scrubbed, either because the key is known to be sensitive (ex: `authKey`) or because the value looks like a credential (ex: a raw API key). Keys already covered by `paths` are omitted
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
@@ -160,6 +167,11 @@ Here an example of an inventory payload:
         "config_proxy_http": "",
         "config_proxy_https": "http://localhost:9999",
         "config_site": "",
+        "enc_info": {
+          "paths": ["api_key", "password"],
+          "handles": ["name", "pswd"],
+          "scrubbed": ["client_secret"]
+        },
         "feature_imdsv2_enabled": false,
         "feature_apm_enabled": true,
         "feature_cspm_enabled": false,
@@ -187,7 +199,13 @@ Here an example of an inventory payload:
         "cli_configuration": "log_level: \"warn\"",
         "source_local_configuration": "",
         "config_id": "my-config"
-    }
+    },
+    "files_metadata": {
+        "/etc/datadog-agent/datadog.yaml": {
+            "hash": "8e9f...",
+            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\n"
+        }
+    },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }
