@@ -82,5 +82,5 @@ func writeInstallSignature(installType string) error {
 	if err != nil {
 		panic(err)
 	}
-	return os.WriteFile(installSigFile, jsonData, 0644)
+	return os.WriteFile(installSigFile, jsonData, 0640)
 }

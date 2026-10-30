@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -2458,6 +2459,11 @@ func TestGenerateInstallSignature(t *testing.T) {
 	assert.True(t, cfg.InstallSignature.Found)
 	installFilePath := filepath.Join(cfgDir, "install.json")
 	assert.FileExists(t, installFilePath)
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(installFilePath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm(), "install signature must not be world-readable")
+	}
 
 	installFileContent, err := os.ReadFile(installFilePath)
 	assert.NoError(t, err)
