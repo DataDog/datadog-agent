@@ -78,43 +78,39 @@ type distro struct {
 // per-rule coverage comes from TestCrossCheck and the probes, since the golden
 // snapshot only reports.
 var rhel10Bands = map[string]band{
-	"passed":  {0.44, 0.60},
-	"failed":  {0.30, 0.45},
-	"skipped": {0.04, 0.18},
+	"passed":  {0.50, 0.65},
+	"failed":  {0.22, 0.37},
+	"skipped": {0.06, 0.20},
 }
 
 var ubuntu2404Bands = map[string]band{
-	"passed":  {0.48, 0.63},
-	"failed":  {0.19, 0.35},
-	"skipped": {0.09, 0.23},
+	"passed":  {0.54, 0.69},
+	"failed":  {0.18, 0.34},
+	"skipped": {0.06, 0.20},
 }
 
 var almalinux9Bands = map[string]band{
-	"passed":  {0.38, 0.58},
-	"failed":  {0.29, 0.49},
-	"skipped": {0.02, 0.23},
+	"passed":  {0.50, 0.70},
+	"failed":  {0.18, 0.38},
+	"skipped": {0.02, 0.22},
 }
 
-// al2023 skips most rules because ssg-al2023 gates them on a kernel package that the test
-// AMI does not match at the pinned policy version, so the skip fraction is large and set by
-// the content, not the host. These bands track that content-limited distribution. See
-// distroAmazonLinux2023 for the gate and the follow-up (re-harvest once the rules evaluate).
 var al2023Bands = map[string]band{
-	"passed":  {0.17, 0.32},
-	"failed":  {0.00, 0.10},
-	"skipped": {0.65, 0.80},
+	"passed":  {0.53, 0.67},
+	"failed":  {0.26, 0.40},
+	"skipped": {0.00, 0.14},
 }
 
 var rhel8Bands = map[string]band{
-	"passed":  {0.46, 0.60},
-	"failed":  {0.27, 0.41},
-	"skipped": {0.05, 0.20},
+	"passed":  {0.49, 0.63},
+	"failed":  {0.23, 0.37},
+	"skipped": {0.06, 0.21},
 }
 
 var rhel9Bands = map[string]band{
-	"passed":  {0.44, 0.59},
-	"failed":  {0.29, 0.44},
-	"skipped": {0.05, 0.20},
+	"passed":  {0.54, 0.68},
+	"failed":  {0.20, 0.34},
+	"skipped": {0.05, 0.19},
 }
 
 var distroRHEL10 = distro{
@@ -143,17 +139,12 @@ var distroAmazonLinux2023 = distro{
 	os:          os.AmazonLinux2023,
 	frameworkID: "cis-al2023",
 	family:      rhel,
-	minRules:    200,
+	minRules:    240,
 	bands:       al2023Bands,
-	// ssg-al2023's system_with_kernel platform gates most rules on an installed kernel
-	// package: kernel-core up to SCAP Security Guide 0.1.81, kernel since 0.1.82. At the
-	// pinned SECURITY_AGENT_POLICIES_VERSION those rules still skip on the test AMI
-	// regardless of host state (182 of 255 at v0.85.1, with 0.1.82). Until they evaluate,
-	// exercise only the package probe (the others would land on skipped rules and fail
-	// the must-evaluate check) and keep the wide al2023Bands. Once they do, drop
-	// onlyProbes for the full probe set, restore normal bands, re-harvest the golden
-	// baseline, and raise minRules.
-	onlyProbes: []string{"package"},
+	// Amazon Linux 2023 ships without cronie, which the file and service probes act on.
+	// Its kernel module rules and partition_for_tmp already pass on the stock image, so
+	// the kernel_module and partition probes have no failing state to set up there.
+	onlyProbes: []string{"package", "sshd", "accounts", "sysctl"},
 }
 
 var distroAlmaLinux9 = distro{
