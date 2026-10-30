@@ -74,6 +74,8 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/mock",
+        "//comp/core/tagger/types",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
         "//pkg/collector/corechecks",
