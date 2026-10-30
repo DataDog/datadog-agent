@@ -73,9 +73,13 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/core",
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/mock",
         "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
         "//pkg/collector/corechecks",
@@ -84,6 +88,7 @@ dd_agent_go_test(
         "//pkg/kubestatemetrics/builder",
         "//pkg/kubestatemetrics/store",
         "//pkg/metrics/servicecheck",
+        "//pkg/util/fxutil",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",
         "@com_github_stretchr_testify//assert",
@@ -99,5 +104,6 @@ dd_agent_go_test(
         "@io_k8s_kube_state_metrics_v2//pkg/customresourcestate",
         "@io_k8s_kube_state_metrics_v2//pkg/options",
         "@io_k8s_kube_state_metrics_v2//pkg/util",
+        "@org_uber_go_fx//:fx",
     ],
 )
