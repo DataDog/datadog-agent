@@ -521,7 +521,8 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 	}
 
 	pnb := &adproto.NodeBase{
-		Seen: make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
+		Seen:            make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
+		LastAnomalySent: uint64(nb.lastAnomalySent),
 	}
 
 	nb.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
