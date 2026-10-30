@@ -14,19 +14,21 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-type scrubCallback = func(string, interface{}) (bool, interface{})
+// scrubCallback is called on every map entry and on every string in a slice. key is the map key, or "" for slice
+// elements, while parent is the closest enclosing map key, or "" at the top level.
+type scrubCallback = func(key string, parent string, value interface{}) (bool, interface{})
 
-func walkSlice(data []interface{}, callback scrubCallback) {
+func walkSlice(data []interface{}, parent string, callback scrubCallback) {
 	for i, k := range data {
 		switch v := k.(type) {
 		case map[interface{}]interface{}:
 			walkHash(v, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			walkSlice(v, parent, callback)
 		case map[string]interface{}:
 			walkStringMap(v, callback)
 		case string:
-			if match, newValue := callback("", v); match {
+			if match, newValue := callback("", parent, v); match {
 				data[i] = newValue
 			}
 		}
@@ -35,8 +37,9 @@ func walkSlice(data []interface{}, callback scrubCallback) {
 
 func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 	for k, v := range data {
-		if keyString, ok := k.(string); ok {
-			if match, newValue := callback(keyString, v); match {
+		keyString, isString := k.(string)
+		if isString {
+			if match, newValue := callback(keyString, keyString, v); match {
 				data[keyString] = newValue
 				continue
 			}
@@ -46,14 +49,14 @@ func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 		case map[interface{}]interface{}:
 			walkHash(v, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			walkSlice(v, keyString, callback)
 		}
 	}
 }
 
 func walkStringMap(data map[string]interface{}, callback scrubCallback) {
 	for k, v := range data {
-		if match, newValue := callback(k, v); match {
+		if match, newValue := callback(k, k, v); match {
 			data[k] = newValue
 			continue
 		}
@@ -61,7 +64,7 @@ func walkStringMap(data map[string]interface{}, callback scrubCallback) {
 		case map[string]interface{}:
 			walkStringMap(v, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			walkSlice(v, k, callback)
 		}
 
 	}
@@ -78,19 +81,20 @@ func walk(data *interface{}, callback scrubCallback) {
 	case map[interface{}]interface{}:
 		walkHash(v, callback)
 	case []interface{}:
-		walkSlice(v, callback)
+		walkSlice(v, "", callback)
 	case map[string]interface{}:
 		walkStringMap(v, callback)
 	case string:
-		if match, newValue := callback("", v); match {
+		if match, newValue := callback("", "", v); match {
 			*data = newValue
 		}
 	}
 }
 
-// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
+// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes. The keys whose
+// values get scrubbed are recorded, see GetStrippedKeys.
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
-	walk(data, func(key string, value interface{}) (bool, interface{}) {
+	walk(data, func(key string, parent string, value interface{}) (bool, interface{}) {
 		str, isString := value.(string)
 		if isString && IsEnc(str) {
 			return false, ""
@@ -118,9 +122,20 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 						}
 						joined := strings.Join(lines, "\n")
 						scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
+						if mayHoldCredential(value) {
+							c.addStrippedKey(key)
+						}
 						return true, scrubbed
 					}
+					// Structured results (ex: additional_endpoints, private_action_runner) are only recorded
+					// if they contain a scrubbed leaf. Replacers that re-enter ScrubDataObj record nested keys.
+					if containsReplacement(result) {
+						c.addStrippedKey(key)
+					}
 					return true, result
+				}
+				if mayHoldCredential(value) {
+					c.addStrippedKey(key)
 				}
 				return true, defaultReplacement
 			}
@@ -136,11 +151,58 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 			joined := strings.Join(lines, "\n")
 			scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
 			if scrubbed != str {
+				// the value itself looks like a credential (ex: a raw API key or a password in a URL)
+				c.addStrippedKey(parent)
 				return true, scrubbed
 			}
 		}
 		return false, ""
 	})
+}
+
+// mayHoldCredential returns false if value holds no data that could be a credential, such as an empty value or a
+// boolean. This avoids recording keys like "pass_through: false" that only match a sensitive key pattern.
+func mayHoldCredential(value interface{}) bool {
+	switch v := value.(type) {
+	case nil, bool:
+		return false
+	case string:
+		return strings.TrimSpace(v) != ""
+	case map[string]interface{}:
+		return len(v) != 0
+	case map[interface{}]interface{}:
+		return len(v) != 0
+	case []interface{}:
+		return len(v) != 0
+	}
+	return true
+}
+
+// containsReplacement returns true if any leaf of data was replaced by defaultReplacement
+func containsReplacement(data interface{}) bool {
+	switch v := data.(type) {
+	case string:
+		return v == defaultReplacement
+	case map[string]interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	case map[interface{}]interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ScrubYaml scrubs credentials from the given YAML by loading the data and scrubbing the object instead of the

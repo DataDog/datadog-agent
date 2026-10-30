@@ -1006,6 +1006,7 @@ func TestFetchSecretsNoComponent(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{
 		"paths":          []string{},
 		"handles":        []string{},
+		"scrubbed":       []string{},
 		"hash_secret_id": map[string]string{},
 	}, ia.data["enc_info"])
 }
@@ -1018,7 +1019,16 @@ func TestFetchSecrets(t *testing.T) {
 	)
 	// "secret_two" has no resolved value and is omitted from the hashes
 	secretsComp.SetSecrets(map[string]string{"my_key": "my_key_value", "secret_one": "secret_one_value"})
-	p := getProvides(t, nil, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	p := getProvides(t, map[string]any{
+		// covered by a secret path, so not reported as scrubbed
+		"api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+		// known sensitive key name
+		"network_devices.snmp_traps.users": []any{
+			map[string]any{"user": "user1", "authKey": "my-auth-key", "authProtocol": "sha"},
+		},
+		// raw credential written in a setting that is not known to be sensitive
+		"dd_url": "https://user:secret@example.com",
+	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
 	ia := p.Comp.(*inventoryagent)
 
 	ia.fetchSecretsMetadata()
@@ -1029,6 +1039,7 @@ func TestFetchSecrets(t *testing.T) {
 			"my_key":     "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
 			"secret_one": "c9941a386f3401c35efab67c9a302b4f13317d0d018ae6697b531dce994a8008",
 		},
+		"scrubbed": []string{"authKey", "dd_url"},
 	}, ia.data["enc_info"])
 }
 
@@ -1102,6 +1113,70 @@ func TestStatusOmitsSecretHashes(t *testing.T) {
 
 	// The payload sent to the backend still carries the hashes
 	assert.Contains(t, ia.data["enc_info"], "hash_secret_id")
+}
+
+func TestFilterScrubbedKeys(t *testing.T) {
+	tests := []struct {
+		name         string
+		scrubbedKeys []string
+		paths        []string
+		expected     []string
+	}{
+		{
+			name:         "empty",
+			scrubbedKeys: nil,
+			paths:        nil,
+			expected:     []string{},
+		},
+		{
+			name:         "top-level setting",
+			scrubbedKeys: []string{"dd_url", "client_secret"},
+			paths:        []string{"dd_url"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "nested setting",
+			scrubbedKeys: []string{"https", "client_secret"},
+			paths:        []string{"proxy.https"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "slice index uses the parent key",
+			scrubbedKeys: []string{"community_strings", "client_secret"},
+			paths:        []string{"snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			// integration configs use their digest as origin, and paths relative to the resolved section
+			name:         "nested setting from an integration config",
+			scrubbedKeys: []string{"password", "client_secret"},
+			paths:        []string{"a3f9c01b2d4e5f67:auth.password"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "top-level setting from an integration config",
+			scrubbedKeys: []string{"token", "client_secret"},
+			paths:        []string{"a3f9c01b2d4e5f67:token"},
+			expected:     []string{"client_secret"},
+		},
+		{
+			name:         "partial key names are not filtered",
+			scrubbedKeys: []string{"proxy", "api"},
+			paths:        []string{"proxy.https", "logs_config.api_key"},
+			expected:     []string{"proxy", "api"},
+		},
+		{
+			name:         "duplicates are removed",
+			scrubbedKeys: []string{"password", "client_secret", "client_secret", "password"},
+			paths:        []string{"password"},
+			expected:     []string{"client_secret"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, filterScrubbedKeys(tt.scrubbedKeys, tt.paths))
+		})
+	}
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {
