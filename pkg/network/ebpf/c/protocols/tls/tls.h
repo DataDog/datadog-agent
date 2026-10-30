@@ -207,6 +207,47 @@ static __always_inline bool is_valid_tls_handshake(struct __sk_buff *skb, __u32 
     return true;
 }
 
+// is_tls_record_header_plausible validates ONLY the content_type and version of a TLS record
+// header. Unlike read_tls_record_header() it deliberately does NOT require the declared record
+// length to fit within the current packet.
+//
+// This exists for diagnostics: a TLS record may be up to TLS_MAX_PAYLOAD_LENGTH (16 KB) while a
+// typical MSS is ~1460 bytes, so a perfectly valid record header whose record spans several TCP
+// segments is rejected by read_tls_record_header()'s final bounds check. Callers that want to know
+// "did these bytes *look* like the start of a TLS record?" — as opposed to "can I safely parse the
+// whole record here?" — should use this instead.
+//
+// Do NOT use this to drive classification decisions; a one-byte content_type plus a two-byte
+// version is far weaker evidence than is_tls() requires, and would raise the false-positive rate.
+__maybe_unused static __always_inline bool is_tls_record_header_plausible(struct __sk_buff *skb, __u32 header_offset, __u32 data_end, tls_record_header_t *tls_hdr) {
+    if (header_offset + sizeof(tls_record_header_t) > data_end) {
+        return false;
+    }
+    if (bpf_skb_load_bytes(skb, header_offset, tls_hdr, sizeof(tls_record_header_t)) < 0) {
+        return false;
+    }
+
+    tls_hdr->version = bpf_ntohs(tls_hdr->version);
+    tls_hdr->length = bpf_ntohs(tls_hdr->length);
+
+    if (!is_valid_tls_version(tls_hdr->version)) {
+        return false;
+    }
+    if (tls_hdr->length > TLS_MAX_PAYLOAD_LENGTH) {
+        return false;
+    }
+
+    switch (tls_hdr->content_type) {
+    case TLS_HANDSHAKE:
+    case TLS_APPLICATION_DATA:
+    case TLS_CHANGE_CIPHER_SPEC:
+    case TLS_ALERT:
+        return true;
+    default:
+        return false;
+    }
+}
+
 // is_tls checks if the packet is a TLS packet by reading and validating the TLS record header
 // Reference: RFC 5246 Section 6.2.1 (Record Layer), https://tools.ietf.org/html/rfc5246#section-6.2.1
 // Validates that content_type matches known TLS types (Handshake, Application Data, etc.).

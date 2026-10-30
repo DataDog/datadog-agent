@@ -14,6 +14,7 @@ package ebpf
 #include "./c/prebuilt/offset-guess.h"
 #include "./c/protocols/classification/defs.h"
 #include "./c/protocols/tls/tls-certs-types.h"
+#include "./c/protocols/classification/tls-misclassification-diag-types.h"
 
 */
 import "C"
@@ -39,6 +40,7 @@ type CertSerial C.cert_serial_t
 type CertDomain C.cert_domain_t
 type CertValidity C.cert_validity_t
 type SSLHandshakeState C.ssl_handshake_state_t
+type TLSDiagEvent C.tls_diag_event_t
 
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
