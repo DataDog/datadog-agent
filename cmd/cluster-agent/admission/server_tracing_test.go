@@ -54,7 +54,7 @@ func TestAdmissionRequestTracing(t *testing.T) {
 			called := false
 			s.Register("/test", "test", admicommon.MutatingWebhook, func(req *Request) *admiv1.AdmissionResponse {
 				called = true
-				return admicommon.MutationResponse(mutatecommon.MutateWithContext(req.Context, req.Object, req.Namespace, "test",
+				return admicommon.MutationResponse(mutatecommon.Mutate(req.Context, req.Object, req.Namespace, "test",
 					func(*corev1.Pod, string, dynamic.Interface) (bool, error) {
 						if tt.fail {
 							return false, errors.New("sensitive-error")
@@ -122,7 +122,7 @@ func TestAdmissionTracingPreservesPanic(t *testing.T) {
 	defer mt.Stop()
 	s := newTestServer(t)
 	s.Register("/test", "test", admicommon.MutatingWebhook, func(req *Request) *admiv1.AdmissionResponse {
-		return admicommon.MutationResponse(mutatecommon.MutateWithContext(req.Context, []byte(`{"spec":{"containers":[]}}`), "", "test",
+		return admicommon.MutationResponse(mutatecommon.Mutate(req.Context, []byte(`{"spec":{"containers":[]}}`), "", "test",
 			func(*corev1.Pod, string, dynamic.Interface) (bool, error) {
 				panic("sensitive-panic")
 			}, nil))

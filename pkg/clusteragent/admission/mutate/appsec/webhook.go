@@ -149,7 +149,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
 		switch request.Operation {
 		case admissionregistrationv1.Create:
-			return common.MutationResponse(mutatecommon.MutateWithContext(
+			return common.MutationResponse(mutatecommon.Mutate(
 				request.Context,
 				request.Object,
 				request.Namespace,

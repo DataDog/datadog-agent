@@ -44,7 +44,7 @@ func TestMutateTracing(t *testing.T) {
 			defer mt.Stop()
 			parent, ctx := tracer.StartSpanFromContext(context.Background(), "parent")
 			called := false
-			patch, err := MutateWithContext(ctx, []byte(tt.raw), "sensitive-namespace", "test", func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+			patch, err := Mutate(ctx, []byte(tt.raw), "sensitive-namespace", "test", func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 				called = true
 				if tt.fail {
 					return false, errors.New("sensitive-error: sensitive-env")
@@ -119,7 +119,7 @@ func BenchmarkMutateTracingDisabled(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					if _, err := Mutate(raw, "", "test", mutator, nil); err != nil {
+					if _, err := Mutate(context.Background(), raw, "", "test", mutator, nil); err != nil {
 						b.Fatal(err)
 					}
 				}

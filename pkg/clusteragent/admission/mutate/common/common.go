@@ -49,12 +49,7 @@ func finishMutationSpan(span *tracer.Span, err *error) {
 
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) ([]byte, error) {
-	return MutateWithContext(context.Background(), rawPod, ns, mutationType, m, dc)
-}
-
-// MutateWithContext handles the shared mutation flow while preserving trace context.
-func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) (patchJSON []byte, retErr error) {
+func Mutate(ctx context.Context, rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) (patchJSON []byte, retErr error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
