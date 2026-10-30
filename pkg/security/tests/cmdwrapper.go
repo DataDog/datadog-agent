@@ -89,6 +89,8 @@ type dockerCmdWrapper struct {
 	containerID   string
 	cgroupID      string
 	image         string
+	// extraRunArgs are appended to the docker run invocation, before the image name
+	extraRunArgs []string
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
@@ -111,7 +113,10 @@ func (d *dockerCmdWrapper) CommandContext(ctx context.Context, bin string, args 
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = "docker-wrapper-" + utils.RandString(6)
-	cmd := exec.Command(d.executable, "run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--rm", "--cap-add", "NET_ADMIN", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
+	args := []string{"run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--rm", "--cap-add", "NET_ADMIN"}
+	args = append(args, d.extraRunArgs...)
+	args = append(args, "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
+	cmd := exec.Command(d.executable, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err

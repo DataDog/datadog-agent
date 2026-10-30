@@ -25,6 +25,7 @@ type testOpts struct {
 	securityProfileNodeEvictionTimeout      time.Duration
 	securityProfileSampleRefreshPeriod      time.Duration
 	enableAnomalyDetection                  bool
+	anomalyDetectionEventCooldown           time.Duration
 	workloadProfileStorageDir               string
 	workloadProfilePersistencePeriod        time.Duration
 	workloadProfileEventTypes               []string
@@ -33,6 +34,7 @@ type testOpts struct {
 	profileReportingWaitPersistence         bool
 	eventSamplingSyscallsEnabled            bool
 	eventSamplingOpenRateUnlimited          bool
+	disableEventSampling                    bool
 	disableDiscarders                       bool
 	disableERPCDentryResolution             bool
 	disableMapDentryResolution              bool

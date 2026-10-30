@@ -114,9 +114,14 @@ func workloadProfileExecPath(variant string) string {
 // test module and stay the same across module restarts.
 func startWorkloadProfileContainer(t *testing.T, test *testModule, tagger *FakeManualTagger, syscallTester string, image string, tag string) (*dockerCmdWrapper, cgroupModel.WorkloadSelector) {
 	t.Helper()
+	return startWorkloadProfileContainerWithRunArgs(t, test, tagger, syscallTester, image, tag, nil)
+}
+
+func startWorkloadProfileContainerWithRunArgs(t *testing.T, test *testModule, tagger *FakeManualTagger, syscallTester string, image string, tag string, extraRunArgs []string) (*dockerCmdWrapper, cgroupModel.WorkloadSelector) {
+	t.Helper()
 	tagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{Image: image, Tag: tag})
 
-	dockerInstance, err := test.StartADocker()
+	dockerInstance, err := test.startADocker(extraRunArgs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,6 +231,13 @@ func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdW
 // collectAnomalies runs action in the container and returns the anomaly detection events it triggered
 func collectAnomalies(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper) []workloadProfileAnomaly {
 	t.Helper()
+	return collectAnomaliesWithProbeEvents(t, test, action, dockerInstance, nil)
+}
+
+// collectAnomaliesWithProbeEvents is collectAnomalies, and also calls onProbeEvent, if not nil, for each event
+// dispatched until the sentinel. onProbeEvent runs on the event handler goroutine.
+func collectAnomaliesWithProbeEvents(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper, onProbeEvent func(event *model.Event)) []workloadProfileAnomaly {
+	t.Helper()
 
 	var (
 		lock      sync.Mutex
@@ -246,7 +258,7 @@ func collectAnomalies(t *testing.T, test *testModule, action func() error, docke
 	})
 	defer test.RegisterCustomSendEventHandler(nil)
 
-	runUntilSentinel(t, test, dockerInstance, action, nil)
+	runUntilSentinel(t, test, dockerInstance, action, onProbeEvent)
 
 	lock.Lock()
 	defer lock.Unlock()
@@ -263,6 +275,8 @@ type workloadProfileEventType struct {
 	unsupported func(kv *kernel.Version) bool
 	// trigger produces the activity of the variant in the container
 	trigger func(t *testing.T, dockerInstance *dockerCmdWrapper, variant string)
+	// containerRunArgs are extra docker run arguments the container needs to produce the activity
+	containerRunArgs []string
 	// hasNode returns true if the profile contains the entry of the variant
 	hasNode func(p *profile.Profile, variant string) bool
 	// matchAnomaly returns true if the anomaly was triggered by the activity of the variant
@@ -436,6 +450,21 @@ func profileHasFile(p *profile.Profile, basename string) bool {
 // profileHasFileOpenedBy returns true if the profile contains a file node with the provided name under a process
 // node with the provided argv0
 func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) bool {
+	return profileHasFileOpenedByProcess(p, func(node *activity_tree.ProcessNode) bool {
+		return node.Process.Argv0 == argv0
+	}, basename)
+}
+
+// profileHasFileOpenedWithArgs returns true if the profile contains a file node with the provided name under a
+// process node with the provided arguments
+func profileHasFileOpenedWithArgs(p *profile.Profile, argv []string, basename string) bool {
+	return profileHasFileOpenedByProcess(p, func(node *activity_tree.ProcessNode) bool {
+		return slices.Equal(node.Process.Argv, argv)
+	}, basename)
+}
+
+// profileHasFileOpenedByProcess returns true if a process node that matches holds a file node named basename
+func profileHasFileOpenedByProcess(p *profile.Profile, match func(node *activity_tree.ProcessNode) bool, basename string) bool {
 	var hasFile func(files map[string]*activity_tree.FileNode) bool
 	hasFile = func(files map[string]*activity_tree.FileNode) bool {
 		for name, file := range files {
@@ -446,7 +475,7 @@ func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) b
 		return false
 	}
 	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
-		return node.Process.Argv0 == argv0 && hasFile(node.Files)
+		return match(node) && hasFile(node.Files)
 	})) > 0
 }
 
@@ -517,6 +546,83 @@ func profileHasSocket(p *profile.Profile, port uint16, bind bool) bool {
 	})) > 0
 }
 
+// mountContainerRunArgs returns the docker run arguments a container needs to bind-mount inside itself.
+// AppArmor's default profile denies mount even when the capability is present.
+func mountContainerRunArgs() []string {
+	args := []string{"--cap-add", "SYS_ADMIN"}
+	if data, err := os.ReadFile("/sys/module/apparmor/parameters/enabled"); err == nil && strings.TrimSpace(string(data)) == "Y" {
+		args = append(args, "--security-opt", "apparmor=unconfined")
+	}
+	return args
+}
+
+// workloadProfileEventCooldownTypes returns the activities whose anomaly detection event cooldown is tested.
+// The same variant is produced twice: once to learn it, once after the cooldown.
+func workloadProfileEventCooldownTypes() []workloadProfileEventType {
+	byName := make(map[string]workloadProfileEventType, len(workloadProfileEventTypes()))
+	for _, et := range workloadProfileEventTypes() {
+		byName[et.name] = et
+	}
+
+	runInContainer := func(t *testing.T, dockerInstance *dockerCmdWrapper, bin string, args ...string) {
+		t.Helper()
+		if out, err := dockerInstance.Command(bin, args, []string{}).CombinedOutput(); err != nil {
+			t.Logf("%s %v: %v (%s)", bin, args, err, string(out))
+		}
+	}
+
+	return []workloadProfileEventType{
+		byName["open"],
+		byName["exec"],
+		byName["bind"],
+		byName["connect"],
+		byName["dns"],
+		{
+			name:      "capabilities",
+			eventType: model.CapabilitiesEventType,
+			unsupported: func(kv *kernel.Version) bool {
+				return !kv.HasBPFForEachMapElemHelper() || !sprobe.IsCapabilitiesMonitoringSupported(kv)
+			},
+			// The capability is reported when the monitoring period elapses, not when the syscall returns.
+			trigger: func(t *testing.T, dockerInstance *dockerCmdWrapper, _ string) {
+				runInContainer(t, dockerInstance, workloadProfileExecPath("capabilities"), "chroot", "/tmp")
+				time.Sleep(2 * time.Second)
+			},
+			matchAnomaly: func(anomaly workloadProfileAnomaly, _ string) bool {
+				return strings.Contains(anomaly.json, "wp-exec-capabilities") && strings.Contains(anomaly.json, "CAP_SYS_CHROOT")
+			},
+		},
+		{
+			name:      "syscalls",
+			eventType: model.SyscallsEventType,
+			// nanosleep is on the sampler ignore list. The process still exits through exit_group, which is sampled.
+			trigger: func(t *testing.T, dockerInstance *dockerCmdWrapper, _ string) {
+				runInContainer(t, dockerInstance, workloadProfileExecPath("syscalls"), "sleep", "1")
+			},
+			matchAnomaly: func(anomaly workloadProfileAnomaly, _ string) bool {
+				return strings.Contains(anomaly.json, "wp-exec-syscalls")
+			},
+		},
+		{
+			name:             "mount",
+			eventType:        model.FileMountEventType,
+			containerRunArgs: mountContainerRunArgs(),
+			trigger: func(t *testing.T, dockerInstance *dockerCmdWrapper, variant string) {
+				src, dst := "/tmp/wp-mount-src-"+variant, "/tmp/wp-mount-dst-"+variant
+				runInContainer(t, dockerInstance, "mkdir", "-p", src, dst)
+				// the destination may still be mounted from the previous attempt
+				runInContainer(t, dockerInstance, "umount", dst)
+				if out, err := dockerInstance.Command("mount", []string{"-o", "bind", src, dst}, []string{}).CombinedOutput(); err != nil {
+					t.Fatalf("mount %s on %s: %v (%s)", src, dst, err, out)
+				}
+			},
+			matchAnomaly: func(anomaly workloadProfileAnomaly, variant string) bool {
+				return strings.Contains(anomaly.json, "wp-mount-dst-"+variant)
+			},
+		},
+	}
+}
+
 // workloadProfileEventTypeByName returns the event type of workloadProfileEventTypes with the provided name
 func workloadProfileEventTypeByName(t *testing.T, name string) workloadProfileEventType {
 	t.Helper()
@@ -555,6 +661,51 @@ func anomalySecurityProfileTags(t *testing.T, anomaly workloadProfileAnomaly) []
 		t.Fatalf("the anomaly detection event has no security profile context: %s", anomaly.json)
 	}
 	return payload.SecurityProfile.Tags
+}
+
+// workloadProfileAnomalyProcess is the process of an anomaly detection event, and the file of the event if it has one
+type workloadProfileAnomalyProcess struct {
+	executable string
+	args       []string
+	path       string
+}
+
+// hasAnomalyProcess returns true if one of the anomalies of eventType has a process that matches
+func hasAnomalyProcess(t *testing.T, anomalies []workloadProfileAnomaly, eventType model.EventType, match func(p workloadProfileAnomalyProcess) bool) bool {
+	t.Helper()
+	for _, anomaly := range anomalies {
+		if anomaly.eventType != eventType {
+			continue
+		}
+		var payload struct {
+			File *struct {
+				Path string `json:"path"`
+			} `json:"file"`
+			Process *struct {
+				Executable *struct {
+					Path string `json:"path"`
+				} `json:"executable"`
+				Args []string `json:"args"`
+			} `json:"process"`
+		}
+		if err := json.Unmarshal([]byte(anomaly.json), &payload); err != nil {
+			t.Fatalf("couldn't unmarshal the anomaly detection event: %v", err)
+		}
+		if payload.Process == nil {
+			continue
+		}
+		process := workloadProfileAnomalyProcess{args: payload.Process.Args}
+		if payload.Process.Executable != nil {
+			process.executable = payload.Process.Executable.Path
+		}
+		if payload.File != nil {
+			process.path = payload.File.Path
+		}
+		if match(process) {
+			return true
+		}
+	}
+	return false
 }
 
 // startTwoImageTagsWorkload starts a v1 then a v2 container of the same image, runs the same exec in both, and

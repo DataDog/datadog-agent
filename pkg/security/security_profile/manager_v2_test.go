@@ -9,9 +9,11 @@
 package securityprofile
 
 import (
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -667,7 +669,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 		t.Run(eventType.String(), func(t *testing.T) {
 			m, _ := newInsertionTestManagerV2(t)
 
-			p, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
 			require.NotNil(t, p)
 			assert.True(t, inserted, "a first activity should create a new entry")
 			assert.Equal(t, testSelector, *p.GetWorkloadSelector(), "the profile should be shared by all the tags of the image")
@@ -677,7 +679,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.True(t, ok, "the node should be tagged with v1")
 
 			// the same activity under another tag of the image only adds the tag to the existing entry
-			p2, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
+			p2, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
 			require.Same(t, p, p2)
 			assert.False(t, inserted, "a known activity under another tag shouldn't create a new entry")
 			assert.ElementsMatch(t, []string{"v1", "v2"}, p.GetVersions())
@@ -686,7 +688,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			_, _, ok = node.GetSeenTimes(p.ActivityTree.GetImageTagID("v2"))
 			assert.True(t, ok, "the existing node should be tagged with v2")
 
-			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			_, inserted, _ = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
 			assert.True(t, inserted, "a new activity should create a new entry")
 			assert.NotNil(t, findTestEventNode(p, eventType, "new"))
 		})
@@ -738,8 +740,257 @@ func TestManagerV2_onEventTagsResolved(t *testing.T) {
 				require.NotNil(t, p)
 				assert.NotNil(t, findTestEventNode(p, eventType, "known"), "the activity should still be learned")
 			})
+
+			t.Run("a known activity is sent again once the event cooldown has elapsed", func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEventCooldown = time.Hour
+
+				start := time.Now()
+				first := newTestEventV2(eventType, "v1", "known")
+				first.Timestamp = start
+				m.onEventTagsResolved(first)
+				require.Len(t, *anomalies, 1)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				node := findTestEventNode(p, eventType, "known")
+				require.NotNil(t, node)
+				lastSent, ok := node.GetLastAnomalySent()
+				require.True(t, ok, "sending an anomaly should record lastAnomalySent")
+				assert.True(t, lastSent.Equal(start))
+
+				again := newTestEventV2(eventType, "v1", "known")
+				again.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(again)
+				assert.Len(t, *anomalies, 1, "an activity re-seen within the event cooldown shouldn't trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(start), "a suppressed occurrence shouldn't move lastAnomalySent")
+
+				otherTag := newTestEventV2(eventType, "v2", "known")
+				otherTag.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(otherTag)
+				assert.Len(t, *anomalies, 1, "the event cooldown belongs to the activity node and is shared by every tag of the image")
+
+				later := newTestEventV2(eventType, "v1", "known")
+				later.Timestamp = start.Add(2 * time.Hour)
+				m.onEventTagsResolved(later)
+				assert.Len(t, *anomalies, 2, "an activity re-seen after the event cooldown should trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(later.Timestamp))
+			})
 		})
 	}
+}
+
+// TestManagerV2_eventCooldownSurvivesReload persists a profile to local storage and reloads it in another manager,
+// as after a restart. The reloaded activity keeps its emission history: an alerted one is held until the event
+// cooldown elapses and is then sent once, an activity learned without an anomaly stays quiet.
+func TestManagerV2_eventCooldownSurvivesReload(t *testing.T) {
+	for _, eventType := range testEventTypesV2 {
+		t.Run(eventType.String(), func(t *testing.T) {
+			dir := t.TempDir()
+			newManager := func() (*ManagerV2, *[]*model.Event) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEventCooldown = time.Hour
+				localStorage, err := storage.NewDirectory(dir, 100)
+				require.NoError(t, err)
+				m.localStorage = localStorage
+				m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+					config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+				})
+				return m, anomalies
+			}
+			at := func(variant string, timestamp time.Time) *model.Event {
+				event := newTestEventV2(eventType, "v1", variant)
+				event.Timestamp = timestamp
+				return event
+			}
+
+			start := time.Now()
+			before, sent := newManager()
+			before.onEventTagsResolved(at("known", start))
+			require.Len(t, *sent, 1)
+			_, inserted, _ := before.insertEventIntoProfile(at("new", start))
+			require.True(t, inserted, "the activity learned without an anomaly should be inserted")
+			before.persistProfile(before.profiles[testSelector])
+
+			after, anomalies := newManager()
+			after.onEventTagsResolved(at("known", start.Add(30*time.Minute)))
+			p := after.profiles[testSelector]
+			require.NotNil(t, p)
+			require.NotNil(t, findTestEventNode(p, eventType, "new"), "the profile should be reloaded from local storage")
+			lastSent, ok := findTestEventNode(p, eventType, "known").GetLastAnomalySent()
+			require.True(t, ok, "the reloaded activity should keep its last anomaly sent")
+			assert.True(t, lastSent.Equal(start))
+			_, ok = findTestEventNode(p, eventType, "new").GetLastAnomalySent()
+			assert.False(t, ok, "the activity learned without an anomaly should reload without one")
+			assert.Empty(t, *anomalies, "a reloaded activity re-seen within the event cooldown shouldn't trigger an anomaly")
+
+			after.onEventTagsResolved(at("known", start.Add(2*time.Hour)))
+			after.onEventTagsResolved(at("known", start.Add(2*time.Hour+time.Minute)))
+			assert.Len(t, *anomalies, 1, "a reloaded activity re-seen after the event cooldown should trigger exactly one anomaly")
+
+			after.onEventTagsResolved(at("new", start.Add(30*time.Minute)))
+			after.onEventTagsResolved(at("new", start.Add(2*time.Hour)))
+			assert.Len(t, *anomalies, 1, "a reloaded activity learned without an anomaly should stay quiet")
+		})
+	}
+}
+
+// TestManagerV2_eventCooldownGate covers the gate of a known activity for the event types the kernel samples.
+// An event the sampler admitted carries a cookie and was already gated by sample_pass in the kernel. An event a
+// rule approved carries none, and stays on the activity node cooldown, as does every event when sampling is off.
+func TestManagerV2_eventCooldownGate(t *testing.T) {
+	sampledTypes := []model.EventType{model.FileOpenEventType, model.BindEventType, model.ConnectEventType, model.SyscallsEventType}
+	for _, eventType := range sampledTypes {
+		t.Run(eventType.String(), func(t *testing.T) {
+			t.Run("sampling, cookie", func(t *testing.T) {
+				m, anomalies, pass := newCooldownGateManager(t, eventType, true)
+				start := time.Now()
+
+				m.onEventTagsResolved(knownActivity(eventType, start, 42))
+				require.Len(t, *anomalies, 1)
+				assert.Equal(t, map[uint64]uint8{42: 0}, pass.snapshot(), "the emit blocks its cookie in sample_pass")
+
+				// Both repeats are inside the node cooldown. The kernel delivered them, so sample_pass let them through:
+				// 99 is a new sample, 42 was reopened by its timer.
+				m.onEventTagsResolved(knownActivity(eventType, start.Add(time.Minute), 99))
+				m.onEventTagsResolved(knownActivity(eventType, start.Add(2*time.Minute), 42))
+				assert.Len(t, *anomalies, 3, "userspace emits every event the kernel sampler admitted")
+				assert.Equal(t, map[uint64]uint8{42: 0, 99: 0}, pass.snapshot())
+			})
+
+			t.Run("sampling, no cookie", func(t *testing.T) {
+				m, anomalies, pass := newCooldownGateManager(t, eventType, true)
+				// The sampler did not run: a rule approved the event, or this is a syscall drain.
+				assertNodeCooldown(t, m, anomalies, eventType, time.Now(), 0)
+				assert.Empty(t, pass.snapshot(), "an event without a cookie never writes sample_pass")
+			})
+
+			t.Run("sampling, no cookie after a sampled emit", func(t *testing.T) {
+				if eventType == model.SyscallsEventType {
+					t.Skip("syscall samples are not SECL events, a rule cannot approve them")
+				}
+				m, anomalies, pass := newCooldownGateManager(t, eventType, true)
+				start := time.Now()
+
+				m.onEventTagsResolved(knownActivity(eventType, start, 42))
+				require.Len(t, *anomalies, 1)
+				// The timer of the first emit reopens the cookie once the cooldown has elapsed.
+				require.NoError(t, pass.Put(uint64(42), uint8(1)))
+
+				// A rule now approves the event before the sampler runs, so the cookie is 0.
+				m.onEventTagsResolved(knownActivity(eventType, start.Add(time.Minute), 0))
+				assert.Len(t, *anomalies, 1, "the sampled emit started the node cooldown, which holds the repeat")
+				assert.Equal(t, map[uint64]uint8{42: 1}, pass.snapshot(), "a held event does not write sample_pass")
+
+				m.onEventTagsResolved(knownActivity(eventType, start.Add(2*time.Hour), 0))
+				assert.Len(t, *anomalies, 2, "the repeat is sent again once the node cooldown has elapsed")
+				assert.Equal(t, map[uint64]uint8{42: 0}, pass.snapshot(), "the emit blocks the cookie the sampler gave this node")
+			})
+
+			t.Run("no sampling", func(t *testing.T) {
+				m, anomalies, pass := newCooldownGateManager(t, eventType, false)
+				assertNodeCooldown(t, m, anomalies, eventType, time.Now(), 0)
+				assert.Empty(t, pass.snapshot())
+			})
+		})
+	}
+}
+
+func newCooldownGateManager(t *testing.T, eventType model.EventType, sampling bool) (*ManagerV2, *[]*model.Event, *fakeSamplePassMap) {
+	t.Helper()
+	m, anomalies := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.AnomalyDetectionEventCooldown = time.Hour
+	ensureEventType(m, eventType)
+	if sampling {
+		enableEventSampling(m, eventType)
+	}
+	pass := newFakeSamplePassMap()
+	m.samplePassMap = pass
+	return m, anomalies, pass
+}
+
+// assertNodeCooldown checks that the activity node cooldown alone gates the repeats.
+func assertNodeCooldown(t *testing.T, m *ManagerV2, anomalies *[]*model.Event, eventType model.EventType, start time.Time, cookie uint64) {
+	t.Helper()
+	for i := 0; i < 3; i++ {
+		m.onEventTagsResolved(knownActivity(eventType, start.Add(time.Duration(i)*time.Minute), cookie))
+	}
+	assert.Len(t, *anomalies, 1, "repeats inside the node cooldown are not sent")
+
+	m.onEventTagsResolved(knownActivity(eventType, start.Add(2*time.Hour), cookie))
+	assert.Len(t, *anomalies, 2, "the same activity is sent again once the node cooldown has elapsed")
+}
+
+type fakeSamplePassMap struct {
+	mu     sync.Mutex
+	values map[uint64]uint8
+}
+
+func newFakeSamplePassMap() *fakeSamplePassMap {
+	return &fakeSamplePassMap{values: make(map[uint64]uint8)}
+}
+
+func (f *fakeSamplePassMap) Put(key, value any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.values[key.(uint64)] = value.(uint8)
+	return nil
+}
+
+func (f *fakeSamplePassMap) snapshot() map[uint64]uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return maps.Clone(f.values)
+}
+
+// knownActivity builds the same profile activity at the given time. A non-zero cookie marks it
+// as admitted by the kernel sampler.
+func knownActivity(eventType model.EventType, at time.Time, cookie uint64) *model.Event {
+	event := newTestEventV2(eventType, "v1", "known")
+	event.Timestamp = at
+	if eventType == model.SyscallsEventType {
+		event.Syscalls.EventReason = model.SampleReason
+		event.Syscalls.SyscallID = 1
+	}
+	switch eventType {
+	case model.FileOpenEventType:
+		event.Open.SampleCookie = cookie
+	case model.BindEventType:
+		event.Bind.SampleCookie = cookie
+	case model.ConnectEventType:
+		event.Connect.SampleCookie = cookie
+	case model.SyscallsEventType:
+		event.Syscalls.SampleCookie = cookie
+	}
+	return event
+}
+
+func enableEventSampling(m *ManagerV2, eventType model.EventType) {
+	cfg := m.config.RuntimeSecurity
+	switch eventType {
+	case model.FileOpenEventType:
+		cfg.EventSamplingOpenEnabled = true
+	case model.BindEventType:
+		cfg.EventSamplingBindEnabled = true
+	case model.ConnectEventType:
+		cfg.EventSamplingConnectEnabled = true
+	case model.SyscallsEventType:
+		cfg.EventSamplingSyscallsEnabled = true
+	}
+}
+
+func ensureEventType(m *ManagerV2, eventType model.EventType) {
+	cfg := m.config.RuntimeSecurity
+	for _, existing := range cfg.SecurityProfileV2EventTypes {
+		if existing == eventType {
+			return
+		}
+	}
+	cfg.SecurityProfileV2EventTypes = append(cfg.SecurityProfileV2EventTypes, eventType)
 }
 
 func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
@@ -748,11 +999,11 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 		m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return 1 }
 
 		// the size is checked before the insertion: an empty profile is below any max size
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
-		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		p, inserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
 		assert.Nil(t, p)
 		assert.False(t, inserted)
 
@@ -770,7 +1021,7 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 	t.Run("a profile below the max size keeps learning", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		assert.True(t, inserted)
 		assert.True(t, p.IsEnabled())
@@ -822,11 +1073,11 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-		_, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
 
-		_, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
 
 		m.cleanupPendingProfiles()
@@ -843,7 +1094,7 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m, _ := newInsertionTestManagerV2(t)
 	m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.True(t, inserted)
 	require.Len(t, p.Instances, 1, "the workload of the event should be linked to the profile")
 
@@ -880,4 +1131,33 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 
 	assert.Empty(t, m.profilePendingEvents)
 	assert.Empty(t, m.resolvedCgroups)
+}
+
+func TestActivityNodeForEvent_capabilitiesAndMount(t *testing.T) {
+	now := time.Now()
+	proc := &activity_tree.ProcessNode{}
+	chroot := activity_tree.NewCapabilityNode(unix.CAP_SYS_CHROOT, true, false, false, now, 1, activity_tree.Runtime)
+	admin := activity_tree.NewCapabilityNode(unix.CAP_SYS_ADMIN, false, true, false, now, 1, activity_tree.Runtime)
+	proc.Capabilities = []*activity_tree.CapabilityNode{chroot, admin}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.CapabilitiesEventType)
+	event.CapabilitiesUsage.Attempted = (1 << unix.CAP_SYS_CHROOT) | (1 << unix.CAP_SYS_ADMIN) | (1 << unix.CAP_NET_BIND_SERVICE)
+	event.CapabilitiesUsage.Used = 1 << unix.CAP_SYS_CHROOT
+	event.CapabilitiesUsage.AttemptedHostUserNS = 1 << unix.CAP_SYS_ADMIN
+
+	nodes := activityNodeForEvent(nil, proc, nil, event, nil)
+	require.Equal(t, []*activity_tree.NodeBase{&chroot.NodeBase, &admin.NodeBase}, nodes)
+
+	mountNode := activity_tree.NewMountNode("/tmp/wp-mount-dst", "/", "ext4", 0, activity_tree.Runtime, 1, now)
+	tree := &activity_tree.ActivityTree{Mounts: []*activity_tree.MountNode{mountNode}}
+	event.Type = uint32(model.FileMountEventType)
+	event.Mount.Mount.Path = "/tmp/wp-mount-dst"
+	event.Mount.Mount.FSType = "ext4"
+
+	nodes = activityNodeForEvent(tree, nil, nil, event, nil)
+	require.Equal(t, []*activity_tree.NodeBase{&mountNode.NodeBase}, nodes)
+
+	event.Mount.Mount.MountFlags = 1
+	assert.Nil(t, activityNodeForEvent(tree, nil, nil, event, nil))
 }
