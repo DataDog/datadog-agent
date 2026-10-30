@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/failure"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
@@ -161,8 +163,20 @@ func try(ctx context.Context, target string, opts Options, cred Credential) *Rea
 			Error:         fmt.Sprintf("Failed to fetch device name for host '%s': %s", target, err.Error()),
 		}
 	}
+	return readingFromPacket(packet, cred, time.Since(start), target)
+}
 
-	r := &Reading{Success: true, RTT: time.Since(start), FailureReason: failure.None, CredID: cred.ID}
+// readingFromPacket turns one answered Get into a Reading. A nonzero PDU error
+// status is a failure, so Run moves on to the next credential.
+func readingFromPacket(packet *gosnmp.SnmpPacket, cred Credential, rtt time.Duration, target string) *Reading {
+	if packet.Error != gosnmp.NoError {
+		return &Reading{
+			FailureReason: mapPacketError(packet.Error),
+			Error:         fmt.Sprintf("SNMP host '%s' answered with error status %s", target, packet.Error),
+		}
+	}
+
+	r := &Reading{Success: true, RTT: rtt, FailureReason: failure.None, CredID: cred.ID}
 	for _, pdu := range packet.Variables {
 		v, convErr := gosnmplib.GetValueFromPDU(pdu)
 		if convErr != nil {

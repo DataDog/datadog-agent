@@ -80,6 +80,13 @@ func scan(ctx context.Context, workers int, targets []string, run func(context.C
 	for i, target := range targets {
 		select {
 		case sem <- struct{}{}:
+			// Re-checked after acquiring: the select picks at random when a
+			// free slot and a cancelled context are both ready.
+			if ctx.Err() != nil {
+				<-sem
+				wg.Wait()
+				return collected(results), ctx.Err()
+			}
 		case <-ctx.Done():
 			wg.Wait()
 			return collected(results), ctx.Err()

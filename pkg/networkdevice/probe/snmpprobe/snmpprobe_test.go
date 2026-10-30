@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -156,4 +157,48 @@ func TestRunStopsOnACancelledContext(t *testing.T) {
 
 	require.NotNil(t, r)
 	assert.False(t, r.Success)
+}
+
+func sysNamePacket(status gosnmp.SNMPError, name string) *gosnmp.SnmpPacket {
+	return &gosnmp.SnmpPacket{
+		Error: status,
+		Variables: []gosnmp.SnmpPDU{{
+			Name:  "." + oidSysName,
+			Type:  gosnmp.OctetString,
+			Value: []byte(name),
+		}},
+	}
+}
+
+func TestReadingFromPacketReportsAnErrorStatusAsAFailure(t *testing.T) {
+	r := readingFromPacket(sysNamePacket(gosnmp.AuthorizationError, ""), v2cCredential(), time.Millisecond, "10.0.0.1")
+
+	assert.False(t, r.Success, "an error status is not a reachable device")
+	assert.Equal(t, failure.AuthenticationFailed, r.FailureReason)
+	assert.Empty(t, r.CredID, "a rejected credential is not the one that answered")
+}
+
+func TestReadingFromPacketClassifiesANonAuthErrorStatusAsUnknown(t *testing.T) {
+	r := readingFromPacket(sysNamePacket(gosnmp.GenErr, ""), v2cCredential(), time.Millisecond, "10.0.0.1")
+
+	assert.False(t, r.Success)
+	assert.Equal(t, failure.Unknown, r.FailureReason)
+}
+
+func TestReadingFromPacketReadsTheDeviceNameOnSuccess(t *testing.T) {
+	r := readingFromPacket(sysNamePacket(gosnmp.NoError, "router-1"), v2cCredential(), 3*time.Millisecond, "10.0.0.1")
+
+	assert.True(t, r.Success)
+	assert.Equal(t, failure.None, r.FailureReason)
+	assert.Equal(t, "router-1", r.SysName)
+	assert.Equal(t, "cred-1", r.CredID)
+	assert.Equal(t, 3*time.Millisecond, r.RTT)
+}
+
+func TestReadingFromPacketHoldsNoCredentialMaterial(t *testing.T) {
+	cred := Credential{ID: "cred-1", Version: "2c", Community: "s3cr3t-community"}
+
+	r := readingFromPacket(sysNamePacket(gosnmp.AuthorizationError, ""), cred, time.Millisecond, "10.0.0.1")
+
+	assert.NotContains(t, r.Error, "s3cr3t-community")
 }
