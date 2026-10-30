@@ -83,6 +83,14 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	if err != nil {
 		return nil, err
 	}
+	var apmBasicTargets []Target
+	if config.apmBasicTarget != nil {
+		apmBasicTargets = append(apmBasicTargets, *config.apmBasicTarget)
+	}
+	apmBasicSource, err := newStaticPolicySource(config, apmBasicTargets, defaultLibraries, wmeta)
+	if err != nil {
+		return nil, err
+	}
 
 	annotationSource := &annotationSource{
 		containerRegistry: config.containerRegistry,
@@ -119,6 +127,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: ddiSource},
 			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
 			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
+			{name: injectionSourceAPMBasic, determinesSSIMode: true, source: apmBasicSource},
 			{name: injectionSourceStatic, determinesSSIMode: true, source: staticSource},
 			{name: injectionSourceInjectAll, determinesSSIMode: true, source: injectAllSource},
 		},
