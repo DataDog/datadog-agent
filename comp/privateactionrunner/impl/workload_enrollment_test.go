@@ -60,7 +60,8 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 		"dd_url": server.URL, "skip_ssl_validation": true,
 		// WIF must not validate or send these credentials, even with API-key-only mode off.
 		"api_key": "ENC[unused-intake-key]", par.APIKeyOnlyEnrollment: false,
-		par.WIFEnrollment: true, par.SelfEnroll: true, par.IdentityFilePath: identityPath,
+		"delegated_auth.org_uuid": "test-org",
+		par.WIFEnrollment:         true, par.SelfEnroll: true, par.IdentityFilePath: identityPath,
 	}
 	cfg := coreconfig.NewMockWithOverrides(t, overrides)
 	hostname, _ := hostnamemock.NewMock("test-host")
@@ -135,7 +136,8 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 			identityPath := filepath.Join(t.TempDir(), "identity.json")
 			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 				"dd_url": server.URL, "skip_ssl_validation": true, "api_key": "intake-key",
-				par.WIFEnrollment: true, par.SelfEnroll: true, par.IdentityFilePath: identityPath,
+				"delegated_auth.org_uuid": "test-org",
+				par.WIFEnrollment:         true, par.SelfEnroll: true, par.IdentityFilePath: identityPath,
 			})
 			tokenCalls := 0
 			auth := &delegatedauthmock.Mock{GetWorkloadTokenFunc: func(context.Context, string, common.WorkloadTokenRequest) (string, error) {

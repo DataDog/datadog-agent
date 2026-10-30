@@ -238,7 +238,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
-		if p.coreConfig.GetBool(par.WIFEnrollment) {
+		if p.wifEnrollmentEnabled() {
 			return nil, errors.New("WIF enrollment cannot replace an existing runner identity; migration must be completed separately")
 		}
 		persistedIdentity = nil
@@ -595,13 +595,18 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
+// wifEnrollmentEnabled applies the opt-in only to the primary intake WIF configuration.
+func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
+	return p.coreConfig.GetBool(par.WIFEnrollment) && p.coreConfig.GetString("delegated_auth.org_uuid") != ""
+}
+
 // performSelfEnrollment handles the self-registration of a private action runner.
 // WIF enrollment, when enabled, uses the primary intake identity for fresh enrollment.
 // Otherwise the enrollment mode is controlled by the api_key_only_enrollment flag:
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
-	if p.coreConfig.GetBool(par.WIFEnrollment) {
+	if p.wifEnrollmentEnabled() {
 		if cfg.Urn != "" || cfg.PrivateKey != nil {
 			return nil, errors.New("WIF enrollment requires a fresh runner; refusing to replace a partially configured identity")
 		}
