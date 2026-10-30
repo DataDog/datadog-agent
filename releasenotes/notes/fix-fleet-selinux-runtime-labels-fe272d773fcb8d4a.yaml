@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Apply SELinux runtime labels when setting up Agent runtime directories,
+    preventing PID-file access denials after Fleet upgrades on SELinux-enabled hosts.

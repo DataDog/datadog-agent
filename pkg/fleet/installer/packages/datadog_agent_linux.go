@@ -259,6 +259,9 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 
 	// 5. Set up SELinux permissions
+	if err = selinux.SetRuntimePermissions(ctx, agentRunPath.Path, "/opt/datadog-packages/run"); err != nil {
+		log.Warnf("failed to set SELinux runtime permissions: %v", err)
+	}
 	if err = selinux.SetAgentPermissions(ctx, "/etc/datadog-agent", ctx.PackagePath); err != nil {
 		log.Warnf("failed to set SELinux permissions: %v", err)
 	}
