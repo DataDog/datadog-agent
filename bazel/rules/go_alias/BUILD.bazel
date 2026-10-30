@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_alias_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/go_alias",
+    visibility = ["//visibility:private"],
+    deps = ["@org_golang_x_tools//go/packages"],
+)
+
+go_binary(
+    name = "go_alias",
+    embed = [":go_alias_lib"],
+    visibility = ["//visibility:public"],
+)
