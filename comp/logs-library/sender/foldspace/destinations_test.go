@@ -180,6 +180,29 @@ func TestStreamLifetimeInvalid(t *testing.T) {
 	}
 }
 
+// The library refuses a payload ceiling above the protocol's batch cap, so a
+// larger batch_max_content_size is held to the cap rather than failing the
+// core's construction.
+func TestMaxPayloadHeldToProtocolCap(t *testing.T) {
+	for _, tc := range []struct {
+		configured, want int
+	}{
+		{0, 1024 * 1024},
+		{5_000_000, 5_000_000},
+		{maxProtocolBatchBytes, maxProtocolBatchBytes},
+		{10 * 1024 * 1024, maxProtocolBatchBytes},
+	} {
+		cfg := configmock.New(t)
+		main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+		endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+		endpoints.Main = main
+		endpoints.BatchMaxContentSize = tc.configured
+		dest, err := BuildDestinationConfig(cfg, endpoints)
+		require.NoError(t, err)
+		assert.Equal(t, tc.want, dest.Core.MaxPayloadBytes, "batch_max_content_size %d", tc.configured)
+	}
+}
+
 func TestStreamTimeouts(t *testing.T) {
 	build := func(t *testing.T, settings map[string]interface{}) *DestinationConfig {
 		t.Helper()
