@@ -29,7 +29,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
-	github.com/pkg/sftp v1.13.11
+	github.com/pkg/sftp v1.13.12
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.51.1
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.29.0
