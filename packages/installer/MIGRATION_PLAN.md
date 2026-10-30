@@ -263,7 +263,7 @@ Confirm the known differences from the table above appear in the diff.
   (`apt-get` vs `yum`) and distinct output filenames (`README_deb.md` / `README_rpm.md`)
   to avoid Bazel output name collisions, then `pkg_files` with `renames` normalises
   each to `README.md` at the install prefix.
-  - Deb: included in `whole_distro_tar_deb`.
+  - Deb: included directly in `dd_pkg_deb.srcs`.
   - RPM: included directly in `pkg_rpm.srcs`.
 
 - **RPM `epoch = "1"`**: Already present in `pkg_rpm`.
