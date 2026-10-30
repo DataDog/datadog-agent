@@ -4612,6 +4612,42 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 	<-end
 }
 
+// TestConvertSpanDynamoDBTableName checks that the legacy converter and the default one
+// (OtelSpanToDDSpan) map aws.dynamodb.table_names to the tablename tag the same way.
+func TestConvertSpanDynamoDBTableName(t *testing.T) {
+	tests := []struct {
+		name     string
+		names    []string
+		expected string
+	}{
+		{name: "single table", names: []string{"orders"}, expected: "orders"},
+		{name: "several tables are ambiguous", names: []string{"orders", "shipments"}},
+		{name: "empty array", names: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+			span.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+			names := span.Attributes().PutEmptySlice("aws.dynamodb.table_names")
+			for _, n := range tt.names {
+				names.AppendEmpty().SetStr(n)
+			}
+			res := pcommon.NewResource()
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			assert.Equal(t, tt.expected, rcv.convertSpan(res, lib, span).Meta["tablename"], "legacy converter")
+			assert.Equal(t, tt.expected, transform.OtelSpanToDDSpan(span, res, lib, cfg).Meta["tablename"], "default converter")
+		})
+	}
+}
+
 func TestConvertSpanDBNameMapping(t *testing.T) {
 	tests := []struct {
 		name         string
