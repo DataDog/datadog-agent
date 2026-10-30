@@ -724,7 +724,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
 
 		// try to collect more information about the mount point
-		if (seclog.DefaultLogger.IsDebugging() || seclog.DefaultLogger.IsTracing()) && p.mountResolver != nil {
+		if seclog.DefaultLogger.IsDebugging() && p.mountResolver != nil {
 			var (
 				bestPrefix string
 				bestFS     string
@@ -2165,6 +2165,25 @@ func (p *EBPFResolver) UpdateSID(pce *model.ProcessCacheEntry, sid uint32) {
 	defer p.Unlock()
 
 	pce.SID = sid
+}
+
+// UpdateMntNS updates the mount namespace of the given process cache entry
+func (p *EBPFResolver) UpdateMntNS(pce *model.ProcessCacheEntry, mntNS uint32) {
+	p.RLock()
+	currMntNS := pce.MntNS
+	p.RUnlock()
+
+	if currMntNS == mntNS {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	pce.MntNS = mntNS
+	if p.mountResolver != nil {
+		p.mountResolver.SetPidMntNs(pce.Pid, mntNS)
+	}
 }
 
 const (

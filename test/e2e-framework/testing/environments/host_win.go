@@ -106,7 +106,7 @@ func (e *WindowsHost) Diagnose(outputDir string) (string, error) {
 	// add Agent diagnose
 	if e.Agent != nil {
 		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := generateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
+		dstPath, err := GenerateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -175,6 +176,12 @@ type cloudProviderAliasesDetector struct {
 	// DaemonSets, so they are never colocated with a node's kubelet and can
 	// never reach it; these detectors are skipped entirely on CCRs.
 	requiresKubelet bool
+	// nodeNameFromEnv marks requiresKubelet detectors that still work when the
+	// agent's configuration leaves it without kubelet access (otel-agent in
+	// DDOT standalone mode with the nodefilter collector), as they then read the
+	// local node's name from the environment. The other requiresKubelet
+	// detectors are skipped there.
+	nodeNameFromEnv bool
 	callback        func(context.Context) ([]string, error)
 }
 
@@ -199,7 +206,7 @@ var hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
 	azure.CloudProviderName:        {name: azure.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: azure.GetHostAliases},
 	gce.CloudProviderName:          {name: gce.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: gce.GetHostAliases},
 	cloudfoundry.CloudProviderName: {name: cloudfoundry.CloudProviderName, isCloudEnv: true, callback: cloudfoundry.GetHostAliases},
-	"kubelet":                      {name: "kubelet", requiresKubelet: true, callback: kubelet.GetHostAliases},
+	"kubelet":                      {name: "kubelet", requiresKubelet: true, nodeNameFromEnv: true, callback: kubelet.GetHostAliases},
 	tencent.CloudProviderName:      {name: tencent.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: tencent.GetHostAliases},
 	oracle.CloudProviderName:       {name: oracle.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: oracle.GetHostAliases},
 	ibm.CloudProviderName:          {name: ibm.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: ibm.GetHostAliases},
@@ -215,7 +222,7 @@ var (
 // results. Cloud providers endpoints can take a few seconds to answer, so we're using a WaitGroup
 // to call all of them concurrently since GetHostAliases is called during the agent startup and is
 // blocking.
-func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProviderAliasesDetector, isCLCRunner bool) ([]string, string) {
+func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProviderAliasesDetector, isCLCRunner, kubeletDisabled bool) ([]string, string) {
 	aliases := []string{}
 	cloudprovider := ""
 
@@ -227,6 +234,12 @@ func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProv
 			// CCR and would otherwise trigger its exponential-backoff retrier and
 			// its "Impossible to reach Kubelet" warning for no benefit.
 			log.Debugf("Skipping %s Host Alias: Agent is a Cluster Checks Runner and has no reachable local Kubelet", hostAliasesDetector.name)
+			continue
+		}
+		if kubeletDisabled && hostAliasesDetector.requiresKubelet && !hostAliasesDetector.nodeNameFromEnv {
+			// Same for an agent configured without kubelet access, where the
+			// detector could only fail.
+			log.Debugf("Skipping %s Host Alias: Agent is configured without kubelet access", hostAliasesDetector.name)
 			continue
 		}
 
@@ -265,6 +278,7 @@ func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProv
 // information.
 func GetHostAliases(ctx context.Context) ([]string, string) {
 	isCLCRunner := helper.IsCLCRunner(configsetup.Datadog())
+	kubeletDisabled := ddot.KubeletDisabled(configsetup.Datadog())
 
 	if provider := DetectCloudProviderDMI(); provider != "" {
 		scoped := make(map[string]cloudProviderAliasesDetector, len(hostAliasesDetectors))
@@ -274,14 +288,14 @@ func GetHostAliases(ctx context.Context) ([]string, string) {
 			}
 		}
 
-		aliases, cloudprovider := runHostAliasesDetectors(ctx, scoped, isCLCRunner)
+		aliases, cloudprovider := runHostAliasesDetectors(ctx, scoped, isCLCRunner, kubeletDisabled)
 		if cloudprovider == "" {
 			log.Debugf("GetHostAliases: could not retrieve host aliases from DMI-detected provider %s", provider)
 		}
 		return aliases, cloudprovider
 	}
 
-	return runHostAliasesDetectors(ctx, hostAliasesDetectors, isCLCRunner)
+	return runHostAliasesDetectors(ctx, hostAliasesDetectors, isCLCRunner, kubeletDisabled)
 }
 
 type cloudProviderCCRIDDetector func(context.Context) (string, error)

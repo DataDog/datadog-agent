@@ -53,6 +53,7 @@ const (
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
 	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
+	KindKubernetesKAIPodGroup         Kind = "kubernetes_kai_pod_group"
 	KindECSTask                       Kind = "ecs_task"
 	KindContainerImageMetadata        Kind = "container_image_metadata"
 	KindProcess                       Kind = "process"
@@ -859,7 +860,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
+	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -1253,11 +1254,24 @@ type KubernetesNodeStatus struct {
 	OperatingSystem         string `json:"operatingSystem"`
 }
 
+// KubernetesNodeCondition is a node condition without timestamps, which change on
+// every kubelet heartbeat.
+type KubernetesNodeCondition struct {
+	Type   string
+	Status string
+}
+
 // KubernetesNode is an Entity representing a Kubernetes Node.
 type KubernetesNode struct {
 	EntityID
 	EntityMeta
+	// Status is served as is by the cluster agent /api/v1/info/node endpoint, so it
+	// only holds the kubelet info. The fields below are not part of that wire format.
 	Status KubernetesNodeStatus
+	// Conditions are the node conditions, reduced to type and status.
+	Conditions []KubernetesNodeCondition
+	// Unschedulable mirrors node.Spec.Unschedulable (set by `kubectl cordon`).
+	Unschedulable bool
 }
 
 // GetID implements Entity#GetID.
@@ -1296,6 +1310,10 @@ func (n KubernetesNode) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ContainerRuntimeVersion:", n.Status.ContainerRuntimeVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", n.Status.Architecture)
 		_, _ = fmt.Fprintln(&sb, "OperatingSystem:", n.Status.OperatingSystem)
+		_, _ = fmt.Fprintln(&sb, "Unschedulable:", n.Unschedulable)
+		for _, c := range n.Conditions {
+			_, _ = fmt.Fprintf(&sb, "Condition: %s=%s\n", c.Type, c.Status)
+		}
 	}
 	return sb.String()
 }
@@ -1654,9 +1672,11 @@ type KueuePodSetAssignment struct {
 type KubernetesKueueWorkload struct {
 	EntityID
 	EntityMeta
-	QueueName         string
-	ClusterQueueName  string
-	PodSetAssignments []KueuePodSetAssignment
+	QueueName              string
+	ClusterQueueName       string
+	PodSetAssignments      []KueuePodSetAssignment
+	PodTemplateLabels      map[string]string
+	PodTemplateAnnotations map[string]string
 }
 
 // GetID implements Entity#GetID.
@@ -1691,10 +1711,59 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
 	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
 	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	_, _ = fmt.Fprintln(&sb, "Pod Template Labels:", mapToScrubbedJSONString(w.PodTemplateLabels))
+	_, _ = fmt.Fprintln(&sb, "Pod Template Annotations:", mapToScrubbedJSONString(w.PodTemplateAnnotations))
 	return sb.String()
 }
 
 var _ Entity = &KubernetesKueueWorkload{}
+
+// GenerateKAIPodGroupEntityID returns the workloadmeta entity ID for a KAI PodGroup.
+func GenerateKAIPodGroupEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// KubernetesKAIPodGroup is an Entity representing a KAI Scheduler PodGroup.
+type KubernetesKAIPodGroup struct {
+	EntityID
+	EntityMeta
+	QueueName string
+}
+
+// GetID implements Entity#GetID.
+func (pg *KubernetesKAIPodGroup) GetID() EntityID {
+	return pg.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (pg *KubernetesKAIPodGroup) Merge(e Entity) error {
+	ppg, ok := e.(*KubernetesKAIPodGroup)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKAIPodGroup with different kind %T", e)
+	}
+
+	return merge(pg, ppg)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (pg KubernetesKAIPodGroup) DeepCopy() Entity {
+	cpg := deepcopy.Copy(pg).(KubernetesKAIPodGroup)
+	return &cpg
+}
+
+// String implements Entity#String.
+func (pg KubernetesKAIPodGroup) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, pg.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, pg.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- KAI PodGroup -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue:", pg.QueueName)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKAIPodGroup{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
@@ -2159,6 +2228,14 @@ func (p Process) String(verbose bool) string {
 	return sb.String()
 }
 
+// GetContainerID returns the container ID for the process, either from the Owner field or the ContainerID field.
+func (p *Process) GetContainerID() string {
+	if p.Owner != nil && p.Owner.Kind == KindContainer {
+		return p.Owner.ID
+	}
+	return p.ContainerID
+}
+
 // HostTags is an Entity that represents host tags
 type HostTags struct {
 	EntityID
@@ -2269,6 +2346,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+
+	// EnqueuedAt is the time at which the Store sent the bundle to the
+	// subscriber's channel. Subscribers can use it to measure how long the
+	// bundle waited in the channel.
+	EnqueuedAt time.Time
 }
 
 // Acknowledge acknowledges that the subscriber has handled the event.
@@ -2313,6 +2395,9 @@ type GPUShare struct {
 	// Fraction is the fraction of the GPU assigned to the container, in (0, 1],
 	// or 0 when the container shares the GPU but its share is unknown.
 	Fraction float64
+	// Memory is the GPU memory, in bytes, that the container is allowed to
+	// use, or 0 when the container shares the GPU but its memory is unknown.
+	Memory uint64
 }
 
 // GPUDeviceType is an enum to identify the type of the GPU device.
