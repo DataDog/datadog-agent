@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -41,6 +42,29 @@ func testMessage(body string) *message.Message {
 	msg.Hostname = "host"
 	msg.SetRendered([]byte(body))
 	return msg
+}
+
+func TestRecordFromMessageAppliesSourceTagFilter(t *testing.T) {
+	src := sources.NewLogSource("test", &config.LogsConfig{
+		Service: "svc",
+		Source:  "src",
+		Tags:    []string{"keep:config", "drop:config"},
+	})
+	f, _ := tagfilter.Compile(nil, []string{"drop:*"})
+	src.SetTagFilterIfUnset(tagfilter.NewScoped(f, nil))
+
+	origin := message.NewOrigin(src)
+	origin.SetTags([]string{"keep:origin", "drop:origin"})
+	msg := message.NewMessage([]byte("body"), origin, "info", time.Now().UnixNano())
+	msg.ParsingExtra.Tags = []string{"keep:processing", "drop:processing"}
+
+	r := recordFromMessage(msg)
+	assert.ElementsMatch(t, []string{"keep:origin", "keep:config"}, r.Tags)
+	assert.Equal(t, []string{"keep:processing"}, r.ProcessingTags)
+
+	unfiltered := recordFromMessage(testMessage("body"))
+	assert.Empty(t, unfiltered.Tags)
+	assert.Nil(t, unfiltered.ProcessingTags)
 }
 
 // countingFlushCore counts Flush calls so a test can distinguish a periodic
