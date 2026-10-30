@@ -20,7 +20,6 @@ import (
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -346,26 +345,6 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		}
 	} else {
 		log.Info("Trace-agent unix receiver is disabled")
-	}
-
-	// OTLP TCP receiver
-	if configcheck.IsConfigEnabled(cfg) {
-		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
-		log.Infof("Listening to otlp port %d", grpcPort)
-		ln, err := loader.GetTCPListener(net.JoinHostPort(traceCfgReceiverHost, strconv.Itoa(grpcPort)))
-		if err != nil {
-			return tcpFD, listeners, fmt.Errorf("error listening to otlp receiver: %v", err)
-		}
-		defer ln.Close()
-
-		fd, err := loader.GetFDFromListener(ln)
-		if err != nil {
-			return tcpFD, listeners, fmt.Errorf("error getting file descriptor from otlp listener: %v", err)
-		}
-
-		listeners["DD_OTLP_CONFIG_GRPC_FD"] = fd
-	} else {
-		log.Info("Trace-agent OTLP receiver is disabled")
 	}
 
 	return tcpFD, listeners, nil

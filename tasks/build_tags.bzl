@@ -112,7 +112,6 @@ AGENT_TAGS = set([
     "netcgo",
     "nvml",
     "oracle",
-    "otlp",
     "podman",
     "python",
     "sharedlibrarycheck",
@@ -239,7 +238,6 @@ TRACE_AGENT_TAGS = set([
     "containerd",
     "datadog.no_waf",
     "kubelet",
-    "otlp",
     "netcgo",
     "podman",
 ])
@@ -269,8 +267,10 @@ PRIVATEACTIONRUNNER_TAGS = set(["zlib"])
 
 SECRET_GENERIC_CONNECTOR_TAGS = set()
 
-# AGENT_TEST_TAGS lists the tags that have to be added to run tests
-AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
+# AGENT_TEST_TAGS lists the tags that have to be added to run tests.
+# otlp is not part of AGENT_TAGS but is kept here so that the OTLP code still used by
+# the otel-agent and serverless builds keeps being tested.
+AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks", "otlp"]))
 
 ### Tag exclusion lists
 

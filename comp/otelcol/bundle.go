@@ -3,19 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package otelcol contains the OTLP ingest bundle pipeline to be included
-// into the agent components.
+// Package otelcol contains the OpenTelemetry components used by the otel-agent.
 package otelcol
 
 import (
-	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx-pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: opentelemetry-agent
 
-// Bundle specifies the bundle for the OTLP ingest pipeline.
+// Bundle specifies the bundle for the OpenTelemetry components.
 func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		collectorfx.Module())
+	return fxutil.Bundle()
 }

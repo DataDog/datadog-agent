@@ -17,7 +17,6 @@ go_test(
         "events_test.go",
         "hostname_test.go",
         "idx_helpers_test.go",
-        "otlp_test.go",
         "span_sampling_test.go",
         "traces_test.go",
         "tracesv1_test.go",
@@ -42,10 +41,5 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
-        "@io_opentelemetry_go_collector_pdata//pcommon",
-        "@io_opentelemetry_go_collector_pdata//ptrace",
-        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
-        "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//credentials/insecure",
     ],
 )

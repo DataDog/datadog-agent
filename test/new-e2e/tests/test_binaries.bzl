@@ -49,7 +49,6 @@ TEST_BINARIES = {
     "//test/new-e2e/tests/npm:npm_test": "tests-npm.test",
     "//test/new-e2e/tests/orchestrator:orchestrator_test": "tests-orchestrator.test",
     "//test/new-e2e/tests/otel/otel-agent:otel-agent_test": "tests-otel-otel-agent.test",
-    "//test/new-e2e/tests/otel/otlp-ingest:otlp-ingest_test": "tests-otel-otlp-ingest.test",
     "//test/new-e2e/tests/privateactionrunner:privateactionrunner_test": "tests-privateactionrunner.test",
     "//test/new-e2e/tests/process:process_test": "tests-process.test",
     "//test/new-e2e/tests/remote-config:remote-config_test": "tests-remote-config.test",

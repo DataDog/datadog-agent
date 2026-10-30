@@ -78,7 +78,6 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
-	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -124,7 +123,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ processAgent.Component,
 			_ runner.Component,
 			_ serializer.MetricSerializer,
-			_ otelcollector.Component,
 			demultiplexer demultiplexer.Component,
 			metricLookback metriclookbackdef.Component,
 			_ host.Component,
