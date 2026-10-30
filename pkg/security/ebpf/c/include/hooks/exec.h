@@ -249,8 +249,8 @@ static __always_inline int sched_process_fork_common(void *ctx, u32 pid, u32 par
             child_mntns_entry = *inum;
         }
     }
-    event->process.mntns = child_mntns_entry;
     if (child_mntns_entry) {
+        event->process.mntns = child_mntns_entry;
         bpf_map_update_elem(&mntns_cache, &pid, &child_mntns_entry, BPF_ANY);
     } else {
         bpf_map_delete_elem(&mntns_cache, &pid);
