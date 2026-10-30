@@ -18,3 +18,8 @@ features:
     is not mapped to ``forwarder/Transactions/DroppedOnInput`` because its meaning is not equivalent
     to the legacy expvar. Legacy splitter expvars were removed in Agent PR #38834 and are not
     reintroduced.
+
+    When ADP provides a process instance ID, the bridge distinguishes process restarts even if
+    the PID is reused and preserves the counter baseline across temporary re-registration.
+    Older ADP versions still use PID-based tracking. Origin-labeled series returning after their
+    idle expiry can be counted again.
