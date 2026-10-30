@@ -186,14 +186,8 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			// its logs stop until it is rescheduled. Report it so this case
 			// can be identified.
 			if others := s.untrackSources(config, identifier); len(others) > 0 {
-				log.Warnf("Logs collection stopped for %[1]s: unscheduling logs config %[2]s also removed the sources of logs config(s) %[3]s, "+
-					"which autodiscovery still considers scheduled and will not send again. "+
-					"Impact: logs from %[1]s are not collected until the Agent restarts or the container is recreated. "+
-					"Likely cause: more than one autodiscovery logs config for the same container, for example a pod annotation "+
-					"ad.datadoghq.com/<container>.checks that lists several checks. "+
-					"To recover: restart the Agent. "+
-					"To investigate: run 'agent status' to confirm %[1]s has no logs source, then send a flare to Datadog support with this message.",
-					config.ServiceID, configName(config), strings.Join(others, ", "))
+				log.Warnf("Unscheduling logs config %s removed all logs sources of %s while logs config(s) %s are still scheduled for the same container: the container's logs stop until the Agent restarts",
+					configName(config), config.ServiceID, strings.Join(others, ", "))
 			}
 
 			// remove all the sources for this ServiceID.  This makes the
@@ -234,8 +228,7 @@ func (s *Scheduler) trackSources(config integration.Config, sources []*sourcesPk
 	}
 	for identifier := range identifiers {
 		if others := s.configsWithIdentifierLocked(identifier, digest); len(others) > 0 {
-			log.Infof("Logs config %[1]s scheduled for %[2]s while logs config(s) %[3]s are still scheduled for the same container. "+
-				"This is unexpected: if one of them is later unscheduled, logs from %[2]s stop until the Agent restarts or the container is recreated.",
+			log.Infof("Logs config %s scheduled for %s while logs config(s) %s are still scheduled for the same container",
 				configName(config), config.ServiceID, strings.Join(others, ", "))
 		}
 	}
