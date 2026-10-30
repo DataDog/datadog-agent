@@ -1000,6 +1000,7 @@
 /tasks/unit_tests/update_go_tests.py                            @DataDog/agent-runtimes
 /tasks/unit_tests/python_version_tests.py                       @DataDog/agent-integrations
 /tasks/unit_tests/kmt_tests.py                                  @DataDog/ebpf-platform
+/tasks/unit_tests/system_probe_test_programs_tests.py            @DataDog/debugger-go
 /tasks/unit_tests/macos_tests.py                                @DataDog/windows-products
 /tasks/unit_tests/winbuild_tests.py                             @DataDog/windows-products
 /tasks/cluster_agent_cloudfoundry.py                            @DataDog/agent-integrations
