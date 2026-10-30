@@ -6,7 +6,9 @@
 package runner
 
 import (
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -313,8 +315,66 @@ func TestCollectorRunCheck(t *testing.T) {
 	c.runCheck(check)
 }
 
-// TestSubmitterDoesntBlockOnRTUpdate tests notifyRTStatusChange to ensure that we never block if the channel is filled up
-func TestSubmitterDoesntBlockOnRTUpdate(*testing.T) {
-	emptyChan := make(chan<- types.RTResponse)
-	notifyRTStatusChange(emptyChan, types.RTResponse{})
+func TestRunnerReadsLatestCoalescedRTStatus(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+		c, err := NewRunnerWithChecks(deps.Config, nil, &checks.HostInfo{}, nil, true, s.GetRTNotifier())
+		require.NoError(t, err)
+		t.Cleanup(c.Stop)
+
+		c.UpdateRTStatus([]*model.CollectorStatus{{ActiveClients: 1, Interval: 5}})
+		assert.True(t, c.realTimeEnabled.Load())
+
+		// The runner has not started listening yet. Both publications fit into
+		// one wake-up, which must still apply the second (inactive) status.
+		s.updateRTStatus(rtDestination{domain: "https://example.com"}, 1, &model.CollectorStatus{ActiveClients: 1, Interval: 5})
+		s.updateRTStatus(rtDestination{domain: "https://example.com"}, 2, &model.CollectorStatus{ActiveClients: 0, Interval: 8})
+		c.listenForRTUpdates()
+		synctest.Wait()
+		assert.False(t, c.realTimeEnabled.Load())
+		assert.Equal(t, 8*time.Second, c.realTimeInterval)
+	})
+}
+
+func TestListenerSkipsOlderRTSequence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		updates := make(chan struct{}, 1)
+		var mu sync.Mutex
+		var latest types.RTResponse
+		notifier := &types.RTNotifier{
+			Wake: updates,
+			Latest: func() types.RTResponse {
+				mu.Lock()
+				defer mu.Unlock()
+				return latest
+			},
+		}
+		publish := func(response types.RTResponse) {
+			mu.Lock()
+			latest = response
+			mu.Unlock()
+			updates <- struct{}{}
+		}
+		c, err := NewRunnerWithChecks(configmock.New(t), nil, &checks.HostInfo{}, nil, true, notifier)
+		require.NoError(t, err)
+		c.listenForRTUpdates()
+		t.Cleanup(c.Stop)
+
+		publish(types.RTResponse{Sequence: 3, Statuses: []*model.CollectorStatus{{ActiveClients: 1, Interval: 5}}})
+		synctest.Wait()
+		assert.True(t, c.realTimeEnabled.Load())
+		assert.Equal(t, 5*time.Second, c.realTimeInterval)
+
+		publish(types.RTResponse{Sequence: 2, Statuses: []*model.CollectorStatus{{ActiveClients: 0, Interval: 2}}})
+		synctest.Wait()
+		assert.True(t, c.realTimeEnabled.Load(), "an older snapshot must not turn realtime off")
+		assert.Equal(t, 5*time.Second, c.realTimeInterval)
+
+		publish(types.RTResponse{Sequence: 4, Statuses: []*model.CollectorStatus{{ActiveClients: 0, Interval: 8}}})
+		synctest.Wait()
+		assert.False(t, c.realTimeEnabled.Load())
+		assert.Equal(t, 8*time.Second, c.realTimeInterval)
+	})
 }

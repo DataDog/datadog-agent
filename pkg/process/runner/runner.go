@@ -83,8 +83,8 @@ type CheckRunner struct {
 	// Submits check payloads to datadog
 	Submitter Submitter
 
-	// listens for when to enable and disable realtime mode
-	rtNotifierChan <-chan types.RTResponse
+	// Wake-ups are coalesced; read the latest complete status when notified.
+	rtNotifier *types.RTNotifier
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -98,7 +98,7 @@ func NewRunner(
 	sysCfg *sysconfigtypes.Config,
 	hostInfo *checks.HostInfo,
 	enabledChecks []checks.Check,
-	rtNotifierChan <-chan types.RTResponse,
+	rtNotifier *types.RTNotifier,
 ) (*CheckRunner, error) {
 	runRealTime := !config.GetBool("process_config.disable_realtime_checks")
 
@@ -111,7 +111,7 @@ func NewRunner(
 		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress
 	}
 
-	return NewRunnerWithChecks(config, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifierChan)
+	return NewRunnerWithChecks(config, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifier)
 }
 
 // NewRunnerWithChecks creates a new CheckRunner
@@ -121,7 +121,7 @@ func NewRunnerWithChecks(
 	hostInfo *checks.HostInfo,
 	checks []checks.Check,
 	runRealTime bool,
-	rtNotifierChan <-chan types.RTResponse,
+	rtNotifier *types.RTNotifier,
 ) (*CheckRunner, error) {
 	return &CheckRunner{
 		hostInfo:    hostInfo,
@@ -139,8 +139,8 @@ func NewRunnerWithChecks(
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  atomic.NewBool(false),
 
-		runRealTime:    runRealTime,
-		rtNotifierChan: rtNotifierChan,
+		runRealTime: runRealTime,
+		rtNotifier:  rtNotifier,
 	}, nil
 }
 
@@ -264,7 +264,7 @@ func (l *CheckRunner) Run() error {
 	}
 	log.Infof("Starting %s with enabled checks=%v", runnerName, checkNames)
 
-	if realTimeAllowed && l.rtNotifierChan != nil {
+	if realTimeAllowed && l.rtNotifier != nil && l.rtNotifier.Wake != nil {
 		l.listenForRTUpdates()
 	}
 
@@ -317,14 +317,19 @@ func (l *CheckRunner) listenForRTUpdates() {
 	go func() {
 		defer l.wg.Done()
 
+		var lastApplied uint64
 		for {
 			select {
-			case response, ok := <-l.rtNotifierChan:
+			case _, ok := <-l.rtNotifier.Wake:
 				if !ok {
 					return
 				}
-
-				l.UpdateRTStatus(response)
+				response := l.rtNotifier.Latest()
+				if response.Sequence <= lastApplied {
+					continue
+				}
+				lastApplied = response.Sequence
+				l.UpdateRTStatus(response.Statuses)
 			case <-l.stop:
 				return
 			}
@@ -499,52 +504,62 @@ func getContainerCount(mb model.MessageBody) int {
 
 func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Response) []*model.CollectorStatus {
 	var statuses []*model.CollectorStatus
-
-	submissionErrors := int64(0)
+	var submissionErrors int64
 
 	for response := range responses {
-		if response.Err != nil {
-			log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
+		collectorStatus, hasError := decodeResponseStatus(checkName, response)
+		if hasError {
 			submissionErrors++
-			continue
 		}
-
-		if response.StatusCode >= 300 {
-			log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
-			submissionErrors++
-			continue
-		}
-
-		// some checks don't receive a response with a status used to enable RT mode
-		if ignoreResponseBody(checkName) {
-			continue
-		}
-
-		r, err := model.DecodeMessage(response.Body)
-		if err != nil {
-			log.Errorf("[%s] Could not decode response body: %s", checkName, err)
-			submissionErrors++
-			continue
-		}
-
-		switch r.Header.Type {
-		case model.TypeResCollector:
-			rm := r.Body.(*model.ResCollector)
-			if len(rm.Message) > 0 {
-				log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
-				submissionErrors++
-			} else {
-				statuses = append(statuses, rm.Status)
-			}
-		default:
-			log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
-			submissionErrors++
+		if collectorStatus != nil {
+			statuses = append(statuses, collectorStatus)
 		}
 	}
 
 	status.AddSubmissionErrorCount(submissionErrors)
-
 	return statuses
+}
+
+// decodeResponseStatus retains the same error accounting for synchronous and
+// asynchronous submissions. A valid status can be published before its channel
+// closes, even when another endpoint has yet to answer.
+func decodeResponseStatus(checkName string, response defaultforwarder.Response) (*model.CollectorStatus, bool) {
+	if response.Err != nil {
+		log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
+		return nil, true
+	}
+	if response.StatusCode >= 300 {
+		log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
+		return nil, true
+	}
+
+	// Some checks don't receive a response with a status used to enable RT mode.
+	if ignoreResponseBody(checkName) {
+		return nil, false
+	}
+
+	r, err := model.DecodeMessage(response.Body)
+	if err != nil {
+		log.Errorf("[%s] Could not decode response body: %s", checkName, err)
+		return nil, true
+	}
+
+	switch r.Header.Type {
+	case model.TypeResCollector:
+		rm := r.Body.(*model.ResCollector)
+		if len(rm.Message) > 0 {
+			log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
+			return nil, true
+		}
+		if rm.Status == nil {
+			log.Errorf("[%s] Missing collector status from %s", checkName, response.Domain)
+			return nil, true
+		}
+		return rm.Status, false
+	default:
+		log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
+		return nil, true
+	}
 }
 
 func ignoreResponseBody(checkName string) bool {

@@ -750,6 +750,37 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	assert.Equal(t, int64(1), attempts.Load())
 }
 
+func TestProcessLikePayloadResponseIdentifiesAPIKey(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer ts.Close()
+
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{
+		ts.URL: {configUtils.NewAPIKeys("path", "api_key1", "api_key2")},
+	})
+	require.NoError(t, err)
+	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.DisableAPIKeyChecking = true
+	options.Secrets = secretsmock.New(t)
+	f := NewDefaultForwarder(mockConfig, log, options)
+	require.NoError(t, f.Start())
+	defer f.Stop()
+
+	data := []byte("data payload")
+	responses, err := f.SubmitProcessChecks(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), http.Header{})
+	require.NoError(t, err)
+	indices := make([]uint, 0, 2)
+	for response := range responses {
+		require.NoError(t, response.Err)
+		assert.Equal(t, ts.URL, response.Domain)
+		indices = append(indices, response.APIKeyIndex)
+	}
+	assert.ElementsMatch(t, []uint{0, 1}, indices)
+}
+
 func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	synctest.Test(t, syncTestProcessLikePayloadResponseTimeout)
 }
