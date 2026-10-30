@@ -2533,8 +2533,13 @@ def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed
         flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)
 
 
-@task(help={"component": "The component to retry. If not provided, all components will be retried."})
-def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None = None):
+@task(
+    help={
+        "component": "The component to retry. If not provided, all components will be retried.",
+        "yes": "Do not ask for confirmation",
+    }
+)
+def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None = None, yes: bool = False):
     """Retries all failed KMT tests in the given pipeline"""
     info(f"[+] Retrieving jobs for pipeline {pipeline_id}")
     kmt_pipeline = KMTPipeline(pipeline_id)
@@ -2574,7 +2579,7 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
     warn(
         "[!] KMT jobs already re-try failed tests internally. Please only retry failed test jobs if you think this was an infra issue. Don't retry to try and fix flaky tests."
     )
-    if ask("Do you still want to retry the failed tests? [y/N] ").lower() != "y":
+    if not yes and ask("Do you still want to retry the failed tests? [y/N] ").lower() != "y":
         info("[-] Aborting")
         return
 
