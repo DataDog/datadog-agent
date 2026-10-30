@@ -83,8 +83,13 @@ func NewTable(obj object.File) (*Table, error) {
 	}
 
 	typesData := typesMap.Data()
+	layout := hardCodedLayout
+	if typesSection.Name == ".go.type" {
+		// Go 1.27 adds three pointer-sized fields to abi.MapType.
+		layout.swissMap.extraSize += 24
+	}
 	return &Table{
-		abiLayout:   hardCodedLayout,
+		abiLayout:   layout,
 		data:        typesData,
 		dataAddress: moduleData.Types,
 		closer:      typesMap,

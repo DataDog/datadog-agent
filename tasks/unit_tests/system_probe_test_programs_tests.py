@@ -21,9 +21,9 @@ class TestDyninstTestProgramFilters(unittest.TestCase):
 
     def test_defaults_preserved(self):
         output = self.generate()
-        for toolchain in ['go1.23.11', 'go1.24.3', 'go1.25.0', 'go1.26rc1']:
+        for toolchain in ['go1.23.11', 'go1.24.3', 'go1.25.0', 'go1.26rc1', 'go1.27.3']:
             self.assertIn(f'GOTOOLCHAIN={toolchain}', output)
-        self.assertEqual(output.count('build '), 16)
+        self.assertEqual(output.count('build '), 20)
 
     def test_filtered_matrix(self):
         output = self.generate(toolchains='go1.27.2,go1.27.3', programs='simple')

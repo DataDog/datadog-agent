@@ -75,7 +75,7 @@ func TestSymDB(t *testing.T) {
 	}
 }
 
-// These optional toolchains are outside the snapshot matrix. Build with:
+// Additional patch versions can be built with:
 // dda inv system-probe.build-dyninst-test-programs --programs=simple --toolchains=go1.23.11,go1.26.10,go1.27.2,go1.27.3
 // Run with dda inv test --targets=./pkg/dyninst/symdb --build-include=bpf,test --test-run-name=TestModuleMetadataCompatibility
 func TestModuleMetadataCompatibility(t *testing.T) {
@@ -84,6 +84,9 @@ func TestModuleMetadataCompatibility(t *testing.T) {
 			cfg := testprogs.Config{GOARCH: arch, GOTOOLCHAIN: toolchain}
 			t.Run(cfg.String(), func(t *testing.T) {
 				binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
+				if toolchain == "go1.27.3" {
+					require.NotEmpty(t, binaryPath, "Go 1.27.3 is required in the default fixture matrix")
+				}
 				if binaryPath == "" {
 					t.Skip("build optional fixtures with dda inv system-probe.build-dyninst-test-programs --programs=simple --toolchains=go1.23.11,go1.26.10,go1.27.2,go1.27.3")
 				}
