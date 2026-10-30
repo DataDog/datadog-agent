@@ -44,8 +44,9 @@ func Option(shared coreconfig.Component, logger log.Component) agentcomponents.C
 	return func(priv pkgconfigmodel.Config) {
 		// `shared` is fully constructed and can be read. `priv` cannot: this option runs
 		// inside agentcomponents.NewConfigComponent, before BuildSchema, where a read
-		// fails with "attempt to read key before config is constructed". Anything that
-		// needs to read `priv` is therefore deferred to the callback below.
+		// logs "attempt to read key before config is constructed" and yields the zero
+		// value. Anything that needs to read `priv` is therefore deferred to the callback
+		// below, which must still tolerate reading it too early.
 		armedKey := shared.GetString(apiKeySetting)
 		if armedKey == "" {
 			// No Agent key to track. The converter does not autoconfigure the extension
@@ -53,33 +54,51 @@ func Option(shared coreconfig.Component, logger log.Component) agentcomponents.C
 			return
 		}
 
+		// Tri-state rather than a latched bool. `priv` is still unready when this option
+		// runs, and a read on an unready config returns the zero value instead of failing,
+		// so a rotation arriving before BuildSchema would otherwise latch "not following"
+		// for the life of the process -- silently reinstating the bug this package fixes.
+		const (
+			undecided = iota
+			following
+			ignoring
+		)
 		var (
-			once     sync.Once
-			tracking bool
+			mu    sync.Mutex
+			state = undecided
 		)
 
-		shared.OnUpdate(func(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
-			if setting != apiKeySetting {
-				return
+		// decide reports the current tracking state, resolving it first if it is still
+		// undecided and `priv` has become readable. Callers hold no lock.
+		decide := func() int {
+			mu.Lock()
+			defer mu.Unlock()
+			if state != undecided {
+				return state
 			}
-
-			// Decide once, on the first rotation, whether this extension instance is
-			// following the Agent's key at all. A user-declared `datadog/<name>`
-			// extension with its own explicit key must be left alone — the converter's
-			// reuseExtension does not touch it either. Comparing keys rather than
-			// matching on the dd-autoconfigured instance name also covers a user who
-			// declared the extension with the same key.
-			once.Do(func() {
-				tracking = priv.GetString(apiKeySetting) == armedKey
-				if !tracking && logger != nil {
+			// An empty read means either no key or a not-yet-constructed config. Neither
+			// is a decision: stay undecided and re-evaluate on the next update.
+			privKey := priv.GetString(apiKeySetting)
+			if privKey == "" {
+				return undecided
+			}
+			// A user-declared `datadog/<name>` extension with its own explicit key must be
+			// left alone -- the converter's reuseExtension does not touch it either.
+			// Comparing keys rather than matching on the dd-autoconfigured instance name
+			// also covers a user who declared the extension with the same key.
+			if privKey == armedKey {
+				state = following
+			} else {
+				state = ignoring
+				if logger != nil {
 					logger.Debug("Datadog extension is configured with an API key that differs " +
 						"from the Agent's; leaving it untouched on rotation")
 				}
-			})
-			if !tracking {
-				return
 			}
+			return state
+		}
 
+		push := func() {
 			// Read the effective value rather than the callback's newValue: the callback
 			// reports the value for the source that changed, and a higher-ranked source
 			// (SourceRC, SourceCLI) may be masking it. We want the key the rest of the
@@ -88,10 +107,32 @@ func Option(shared coreconfig.Component, logger log.Component) agentcomponents.C
 			if key == "" {
 				return
 			}
-
 			// SourceAgentRuntime matches the rank agentcomponents.WithAPIConfig seeded
 			// the key at. A lower-ranked write would be silently discarded.
 			priv.Set(apiKeySetting, key, pkgconfigmodel.SourceAgentRuntime)
+		}
+
+		// Subscribed to every setting, not just api_key: a rotation that lands while
+		// `priv` is still unready leaves the extension stale with no further api_key
+		// event to recover on. Any later write -- configsync seeds a batch of keys on
+		// its first sync -- lets the decision resolve and reconciles that missed value.
+		shared.OnUpdate(func(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
+			if setting != apiKeySetting {
+				// Only of interest while the decision is still pending: resolving it
+				// here reconciles a rotation that landed before `priv` was readable.
+				// Once decided, api_key events carry everything.
+				mu.Lock()
+				pending := state == undecided
+				mu.Unlock()
+				if pending && decide() == following {
+					push()
+				}
+				return
+			}
+			if decide() != following {
+				return
+			}
+			push()
 		})
 	}
 }
