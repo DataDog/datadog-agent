@@ -78,7 +78,8 @@ func TestWIFMigrationPreservesSavedRunner(t *testing.T) {
 			}))
 			defer server.Close()
 			overrides := map[string]interface{}{
-				"dd_url": server.URL, "skip_ssl_validation": true, "api_key": "rotated-intake-key",
+				"delegated_auth.org_uuid": "test-org",
+				"dd_url":                  server.URL, "skip_ssl_validation": true, "api_key": "rotated-intake-key",
 				par.WIFEnrollment: true, par.SelfEnroll: true, par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
 			}
 			cfg := coreconfig.NewMockWithOverrides(t, overrides)
@@ -175,7 +176,8 @@ func TestWIFMigrationFailurePreservesIdentity(t *testing.T) {
 			}))
 			defer server.Close()
 			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-				"dd_url": server.URL, "skip_ssl_validation": true, "api_key": "original-key",
+				"delegated_auth.org_uuid": "test-org",
+				"dd_url":                  server.URL, "skip_ssl_validation": true, "api_key": "original-key",
 				par.WIFEnrollment: scenario != "WIF disabled", par.SelfEnroll: scenario != "self-enrollment disabled",
 				par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
 			})

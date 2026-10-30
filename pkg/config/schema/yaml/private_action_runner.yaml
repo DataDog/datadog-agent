@@ -167,8 +167,9 @@ properties:
     description: |-
       Use the primary intake WIF identity for node Agent Private Action Runner
       enrollment. With self_enroll enabled, enroll a new runner or migrate the
-      saved runner to WIF while preserving its ID and key. Requires WIF intake
-      configuration and PAR enrollment permission on the matched mapping.
+      saved runner to WIF while preserving its ID and key. Has no effect unless
+      primary intake WIF is configured through delegated_auth.org_uuid. Requires
+      PAR enrollment permission on the matched mapping.
       Migration failure stops PAR startup without falling back to API-key enrollment.
       Disabling this setting does not undo a completed migration. Cluster Agent
       enrollment is not supported.

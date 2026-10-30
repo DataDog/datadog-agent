@@ -27,38 +27,62 @@ import (
 )
 
 func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
-	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
-	var posts atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		posts.Add(1)
-		require.Equal(t, "/api/unstable/on_prem_runners/api_key_only", r.URL.Path)
-		var body struct {
-			Data struct {
-				Attributes struct {
-					AgentFlavor string `json:"agent_flavor"`
-				} `json:"attributes"`
-			} `json:"data"`
-		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-		require.Equal(t, flavor.PrivateActionRunner, body.Data.Attributes.AgentFlavor)
-		fmt.Fprint(w, `{"data":{"type":"createRunnerResponse","id":"runner","attributes":{"org_id":42,"runner_id":"runner"}}}`)
-	}))
-	defer srv.Close()
-	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		"api_key": "test-key", "dd_url": srv.URL, "private_action_runner.enabled": true,
-		"private_action_runner.self_enroll": true, "private_action_runner.api_key_only_enrollment": true,
-		"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
-	})
-	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
-	hostname, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
-	_, err := runner.getRunnerConfig(context.Background())
-	require.NoError(t, err)
-	identity, err := enrollment.GetIdentityFromPreviousEnrollment(context.Background(), cfg)
-	require.NoError(t, err)
-	require.NotNil(t, identity)
-	require.NotEmpty(t, identity.PrivateKey)
-	_, err = runner.getRunnerConfig(context.Background())
-	require.NoError(t, err)
-	require.EqualValues(t, 1, posts.Load(), "a saved identity follows existing reuse behavior")
+	for _, tc := range []struct {
+		name                string
+		optIn               bool
+		primaryOrg, logsOrg string
+	}{
+		{name: "static API key"},
+		{name: "static API key with WIF enrollment enabled", optIn: true},
+		{name: "logs-only WIF with WIF enrollment enabled", optIn: true, logsOrg: "logs-org"},
+		{name: "primary WIF with WIF enrollment disabled", primaryOrg: "primary-org"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
+			var posts atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				posts.Add(1)
+				require.Equal(t, "/api/unstable/on_prem_runners/api_key_only", r.URL.Path)
+				var body struct {
+					Data struct {
+						Attributes struct {
+							AgentFlavor string `json:"agent_flavor"`
+						} `json:"attributes"`
+					} `json:"data"`
+				}
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				require.Equal(t, flavor.PrivateActionRunner, body.Data.Attributes.AgentFlavor)
+				fmt.Fprint(w, `{"data":{"type":"createRunnerResponse","id":"runner","attributes":{"org_id":42,"runner_id":"runner"}}}`)
+			}))
+			defer srv.Close()
+			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+				"private_action_runner.wif_enrollment": tc.optIn,
+				"delegated_auth.org_uuid":              tc.primaryOrg,
+				"logs_config.delegated_auth.org_uuid":  tc.logsOrg,
+				"api_key":                              "test-key", "dd_url": srv.URL, "private_action_runner.enabled": true,
+				"private_action_runner.self_enroll": true, "private_action_runner.api_key_only_enrollment": true,
+				"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
+			})
+			flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
+			hostname, _ := hostnamemock.NewMock("test-host")
+			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
+			_, err := runner.getRunnerConfig(context.Background())
+			require.NoError(t, err)
+			identity, err := enrollment.GetIdentityFromPreviousEnrollment(context.Background(), cfg)
+			require.NoError(t, err)
+			require.NotNil(t, identity)
+			require.NotEmpty(t, identity.PrivateKey)
+			_, err = runner.getRunnerConfig(context.Background())
+			require.NoError(t, err)
+			require.EqualValues(t, 1, posts.Load(), "a saved identity follows existing reuse behavior")
+			// The opt-in must not block the existing API-key rotation path either.
+			cfg.SetInTest("api_key", "rotated-key")
+			_, err = runner.getRunnerConfig(context.Background())
+			require.NoError(t, err)
+			require.EqualValues(t, 2, posts.Load())
+			identity, err = enrollment.GetIdentityFromPreviousEnrollment(context.Background(), cfg)
+			require.NoError(t, err)
+			require.Equal(t, enrollment.HashAPIKey("rotated-key"), identity.APIKeyHash)
+		})
+	}
 }
