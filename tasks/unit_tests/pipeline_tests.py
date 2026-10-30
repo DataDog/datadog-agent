@@ -211,3 +211,27 @@ class TestCompareToItself(unittest.TestCase):
         repo_mock.return_value = agent
         pipeline.compare_to_itself(self.context)
         agent.pipelines.create.assert_not_called()
+
+
+class TestAutoCancelPreviousPipelines(unittest.TestCase):
+    environ = {"CI_COMMIT_REF_NAME": "Football", "CI_PIPELINE_ID": "20", "CI_COMMIT_SHA": "c0mm1t"}
+
+    @patch.dict('os.environ', environ)
+    @patch('tasks.pipeline.gracefully_cancel_pipeline')
+    @patch('tasks.pipeline.get_running_pipelines_on_same_ref')
+    @patch('tasks.pipeline.get_gitlab_repo', new=MagicMock())
+    def test_nominal(self, running_mock, cancel_mock):
+        older = MagicMock(id=10, sha="0ld")
+        newer = MagicMock(id=30, sha="n3w")
+        running_mock.return_value = [older, newer]
+        pipeline.auto_cancel_previous_pipelines(MockContext())
+        self.assertEqual([older], [call.args[1] for call in cancel_mock.call_args_list])
+
+    @patch.dict('os.environ', environ)
+    @patch('tasks.pipeline.gracefully_cancel_pipeline')
+    @patch('tasks.pipeline.get_running_pipelines_on_same_ref')
+    @patch('tasks.pipeline.get_gitlab_repo', new=MagicMock())
+    def test_same_commit(self, running_mock, cancel_mock):
+        running_mock.return_value = [MagicMock(id=10, sha="c0mm1t")]
+        pipeline.auto_cancel_previous_pipelines(MockContext())
+        cancel_mock.assert_not_called()

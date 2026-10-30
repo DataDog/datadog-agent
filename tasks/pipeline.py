@@ -101,12 +101,15 @@ def auto_cancel_previous_pipelines(ctx):
         raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
 
     current_pipeline_id = int(os.environ["CI_PIPELINE_ID"])
+    current_sha = os.environ["CI_COMMIT_SHA"]
 
     repo = get_gitlab_repo()
     pipelines = get_running_pipelines_on_same_ref(repo, git_ref)
-    # A pipeline with a lower id than the current one was necessarily created earlier, so it is
-    # superseded by the current pipeline and can be cancelled, regardless of commit ancestry.
-    older_pipelines = [p for p in pipelines if p.id < current_pipeline_id]
+    # A pipeline of another commit with a lower id than the current one was necessarily created
+    # earlier, so it is superseded by the current pipeline and can be cancelled, whatever the
+    # ancestry of its commit. A pipeline of the current commit tests the same code and runs to
+    # completion: the dd-gitlab/default-pipeline check on GitHub can follow it.
+    older_pipelines = [p for p in pipelines if p.id < current_pipeline_id and p.sha != current_sha]
     force_cancel_stages = [
         "package_build",
         # We want to cancel all KMT jobs to ensure proper cleanup of the KMT EC2 instances.
