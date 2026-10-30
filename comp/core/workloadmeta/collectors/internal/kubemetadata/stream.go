@@ -29,6 +29,7 @@ import (
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent/connectivity"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -550,6 +551,10 @@ func (sc *dcaStreamClient) run(ctx context.Context) {
 			return
 		}
 
+		if status.Code(err) == codes.Unavailable && ctx.Err() == nil {
+			connectivity.ReportFailure(err)
+		}
+
 		sc.mu.Lock()
 		wasInitialized := sc.initialized
 		sc.initialized = false
@@ -718,6 +723,7 @@ func (sc *dcaStreamClient) streamOnce(ctx context.Context) error {
 			return fmt.Errorf("stream recv error: %w", err)
 		}
 
+		connectivity.ReportSuccess()
 		sc.applyResponse(resp)
 	}
 }
