@@ -38,6 +38,10 @@ const (
 	DynamoComponentTypeLabelKey = "nvidia.com/dynamo-component-type"
 	// DynamoSubComponentTypeLabelKey is the Dynamo operator's label for the specific worker role
 	DynamoSubComponentTypeLabelKey = "nvidia.com/dynamo-sub-component-type"
+	// KubeAIGroupName is the API group used by KubeAI resources.
+	KubeAIGroupName = "kubeai.org"
+	// KubeAIModelKind is the kind of the KubeAI resource that owns model pods.
+	KubeAIModelKind = "Model"
 	// RayClusterLabelKey is the KubeRay label for the owning RayCluster.
 	RayClusterLabelKey = "ray.io/cluster"
 	// RayServeLabelKey marks RayService pods; its value controls serving traffic.
@@ -68,6 +72,14 @@ const (
 	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
 	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
 	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"
+	// KAIGroupName is the API group used by KAI Scheduler resources
+	KAIGroupName = "scheduling.run.ai"
+	// KAIPodGroupResourceName is the plural resource name for KAI PodGroup objects
+	KAIPodGroupResourceName = "podgroups"
+	// KAIPodGroupAnnotationKey is the pod annotation key set by KAI Scheduler with the PodGroup name
+	KAIPodGroupAnnotationKey = "pod-group-name"
+	// KAIQueueLabelKey is the label key used to assign a workload to a KAI Scheduler queue
+	KAIQueueLabelKey = "kai.scheduler/queue"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
@@ -116,6 +128,8 @@ const (
 	ServiceKind = "Service"
 	// ConfigMapKind represents the ConfigMap object kind
 	ConfigMapKind = "ConfigMap"
+	// SecretKind represents the Secret object kind
+	SecretKind = "Secret"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
 	// ClusterRoleKind represents the ClusterRole object kind
