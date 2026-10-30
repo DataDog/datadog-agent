@@ -5,20 +5,20 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/config/model v0.86.0-rc.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.86.0-rc.1 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
