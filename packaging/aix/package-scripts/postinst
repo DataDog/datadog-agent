@@ -23,10 +23,15 @@ chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
 # failures and SIGABRTs. Only ever raise — an unlimited or higher
 # customer-configured limit is left untouched.
 _dd_data=$(awk '
+    function data_value(line) {
+        sub(/^[[:space:]]*data[[:space:]]*=[[:space:]]*/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        return line
+    }
     BEGIN { stanza = ""; udata = ""; ddata = "" }
     /^[A-Za-z_][A-Za-z0-9_.-]*:/ { stanza = $1; sub(":$", "", stanza) }
-    stanza == "dd-agent" && $1 == "data" { udata = $3 }
-    stanza == "default"  && $1 == "data" { ddata = $3 }
+    stanza == "dd-agent" && /^[[:space:]]*data[[:space:]]*=/ { udata = data_value($0) }
+    stanza == "default"  && /^[[:space:]]*data[[:space:]]*=/ { ddata = data_value($0) }
     END { if (udata != "") print udata; else print ddata }
 ' /etc/security/limits 2>/dev/null)
 if [ -z "$_dd_data" ] \
