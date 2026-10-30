@@ -244,24 +244,35 @@ exit 98
         self.assertEqual(seen.get('DD_EXTRA'), 'from-file')
         self.assertEqual(seen.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
 
-    def test_redhat_upstart_execs_the_daemon_without_a_supervisor(self):
+    def test_redhat_upstart_drops_uid_before_loading_the_environment(self):
         template = UPSTART_REDHAT.read_text()
         self.assertNotIn('exec su', template)
         self.assertNotIn('runuser', template)
+        self.assertNotIn('DD_PROCMGR_RUN_AS_USER', template)
         self.assertNotIn('. "{etc_dir}/environment"', template)
         self.assertNotIn('set -a', template)
+        self.assertNotIn('exec "{install_dir}/embedded/bin/dd-procmgrd"', template)
         main = upstart_main_block(UPSTART_REDHAT)
-        self.assertLess(main.index('export "$key=$value"'), main.index('export DD_PROCMGR_RUN_AS_USER=dd-agent'))
-        self.assertLess(
-            main.index('export DD_PROCMGR_RUN_AS_USER=dd-agent'),
-            main.index('exec "{install_dir}/embedded/bin/dd-procmgrd"'),
-        )
+        outer, delimiter, inner = main.partition("<<'END_LOAD_ENV'\n")
+        self.assertEqual(delimiter, "<<'END_LOAD_ENV'\n")
+        self.assertIn('exec /usr/sbin/chroot --userspec="dd-agent:$group" --groups="$groups"', outer)
+        self.assertLess(outer.index('/usr/bin/id -G dd-agent'), outer.index("tr ' ' ','"))
+        self.assertLess(outer.index("tr ' ' ','"), outer.index('exec /usr/sbin/chroot'))
+        self.assertLess(outer.index('/usr/bin/id -gn dd-agent'), outer.index('exec /usr/sbin/chroot'))
+        self.assertNotIn('export "$key=$value"', outer)
+        self.assertNotIn('procmgr-errors.log', outer)
+        self.assertIn('export "$key=$value"', inner)
+        self.assertLess(inner.index('export "$key=$value"'), inner.index('export DD_LOG_TO_CONSOLE=false'))
+        self.assertLess(inner.index('export DD_INSTALL_DIR="$install"'), inner.index('exec "$daemon"'))
+        self.assertIn('exec "$daemon" >> /var/log/datadog/procmgr-errors.log 2>&1 </dev/null', inner)
 
         layout = Layout(self.root)
         marker = self.root / 'pwned'
         supervisor = self.root / 'supervisor-called'
         daemon_pid = self.root / 'daemon.pid'
         logfile = self.root / 'procmgr-errors.log'
+        chroot_env = self.root / 'chroot.env'
+        chroot_ids = self.root / 'chroot.ids'
         (layout.etc / 'environment').write_text(
             '# comment\n'
             '; comment\n'
@@ -271,21 +282,56 @@ exit 98
             'DD_INSTALL_DIR=/wrong\n'
             'DD_CONF_DIR=/wrong\n'
             'DD_LOG_TO_CONSOLE=true\n'
-            'DD_PROCMGR_RUN_AS_USER=root\n'
+            'LD_PRELOAD=/tmp/not-a-library\n'
             'AGENT_USER=root\n'
             'DD_QUOTED="hello world"\n'
             f'DD_PAYLOAD=$(touch {marker})\n'
             f'touch {marker}\n'
         )
-        write_executable(layout.binary, f'echo $$ > "{daemon_pid}"\nenv > "{layout.env_out}"\nexit 0\n')
+        write_executable(
+            layout.binary,
+            f'echo $$ > "{daemon_pid}"\necho daemon-stdout\nenv > "{layout.env_out}"\nexit 0\n',
+        )
         script = render(main, layout.install, layout.etc)
         script = script.replace('/var/log/datadog/procmgr-errors.log', str(logfile))
+        commands = self.root / 'commands'
+        script = script.replace('/usr/sbin/chroot', str(commands / 'chroot'))
+        script = script.replace('/usr/bin/id', str(commands / 'id'))
         script_path = self.root / 'upstart-script.sh'
         script_path.write_text(script)
 
-        commands = self.root / 'commands'
         for name in ('su', 'runuser', 'sudo'):
             write_executable(commands / name, f'echo {name} > "{supervisor}"\nexit 99\n')
+        write_executable(
+            commands / 'id',
+            'case "$*" in\n'
+            '  "-G dd-agent") printf "%s\\n" "1000 10" ;;\n'
+            '  "-gn dd-agent") printf "%s\\n" "dd-agent" ;;\n'
+            '  *) exit 9 ;;\n'
+            'esac\n',
+        )
+        write_executable(
+            commands / 'chroot',
+            f'''echo chroot-stdout
+env > "{chroot_env}"
+userspec=
+groups=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --userspec=*) userspec=${{1#--userspec=}}; shift ;;
+    --groups=*) groups=${{1#--groups=}}; shift ;;
+    *) break ;;
+  esac
+done
+[ -n "$userspec" ] || exit 4
+[ -n "$groups" ] || exit 5
+case $groups in *\\ *) exit 6 ;; esac
+[ "$1" = / ] || exit 3
+shift
+printf '%s\\n' "$userspec" "$groups" > "{chroot_ids}"
+exec "$@"
+''',
+        )
 
         proc = subprocess.Popen(
             ['/bin/sh', str(script_path)],
@@ -300,6 +346,17 @@ exit 98
         self.assertFalse(marker.exists())
         self.assertFalse(supervisor.exists())
         self.assertEqual(int(daemon_pid.read_text().strip()), proc.pid)
+        self.assertIn('chroot-stdout', stdout)
+        self.assertNotIn('daemon-stdout', stdout)
+        self.assertIn('daemon-stdout', log)
+        self.assertNotIn('chroot-stdout', log)
+        self.assertEqual(chroot_ids.read_text().splitlines(), ['dd-agent:dd-agent', '1000,10'])
+
+        launched = parse_env(chroot_env)
+        self.assertNotIn('DD_EXTRA', launched)
+        self.assertNotIn('LD_PRELOAD', launched)
+        self.assertEqual(launched.get('DD_INSTALL_DIR'), 'from-parent')
+        self.assertEqual(launched.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
 
         seen = parse_env(layout.env_out)
         for key, value in layout.expected_four().items():
@@ -308,9 +365,25 @@ exit 98
         self.assertEqual(seen.get('DD_QUOTED'), 'hello world')
         self.assertEqual(seen.get('DD_PAYLOAD'), f'$(touch {marker})')
         self.assertEqual(seen.get('DD_LOG_TO_CONSOLE'), 'false')
-        self.assertEqual(seen.get('DD_PROCMGR_RUN_AS_USER'), 'dd-agent')
+        self.assertEqual(seen.get('LD_PRELOAD'), '/tmp/not-a-library')
         self.assertEqual(seen.get('AGENT_USER'), 'root')
+        self.assertNotIn('DD_PROCMGR_RUN_AS_USER', seen)
         self.assertEqual(seen.get('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'), PARENT_SPLIT)
+
+        write_executable(commands / 'id', 'exit 1\n')
+        daemon_pid.unlink()
+        layout.env_out.unlink(missing_ok=True)
+        failed = subprocess.run(
+            ['/bin/sh', str(script_path)],
+            env=self.base_env(f'{commands}:/usr/bin:/bin'),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        self.assertNotEqual(failed.returncode, 0, failed.stdout + failed.stderr)
+        self.assertFalse(daemon_pid.exists())
+        self.assertFalse(layout.env_out.exists())
 
     def test_procmgr_stop_waits_for_par_control(self):
         sysv = SYSV_PROCMGR.read_text()
