@@ -162,6 +162,16 @@ properties:
           intake's stream-age limit. For an accelerated replay, divide this and
           batch_wait by the effective replay speed to keep the epoch cadence per
           corpus second.
+      compression_kind:
+        node_type: setting
+        type: string
+        default: ""
+        comment: |-
+          The encoding foldspace applies to each batch. Empty follows
+          logs_config.use_compression and logs_config.compression_kind. jsplit
+          encodes each batch as the JSON split, each part its own zstd frame,
+          which the intake must be able to decode; compression_level does not
+          apply to it. Any other value is rejected.
       shutdown_timeout:
         node_type: setting
         type: string
