@@ -203,6 +203,12 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
 `doc/guidelines/` (contributing, coding style, components, etc.).
 
+When re-landing a reverted PR, generate a new release note with `reno new`
+rather than restoring the original file. reno keys notes by the UID in the
+filename and attributes a reused UID to the release it first appeared in, so
+the note silently drops out of the changelog
+(`dda inv linter.releasenote-reused-uids` catches this).
+
 ### Code ownership
 `.github/CODEOWNERS` is partly generated. The block between `# BEGIN COMPONENTS`
 and `# END COMPONENTS` is built from the `// team:` annotation in each
