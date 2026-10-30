@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ import yaml
 from invoke.context import Context
 
 import tasks
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, is_bazel_workspace
 from tasks.libs.common.utils import _resolve_target_platform, agent_working_directory
 
 
@@ -105,6 +106,7 @@ class GoModule:
         independent: Specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
         lint_targets: Directories to lint.
         used_by_otel: Whether the module is an otel dependency or not.
+        workspace_path: Directory that go.work and in-repo replace directives point to instead of the module's own.
 
     Usage:
         A module is defined within the modules.yml file containing the following fields by default (these can be omitted if the default value is used):
@@ -150,6 +152,11 @@ class GoModule:
     legacy_go_mod_version: bool | None = None
     # Whether the module should replace internal modules
     should_replace_internal_modules: bool = True
+    # Directory that go.work and in-repo replace directives point to, instead of the module's own `path`. The
+    # module's `path` then only holds a committed snapshot that external consumers download at a released tag,
+    # while in-repo builds use the (e.g. generated) copy at `workspace_path`, which holds a go.mod for the same
+    # module path.
+    workspace_path: str | None = None
 
     @staticmethod
     def from_dict(path: str, data: dict[str, object]) -> GoModule:
@@ -167,6 +174,7 @@ class GoModule:
             should_replace_internal_modules=data.get(
                 "should_replace_internal_modules", default["should_replace_internal_modules"]
             ),
+            workspace_path=data.get("workspace_path", default["workspace_path"]),
         )
 
     @staticmethod
@@ -200,6 +208,7 @@ class GoModule:
             "used_by_otel": self.used_by_otel,
             "legacy_go_mod_version": self.legacy_go_mod_version,
             "should_replace_internal_modules": self.should_replace_internal_modules,
+            "workspace_path": self.workspace_path,
         }
 
         if remove_path:
@@ -242,16 +251,34 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        output = bazel(
-            "run",
-            "//internal/tools/modparser",
-            "--",
-            "-path",
-            os.path.abspath(self.path),
-            "-prefix",
-            AGENT_MODULE_PATH_PREFIX,
-            capture_output=True,
-        )
+        # Pre-Bazel branches still ship the modparser source, so fall back to `go run` there
+        if is_bazel_workspace():
+            output = bazel(
+                "run",
+                "//internal/tools/modparser",
+                "--",
+                "-path",
+                os.path.abspath(self.path),
+                "-prefix",
+                AGENT_MODULE_PATH_PREFIX,
+                capture_output=True,
+            )
+        else:
+            modparser_path = os.path.join(os.getcwd(), "internal", "tools", "modparser")
+            if not os.path.isdir(modparser_path):
+                raise Exception(f"Cannot find go.mod parser in {modparser_path}")
+            output = subprocess.check_output(
+                [
+                    "go",
+                    "run",
+                    ".",
+                    "-path",
+                    os.path.abspath(self.path),
+                    "-prefix",
+                    AGENT_MODULE_PATH_PREFIX,
+                ],
+                cwd=modparser_path,
+            ).decode("utf-8")
 
         # Remove github.com/DataDog/datadog-agent/ from each line
         return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
@@ -275,6 +302,10 @@ class GoModule:
     def full_path(self):
         """Return the absolute path of the Go module."""
         return os.path.abspath(self.path)
+
+    def workspace_dir(self):
+        """Return the posix path of the directory go.work and in-repo replace directives point to."""
+        return self.workspace_path or self.path
 
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
@@ -347,6 +378,11 @@ def validate_module(
 
     for target in module.lint_targets:
         assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
+
+    if module.workspace_path is not None:
+        assert (
+            base_dir / module.workspace_path / 'go.mod'
+        ).is_file(), f"Configuration has a workspace_path without a go.mod file: {module.workspace_path}"
 
     assert (
         module.should_test_condition in GoModule.SHOULD_TEST_CONDITIONS

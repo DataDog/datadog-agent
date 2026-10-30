@@ -214,7 +214,12 @@ func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) 
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error) {
-	ddURL := GetInfraEndpoint(c)
+	rawAdditionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
+	routing, err := readMetricsEndpointRouting(c, rawAdditionalEndpoints)
+	if err != nil {
+		return nil, err
+	}
+	ddURL := routing.PrimaryEndpointURL
 	// Validating domain
 	if _, err := url.Parse(ddURL); err != nil {
 		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
@@ -224,7 +229,6 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		ddURL: newAPIKeyset("api_key", c.GetString("api_key")),
 	}
 
-	rawAdditionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
 	additionalEndpoints := MakeEndpoints(rawAdditionalEndpoints, "additional_endpoints")
 
 	for domain, apiKeys := range additionalEndpoints {
@@ -276,6 +280,23 @@ const ddSitePattern = `([a-z]{2,}\d{1,2}\.)?(` + ddDomainPattern + `)`
 // e.g., "notdatadoghq.com" is not mistaken for "datadoghq.com".
 var ddSiteFromHostnameRe = regexp.MustCompile(`(?:^|\.)` + ddSitePattern + `\.?$`)
 
+// ddSiteRe matches a whole Datadog site, such as "datadoghq.com" or "us3.datadoghq.com".
+var ddSiteRe = regexp.MustCompile(`^` + ddSitePattern + `$`)
+
+// IsDatadogIntakeHost reports whether host is exactly prefix followed by a Datadog site. For
+// example, with the prefix "agent-http-intake.logs.", it accepts "agent-http-intake.logs.datadoghq.com"
+// and "agent-http-intake.logs.us3.datadoghq.com", but not "agent-http-intake-pl.logs.datadoghq.com"
+// or "custom.agent-http-intake.logs.datadoghq.com". The comparison is case-insensitive and allows a
+// single trailing dot (FQDN form).
+func IsDatadogIntakeHost(prefix, host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	prefix = strings.ToLower(prefix)
+	if !strings.HasPrefix(host, prefix) {
+		return false
+	}
+	return ddSiteRe.MatchString(host[len(prefix):])
+}
+
 // ExtractSiteFromURL extracts the Datadog site from a URL.
 // For example:
 //
@@ -309,8 +330,8 @@ func ExtractSiteFromURL(rawURL string) string {
 // built from `multi_region_failover.site`, their site does not tell us where the org lives.
 var mrfAliasRegexp = regexp.MustCompile(`^([a-z0-9-]+)\.mrf\.` + ddSitePattern + `$`)
 
-// isMRFAliasURL reports whether the given URL points at a customer-specific Multi-Region Failover alias.
-func isMRFAliasURL(rawURL string) bool {
+// IsMRFAliasURL reports whether the given URL points at a customer-specific Multi-Region Failover alias.
+func IsMRFAliasURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return false
@@ -326,7 +347,7 @@ func isMRFAliasURL(rawURL string) bool {
 // returns "https://api.us3.datadoghq.com". Otherwise, such as for proxies or customer-specific Multi-Region Failover
 // aliases, the URL is returned unchanged.
 func APIEndpointFromURL(rawURL string) string {
-	if isMRFAliasURL(rawURL) {
+	if IsMRFAliasURL(rawURL) {
 		return rawURL
 	}
 	if site := ExtractSiteFromURL(rawURL); site != "" {
@@ -429,6 +450,11 @@ func IsDatadogURL(rawURL string) bool {
 func getDomainPrefix(app string) string {
 	v, _ := version.Agent()
 	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+}
+
+// AddAgentVersionToSite builds the versioned Agent host URL for a site and app.
+func AddAgentVersionToSite(site, app string) string {
+	return BuildURLWithPrefix("https://"+getDomainPrefix(app)+".", site)
 }
 
 // AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain

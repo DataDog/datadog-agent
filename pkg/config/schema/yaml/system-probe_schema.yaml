@@ -114,6 +114,7 @@ properties:
         env_vars:
         - DD_SYSTEM_PROBE_BPF_DIR
       btf_output_dir:
+        description: Deprecated and ignored. BTF files are always cached in /var/tmp/datadog-agent/system-probe/btf.
         node_type: setting
         type: string
         default: /var/tmp/datadog-agent/system-probe/btf
@@ -159,6 +160,22 @@ properties:
         node_type: setting
         type: integer
         default: 500
+      core_agent_ipc:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Whether system-probe talks to the core agent over IPC.
+              Set to false when system-probe runs isolated from the core agent and cannot
+              reach it by design (for example inside a microVM, forwarding its events to a
+              system-probe on the host). When false, system-probe uses the noop tagger and
+              the local workloadfilter and hostname instead of their remote counterparts,
+              and does not start remote workloadmeta, configsync, the remote agent registry
+              or the config stream consumer. Read once at startup.
       debug_port:
         node_type: setting
         type: integer
@@ -390,6 +407,9 @@ properties:
         node_type: setting
         type: string
         default: /var/tmp/datadog-agent/system-probe/kernel-headers
+        description: |-
+          Deprecated and ignored. Kernel headers are always downloaded to
+          /var/tmp/datadog-agent/system-probe/kernel-headers.
         env_vars:
         - DD_KERNEL_HEADER_DOWNLOAD_DIR
       log_level:
@@ -1851,6 +1871,30 @@ properties:
           Pins the OOM Kill eBPF probe to bpffs so it keeps recording OOM kills while
           system-probe is down (including when system-probe itself is OOM killed). The next
           system-probe takes over the pins and reports what was missed.
+      emit_cgroup_memory_stats:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |
+          Records the memory usage and memory.stat items of the cgroup of a cgroup OOM kill,
+          which the oom_kill check reports as oom_kill.cgroup_memory.* metrics.
+  packet_capture:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      socket:
+        node_type: setting
+        type: string
+        default: ""
+        description: |-
+          Path of an additional unix socket that serves only the packet capture
+          module. Lets a caller such as the Private Action Runner trigger
+          captures without access to the main system-probe socket. Empty means
+          no additional socket.
   privileged_logs:
     node_type: section
     type: object

@@ -579,6 +579,61 @@ func TestAPIEndpointFromURL(t *testing.T) {
 	}
 }
 
+func TestIsMRFAliasURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected bool
+	}{
+		{"https://org.mrf.datadoghq.com", true},
+		{"https://org.mrf.us3.datadoghq.com:443", true},
+		{"https://ORG.MRF.DATADOGHQ.COM.", true},
+		{"https://org.mrf.ddog-gov.com", true},
+		{"https://org.mrf.datad0g.com", true},
+		{"https://app.mrf.datadoghq.com", false},
+		{"https://APP.MRF.DATADOGHQ.COM.", false},
+		{"https://app.datadoghq.com", false},
+		{"https://org.mrf.notdatadoghq.com", false},
+		{"https://org.mrf.datadoghq.com.attacker.net", false},
+		{"https://proxy.example.com", false},
+		{"http://\x7f", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsMRFAliasURL(tt.url))
+		})
+	}
+}
+
+func TestAddAgentVersionToSite(t *testing.T) {
+	tests := []struct {
+		site          string
+		app           string
+		convertToFQDN bool
+		expectedSite  string
+	}{
+		{"datadoghq.com", "flare", true, "datadoghq.com."},
+		{"us3.datadoghq.com", "flare", true, "us3.datadoghq.com."},
+		{"us5.datadoghq.com", "flare", true, "us5.datadoghq.com."},
+		{"ap1.datadoghq.com", "flare", true, "ap1.datadoghq.com."},
+		{"datadoghq.eu", "flare", true, "datadoghq.eu."},
+		{"ddog-gov.com", "flare", true, "ddog-gov.com."},
+		{"datad0g.com", "flare", true, "datad0g.com."},
+		{"datadoghq.com.", "flare", true, "datadoghq.com."},
+		{"datadoghq.com", "app", true, "datadoghq.com."},
+		{"datadoghq.com", "flare", false, "datadoghq.com"},
+		{"us3.datadoghq.com", "flare", false, "us3.datadoghq.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s/%s/fqdn=%t", tt.site, tt.app, tt.convertToFQDN), func(t *testing.T) {
+			cfg := mock.New(t)
+			cfg.SetInTest("convert_dd_site_fqdn.enabled", tt.convertToFQDN)
+			assert.Equal(t, "https://"+getDomainPrefix(tt.app)+"."+tt.expectedSite, AddAgentVersionToSite(tt.site, tt.app))
+		})
+	}
+}
+
 func TestAddAgentVersionToDomain(t *testing.T) {
 	appVersionPrefix := getDomainPrefix("app")
 	flareVersionPrefix := getDomainPrefix("flare")
@@ -705,5 +760,36 @@ func TestIsDatadogURL(t *testing.T) {
 
 	for _, tc := range tests {
 		assert.Equal(t, tc.expected, IsDatadogURL(tc.url), "IsDatadogURL(%q)", tc.url)
+	}
+}
+
+func TestIsDatadogIntakeHost(t *testing.T) {
+	const prefix = "agent-http-intake.logs."
+	tests := []struct {
+		host     string
+		expected bool
+	}{
+		{"agent-http-intake.logs.datadoghq.com", true},        // US1
+		{"agent-http-intake.logs.us3.datadoghq.com", true},    // datacenter subdomain
+		{"agent-http-intake.logs.datadoghq.eu", true},         // EU
+		{"agent-http-intake.logs.ddog-gov.com", true},         // gov
+		{"agent-http-intake.logs.us2.ddog-gov.com", true},     // gov datacenter
+		{"agent-http-intake.logs.datad0g.com", true},          // staging
+		{"agent-http-intake.logs.datadoghq.com.", true},       // FQDN trailing dot
+		{"AGENT-HTTP-INTAKE.LOGS.DATADOGHQ.COM", true},        // case-insensitive
+		{"agent-http-intake.logs.datadoghq.com..", false},     // only one trailing dot
+		{"agent-http-intake-pl.logs.datadoghq.com", false},    // PrivateLink
+		{"x.agent-http-intake.logs.datadoghq.com", false},     // extra leading label
+		{"agent-http-intake.logs.x.us3.datadoghq.com", false}, // extra label before the site
+		{"agent-http-intake.logs.notdatadoghq.com", false},    // not a Datadog domain
+		{"agent-http-intake.logs.datadoghq.com.evil", false},  // Datadog domain not at the end
+		{"agent-intake.logs.datadoghq.com", false},            // TCP intake
+		{"agent-http-intake.logs.", false},                    // no site
+		{"datadoghq.com", false},                              // bare site
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, IsDatadogIntakeHost(prefix, tc.host), "IsDatadogIntakeHost(%q, %q)", prefix, tc.host)
 	}
 }

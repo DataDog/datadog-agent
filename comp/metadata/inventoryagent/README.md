@@ -12,22 +12,6 @@ update every minute (see `inventories_min_interval`).
 
 The `Set` method from the component allow the rest of the codebase to add any information to the payload.
 
-## Embedding capabilities
-
-`Capabilities` is an optional internal Fx dependency, not a YAML or environment setting. Without it, each payload
-retains the standard full-agent metadata refresh.
-
-`NewServerlessCapabilities` sets `SkipFullAgentMetadataRefresh`, which skips **all** collectors in `refreshMetadata()`:
-core Agent, security Agent, process Agent, trace Agent, system-probe, Fleet, and application monitoring. Skipping
-collection drops both cross-process enrichment and locally derived fields, for example `config_site`,
-`feature_logs_enabled`, `fleet_policies_applied`, Fleet's `config_id`, and the application-monitoring file fields.
-Serverless-init does not need them and injects `dd_site` explicitly.
-
-What remains available: construction-time metadata (versions, startup time, installation information, infrastructure
-mode), values supplied through `Set`, and optional configuration payloads controlled by
-`inventories_configuration_enabled`. The capability skips collection rather than filtering the payload, and does not
-affect the metadata runner, its scheduling, or explicit `Submit()` calls.
-
 ## Agent Configuration
 
 The agent configurations are scrubbed from any sensitive information (same logic than for the flare). The `Format`
@@ -42,6 +26,9 @@ The payload is a JSON dict with the following fields
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
 - `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
+- `files_metadata` - **dict of string to object**: the scrubbed contents of the configuration files, keyed by file path. YAML setting order is preserved, while comments are omitted to avoid possibly outputting secrets. Each object contains:
+  - `raw_config` - **string**: the scrubbed configuration file.
+  - `hash` - **string**: the SHA-256 hash of `raw_config`.
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
   - `agent_version` - **string**: the version of the Agent.
@@ -60,6 +47,10 @@ The payload is a JSON dict with the following fields
   - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
   - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
   - `diagnostics` - **dict of string to JSON type**: the result of series of connectivity checks performed on the agent including description, error and metadata
+  - `enc_info` - **dict of string to array of string**: the paths of secret settings, their handles, and scrubbed leafs (scrubbed)
+    - `paths` - **array of strings**: the paths of settings that contain secrets
+    - `handles` - **array of strings**: the handles that correspond to these paths
+    - `scrubbed` - **array of strings**: the keys of non-default settings whose values were scrubbed, either because the key is known to be sensitive (ex: `authKey`) or because the value looks like a credential (ex: a raw API key). Keys already covered by `paths` are omitted
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
@@ -134,17 +125,17 @@ The payload is a JSON dict with the following fields
     as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
     agent itself based on the load).
   - `file_configuration` - **string**: the Agent configuration specified by the configuration file (scrubbed), as a YAML string.
-    Only the settings written in the configuration file are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings written in the configuration file are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `environment_variable_configuration` - **string**: the Agent configuration specified by the environment variables (scrubbed), as a YAML string.
-    Only the settings written in the environment variables are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings written in the environment variables are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `agent_runtime_configuration` - **string**: the Agent configuration set by the agent itself (scrubbed), as a YAML string.
-    Only the settings set by the agent itself are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings set by the agent itself are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `remote_configuration` - **string**: the Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
-    Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings currently used by Remote Configuration are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `fleet_policies_configuration` - **string**: the Agent configuration specified by the Fleet Automation Policies (scrubbed), as a YAML string.
-    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
+    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applied by the agent since they can be overridden by other sources.
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
-    Only the settings set in the CLI are included, they cannot be overriden by any other sources.
+    Only the settings set in the CLI are included, they cannot be overridden by any other sources.
   - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
@@ -176,6 +167,11 @@ Here an example of an inventory payload:
         "config_proxy_http": "",
         "config_proxy_https": "http://localhost:9999",
         "config_site": "",
+        "enc_info": {
+          "paths": ["api_key", "password"],
+          "handles": ["name", "pswd"],
+          "scrubbed": ["client_secret"]
+        },
         "feature_imdsv2_enabled": false,
         "feature_apm_enabled": true,
         "feature_cspm_enabled": false,
@@ -203,7 +199,13 @@ Here an example of an inventory payload:
         "cli_configuration": "log_level: \"warn\"",
         "source_local_configuration": "",
         "config_id": "my-config"
-    }
+    },
+    "files_metadata": {
+        "/etc/datadog-agent/datadog.yaml": {
+            "hash": "8e9f...",
+            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\n"
+        }
+    },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }

@@ -1,0 +1,108 @@
+---
+# AIX/ppc64 jobs, extending the .aix_remote template from common/aix_remote.yml
+# (SSH connection to the remote AIX host, source clone, host provisioning).
+
+tests_aix-ppc64:
+  stage: source_test
+  extends: .aix_remote
+  # avoid blocking nightly pipelines on errors
+  allow_failure: true
+  rules:
+    - !reference [.except_light_pipeline]
+    - !reference [.on_scheduled_main]
+    - changes:
+        paths:
+          - .gitlab/aix/common/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - when: manual
+      variables:
+        EXTRA_TEST_FLAGS: "--only-modified-packages"
+  variables:
+    EXTRA_TEST_FLAGS: ""
+  script:
+    - 'echo "=== AIX: running unit tests ==="'
+    - |
+      aix_run_cmd <<EOF
+      set -eux
+      cd $AIX_AGENT_SRC
+      . ./packaging/aix/lib/env.sh
+      python3.12 -m invoke -e test $EXTRA_TEST_FLAGS --build-exclude=python --build-cpus=2
+      EOF
+
+package_aix-ppc64:
+  stage: packaging
+  extends: .aix_remote
+  # avoid blocking nightly pipelines on errors
+  allow_failure: true
+  rules:
+    - !reference [.except_light_pipeline]
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
+    - !reference [.on_scheduled_main]
+    - changes:
+        paths:
+          - .gitlab/aix/common/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  script:
+    - 'echo "=== AIX: running packaging build (build.sh) ==="'
+    - |
+      aix_run_cmd <<EOF
+      set -eux
+      cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh
+      cd $AIX_AGENT_SRC
+      env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
+      EOF
+    # Retrieve the built .bff from the AIX host and expose it as a job artifact.
+    - 'echo "=== AIX: retrieving .bff artifact ==="'
+    - copy_file_from_aix /opt/dd-build/*.bff $CI_PROJECT_DIR/
+    - aix_run_cmd 'rm -f /opt/dd-build/*.bff'
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - "$CI_PROJECT_DIR/*.bff"
+
+# deploy_packages stage
+# Contains the job uploading the AIX BFF package to the per-pipeline
+# directory of the internal dd-release-artifacts bucket. The package is
+# promoted to the public dd-agent-aix bucket by agent-release-management.
+
+deploy_packages_aix-ppc64:
+  stage: deploy_packages
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: package_aix-ppc64
+      artifacts: true
+  rules:
+    - !reference [.except_light_pipeline]
+    - if: $BUCKET_BRANCH =~ /^(nightly|beta|stable)$/
+      allow_failure: true
+    - if: $BUCKET_BRANCH == "dev"
+      when: manual
+      allow_failure: true
+  script:
+    - |
+      shopt -s nullglob
+      bff_files=("$CI_PROJECT_DIR"/datadog-agent-*.aix.ppc64.bff)
+      if [ "${#bff_files[@]}" -ne 1 ]; then
+        echo "Expected exactly one AIX BFF artifact, found ${#bff_files[@]}" >&2
+        printf '  %s\n' "${bff_files[@]}" >&2
+        exit 1
+      fi
+      # Upload the BFF to the per-pipeline directory of the internal release
+      # artifacts bucket.
+      $S3_CP_CMD --content-type "application/octet-stream" "${bff_files[0]}" "${S3_RELEASE_ARTIFACTS_URI}/bff/ppc64/"
+
+# The install script is promoted to the public bucket by agent-release-management.
+deploy_aix_install_script:
+  rules:
+    - !reference [.on_deploy]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  stage: deploy_packages
+  # Wait for the deploy guard (check_already_deployed_version_7) so we don't
+  # upload a script for a version that's already shipped. Same .on_deploy
+  # rules, so they're always co-eligible.
+  needs: [check_already_deployed_version_7]
+  tags: ["arch:amd64", "specific:true"]
+  script:
+    - $S3_CP_CMD --content-type "text/x-shellscript" "cmd/agent/aix/install_aix.sh" "${S3_RELEASE_ARTIFACTS_URI}/scripts/install_aix.sh"

@@ -26,9 +26,11 @@ Remote cache selection lives in `bazel/tools/remote-cache-select.sh` (sourced by
 only when the frontend is reachable and a token source exists; a command-line
 `--config=cache` / `--config=no-remote-cache`, or an rc-level
 `common --config=no-remote-cache` in `user.bazelrc` / `~/.bazelrc`, always wins.
-In containers there
-is no interactive Vault login, so a token must be injected via the
-`BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
+In containers `auto`
+requires a Vault session that can read `identity/oidc/token/buildbarn` (in a
+Datadog workspace: `ddtool auth login --datacenter us1.ddbuild.io`) or a token
+injected via the `BUILDBARN_ID_TOKEN` environment variable (minted on the host
+from Vault).
 
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
@@ -211,6 +213,17 @@ and its stale source references. Remove the obsolete rule and its unused load ex
 
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
+
+#### Only add `# keep` when Gazelle would otherwise change the code
+
+A `# keep` comment is only useful when Gazelle would rewrite or drop the value it annotates. Do not add one:
+
+- on attributes Gazelle never manages (`target_compatible_with`, `tags`, `data`, `env`, `gotags`, `linkmode`, ...),
+- on top-level assignments or other non-rule statements,
+- on a value or rule that already matches what Gazelle generates.
+
+To check whether a `# keep` is needed, remove it, run `bazel run //:gazelle -- ./path/to/package`, and keep it only if
+the resulting diff is non-empty. If you do add one, explain why on the same line (`# keep: <reason>`).
 
 #### `test/new-e2e/tests/` is not migrated — exclude new suite directories
 
@@ -745,16 +758,16 @@ binary (e.g. `//pkg/security/generators/backend_doc`, which produces
 output therefore cannot be cross-compiled: it needs a binary built *for* that
 platform and then actually executed.
 
-For Windows, such a generator runs on Linux under `//bazel/tools/wine:wine_run`,
-which uses a pinned Wine (under box64 on aarch64) from its runfiles, never the
-host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
-the generator for `windows_amd64`, a native `run_binary` and a Wine `run_binary`,
-and an `alias` that selects between them on `@platforms//os:windows`. `wine_run`
-only supports Linux x86_64 and aarch64 (4K pages), so on macOS the Wine target
-is skipped as incompatible. Wine is for local regeneration only (it is flaky
-under box64 on CI): tag the Wine target, the alias and its `write_source_file`
-`manual`, and check the committed output with a `diff_test` against the native
-target, which only runs on Windows.
+For Windows, such a generator runs through `@rules_wine`. The module
+downloads a pinned Wine and executes it from a throwaway prefix; on Linux and
+macOS arm64 an x86_64 payload runs under FEX inside a native arm64 Wine. Follow
+the `backend_windows_schema_gen` pattern: a `go_cross_binary` of the generator
+for `windows_amd64`, a native `run_binary` on Windows, a rule that calls
+`windows_actions` elsewhere, and an `alias` that selects on
+`@platforms//os:windows`. Intel macOS has no default distribution. Wine is for
+local regeneration only: tag the Wine target, the alias and its
+`write_source_file` `manual`, and check the committed output with a `diff_test`
+against the native target, which only runs on Windows.
 
 ## Depsets and rule performance
 
@@ -991,10 +1004,20 @@ asserting on wall-clock time fail. Prefer waiting on a signal over a fixed durat
 external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
 `DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
 Linking tests depending on the Pulumi k8s SDK peaks at 25x to 35x their binary's on-disk footprint, beyond what `GoLink`
-books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` book more through the `go_link` exec group's
-`resources:memory`, honored locally since Bazel 9.2.0.
+books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` add the `resources:memory:6144` tag, honored
+locally since Bazel 9.2.0. Prefer that tag over a `resources:memory` entry in `exec_properties`: the latter is also sent
+as a remote execution platform property, and RBE workers that don't advertise it can't be scheduled.
 
 ## Testing
+
+BPF and NPM tag variants are excluded by the default `--test_tag_filters`, even
+when named explicitly. To run a focused variant, override the filter, for example:
+
+```sh
+bazel test --test_tag_filters= //pkg/util/kernel/headers:headers_test_bpf
+```
+
+Check the reported executed test count; building a filtered target does not run it.
 
 ### Testing rules (Starlark unit tests)
 

@@ -47,10 +47,25 @@ func TestConfigMapCollector(t *testing.T) {
 		},
 	}
 
+	// Helm release ConfigMaps are reported by the Helm release collector instead.
+	helmRelease := &metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "sh.helm.release.v1.my-app.v1",
+			Namespace:       "namespace",
+			UID:             "3c9f8e60-0749-11e8-a2b8-000c29dea4f6",
+			ResourceVersion: "1221",
+			Labels:          map[string]string{"owner": "helm"},
+		},
+	}
+
 	collector := NewConfigMapCollector()
 
 	config := CollectorTestConfig{
-		MetadataResources:          []runtime.Object{configMap},
+		MetadataResources:          []runtime.Object{configMap, helmRelease},
 		ExpectedResourcesListed:    1,
 		ExpectedResourcesProcessed: 1,
 		// ConfigMap is manifest-only: the processor yields a nil metadata body, which is never sent.

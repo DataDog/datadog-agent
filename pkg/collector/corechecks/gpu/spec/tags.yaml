@@ -44,6 +44,27 @@ tags:
   gpu_fabric_clique_id:
     regex: "^\\d+$"
     optional: true
+  gpu_chassis_serial:
+    regex: "^[a-z0-9_.-]+$"
+    optional: true
+  gpu_slot_number:
+    regex: "^\\d+$"
+    optional: true
+  gpu_tray_index:
+    regex: "^\\d+$"
+    optional: true
+  gpu_module_id:
+    regex: "^\\d+$"
+    optional: true
+  gpu_board_serial:
+    regex: "^[a-z0-9_.-]+$"
+    optional: true
+  gpu_numa_node:
+    regex: "^\\d+$"
+    optional: true
+  gpu_fabric_guid:
+    regex: "^0x[0-9a-f]{16}$"
+    optional: true
   gpu_host:
     regex: "^true$"
   pid:
@@ -77,7 +98,12 @@ tags:
   fabric_issue:
     regex: "^(bandwidth_degraded|route_recovery|route_unhealthy|access_timeout_recovery|misconfigured_(sysguid|chassis_sn|no_partition|insufficient_nvlinks|incompatible_gpu_fw|invalid_location))$"
   unavailable_reason:
-    regex: "^(lost)$"
+    regex: "^(lost|unhealthy|unschedulable)$"
+  unschedulable_reason:
+    # cordoned, not_ready, or <label key>:<value> / <condition type>:<status> of a
+    # matching gpu.unschedulable_nodes rule, lowercased.
+    regex: "^(cordoned|not_ready|[a-z0-9._/-]+:[a-z0-9._-]+)$"
+    optional: true
 
 tagsets:
   container:
@@ -102,6 +128,13 @@ tagsets:
       - gpu_nvlink_capable
       - gpu_fabric_cluster_uuid
       - gpu_fabric_clique_id
+      - gpu_chassis_serial
+      - gpu_slot_number
+      - gpu_tray_index
+      - gpu_module_id
+      - gpu_board_serial
+      - gpu_numa_node
+      - gpu_fabric_guid
       - gpu_host
   nvlink:
     tags:

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1747,11 +1748,17 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 	collector.initK8sResourcesMetaAsTags(
 		map[string]map[string]string{
+			"pods": {
+				"team": "team",
+			},
 			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
 				"team": "workload_team",
 			},
 		},
 		map[string]map[string]string{
+			"pods": {
+				"workload-owner": "workload_owner",
+			},
 			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
 				"owner": "workload_owner",
 			},
@@ -1775,6 +1782,13 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 			},
 			QueueName:        "batch",
 			ClusterQueueName: "cluster-batch",
+			PodTemplateLabels: map[string]string{
+				"team":       "ccm-allocation",
+				"spark-role": "driver",
+			},
+			PodTemplateAnnotations: map[string]string{
+				"workload-owner": "gpu-monitoring",
+			},
 			PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 				{Name: "main", Flavors: map[string]string{"cpu": "default", "nvidia.com/gpu": "a100"}},
 				{Name: "sidecar", Flavors: map[string]string{"cpu": "default"}},
@@ -1802,6 +1816,8 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				"kueue_local_queue:batch",
 				"kueue_resource_flavor:a100",
 				"kueue_resource_flavor:default",
+				"team:ccm-allocation",
+				"workload_owner:gpu-monitoring",
 				"workload_owner:team-a",
 				"workload_team:ml",
 			},
@@ -1916,6 +1932,12 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 				},
 				QueueName:        "batch",
 				ClusterQueueName: "cluster-batch",
+				PodTemplateLabels: map[string]string{
+					"team": "ccm-allocation",
+				},
+				PodTemplateAnnotations: map[string]string{
+					"workload-owner": "gpu-monitoring",
+				},
 				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 					{Name: "other", Flavors: map[string]string{"nvidia.com/gpu": "h100"}},
@@ -1950,6 +1972,12 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 
 			cfg := configmock.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector.initK8sResourcesMetaAsTags(
+				map[string]map[string]string{
+					"pods": {"team": "team"},
+				},
+				nil,
+			)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
@@ -1987,7 +2015,9 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 					"kueue_cluster_queue:cluster-batch",
 					"kueue_local_queue:batch",
 					"kueue_resource_flavor:a100",
+					"team:ccm-allocation",
 				})
+				assert.NotContains(t, tagInfo.LowCardTags, "workload-owner:gpu-monitoring")
 				assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
 					"kueue_workload:job-sample",
 				})
@@ -2367,6 +2397,104 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	t.Fatal("container tag info not found")
 }
 
+func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
+	const (
+		namespace    = "team-a"
+		podGroupName = "pg-train"
+		containerID  = "container-id"
+	)
+	podTaggerID := types.NewEntityID(types.KubernetesPodUID, "pod-uid")
+	containerTaggerID := types.NewEntityID(types.ContainerID, containerID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"podgroups.scheduling.run.ai": {"team": "kai_team"}}`)
+	collectorCh := make(chan []*types.TagInfo, 10)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, &fakeProcessor{collectorCh})
+
+	process := func(ev workloadmeta.Event) map[types.EntityID]*types.TagInfo {
+		collector.processEvents(workloadmeta.EventBundle{Events: []workloadmeta.Event{ev}, Ch: make(chan struct{})})
+		tagInfos := make(map[types.EntityID]*types.TagInfo)
+		for len(collectorCh) > 0 {
+			for _, tagInfo := range <-collectorCh {
+				tagInfos[tagInfo.EntityID] = tagInfo
+			}
+		}
+		return tagInfos
+	}
+	setPodGroup := func(podGroupNamespace, queue string) map[types.EntityID]*types.TagInfo {
+		podGroup := &workloadmeta.KubernetesKAIPodGroup{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesKAIPodGroup,
+				ID:   workloadmeta.GenerateKAIPodGroupEntityID(podGroupNamespace, podGroupName),
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      podGroupName,
+				Namespace: podGroupNamespace,
+				Labels:    map[string]string{"team": "ml"},
+			},
+			QueueName: queue,
+		}
+		store.Set(podGroup)
+		return process(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: podGroup})
+	}
+	assertKAITags := func(tagInfos map[types.EntityID]*types.TagInfo, expected []string) {
+		t.Helper()
+		for _, entityID := range []types.EntityID{podTaggerID, containerTaggerID} {
+			require.Contains(t, tagInfos, entityID)
+			var kaiTags []string
+			for _, tag := range append(tagInfos[entityID].LowCardTags, tagInfos[entityID].OrchestratorCardTags...) {
+				if strings.HasPrefix(tag, "kube_scheduler") || strings.HasPrefix(tag, "kai_") {
+					kaiTags = append(kaiTags, tag)
+				}
+			}
+			assert.ElementsMatch(t, expected, kaiTags, "tags of %s", entityID)
+		}
+	}
+	podLabelTags := []string{"kube_scheduler:kai", "kube_scheduler_queue:label-queue", "kai_queue:label-queue"}
+	podGroupTags := func(queue string) []string {
+		return []string{
+			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
+			"kube_scheduler_workload:" + podGroupName, "kai_workload:" + podGroupName, "kai_team:ml",
+		}
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podTaggerID.GetID()},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pod",
+			Namespace:   namespace,
+			Labels:      map[string]string{kubernetes.KAIQueueLabelKey: "label-queue"},
+			Annotations: map[string]string{kubernetes.KAIPodGroupAnnotationKey: podGroupName},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "main"}},
+	}
+	store.Set(&workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}})
+	store.Set(pod)
+	podEvent := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}
+
+	// The pod arrives before its PodGroup.
+	assertKAITags(process(podEvent), podLabelTags)
+
+	// A PodGroup with the same name in another namespace is not the pod's.
+	assert.Empty(t, setPodGroup("team-b", "other-queue"))
+
+	assertKAITags(setPodGroup(namespace, "queue-a"), podGroupTags("queue-a"))
+	assertKAITags(setPodGroup(namespace, "queue-b"), podGroupTags("queue-b"))
+
+	// The pod arrives after its PodGroup.
+	assertKAITags(process(podEvent), podGroupTags("queue-b"))
+
+	podGroup, err := store.GetKubernetesKAIPodGroup(workloadmeta.GenerateKAIPodGroupEntityID(namespace, podGroupName))
+	require.NoError(t, err)
+	store.Unset(podGroup)
+	assertKAITags(process(workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: podGroup}), podLabelTags)
+}
+
 func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
@@ -2446,6 +2574,127 @@ func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 				}
 				for _, tag := range tagInfo.HighCardTags {
 					assert.False(t, strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
+	}
+}
+
+func TestKubeAIInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		owners       []workloadmeta.KubernetesPodOwner
+		labels       map[string]string
+		wantWorkload string
+	}{
+		{
+			name: "KubeAI Model owner without labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "owner name takes priority over labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			labels: map[string]string{
+				"kubeai.org/model":                  "other-model",
+				"model":                             "legacy-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
+				kubernetes.KubeAppComponentLabelKey: "server",
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "KubeAI Model among other owners",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "ReplicaSet", Group: "apps", Name: "model-1234"},
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "Model from another API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
+			},
+		},
+		{
+			name:   "Model without API group",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Name: "other-model"}},
+		},
+		{
+			name: "other kind in KubeAI API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Other", Group: "kubeai.org", Name: "other-model"},
+			},
+		},
+		{
+			name:   "empty Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org"}},
+		},
+		{
+			name:   "blank Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org", Name: " "}},
+		},
+		{
+			name: "labels without Model owner",
+			labels: map[string]string{
+				"kubeai.org/model":                  "my-model",
+				"model":                             "my-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
+			},
+		},
+		{name: "no owners or labels"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "kubeai-server-container"
+			const podID = "kubeai-model-pod"
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podID},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "model-my-model", Namespace: "inference", Labels: tt.labels,
+					},
+					Owners:     tt.owners,
+					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "server"}},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			assert.Equal(t, types.NewEntityID(types.KubernetesPodUID, podID), tagInfos[0].EntityID)
+			assert.Equal(t, types.NewEntityID(types.ContainerID, containerID), tagInfos[1].EntityID)
+			for _, tagInfo := range tagInfos {
+				var inferenceTags []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+						inferenceTags = append(inferenceTags, tag)
+					}
+				}
+				var expected []string
+				if tt.wantWorkload != "" {
+					expected = []string{"inference_workload:" + tt.wantWorkload, "inference_workload_component:inference"}
+				}
+				assert.ElementsMatch(t, expected, inferenceTags)
+				for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
 				}
 			}
 		})
@@ -2540,6 +2789,141 @@ func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cluster       string
+		serve         string
+		nodeType      string
+		group         string
+		image         string
+		wantWorkload  string
+		wantComponent string
+	}{
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated", wantComponent: "aggregated"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated", wantComponent: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated", wantComponent: "prefill"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "custom group", cluster: "serve", serve: "true", nodeType: "worker", group: "gpu-workers", wantWorkload: "serve", wantComponent: "gpu-workers"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no group", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no node type", cluster: "serve", serve: "true", group: "decode", wantWorkload: "serve"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "batch", cluster: "batch", nodeType: "worker", group: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head excluded from traffic", cluster: "serve", serve: "false", nodeType: "head", wantWorkload: "serve", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no cluster", serve: "true", nodeType: "worker", group: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "unrelated pod"},
+		{name: "generic Ray Serve", image: "rayproject/ray:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", group: "decode"},
+		{name: "Ray ML", image: "rayproject/ray-ml:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "custom registry", image: "example.com/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom namespace", image: "docker.io/example/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom Ray LLM image", image: "rayproject/ray-llm-custom:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "private Ray LLM service", image: "example.com/team/llm/apps/ray-llm-service:vllm-stable-nydus@sha256:0123456789abcdef", cluster: "nlq-mixed-nqlnx", serve: "true", nodeType: "worker", group: "a10", wantWorkload: "nlq-mixed", wantComponent: "a10"},
+		{name: "vLLM image", image: "vllm/vllm-openai:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom vLLM image", image: "example.com/team/custom-vllm-server:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "LLM registry only", image: "ray-llm.example.com/team/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM namespace only", image: "example.com/vllm/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM tag only", image: "example.com/team/ray:vllm-stable-nydus", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "generic LLM image", image: "example.com/team/llm-training:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "vLLM without Serve", image: "vllm/vllm-openai:latest", cluster: "batch", nodeType: "worker"},
+		{name: "missing image", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "explicit Docker Hub", image: "docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "Docker Hub index", image: "index.docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "Docker Hub registry", image: "registry-1.docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "digest", image: "rayproject/ray-llm@sha256:0123456789abcdef", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "ray-container"
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+			var image workloadmeta.ContainerImage
+			if tt.image != "" {
+				var err error
+				image, err = workloadmeta.NewContainerImage("", tt.image)
+				require.NoError(t, err)
+			}
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			pod := &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "ray-pod"},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "ray-pod", Namespace: "ray",
+					Labels: map[string]string{
+						kubernetes.RayClusterLabelKey:   tt.cluster,
+						kubernetes.RayServeLabelKey:     tt.serve,
+						kubernetes.RayNodeTypeLabelKey:  tt.nodeType,
+						kubernetes.RayNodeGroupLabelKey: tt.group,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "ray-worker", Image: image}},
+			}
+			check := func(wantWorkload, wantComponent string) {
+				tagInfos := collector.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: true})
+				require.Len(t, tagInfos, 2)
+				for _, tagInfo := range tagInfos {
+					var inferenceTags []string
+					for _, tag := range tagInfo.LowCardTags {
+						if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+							inferenceTags = append(inferenceTags, tag)
+						}
+					}
+					var expected []string
+					if wantWorkload != "" {
+						expected = append(expected, "inference_workload:"+wantWorkload)
+					}
+					if wantComponent != "" {
+						expected = append(expected, "inference_workload_component:"+wantComponent)
+					}
+					assert.ElementsMatch(t, expected, inferenceTags)
+					for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+						assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+					}
+				}
+			}
+			if tt.serve == "" {
+				delete(pod.Labels, kubernetes.RayServeLabelKey)
+			}
+			check(tt.wantWorkload, tt.wantComponent)
+			// Changes to traffic readiness must not change workload identity.
+			if tt.serve != "" {
+				pod.Labels[kubernetes.RayServeLabelKey] = "false"
+				check(tt.wantWorkload, tt.wantComponent)
+				pod.Labels[kubernetes.RayServeLabelKey] = "true"
+				check(tt.wantWorkload, tt.wantComponent)
+			}
+			// A change to a generic Ray image must remove the inference tags.
+			pod.Containers[0].Image = workloadmeta.ContainerImage{Name: "rayproject/ray"}
+			check("", "")
+			pod.Containers[0].Image = image
+			// Removing RayService identity must remove the inference tags.
+			delete(pod.Labels, kubernetes.RayServeLabelKey)
+			check("", "")
+		})
+	}
+}
+
+func TestRayLLMContainerIdentification(t *testing.T) {
+	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{}))
+	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{
+		Containers: []workloadmeta.OrchestratorContainer{
+			{Name: "ray-worker", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
+			{Name: "sidecar", Image: workloadmeta.ContainerImage{Name: "vllm/vllm-openai"}},
+		},
+	}))
+	for _, name := range []string{"ray-head", "ray-worker", "llm", "custom-ray"} {
+		assert.True(t, isRayLLMPod(&workloadmeta.KubernetesPod{
+			Containers: []workloadmeta.OrchestratorContainer{
+				{Name: name, Image: workloadmeta.ContainerImage{Name: "rayproject/ray-llm"}},
+				{Name: "autoscaler", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
+			},
+		}))
 	}
 }
 
@@ -4468,6 +4852,7 @@ func TestHandleGPU(t *testing.T) {
 	}
 
 	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+	numaNode := 0
 
 	tests := []struct {
 		name     string
@@ -4487,6 +4872,13 @@ func TestHandleGPU(t *testing.T) {
 				PCIBusID:          "0000:00:1e.0",
 				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
 				FabricCliqueID:    7,
+				ChassisSerial:     "1821825880999",
+				SlotNumber:        20,
+				TrayIndex:         10,
+				ModuleID:          2,
+				BoardSerial:       "1650825051135",
+				NUMANode:          &numaNode,
+				FabricGUID:        "0x8505c454f59170d4",
 				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
@@ -4509,6 +4901,13 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_nvlink_capable:true",
 						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
 						"gpu_fabric_clique_id:7",
+						"gpu_chassis_serial:1821825880999",
+						"gpu_slot_number:20",
+						"gpu_tray_index:10",
+						"gpu_module_id:2",
+						"gpu_board_serial:1650825051135",
+						"gpu_numa_node:0",
+						"gpu_fabric_guid:0x8505c454f59170d4",
 					},
 					StandardTags: []string{},
 				},
@@ -4967,6 +5366,217 @@ type fakeProcessor struct {
 
 func (p *fakeProcessor) ProcessTagInfo(tagInfos []*types.TagInfo) {
 	p.ch <- tagInfos
+}
+
+func TestHandleContainerPromotesProcessTags(t *testing.T) {
+	const containerID = "container-id"
+
+	tests := []struct {
+		name              string
+		gpuTracingEnabled bool
+		processTags       []string
+		expected          []string
+	}{
+		{
+			name:              "processes agree",
+			gpuTracingEnabled: true,
+			processTags: []string{
+				"training_run_id:run-1,training_group_id:group-1",
+				"training_run_id:run-1,training_group_id:group-1",
+			},
+			expected: []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "gpu tracing disabled",
+			gpuTracingEnabled: false,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1"},
+		},
+		{
+			name:              "conflicting values block only that tag",
+			gpuTracingEnabled: true,
+			processTags: []string{
+				"training_run_id:run-1,training_group_id:group-1",
+				"training_run_id:run-2,training_group_id:group-1",
+			},
+			expected: []string{"training_group_id:group-1"},
+		},
+		{
+			name:              "process without tags does not block promotion",
+			gpuTracingEnabled: true,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1", ""},
+			expected:          []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "process with only unrelated tags does not block promotion",
+			gpuTracingEnabled: true,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1", "foo:bar"},
+			expected:          []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "tags outside the allowlist are not promoted",
+			gpuTracingEnabled: true,
+			processTags:       []string{"foo:bar"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := newProcessTagPromotionStore(t)
+			for i, processTags := range test.processTags {
+				store.Set(newProcessWithTags(int32(i+1), containerID, processTags))
+			}
+			store.Set(newProcessWithTags(100, "other-container", "training_run_id:other"))
+
+			cfg := configmock.New(t)
+			cfg.SetInTest("gpu.tracing.enabled", test.gpuTracingEnabled)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleContainer(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+				},
+			})
+
+			require.Len(t, actual, 1)
+			assert.ElementsMatch(t, test.expected, actual[0].LowCardTags)
+		})
+	}
+}
+
+func TestProcessEventsRetagsProcessContainer(t *testing.T) {
+	const containerID = "container-id"
+
+	store := newProcessTagPromotionStore(t)
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	})
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("gpu.tracing.enabled", true)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collectorCh := make(chan []*types.TagInfo, 10)
+	collector.tagProcessor = &fakeProcessor{collectorCh}
+
+	process := newProcessWithTags(1, containerID, "training_run_id:run-1")
+	store.Set(process)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: process}},
+		Ch:     make(chan struct{}),
+	})
+	assert.Contains(t, containerLowCardTags(t, <-collectorCh, containerID), "training_run_id:run-1")
+
+	store.Unset(process)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: process}},
+		Ch:     make(chan struct{}),
+	})
+	assert.NotContains(t, containerLowCardTags(t, <-collectorCh, containerID), "training_run_id:run-1")
+}
+
+func TestProcessEventsRetagsOnlyAffectedContainers(t *testing.T) {
+	const (
+		containerID      = "container-id"
+		otherContainerID = "other-container-id"
+	)
+
+	tests := []struct {
+		name             string
+		process          *workloadmeta.Process
+		expectedRetagged []string
+	}{
+		{
+			name:             "process with promotable tags",
+			process:          newProcessWithTags(1, containerID, "training_run_id:run-1"),
+			expectedRetagged: []string{containerID},
+		},
+		{
+			name:    "process without promotable tags",
+			process: newProcessWithTags(1, containerID, "foo:bar"),
+		},
+		{
+			name:             "process in another container",
+			process:          newProcessWithTags(1, otherContainerID, "training_run_id:run-1"),
+			expectedRetagged: []string{otherContainerID},
+		},
+		{
+			name:    "process in a container missing from the store",
+			process: newProcessWithTags(1, "missing-container-id", "training_run_id:run-1"),
+		},
+		{
+			name:    "process outside a container",
+			process: newProcessWithTags(1, "", "training_run_id:run-1"),
+		},
+	}
+
+	for _, test := range tests {
+		for eventName, eventType := range map[string]workloadmeta.EventType{"set": workloadmeta.EventTypeSet, "unset": workloadmeta.EventTypeUnset} {
+			t.Run(test.name+"/"+eventName, func(t *testing.T) {
+				store := newProcessTagPromotionStore(t)
+				for _, id := range []string{containerID, otherContainerID} {
+					store.Set(&workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+					})
+				}
+
+				cfg := configmock.New(t)
+				cfg.SetInTest("gpu.tracing.enabled", true)
+				collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+				collectorCh := make(chan []*types.TagInfo, 1)
+				collector.tagProcessor = &fakeProcessor{collectorCh}
+
+				collector.processEvents(workloadmeta.EventBundle{
+					Events: []workloadmeta.Event{{Type: eventType, Entity: test.process}},
+					Ch:     make(chan struct{}),
+				})
+				close(collectorCh)
+
+				var retagged []string
+				for tagInfos := range collectorCh {
+					for _, tagInfo := range tagInfos {
+						if tagInfo.Source == containerSource {
+							retagged = append(retagged, tagInfo.EntityID.GetID())
+						}
+					}
+				}
+				assert.ElementsMatch(t, test.expectedRetagged, retagged)
+			})
+		}
+	}
+}
+
+func newProcessTagPromotionStore(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
+func newProcessWithTags(pid int32, containerID string, processTags string) *workloadmeta.Process {
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.Itoa(int(pid))},
+		Pid:      pid,
+	}
+	if containerID != "" {
+		process.Owner = &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}
+	}
+	if processTags != "" {
+		process.Service = &workloadmeta.Service{
+			TracerMetadata: []tracermetadata.TracerMetadata{{ProcessTags: processTags}},
+		}
+	}
+	return process
+}
+
+func containerLowCardTags(t *testing.T, tagInfos []*types.TagInfo, containerID string) []string {
+	for _, tagInfo := range tagInfos {
+		if tagInfo.Source == containerSource && tagInfo.EntityID == types.NewEntityID(types.ContainerID, containerID) {
+			return tagInfo.LowCardTags
+		}
+	}
+	t.Fatalf("no tag info for container %s", containerID)
+	return nil
 }
 
 func TestHandlePodWithDeletedContainer(t *testing.T) {
@@ -5909,6 +6519,30 @@ func TestHandleProcess(t *testing.T) {
 				require.Len(t, result, 1)
 				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
 			}
+		})
+	}
+}
+
+func TestRayClusterWorkloadName(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		want string
+	}{
+		{name: "nlq-mixed-nqlnx", want: "nlq-mixed"},
+		{name: "nlq-mixed-24567", want: "nlq-mixed"},
+		{name: "nlq-mixed-nqlnx-bcdfg", want: "nlq-mixed-nqlnx"},
+		{name: "nlq-mixed", want: "nlq-mixed"},
+		{name: "nlq-mixed-abcde", want: "nlq-mixed-abcde"},
+		{name: "nlq-mixed-12345", want: "nlq-mixed-12345"},
+		{name: "nlq-mixed-bcdf", want: "nlq-mixed-bcdf"},
+		{name: "nlq-mixed-bcdfgh", want: "nlq-mixed-bcdfgh"},
+		{name: "nlq-mixed-", want: "nlq-mixed-"},
+		{name: "-bcdfg", want: "-bcdfg"},
+		{name: "bcdfg", want: "bcdfg"},
+		{name: "", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, rayClusterWorkloadName(tt.name))
 		})
 	}
 }

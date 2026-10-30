@@ -12,6 +12,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,6 +33,7 @@ import (
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	sbomtelemetry "github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -72,6 +74,7 @@ type processor struct {
 	hostSBOM              bool
 	procfsSBOM            bool
 	hostname              string
+	hostCCRID             func() string // Returns the CCRID of the host, "" when it has none
 	hostCache             string
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
@@ -157,11 +160,28 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		hostSBOM:              hostSBOM,
 		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
+		hostCCRID:             sync.OnceValue(func() string { return fetchHostCCRID(cfg) }),
 		hostHeartbeatValidity: hostHeartbeatValidity,
 		usageEnrichment:       sbom.UsageEnrichmentEnabled(cfg),
 		heldImages:            make(map[string]time.Time),
 		imagesWaited:          make(map[string]struct{}),
 	}, nil
+}
+
+// hostCCRIDFetchTimeout bounds the cloud provider metadata queries needed to
+// resolve the host CCRID.
+const hostCCRIDFetchTimeout = 10 * time.Second
+
+// fetchHostCCRID returns the CCRID of the host, or "" when the host does not
+// run on a supported cloud provider or when collect_ccrid is disabled.
+func fetchHostCCRID(cfg config.Component) string {
+	if !cfg.GetBool("collect_ccrid") {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), hostCCRIDFetchTimeout)
+	defer cancel()
+	cloudProvider, _ := cloudproviders.DetectCloudProvider(ctx, false)
+	return cloudproviders.GetHostCCRID(ctx, cloudProvider)
 }
 
 func isProcfsSBOMEnabled(cfg config.Component) bool {
@@ -250,7 +270,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			continue
 		}
 
-		if p.procfsSBOM {
+		if p.procfsSBOM && container.State.Running {
 			if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
 				p.triggerProcfsScan(container)
 			}
@@ -384,6 +404,9 @@ func (p *processor) sendHostScanResult(result sbom.ScanResult) {
 		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
 		CpuArchitecture:    info.KernelArch,
 		KernelVersion:      info.KernelVersion,
+	}
+	if p.hostCCRID != nil {
+		sbom.Ccrid = p.hostCCRID()
 	}
 
 	if result.Error != nil {
@@ -602,6 +625,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 		log.Debugf("The SBOM of image %s waits for the runtime usage of the image", img.ID)
 		return
 	}
+
+	// The copy of the SBOM that runtime usage merges into keeps the repo tags
+	// and digests the image had at the first merge, so take those it has now.
+	cyclosbom = sbomutil.UpdateSBOMRepoMetadata(cyclosbom, img.RepoTags, img.RepoDigests)
 
 	// UncompressSBOM returns a BOM of its own, which every repo entity shares.
 	if cyclosbom.Status == workloadmeta.Success && sbomutil.UsageWindowOpen(cyclosbom.CycloneDXBOM, p.now(), p.imageUsageWindow) {

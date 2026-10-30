@@ -1,4 +1,21 @@
 profiles:
+- name: par-phone-home
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: par_phone_home.state
+        preserve_tags:
+          - state
+          - reason
+      - name: par_phone_home.transitions
+        preserve_tags:
+          - state
+          - reason
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: checks
   metric:
     exclude:
@@ -91,9 +108,6 @@ profiles:
         preserve_tags:
           - truncated
           - line_type
-      - name: logs.auto_multi_line_default_total_lines
-      - name: logs.auto_multi_line_default_would_combine
-      - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
       - name: points.sent
         preserve_tags:
@@ -101,6 +115,14 @@ profiles:
       - name: points.dropped
         preserve_tags:
           - domain
+      # Metadata payloads over the serializer size limits are dropped before
+      # reaching the forwarder, so they are invisible from intake.
+      - name: serializer.metadata_payload_dropped
+        preserve_tags:
+          - reason
+      - name: serializer.metadata_payload_dropped_bytes
+        preserve_tags:
+          - compressed
       - name: transactions.input_count
         preserve_tags:
           - domain
@@ -128,6 +150,37 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+# Intake routing (comp/intakerouting) serves every telemetry type, so it is not part of logs-and-metrics.
+- name: intake-routing
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: intake_routing.queries
+        preserve_tags:
+          - status
+      - name: intake_routing.preflights
+        preserve_tags:
+          - status
+      - name: intake_routing.switches
+        preserve_tags:
+          - telemetry_type
+          - direction
+      - name: intake_routing.rejected_answers
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.skipped_endpoints
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.active_overrides
+        preserve_tags:
+          - telemetry_type
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: agent-performance
   metric:
     exclude:
@@ -137,23 +190,29 @@ profiles:
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.container_terminated
         preserve_tags:
           - kind
           - pod_name
+          - container_name
           - reason
+          - exit_code
       - name: agent_performance.memory_usage
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.memory_limit
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.cpu_usage
         preserve_tags:
           - kind
           - pod_name
+          - container_name
   schedule:
     start_after: 30
     iterations: 0
@@ -518,6 +577,7 @@ profiles:
         preserve_tags:
           - section
           - status
+      - name: metadata_streaming.history_resyncs
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind
@@ -549,27 +609,92 @@ profiles:
       zero_metric: true
     metrics:
       - name: injector.processes_added_to_injection_tracker
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_removed_from_injection_tracker
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_subsystem
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_container
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_protected
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_system
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_excluded
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_attempts
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_attempt_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_max_time_us
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_successes
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_caching_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.import_directory_restoration_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_memory_allocation_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_injection_context_allocated
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_injection_context_cleanedup
+        preserve_tags:
+          - ddinjector_version
       - name: injector.crashes_during_injection
+        preserve_tags:
+          - ddinjector_version
       - name: injector.crashes_post_injection
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_crash_boots_detected
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_driver_self_disabled
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_stability_timer_fired
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_automatically_added_to_skip_list
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_default
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_custom
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_crash_recovery
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_signature_policy
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_signature_policy_unknown
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_short_name
+        preserve_tags:
+          - ddinjector_version
   schedule:
     start_after: 30
     iterations: 0

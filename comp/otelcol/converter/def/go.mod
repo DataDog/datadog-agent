@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/converter/def
 
 go 1.26.0
 
-require go.opentelemetry.io/collector/confmap v1.68.0
+require go.opentelemetry.io/collector/confmap v1.70.0
 
 require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -10,10 +10,10 @@ require (
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/knadh/koanf/maps v0.1.3 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.1 // indirect
-	github.com/knadh/koanf/v2 v2.3.6 // indirect
+	github.com/knadh/koanf/v2 v2.3.8 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
-	go.opentelemetry.io/collector/featuregate v1.68.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.70.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
@@ -114,6 +114,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../pkg/config/setup/constants
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../../../pkg/config/setup/generatedsettings_local
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../pkg/discovery/tracermetadata/model

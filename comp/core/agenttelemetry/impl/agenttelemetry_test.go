@@ -704,10 +704,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 22 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, troubleshooting).
+	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, troubleshooting).
 	// troubleshooting is scheduled like any other profile; it is skipped at
 	// collection time while its remote flag is off.
-	assert.Equal(t, 22, totalProfiles)
+	assert.Equal(t, 24, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -3071,6 +3071,30 @@ func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	assert.ElementsMatch(t, []string{"section", "status"}, metrics["instrumentation_controller.reconciliations"])
 }
 
+func TestAgentPerformanceProfilePreservesContainerTags(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, defaultProfiles)
+	atCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+
+	for _, profile := range atCfg.Profiles {
+		if profile.Name != "agent-performance" {
+			continue
+		}
+		require.NotNil(t, profile.Metric)
+		terminatedMetricFound := false
+		for _, metric := range profile.Metric.Metrics {
+			assert.Contains(t, metric.PreserveTags, "container_name", metric.Name)
+			if metric.Name == "agent_performance.container_terminated" {
+				terminatedMetricFound = true
+				assert.Contains(t, metric.PreserveTags, "exit_code")
+			}
+		}
+		require.True(t, terminatedMetricFound)
+		return
+	}
+	t.Fatal("agent-performance profile is missing")
+}
+
 // TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
 //
 // The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these
@@ -3543,6 +3567,46 @@ func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
 	names = collectMetricNames(t, a, sndr)
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
+}
+
+// TestShippedIntakeRoutingProfile checks that the shipped intake-routing profile collects every
+// metric of comp/intakerouting, with its tags. The names and labels below must match
+// comp/intakerouting/impl/telemetry.go.
+func TestShippedIntakeRoutingProfile(t *testing.T) {
+	tel := makeTelMock(t)
+	tel.NewCounter("intake_routing", "queries", []string{"status"}, "").Inc("success")
+	tel.NewCounter("intake_routing", "preflights", []string{"status"}, "").Inc("failure")
+	tel.NewCounter("intake_routing", "switches", []string{"telemetry_type", "direction"}, "").Inc("logs", "to_enhanced")
+	tel.NewCounter("intake_routing", "rejected_answers", []string{"telemetry_type", "reason"}, "").Inc("logs", "invalid_host")
+	tel.NewCounter("intake_routing", "skipped_endpoints", []string{"telemetry_type", "reason"}, "").Inc("logs", "private_address")
+	tel.NewGauge("intake_routing", "active_overrides", []string{"telemetry_type"}, "").Set(1, "logs")
+
+	sndr := &senderMock{}
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
+	require.True(t, a.enabled, "default profiles must parse and compile")
+
+	sndr.sentMetrics = nil
+	_, err := a.loadPayloads(a.atelCfg.Profiles)
+	require.NoError(t, err)
+
+	collected := make(map[string]map[string]string)
+	for _, m := range sndr.sentMetrics {
+		if !strings.HasPrefix(m.name, "intake_routing.") {
+			continue
+		}
+		require.Len(t, m.metrics, 1, m.name)
+		labels := metricLabels(m.metrics[0])
+		delete(labels, "emitter")
+		collected[m.name] = labels
+	}
+	assert.Equal(t, map[string]map[string]string{
+		"intake_routing.queries":           {"status": "success"},
+		"intake_routing.preflights":        {"status": "failure"},
+		"intake_routing.switches":          {"telemetry_type": "logs", "direction": "to_enhanced"},
+		"intake_routing.rejected_answers":  {"telemetry_type": "logs", "reason": "invalid_host"},
+		"intake_routing.skipped_endpoints": {"telemetry_type": "logs", "reason": "private_address"},
+		"intake_routing.active_overrides":  {"telemetry_type": "logs"},
+	}, collected)
 }
 
 func TestDetectedFeatures(t *testing.T) {

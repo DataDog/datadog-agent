@@ -330,6 +330,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Kubernetes pod UID"
                 },
+                "ecs_task_id": {
+                    "type": "string",
+                    "description": "ECS task ID"
+                },
                 "source": {
                     "type": "string",
                     "description": "Source of the container entry (event or procfs)"
@@ -3207,6 +3211,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Kubernetes pod UID"
         },
+        "ecs_task_id": {
+            "type": "string",
+            "description": "ECS task ID"
+        },
         "source": {
             "type": "string",
             "description": "Source of the container entry (event or procfs)"
@@ -3232,6 +3240,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `id` | Container ID |
 | `pod_uid` | Kubernetes pod UID |
+| `ecs_task_id` | ECS task ID |
 | `source` | Source of the container entry (event or procfs) |
 | `created_at` | Creation time of the container |
 | `variables` | Variable values |

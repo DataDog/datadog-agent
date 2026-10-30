@@ -153,6 +153,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -748,6 +753,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -1226,6 +1236,11 @@
           "name": "process.parent.container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
+          "name": "process.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
         },
         {
           "name": "process.parent.container.id",
@@ -2951,6 +2966,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exec.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exec.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -3603,6 +3623,11 @@
           "name": "exit.container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
+          "name": "exit.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
         },
         {
           "name": "exit.container.id",
@@ -5643,6 +5668,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -6238,6 +6268,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -6716,6 +6751,11 @@
           "name": "ptrace.tracee.parent.container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
         },
         {
           "name": "ptrace.tracee.parent.container.id",
@@ -8092,6 +8132,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -8687,6 +8732,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -9165,6 +9215,11 @@
           "name": "setrlimit.target.parent.container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
         },
         {
           "name": "setrlimit.target.parent.container.id",
@@ -10118,6 +10173,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -10713,6 +10773,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -11191,6 +11256,11 @@
           "name": "signal.target.parent.container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
+          "name": "signal.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
         },
         {
           "name": "signal.target.parent.container.id",
@@ -12901,6 +12971,31 @@
       "prefixes": [
         "network_flow_monitor.flows.egress",
         "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ecs_task_id",
+      "link": "common-containercontext-ecs_task_id-doc",
+      "type": "string",
+      "definition": "ECS task ID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",

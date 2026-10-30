@@ -9,6 +9,7 @@ package otelagent
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	pulumicorev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -47,16 +52,25 @@ var dogtelStandaloneConfig string
 // attribute enrichment independently of a co-located core Datadog Agent.
 type dogtelStandaloneTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
+
+	// workloadmetaCollector is the workloadmeta collector expected to feed the
+	// tagger with pods: "kubelet" or "nodefilter".
+	workloadmetaCollector string
 }
 
-// dogtelStandaloneProvisioner returns the appropriate provisioner based on the
+// dogtelStandaloneProvisioner provisions a cluster running the standalone
+// otel-agent with dogtel-standalone.yml, customised by appOpts.
+func dogtelStandaloneProvisioner(appOpts ...otelstandalone.AppOption) provisioners.TypedProvisioner[environments.Kubernetes] {
+	return standaloneOTelAgentProvisioner(func(e config.Env, kubeProvider *kubernetes.Provider, fi *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error) {
+		return otelstandalone.K8sAppDefinition(e, kubeProvider, "datadog", dogtelStandaloneConfig, fi, appOpts...)
+	})
+}
+
+// standaloneOTelAgentProvisioner returns the appropriate provisioner based on the
 // E2E_DEV_LOCAL / E2E_PROVISIONER config, mirroring the SSI test pattern.
 // - kind-local (or E2E_DEV_LOCAL=true): uses a local KinD cluster
 // - default: uses KinD-on-EC2 (AWS)
-func dogtelStandaloneProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
-	deployFn := func(e config.Env, kubeProvider *kubernetes.Provider, fi *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error) {
-		return otelstandalone.K8sAppDefinition(e, kubeProvider, "datadog", dogtelStandaloneConfig, fi)
-	}
+func standaloneOTelAgentProvisioner(deployFn func(config.Env, *kubernetes.Provider, *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)) provisioners.TypedProvisioner[environments.Kubernetes] {
 	if isKindLocal() {
 		return provlocal.Provisioner(
 			provlocal.WithStandaloneOTelAgent(deployFn),
@@ -64,6 +78,8 @@ func dogtelStandaloneProvisioner() provisioners.TypedProvisioner[environments.Ku
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 		),
 	)
@@ -85,19 +101,124 @@ func isKindLocal() bool {
 // The dogtel-standalone OTel config enables the dogtelextension with a tagger
 // gRPC server on port 15555.
 //
+// The otel-agent collects pods through its default kubelet workloadmeta
+// collector; the fixture's default RBAC grants the kubelet access this needs.
+//
 // The name is intentionally short (≤20 lowercase chars) to prevent Kubernetes
 // from truncating pod names: deployment name = "calendar-rest-go-" + lowercase(TestName).
 // Kubernetes truncates pod generateName at 57 chars, so RS names > 57 chars cause
 // pod names to omit part of the RS hash, breaking testInfraTags assertions.
 func TestDogtelStandalone(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &dogtelStandaloneTestSuite{},
+	e2e.Run(t, &dogtelStandaloneTestSuite{workloadmetaCollector: "kubelet"},
 		e2e.WithProvisioner(dogtelStandaloneProvisioner()),
 		e2e.WithCoverageRequired(map[string]bool{
 			"agent":      false,
 			"otel-agent": true,
 		}),
 	)
+}
+
+// dogtelNodefilterTestSuite runs the dogtelStandaloneTestSuite tests against a
+// standalone otel-agent opted in to the nodefilter workloadmeta collector,
+// which watches this node's pods through the API server, and whose
+// ClusterRole grants only the pod read access nodefilter documents: no kubelet
+// API access (nodes/proxy) the kubelet collector would need. It is a distinct
+// type so that it gets its own stack.
+type dogtelNodefilterTestSuite struct {
+	dogtelStandaloneTestSuite
+}
+
+// podReadRule grants the read access to pods that the nodefilter collector
+// (and the k8sobjects receiver in dogtel-standalone.yml) needs.
+func podReadRule() *rbacv1.PolicyRuleArgs {
+	return &rbacv1.PolicyRuleArgs{
+		ApiGroups: pulumi.StringArray{pulumi.String("")},
+		Resources: pulumi.StringArray{pulumi.String("pods")},
+		Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
+	}
+}
+
+// TestDogtelNodefilter is the entry point for the dogtelNodefilterTestSuite.
+// Its name is exactly 20 characters, the limit TestDogtelStandalone documents.
+//
+// The otel-agent opts in to nodefilter through the environment, while
+// TestDogtelTagParity covers the equivalent
+// extensions.dogtel.use_kubelet_collector key. It gets no DD_HOSTNAME, so that
+// it resolves its hostname as a deployment set up for the upstream collector
+// would have it: from the node name the fixture passes through the downward API
+// and the cluster name in OTEL_RESOURCE_ATTRIBUTES.
+func TestDogtelNodefilter(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &dogtelNodefilterTestSuite{dogtelStandaloneTestSuite{workloadmetaCollector: "nodefilter"}},
+		e2e.WithProvisioner(dogtelStandaloneProvisioner(
+			otelstandalone.WithClusterRoleRules(podReadRule()),
+			otelstandalone.WithoutDefaultHostname(),
+			otelstandalone.WithExtraEnvVars(
+				&pulumicorev1.EnvVarArgs{
+					Name:  pulumi.String("DD_OTELCOLLECTOR_STANDALONE_USE_KUBELET_COLLECTOR"),
+					Value: pulumi.String("false"),
+				},
+				&pulumicorev1.EnvVarArgs{
+					Name:  pulumi.String("OTEL_RESOURCE_ATTRIBUTES"),
+					Value: pulumi.String("k8s.cluster.name=" + dogtelNodefilterClusterName),
+				},
+			),
+		)),
+		e2e.WithCoverageRequired(map[string]bool{
+			"agent":      false,
+			"otel-agent": true,
+		}),
+	)
+}
+
+// dogtelNodefilterClusterName is the cluster name TestDogtelNodefilter gives
+// the otel-agent in OTEL_RESOURCE_ATTRIBUTES. It matches the k8s.cluster.name
+// that dogtel-standalone.yml sets on Kubernetes objects.
+const dogtelNodefilterClusterName = "dogtel-standalone-e2e"
+
+// TestDogtelHostnameWithoutKubelet checks that, without DD_HOSTNAME nor
+// kubelet access, the otel-agent names its host <node>-<cluster>, from the node
+// name it reads from the environment and the cluster name in
+// OTEL_RESOURCE_ATTRIBUTES. It looks at otel.ddot_collector.metrics.running,
+// which carries the agent's own hostname, unlike the telemetry it forwards,
+// whose hostname comes from that telemetry's k8s.node.name.
+func (s *dogtelNodefilterTestSuite) TestDogtelHostnameWithoutKubelet() {
+	appLabel := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
+	})
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), res.Items, "no otel-agent pod found with app label %q", appLabel)
+	want := res.Items[0].Spec.NodeName + "-" + dogtelNodefilterClusterName
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("otel.ddot_collector.metrics.running")
+		require.NoError(c, err)
+		require.NotEmpty(c, metrics, "expected otel.ddot_collector.metrics.running from standalone otel-agent")
+		var hosts []string
+		for _, metric := range metrics {
+			for _, resource := range metric.Resources {
+				if resource.Type == "host" {
+					hosts = append(hosts, resource.Name)
+				}
+			}
+		}
+		assert.Contains(c, hosts, want)
+	}, 5*time.Minute, 10*time.Second, "otel.ddot_collector.metrics.running not reported under hostname %q", want)
+}
+
+// TestDogtelNoKubeletAccess checks that the otel-agent's ServiceAccount can
+// list pods but can't reach the kubelet API, so that the enrichment the
+// inherited tests assert on can only come through nodefilter.
+func (s *dogtelNodefilterTestSuite) TestDogtelNoKubeletAccess() {
+	// The fixture names the ServiceAccount after the deployment, like the pods'
+	// app label.
+	sa := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	assert.True(s.T(), serviceAccountCan(s, "datadog", sa, authorizationv1.ResourceAttributes{Verb: "list", Resource: "pods"}),
+		"ServiceAccount %s should be allowed to list pods", sa)
+	assert.False(s.T(), serviceAccountCan(s, "datadog", sa, authorizationv1.ResourceAttributes{Verb: "get", Resource: "nodes", Subresource: "proxy"}),
+		"ServiceAccount %s should not be allowed to reach the kubelet API (get nodes/proxy)", sa)
 }
 
 var dogtelParams = utils.IAParams{
@@ -145,6 +266,12 @@ func (s *dogtelStandaloneTestSuite) TestDogtelLivenessMetric() {
 		// Already flushed since SetupSuite; the metric was verified there.
 		s.T().Log("Liveness metric was verified in SetupSuite; not yet re-emitted since last flush (no heartbeat)")
 	}
+}
+
+// TestDogtelWorkloadmetaCollector checks that the otel-agent collects pods
+// through the workloadmeta collector the suite expects, and not through both.
+func (s *dogtelStandaloneTestSuite) TestDogtelWorkloadmetaCollector() {
+	assertWorkloadmetaCollector(s, "datadog", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"], s.workloadmetaCollector)
 }
 
 // TestDogtelTaggerServerRunning confirms the tagger gRPC server is bound to
@@ -226,6 +353,8 @@ func dogtelCoexistProvisioner() provisioners.TypedProvisioner[environments.Kuber
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
 				kubernetesagentparams.WithNamespace(coreAgentNamespace),
@@ -291,6 +420,55 @@ func (s *dogtelCoexistTestSuite) TestCoreAgentMetricsReachFakeintake() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, "core agent should independently report datadog.agent.running to fakeintake")
 	}, 5*time.Minute, 10*time.Second, "core agent health metric not received")
+}
+
+// assertWorkloadmetaCollector checks, from the logs of the otel-agent pods
+// labelled app=appLabel in namespace, that workloadmeta started the want pod
+// collector and that the other one of kubelet and nodefilter stepped aside.
+func assertWorkloadmetaCollector(s utils.OTelTestSuite, namespace, appLabel, want string) {
+	other := "nodefilter"
+	if want == "nodefilter" {
+		other = "kubelet"
+	}
+	started := fmt.Sprintf("workloadmeta collector %q started successfully", want)
+	steppedAside := fmt.Sprintf("workloadmeta collector %q could not start", other)
+
+	pods := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		res, err := pods.List(context.Background(), metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
+		})
+		require.NoError(c, err)
+		require.NotEmpty(c, res.Items, "no pod found with app label %q in namespace %q", appLabel, namespace)
+		for _, pod := range res.Items {
+			logs, err := pods.GetLogs(pod.Name, &corev1.PodLogOptions{Container: "otel-agent"}).DoRaw(context.Background())
+			require.NoError(c, err)
+			// Keep only workloadmeta's collector lines, so that a failure prints
+			// those rather than the whole log.
+			var collectorLogs strings.Builder
+			for line := range strings.Lines(string(logs)) {
+				if strings.Contains(line, "workloadmeta collector") {
+					collectorLogs.WriteString(line)
+				}
+			}
+			assert.Contains(c, collectorLogs.String(), started, "pod %s", pod.Name)
+			assert.Contains(c, collectorLogs.String(), steppedAside, "pod %s", pod.Name)
+		}
+	}, 2*time.Minute, 10*time.Second)
+}
+
+// serviceAccountCan reports whether the Kubernetes API server authorizes the
+// ServiceAccount name in namespace to perform access.
+func serviceAccountCan(s utils.OTelTestSuite, namespace, name string, access authorizationv1.ResourceAttributes) bool {
+	review, err := s.Env().KubernetesCluster.Client().AuthorizationV1().SubjectAccessReviews().Create(context.Background(), &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			User:               fmt.Sprintf("system:serviceaccount:%s:%s", namespace, name),
+			Groups:             []string{"system:serviceaccounts", "system:serviceaccounts:" + namespace, "system:authenticated"},
+			ResourceAttributes: &access,
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(s.T(), err)
+	return review.Status.Allowed
 }
 
 func getPodByAppLabel(s *dogtelCoexistTestSuite, namespace, appLabel string) corev1.Pod {

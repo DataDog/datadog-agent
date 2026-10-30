@@ -14,7 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"slices"
 	"strconv"
 	"sync"
@@ -86,9 +85,6 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	}
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
-	}
-	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		size += probes.SyscallSamplesMaxEntries
 	}
 	if size == 0 {
 		// lru.New rejects non-positive sizes.
@@ -206,11 +202,14 @@ type ManagerV2 struct {
 	excludedCgroupsMap *ebpf.Map
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
-
-	excludedCgroupsMap, err := managerhelper.Map(ebpf, "excluded_cgroups")
-	if err != nil {
-		return nil, err
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfManager *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
+	var excludedCgroupsMap *ebpf.Map
+	if ebpfManager != nil {
+		var err error
+		excludedCgroupsMap, err = managerhelper.Map(ebpfManager, "excluded_cgroups")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if cfg.RuntimeSecurity.SecurityProfileV2ClearLocalProfilesOnStart {
@@ -401,7 +400,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	}
 
 	// Register listener for cgroup creations to exclude host/systemd cgroups from the syscall sampler
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
 			seclog.Errorf("failed to register cgroup creation listener: %v", err)
 		} else {
@@ -475,6 +474,9 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 // onCGroupCreated excludes host/systemd cgroups from the v2 syscall sampler and un-excludes
 // container cgroups (defensive against cgroup inode reuse).
 func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
+	if m.excludedCgroupsMap == nil {
+		return
+	}
 	inode := cgce.GetCGroupInode()
 
 	if cgce.IsContainerContextNull() {
@@ -493,7 +495,7 @@ func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
 
-	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if m.excludedCgroupsMap != nil && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		inode := cgce.GetCGroupInode()
 		if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Debugf("couldn't remove cgroup inode %d from exclusion map: %v", inode, err)
@@ -587,6 +589,15 @@ func (m *ManagerV2) persistAllProfiles() {
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	enabled := p.IsEnabled()
 
+	// Group sibling files into patterns before encoding, even in
+	// directories below the insert-time fan-out threshold.
+	p.Lock()
+	if p.ActivityTree != nil {
+		p.ActivityTree.FinalizePatterns()
+		m.retargetSampleCookies(p, p.ActivityTree.Stats.TakeMovedNodes())
+	}
+	p.Unlock()
+
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
 		for _, request := range requests {
@@ -669,7 +680,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		if m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -891,7 +902,9 @@ func (m *ManagerV2) SendStats() error {
 
 	var tags [][]string
 	m.profilesLock.Lock()
+	profiles := make([]*profile.Profile, 0, len(m.profiles))
 	for selector, prof := range m.profiles {
+		profiles = append(profiles, prof)
 		if prof.IsEnabled() {
 			continue
 		}
@@ -902,6 +915,13 @@ func (m *ManagerV2) SendStats() error {
 	for _, tag := range tags {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
 			return err
+		}
+	}
+
+	// Profile.SendStats takes the profile lock, so iterate outside profilesLock.
+	for _, prof := range profiles {
+		if err := prof.SendStats(m.statsdClient); err != nil {
+			seclog.Debugf("couldn't send metrics for [%s]: %v", prof.GetSelectorStr(), err)
 		}
 	}
 
@@ -1094,6 +1114,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
+	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
+		imageTag = "latest"
+	}
+	// Evict surplus versions before the size check, since eviction can free enough space.
+	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
+
 	// Build workloadID for cache entry lookup
 	workloadID := getWorkloadIDFromEvent(event)
 
@@ -1112,16 +1141,14 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if imageTag == "" {
-		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
-		imageTag = "latest"
+	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
+	secprof.Lock()
+	inserted, processNode, eventNodeBase, err := secprof.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	if err == nil {
+		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
+		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
 	}
-	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
-
-	// Insert the event into the profile's activity tree
-	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	secprof.Unlock()
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
@@ -1130,30 +1157,32 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Register the sample cookie → (process node, event node) mapping for sample refresh events
-	if processNode != nil {
-		var sampleCookie uint64
-		switch event.GetEventType() {
-		case model.FileOpenEventType:
-			sampleCookie = event.Open.SampleCookie
-		case model.BindEventType:
-			sampleCookie = event.Bind.SampleCookie
-		case model.ConnectEventType:
-			sampleCookie = event.Connect.SampleCookie
-		case model.SyscallsEventType:
-			sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
-		}
-		if sampleCookie != 0 {
-			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
-				profile:       secprof,
-				processNode:   processNode,
-				eventNodeBase: eventNodeBase,
-				imageTag:      imageTag,
-			})
-		}
-	}
-
 	return secprof, inserted
+}
+
+// registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
+func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profile, processNode *activity_tree.ProcessNode, eventNodeBase *activity_tree.NodeBase, imageTag string) {
+	if processNode == nil {
+		return
+	}
+	var sampleCookie uint64
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		sampleCookie = event.Open.SampleCookie
+	case model.BindEventType:
+		sampleCookie = event.Bind.SampleCookie
+	case model.ConnectEventType:
+		sampleCookie = event.Connect.SampleCookie
+	}
+	if sampleCookie == 0 {
+		return
+	}
+	m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+		profile:       prof,
+		processNode:   processNode,
+		eventNodeBase: eventNodeBase,
+		imageTag:      imageTag,
+	})
 }
 
 // buildWorkloadSelector creates a workload selector from the event's container tags
@@ -1231,35 +1260,76 @@ func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 		return root.Process.MntNS, true
 	}
 
+	if activity_tree.IsContainerRuntime(pc) {
+		return 0, false
+	}
+
 	return pc.Process.MntNS, false
 }
 
+func processMountNamespaceFromEvent(event *model.Event) uint32 {
+	pc := event.ProcessContext
+	if pc == nil || activity_tree.IsContainerRuntime(pc) {
+		return 0
+	}
+	return pc.Process.MntNS
+}
+
+func liveMountIDFromEvent(event *model.Event) uint32 {
+	switch event.GetEventType() {
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
+		return event.Mount.Mount.MountID
+	default:
+		return 0
+	}
+}
+
 // seedMountsForWorkload seeds a profile's mount table with the workload's
-// pre-existing mounts from its base mount namespace. Later changes come from
-// live mount events.
+// pre-existing mounts from its base mount namespace and any non-base mount
+// namespace entered by the event's process. Later changes come from live mount
+// events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
-	if workload == nil {
+	if workload == nil || !m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.FileMountEventType) {
 		return
 	}
-
-	nsID, authoritative := baseMountNamespaceFromEvent(event)
-	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative) {
-		return
-	}
-
-	var mounts []model.Mount
-	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
-		mounts = append(mounts, *mnt)
-	})
 
 	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
 		imageTag = "latest"
 	}
 
+	cgroupInode := workload.GCroupCacheEntry.GetCGroupInode()
 	pid := event.ProcessContext.Process.Pid
+	liveMountID := liveMountIDFromEvent(event)
+
+	baseNsID, authoritative := baseMountNamespaceFromEvent(event)
+	if baseNsID != 0 && secprof.PinBaseMountNamespace(cgroupInode, baseNsID, authoritative) {
+		basePid := pid
+		if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.MntNS != 0 && root.Process.Pid != 0 {
+			basePid = root.Process.Pid
+		}
+		m.seedMountNamespace(secprof, cgroupInode, baseNsID, basePid, liveMountID, imageTag)
+	}
+
+	if procNsID := processMountNamespaceFromEvent(event); procNsID != 0 && secprof.ClaimMountNamespaceSeed(cgroupInode, procNsID, imageTag) {
+		if !m.seedMountNamespace(secprof, cgroupInode, procNsID, pid, liveMountID, imageTag) {
+			secprof.ReleaseMountNamespaceSeed(procNsID, imageTag)
+		}
+	}
+}
+
+func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uint64, nsID uint32, pid uint32, skipMountID uint32, imageTag string) bool {
+	var mounts []model.Mount
+	m.resolvers.MountResolver.IterateNamespace(nsID, pid, func(mnt *model.Mount) {
+		if skipMountID != 0 && mnt.MountID == skipMountID {
+			return
+		}
+		mounts = append(mounts, *mnt)
+	})
+
 	maxSize := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize())
 	now := time.Now()
+	seeded := false
 	for i := range mounts {
 		mnt := &mounts[i]
 
@@ -1275,11 +1345,13 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 		}
 		mnt.Path = mountPoint
 
-		secprof.InsertMount(mnt, imageTag, activity_tree.Snapshot, now)
+		secprof.InsertMount(mnt, cgroupInode, imageTag, activity_tree.Snapshot, now)
+		seeded = true
 		if secprof.ComputeHeapSize() >= maxSize {
 			break
 		}
 	}
+	return seeded
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -1347,6 +1419,18 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	return secprof, nil
 }
 
+// pathPatternConfig returns the path-pattern merging configuration of v2
+// profiles: built-in defaults overridden by the user-facing settings.
+func (m *ManagerV2) pathPatternConfig() activity_tree.PathPatternConfig {
+	cfg := activity_tree.DefaultPathPatternConfig()
+	cfg.Enabled = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsEnabled
+	cfg.MaxChildren = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMaxChildren
+	cfg.MinGroupSizeOnInsert = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinGroupSizeOnInsert
+	cfg.MinGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinGroupSize
+	cfg.MinDateGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinDateGroupSize
+	return cfg
+}
+
 // loadProfileFromStorage attempts to load a profile from local storage.
 // Returns the loaded profile and true if successful, otherwise nil and false.
 func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, bool) {
@@ -1358,7 +1442,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
+		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 
 	// Try to load from local storage
@@ -1411,7 +1495,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
-		profile.WithSeededSyscalls(m.seededSyscalls()),
+		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
@@ -1489,38 +1573,14 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 	return nil
 }
 
-// ensureVersionContext creates a version context for the given tag if it doesn't exist, with the tags of the
-// workload that introduced this tag
+// ensureVersionContext creates or refreshes a version context and evicts surplus versions.
+// Existing contexts keep the tags of the workload that introduced the version.
 func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
-	if _, ok := secprof.GetVersionContext(tag); ok {
-		return
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	evictedVersions := secprof.PrepareNewVersion(tag, workloadTags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, nowNano)
+	if len(evictedVersions) > 0 {
+		m.purgeCookiesForProfile(secprof, evictedVersions...)
 	}
-
-	now := time.Now()
-	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-
-	vCtx := &profile.VersionContext{
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           slices.Clone(workloadTags),
-	}
-
-	secprof.AddVersionContext(tag, vCtx)
-}
-
-// seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
-func (m *ManagerV2) seededSyscalls() []uint32 {
-	if !m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		return nil
-	}
-	ids := utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH)
-	out := make([]uint32, len(ids))
-	for i, id := range ids {
-		out[i] = uint32(id)
-	}
-	return out
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
@@ -1678,7 +1738,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+		pce := pr.Get(pid)
 		if pce == nil {
 			continue
 		}
@@ -1753,7 +1813,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+			pce := pr.Get(pid)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
@@ -1793,9 +1853,21 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	m.sampleRefreshHits.Inc()
 
-	entry.profile.Lock()
-	defer entry.profile.Unlock()
+	now := time.Now()
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+	if !entry.profile.UpdateVersionContextLastSeen(entry.imageTag, nowNano) {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
 
+	prof := entry.profile
+	prof.Lock()
+	defer prof.Unlock()
+
+	// a merge may have retargeted the cookie while this refresh waited for the lock
+	if entry, ok = m.sampleCookieMap.Peek(cookie); !ok || entry.profile != prof {
+		return
+	}
 	if entry.isOrphaned() {
 		m.sampleCookieMap.Remove(cookie)
 		return
@@ -1806,17 +1878,38 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 		return
 	}
 
-	now := time.Now()
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
 	}
 }
 
-func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+// retargetSampleCookies points the cookies of prof whose event node was
+// folded by a path-pattern merge at the node that absorbed it. Callers must
+// hold prof's lock since the merge.
+func (m *ManagerV2) retargetSampleCookies(prof *profile.Profile, moved map[*activity_tree.NodeBase]*activity_tree.NodeBase) {
+	if len(moved) == 0 {
+		return
+	}
+	for _, key := range m.sampleCookieMap.Keys() {
+		entry, ok := m.sampleCookieMap.Peek(key)
+		if !ok || entry.profile != prof || entry.eventNodeBase == nil {
+			continue
+		}
+		if to, ok := moved[entry.eventNodeBase]; ok {
+			entry.eventNodeBase = to
+			m.sampleCookieMap.Add(key, entry)
+		}
+	}
+}
+
+// purgeCookiesForProfile removes cookies for a profile, optionally restricted to the given versions.
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile, imageTags ...string) {
 	for _, key := range m.sampleCookieMap.Keys() {
 		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
-			m.sampleCookieMap.Remove(key)
+			if len(imageTags) == 0 || slices.Contains(imageTags, entry.imageTag) {
+				m.sampleCookieMap.Remove(key)
+			}
 		}
 	}
 }

@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421
+	github.com/DataDog/agent-payload/v5 v5.0.215
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -11,20 +11,20 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.12.1
-	go.opentelemetry.io/collector/component v1.68.0
-	go.opentelemetry.io/collector/component/componenttest v0.162.0
-	go.opentelemetry.io/collector/pdata v1.68.0
+	go.opentelemetry.io/collector/component v1.70.0
+	go.opentelemetry.io/collector/component/componenttest v0.164.0
+	go.opentelemetry.io/collector/pdata v1.70.0
 	go.opentelemetry.io/otel v1.47.0
 	go.uber.org/zap v1.28.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -39,11 +39,11 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.68.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.70.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.46.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.47.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -152,6 +152,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../pkg/config/setup/constants
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../../../pkg/config/setup/generatedsettings_local
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../pkg/discovery/tracermetadata/model
