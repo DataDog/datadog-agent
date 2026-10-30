@@ -165,6 +165,7 @@ pkg_install(
 
 agent_binary_for_package(
     name = "agent_binary",
+    destination = "{install_dir}/bin/agent",
     patch_rpath = True,
     prefix = "bin/agent",
     target = "//cmd/agent",
@@ -239,10 +240,6 @@ agent_binary_for_package(
     prefix = select({
         "@platforms//os:windows": "",
         "//conditions:default": "embedded/bin",
-    }),
-    renames = select({
-        "@platforms//os:windows": {":installer_binary_stripped": "datadog-installer.exe"},
-        "//conditions:default": {},
     }),
     target = "//cmd/installer",
 )
