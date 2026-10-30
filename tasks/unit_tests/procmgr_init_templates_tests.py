@@ -385,6 +385,41 @@ exec "$@"
         self.assertFalse(daemon_pid.exists())
         self.assertFalse(layout.env_out.exists())
 
+    def test_upstart_exits_when_the_defaults_file_disables_procmgr(self):
+        defaults = self.root / 'default' / 'datadog-agent-procmgr'
+        defaults.parent.mkdir()
+        called = self.root / 'called'
+        install = self.root / 'install'
+        binary = install / 'embedded/bin/dd-procmgrd'
+        binary.parent.mkdir(parents=True)
+        binary.write_text('')
+        binary.chmod(0o755)
+        cases = (
+            (UPSTART_DEBIAN, ('script',)),
+            (UPSTART_REDHAT, ('pre-start script', 'script')),
+        )
+        for template, headers in cases:
+            for header in headers:
+                block = upstart_block(template, header)
+                for contents, disabled in (('DATADOG_ENABLED=no\n', True), ('DATADOG_ENABLED=yes\n', False)):
+                    with self.subTest(template=template.name, block=header, disabled=disabled):
+                        defaults.write_text(contents)
+                        called.unlink(missing_ok=True)
+                        script = render(block, install, self.root / 'etc')
+                        script = script.replace('/etc/default/datadog-agent-procmgr', str(defaults))
+                        reached = f'touch "{called}"; exit 0'
+                        script = script.replace(UPSTART_RUNTIME_DIR, reached)
+                        script = script.replace('groups=$(/usr/bin/id -G dd-agent) || exit 1', reached)
+                        result = subprocess.run(
+                            ['/bin/sh', '-c', script],
+                            text=True,
+                            capture_output=True,
+                            check=False,
+                            timeout=15,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertEqual(called.exists(), not disabled)
+
     def test_procmgr_stop_waits_for_par_control(self):
         sysv = SYSV_PROCMGR.read_text()
         self.assertIn('--retry=TERM/200/KILL/5', sysv)
