@@ -159,9 +159,8 @@ Only `metrics.CountType` outputs enter fixed-width log count buckets.
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to separate metric and log queues, each buffered
-with 500 observations, preserving the original 1,000-slot total. If a queue is
-full, only that telemetry kind is dropped
-and counted in Observer telemetry. One dispatch goroutine consumes both queues
+with 1,000 observations (2,000 slots total). If a queue is full, only that
+telemetry kind is dropped and counted in Observer telemetry. One dispatch goroutine consumes both queues
 and owns engine processing; FIFO order is preserved within each queue, but there
 is no shared ordering across metrics and logs. Flush waits for both queues.
 Analysis never back-pressures data ingestion.

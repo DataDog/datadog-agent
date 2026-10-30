@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Anomaly detection now buffers incoming metrics and logs separately so a
-    burst of one telemetry type cannot consume the other's input buffer.
