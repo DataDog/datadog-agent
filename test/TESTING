@@ -1,0 +1,8 @@
+test_suite {
+  name: "test"
+  tests: "//test/..."
+}
+
+presubmit {
+  check_tests: "test"
+}

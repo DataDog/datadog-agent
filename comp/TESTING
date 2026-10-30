@@ -1,0 +1,17 @@
+test_suite {
+  name: "comp"
+  tests: "//comp/..."
+}
+test_suite {
+  name: "comp_coverage"
+  tests: "//comp/..."
+  test_args: "--config=go"
+  test_args: "--config=gorace"
+  test_args: "--config=dd-agent-go-tests-only"
+  coverage: true
+}
+
+presubmit {
+  check_tests: "comp"
+  check_tests: "comp_coverage"
+}
