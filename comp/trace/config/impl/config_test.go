@@ -761,6 +761,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, "localhost", cfg.StatsdHost)
 	assert.Equal(t, 8125, cfg.StatsdPort)
+	assert.Equal(t, 8192, cfg.StatsdBufferSize)
 	assert.Equal(t, true, cfg.StatsdEnabled)
 
 	assert.Equal(t, true, cfg.Enabled)
@@ -1194,6 +1195,17 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 4321, cfg.StatsdPort)
+	})
+
+	env = "DD_DOGSTATSD_BUFFER_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "16384")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 16384, cfg.StatsdBufferSize)
 	})
 
 	env = "DD_APM_NON_LOCAL_TRAFFIC"
@@ -3068,6 +3080,24 @@ func TestAcquireHostnameCoreAgentUnreachable(t *testing.T) {
 	cfg := buildComponent(t, true, coreConfig).Object()
 
 	require.Error(t, acquireHostname(cfg))
+}
+
+func TestDebugServerHostFollowsCmdHost(t *testing.T) {
+	t.Run("ipv6", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"cmd_host": "::1",
+		}).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "::1", cfg.DebugServerHost)
+		assert.Equal(t, "[::1]:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
+	})
+
+	t.Run("default", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, nil).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "127.0.0.1", cfg.DebugServerHost)
+		assert.Equal(t, "127.0.0.1:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
+	})
 }
 
 func TestAcquireHostnameFallbackEUDM(t *testing.T) {

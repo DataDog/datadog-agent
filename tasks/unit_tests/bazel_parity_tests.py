@@ -80,14 +80,31 @@ class TestBazelParity(unittest.TestCase):
             ('7.82.x', '', False),
             ('feature', 'true', True),
         ):
+            env = {
+                'CI_COMMIT_BRANCH': branch,
+                'CI_COMMIT_REF_NAME': branch,
+                'CI_COMMIT_SHA': 'abc123',
+                'BAZEL_PARITY_SUBMIT': override,
+            }
             with (
                 self.subTest(branch=branch, override=override),
-                patch.dict(os.environ, {'CI_COMMIT_BRANCH': branch, 'BAZEL_PARITY_SUBMIT': override}),
+                patch.dict(os.environ, env),
                 patch.object(parity, 'send_metrics') as send,
-                patch.object(parity, 'create_gauge'),
+                patch.object(parity, 'send_event') as event,
+                patch.object(parity, 'create_gauge') as gauge,
             ):
                 parity.submit_metrics(report)
                 self.assertEqual(send.called, enabled)
+                self.assertEqual(event.called, enabled)
+                if enabled:
+                    self.assertIn(f'git.branch:{branch}', gauge.call_args.args[3])
+                    self.assertNotIn('git.commit.sha:abc123', gauge.call_args.args[3])
+                    self.assertEqual(event.call_args.kwargs['title'], f'Bazel parity: {branch}@abc123')
+                    self.assertIn('commit/abc123', event.call_args.kwargs['text'])
+                    self.assertEqual(
+                        event.call_args.kwargs['tags'],
+                        ['bazel_parity', f'git.branch:{branch}', 'git.commit.sha:abc123'],
+                    )
 
     def test_binary_differences_reach_metrics_and_logs(self):
         agent = FileInfo('opt/agent', 10, chmod=0o755)

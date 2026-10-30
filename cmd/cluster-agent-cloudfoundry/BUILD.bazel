@@ -110,6 +110,6 @@ dd_agent_go_binary(
     name = "cluster-agent-cloudfoundry",
     embed = [":cluster-agent-cloudfoundry_lib"],
     gotags = CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

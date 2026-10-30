@@ -10,7 +10,9 @@ package ebpf
 
 import (
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
@@ -25,6 +27,16 @@ func (m *Manager) Get() *manager.Manager {
 }
 
 // NewDefaultOptions returns a new instance of the default runtime security manager options
+// TailCallSpecEditor returns nil, program arrays are not split without the bpf build tag
+func (m *Manager) TailCallSpecEditor(_ string, _ string) (func(*ebpf.ProgramSpec), error) {
+	return nil, nil
+}
+
+// AddNameMappings registers the eBPF programs and maps of the manager in the eBPF telemetry
+func (m *Manager) AddNameMappings(module string) {
+	ddebpf.AddNameMappings(m.Manager, module)
+}
+
 func NewDefaultOptions() manager.Options {
 	return manager.Options{
 		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time

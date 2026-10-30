@@ -7,7 +7,7 @@ package filterlistimpl
 
 import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
 
 // noopFilterList is a Noop FilterList to be used for tests.
