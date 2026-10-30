@@ -223,7 +223,7 @@ func rejectedMetricTelemetryCases() []rejectedMetricTelemetryCase {
 }
 
 // rejectedMetricNameForIteration selects the timed sample, alternating locally per parallel worker.
-func rejectedMetricNameForIteration(tc rejectedMetricTelemetryCase, iteration int) string {
+func rejectedMetricNameForIteration(_ rejectedMetricTelemetryCase, iteration int) string {
 	if iteration%2 == 0 {
 		return "datadog.agent.running"
 	}
