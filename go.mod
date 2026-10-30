@@ -524,7 +524,7 @@ require (
 	cel.dev/expr v0.25.3 // indirect
 	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.73.0 // indirect
+	cloud.google.com/go/compute v1.74.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	code.cloudfoundry.org/bbs/encryption v1.21.0 // indirect
 	code.cloudfoundry.org/bbs/format v1.16.0 // indirect
