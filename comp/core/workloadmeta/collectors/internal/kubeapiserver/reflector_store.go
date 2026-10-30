@@ -260,6 +260,11 @@ func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, er
 		return &workloadmeta.KubernetesKueueWorkload{
 			EntityID: entityID,
 		}, nil
+
+	case workloadmeta.KindKubernetesKAIPodGroup:
+		return &workloadmeta.KubernetesKAIPodGroup{
+			EntityID: entityID,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("unsupported entity kind: %s", entityID.Kind)

@@ -21,6 +21,13 @@ const (
 	// ConfigMapVersion is the API version for ConfigMap resources
 	ConfigMapVersion = "v1"
 
+	// SecretName is the resource name for Kubernetes Secrets
+	SecretName = "secrets"
+	// SecretGroup is the API group for Secret resources (core API)
+	SecretGroup = ""
+	// SecretVersion is the API version for Secret resources
+	SecretVersion = "v1"
+
 	// ClusterRoleName is the resource name for Kubernetes ClusterRoles
 	ClusterRoleName = "clusterroles"
 	// ClusterRoleGroup is the API group for ClusterRole resources

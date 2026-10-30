@@ -47,6 +47,15 @@ func TestSet(t *testing.T) {
 	assert.True(t, d.Set("test", 4321))
 }
 
+func TestDelete(t *testing.T) {
+	d := newTestData(t)
+	d.Set("test", 1234)
+
+	d.Delete("test")
+	assert.NotContains(t, d.Get(), "test")
+	d.Delete("missing")
+}
+
 func TestGet(t *testing.T) {
 	d := newTestData(t)
 	d.Set("test", 1234)
