@@ -2,17 +2,6 @@
 
 The PR adds an HTTP routing mechanism. Agent startup does not enable it. A caller supplies delivery groups and selects groups for each record.
 
-## Design decisions
-
-- Keep routing caller-injected in this PR; defer user-facing routing policy and Agent startup activation.
-- Reuse processing, batching, compression, HTTP senders, and the auditor. Add coordination for delivery groups and ordered source progress.
-- Require every selected group to finish before advancing one persisted source checkpoint. Queue acceptance is not completion.
-- Require separate `SourceInput(identifier, generation)` channels for source isolation. Shared `NextPipelineChan` and `NextPipelineChanWithMonitor` ingress can block healthy sources behind a stalled source; existing launchers need explicit integration to gain isolation.
-- Reserve producer generation ownership when `SourceInput` is created, before the first record. Allow older, unretired producers to drain after replacement, without reclaiming current checkpoint ownership. Report and discard records from retired producers without adding a source barrier.
-- Distinguish explicit exclusion from missing or invalid selection. Exclusion completes locally; a missing or invalid decision holds the checkpoint until correction and replay. Barriers belong to the source, not a producer generation, so producer retirement can still clean up its input.
-- Bound pending records and source history. Aggregate exhaustion can pause all sources, even with separate inputs.
-- Keep group progress in memory and one saved checkpoint per source. Restart can duplicate delivery; this PR adds no durable spool or per-group persisted checkpoint.
-
 ## What is a routing group?
 
 A routing group contains a **reliable endpoint set** and optional unreliable endpoints. The reliable set includes the primary and any reliable extras. Each group uses one existing `Sender` and its normal reliable-endpoint behavior.
@@ -69,9 +58,7 @@ Groups with the same nonempty `stream` share batching and compressed bytes. Ever
 
 Delivery uses the existing processor, batch strategy, and HTTP sender. The routing coordinator tracks selected groups and safe source progress.
 
-The caller also owns source startup, replacement, and shutdown. Source isolation requires a separate `SourceInput(identifier, generation)` per producer. Shared `NextPipelineChan` and `NextPipelineChanWithMonitor` ingress can block healthy sources behind a stalled source; this PR does not add isolation to that interface or reject records arriving there. Existing launchers need explicit integration to use isolated inputs. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
-
-Stop the producer before calling `RetireSource`. It waits for queued and in-flight admission before releasing ownership. A full input queue or unfinished delivery returns `ErrSourcePending`. Retry retirement after capacity or delivery progresses. An invalid-selection barrier retains source ownership independently, but does not prevent retirement once the producer’s delivery obligations have completed. This includes a producer whose first record is invalid and records that completed behind an unresolved barrier. Completed records can remain retained to preserve checkpoint ordering after the producer input is retired. Start the auditor before the provider; stop producers before stopping the provider.
+The caller also owns source startup, replacement, and shutdown. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
 
 ## Selection behavior
 
@@ -92,7 +79,7 @@ Existing permanent HTTP rejection and local processing-loss policies remain term
 
 Both paths keep one checkpoint per source. Unlike the default path, routed delivery waits for every selected group before advancing past a record.
 
-File X selects A+B. File Y selects B only. Both use separate `SourceInput` channels for source isolation.
+File X selects A+B. File Y selects B only.
 
 Here, **A stalls** means no reliable endpoint in group A can complete the pending deliveries.
 
@@ -106,12 +93,6 @@ Here, **A stalls** means no reliable endpoint in group A can complete the pendin
 Retries and file replay are existing behavior. Source-specific admission and capacity release are new routed behavior.
 
 Replay needs retained input and an older saved checkpoint. Without one, existing end-mode behavior can skip pending data.
-
-## Flush and shutdown
-
-`Flush(ctx)` waits for earlier admitted records to reach batching, not for HTTP delivery. Cancelling the call releases its dispatcher waits so an abandoned flush does not keep healthy sources blocked behind a stalled source.
-
-`Stop` allows accepted work five seconds to finish, then cancels the provider's routing workers and HTTP requests without acknowledging unfinished delivery. Each provider owns its HTTP cancellation context: stopping it does not cancel a caller-supplied context shared with other senders. Cancellation of the caller's context still stops the provider.
 
 ## New limits introduced by this PR
 
