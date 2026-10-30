@@ -1,12 +1,11 @@
 """dd__pkg_deb - wrapper for pkg_deb adding agent specific defaults."""
 
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
 # We need to peek at the actual rule instead of the wrapper because you
 # can't put a macro on a legacy macro.
 # buildifier: disable=bzl-visibility
 load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
-
-# buildifier: disable=bzl-visibility
-load("@rules_pkg//pkg/private/tar:tar.bzl", "pkg_tar_impl")
 load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:xz_compress.bzl", "xz_compress")
 load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
@@ -22,10 +21,9 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, descrip
     )
 
     data_tar = "%s_data_tar" % name
-    pkg_tar_impl(
+    pkg_tar(
         name = data_tar,
         srcs = srcs,
-        extension = "tar",
         out = "%s_data.tar" % name,
         owner = "0.0",
         tags = ["manual"],
