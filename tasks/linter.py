@@ -330,25 +330,28 @@ def releasenote_reused_uids(ctx, files=None, only_changed=False):
     """
     from tasks.libs.linter.releasenotes import find_reused_uids, parse_deleted_release_notes
 
+    if not files and not only_changed:
+        raise Exit("Pass either --files or --only-changed", code=1)
+
     notes_pathspec = "'releasenotes*/notes/*.yaml'"
+    base_branch = get_ancestor_base_branch()
+    merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
     if files:
         candidates = [f.strip() for f in files.split(',') if f.strip()]
         added = [f for f in candidates if not ctx.run(f"git cat-file -e HEAD:{f}", warn=True, hide=True).ok]
-    elif only_changed:
-        base_branch = get_ancestor_base_branch()
-        merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
+    else:
         # Renames keep the UID and show up as R, not A, so they are not flagged.
         result = ctx.run(f"git diff --name-only --diff-filter=A {merge_base} -- {notes_pathspec}", hide=True)
         added = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-    else:
-        raise Exit("Pass either --files or --only-changed", code=1)
 
     if not added:
         print(color_message("No added release notes to check", "yellow"))
         return
 
+    # Only deletions that reached the base branch matter: a note deleted and re-added
+    # within the same branch never shipped, so reno can't attribute it to an older release.
     result = ctx.run(
-        f"git log -M --diff-filter=D --format=commit:%H --name-only HEAD -- {notes_pathspec}",
+        f"git log -M --diff-filter=D --format=commit:%H --name-only {merge_base} -- {notes_pathspec}",
         hide=True,
     )
     reused = find_reused_uids(added, parse_deleted_release_notes(result.stdout))
