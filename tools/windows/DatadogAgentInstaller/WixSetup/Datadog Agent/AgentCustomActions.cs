@@ -825,6 +825,7 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
                                "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED], " +
+                               "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED], " +
                                "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]")
                 .HideTarget(true);
 

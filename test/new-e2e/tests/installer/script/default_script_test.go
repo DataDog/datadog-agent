@@ -56,6 +56,16 @@ func (s *installScriptDefaultSuite) TestInstall() {
 		"DD_HOSTNAME=hostname",
 	)
 
+	var cfg struct {
+		PAR struct {
+			Enabled *bool `yaml:"enabled"`
+		} `yaml:"private_action_runner"`
+	}
+	data := s.Env().RemoteHost.MustExecute("sudo cat /etc/datadog-agent/datadog.yaml")
+	require.NoError(s.T(), yaml.Unmarshal([]byte(data), &cfg))
+	require.NotNil(s.T(), cfg.PAR.Enabled)
+	require.True(s.T(), *cfg.PAR.Enabled)
+
 	state := s.host.State()
 
 	// Packages installed

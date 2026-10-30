@@ -150,6 +150,10 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
+	if err := configurePARDefault(); err != nil {
+		return fmt.Errorf("failed to configure PAR default: %w", err)
+	}
+
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
 	// - OCI: done at the end of setup script (setup.go)

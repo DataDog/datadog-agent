@@ -44,7 +44,7 @@ func TestPARInstallerDefault(t *testing.T) {
 		{name: "procmgr disabled", goos: "linux", systemd: true},
 		{name: "sysv upstart or container without systemd", goos: "linux", procmgr: true},
 		{name: "FIPS split mode unsupported", goos: "linux", procmgr: true, systemd: true, fips: true},
-		{name: "Windows unchanged", goos: "windows", procmgr: true, systemd: true},
+		{name: "Windows SCM install", goos: "windows", procmgr: true, want: config.BoolToPtr(true)},
 		{name: "macOS unchanged", goos: "darwin", procmgr: true, systemd: true},
 		{name: "SSI only install", goos: "linux", procmgr: true, systemd: true, noAgent: true},
 		{name: "explicit legacy opt in preserved", goos: "linux", configured: config.BoolToPtr(true), want: config.BoolToPtr(true)},

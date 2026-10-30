@@ -1,11 +1,14 @@
 enhancements:
   - |
-    The Datadog Installer now enables the Private Action Runner when installing
-    or reinstalling the Agent on Linux hosts running systemd with the process
-    manager enabled, unless the runner already has an explicit enabled setting.
-    FIPS installations are excluded. The runner automatically enrolls when the
-    Agent's API key has the Private Action Runner capability, and Execution
-    Policies control which actions users can run on enrolled Agents.
+    Agent installations and upgrades now enable the Private Action Runner by
+    default on Windows and Linux hosts running systemd, when the process manager
+    is enabled. This applies to the Datadog Installer, Windows MSI, and Linux
+    DEB/RPM packages. Existing explicit runner settings are preserved. FIPS
+    installations and platforms without process-manager support are excluded.
+    The runner automatically enrolls when the Agent's API key has the Private
+    Action Runner capability, and Execution Policies control which actions
+    users can run on enrolled Agents.
 
     To opt out, set ``DD_PRIVATE_ACTION_RUNNER_ENABLED=false`` when running the
-    installer or set ``private_action_runner.enabled: false`` in ``datadog.yaml``.
+    installer (or as a Windows MSI property), or set
+    ``private_action_runner.enabled: false`` in ``datadog.yaml``.

@@ -6,21 +6,18 @@
 package common
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-
-	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 )
 
-// setPARDefault opts supported Linux installer deployments into PAR without
+// setPARDefault opts supported installer deployments into PAR without
 // changing the Agent-wide default or overwriting an operator's configuration.
 // systemd must actually be running: merely having systemctl in PATH does not
 // imply that the host can launch dd-procmgr (notably inside containers).
 func (s *Setup) setPARDefault(packages []packageWithVersion, goos string, systemdRunning func() (bool, error)) error {
-	if goos != "linux" || !s.Env.ProcessManagerEnabled || s.Env.FIPSMode {
+	if !s.Env.ProcessManagerEnabled || s.Env.FIPSMode {
 		return nil
 	}
 	if s.Config.DatadogYAML.PrivateActionRunner.Enabled != nil || os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED") != "" {
@@ -36,29 +33,10 @@ func (s *Setup) setPARDefault(packages []packageWithVersion, goos string, system
 	if !installingAgent {
 		return nil
 	}
-	running, err := systemdRunning()
+	enabled, err := config.PARInstallerDefault(filepath.Join(s.configDir, "datadog.yaml"), goos, s.Env.ProcessManagerEnabled, s.Env.FIPSMode, systemdRunning)
 	if err != nil {
-		return fmt.Errorf("check systemd support: %w", err)
+		return err
 	}
-	if !running {
-		return nil
-	}
-
-	// A missing key can acquire the installer default on a reinstall, but an
-	// existing enabled key is an explicit choice. Leave other PAR settings
-	// (including self_enroll, split_enabled and the allowlist) untouched.
-	data, err := os.ReadFile(filepath.Join(s.configDir, "datadog.yaml"))
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("read existing Agent configuration: %w", err)
-	}
-	var current struct {
-		PrivateActionRunner map[string]any `yaml:"private_action_runner"`
-	}
-	if err := yaml.Unmarshal(data, &current); err != nil {
-		return fmt.Errorf("read existing PAR setting: %w", err)
-	}
-	if _, configured := current.PrivateActionRunner["enabled"]; !configured {
-		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
-	}
+	s.Config.DatadogYAML.PrivateActionRunner.Enabled = enabled
 	return nil
 }

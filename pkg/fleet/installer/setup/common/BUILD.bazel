@@ -27,7 +27,6 @@ go_library(
         "//pkg/fleet/installer/setup/config",
         "//pkg/fleet/installer/telemetry",
         "//pkg/version",
-        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/exec",
