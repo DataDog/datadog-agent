@@ -621,6 +621,13 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          event_cooldown:
+            node_type: setting
+            type: string
+            default: 0s
+            description: |
+              Minimum time between two anomaly detection events for the same
+              activity. 0s disables the cooldown.
           event_types:
             node_type: setting
             type: array

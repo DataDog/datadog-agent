@@ -579,6 +579,11 @@ type RuntimeSecurityConfig struct {
 	// default_value: ["exec"]
 	AnomalyDetectionEventTypes []model.EventType
 
+	// description: AnomalyDetectionEventCooldown defines the minimum time between two anomaly detection events for the same activity. 0s disables the cooldown.
+	// visibility: private
+	// default_value: 0s
+	AnomalyDetectionEventCooldown time.Duration
+
 	// description: AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection event.
 	// visibility: private
 	// default_value: 900s
@@ -1101,6 +1106,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
+		AnomalyDetectionEventCooldown:                pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.event_cooldown"),
 		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
 		AnomalyDetectionMinimumStablePeriods:         anomalyDetectionMinimumStablePeriods,
 		AnomalyDetectionWorkloadWarmupPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
