@@ -85,3 +85,84 @@ datadog:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Selective deployment (optional)
+
+By default, the Datadog Agent DaemonSet, and therefore the Host Profiler sidecar, runs on every node in the cluster. To limit the Agent DaemonSet to a subset of nodes, set one of the following fields in your `values.yaml`.
+
+### `agents.nodeSelector`
+
+Matches nodes by exact label value:
+
+```yaml
+agents:
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: ng1
+```
+
+### `agents.affinity.nodeAffinity`
+
+Use node affinity instead of `nodeSelector` for `In`/`NotIn` matching, multiple label conditions, or a soft preference rather than a hard requirement:
+
+```yaml
+agents:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/nodegroup
+                operator: In
+                values: [ng1]
+```
+
+### `agents.tolerations`
+
+Target nodes may already carry a taint, for example a reserved nodegroup or a team's dedicated node pool. The Host Profiler cannot schedule on a tainted node without a matching toleration, even when `nodeSelector` or `affinity` matches that node:
+
+```yaml
+agents:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: host-profiler
+      effect: NoSchedule
+```
+
+### Running a second, node-scoped Agent release
+
+To keep the existing cluster-wide Agent release unchanged and dedicate a second Helm release to the Host Profiler:
+
+1. Scope the second release to a subset of nodes with `nodeSelector` or `affinity`, and exclude those same nodes from the primary release's Agent DaemonSet, for example with `agents.affinity.nodeAffinity` on the primary release. Two Agent DaemonSets must not schedule on the same node.
+
+2. Disable the Cluster Agent and the Datadog Operator on the second release. Only one Datadog Agent release per cluster can run them:
+
+   ```yaml
+   datadog:
+     operator:
+       enabled: false
+   clusterAgent:
+     enabled: false
+   ```
+
+3. Point the second release at the primary release's Cluster Agent:
+
+   ```yaml
+   existingClusterAgent:
+     join: true
+     serviceName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
+     tokenSecretName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
+   ```
+
+4. If the second release sets `datadog.autoscaling.workload.enabled`, `datadog.instrumentationCrd.enabled`, or `clusterAgent.metricsProvider.useDatadogMetrics`, disable the `datadog-crds` subchart. Otherwise the second release tries to create CRDs the primary release already owns:
+
+   ```yaml
+   datadog-crds:
+     crds:
+       datadogMetrics: false
+       datadogPodAutoscalers: false
+       datadogPodAutoscalerClusterProfiles: false
+       datadogInstrumentations: false
+   ```
+
+See the [Datadog Helm chart values](https://github.com/DataDog/helm-charts/blob/main/charts/datadog/values.yaml) for the full field list.
