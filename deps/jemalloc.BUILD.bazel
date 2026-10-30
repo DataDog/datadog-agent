@@ -12,7 +12,7 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-VERSION = "5.3.0"
+VERSION = "5.3.1"
 
 package_metadata(
     name = "package_metadata",
@@ -73,6 +73,7 @@ configure_make(
     autoconf = True,
     configure_in_place = True,
     configure_options = [
+        "--with-malloc-conf=background_thread:true,dirty_decay_ms:5000",
         "--disable-debug",
         "--disable-stats",
         "--disable-fill",
