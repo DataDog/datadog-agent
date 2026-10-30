@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"slices"
 	"strings"
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -210,9 +208,6 @@ func (mr *Resolver) syncPidFunc() func(uint32) error {
 
 			// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) || errors.Is(err, unix.ESRCH) {
-					return err
-				}
 				mr.opts.SnapshotUsingListMount = false
 				err = mr.syncPidProcfs(p)
 			}
@@ -719,30 +714,9 @@ func (mr *Resolver) Iterate(cb func(*model.Mount)) {
 
 // IterateNamespace calls cb for every cached mount in the given mount namespace,
 // syncing from pid when no pre-existing mounts for that namespace are cached yet.
-func (mr *Resolver) IterateNamespace(nsInode uint32, pid uint32, cb func(*model.Mount)) {
+func (mr *Resolver) IterateNamespace(nsInode uint32, _ uint32, cb func(*model.Mount)) {
 	mr.lock.RLock()
-	if mr.hasPreExistingNamespaceMountsLocked(nsInode) {
-		for mount := range mr.mounts.ValuesIter() {
-			if mount.NamespaceInode == nsInode {
-				cb(mount)
-			}
-		}
-		mr.lock.RUnlock()
-		return
-	}
-	mr.lock.RUnlock()
-	if pid == 0 || (!mr.opts.UseProcFS && !mr.opts.SnapshotUsingListMount) {
-		return
-	}
-
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
-
-	if !mr.hasPreExistingNamespaceMountsLocked(nsInode) {
-		if !mr.syncNamespaceLocked(nsInode, pid) {
-			return
-		}
-	}
+	defer mr.lock.RUnlock()
 
 	for mount := range mr.mounts.ValuesIter() {
 		if mount.NamespaceInode == nsInode {
