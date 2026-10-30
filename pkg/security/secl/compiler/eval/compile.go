@@ -7,7 +7,6 @@
 package eval
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
@@ -19,7 +18,11 @@ import (
 // the concrete evaluators of this package, its type depends on the type of the
 // expression.
 func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
-	node = pass.Run(node, opts.passes()...)
+	pos := node.Position()
+	node, err := pass.Run(node, opts.passes()...)
+	if err != nil {
+		return nil, pos, err
+	}
 
 	switch node := node.(type) {
 	case *ast.Rule:
@@ -156,49 +159,6 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 
 	case *ast.Array:
 		return arrayToEvaluator(node)
-
-	case *ast.IdentArray:
-		// Only "Constants" idents are supported, and only string, int and boolean constants are expected.
-		for _, name := range node.Names {
-			if _, ok := opts.Constants[name]; !ok {
-				return nil, node.Pos, fmt.Errorf("`%s` is not a constant, the members of an array of identifiers have to be constants", name)
-			}
-		}
-
-		// Determine the type with the first ident
-		switch reflect.TypeOf(opts.Constants[node.Names[0]]) {
-		case reflect.TypeOf(&IntEvaluator{}):
-			var evaluator IntArrayEvaluator
-			for _, name := range node.Names {
-				constant, ok := opts.Constants[name].(*IntEvaluator)
-				if !ok {
-					return nil, node.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type int", name)
-				}
-				evaluator.AppendValues(constant.Value)
-			}
-			return &evaluator, node.Pos, nil
-		case reflect.TypeOf(&StringEvaluator{}):
-			var evaluator StringValuesEvaluator
-			for _, name := range node.Names {
-				constant, ok := opts.Constants[name].(*StringEvaluator)
-				if !ok {
-					return nil, node.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type string", name)
-				}
-				evaluator.AppendMembers(&ast.Literal{Value: ast.MakeString(constant.Value)})
-			}
-			return &evaluator, node.Pos, nil
-		case reflect.TypeOf(&BoolEvaluator{}):
-			var evaluator BoolArrayEvaluator
-			for _, name := range node.Names {
-				constant, ok := opts.Constants[name].(*BoolEvaluator)
-				if !ok {
-					return nil, node.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type bool", name)
-				}
-				evaluator.AppendValues(constant.Value)
-			}
-			return &evaluator, node.Pos, nil
-		}
-		return nil, node.Pos, fmt.Errorf("constant `%s` can't be a member of an array, only int, string and boolean constants can", node.Names[0])
 	}
 
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
@@ -273,8 +233,16 @@ func literalToEvaluator(node *ast.Literal, opts *Opts, state *State) (interface{
 	return nil, node.Pos, NewError(node.Pos, "unknown kind of value '%s'", node.Value.Kind())
 }
 
-// arrayToEvaluator compiles an array literal, its kind being the one of its first
-// member.
+// familyKinds holds the type reported for the members of an array of each family.
+var familyKinds = map[ast.Family]reflect.Kind{
+	ast.BoolFamily:   reflect.Bool,
+	ast.IntFamily:    reflect.Int,
+	ast.StringFamily: reflect.String,
+	ast.IPFamily:     reflect.Struct,
+}
+
+// arrayToEvaluator compiles an array literal, its family being the one of its
+// first member.
 func arrayToEvaluator(node *ast.Array) (interface{}, ast.Position, error) {
 	// an empty array, the values of a macro defined by an empty list, is an
 	// array of strings
@@ -282,43 +250,41 @@ func arrayToEvaluator(node *ast.Array) (interface{}, ast.Position, error) {
 		return &StringValuesEvaluator{}, node.Pos, nil
 	}
 
-	switch node.Members[0].Value.Kind() {
-	case ast.Bool:
+	family := node.Members[0].Value.Kind().Family()
+	for _, member := range node.Members[1:] {
+		if member.Value.Kind().Family() != family {
+			return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, familyKinds[family])
+		}
+	}
+
+	switch family {
+	case ast.BoolFamily:
 		var evaluator BoolArrayEvaluator
 		for _, member := range node.Members {
-			if member.Value.Kind() != ast.Bool {
-				return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, reflect.Bool)
-			}
 			evaluator.AppendValues(ast.BoolVal(member.Value))
 		}
 		return &evaluator, node.Pos, nil
 
-	case ast.Int:
+	case ast.IntFamily:
 		var evaluator IntArrayEvaluator
 		for _, member := range node.Members {
-			if member.Value.Kind() != ast.Int {
-				return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, reflect.Int)
-			}
 			evaluator.AppendValues(ast.IntVal(member.Value))
 		}
 		return &evaluator, node.Pos, nil
 
-	case ast.String, ast.Pattern, ast.Regexp:
+	case ast.StringFamily:
 		var evaluator StringValuesEvaluator
 		evaluator.AppendMembers(node.Members...)
 		return &evaluator, node.Pos, nil
 
-	case ast.IP, ast.CIDR:
+	case ast.IPFamily:
 		var values CIDRValues
 		for _, member := range node.Members {
 			var err error
-			switch member.Value.Kind() {
-			case ast.CIDR:
+			if member.Value.Kind() == ast.CIDR {
 				err = values.AppendCIDR(ast.StringVal(member.Value))
-			case ast.IP:
+			} else {
 				err = values.AppendIP(ast.StringVal(member.Value))
-			default:
-				return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, reflect.Struct)
 			}
 			if err != nil {
 				return nil, node.Pos, NewError(node.Pos, "invalid %s '%s'", member.Value.Kind(), ast.StringVal(member.Value))

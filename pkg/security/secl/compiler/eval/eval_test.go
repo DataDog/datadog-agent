@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
-func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
+func newOptsWithParams(constants map[string]ast.Node, legacyFields map[Field]Field) *Opts {
 	opts := &Opts{
 		Constants:    constants,
 		LegacyFields: legacyFields,
@@ -133,9 +133,16 @@ func TestCIDRArrayScalarComparisonError(t *testing.T) {
 }
 
 func TestIdentArrayError(t *testing.T) {
-	_, err := parseRule(`process.uid in [process.gid]`, &testModel{}, newOptsWithParams(testConstants, nil))
-	if err == nil || !strings.Contains(err.Error(), "`process.gid` is not a constant") {
-		t.Fatalf("should report a non constant identifier error, got `%v`", err)
+	for expr, expected := range map[string]string{
+		`process.uid in [process.gid]`: "`process.gid` is not a constant",
+		// the family of an array is the one of its first member
+		`open.flags in [O_CREAT, true]`: "array of int expected",
+		`open.flags in [true, O_CREAT]`: "array of bool expected",
+	} {
+		_, err := parseRule(expr, &testModel{}, newOptsWithParams(testConstants, nil))
+		if err == nil || !strings.Contains(err.Error(), expected) {
+			t.Fatalf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
 	}
 }
 
@@ -654,7 +661,7 @@ func TestConstants(t *testing.T) {
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"list",
@@ -682,7 +689,7 @@ func TestMacroList(t *testing.T) {
 
 func TestMacroEmptyValues(t *testing.T) {
 	model := &testModel{}
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewStringValuesMacro("list", nil, opts)
 	if err != nil {
@@ -705,7 +712,7 @@ func TestMacroEmptyValues(t *testing.T) {
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -744,7 +751,7 @@ func TestMacroExpression(t *testing.T) {
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -805,7 +812,7 @@ func TestNestedMacros(t *testing.T) {
 
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro1, err := NewMacro(
 		"sensitive_files",
@@ -845,7 +852,7 @@ func TestNestedMacros(t *testing.T) {
 func TestNestedMacrosPartial(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	for _, def := range []struct{ id, expr string }{
 		{"is_passwd", `open.filename == "/etc/passwd" || open.filename == "/etc/shadow"`},

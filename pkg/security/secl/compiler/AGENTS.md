@@ -18,7 +18,7 @@ source ──parse──▶ AST ──passes──▶ AST ──compile──▶
   closed `ast.Node` union, and the `ast.Position` of the nodes. No dependency on
   the parser, no dependency on the evaluators.
 - `pass` — the compilation passes, each rewriting in place a copy of the tree:
-  macro expansion so far.
+  the resolution of the identifiers referring to macros and constants so far.
 - `eval` — the evaluators, and their construction from the AST (`compile.go`).
   `eval.Compile` walks the AST, type checks it against a `Model`, and returns a
   tree of closures. `eval.Rule` holds the AST of a rule, runs the passes over

@@ -48,8 +48,8 @@ type FieldRef struct {
 // Array is an array literal: `[1, 2]`, `["/etc/passwd", ~"/etc/*"]`,
 // `[127.0.0.1, 192.168.0.0/24]`.
 //
-// Its members are of the same family of kinds: booleans; integers; strings,
-// patterns and regexps; IPs and CIDRs.
+// Its members are of the same family of kinds: booleans; integers and durations;
+// strings, patterns and regexps; IPs and CIDRs.
 type Array struct {
 	Meta
 

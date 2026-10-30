@@ -57,6 +57,36 @@ func (k Kind) String() string {
 	return fmt.Sprintf("Kind(%d)", int(k))
 }
 
+// Family is a family of kinds: the members of an array are of the same family.
+type Family int
+
+// Families of kinds. The zero value is not a valid family.
+const (
+	// BoolFamily is the family of Bool.
+	BoolFamily Family = iota + 1
+	// IntFamily is the family of Int and Duration.
+	IntFamily
+	// StringFamily is the family of String, Pattern and Regexp.
+	StringFamily
+	// IPFamily is the family of IP and CIDR.
+	IPFamily
+)
+
+// Family returns the family of the kind.
+func (k Kind) Family() Family {
+	switch k {
+	case Bool:
+		return BoolFamily
+	case Int, Duration:
+		return IntFamily
+	case String, Pattern, Regexp:
+		return StringFamily
+	case IP, CIDR:
+		return IPFamily
+	}
+	return 0
+}
+
 // Value is a value of the language, the value of a Literal.
 //
 // The union is closed, the only implementations are the ones of this package,
