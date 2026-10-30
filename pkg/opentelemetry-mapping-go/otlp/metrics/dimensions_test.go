@@ -122,3 +122,52 @@ func TestAllFieldsAreCopied(t *testing.T) {
 	assert.ElementsMatch(t, []string{"tagOne:a", "tagTwo:b", "tagThree:c", "tagFour:d"}, newDims.Tags())
 	assert.Equal(t, "origin_id", newDims.OriginID())
 }
+
+func TestWithAttributeMapPreservesTagOrderAndOriginal(t *testing.T) {
+	originalTags := []string{"existing1:value1", "existing2:value2"}
+	dims := &Dimensions{
+		name: "test.metric",
+		tags: originalTags,
+		host: "test-host",
+	}
+
+	attributes := pcommon.NewMap()
+	attributes.PutStr("attribute", "value")
+
+	got := dims.WithAttributeMap(attributes)
+
+	assert.Equal(t,
+		[]string{"attribute:value", "existing1:value1", "existing2:value2"},
+		got.tags,
+	)
+	assert.Equal(t,
+		[]string{"existing1:value1", "existing2:value2"},
+		dims.tags,
+	)
+
+	got.tags[1] = "modified:value"
+
+	assert.Equal(t,
+		[]string{"existing1:value1", "existing2:value2"},
+		dims.tags,
+	)
+}
+
+func BenchmarkWithAttributeMap(b *testing.B) {
+	attributes := pcommon.NewMap()
+	attributes.PutStr("service", "checkout")
+	attributes.PutStr("environment", "production")
+
+	dims := &Dimensions{
+		name: "requests",
+		tags: []string{"team:payments", "region:us-east"},
+		host: "benchmark-host",
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = dims.WithAttributeMap(attributes)
+	}
+}
