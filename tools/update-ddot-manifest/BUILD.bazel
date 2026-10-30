@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "update-ddot-manifest_lib",
+    srcs = [
+        "main.go",
+        "manifest.go",
+        "versions.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/tools/update-ddot-manifest",
+    visibility = ["//visibility:private"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+)
+
+go_binary(
+    name = "update-ddot-manifest",
+    embed = [":update-ddot-manifest_lib"],
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "update-ddot-manifest_test",
+    srcs = ["main_test.go"],
+    embed = [":update-ddot-manifest_lib"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+)
