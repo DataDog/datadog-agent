@@ -59,7 +59,7 @@ class TestCodegenPayloadData(unittest.TestCase):
         self.assertEqual(recorder, base | {"anomalydetection_recorder"})
 
     def test_recorder_flavor_keeps_other_binaries_at_base_tags(self):
-        for build in ("trace-agent", "process-agent", "privateactionrunner"):
+        for build in ("process-agent", "privateactionrunner"):
             with self.subTest(build=build):
                 self.assertEqual(
                     build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.recorder, platform="linux"),

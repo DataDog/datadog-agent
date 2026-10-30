@@ -7,7 +7,6 @@
   - changes:
       paths:
         - pkg/trace/**/*
-        - cmd/trace-agent/**/*
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod

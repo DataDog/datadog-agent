@@ -47,7 +47,6 @@ pkg_files(
 pkg_files(
     name = "macos_files",
     srcs = [
-        "apm.yaml.default",
         "process_agent.yaml.default",
     ],
     attributes = pkg_attributes(mode = "0644"),

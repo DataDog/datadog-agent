@@ -52,7 +52,6 @@ rm -r -fo "C:/Program Files/Datadog/Datadog Agent/etc/"
 $services = [ordered]@{
   "datadogagent" = "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe",@()
   "datadog-process-agent" = "C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe",@("datadogagent")
-  "datadog-trace-agent" = "C:\Program Files\Datadog\Datadog Agent\bin\agent\trace-agent.exe",@("datadogagent")
 }
 
 foreach ($s in $services.Keys) {

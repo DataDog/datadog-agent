@@ -8,7 +8,7 @@ package coat
 // MigratableService describes an agent service that can be supervised by dd-procmgrd.
 // Add future migrations by appending to migratableServices.
 type MigratableService struct {
-	// ID is the stable telemetry tag value (e.g. "ddot", "trace").
+	// ID is the stable telemetry tag value (e.g. "ddot", "process").
 	ID string
 	// ProcmgrProcessName is the process name in processes.d and dd-procmgrd.
 	ProcmgrProcessName string
@@ -82,20 +82,6 @@ var migratableServices = []MigratableService{
 			"datadog-agent-sysprobe-exp.service",
 		},
 		LegacyWindowsService: "datadog-system-probe",
-	},
-	{
-		ID:                 "trace",
-		ProcmgrProcessName: "datadog-agent-trace",
-		ProcmgrConfigFile:  "datadog-agent-trace.yaml",
-		InstallMarkerRels: []string{
-			"embedded/bin/trace-agent",
-			"bin/agent/trace-agent",
-		},
-		LegacySystemdUnits: []string{
-			"datadog-agent-trace.service",
-			"datadog-agent-trace-exp.service",
-		},
-		LegacyWindowsService: "datadog-trace-agent",
 	},
 	{
 		ID:                 "security",

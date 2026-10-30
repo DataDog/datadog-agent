@@ -55,7 +55,6 @@ secret_generic_connector_fips-build* @DataDog/fleet-automation
 build_windows_container_entrypoint   @DataDog/windows-products
 # Cross-compiled binary builds for validation purpose
 cross_build_agent-binary_aix_ppc64        @DataDog/agent-build
-cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
 # AIX/ppc64 jobs
 tests_aix-ppc64                       @DataDog/agent-devx @DataDog/agent-runtimes
 package_aix-ppc64                     @DataDog/agent-build @DataDog/agent-runtimes
@@ -190,7 +189,6 @@ profiler_deps_check           @DataDog/profiling-full-host
 ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
-trace_agent_integration_tests @DataDog/agent-apm
 trace_dupcheck_*              @DataDog/agent-apm
 
 # Functional test

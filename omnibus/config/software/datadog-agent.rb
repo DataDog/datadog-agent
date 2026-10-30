@@ -154,8 +154,6 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
@@ -165,25 +163,6 @@ build do
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
     move 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
-  end
-
-  if linux_target?
-    if heroku_target?
-      # shouldn't be needed in practice, but it is used by the systemd service,
-      # which is used when installing the deb manually
-      copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
-      command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
-    else
-      command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-      copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
-    end
-  end
-
-  if windows_target?
-    copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
-    copy 'bin/trace-agent/trace-agent.exe.pdb', "#{install_dir}/bin/agent"
-  else
-    copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
 
   # Process agent
@@ -327,7 +306,6 @@ build do
     block do
       LINUX_BINARIES = [
         "bin/agent/agent",
-        "embedded/bin/trace-agent",
         "embedded/bin/process-agent",
         "embedded/bin/security-agent",
         "embedded/bin/system-probe",

@@ -22,7 +22,6 @@ build do
 
       project.extra_package_file '/etc/init.d/datadog-agent'
       project.extra_package_file '/etc/init.d/datadog-agent-process'
-      project.extra_package_file '/etc/init.d/datadog-agent-trace'
       project.extra_package_file '/etc/init.d/datadog-agent-security'
       project.extra_package_file '/etc/init.d/datadog-agent-data-plane'
       project.extra_package_file '/etc/init.d/datadog-agent-action'
@@ -33,7 +32,6 @@ build do
     project.extra_package_file '/etc/init/datadog-agent.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'
     project.extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
-    project.extra_package_file '/etc/init/datadog-agent-trace.conf'
     project.extra_package_file '/etc/init/datadog-agent-security.conf'
     project.extra_package_file '/etc/init/datadog-agent-data-plane.conf'
     project.extra_package_file '/etc/init/datadog-agent-action.conf'

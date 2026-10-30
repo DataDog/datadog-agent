@@ -21,7 +21,6 @@ SCANNED_BINARIES = {
     "agent": {
         "agent": "opt/datadog-agent/bin/agent/agent",
         "process-agent": "opt/datadog-agent/embedded/bin/process-agent",
-        "trace-agent": "opt/datadog-agent/embedded/bin/trace-agent",
         "system-probe": "opt/datadog-agent/embedded/bin/system-probe",
         "security-agent": "opt/datadog-agent/embedded/bin/security-agent",
     },
@@ -33,7 +32,6 @@ SCANNED_BINARIES = {
     },
     "heroku-agent": {
         "agent": "opt/datadog-agent/bin/agent/agent",
-        "trace-agent": "opt/datadog-agent/embedded/bin/trace-agent",
     },
 }
 

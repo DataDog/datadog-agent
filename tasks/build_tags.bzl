@@ -233,33 +233,9 @@ SYSTEM_PROBE_TAGS = set([
     "seclmax",
 ])
 
-# TRACE_AGENT_TAGS lists the tags necessary to build the trace-agent
-TRACE_AGENT_TAGS = set([
-    "docker",
-    "containerd",
-    "datadog.no_waf",
-    "kubelet",
-    "otlp",
-    "netcgo",
-    "podman",
-])
-
-# TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
-TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
-    set([
-        "containerd",
-        "docker",
-        "kubeapiserver",
-        "kubelet",
-        "podman",
-    ]),
-)
-
 CWS_INSTRUMENTATION_TAGS = set(["netgo", "osusergo"])
 
 OTEL_AGENT_TAGS = set(["otlp", "zlib", "kubelet", "nodefilter"])
-
-LOADER_TAGS = set()
 
 # We need to remove all discovery provider from prometheusreceiver components to avoid loading too many dependencies in the host-profiler binary.
 # imported by https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/f963ab53ee55aeb56d58617ed12c840e8b07cc53/receiver/prometheusreceiver/factory.go#L10

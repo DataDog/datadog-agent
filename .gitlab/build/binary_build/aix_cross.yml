@@ -55,9 +55,3 @@ cross_build_agent-binary_aix_ppc64:
     # python/cgo-python is not supported for AIX cross builds yet (no AIX-native
     # libpython to link against on a Linux host) - see tasks/libs/common/utils.py.
     - PATH="/opt/aix-cross/bin:$PATH" bash /tmp/aix_build_wrapper.sh "$CI_PROJECT_DIR/bin/agent/agent" dda inv -- -e agent.build --build-exclude=python
-
-cross_build_trace_agent-binary_aix_ppc64:
-  extends: .cross_build_aix_ppc64
-  script:
-    - dda inv -- check-go-version
-    - PATH="/opt/aix-cross/bin:$PATH" bash /tmp/aix_build_wrapper.sh "$CI_PROJECT_DIR/bin/trace-agent/trace-agent" dda inv -- -e trace-agent.build

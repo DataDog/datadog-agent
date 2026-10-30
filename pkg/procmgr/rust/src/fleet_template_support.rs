@@ -60,7 +60,7 @@ pub(crate) fn sorted(keys: &[String]) -> Vec<String> {
 /// The `configKeys` of the legacy SCM `service` definition, sorted and split by the config
 /// file each key is read from: `(coreConf keys, sysprobeConf keys)`. A Go map literal has
 /// no meaningful order, so only the sets are compared. An empty half is valid for a
-/// service that only reads one file (apm reads only `coreConf`). An empty pair means the
+/// service that only reads one file. An empty pair means the
 /// parse went wrong.
 pub(crate) fn scm_service_keys(service: &str) -> (Vec<String>, Vec<String>) {
     let marker = format!("name: \"{service}\",");

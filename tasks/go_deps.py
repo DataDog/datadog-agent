@@ -72,16 +72,6 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/cws-instrumentation",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "trace-agent": {
-        "entrypoint": "cmd/trace-agent",
-        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64", "aix/ppc64"],
-    },
-    "heroku-trace-agent": {
-        "build": "trace-agent",
-        "entrypoint": "cmd/trace-agent",
-        "flavor": AgentFlavor.heroku,
-        "platforms": ["linux/x64"],
-    },
     "otel-agent": {
         "entrypoint": "cmd/otel-agent",
         "platforms": ["linux/x64", "linux/arm64"],
@@ -89,10 +79,6 @@ BINARIES: dict[str, dict] = {
     "host-profiler": {
         "entrypoint": "cmd/host-profiler",
         "platforms": ["linux/x64", "linux/arm64"],
-    },
-    "loader": {
-        "entrypoint": "cmd/loader",
-        "platforms": ["linux/x64", "linux/arm64", "darwin/x64", "darwin/arm64"],
     },
     "installer": {
         "entrypoint": "cmd/installer",
@@ -522,8 +508,8 @@ def graph(
     Requires https://github.com/loov/goda and Graphviz's `dot` tools to be in the PATH.
 
     Usage:
-        Dependency graph of the trace-agent on Linux
-          dda inv -e go-deps.graph --build trace-agent --os linux
+        Dependency graph of the process-agent on Linux
+          dda inv -e go-deps.graph --build process-agent --os linux
         Reachability graph of the process-agent on Linux to k8s.io/... dependencies
           dda inv -e go-deps.graph --build process-agent --os linux --target k8s.io/...
         Dependency graph of workloadmeta on Linux when using the same build tags as the core-agent

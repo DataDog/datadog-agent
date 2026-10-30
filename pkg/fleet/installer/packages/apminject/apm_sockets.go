@@ -86,10 +86,7 @@ func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr err
 		return fmt.Errorf("error changing permissions of %s: %w", envFilePath, err)
 	}
 
-	// Symlinks for sysvinit
-	if err = os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent-trace: %w", envFilePath, err)
-	}
+	// Symlink for sysvinit
 	if err = os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
 	}
@@ -102,12 +99,6 @@ func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr err
 			return err
 		}
 		if err = addSystemDEnvOverrides(ctx, "datadog-agent-exp.service"); err != nil {
-			return err
-		}
-		if err = addSystemDEnvOverrides(ctx, "datadog-agent-trace.service"); err != nil {
-			return err
-		}
-		if err = addSystemDEnvOverrides(ctx, "datadog-agent-trace-exp.service"); err != nil {
 			return err
 		}
 		if err = systemd.Reload(ctx); err != nil {

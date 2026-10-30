@@ -46,7 +46,6 @@ go_library(
         "//pkg/collector/corechecks/ebpf/noisyneighbor",
         "//pkg/collector/corechecks/ebpf/oomkill",
         "//pkg/collector/corechecks/ebpf/tcpqueuelength",
-        "//pkg/collector/corechecks/embed/apm",
         "//pkg/collector/corechecks/embed/process",
         "//pkg/collector/corechecks/gpu",
         "//pkg/collector/corechecks/gpu/amd",

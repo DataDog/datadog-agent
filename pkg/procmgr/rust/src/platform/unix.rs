@@ -211,7 +211,7 @@ mod intended_spawn_user_tests {
     fn agent_profile_uses_supervisor_user() {
         let expected = supervisor_user().expect("current user");
         assert_eq!(
-            intended_spawn_user("datadog-agent-trace", SpawnProfile::Agent),
+            intended_spawn_user("datadog-agent-security", SpawnProfile::Agent),
             expected
         );
     }

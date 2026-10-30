@@ -52,7 +52,6 @@ package :zip do
 
 
   additional_sign_files [
-    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\dogstatsd.exe",
   ]
   if ENV['SIGN_WINDOWS_DD_WCS']
@@ -68,7 +67,6 @@ end
 # ------------------------------------
 
 # Datadog agent
-dependency 'trace-agent-windows-cf'
 dependency 'datadog-dogstatsd'
 
 dependency 'datadog-buildpack-finalize'

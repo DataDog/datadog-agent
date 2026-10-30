@@ -33,7 +33,7 @@ chmod 750 /etc/datadog-agent               2>/dev/null || true
 # Pre-create the SRC stderr capture files (see the -e flags on mkssys below).
 # srcmstr runs as root and opens the -e target itself; without this the files
 # would be created root-owned with srcmstr's umask.
-for _svc in agent trace-agent agent-data-plane; do
+for _svc in agent agent-data-plane; do
     _stderr_log="/var/log/datadog/${_svc}-stderr.log"
     touch "$_stderr_log" 2>/dev/null || true
     chown -h dd-agent:dd-agent "$_stderr_log" 2>/dev/null || true
@@ -57,7 +57,7 @@ while rmssys -s datadog-agent            > /dev/null 2>&1; do :; done
 while rmssys -s datadog-trace-agent      > /dev/null 2>&1; do :; done
 while rmssys -s datadog-agent-data-plane > /dev/null 2>&1; do :; done
 
-# All three subsystems share the "datadog-agent" SRC group so they can be
+# Both subsystems share the "datadog-agent" SRC group so they can be
 # started/stopped together with a single command (startsrc -g / stopsrc -g
 # datadog-agent) instead of one subsystem at a time.
 mkssys -s datadog-agent -G datadog-agent \
@@ -65,13 +65,6 @@ mkssys -s datadog-agent -G datadog-agent \
        -a "run -c /etc/datadog-agent/datadog.yaml" \
        -u dd-agent \
        -e /var/log/datadog/agent-stderr.log \
-       -R -S -n 15 -f 9
-
-mkssys -s datadog-trace-agent -G datadog-agent \
-       -p /opt/datadog-agent/embedded/bin/trace-agent \
-       -a "run --config /etc/datadog-agent/datadog.yaml" \
-       -u dd-agent \
-       -e /var/log/datadog/trace-agent-stderr.log \
        -R -S -n 15 -f 9
 
 mkssys -s datadog-agent-data-plane -G datadog-agent \

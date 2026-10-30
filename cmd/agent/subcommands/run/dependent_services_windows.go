@@ -24,7 +24,6 @@ import (
 const (
 	processProcmgrDefinitionFile  = "datadog-agent-process.yaml"
 	sysprobeProcmgrDefinitionFile = "datadog-agent-sysprobe.yaml"
-	traceProcmgrDefinitionFile    = "datadog-agent-trace.yaml"
 	securityProcmgrDefinitionFile = "datadog-agent-security.yaml"
 	parProcmgrDefinitionFile      = "datadog-agent-action.yaml"
 	ddotProcmgrDefinitionFile     = "datadog-agent-ddot.yaml"
@@ -44,16 +43,6 @@ type Servicedef struct {
 
 func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef {
 	return []Servicedef{
-		{
-			name: "apm",
-			configKeys: map[string]model.Reader{
-				"apm_config.enabled":                           coreConf,
-				"apm_config.error_tracking_standalone.enabled": coreConf,
-			},
-			procmgrDefinitionFile: traceProcmgrDefinitionFile,
-			serviceName:           "datadog-trace-agent",
-			shouldShutdown:        false,
-		},
 		{
 			name: "process",
 			configKeys: map[string]model.Reader{

@@ -189,7 +189,6 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				serviceNames := []string{
 					"datadog-otel-agent",
 					"dd-procmgr-service",
-					"datadog-trace-agent",
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
@@ -212,7 +211,6 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				serviceNames := []string{
 					"datadog-otel-agent",
 					"dd-procmgr-service",
-					"datadog-trace-agent",
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
@@ -232,7 +230,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				api.On("StopService", "datadogagent").Return(nil)
 
 				// Two services are running and need termination
-				runningServices := []string{"datadog-trace-agent", "datadog-system-probe"}
+				runningServices := []string{"datadog-process-agent", "datadog-system-probe"}
 				for _, serviceName := range runningServices {
 					// Service is initially running
 					api.On("GetServiceState", serviceName).Return(svc.Running, nil).Once()
@@ -252,7 +250,6 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				otherServices := []string{
 					"datadog-otel-agent",
 					"dd-procmgr-service",
-					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-agent-action",
 					"Datadog Installer",
@@ -270,7 +267,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				api.On("StopService", "datadogagent").Return(nil)
 
 				// Two services are running and need termination
-				runningServices := []string{"datadog-trace-agent", "datadog-system-probe"}
+				runningServices := []string{"datadog-process-agent", "datadog-system-probe"}
 				for _, serviceName := range runningServices {
 					// Service is stuck in stop pending state
 					api.On("GetServiceState", serviceName).Return(svc.StopPending, nil).Once()
@@ -290,7 +287,6 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				otherServices := []string{
 					"datadog-otel-agent",
 					"dd-procmgr-service",
-					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-agent-action",
 					"Datadog Installer",
@@ -309,15 +305,14 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				api.On("StopService", "datadogagent").Return(nil)
 
 				// First service is running but termination fails
-				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil)
+				api.On("GetServiceState", "datadog-process-agent").Return(svc.Running, nil)
 				// Mock the GetServiceProcessID calls within TerminateServiceProcess
-				api.On("GetServiceProcessID", "datadog-trace-agent").Return(uint32(1234), errors.New("access denied"))
+				api.On("GetServiceProcessID", "datadog-process-agent").Return(uint32(1234), errors.New("access denied"))
 
 				// Other services are not running
 				serviceNames := []string{
 					"datadog-otel-agent",
 					"dd-procmgr-service",
-					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
 					"datadog-agent-action",
@@ -328,7 +323,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 					api.On("GetServiceState", name).Return(svc.Stopped, nil)
 				}
 				// Still check if first service is running after failed termination
-				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil)
+				api.On("GetServiceState", "datadog-process-agent").Return(svc.Running, nil)
 			},
 		},
 		{
@@ -338,17 +333,16 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				api.On("StopService", "datadogagent").Return(nil)
 
 				// First service is running but termination fails
-				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil).Once()
+				api.On("GetServiceState", "datadog-process-agent").Return(svc.Running, nil).Once()
 				// Mock the GetServiceProcessID calls within TerminateServiceProcess
-				api.On("GetServiceProcessID", "datadog-trace-agent").Return(uint32(1234), errors.New("access denied"))
+				api.On("GetServiceProcessID", "datadog-process-agent").Return(uint32(1234), errors.New("access denied"))
 				// after failed termination, the service ended up being stopped
-				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Stopped, nil).Once()
+				api.On("GetServiceState", "datadog-process-agent").Return(svc.Stopped, nil).Once()
 
 				// Other services are not running
 				serviceNames := []string{
 					"datadog-otel-agent",
 					"dd-procmgr-service",
-					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
 					"datadog-agent-action",
@@ -395,7 +389,6 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 		serviceNames := []string{
 			"datadog-otel-agent",
 			"dd-procmgr-service",
-			"datadog-trace-agent",
 			"datadog-process-agent",
 			"datadog-security-agent",
 			"datadog-system-probe",
@@ -424,17 +417,16 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 		// Stop services - set up a failure scenario
 		mockAPI.On("StopService", "datadogagent").Return(nil)
 		// First service is running but termination fails
-		mockAPI.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil)
+		mockAPI.On("GetServiceState", "datadog-process-agent").Return(svc.Running, nil)
 		// Mock the GetServiceProcessID to fail, causing termination to fail
-		mockAPI.On("GetServiceProcessID", "datadog-trace-agent").Return(uint32(1234), errors.New("access denied"))
+		mockAPI.On("GetServiceProcessID", "datadog-process-agent").Return(uint32(1234), errors.New("access denied"))
 		// Check if service is still running after failed termination
-		mockAPI.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil)
+		mockAPI.On("GetServiceState", "datadog-process-agent").Return(svc.Running, nil)
 
 		// Other services are not running
 		serviceNames := []string{
 			"datadog-otel-agent",
 			"dd-procmgr-service",
-			"datadog-process-agent",
 			"datadog-security-agent",
 			"datadog-system-probe",
 			"datadog-agent-action",

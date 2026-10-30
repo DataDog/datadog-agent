@@ -39,7 +39,6 @@ pkg_filegroup(
         ":agent_binary",
 
         # TODO: sysprobe - windows
-        ":trace_agent_binary",
         ":process_agent_binary",
         ":privateactionrunner_binary",
         ":secret_generic_connector_binary",
@@ -68,11 +67,7 @@ pkg_filegroup(
         ],
         "//conditions:default": [],
     }) + select({
-        "@platforms//os:linux": [
-            "//cmd/loader:trace_loader_all_files",
-        ],
         "@platforms//os:macos": [
-            "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
             "//pkg/procmgr/rust:all_files_macos",
             # TODO: systray
@@ -202,13 +197,6 @@ pkg_files(
     srcs = [
         "//cmd/privateactionrunner",
     ],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
-)
-
-pkg_files(
-    name = "trace_agent_binary",
-    srcs = ["//cmd/trace-agent"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
 )

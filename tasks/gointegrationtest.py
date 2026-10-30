@@ -51,15 +51,6 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
     ],
 )
 
-TRACE_AGENT_IT_CONF = IntegrationTestsConfig(
-    name="Trace Agent",
-    go_build_tags=get_default_build_tags(build="test"),
-    tests=[IntegrationTest(prefix="./cmd/trace-agent/test/testsuite/...")],
-    env={"INTEGRATION": "yes"},
-    is_windows_supported=False,
-)
-
-
 def containerized_integration_tests(
     ctx: Context,
     integration_tests_config: IntegrationTestsConfig,
@@ -108,9 +99,7 @@ def integration_tests(ctx, race=False, timeout="", only: list[str] | None = None
         only: Filter tests to run.
     """
 
-    tests = {
-        "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
-    }
+    tests = {}
 
     if sys.platform == 'win32':
         tests["Agent Core"] = lambda: containerized_integration_tests(

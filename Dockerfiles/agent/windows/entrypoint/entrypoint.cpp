@@ -30,7 +30,6 @@ namespace
     {
         {L"datadogagent", L"C:\\ProgramData\\Datadog\\logs\\agent.log"},
         {L"datadog-process-agent", L"C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
-        {L"datadog-trace-agent", L"C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
         {L"datadog-security-agent", L"C:\\ProgramData\\Datadog\\logs\\security-agent.log"},
     };
 

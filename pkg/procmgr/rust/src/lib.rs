@@ -18,8 +18,6 @@ mod fleet_security_template;
 mod fleet_sysprobe_template;
 #[cfg(all(test, windows))]
 mod fleet_template_support;
-#[cfg(all(test, windows))]
-mod fleet_trace_template;
 pub mod grpc;
 mod handle;
 pub mod manager;

@@ -328,7 +328,6 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             )
             # Ensure the config folders are not world writable
             os.chmod(check_dir, mode=0o755)
-        shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
         shutil.copy(
             "./cmd/agent/dist/conf.d/process_agent.yaml.default",
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
@@ -446,10 +445,8 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         "base_image": doc.base_image,
         "target_image": doc.target_image,
         "process_agent": doc.process_agent,
-        "trace_agent": doc.trace_agent,
         "system_probe": doc.system_probe,
         "security_agent": doc.security_agent,
-        "trace_loader": doc.trace_loader,
         "privateactionrunner": doc.privateactionrunner,
         "push": doc.push,
         "race": doc.race,
@@ -463,10 +460,8 @@ def hacky_dev_image_build(
     base_image=None,
     target_image="agent",
     process_agent=False,
-    trace_agent=False,
     system_probe=False,
     security_agent=False,
-    trace_loader=False,
     privateactionrunner=False,
     push=False,
     race=False,
@@ -553,18 +548,6 @@ def hacky_dev_image_build(
 
         process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
-
-    if trace_agent:
-        from tasks.trace_agent import build as trace_agent_build
-
-        trace_agent_build(ctx)
-        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
-
-    if trace_loader:
-        from tasks.loader import build as trace_loader_build
-
-        trace_loader_build(ctx)
-        copy_extra_agents += "COPY bin/trace-loader/trace-loader /opt/datadog-agent/embedded/bin/trace-loader\n"
 
     if privateactionrunner:
         from tasks.privateactionrunner import build as privateactionrunner_build
@@ -675,7 +658,6 @@ RUN agent          completion bash > /usr/share/bash-completion/completions/agen
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
 RUN system-probe   completion bash > /usr/share/bash-completion/completions/system-probe
-RUN trace-agent    completion bash > /usr/share/bash-completion/completions/trace-agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 '''

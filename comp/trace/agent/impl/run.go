@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
+	remotecfg "github.com/DataDog/datadog-agent/comp/trace/agent/impl/remote"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"

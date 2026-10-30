@@ -57,7 +57,6 @@
   - cmd/otel-agent/**/*
   - cmd/privateactionrunner/**/*
   - cmd/system-probe/**/*
-  - cmd/trace-agent/**/*
   - cmd/installer/**/*
   - cmd/systray/**/*
   - cmd/otel-agent/**/*
@@ -1167,7 +1166,6 @@ workflow:
         - cmd/process-agent/**/*
         - cmd/security-agent/**/*
         - cmd/system-probe/**/*
-        - cmd/trace-agent/**/*
         - pkg/procmgr/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*

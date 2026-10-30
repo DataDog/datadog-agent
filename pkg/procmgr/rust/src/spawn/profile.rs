@@ -75,7 +75,6 @@ mod tests {
         for name in [
             "datadog-agent-action",
             "datadog-agent-ddot",
-            "datadog-agent-trace",
             "datadog-agent-security",
             "unknown-process",
         ] {

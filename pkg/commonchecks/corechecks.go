@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	amdgpu "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/amd"
@@ -124,7 +123,6 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 		return nccl.Factory(tagger, telemetryForMode(ctx), store)
 	}))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
 	if cfg.GetBool("use_networkv2_check") {
 		corecheckLoader.RegisterCheck(network.CheckName, networkv2.Factory(cfg))

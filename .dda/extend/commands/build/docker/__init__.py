@@ -134,10 +134,8 @@ def _build_quick_image(
     instance: str,
     arch: str | None,
     process_agent: bool,
-    trace_agent: bool,
     system_probe: bool,
     security_agent: bool,
-    trace_loader: bool,
     privateactionrunner: bool,
     race: bool,
     development: bool,
@@ -219,14 +217,10 @@ def _build_quick_image(
         build_cmd.extend(["--base-image", resolved_base_image])
     if process_agent:
         build_cmd.append("--process-agent")
-    if trace_agent:
-        build_cmd.append("--trace-agent")
     if system_probe:
         build_cmd.append("--system-probe")
     if security_agent:
         build_cmd.append("--security-agent")
-    if trace_loader:
-        build_cmd.append("--trace-loader")
     if privateactionrunner:
         build_cmd.append("--privateactionrunner")
     if race:
@@ -296,12 +290,6 @@ def _build_quick_image(
     help="[Quick only] Include process-agent in the image.",
 )
 @click.option(
-    "--trace-agent",
-    is_flag=True,
-    default=False,
-    help="[Quick only] Include trace-agent in the image.",
-)
-@click.option(
     "--system-probe",
     is_flag=True,
     default=False,
@@ -312,12 +300,6 @@ def _build_quick_image(
     is_flag=True,
     default=False,
     help="[Quick only] Include security-agent in the image.",
-)
-@click.option(
-    "--trace-loader",
-    is_flag=True,
-    default=False,
-    help="[Quick only] Include trace-loader in the image.",
 )
 @click.option(
     "--privateactionrunner",
@@ -374,10 +356,8 @@ def cmd(
     arch: str | None,
     no_push: bool,
     process_agent: bool,
-    trace_agent: bool,
     system_probe: bool,
     security_agent: bool,
-    trace_loader: bool,
     privateactionrunner: bool,
     race: bool,
     development: bool,
@@ -416,14 +396,10 @@ def cmd(
             quick_only_flags.append("--base-image")
         if process_agent:
             quick_only_flags.append("--process-agent")
-        if trace_agent:
-            quick_only_flags.append("--trace-agent")
         if system_probe:
             quick_only_flags.append("--system-probe")
         if security_agent:
             quick_only_flags.append("--security-agent")
-        if trace_loader:
-            quick_only_flags.append("--trace-loader")
         if privateactionrunner:
             quick_only_flags.append("--privateactionrunner")
         if race:
@@ -469,10 +445,8 @@ def cmd(
             instance=instance,
             arch=arch,
             process_agent=process_agent,
-            trace_agent=trace_agent,
             system_probe=system_probe,
             security_agent=security_agent,
-            trace_loader=trace_loader,
             privateactionrunner=privateactionrunner,
             race=race,
             development=development,

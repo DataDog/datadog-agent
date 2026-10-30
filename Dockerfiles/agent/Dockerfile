@@ -281,7 +281,7 @@ RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 # Add Debian snapshot date for debugging
 RUN date +%Y%m%dT000000Z > .debian_repo_snapshot_date
 
-# Expose DogStatsD and trace-agent ports
+# Expose DogStatsD and APM ports
 EXPOSE 8125/udp 8126/tcp
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=2 \

@@ -6,7 +6,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "remote",
     srcs = ["config.go"],
-    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote",
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/agent/impl/remote",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/remote/client",

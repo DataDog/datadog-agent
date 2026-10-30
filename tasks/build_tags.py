@@ -57,11 +57,8 @@ SECURITY_AGENT_TAGS = _data.SECURITY_AGENT_TAGS
 SBOMGEN_TAGS = _data.SBOMGEN_TAGS
 SERVERLESS_TAGS = _data.SERVERLESS_TAGS
 SYSTEM_PROBE_TAGS = _data.SYSTEM_PROBE_TAGS
-TRACE_AGENT_TAGS = _data.TRACE_AGENT_TAGS
-TRACE_AGENT_HEROKU_TAGS = _data.TRACE_AGENT_HEROKU_TAGS
 CWS_INSTRUMENTATION_TAGS = _data.CWS_INSTRUMENTATION_TAGS
 OTEL_AGENT_TAGS = _data.OTEL_AGENT_TAGS
-LOADER_TAGS = _data.LOADER_TAGS
 HOST_PROFILER_TAGS = _data.HOST_PROFILER_TAGS
 PRIVATEACTIONRUNNER_TAGS = _data.PRIVATEACTIONRUNNER_TAGS
 SECRET_GENERIC_CONNECTOR_TAGS = _data.SECRET_GENERIC_CONNECTOR_TAGS
@@ -93,11 +90,9 @@ build_tags = {
         "serverless": SERVERLESS_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
-        "trace-agent": TRACE_AGENT_TAGS,
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
-        "loader": LOADER_TAGS,
         "host-profiler": HOST_PROFILER_TAGS,
         "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
         "secret-generic-connector": SECRET_GENERIC_CONNECTOR_TAGS,
@@ -128,7 +123,6 @@ build_tags = {
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(FIPS_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDED_TAGS),
-        "trace-agent": TRACE_AGENT_TAGS.union(FIPS_TAGS),
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
         "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
         "installer": INSTALLER_TAGS.union(FIPS_TAGS),
@@ -142,7 +136,6 @@ build_tags = {
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
-        "trace-agent": TRACE_AGENT_HEROKU_TAGS,
         "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
@@ -158,7 +151,6 @@ build_tags = {
     },
     AgentFlavor.recorder: {
         "agent": AGENT_RECORDER_TAGS,
-        "trace-agent": TRACE_AGENT_TAGS,
         "process-agent": PROCESS_AGENT_TAGS,
         "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
         "lint": AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),

@@ -120,8 +120,6 @@ func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabiliti
 		"datadog-agent-installer-exp.service":  mustReadUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-data-plane.service":     mustReadUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-data-plane-exp.service": mustReadUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-trace.service":          mustReadUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-trace-exp.service":      mustReadUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-process.service":        mustReadUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-process-exp.service":    mustReadUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-security.service":       mustReadUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported, false),
@@ -235,13 +233,6 @@ var (
 		PIDDir:           "__SYSPROBE_INSTALL_ROOT__",
 		Stable:           true,
 	}
-	windowsTraceCodegenData = installerTemplateData{
-		InstallDir:       "__TRACE_INSTALL_ROOT__",
-		EtcDir:           "__TRACE_ETC_ROOT__",
-		FleetPoliciesDir: "__TRACE_FLEET_POLICIES_DIR__",
-		PIDDir:           "__TRACE_INSTALL_ROOT__",
-		Stable:           true,
-	}
 	windowsSecurityCodegenData = installerTemplateData{
 		InstallDir:       "__SECURITY_INSTALL_ROOT__",
 		EtcDir:           "__SECURITY_ETC_ROOT__",
@@ -278,7 +269,6 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-process.yaml", "datadog-agent-process-windows.yaml", windowsProcessCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-sysprobe.yaml", "datadog-agent-sysprobe-windows.yaml", windowsSysprobeCodegenData)},
-		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-trace.yaml", "datadog-agent-trace-windows.yaml", windowsTraceCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-security.yaml", "datadog-agent-security-windows.yaml", windowsSecurityCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-par-control.yaml", "datadog-agent-par-control-windows.yaml", windowsPARCodegenData)},

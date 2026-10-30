@@ -127,7 +127,6 @@ build do
             mkdir "#{install_dir}/processes.d"
 
             # remove unused configs
-            delete "#{output_config_dir}/etc/datadog-agent/conf.d/apm.yaml.default"
             delete "#{output_config_dir}/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs

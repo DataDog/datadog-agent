@@ -1,116 +1,16 @@
 import json
 import os
-import sys
 import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import (
-    compute_build_tags_for_flavor,
-)
-from tasks.flavor import AgentFlavor
 from tasks.git import get_ancestor
-from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
-from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_current_branch
-from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.trace_dupcheck import CORPUS_INPUTS, DUPCHECK_DIR, render_diff, render_without_baseline
 from tasks.schema.generate import schema_codegen
-from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
-
-BIN_PATH = os.path.join(".", "bin", "trace-agent")
-
-BAZEL_TARGET = "//cmd/trace-agent:trace-agent"
-
-
-@task
-def build(
-    ctx,
-    rebuild=False,
-    race=False,
-    build_include=None,
-    build_exclude=None,
-    flavor=AgentFlavor.base.name,
-    install_path=None,
-    go_mod="readonly",
-    enable_bazel=False,
-):
-    """
-    Build the trace agent.
-    """
-
-    flavor = AgentFlavor[flavor]
-
-    if enable_bazel:
-        if race:
-            raise NotImplementedError("--enable-bazel does not support --race.")
-        if build_include is not None or build_exclude is not None:
-            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
-        if flavor != AgentFlavor.base:
-            raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
-        if install_path is not None:
-            raise NotImplementedError("--enable-bazel does not support --install-path.")
-
-        agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-        build_binary_with_bazel(BAZEL_TARGET, bin_path=agent_bin)
-        return
-
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx)
-
-    ldflags, gcflags, env = get_build_flags(
-        ctx,
-        install_path=install_path,
-    )
-
-    # generate windows resources
-    if sys.platform == 'win32':
-        build_messagetable(ctx)
-        vars = versioninfo_vars(ctx)
-        build_rc(
-            ctx,
-            "cmd/trace-agent/windows/resources/trace-agent.rc",
-            vars=vars,
-            out="cmd/trace-agent/rsrc.syso",
-        )
-
-    build_tags = compute_build_tags_for_flavor(
-        build="trace-agent", flavor=flavor, build_include=build_include, build_exclude=build_exclude
-    )
-    agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/trace-agent",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        build_tags=build_tags,
-        bin_path=agent_bin,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-    )
-
-
-@task
-def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
-    """
-    Run integration tests for trace agent
-    """
-    containerized_integration_tests(
-        ctx,
-        TRACE_AGENT_IT_CONF,
-        race=race,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
-
 
 @task
 def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):

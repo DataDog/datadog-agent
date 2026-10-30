@@ -11,10 +11,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/serverless-init/cloudservice",
-        "//cmd/trace-agent/config/remote",
         "//comp/core/config",
         "//comp/core/ipc/impl-none",
         "//comp/core/tagger/def",
+        "//comp/trace/agent/impl/remote",
         "//comp/trace/compression/impl-zstd",
         "//comp/trace/config/impl",
         "//pkg/config/model",

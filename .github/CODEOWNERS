@@ -245,7 +245,6 @@
 /cmd/iot-agent/                                     @DataDog/agent-runtimes
 /cmd/secrethelper/                                  @DataDog/fleet-automation
 /cmd/testdata/                                      @DataDog/agent-integrations @DataDog/agent-runtimes
-/cmd/trace-agent/                                   @DataDog/agent-apm
 /cmd/agent/                                         @DataDog/agent-runtimes
 /cmd/agent/common/import*.go                        @DataDog/fleet-automation
 /cmd/agent/common/testdata/                         @DataDog/fleet-automation
@@ -285,7 +284,6 @@
 /cmd/agent/windows_resources                        @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentcrashdetect.d/             @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentprofiling.d/               @DataDog/agent-runtimes
-/cmd/agent/dist/conf.d/apm.yaml.default               @DataDog/agent-apm
 /cmd/agent/dist/conf.d/battery.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/cisco_sdwan.d/                  @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/cloud_hostinfo.d/               @DataDog/agent-runtimes @DataDog/container-autoscaling
@@ -370,7 +368,6 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go  @DataDog/agent-integrations
 /cmd/cws-instrumentation/                           @DataDog/agent-security
 /cmd/dogstatsd/                                     @DataDog/agent-metric-pipelines
-/cmd/loader/                                        @DataDog/agent-runtimes @DataDog/agent-apm
 /cmd/otel-agent/                                    @DataDog/opentelemetry-agent
 /cmd/privateactionrunner                            @DataDog/action-platform
 /cmd/process-agent/                                 @DataDog/container-experiences
@@ -533,7 +530,6 @@
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/ebpf-platform
 /comp/trace/etwtracer @DataDog/windows-products
-/comp/trace-telemetry @DataDog/agent-runtimes
 /comp/anomalydetection/logssource @DataDog/agent-anomaly-detection
 /comp/anomalydetection/observer @DataDog/agent-anomaly-detection
 /comp/anomalydetection/recorder @DataDog/agent-anomaly-detection
@@ -595,7 +591,6 @@
 
 # remoteagent implementation should also notify their respective teams
 /comp/core/remoteagent/impl-systemprobe   @DataDog/agent-runtimes @DataDog/ebpf-platform
-/comp/core/remoteagent/impl-trace         @DataDog/agent-runtimes @DataDog/agent-apm
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
 
 # Host profiler: core profiling features are owned by profiling-full-host only;
@@ -714,7 +709,6 @@
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*                        @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor*              @DataDog/container-experiences
 /pkg/collector/corechecks/embed/                                      @DataDog/agent-delivery
-/pkg/collector/corechecks/embed/apm/                                  @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/                              @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                                        @DataDog/accelerator-telemetry
 /pkg/collector/corechecks/networkconfigmanagement/                    @DataDog/ndm-integrations
@@ -991,7 +985,6 @@
 /tasks/build_tags.bzl                                           @DataDog/agent-build
 /tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
 /tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
-/tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
 /tasks/dogstatsd.py                                             @DataDog/agent-metric-pipelines

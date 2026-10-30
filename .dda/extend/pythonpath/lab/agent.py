@@ -26,7 +26,6 @@ def build_local_image(
     Args:
         tag: Docker image tag for the built image.
         process_agent: Include process-agent in the build.
-        trace_agent: Include trace-agent in the build.
         system_probe: Include system-probe in the build.
         security_agent: Include security-agent in the build.
         devenv: Developer environment ID to use (default: "default").

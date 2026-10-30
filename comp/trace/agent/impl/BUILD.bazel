@@ -14,7 +14,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/trace/agent/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/trace-agent/config/remote",
         "//comp/api/api/apiimpl/observability",
         "//comp/core/ipc/def",
         "//comp/core/secrets/def",
@@ -22,6 +21,7 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/dogstatsd/statsd/def",
         "//comp/trace/agent/def",
+        "//comp/trace/agent/impl/remote",
         "//comp/trace/compression/def",
         "//comp/trace/compression/impl-zstd",
         "//comp/trace/config/def",
