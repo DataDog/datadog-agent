@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -462,10 +463,54 @@ func (ia *inventoryagent) fetchSecretsMetadata() {
 	if ia.secrets != nil {
 		paths, handles = ia.secrets.GetPathsAndHandles()
 	}
+	// Scrub the configuration to find the keys holding credentials: either known sensitive keys or values that look
+	// like credentials. Defaults are excluded since they are not set by the user, and the secrets layer is excluded
+	// so values resolved from a handle are not reported twice.
+	configScrubber := scrubber.NewWithDefaults()
+	var settings interface{} = ia.conf.AllSettingsWithoutDefaultOrSecrets()
+	configScrubber.ScrubDataObj(&settings)
+	scrubbedKeys := filterScrubbedKeys(configScrubber.GetStrippedKeys(), paths)
 	ia.data["enc_info"] = map[string][]string{
-		"paths":   paths,
-		"handles": handles,
+		"paths":    paths,
+		"handles":  handles,
+		"scrubbed": scrubbedKeys,
 	}
+}
+
+// filterScrubbedKeys returns the deduplicated scrubbed keys that are not contained in paths
+func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
+	seen := make(map[string]struct{}, len(paths)+len(scrubbedKeys))
+	for _, path := range paths {
+		// Scrubbed keys are bare YAML key names (ex: "community_strings")
+		// Secret paths are full dotted settings, optionally prefixed by their origin
+		//   (ex: "snmp_traps.community_strings.0" or "a3f9c01b2d4e5f67:auth.password")
+		// get last non-numerical element of the path, to match what the scrubbed keys uses
+		last := getPathLastName(path)
+		seen[last] = struct{}{}
+	}
+	res := []string{}
+	for _, key := range scrubbedKeys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		res = append(res, key)
+	}
+	return res
+}
+
+// getPathLastName returns last element of a setting path, skipping the last if it's a number
+// origin prefix is removed if present
+func getPathLastName(path string) string {
+	if idx := strings.Index(path, ":"); idx != -1 {
+		path = path[idx+1:]
+	}
+	elems := strings.Split(path, ".")
+	leaf := elems[len(elems)-1]
+	if _, err := strconv.Atoi(leaf); err == nil && len(elems) >= 2 {
+		leaf = elems[len(elems)-2]
+	}
+	return leaf
 }
 
 func (ia *inventoryagent) refreshMetadata() {

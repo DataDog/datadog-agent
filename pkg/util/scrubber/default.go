@@ -203,7 +203,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
-		walk(&data, func(key string, _ any) (bool, any) {
+		walk(&data, func(key string, _ string, _ any) (bool, any) {
 			switch key {
 			// ADD rule info that can be shown
 			case "id", "license":
@@ -676,4 +676,15 @@ func AddStrippedKeys(strippedKeys []string) {
 		dynamicReplacers = append(dynamicReplacers, replacer)
 		dynamicReplacersMutex.Unlock()
 	}
+}
+
+// GetStrippedKeys returns the keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON) on the
+// default scrubber.
+func GetStrippedKeys() []string {
+	return DefaultScrubber.GetStrippedKeys()
+}
+
+// ClearStrippedKeys forgets the keys recorded by the default scrubber.
+func ClearStrippedKeys() {
+	DefaultScrubber.ClearStrippedKeys()
 }
