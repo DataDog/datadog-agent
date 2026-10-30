@@ -35,10 +35,14 @@ func NewMacro(id, expression string, model Model, parsingContext *parser.Parsing
 		return nil, fmt.Errorf("syntax error: %w", err)
 	}
 
+	tree, err := pass.Run(astMacro, opts.passes()...)
+	if err != nil {
+		return nil, fmt.Errorf("compilation error: macro compilation error: %w", err)
+	}
 	macro := &Macro{
 		ID:   id,
 		Opts: opts,
-		ast:  pass.Run(astMacro, opts.passes()...).(*ast.Macro),
+		ast:  tree.(*ast.Macro),
 	}
 
 	// compiled only to report its errors where it's defined, each rule using it

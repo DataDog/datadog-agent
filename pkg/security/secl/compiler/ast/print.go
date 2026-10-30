@@ -57,9 +57,7 @@ func (p printer) sprint(node Node) {
 		sb.WriteString(node.Name)
 		sb.WriteString("}")
 	case *FieldRef:
-		sb.WriteString("%{")
 		sb.WriteString(node.Name)
-		sb.WriteString("}")
 	case *Array:
 		members := make([]Node, 0, len(node.Members))
 		for _, member := range node.Members {

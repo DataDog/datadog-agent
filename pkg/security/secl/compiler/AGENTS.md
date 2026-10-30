@@ -18,7 +18,7 @@ source ──parse──▶ AST ──passes──▶ AST ──compile──▶
   `ast.Node`, and the `ast.Position` of the nodes. No dependency on
   the parser, no dependency on the evaluators.
 - `pass` — the compilation passes, each rewriting in place a copy of the tree:
-  macro expansion so far.
+  the resolution of the identifiers referring to macros and constants so far.
 - `eval` — the evaluators, and their construction from the AST (`compile.go`).
   `eval.Compile` walks the AST, type checks it against a `Model`, and returns a
   tree of closures. `eval.Rule` holds the AST of a rule, runs the passes over
@@ -44,11 +44,6 @@ source ──parse──▶ AST ──passes──▶ AST ──compile──▶
   by the rules using it, and the tree of a macro is inserted in every rule
   referring to it. The passes run over a copy (`pass.Run`) and modify it in
   place, and a tree inserted in another one is copied first (`ast.DeepCopy`).
-- **Beware of shared evaluators.** The value of a constant is a single
-  evaluator instance reused by every rule referring to it. Compilation
-  mutates its operands in a couple of places (`=~` forcing the value type of its
-  right operand, `Unary` flagging its operand as deterministic), which leaks
-  across rules; copy rather than add to those.
 
 ## Testing
 
