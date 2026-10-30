@@ -597,6 +597,10 @@ require (
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 
+// TEMPORARY (OTAGENT-1353): WithConfigOptions landed upstream in contrib #51877, ~10h after the
+// v0.163.0 cut. Drop this once OTEL_CONTRIB_VERSION reaches 0.164.0.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension => github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.1-0.20261014163159-9982b8e8a42e
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (

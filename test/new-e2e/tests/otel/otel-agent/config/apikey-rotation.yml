@@ -1,0 +1,39 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+
+processors:
+  infraattributes:
+    cardinality: 2
+
+service:
+  # No `extensions:` list on purpose. The converter then autoconfigures the full
+  # default set, including datadog/dd-autoconfigured, which is the extension whose
+  # forwarder this test watches across a rotation. Declaring any list here would
+  # still work, but leaving it out keeps the test honest about the default shape.
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]

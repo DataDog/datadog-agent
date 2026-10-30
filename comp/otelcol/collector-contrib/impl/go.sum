@@ -596,8 +596,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancing
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.163.0/go.mod h1:tkD9dvywQax5IlxUtme/Y2Pq2jLIr1NiHTfInehIE/U=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.163.0 h1:ezvIRoLG+TqctUn3FOKwqFRb6B/mlgRtp8qP6pNNPVw=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.163.0/go.mod h1:l4lOMyckg8WkZRCcQwrU6XQR3U6RsYSQxyyGO9yO5KE=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.0 h1:eFSo7ysUXKM/E8/3fHvZuUffzeDBykWsf0Kk3VaJlXk=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.0/go.mod h1:OkOSRLBqKxpC3oiOhsxWyrjhEeCJtgEUbr1ZBUmGASE=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.1-0.20261014163159-9982b8e8a42e h1:s1fGuzs8w0LUpu43aHPcJlaIs3xeN7slrKYj7mQxWCI=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.1-0.20261014163159-9982b8e8a42e/go.mod h1:OkOSRLBqKxpC3oiOhsxWyrjhEeCJtgEUbr1ZBUmGASE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.163.0 h1:q81KTMTVcskHlGYbVaWeyASLtu/mOabXHTBEqPNy+pc=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.163.0/go.mod h1:1sNa7Hjfc9J7y8+r7oS8IBch+tvmK+VNS815nJyUSBo=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.163.0 h1:67dsvM6MmYQtLYnTx8quaw0goi9u9nI2tFdj0I/w7Zw=

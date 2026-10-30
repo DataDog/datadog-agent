@@ -102,6 +102,7 @@ type RequiresNoAgent struct {
 	URIs             []string
 	Config           config.Component
 	Converter        confmap.Converter
+	Log              corelog.Component
 	Tagger           tagger.Component
 	Hostname         hostnameinterface.Component
 	Ipc              ipc.Component
@@ -202,6 +203,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil, datadogconnector.WithAgentIgnoreResources(reqs.Config.GetStringSlice("apm_config.ignore_resources")))
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
+	bridgeDatadogExtensionAPIKey(factories, reqs.Config, reqs.Log)
 	factories.Extensions[dogtelextension.Type] = dogtelextension.NewFactoryForAgent(
 		reqs.Config,
 		reqs.Log,
@@ -291,6 +293,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), false)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
+	bridgeDatadogExtensionAPIKey(factories, reqs.Config, reqs.Log)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	set := otelcol.CollectorSettings{

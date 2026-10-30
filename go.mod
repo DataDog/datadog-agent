@@ -348,6 +348,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.8
 	github.com/oliveagle/jsonpath v0.1.4
 	github.com/open-policy-agent/opa v1.21.3
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.163.0
@@ -420,6 +421,7 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.163.0
 	go.opentelemetry.io/collector/config/confighttp v0.163.0
 	go.opentelemetry.io/collector/config/confignet v1.69.0
+	go.opentelemetry.io/collector/config/configopaque v1.69.0
 	go.opentelemetry.io/collector/config/configtelemetry v0.163.0
 	go.opentelemetry.io/collector/confmap v1.69.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.69.0
@@ -458,6 +460,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0
+	go.opentelemetry.io/otel/metric v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
@@ -809,7 +812,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.163.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.163.0 // indirect
@@ -963,7 +965,6 @@ require (
 	go.opentelemetry.io/collector/config/configcompression v1.69.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v1.69.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.69.0 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.69.0 // indirect
 	go.opentelemetry.io/collector/config/configoptional v1.69.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.69.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.69.0 // indirect
@@ -1031,7 +1032,6 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.45.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.46.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
-	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.22.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.opentelemetry.io/proto/otlp/processcontext/v1development v0.4.1 // indirect
@@ -1124,6 +1124,10 @@ replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-202
 
 // Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
+
+// TEMPORARY (OTAGENT-1353): WithConfigOptions landed upstream in contrib #51877, ~10h after the
+// v0.163.0 cut. Drop this once OTEL_CONTRIB_VERSION reaches 0.164.0.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension => github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.1-0.20261014163159-9982b8e8a42e
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
