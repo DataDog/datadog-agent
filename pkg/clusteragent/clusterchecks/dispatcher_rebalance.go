@@ -104,7 +104,12 @@ func (d *dispatcher) moveConfig(src, dest, digest string) error {
 	return nil
 }
 
-func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
+func (d *dispatcher) rebalance(force bool) ([]types.RebalanceResponse, error) {
+	if !d.rebalanceMu.TryLock() {
+		return nil, types.ErrRebalanceInProgress
+	}
+	defer d.rebalanceMu.Unlock()
+
 	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
 		tracer.ResourceName("rebalanceChecks"),
 		tracer.SpanType("worker"))
@@ -113,7 +118,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 
 	result := d.rebalanceUsingUtilization(force)
 	span.SetTag("checks_moved", len(result))
-	return result
+	return result, nil
 }
 
 // rebalanceUsingUtilization rebalances the cluster checks deployed in a cluster

@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"context"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -61,6 +62,7 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	rebalanceMu                      sync.Mutex // the ticker and the rebalance API can run concurrently
 	shardingStrategies               []shardingStrategy
 	shards                           *shardTracker
 	// checkGroup maps each check claimed by a runner group to
@@ -475,7 +477,9 @@ func (d *dispatcher) run(ctx context.Context) {
 			d.scanUnscheduledChecks()
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching.Load() {
-				d.rebalance(false)
+				if _, err := d.rebalance(false); err != nil {
+					log.Infof("Skipping periodic rebalance: %v", err)
+				}
 			}
 		}
 	}

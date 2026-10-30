@@ -146,6 +146,21 @@ func TestMoveConfigNotOnSource(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestRebalanceAlreadyInProgress(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	dispatcher.rebalanceMu.Lock()
+	_, err := dispatcher.rebalance(true)
+	assert.ErrorIs(t, err, types.ErrRebalanceInProgress)
+	dispatcher.rebalanceMu.Unlock()
+
+	_, err = dispatcher.rebalance(true)
+	assert.NoError(t, err)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestRebalanceUsingUtilization(t *testing.T) {
 	// To simplify the test:
 	//   - Fill the store manually to avoid having to fetch the information from
