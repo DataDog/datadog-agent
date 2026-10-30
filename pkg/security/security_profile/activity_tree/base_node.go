@@ -27,7 +27,8 @@ func timeToNanos(t time.Time) int64 {
 
 // NodeBase provides the base functionality for all nodes in the activity tree.
 type NodeBase struct {
-	seen []seenEntry
+	seen            []seenEntry
+	lastAnomalySent int64 // lastAnomalySent is the last time an anomaly was sent for this activity.
 }
 
 // NewNodeBase creates a new NodeBase instance
@@ -131,6 +132,33 @@ func (b *NodeBase) GetSeenTimes(imageTagID uint64) (firstSeen, lastSeen int64, f
 		}
 	}
 	return 0, 0, false
+}
+
+// GetLastAnomalySent returns the time an anomaly was last sent for this node.
+// The boolean is false when no anomaly has been sent yet.
+// This timestamp is independent of the per-tag LastSeen, which advances on every occurrence.
+func (b *NodeBase) GetLastAnomalySent() (time.Time, bool) {
+	if b == nil || b.lastAnomalySent == 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(0, b.lastAnomalySent), true
+}
+
+// RecordAnomalySent stores the time an anomaly detection event was sent for this node.
+// It does not touch the per-tag FirstSeen or LastSeen timestamps.
+func (b *NodeBase) RecordAnomalySent(timestamp time.Time) {
+	if b == nil || timestamp.IsZero() {
+		return
+	}
+	b.lastAnomalySent = timeToNanos(timestamp)
+}
+
+// mergeLastAnomalySent keeps the most recent anomaly sent of b and other, so that a node that absorbs
+// another one stays in the cooldown of the latest of their anomalies.
+func (b *NodeBase) mergeLastAnomalySent(other *NodeBase) {
+	if other.lastAnomalySent > b.lastAnomalySent {
+		b.lastAnomalySent = other.lastAnomalySent
+	}
 }
 
 // EachSeen calls fn for every recorded image tag ID and its first/last seen timestamps
