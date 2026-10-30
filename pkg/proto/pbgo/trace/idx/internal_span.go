@@ -1239,20 +1239,28 @@ func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 
 // setCompatibleTags checks if the key is a special case that was previously a tag
 // if it is, then we set the new field and return true, otherwise we return false
+//
+// Spans decoded from v0.4/v0.5 payloads also hold these keys in their attributes (see
+// handlePromotedMetaFields). The field is the source of truth, so any such attribute is
+// deleted when the field is written: otherwise it would keep the previous (possibly sensitive,
+// e.g. when written by a replace rule) value and still be sent with the span.
 func (s *InternalSpan) setCompatibleTags(key, value string) bool {
 	if s.span.Attributes == nil {
 		s.span.Attributes = make(map[uint32]*AnyValue)
 	}
 	if key == "env" {
 		s.SetEnv(value)
+		deleteAttribute(key, s.Strings, s.span.Attributes)
 		return true
 	}
 	if key == "version" {
 		s.SetVersion(value)
+		deleteAttribute(key, s.Strings, s.span.Attributes)
 		return true
 	}
 	if key == "component" {
 		s.SetComponent(value)
+		deleteAttribute(key, s.Strings, s.span.Attributes)
 		return true
 	}
 	if key == "span.kind" {
@@ -1270,10 +1278,18 @@ func (s *InternalSpan) setCompatibleTags(key, value string) bool {
 			newKind = SpanKind_SPAN_KIND_CONSUMER
 		}
 		if newKind == SpanKind_SPAN_KIND_UNSPECIFIED {
-			// On an unknown span kind, we just won't set it
+			// On an unknown span kind, we just won't set it. The only place such a kind lives
+			// is the raw attribute kept by the v0.4/v0.5 decoders: update it if there is one,
+			// so that it does not keep the previous value.
+			if keyIdx := s.Strings.Lookup(key); keyIdx != 0 {
+				if _, ok := s.span.Attributes[keyIdx]; ok {
+					setStringAttribute(key, value, s.Strings, s.span.Attributes)
+				}
+			}
 			return true
 		}
 		s.SetSpanKind(newKind)
+		deleteAttribute(key, s.Strings, s.span.Attributes)
 		return true
 	}
 	return false

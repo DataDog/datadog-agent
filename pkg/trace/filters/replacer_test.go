@@ -6,11 +6,13 @@
 package filters
 
 import (
+	"bytes"
 	"math/rand/v2"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -314,4 +316,87 @@ func TestReplaceAttributeAnyValue_NilArrayAndElement(t *testing.T) {
 		got := f.replaceAttributeAnyValue(re, val, "?")
 		assert.Nil(t, got.ArrayValue.Values[0])
 	})
+}
+
+// TestReplaceV1ConvertedV04PromotedTags checks that replace rules applied to spans decoded
+// from a v0.4 msgpack payload do not leave the original value of env, version, component or
+// span.kind behind: the v0.4 decoder stores these both in their dedicated span field and in
+// the span attributes.
+func TestReplaceV1ConvertedV04PromotedTags(t *testing.T) {
+	const secret = "SECRET"
+	for name, tc := range map[string]struct {
+		rules [][3]string
+		// adds a span with an unknown span.kind, which the decoder keeps as a raw attribute
+		// only (named rules read span.kind from the Kind field, so only "*" can redact it)
+		withUnknownKind bool
+	}{
+		"wildcard": {
+			rules:           [][3]string{{"*", secret, "?"}},
+			withUnknownKind: true,
+		},
+		"named": {
+			rules: [][3]string{
+				{"env", secret, "?"},
+				{"version", secret, "?"},
+				{"component", secret, "?"},
+				{"other", secret, "?"},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			trace := pb.Trace{{
+				Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 1,
+				Meta: map[string]string{
+					"env":       "prod-" + secret,
+					"version":   "1.0-" + secret,
+					"component": "comp-" + secret,
+					"span.kind": "client",
+					"other":     "other-" + secret,
+				},
+			}}
+			if tc.withUnknownKind {
+				trace = append(trace, &pb.Span{
+					Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 2, ParentID: 1,
+					Meta: map[string]string{"span.kind": "kind-" + secret},
+				})
+			}
+			bts, err := pb.Traces{trace}.MarshalMsg(nil)
+			require.NoError(t, err)
+			tp := &idx.InternalTracerPayload{}
+			_, err = tp.UnmarshalMsgConverted(bts)
+			require.NoError(t, err)
+			require.Len(t, tp.Chunks, 1)
+			require.Len(t, tp.Chunks[0].Spans, len(trace))
+
+			NewReplacer(parseRulesFromString(tc.rules)).ReplaceV1(tp.Chunks[0])
+
+			span := tp.Chunks[0].Spans[0]
+			assert.Equal(t, "prod-?", span.Env())
+			assert.Equal(t, "1.0-?", span.Version())
+			assert.Equal(t, "comp-?", span.Component())
+			assert.Equal(t, idx.SpanKind_SPAN_KIND_CLIENT, span.Kind())
+			for _, k := range []string{"env", "version", "component", "span.kind", "other"} {
+				got, ok := span.GetAttributeAsString(k)
+				assert.True(t, ok, k)
+				assert.NotContains(t, got, secret, k)
+			}
+			// Look at the raw attribute maps, bypassing the GetAttributeAsString
+			// compatibility shim that reads promoted keys from their dedicated field.
+			for _, s := range tp.Chunks[0].Spans {
+				for k, v := range s.Attributes() {
+					assert.NotContains(t, v.AsString(tp.Strings), secret, "attribute %q", tp.Strings.Get(k))
+				}
+			}
+
+			// The encoded payload sent to the intake must not carry the secret either.
+			// The payload-level env/app version are promoted from the spans at decode
+			// time, before replace rules run: they are out of the scope of this test.
+			tp.SetEnv("")
+			tp.SetAppVersion("")
+			encoded, err := pb.MarshalAgentPayloadPrepared(&pb.AgentPayload{},
+				[]*pb.PreparedTracerPayload{pb.PrepareTracerPayload(tp.ToProto())})
+			require.NoError(t, err)
+			assert.False(t, bytes.Contains(encoded, []byte(secret)), "encoded payload contains %q", secret)
+		})
+	}
 }

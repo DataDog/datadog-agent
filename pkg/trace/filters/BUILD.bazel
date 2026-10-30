@@ -30,5 +30,6 @@ dd_agent_go_test(
         "//pkg/trace/config",
         "//pkg/trace/testutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
