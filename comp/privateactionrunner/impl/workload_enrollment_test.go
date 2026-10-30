@@ -185,7 +185,8 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 func TestWIFOptInDoesNotReplaceExistingAPIKeyRunner(t *testing.T) {
 	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		"api_key": "original-key", par.WIFEnrollment: true, par.SelfEnroll: true,
+		"delegated_auth.org_uuid": "test-org",
+		"api_key":                 "original-key", par.WIFEnrollment: true, par.SelfEnroll: true,
 		par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
 	})
 	key, _, err := util.GenerateKeys()
