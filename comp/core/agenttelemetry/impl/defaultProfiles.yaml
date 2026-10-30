@@ -115,6 +115,8 @@ profiles:
       - name: points.dropped
         preserve_tags:
           - domain
+      - name: aggregator.dogstatsd_type_mismatch
+      - name: aggregator.checks_type_mismatch
       # Metadata payloads over the serializer size limits are dropped before
       # reaching the forwarder, so they are invisible from intake.
       - name: serializer.metadata_payload_dropped

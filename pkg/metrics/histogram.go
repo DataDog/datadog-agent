@@ -316,3 +316,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 func (h *Histogram) isStateful() bool {
 	return false
 }
+
+func (h *Histogram) metricType() MetricType {
+	return HistogramType
+}

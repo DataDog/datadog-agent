@@ -195,6 +195,8 @@ var (
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 	tlmDogstatsdContextsBytesByMtype = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
+	tlmDogstatsdTypeMismatch    = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "dogstatsd_type_mismatch", "Count of dogstatsd samples whose metric type differs from the existing metric for their context")
+	dogstatsdAddSampleTelemetry = &metrics.AddSampleTelemetry{TypeMismatch: tlmDogstatsdTypeMismatch}
 	tlmDogstatsdFilteredMetrics = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
 	tlmChecksFilteredMetrics    = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
 	tlmFilteredTags             = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")

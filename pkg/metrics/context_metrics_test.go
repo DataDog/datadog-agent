@@ -10,7 +10,9 @@ package metrics
 import (
 	"math"
 	"testing"
+	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -358,4 +360,34 @@ func TestContextMetricsCountWithTimestampSampling(t *testing.T) {
 	if assert.Len(t, series, 1) {
 		AssertSerieEqual(t, expectedSerie, series[0])
 	}
+}
+
+func TestContextMetricsTypeMismatchTelemetry(t *testing.T) {
+	tel := telemetryimpl.NewMock(t)
+	typeMismatch := tel.NewSimpleCounter("test", "type_mismatch", "")
+	tlm := &AddSampleTelemetry{TypeMismatch: typeMismatch}
+	metrics := MakeContextMetrics()
+	c := setupConfig(t)
+
+	metrics.AddSample(1, &MetricSample{Mtype: GaugeType, Value: 1}, 12340, 10, tlm, c)
+	metrics.AddSample(1, &MetricSample{Mtype: GaugeType, Value: 1}, 12340, 10, tlm, c)
+	metrics.AddSample(2, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10, tlm, c)
+	assert.Equal(t, 0.0, typeMismatch.Get())
+
+	metrics.AddSample(1, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10, tlm, c)
+	metrics.AddSample(1, &MetricSample{Mtype: GaugeWithTimestampType, Value: 1}, 12340, 10, tlm, c)
+	metrics.AddSample(1, &MetricSample{Mtype: GaugeWithTimestampType, Value: 1}, 12340, 10, tlm, c)
+	metrics.AddSample(2, &MetricSample{Mtype: GaugeType, Value: 1}, 12340, 10, nil, c)
+	assert.Equal(t, 3.0, typeMismatch.Get())
+}
+
+func TestCheckMetricsTypeMismatchTelemetry(t *testing.T) {
+	cm := NewCheckMetrics(true, 1000*time.Second)
+	c := setupConfig(t)
+	before := tlmChecksTypeMismatch.Get()
+
+	cm.AddSample(1, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 1, c)
+	cm.AddSample(1, &MetricSample{Mtype: RateType, Value: 1}, 12341, 1, c)
+
+	assert.Equal(t, before+1, tlmChecksTypeMismatch.Get())
 }
