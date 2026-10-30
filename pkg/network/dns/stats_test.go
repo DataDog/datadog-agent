@@ -17,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -130,4 +132,42 @@ func BenchmarkStats(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestResponseCountersFlushWithStats(t *testing.T) {
+	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
+	defer sk.Close()
+	key := getSampleDNSKey()
+	d := ToHostname("abc.com")
+	then := time.Now()
+
+	sk.ProcessPacketInfo(dnsPacketInfo{transactionID: 9, key: key, pktType: successfulResponse}, then)
+	sk.ProcessPacketInfo(dnsPacketInfo{transactionID: 1, pktType: query, key: key, question: d, queryType: TypeA}, then)
+	sk.ProcessPacketInfo(dnsPacketInfo{transactionID: 1, key: key, pktType: successfulResponse}, then.Add(DNSTimeoutSecs*time.Second+time.Millisecond))
+	assert.Equal(t, int64(1), sk.unmatchedResponses)
+	assert.Equal(t, int64(1), sk.lateResponses)
+
+	late, unmatched := statKeeperCounter(t, "late_responses"), statKeeperCounter(t, "unmatched_responses")
+	sk.GetAndResetAllStats()
+	assert.Zero(t, sk.unmatchedResponses)
+	assert.Zero(t, sk.lateResponses)
+	assert.Equal(t, late+1, statKeeperCounter(t, "late_responses"))
+	assert.Equal(t, unmatched+1, statKeeperCounter(t, "unmatched_responses"))
+}
+
+// statKeeperCounter returns the current value of a stat keeper telemetry counter
+func statKeeperCounter(t *testing.T, name string) float64 {
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != dnsStatKeeperModuleName+"__"+name {
+			continue
+		}
+		var total float64
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+		return total
+	}
+	return 0
 }
