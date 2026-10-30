@@ -13,5 +13,6 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/def",
         "//comp/trace-telemetry/def",
+        "//pkg/config/helper",
     ],
 )

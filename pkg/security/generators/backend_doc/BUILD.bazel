@@ -27,7 +27,7 @@ config_setting(
 # The generator reflects over the serializer types compiled into it, so producing
 # backend_windows.schema.json requires a Windows build of this binary. Cross-built
 # here so that a Linux host can generate it by running the result under
-# //bazel/tools/wine:wine_run.
+# rules_wine.
 # @rules_go//go/toolchain:windows_amd64 is the cgo-off platform, and the race
 # detector requires cgo, so --config=gorace cannot build this. The Windows
 # non-Go test lane builds every target with that flag; it uses native backend_doc.

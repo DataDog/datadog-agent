@@ -195,6 +195,23 @@ properties:
     example: /var/lib/cloud/data/instance-id
     tags:
     - template_section:Common
+  hostname_use_serial:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Append the device serial number to the automatically detected hostname in
+      end_user_device infrastructure mode on macOS and Windows. macOS uses the
+      LocalHostName as its device-name source regardless of this setting. Explicit
+      hostname and hostname_file settings take precedence. Cloud provider hostnames,
+      hostname_fqdn, and EC2 instance-ID selection can still replace the device name,
+      including its serial-number suffix when enabled.
+      Restart the Agent after changing this setting;
+      changing the hostname changes the device identity in Datadog.
+    tags:
+    - template_section:Common
+    - platform_only:darwin,windows
   hostname_fqdn:
     node_type: setting
     type: boolean
@@ -7866,6 +7883,49 @@ properties:
         node_type: setting
         type: integer
         default: 0
+  experimental:
+    node_type: section
+    type: object
+    properties:
+      metrics_endpoint_routing:
+        node_type: section
+        type: object
+        properties:
+          metric_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name allowlists.
+              Keys must exactly match the resolved primary URL (including any trailing dot)
+              or a key in additional_endpoints. Unknown endpoints are rejected. A metric is sent
+              if its normalized name matches this list or metric_prefix_allowlist for
+              the endpoint. Applies to series and sketches. Requires use_v2_api.series
+              to be enabled. Endpoints absent from both
+              maps keep ordinary delivery. An endpoint with two empty lists receives
+              no metrics. Policies are independent of Multi-Region Failover and require
+              a restart to change. Experimental settings may change without compatibility.
+          metric_prefix_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name prefix allowlists, combined with metric_allowlist.
+              Keys follow the same endpoint validation and restart requirements.
+              Prefixes are case-sensitive literal strings, not wildcards or regular
+              expressions. An empty string prefix allows every valid metric name.
+              An empty list allows no names. Incoming names are normalized for matching.
+              Configured entries and transmitted names are unchanged.
   expected_tags_duration:
     node_type: setting
     type: string
@@ -8193,6 +8253,13 @@ properties:
     node_type: section
     type: object
     properties:
+      reporter_interval:
+        node_type: setting
+        type: string
+        default: 60s
+        format: duration
+        description: |-
+          Interval between profile reports. Must be at least 60 seconds.
       additional_http_headers:
         node_type: setting
         type: object
@@ -8213,6 +8280,13 @@ properties:
         default: false
         description: |
           Includes unwind error frames in profiles for troubleshooting.
+      filter_min_process_age:
+        node_type: setting
+        type: string
+        default: 0s
+        format: duration
+        description: |
+          Skips profiling processes younger than this duration, to filter out short-lived processes. 0 disables the filter.
       ddprofiling:
         node_type: section
         type: object
@@ -8233,10 +8307,20 @@ properties:
         node_type: section
         type: object
         properties:
-          verbosity:
+          exporter:
+            node_type: section
+            type: object
+            properties:
+              verbosity:
+                node_type: setting
+                type: string
+                default: ''
+          ebpf_logs:
             node_type: setting
-            type: string
-            default: ''
+            type: boolean
+            default: false
+            description: |-
+              Enables verbose eBPF profiler logging for troubleshooting.
       health_metrics:
         node_type: section
         type: object
@@ -8265,6 +8349,18 @@ properties:
         node_type: section
         type: object
         properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            description: |-
+              Uploads debug symbols to Datadog for native and Go symbolization.
+              Disabling uploads can leave profiles with unresolved frames.
+          options:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
           report:
             node_type: section
             type: object
@@ -8999,6 +9095,13 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  metadata_skip_secrets:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      When true, the inventory agent payload does not include the `enc_info` section (paths, handles and hashes
+      of the secrets used in the configuration).
   metric_filterlist:
     node_type: setting
     type: array
@@ -9634,24 +9737,24 @@ properties:
         default: false
         tags:
         - no-env
-      inventory_enabled:
+      metadata_enabled:
         node_type: setting
         type: boolean
         default: false
         env_vars:
-        - DD_SERVERLESS_INIT_INVENTORY_ENABLED
-      inventory_wrapped_command_enabled:
+        - DD_SERVERLESS_INIT_METADATA_ENABLED
+      metadata_wrapped_command_enabled:
         node_type: setting
         type: boolean
         default: false
         description: |
-          Include the wrapped workload command in serverless-init inventory when inventory is enabled.
+          Include the wrapped workload command in serverless-init metadata when metadata collection is enabled.
           The command is omitted by default. Collection may transmit secrets in command-line arguments.
           Redaction is best effort and incomplete: it does not cover all argument names, formats,
           positional values, or embedded scripts. Enable only after verifying that your workload
           command contains no sensitive information.
         env_vars:
-        - DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED
+        - DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED
       logs_enabled:
         node_type: setting
         type: boolean
