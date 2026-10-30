@@ -11,9 +11,9 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
@@ -24,14 +24,30 @@ const (
 	infraAttributesName = "infraattributes"
 	hpflareName         = "hpflare"
 	ddprofilingName     = "ddprofiling"
+
+	maxReportIntervalSeconds   = 24 * 60 * 60
+	maxReportMaxPathsPerReport = 100_000
 )
 
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
+	if agent.hostProfilerConfig.ReporterInterval != "" {
+		_ = confmaputils.Set(profiling, "reporter_interval", agent.hostProfilerConfig.ReporterInterval)
+	}
+	if agent.hostProfilerConfig.EBPFDebugLogs {
+		_ = confmaputils.Set(profiling, "verbose_mode", true)
+	}
+	if agent.hostProfilerConfig.IncludeEnvVars != "" {
+		_ = confmaputils.Set(profiling, "include_env_vars", agent.hostProfilerConfig.IncludeEnvVars)
+	}
 	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
+	_ = confmaputils.Set(profiling, "filter_min_process_age", agent.hostProfilerConfig.FilterMinProcessAge.String())
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
+	for option, value := range agent.hostProfilerConfig.SymbolUploaderOptions {
+		_ = confmaputils.Set(profiling, "symbol_uploader::"+option, value)
+	}
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
@@ -44,6 +60,12 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	}
 
 	_ = confmaputils.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	if interval := agent.hostProfilerConfig.SymbolUploaderReport.Interval; interval > 0 && interval <= maxReportIntervalSeconds {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::interval", interval)
+	}
+	if maxPaths := agent.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport; maxPaths > 0 && maxPaths <= maxReportMaxPathsPerReport {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::max_paths_per_report", maxPaths)
+	}
 
 	receivers["profiling"] = profiling
 	conf["receivers"] = receivers

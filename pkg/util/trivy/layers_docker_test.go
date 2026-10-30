@@ -8,8 +8,13 @@
 package trivy
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	dimage "github.com/moby/moby/api/types/image"
 	"github.com/moby/moby/api/types/storage"
 	"github.com/stretchr/testify/assert"
@@ -82,4 +87,62 @@ func TestBuildDockerLayerPaths(t *testing.T) {
 		assert.Equal(t, "/dock/only", got[0].Path)
 		assert.Equal(t, "sha256:only", got[0].DiffID)
 	})
+}
+
+// TestScanDockerImageWithoutGraphDriver checks that the direct scan exports
+// an image of Docker's containerd image store, whose inspect response carries
+// no GraphDriver.
+func TestScanDockerImageWithoutGraphDriver(t *testing.T) {
+	const id = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+	imgMeta := &workloadmeta.ContainerImageMetadata{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: id},
+		EntityMeta: workloadmeta.EntityMeta{Name: "alpine:3.20"},
+	}
+	cl := imageClient{inspect: dimage.InspectResponse{
+		ID: id,
+		RootFS: dimage.RootFS{
+			Type:   "layers",
+			Layers: []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		},
+	}}
+
+	_, method, err := NewCollectorForCLI().ScanDockerImage(t.Context(), imgMeta, cl, sbom.ScanOptions{OverlayFsScan: true, Analyzers: []string{OSAnalyzers}})
+	assert.Equal(t, "tarball", method)
+	assert.ErrorIs(t, err, errSave)
+}
+
+// TestDirectScanMismatchedHistory checks that the direct scan of an image
+// whose history disagrees with its diff IDs reads the layers in place, where
+// it exported the image.
+func TestDirectScanMismatchedHistory(t *testing.T) {
+	base := t.TempDir()
+	for name, content := range map[string]string{
+		"etc/os-release":       "ID=alpine\nVERSION_ID=3.20.0\n",
+		"lib/apk/db/installed": "P:musl\nV:1.2.5-r0\nA:x86_64\n\n",
+	} {
+		path := filepath.Join(base, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	}
+	top := t.TempDir()
+
+	var exports int
+	img := mismatchedImage(&exports)
+	imgMeta := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: img.inspect.ID},
+	}
+	layers := []ftypes.LayerPath{
+		{DiffID: img.inspect.RootFS.Layers[0], Path: base},
+		{DiffID: img.inspect.RootFS.Layers[1], Path: top},
+	}
+	ctr := &fakeDockerContainer{image: img, fakeContainer: newFakeContainer(layers, imgMeta)}
+
+	report, err := NewCollectorForCLI().scanOverlayFS(t.Context(), []string{base, top}, ctr, imgMeta, sbom.ScanOptions{Analyzers: []string{OSAnalyzers}})
+	require.NoError(t, err)
+	assert.Equal(t, 0, exports)
+	var names []string
+	for _, c := range report.ToCycloneDX().GetComponents() {
+		names = append(names, c.GetName())
+	}
+	assert.Contains(t, names, "musl")
 }

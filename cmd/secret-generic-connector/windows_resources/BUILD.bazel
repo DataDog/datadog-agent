@@ -1,4 +1,4 @@
-load("//bazel/rules:windows_resources.bzl", "win_resource")
+load("//bazel/rules/windows:resources.bzl", "win_resource")
 
 win_resource(
     name = "rsrc",

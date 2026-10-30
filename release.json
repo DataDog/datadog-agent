@@ -1,14 +1,14 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.86.0",
+    "current_milestone": "7.87.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "02d84f523ed305b7ecb7a1fabd951de701db5d3c",
+        "INTEGRATIONS_CORE_VERSION": "c5d1e30182238ea35f72c49ed124e582e2bb8de8",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
         "OMNIBUS_RUBY_VERSION": "8c1c4d809d3cf7a717a35bc22cd6458f6cd2e65b",
-        "SECURITY_AGENT_POLICIES_SHA256": "5028ebd1b03071b89f5112277e303f388dcf968e52fca90253147dc9cd8367b3",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.85.0",
+        "SECURITY_AGENT_POLICIES_SHA256": "ebe0a8d029b9453b3f1ee6ef84a6a185e627ae83e7304f4ff5754c337d826479",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.86.0",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_SHASUM": "4943c83e548d1a49ee3eb1c045d6be2f3888fee343961533c2958bdc8e5002c7",
         "WINDOWS_DDNPM_VERSION": "2.14.0",

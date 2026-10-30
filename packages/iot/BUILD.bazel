@@ -11,7 +11,7 @@ load(
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//compliance:package_licenses.bzl", "package_licenses")
-load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+load("//packages/rules:agent_path.bzl", "etc_dir")
 load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
 load("//packages/rules:dd_pkg_rpm.bzl", "dd_pkg_rpm")
 load("//packages/rules:package_naming.bzl", "make_version", "package_name_variables")
@@ -212,7 +212,7 @@ pkg_files(
     name = "example_config",
     srcs = ["//pkg/config:iot_agent_config"],
     attributes = pkg_attributes(mode = "0644"),
-    prefix = select(ETC_DIR_SELECTOR),
+    prefix = etc_dir(),
     renames = {"//pkg/config:iot_agent_config": "datadog.yaml.example"},
 )
 

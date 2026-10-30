@@ -111,6 +111,10 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
     }
 
     u32 pid = data->pid;
+    u32 *mntns = bpf_map_lookup_elem(&mntns_cache, &pid);
+    if (mntns != NULL) {
+        data->mntns = *mntns;
+    }
     if (IS_KERNEL_THREAD(pid)) {
         data->is_kworker = 1;
     }
