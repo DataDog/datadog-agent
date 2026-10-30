@@ -322,6 +322,7 @@ func deepCopyProcessPtr(fieldToCopy *Process, c deepCopyContext) *Process {
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent, c)
 	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
+	copied.InitialMntNS = fieldToCopy.InitialMntNS
 	copied.IsExec = fieldToCopy.IsExec
 	copied.IsExecExec = fieldToCopy.IsExecExec
 	copied.IsParentMissing = fieldToCopy.IsParentMissing
@@ -626,6 +627,7 @@ func deepCopyProcess(fieldToCopy Process, c deepCopyContext) Process {
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent, c)
 	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
+	copied.InitialMntNS = fieldToCopy.InitialMntNS
 	copied.IsExec = fieldToCopy.IsExec
 	copied.IsExecExec = fieldToCopy.IsExecExec
 	copied.IsParentMissing = fieldToCopy.IsParentMissing

@@ -427,6 +427,10 @@ type Process struct {
 
 	ForkFlags uint64 `field:"-"`
 
+	// InitialMntNS is the MntNS the process had at fork or exec, saved when MntNS is first
+	// updated by a later unshare or setns, 0 until then. Use GetInitialMntNS to read it
+	InitialMntNS uint32 `field:"-"`
+
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 

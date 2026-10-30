@@ -2194,11 +2194,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 		event.SetNS.MntNSHost = p.hostMntNS != 0 && event.SetNS.MntNS == p.hostMntNS
-		// the root's mntns was captured when it was exec'd and isn't updated by setns, so it
-		// stays the container's base even when the root itself is the one leaving it
+		// the root's MntNS follows its unshare and setns calls, its initial one stays the
+		// container's base even when the root itself is the one leaving it
 		if event.SetNS.MntNS != 0 && event.ProcessContext.ContainerContext.ContainerID != "" {
-			if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.MntNS != 0 {
-				event.SetNS.MntNSOutsideBase = event.SetNS.MntNS != root.Process.MntNS
+			if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil {
+				if baseMntNS := root.Process.GetInitialMntNS(); baseMntNS != 0 {
+					event.SetNS.MntNSOutsideBase = event.SetNS.MntNS != baseMntNS
+				}
 			}
 		}
 	case model.CapabilitiesEventType:
