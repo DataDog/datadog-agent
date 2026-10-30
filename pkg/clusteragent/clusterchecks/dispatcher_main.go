@@ -328,16 +328,25 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	}
 }
 
-// reschdule sends configurations to dispatching without checking or patching them as Schedule does.
-func (d *dispatcher) reschedule(configs []integration.Config) []string {
-	addedConfigIDs := make([]string, 0, len(configs))
-	for _, c := range configs {
-		log.Debugf("Rescheduling the check %s:%s", c.Name, c.Digest())
-		if d.add(c) {
-			addedConfigIDs = append(addedConfigIDs, c.Digest())
+// dispatchDangling places dangling configs on eligible nodes. The store stays
+// locked throughout so that a concurrent Unschedule can't be undone.
+func (d *dispatcher) dispatchDangling() {
+	d.store.Lock()
+	defer d.store.Unlock()
+
+	for digest, c := range d.store.danglingConfigs {
+		target, anyNode := d.getNodeToScheduleCheck(c.config.Name)
+		if target == "" {
+			log.Warnf("No eligible node to dispatch %s:%s on, will retry later", c.config.Name, digest)
+			if anyNode {
+				configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+			}
+			continue
 		}
+		log.Infof("Dispatching dangling configuration %s:%s to node %s", c.config.Name, digest, target)
+		d.addConfigLocked(c.config, target)
+		d.deleteDangling([]string{digest})
 	}
-	return addedConfigIDs
 }
 
 // add stores and delegates a given configuration
@@ -472,11 +481,7 @@ func (d *dispatcher) run(ctx context.Context) {
 
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDangling() {
-				danglingConfigs := d.retrieveDangling()
-				scheduledConfigIDs := d.reschedule(danglingConfigs)
-				d.store.Lock()
-				d.deleteDangling(scheduledConfigIDs)
-				d.store.Unlock()
+				d.dispatchDangling()
 			}
 		case <-unscheduledCheckTicker.C:
 			// Check for configs that have been dangling longer than expected
