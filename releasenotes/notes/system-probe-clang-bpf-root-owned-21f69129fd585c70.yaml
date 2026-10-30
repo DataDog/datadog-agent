@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    On Linux, the installer now makes ``embedded/bin/clang-bpf`` owned by root, and the
+    packaged ``clang-bpf`` no longer has an RPATH pointing at ``embedded/lib``.
+    system-probe now refuses to run ``clang-bpf`` for eBPF runtime compilation unless it
+    is owned by root and not writable by group or other users. If the check fails,
+    runtime compilation fails and the configured fallback (CO-RE or prebuilt eBPF
+    programs) applies.

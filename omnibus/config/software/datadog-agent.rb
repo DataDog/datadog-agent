@@ -253,6 +253,10 @@ build do
     copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
     copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
+    # system-probe runs clang-bpf as root, so drop its RPATH: $ORIGIN/../lib would load
+    # libraries from the dd-agent-writable embedded/lib. It only needs glibc and
+    # libgcc_s, which always come from the host.
+    command "bazel run #{omnibazel_flags} @patchelf//:patchelf -- --remove-rpath #{install_dir}/embedded/bin/clang-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
 
     copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
