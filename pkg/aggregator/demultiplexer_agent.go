@@ -33,9 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -87,6 +87,9 @@ type AgentDemultiplexerOptions struct {
 	FlushInterval time.Duration
 
 	NoAggregationPipelineWorkersCount int
+
+	// MetricsEndpointRouting must be validated before initialization.
+	MetricsEndpointRouting utils.MetricsEndpointRouting
 
 	DogStatsDLookback        DogStatsDLookback
 	DogStatsDLookbackFactory DogStatsDLookbackFactory
@@ -174,7 +177,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	sharedSerializer := serializer.NewSerializerWithEndpointRouting(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.MetricsEndpointRouting)
 	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
 		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
 	}
@@ -217,7 +220,7 @@ func initAgentDemultiplexer(log log.Component,
 		noAggSerializers = make([]serializer.MetricSerializer, workersCount)
 		noAggSamplesChan = make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size"))
 		for i := 0; i < workersCount; i++ {
-			noAggSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+			noAggSerializers[i] = serializer.NewSerializerWithEndpointRouting(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.MetricsEndpointRouting)
 			noAggWorkers[i] = newNoAggregationStreamWorker(
 				pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 				metricSamplePool,

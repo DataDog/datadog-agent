@@ -60,6 +60,7 @@ type activityTreeOpts struct {
 	pathsReducer      *activity_tree.PathsReducer
 	differentiateArgs bool
 	dnsMatchMaxDepth  int
+	pathPatterns      activity_tree.PathPatternConfig
 }
 
 // Profile represents a security profile
@@ -205,6 +206,14 @@ func WithDNSMatchMaxDepth(dnsMatchMaxDepth int) Opts {
 	}
 }
 
+// WithPathPatterns enables path-pattern merging on the profile's
+// ActivityTree with the provided configuration.
+func WithPathPatterns(cfg activity_tree.PathPatternConfig) Opts {
+	return func(p *Profile) {
+		p.treeOpts.pathPatterns = cfg
+	}
+}
+
 // New returns a new profile
 func New(opts ...Opts) *Profile {
 	p := &Profile{
@@ -227,6 +236,9 @@ func New(opts ...Opts) *Profile {
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
+	}
+	if p.treeOpts.pathPatterns.Enabled {
+		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
 	}
 
 	if p.selector.Tag != "" && p.selector.Tag != "*" {
@@ -353,7 +365,7 @@ func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authori
 	p.Lock()
 	defer p.Unlock()
 
-	if nsID == 0 {
+	if cgroupInode == 0 || nsID == 0 {
 		return false
 	}
 	if p.baseMountNSByCgroup == nil {
@@ -369,38 +381,58 @@ func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authori
 			p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: true}
 			return false
 		}
-		// Correcting a wrong guess only stops new mounts from the superseded namespace
-		// counting as base. Mounts already seeded under it keep their flag: nodes are
-		// deduped across namespaces, so they cannot be attributed back to a single one.
-		p.ActivityTree.RemoveBaseMountNamespaceID(cur.nsID)
 	}
 
 	p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: authoritative}
-	p.ActivityTree.AddBaseMountNamespaceID(nsID)
+	p.ActivityTree.SetBaseMountNamespace(cgroupInode, nsID)
 	return true
 }
 
 // RemoveBaseMountNamespace drops the base mount namespace recorded for the workload
-// identified by cgroupInode from the tree's base-namespace set.
+// identified by cgroupInode.
 func (p *Profile) RemoveBaseMountNamespace(cgroupInode uint64) {
 	p.Lock()
 	defer p.Unlock()
 
-	pin, ok := p.baseMountNSByCgroup[cgroupInode]
-	if !ok {
+	if _, ok := p.baseMountNSByCgroup[cgroupInode]; !ok {
 		return
 	}
 	delete(p.baseMountNSByCgroup, cgroupInode)
-	p.ActivityTree.RemoveBaseMountNamespaceID(pin.nsID)
+	p.ActivityTree.RemoveBaseMountNamespace(cgroupInode)
+}
+
+func (p *Profile) ClaimMountNamespaceSeed(cgroupInode uint64, nsID uint32, imageTag string) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	if cgroupInode == 0 || nsID == 0 {
+		return false
+	}
+	if pin, ok := p.baseMountNSByCgroup[cgroupInode]; ok && pin.nsID == nsID {
+		return false
+	}
+	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
+	return p.ActivityTree.ClaimMountNamespaceSeed(imageTagID, nsID)
+}
+
+func (p *Profile) ReleaseMountNamespaceSeed(nsID uint32, imageTag string) {
+	p.Lock()
+	defer p.Unlock()
+
+	if nsID == 0 {
+		return
+	}
+	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
+	p.ActivityTree.ReleaseMountNamespaceSeed(imageTagID, nsID)
 }
 
 // InsertMount inserts a mount into the profile's deduplicated mount table
-func (p *Profile) InsertMount(mnt *model.Mount, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
+func (p *Profile) InsertMount(mnt *model.Mount, cgroupInode uint64, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
 	p.Lock()
 	defer p.Unlock()
 
 	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
-	return p.ActivityTree.InsertMount(mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
+	return p.ActivityTree.InsertMount(cgroupInode, mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
 }
 
 // ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
@@ -762,6 +794,10 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	p.selector = newProfile.selector
 	p.ActivityTree = newProfile.ActivityTree
 	p.ActivityTree.SetType("security_profile", p)
+	// patternCfg is not serialized; re-apply on reload
+	if p.treeOpts.pathPatterns.Enabled {
+		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
+	}
 	p.Header = newProfile.Header
 	p.tags = newProfile.tags
 	p.versionContexts = newProfile.versionContexts

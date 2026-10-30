@@ -25,7 +25,7 @@ The following settings can be overridden in the Datadog Agent configuration for 
 
 | Name                                  | Values | Default          | Description                                                                                                                                      |
 |:--------------------------------------|:-------|:-----------------|:-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `hostprofiler.health_metrics.enabled` | bool   | `true`           | Sends internal Host Profiler health metrics to Datadog. Automatically disabled when `infrastructure_mode: none`.                                 |
+| `hostprofiler.health_metrics.enabled` | bool   | `true` (`false` when `infrastructure_mode: none`) | Sends internal Host Profiler health metrics to Datadog. |
 | `hostprofiler.health_metrics.target`  | string | `127.0.0.1:8889` | Address used for the Host Profiler internal Prometheus metrics endpoint. Change this only if the default address conflicts with another service. |
 
 ### Diagnostics
@@ -33,22 +33,25 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | Name                           | Values                        | Default                              | Description                                                                                                                                                                                                                                                          |
 |:-------------------------------|:------------------------------|:-------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `hostprofiler.hpflare.port`    | int                           | `7778`                               | Local port used to collect Host Profiler flare diagnostics. Change this only if the default port conflicts with another service.                                                                                                                                     |
-| `hostprofiler.debug.verbosity` | `basic`, `normal`, `detailed` | _(disabled)_                         | Enables the OpenTelemetry debug exporter for troubleshooting. See the [debug exporter verbosity documentation](https://pkg.go.dev/go.opentelemetry.io/collector/exporter/debugexporter#readme-verbosity-levels). Use temporarily because it can increase log volume. |
+| `hostprofiler.debug.exporter.verbosity` | `basic`, `normal`, `detailed` | _(disabled)_                         | Enables the OpenTelemetry debug exporter for troubleshooting. See the [debug exporter verbosity documentation](https://pkg.go.dev/go.opentelemetry.io/collector/exporter/debugexporter#readme-verbosity-levels). Use temporarily because it can increase log volume. |
+| `hostprofiler.debug.ebpf_logs` | bool | `false` | Enables verbose eBPF profiler logging. |
 | `hostprofiler.log_file`         | string                        | `${log_path}/host-profiler.log`      | Path to the Host Profiler log file. `${log_path}` resolves to the Agent's configured log directory.                                                                                                                                                                  |
 
 ### Advanced export settings
 
 | Name                                   | Values            | Default   | Description                                                                                                |
 |:---------------------------------------|:------------------|:----------|:-----------------------------------------------------------------------------------------------------------|
+| `hostprofiler.reporter_interval` | duration | `60s` | Interval between profile reports. Must be at least `60s`; shorter intervals are rejected. |
 | `hostprofiler.additional_http_headers` | map[string]string | _(empty)_ | Adds custom headers to profile export requests, for example when required by an outbound proxy or gateway. |
 | `hostprofiler.send_error_frames` | bool   | `false` | Includes unwind error frames in profiles for troubleshooting. |
+| `hostprofiler.include_env_vars` | string (comma-separated) | _(empty)_ | Collects additional environment variables from profiled processes without replacing the default metadata collection. Only include variables whose values are safe to send with profiles; do not include secrets. |
+| `hostprofiler.filter_min_process_age` | duration | `0s` | Skips profiling processes younger than this duration, to filter out short-lived processes. `0s` disables the filter. |
 
-### Symbol upload report
+### Symbol uploader
 
-The Host Profiler periodically logs the status of symbol uploads. These options control how often the status is logged.
-
-| Name                                             | Values | Default | Description                                                                                                        |
-|:-------------------------------------------------|:-------|:--------|:-------------------------------------------------------------------------------------------------------------------|
+| Name | Values | Default | Description |
+|:-----|:-------|:--------|:------------|
+| `hostprofiler.symbol_uploader.enabled` | bool | `true` | Uploads debug symbols to Datadog using the Agent's profiling intake destinations and API keys. Disabling it can leave native and Go frames unresolved. |
 | `hostprofiler.symbol_uploader.report.interval`   | int    | `300`   | Interval, in seconds, at which the Host Profiler logs symbol upload reports. Maximum `86400` (24 hours). Values outside `1` to `86400` are ignored and fall back to the default. |
 | `hostprofiler.symbol_uploader.report.max_paths_per_report` | int | `100` | Maximum number of binary paths kept per symbol upload report, per log level. Maximum `100000`. Values outside `1` to `100000` fall back to the default. |
 

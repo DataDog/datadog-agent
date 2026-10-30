@@ -348,15 +348,6 @@ func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
 		return errors.New("fentry enabled but not supported")
 	}
 
-	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
-	if err != nil {
-		return fmt.Errorf("fentry enabled but failed to verify tail call support: %w", err)
-	}
-
-	if tailCallsBroken {
-		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported)")
-	}
-
 	if !kernelVersion.HaveFentrySupportWithStructArgs() {
 		return errors.New("fentry enabled but not supported with struct args")
 	}
@@ -1263,10 +1254,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		if p.profileManager.HasActiveActivityDump(event) {
 			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 		}
-	} else {
-		if event.Error == nil {
-			p.profileManager.ProcessEvent(event)
-		}
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
@@ -1340,6 +1327,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
+	} else if event.Error == nil {
+		p.profileManager.ProcessEvent(event)
 	}
 
 	p.monitors.ProcessEvent(event, p.probe.scrubber)
@@ -1551,6 +1540,10 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
 				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
+			}
+
+			if event.PIDContext.MntNS != 0 {
+				p.Resolvers.ProcessResolver.UpdateMntNS(entry, event.PIDContext.MntNS)
 			}
 
 			// Attempt to repair the lineage of processes that were orphaned
@@ -2798,7 +2791,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
-	ddebpf.AddNameMappings(p.Manager.Get(), "cws")
+	p.Manager.AddNameMappings("cws")
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }
