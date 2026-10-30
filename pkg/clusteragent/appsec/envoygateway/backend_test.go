@@ -50,7 +50,7 @@ func newTestPatternWithBackendSupport(t *testing.T) (*envoyGatewayInjectionPatte
 			},
 		},
 		Injection: appsecconfig.Injection{
-			CommonLabels:      map[string]string{"app": "datadog"},
+			CommonLabels:      map[string]string{"app": "datadog", "app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue},
 			CommonAnnotations: map[string]string{"managed-by": "datadog"},
 		},
 	}
@@ -136,6 +136,7 @@ func TestDeleteBackend_AbsentIsNoOp(t *testing.T) {
 func TestDeleteBackend_ReturnsNonNotFoundError(t *testing.T) {
 	ctx := context.Background()
 	pattern, client := newTestPatternWithBackendSupport(t)
+	require.NoError(t, pattern.createBackend(ctx, "test-ns", testSocketPath))
 	boom := stderrors.New("delete failed")
 	client.PrependReactor("delete", "backends", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, boom
@@ -155,4 +156,17 @@ func TestDeleteBackend_CreateThenDelete(t *testing.T) {
 	_, err := client.Resource(backendGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
 	require.Error(t, err)
 	assert.True(t, apierrors.IsNotFound(err), "Get after delete must return IsNotFound")
+}
+
+func TestDeleteBackend_LeavesForeignBackend(t *testing.T) {
+	ctx := context.Background()
+	pattern, client := newTestPatternWithBackendSupport(t)
+	backend := newTestBackend("test-ns", testSocketPath)
+	backend.SetLabels(map[string]string{"app": "someone-else"})
+	require.NoError(t, client.Tracker().Create(backendGVR, backend, "test-ns"))
+
+	require.NoError(t, pattern.deleteBackend(ctx, "test-ns"))
+
+	_, err := client.Resource(backendGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.NoError(t, err, "Backend not created by the injector must be left in place")
 }
