@@ -311,3 +311,65 @@ func TestObserverFlushProcessesBothQueues(t *testing.T) {
 	// An empty flush must also finish, including on repeated calls.
 	obs.Flush()
 }
+
+func TestObserverRunDrainsRemainingQueue(t *testing.T) {
+	for _, otherQueueState := range []string{"nil", "closed"} {
+		for _, remainingKind := range []string{"metrics", "logs"} {
+			t.Run(remainingKind+"_with_"+otherQueueState+"_other_queue", func(t *testing.T) {
+				storage := newTimeSeriesStorage()
+				extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
+				obs := &observerImpl{
+					engine: newEngine(engineConfig{
+						storage:    storage,
+						extractors: []observerdef.LogMetricsExtractor{extractor},
+					}),
+					metricsCh: make(chan observation, 1),
+					logsCh:    make(chan observation, 1),
+				}
+				remainingCh, otherCh := obs.metricsCh, &obs.logsCh
+				namespace := "check"
+				if remainingKind == "logs" {
+					remainingCh, otherCh = obs.logsCh, &obs.metricsCh
+					namespace = extractor.Name()
+				}
+				if otherQueueState == "nil" {
+					*otherCh = nil
+				} else {
+					close(*otherCh)
+				}
+
+				done := make(chan struct{})
+				go func() {
+					obs.run()
+					close(done)
+				}()
+				t.Cleanup(func() {
+					close(remainingCh)
+					// Both queues are now nil or closed; the worker must exit.
+					<-done
+				})
+
+				for i, sample := range []struct{ metricName, logContent string }{
+					{"requests", "database connection refused"},
+					{"errors", "request failed with unexpected error"},
+				} {
+					next := observation{source: "check"}
+					if remainingKind == "metrics" {
+						next.hasMetric = true
+						next.metric = metricHandoff{name: sample.metricName, value: 1, timestamp: 1000}
+					} else {
+						next.log = &logObs{content: sample.logContent, status: "error", timestampMs: 1_000_000}
+					}
+					remainingCh <- next
+
+					// Acknowledge processing on the surviving queue before sending
+					// another observation. Flush() requires both queues to be open.
+					processed := make(chan struct{})
+					remainingCh <- observation{flush: processed}
+					<-processed
+					require.Len(t, storage.ListSeries(observerdef.SeriesFilter{Namespace: namespace}), i+1)
+				}
+			})
+		}
+	}
+}
