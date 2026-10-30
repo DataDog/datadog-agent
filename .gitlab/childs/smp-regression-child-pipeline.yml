@@ -184,10 +184,11 @@ variables:
           : > involved_teams.txt
         else
           SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.smp-pr-context || true)
-          if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null; then
+          if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt --context-out pr_context.json </dev/null; then
             echo "WARNING: pull request context is unavailable; submitting the always bucket only."
             : > pr_labels.txt
             : > involved_teams.txt
+            rm -f pr_context.json
           fi
         fi
         SMP_LABELS=$(cat pr_labels.txt 2>/dev/null || true)
@@ -229,6 +230,18 @@ variables:
         datadog-ci tag --level job --tags smp_failure_mode:"job-sync"
         exit $exit_code
       }
+    # Generate review artifacts only for the container lane. No new report upload.
+    - |
+      if [ "${SELECT_EXPERIMENTS}" == "true" ]; then
+        export SMP_LABELS SMP_INVOLVED
+        if ! dda inv smp.experiment-health; then
+          echo "WARNING: SMP experiment health rendering failed; existing CI gates remain active."
+          mkdir -p outputs/experiment-health
+          echo '{"status":"error","upload_enabled":false}' > outputs/experiment-health/render-status.json
+        else
+          echo '{"status":"rendered","upload_enabled":false}' > outputs/experiment-health/render-status.json
+        fi
+      fi
     # Replace empty lines in the output with lines containing various unicode
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
@@ -333,6 +346,17 @@ variables:
 single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  artifacts:
+    paths:
+      - submission_metadata
+      - outputs/report.md
+      - outputs/regression_signal.json
+      - outputs/bounds_check_signal.json
+      - outputs/junit.xml
+      - outputs/report.json
+      - outputs/decision_record.md
+      - outputs/report.v1.json
+      - outputs/experiment-health/
   # Child pipelines do not inherit the parent token configuration.
   id_tokens:
     DDOCTOSTS_ID_TOKEN:

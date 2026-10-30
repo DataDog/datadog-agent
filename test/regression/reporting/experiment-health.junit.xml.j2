@@ -1,0 +1,22 @@
+{#- smp-report-schema: 1 -#}
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="SMP Experiment Health" tests="{{ extra.tests }}" failures="{{ extra.failures }}" errors="{{ extra.errors }}">
+{% for suite in extra.suites %}
+  <testsuite name="{{ suite.name | e }}" tests="{{ suite.tests }}" failures="{{ suite.failures }}" errors="{{ suite.errors }}">
+{% for evaluation in suite.evaluations %}
+    <testcase classname="{{ suite.name | e }}" name="{{ evaluation.name | e }}">
+      <properties>
+{% for key, value in evaluation.tags | items %}
+        <property name="dd_tags[{{ key | e }}]" value="{{ value | e }}"/>
+{% endfor %}
+      </properties>
+{% if evaluation.outcome == "fail" %}
+      <failure type="smp.check_failed" message="{{ evaluation.message | e }}">{{ evaluation.details | e }}</failure>
+{% elif evaluation.outcome == "error" %}
+      <error type="smp.check_error" message="{{ evaluation.message | e }}">{{ evaluation.details | e }}</error>
+{% endif %}
+    </testcase>
+{% endfor %}
+  </testsuite>
+{% endfor %}
+</testsuites>
