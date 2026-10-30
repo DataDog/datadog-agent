@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Add intake routing, which lets the Datadog backend choose the intake host that receives
+    the logs sent by the core logs agent over HTTPS, such as a customer-specific host. The
+    Agent validates each host chosen by the backend and checks that it is reachable before
+    sending logs to it, and keeps using the configured host otherwise. Endpoints that use
+    a proxy, PrivateLink, Observability Pipelines Worker, multi-region failover, or a custom
+    host are never routed. Intake routing is disabled by default.

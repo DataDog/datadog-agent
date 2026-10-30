@@ -9,6 +9,7 @@ package headers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,8 +82,8 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	defer backend.Close()
 
 	_, err = backoff.Retry(context.Background(), func() (struct{}, error) {
-		if err := backend.GetKernelHeaders(outputDir); err != nil {
-			return struct{}{}, fmt.Errorf("failed to download kernel headers: %s", err)
+		if err := downloadAttempt(backend, outputDir); err != nil {
+			return struct{}{}, fmt.Errorf("failed to download kernel headers: %w", err)
 		}
 		return struct{}{}, nil
 	}, backoff.WithMaxTries(2), backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithNotify(func(err error, delay time.Duration) {
@@ -156,4 +157,38 @@ func createOutputDir(path string) (string, error) {
 
 	err = os.MkdirAll(absolutePath, 0755)
 	return absolutePath, err
+}
+
+// downloadAttempt starts with an empty download tree and removes rejected partial
+// output before another attempt or a later process can reuse it as cached headers.
+// The caller has already validated the download directory and its ancestors.
+func downloadAttempt(backend types.Backend, directory string) error {
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	clear := func() error {
+		dir, err := root.Open(".")
+		if err != nil {
+			return err
+		}
+		entries, readErr := dir.ReadDir(-1)
+		closeErr := dir.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			return err
+		}
+		var failures []error
+		for _, entry := range entries {
+			failures = append(failures, root.RemoveAll(entry.Name()))
+		}
+		return errors.Join(failures...)
+	}
+	if err := clear(); err != nil {
+		return fmt.Errorf("clean header download directory: %w", err)
+	}
+	if err := backend.GetKernelHeaders(directory); err != nil {
+		return errors.Join(err, clear())
+	}
+	return nil
 }
