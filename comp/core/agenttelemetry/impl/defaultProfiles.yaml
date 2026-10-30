@@ -304,6 +304,10 @@ profiles:
       request_type: agent-bsod
       payload_key: agent_bsod
       message: 'Agent BSOD'
+    - name: integration-install
+      request_type: agent-integration-install
+      payload_key: agent_integration_install
+      message: 'Agent integration install'
 - name: service-discovery
   metric:
     metrics:

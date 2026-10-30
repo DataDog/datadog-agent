@@ -3296,6 +3296,43 @@ func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
 	assert.Equal(t, "ddnpm+0x1a3", v)
 }
 
+// Short-lived commands such as `agent integration install` use the events-only component. It must
+// deliver events without reporting Agent metrics or an Agent startup trace from the CLI process.
+func TestEventsOnlyAgentTelemetrySendsEventsWithoutAgentTelemetry(t *testing.T) {
+	var cfg = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+      - name: xxx
+        metric:
+          metrics:
+            - name: foo.bar
+      - name: ondemand
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agent_bsod
+            message: 'Agent BSOD'
+    `
+	cl := newClientMock()
+	r := &runnerMock{}
+	c := configmock.NewFromYAML(t, cfg)
+	l := makeLogMock(t)
+	s, err := newSenderImpl(c, l, cl)
+	require.NoError(t, err)
+	a := createEventsOnlyAtel(c, l, makeTelMock(t), s, r)
+	require.True(t, a.enabled)
+
+	a.startEventsOnly()
+	defer a.stopEventsOnly()
+
+	require.NoError(t, a.SendEvent("agentbsod", []byte(`{"offender": "ddnpm+0x1a3"}`)))
+	assert.NotEmpty(t, cl.(*clientMock).body)
+	assert.Empty(t, r.jobs, "metric profiles must not be scheduled")
+	assert.Nil(t, a.lightTracer, "the Agent startup must not be traced")
+	assert.Nil(t, a.errLogsCh, "error logs must not be collected")
+}
+
 func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
 	// Use nearly full
 	var cfg = `
