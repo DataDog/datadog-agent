@@ -126,7 +126,7 @@ func TestMaterializerPackageSizeLimit(t *testing.T) {
 		size    uint64
 		wantErr string
 	}{
-		{name: "zero size", wantErr: "missing a nonzero size annotation"},
+		{name: "zero size", wantErr: "requires a nonzero size annotation"},
 		{name: "over limit", size: twoGiB + 1, wantErr: "exceeds the"},
 		{name: "at limit", size: twoGiB},
 	} {

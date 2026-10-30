@@ -86,7 +86,7 @@ func (m *Materializer) Materialize(ctx context.Context, descriptor authoredscrip
 		return fmt.Errorf("OCI package version %q does not match catalog version %q", downloadedPackage.Version, descriptor.Version)
 	}
 	if downloadedPackage.Size == 0 {
-		return errors.New("authored-script OCI package is missing a nonzero size annotation")
+		return errors.New("authored-script OCI package requires a nonzero size annotation")
 	}
 	if downloadedPackage.Size > maxAuthoredScriptPackageSize {
 		return fmt.Errorf("authored-script OCI package size %d bytes exceeds the %d-byte limit", downloadedPackage.Size, maxAuthoredScriptPackageSize)
