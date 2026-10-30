@@ -4,7 +4,7 @@ go 1.26.6
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.1
-	cloud.google.com/go/compute v1.73.0
+	cloud.google.com/go/compute v1.74.0
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.0-devel.0.20261028224924-1c255663adbd
