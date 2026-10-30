@@ -10,11 +10,14 @@ package oci
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -35,7 +38,8 @@ import (
 
 type testDownloadServer struct {
 	*fixtures.Server
-	m *testMirrorServer
+	m     *testMirrorServer
+	guard *localOnlyTransport
 }
 
 func newTestDownloadServer(t *testing.T) *testDownloadServer {
@@ -43,11 +47,35 @@ func newTestDownloadServer(t *testing.T) *testDownloadServer {
 	return &testDownloadServer{
 		Server: s,
 		m:      newTestMirrorServer(s.URL()),
+		guard:  &localOnlyTransport{},
 	}
 }
 
+// DownloaderWithMirror sends requests through s.guard, so any that skip the mirror are refused and recorded.
 func (s *testDownloadServer) DownloaderWithMirror() *Downloader {
-	return NewDownloader(&env.Env{Mirror: s.m.URL() + "/mirror"}, http.DefaultClient)
+	return NewDownloader(&env.Env{Mirror: s.m.URL() + "/mirror"}, &http.Client{Transport: s.guard})
+}
+
+// localOnlyTransport refuses requests to non-loopback hosts and records them.
+type localOnlyTransport struct {
+	mu      sync.Mutex
+	refused []string
+}
+
+func (t *localOnlyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if ip := net.ParseIP(req.URL.Hostname()); ip == nil || !ip.IsLoopback() {
+		t.mu.Lock()
+		t.refused = append(t.refused, req.URL.Host)
+		t.mu.Unlock()
+		return nil, fmt.Errorf("refusing request to non-local host %s", req.URL.Host)
+	}
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+func (t *localOnlyTransport) Refused() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]string(nil), t.refused...)
 }
 
 func (s *testDownloadServer) Downloader() *Downloader {
@@ -88,6 +116,7 @@ func TestDownloadMirror(t *testing.T) {
 
 	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
+	assert.Empty(t, s.guard.Refused())
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
@@ -138,6 +167,7 @@ func TestDownloadInvalidHash(t *testing.T) {
 	pkgURL = pkgURL[:strings.Index(pkgURL, "@sha256:")] + "@sha256:2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
 	_, err := d.Download(context.Background(), pkgURL)
 	assert.Error(t, err)
+	assert.Empty(t, s.guard.Refused(), "fallback requests skipped the mirror")
 }
 
 func TestDownloadPlatformNotAvailable(t *testing.T) {
