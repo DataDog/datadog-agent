@@ -156,7 +156,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.83.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.83.0
 	github.com/DataDog/datadog-agent/pkg/remoteflags v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/rshell v0.0.0
+	github.com/DataDog/datadog-agent/pkg/rshell v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.83.3
