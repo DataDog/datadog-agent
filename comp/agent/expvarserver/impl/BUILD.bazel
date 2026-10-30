@@ -9,6 +9,7 @@ go_library(
         "//comp/agent/expvarserver/def",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/remoteagentregistry/expvarcompat",
         "//comp/def",
     ],
 )
