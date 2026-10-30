@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -52,7 +53,7 @@ func TestCredentialStateFollowsDelegatedAuth(t *testing.T) {
 
 	dest, err := BuildDestinationConfig(cfg, endpoints)
 	require.NoError(t, err)
-	transport := NewGRPCTransport(dest)
+	transport := NewGRPCTransport(dest, secretsnoopimpl.NewComponent().Comp)
 
 	for sender, want := range []struct{ ready, awaiting bool }{
 		{ready: true},
