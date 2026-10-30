@@ -7,6 +7,7 @@ package foldspace
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -477,6 +478,57 @@ func (d *Driver) releaseUnsent(id uint64) {
 	d.sink.Channel() <- message.NewPayload([]*message.MessageMetadata{meta}, nil, "", 0)
 }
 
+// credentialWaitInterval is how often a sender rechecks for a delegated-auth key
+// before dialing. A var so tests can shorten it.
+var credentialWaitInterval = time.Second
+
+var errNoCredential = errors.New("no API key: delegated auth will not provide one for this endpoint")
+
+type credentialWait int
+
+const (
+	credentialReady credentialWait = iota
+	credentialUnavailable
+	credentialStopped
+)
+
+// awaitCredential holds a dial until sender's key is ready, as the HTTP
+// destination holds its payloads. Waiting is not a stream failure: the core
+// sees one slow dial, keeps the sender's work queued, and grows no backoff.
+// A key that will never arrive (the endpoint is disabled until restart, or its
+// directive sits in a setting nothing writes back) fails the dial instead, so
+// the core treats the endpoint as down rather than holding its work forever.
+func (d *Driver) awaitCredential(sender SenderID) credentialWait {
+	gate, ok := d.transport.(CredentialGate)
+	if !ok {
+		return credentialReady
+	}
+	waited := false
+	for {
+		ready, awaiting := gate.CredentialState(sender)
+		switch {
+		case ready:
+			if waited {
+				log.Infof("foldspace sender %d: delegated auth provided an API key", sender)
+			}
+			return credentialReady
+		case !awaiting:
+			return credentialUnavailable
+		}
+		if !waited {
+			log.Infof("foldspace sender %d: queuing logs until delegated auth provides an API key", sender)
+			waited = true
+		}
+		timer := time.NewTimer(credentialWaitInterval)
+		select {
+		case <-timer.C:
+		case <-d.stop:
+			timer.Stop()
+			return credentialStopped
+		}
+	}
+}
+
 func (d *Driver) senderLoop(sender SenderID) {
 	defer d.wg.Done()
 
@@ -570,6 +622,14 @@ func (d *Driver) senderLoop(sender SenderID) {
 							timer.Stop()
 							return
 						}
+					}
+					switch d.awaitCredential(sender) {
+					case credentialStopped:
+						return
+					case credentialUnavailable:
+						progress := d.core.HandleStreamError(sender, effect.Stream, errNoCredential.Error())
+						d.dispatch(progress)
+						continue
 					}
 					ctx, cancel := context.WithTimeout(stopCtx, d.connectTimeout)
 					stream, err := d.transport.OpenStream(ctx, sender, effect.Stream)

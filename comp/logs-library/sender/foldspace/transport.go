@@ -19,6 +19,14 @@ type Transport interface {
 	OpenStream(ctx context.Context, sender SenderID, stream StreamID) (Stream, error)
 }
 
+// CredentialGate is implemented by a Transport whose senders can be waiting for
+// an API key that delegated auth has not written back yet.
+type CredentialGate interface {
+	// CredentialState reports whether sender's key is ready to dial with and,
+	// when it is not, whether one is on its way.
+	CredentialState(sender SenderID) (ready, awaiting bool)
+}
+
 // Stream is one bidirectional batch/ack connection.
 type Stream interface {
 	// Send must return once ctx is done, even while blocked on flow control.

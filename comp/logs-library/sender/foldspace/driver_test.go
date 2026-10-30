@@ -930,3 +930,74 @@ func TestDriverRedialsAfterIdleClose(t *testing.T) {
 	assert.Equal(t, [][]byte{[]byte("first"), []byte("second")}, transport.Sent(0))
 	assert.Equal(t, 2, transport.Opens())
 }
+
+// gatedTransport reports a settable credential state for every sender.
+type gatedTransport struct {
+	*FakeTransport
+	mu              sync.Mutex
+	ready, awaiting bool
+}
+
+func (g *gatedTransport) CredentialState(SenderID) (bool, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.ready, g.awaiting
+}
+
+func (g *gatedTransport) set(ready, awaiting bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.ready, g.awaiting = ready, awaiting
+}
+
+// streamErrorCore counts the stream errors the driver reports.
+type streamErrorCore struct {
+	Core
+	errors atomic.Int64
+}
+
+func (c *streamErrorCore) HandleStreamError(sender SenderID, stream StreamID, message string) Progress {
+	c.errors.Add(1)
+	return c.Core.HandleStreamError(sender, stream, message)
+}
+
+func shortenCredentialWait(t *testing.T) {
+	prev := credentialWaitInterval
+	credentialWaitInterval = 5 * time.Millisecond
+	t.Cleanup(func() { credentialWaitInterval = prev })
+}
+
+// A sender whose delegated-auth key is on its way holds its work without
+// dialing or failing, and delivers it once the key arrives.
+func TestDialWaitsForDelegatedAuthKey(t *testing.T) {
+	shortenCredentialWait(t)
+	core := &streamErrorCore{Core: NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})}
+	transport := &gatedTransport{FakeTransport: NewFakeTransport(1), awaiting: true}
+	sink := newChannelSink()
+	d := startDriver(t, core, transport, sink, false)
+
+	d.Offer(testMessage("held"))
+	assert.Never(t, func() bool { return transport.Dials() > 0 || len(sink.ch) > 0 }, 100*time.Millisecond, 5*time.Millisecond,
+		"a sender must not dial before its key is ready")
+	assert.Zero(t, core.errors.Load(), "waiting for a key is not a stream failure")
+
+	transport.set(true, false)
+	waitPayloads(t, sink, 1)
+	assert.Equal(t, [][]byte{[]byte("held")}, transport.Sent(0))
+	assert.Zero(t, core.errors.Load())
+}
+
+// A sender whose key will never arrive fails the dial without opening a
+// stream, so the core treats the endpoint as down.
+func TestDialFailsWithoutDelegatedAuthKey(t *testing.T) {
+	shortenCredentialWait(t)
+	core := &streamErrorCore{Core: NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})}
+	transport := &gatedTransport{FakeTransport: NewFakeTransport(1)}
+	sink := newChannelSink()
+	d := startDriver(t, core, transport, sink, false)
+
+	d.Offer(testMessage("refused"))
+	require.Eventually(t, func() bool { return core.errors.Load() > 0 }, 2*time.Second, 5*time.Millisecond)
+	assert.Zero(t, transport.Dials(), "a sender with no key coming must not dial")
+	assert.Empty(t, sink.ch)
+}
