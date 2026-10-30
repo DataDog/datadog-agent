@@ -497,6 +497,21 @@ properties:
         comment: |-
           Enable the Remote-Configuration-driven NDM component, which
           subscribes to the NDM_CONFIG Remote Configuration product.
+  connectivity_check:
+    node_type: section
+    type: object
+    comment: |-
+      Interactive connectivity check, driven by the Private Action Runner
+      through the Agent IPC endpoint.
+    properties:
+      workers:
+        node_type: setting
+        type: integer
+        default: 25
+        comment: |-
+          Total concurrent probes shared across every in-flight check. The
+          budget is separate from network_devices.discovery.workers because
+          an interactive check must not wait behind a sweep.
   snmp_traps:
     node_type: section
     type: object
