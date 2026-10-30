@@ -169,6 +169,7 @@ func TestExperimentStartUnits(t *testing.T) {
 }
 
 func TestSyncProcmgrDefaults(t *testing.T) {
+	require.Equal(t, "/etc/datadog-agent/datadog-agent-procmgr", procmgrDefaultsPath)
 	path := filepath.Join(t.TempDir(), "datadog-agent-procmgr")
 	originalPath := procmgrDefaultsPath
 	originalManager := currentServiceManager

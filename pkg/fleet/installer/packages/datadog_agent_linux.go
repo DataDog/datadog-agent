@@ -822,9 +822,9 @@ const (
 	processManagerEnabledEnv = "DD_PROCESS_MANAGER_ENABLED"
 )
 
-// procmgrDefaultsPath is the root-owned file the SysV and Upstart jobs read at boot.
-// The installer process environment is not present then.
-var procmgrDefaultsPath = "/etc/default/datadog-agent-procmgr"
+// procmgrDefaultsPath is the file the SysV and Upstart jobs source at boot.
+// The directory is owned by dd-agent. The installer process environment is not present then.
+var procmgrDefaultsPath = "/etc/datadog-agent/datadog-agent-procmgr"
 
 var currentServiceManager = service.GetServiceManagerType
 

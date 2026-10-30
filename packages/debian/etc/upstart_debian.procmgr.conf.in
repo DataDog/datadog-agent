@@ -14,6 +14,9 @@ env DD_LOG_TO_CONSOLE=false
 # No setuid stanza. Upstart applies it to every job process, including pre-start,
 # so this script stays root long enough to create the socket directory.
 script
+  if [ -r /etc/datadog-agent/datadog-agent-procmgr ]; then
+    . /etc/datadog-agent/datadog-agent-procmgr
+  fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then
     . /etc/default/datadog-agent-procmgr
   fi
