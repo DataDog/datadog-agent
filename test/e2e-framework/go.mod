@@ -6,10 +6,10 @@ require (
 	al.essio.dev/pkg/shellescape v1.6.1
 	cloud.google.com/go/compute v1.73.0
 	dario.cat/mergo v1.0.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.86.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.86.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.86.0-rc.1
-	github.com/DataDog/datadog-agent/test/fakeintake v0.86.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/option v0.86.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.86.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.86.0-rc.2
+	github.com/DataDog/datadog-agent/test/fakeintake v0.86.0-rc.2
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
 	github.com/DataDog/dd-trace-go/v2 v2.11.2
 	github.com/Masterminds/semver/v3 v3.5.0
@@ -71,21 +71,21 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/metrics v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.86.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.86.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/metrics v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.86.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.86.0-rc.2 // indirect
 	github.com/DataDog/datadog-go/v5 v5.9.1 // indirect
 	github.com/DataDog/go-libddwaf/v5 v5.0.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
