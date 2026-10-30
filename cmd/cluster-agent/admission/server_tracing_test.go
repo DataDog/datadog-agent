@@ -194,7 +194,7 @@ func TestAdmissionTracingResponseOutcomes(t *testing.T) {
 			require.Equal(t, tt.result, response.Response.Result)
 			spans := mt.FinishedSpans()
 			require.Len(t, spans, 1)
-			require.Equal(t, "false", spans[0].Tag("admission.allowed"))
+			require.Equal(t, "false", spans[0].Tag("allowed"))
 			if tt.processingFailed {
 				require.Equal(t, errAdmissionRequest.Error(), spans[0].Tag("error.message"))
 				require.Equal(t, "webhook", spans[0].Tag("failure_stage"))

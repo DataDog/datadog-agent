@@ -36,15 +36,15 @@ var errMutation = errors.New("admission mutation failed")
 
 // Defer this directly so recover observes panics and err is read at function exit.
 func finishMutationSpan(span *tracer.Span, err *error) {
-	if p := recover(); p != nil {
-		span.Finish(tracer.WithError(errMutation))
+	p := recover()
+	var spanErr error
+	if p != nil || *err != nil {
+		spanErr = errMutation
+	}
+	span.Finish(tracer.WithError(spanErr))
+	if p != nil {
 		panic(p)
 	}
-	if *err != nil {
-		span.Finish(tracer.WithError(errMutation))
-		return
-	}
-	span.Finish()
 }
 
 // Mutate handles mutating pods and encoding and decoding admission
@@ -74,12 +74,10 @@ func Mutate(ctx context.Context, rawPod []byte, ns string, mutationType string, 
 		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
 	}
 
-	injected, err := func() (injected bool, retErr error) {
+	injected, err := func() (_ bool, err error) {
 		mutationSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.mutate_pod", tracer.ResourceName(mutationType))
-		defer finishMutationSpan(mutationSpan, &retErr)
-		injected, retErr = m(&pod, ns, dc)
-		mutationSpan.SetTag("injected", injected)
-		return injected, retErr
+		defer finishMutationSpan(mutationSpan, &err)
+		return m(&pod, ns, dc)
 	}()
 	span.SetTag("injected", injected)
 	if err != nil {

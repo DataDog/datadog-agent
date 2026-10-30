@@ -203,7 +203,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		tracer.ResourceName(webhookName),
 		tracer.SpanType("web"),
 		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
-		tracer.Tag("webhook.type", webhookType.String()))
+		tracer.Tag("webhook_type", webhookType.String()))
 	r = r.WithContext(ctx)
 	statusCode := http.StatusOK
 	var spanErr error
@@ -224,7 +224,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		w.WriteHeader(status)
 	}
 	recordResponse := func(response *admiv1.AdmissionResponse) {
-		span.SetTag("admission.allowed", response.Allowed)
+		span.SetTag("allowed", response.Allowed)
 		// Mutation errors fail open; validation failures are reported explicitly.
 		mutationFailed := webhookType == admicommon.MutatingWebhook && response.Allowed && response.Result != nil && response.Result.Message != ""
 		if processingFailed || mutationFailed {
