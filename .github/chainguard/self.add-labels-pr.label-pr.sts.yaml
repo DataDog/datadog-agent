@@ -11,5 +11,4 @@ claim_pattern:
 
 permissions:
   contents: read
-  issues: write
-  pull_requests: read
+  pull_requests: write
