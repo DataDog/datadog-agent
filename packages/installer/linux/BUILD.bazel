@@ -4,7 +4,6 @@ Much of this package is tagged "manual" to avoid graph explosion on
 license gathering in bazel test ... expansion.
 """
 
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -242,18 +241,4 @@ version_manifest(
     package = ":rpm",
     package_variables = ":variables",
     tags = ["manual"],
-)
-
-# Temporary for omnibus script to copy the built packages out to the artifact dir
-pkg_files(
-    name = "all_packages",
-    srcs = [
-        ":debian",
-        ":rpm",
-    ],
-)
-
-pkg_install(
-    name = "copy_out",
-    srcs = [":all_packages"],
 )
