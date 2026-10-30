@@ -795,6 +795,57 @@ func TestService(t *testing.T) {
 }
 
 // Test for client predicates
+// Local incident diagnostic: characterize late subscription at an unchanged TUF version.
+func TestIncident62769LateProductSubscription(t *testing.T) {
+	const product = "DATA_SECURITY_DB_SCAN_TASKS"
+	const configPath = "datadog/2/DATA_SECURITY_DB_SCAN_TASKS/scan-task/config"
+	for _, subscribedBeforePoll := range []bool{false, true} {
+		t.Run(fmt.Sprintf("subscribed-before-poll=%t", subscribedBeforePoll), func(t *testing.T) {
+			u := &mockCoreAgentUptane{}
+			s := newTestService(t, &mockAPI{}, u, clock.NewMock())
+			client := &pbgo.Client{
+				Id: "core-client", State: &pbgo.ClientState{RootVersion: 1},
+				Products: []string{"AGENT_CONFIG"}, IsAgent: true,
+				ClientAgent: &pbgo.ClientAgent{Name: "core-agent", Version: agentVersion},
+			}
+			if subscribedBeforePoll {
+				client.Products = append(client.Products, product)
+			}
+			u.On("TUFVersionState").Return(uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 2}, nil).Once()
+			u.On("Targets").Return(data.TargetFiles{configPath: {Custom: customMeta(nil, 0)}}, nil)
+			u.On("TargetsMeta").Return([]byte(`{"signed":"diagnostic-targets"}`), nil)
+			u.On("TargetFiles", mock.MatchedBy(func(paths []string) bool { return len(paths) == 0 })).Return(map[string][]byte{}, nil)
+			u.On("TargetFiles", []string{configPath}).Return(map[string][]byte{configPath: []byte(`{}`)}, nil)
+			s.clients.seen(client)
+			poll := func() *pbgo.ClientGetConfigsResponse {
+				response, err := s.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+				require.NoError(t, err)
+				return response
+			}
+			first := poll()
+			require.NotEmpty(t, first.Targets, "client receives targets version 2")
+			if subscribedBeforePoll {
+				require.Equal(t, []string{configPath}, first.ClientConfigs)
+				require.Len(t, first.TargetFiles, 1)
+				return
+			}
+			require.Empty(t, first.ClientConfigs)
+			require.Empty(t, first.TargetFiles)
+			client.State.TargetsVersion = 2
+			client.Products = append(client.Products, product)
+			u.On("TUFVersionState").Return(uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 2}, nil).Once()
+			late := poll()
+			require.Empty(t, late.ClientConfigs, "adding the product alone does not deliver the pending task")
+			require.Empty(t, late.TargetFiles)
+			require.Empty(t, late.Targets)
+			u.On("TUFVersionState").Return(uptane.TUFVersions{DirectorRoot: 1, DirectorTargets: 3}, nil).Once()
+			recovered := poll()
+			require.Equal(t, []string{configPath}, recovered.ClientConfigs, "a later repository version releases the task")
+			require.Len(t, recovered.TargetFiles, 1)
+		})
+	}
+}
+
 func TestServiceClientPredicates(t *testing.T) {
 	clientID := "client-id"
 	runtimeID := "runtime-id"
