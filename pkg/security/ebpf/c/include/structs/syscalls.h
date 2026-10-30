@@ -310,7 +310,6 @@ struct syscall_cache_t {
             int level;
             int optname;
             u32 truncated;
-            struct sock_fprog *fprog;
         } setsockopt;
         struct {
             int option;
