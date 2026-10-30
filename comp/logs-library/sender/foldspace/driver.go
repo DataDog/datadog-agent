@@ -71,8 +71,11 @@ type Driver struct {
 	batchWait       time.Duration
 	dualShip        bool
 	cfg             pkgconfigmodel.Reader
-	mrfRoute        Route
-	nonMRFRoute     Route
+	// useContainerTimestamp is logs_config.use_container_timestamp, read once
+	// at construction as the intake encoders read it.
+	useContainerTimestamp bool
+	mrfRoute              Route
+	nonMRFRoute           Route
 
 	pending    *pendingTable
 	nextID     atomic.Uint64
@@ -163,32 +166,33 @@ func NewDriver(opts DriverOptions) *Driver {
 		wake[i] = make(chan struct{}, 1)
 	}
 	return &Driver{
-		core:            opts.Core,
-		transport:       opts.Transport,
-		sink:            opts.Sink,
-		monitor:         opts.PipelineMonitor,
-		input:           make(chan ingestItem, opts.InputSize),
-		pipelineDepth:   opts.PipelineDepth,
-		connectTimeout:  opts.ConnectTimeout,
-		sendTimeout:     opts.SendTimeout,
-		ackTimeout:      opts.AckTimeout,
-		shutdownTimeout: opts.ShutdownTimeout,
-		batchWait:       opts.BatchWait,
-		dualShip:        opts.DualShip,
-		cfg:             opts.Config,
-		mrfRoute:        opts.MRFRoute,
-		nonMRFRoute:     AllSenders(n) &^ opts.MRFRoute,
-		pending:         newPendingTable(),
-		startNanos:      time.Now().UnixNano(),
-		dropLogLimit:    log.NewLogLimit(10, 10*time.Minute),
-		wake:            wake,
-		notifyWake:      make(chan struct{}, 1),
-		capacity:        make(chan struct{}, 1),
-		stop:            make(chan struct{}),
-		stopped:         make(chan struct{}),
-		ingestDone:      make(chan struct{}),
-		ingestCancel:    make(chan struct{}),
-		ingestStopping:  make(chan struct{}),
+		core:                  opts.Core,
+		transport:             opts.Transport,
+		sink:                  opts.Sink,
+		monitor:               opts.PipelineMonitor,
+		input:                 make(chan ingestItem, opts.InputSize),
+		pipelineDepth:         opts.PipelineDepth,
+		connectTimeout:        opts.ConnectTimeout,
+		sendTimeout:           opts.SendTimeout,
+		ackTimeout:            opts.AckTimeout,
+		shutdownTimeout:       opts.ShutdownTimeout,
+		batchWait:             opts.BatchWait,
+		dualShip:              opts.DualShip,
+		cfg:                   opts.Config,
+		useContainerTimestamp: opts.Config != nil && opts.Config.GetBool("logs_config.use_container_timestamp"),
+		mrfRoute:              opts.MRFRoute,
+		nonMRFRoute:           AllSenders(n) &^ opts.MRFRoute,
+		pending:               newPendingTable(),
+		startNanos:            time.Now().UnixNano(),
+		dropLogLimit:          log.NewLogLimit(10, 10*time.Minute),
+		wake:                  wake,
+		notifyWake:            make(chan struct{}, 1),
+		capacity:              make(chan struct{}, 1),
+		stop:                  make(chan struct{}),
+		stopped:               make(chan struct{}),
+		ingestDone:            make(chan struct{}),
+		ingestCancel:          make(chan struct{}),
+		ingestStopping:        make(chan struct{}),
 	}
 }
 
@@ -201,7 +205,9 @@ func (d *Driver) PipelineMonitor() metrics.PipelineMonitor { return d.monitor }
 // Tap returns a tap feeding this driver's ingest, for use when the primary
 // destination owns the auditor sink and foldspace observes the rendered message
 // alongside it.
-func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input, stopping: d.ingestStopping} }
+func (d *Driver) Tap() *DriverTap {
+	return &DriverTap{input: d.input, stopping: d.ingestStopping, useContainerTimestamp: d.useContainerTimestamp}
+}
 
 // Offer sends msg to ingest, blocking while the buffer is full so that
 // back-pressure reaches the processor rather than costing a record. It gives
@@ -214,7 +220,7 @@ func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input, stopping: 
 func (d *Driver) Offer(msg *message.Message) {
 	meta := msg.MessageMetadata
 	select {
-	case d.input <- ingestItem{record: recordFromMessage(msg), meta: &meta}:
+	case d.input <- ingestItem{record: recordFromMessage(msg, d.useContainerTimestamp), meta: &meta}:
 	case <-d.ingestStopping:
 	}
 }
@@ -843,14 +849,15 @@ func (s *FanInStrategy) Stop() {
 // It gives up once the driver's Stop has started rather than blocking the
 // processor goroutine past that point: see Driver.Offer for why.
 type DriverTap struct {
-	input    chan ingestItem
-	stopping chan struct{}
+	input                 chan ingestItem
+	stopping              chan struct{}
+	useContainerTimestamp bool
 }
 
 // Tap snapshots msg onto the driver's ingest channel.
 func (t *DriverTap) Tap(msg *message.Message) {
 	select {
-	case t.input <- ingestItem{record: recordFromMessage(msg)}:
+	case t.input <- ingestItem{record: recordFromMessage(msg, t.useContainerTimestamp)}:
 	case <-t.stopping:
 	}
 }

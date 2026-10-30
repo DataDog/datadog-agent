@@ -58,13 +58,45 @@ func TestRecordFromMessageAppliesSourceTagFilter(t *testing.T) {
 	msg := message.NewMessage([]byte("body"), origin, "info", time.Now().UnixNano())
 	msg.ParsingExtra.Tags = []string{"keep:processing", "drop:processing"}
 
-	r := recordFromMessage(msg)
+	r := recordFromMessage(msg, false)
 	assert.ElementsMatch(t, []string{"keep:origin", "keep:config"}, r.Tags)
 	assert.Equal(t, []string{"keep:processing"}, r.ProcessingTags)
 
-	unfiltered := recordFromMessage(testMessage("body"))
+	unfiltered := recordFromMessage(testMessage("body"), false)
 	assert.Empty(t, unfiltered.Tags)
 	assert.Nil(t, unfiltered.ProcessingTags)
+}
+
+func TestRecordFromMessageTimestamp(t *testing.T) {
+	ingested := time.Date(2026, 1, 2, 3, 4, 5, 6_000_000, time.UTC)
+	container := time.Date(2025, 6, 7, 8, 9, 10, 11_000_000, time.UTC)
+
+	msg := testMessage("body")
+	msg.IngestionTimestamp = ingested.UnixNano()
+	msg.ParsingExtra.Timestamp = container.Format(time.RFC3339Nano)
+
+	assert.Equal(t, ingested.UnixMilli(), recordFromMessage(msg, false).TimestampMillis)
+	assert.Equal(t, container.UnixMilli(), recordFromMessage(msg, true).TimestampMillis)
+
+	msg.IngestionTimestamp = 0
+	before := time.Now().UnixMilli()
+	got := recordFromMessage(msg, false).TimestampMillis
+	assert.GreaterOrEqual(t, got, before, "a log with no ingestion timestamp is sent with the current time")
+	assert.LessOrEqual(t, got, time.Now().UnixMilli())
+}
+
+func TestDriverReadsUseContainerTimestamp(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		cfg := configmock.New(t)
+		cfg.SetInTest("logs_config.use_container_timestamp", enabled)
+		d := NewDriver(DriverOptions{
+			Core:      NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}}),
+			Transport: NewFakeTransport(1),
+			Config:    cfg,
+		})
+		assert.Equal(t, enabled, d.useContainerTimestamp)
+		assert.Equal(t, enabled, d.Tap().useContainerTimestamp)
+	}
 }
 
 // countingFlushCore counts Flush calls so a test can distinguish a periodic
