@@ -166,15 +166,23 @@ func TestBasicCollectorEmitsOnlyAtWindowBoundary(t *testing.T) {
 	now := MockTimeNow()
 	collector.TimeNowFn = func() time.Time { return now }
 
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+	paths := collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{
 		basicConn("10.0.0.1", 1),
 		basicConn("10.0.0.2", 3),
 		basicConn("10.0.0.3", 2),
 		basicConn("10.0.0.4", 4),
 		basicConn("10.0.0.5", 5),
 		basicConn("10.0.0.6", 6),
+		basicConn("10.0.0.1", 0),
 	}))
 	assert.Empty(t, collector.pathtestInputChan)
+
+	// Basic mode continues before scheduleOne, so stamping has to happen on the
+	// way past. The zero-byte observation is discarded by the selector but its
+	// connection is still stamped, with the same key as the earlier one.
+	require.Len(t, paths, 7)
+	assert.NotEmpty(t, paths[6].CorrelationKey)
+	assert.Equal(t, paths[0].CorrelationKey, paths[6].CorrelationKey)
 
 	now = now.Add(basicBootstrapWindow)
 	collector.flushBasicPaths(now)
@@ -201,7 +209,7 @@ func TestEUDMBasicCollectorSelectsTwentyFilteredPaths(t *testing.T) {
 	for i := 1; i <= 25; i++ {
 		conns = append(conns, basicConn(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String(), uint64(i)))
 	}
-	collector.ScheduleNetworkPathTests(slices.Values(conns))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values(conns))
 	assert.Empty(t, collector.pathtestInputChan)
 	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
 
@@ -225,7 +233,7 @@ func TestEUDMBasicCollectorUsesConfiguredCandidateLimit(t *testing.T) {
 	for i := 1; i <= 50; i++ {
 		conns = append(conns, basicConn(netip.AddrFrom4([4]byte{10, 0, 0, byte(i)}).String(), 1))
 	}
-	collector.ScheduleNetworkPathTests(slices.Values(conns))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values(conns))
 	assert.Len(t, collector.basicSelector.candidates, 40)
 	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
 	assert.Len(t, scheduledBasicHosts(t, collector), 20)
@@ -239,11 +247,11 @@ func TestBasicCollectorRanksBySentAndReceivedBytes(t *testing.T) {
 	now := MockTimeNow()
 	collector.TimeNowFn = func() time.Time { return now }
 
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{
 		basicConnBytes("10.0.0.1", 100, 0),
 		basicConnBytes("10.0.0.2", 0, 60),
 	}))
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{
 		basicConnBytes("10.0.0.2", 0, 60),
 	}))
 	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
@@ -260,9 +268,9 @@ func TestBasicCollectorDoesNotMixBoundarySnapshotIntoPreviousWindow(t *testing.T
 	now := MockTimeNow()
 	collector.TimeNowFn = func() time.Time { return now }
 
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
 	now = now.Add(basicBootstrapWindow)
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.2", 2)}))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.2", 2)}))
 	assert.Equal(t, []string{"10.0.0.1"}, scheduledBasicHosts(t, collector))
 
 	now = now.Add(basicSelectionInterval)
@@ -290,7 +298,7 @@ func TestBasicCollectorPreservesWinningRCProvenance(t *testing.T) {
 	now := MockTimeNow()
 	collector.TimeNowFn = func() time.Time { return now }
 
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
 	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
 
 	pathtest := <-collector.pathtestInputChan
@@ -307,11 +315,11 @@ func TestBasicIntervalIgnoresPathtestInterval(t *testing.T) {
 	}, &teststatsd.Client{}, nil)
 	now := MockTimeNow()
 	collector.TimeNowFn = func() time.Time { return now }
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
 	collector.flushBasicPaths(now.Add(basicBootstrapWindow))
 	require.Len(t, scheduledBasicHosts(t, collector), 1)
 
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.2", 1)}))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.2", 1)}))
 	collector.flushBasicPaths(now.Add(basicBootstrapWindow + time.Minute))
 	assert.Empty(t, collector.pathtestInputChan)
 	collector.flushBasicPaths(now.Add(basicBootstrapWindow + basicSelectionInterval))
@@ -327,7 +335,7 @@ func TestStandardModeTakesPrecedenceOverBasic(t *testing.T) {
 	}, &teststatsd.Client{}, nil)
 
 	assert.Nil(t, collector.basicSelector)
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
 	pathtest := <-collector.pathtestInputChan
 	assert.Equal(t, payload.DynamicTestProfileStandard, pathtest.DynamicTestProfile)
 	assert.False(t, pathtest.RunOnce)
@@ -366,7 +374,7 @@ func TestBasicDisabledCreatesNoCollectorMachinery(t *testing.T) {
 	assert.False(t, collector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Nil(t, collector.basicSelector)
 	assert.Nil(t, collector.pathtestInputChan)
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{basicConn("10.0.0.1", 1)}))
 }
 
 func TestBasicWindowConsumesSlotsBeforeChannelAdmission(t *testing.T) {
@@ -378,7 +386,7 @@ func TestBasicWindowConsumesSlotsBeforeChannelAdmission(t *testing.T) {
 	}, stats, nil)
 	now := MockTimeNow()
 	collector.TimeNowFn = func() time.Time { return now }
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+	collector.ScheduleNetworkPathTests("source-host", slices.Values([]npmodel.NetworkPathConnection{
 		basicConn("10.0.0.1", 5),
 		basicConn("10.0.0.2", 4),
 		basicConn("10.0.0.3", 3),
