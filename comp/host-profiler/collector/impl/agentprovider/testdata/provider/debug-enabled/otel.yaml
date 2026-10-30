@@ -12,6 +12,7 @@ exporters:
 extensions:
     hpflare:
         endpoint: localhost:7778
+    oom: {}
 processors:
     cumulativetodelta: {}
     filter:

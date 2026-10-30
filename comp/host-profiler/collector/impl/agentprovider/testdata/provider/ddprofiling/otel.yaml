@@ -14,6 +14,7 @@ extensions:
             period: 30
     hpflare:
         endpoint: localhost:7778
+    oom: {}
 processors:
     cumulativetodelta: {}
     filter:
