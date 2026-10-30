@@ -1052,8 +1052,6 @@ github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46t
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/cri-o/ocicni v0.4.0 h1:FKTiq4CESW5OfqM3M87KyHApcawtWw5EwufMiZyXYb0=
 github.com/cri-o/ocicni v0.4.0/go.mod h1:/L2k9zk6l2O1FbE4xY1qTqSWJBqobOvsoYlkghIhjmk=
-github.com/csaf-poc/csaf_distribution/v3 v3.0.0 h1:ob9+Fmpff0YWgTP3dYaw7G2hKQ9cegh9l3zksc+q3sM=
-github.com/csaf-poc/csaf_distribution/v3 v3.0.0/go.mod h1:uilCTiNKivq+6zrDvjtZaUeLk70oe21iwKivo6ILwlQ=
 github.com/cyphar/filepath-securejoin v0.2.5 h1:6iR5tXJ/e6tJZzzdMc1km3Sa7RRIVBKAK32O2s7AYfo=
 github.com/cyphar/filepath-securejoin v0.2.5/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/datadog/trivy-db v0.0.0-20240228172000-42caffdaee3f h1:IFB3J+f0m2e7nZjPTqvzLrrb6dVU6BQrsGx/7Tmm8Xk=
@@ -1269,6 +1267,8 @@ github.com/goccy/go-yaml v1.9.5 h1:Eh/+3uk9kLxG4koCX6lRMAPS1OaMSAi+FJcya0INdB0=
 github.com/goccy/go-yaml v1.9.5/go.mod h1:U/jl18uSupI5rdI2jmuCswEA2htH9eXfferR3KfscvA=
 github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6 h1:u1QKTc+GgWnBO1Mo0CwQ/4DXElFmSvNKRspxAr+AJuY=
 github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6/go.mod h1:ifGf7cSYIibtw3UXJy7QlbR8kJE6giDk7vGyCQZv0zo=
+github.com/gocsaf/csaf/v3 v3.0.0 h1:1xmw0uKG8BWCMceGfdYwO33zRy3jL7JTIriJozgMs4M=
+github.com/gocsaf/csaf/v3 v3.0.0/go.mod h1:uilCTiNKivq+6zrDvjtZaUeLk70oe21iwKivo6ILwlQ=
 github.com/godbus/dbus/v5 v5.0.4/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/godbus/dbus/v5 v5.1.0 h1:4KLkAxT3aOY8Li4FRJe/KvhoNFFxo0m6fNuFUO8QJUk=
 github.com/godbus/dbus/v5 v5.1.0/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
