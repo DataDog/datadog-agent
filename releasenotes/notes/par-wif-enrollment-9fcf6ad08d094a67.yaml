@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add opt-in WIF enrollment for new node Agent Private Action Runners using
+    ``private_action_runner.wif_enrollment``. Enrollment uses the primary intake
+    WIF identity and requires PAR enrollment permission on its mapping. Saved
+    WIF runner identities remain usable across intake API-key rotation. This
+    option does not migrate existing runners or enroll Cluster Agent runners.
