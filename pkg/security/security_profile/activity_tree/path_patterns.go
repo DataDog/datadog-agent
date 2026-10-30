@@ -828,6 +828,7 @@ func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
 	}
 	stats.recordMovedNode(&src.NodeBase, &fn.NodeBase)
 	fn.mergeSeen(&src.NodeBase)
+	fn.mergeLastAnomalySent(&src.NodeBase)
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, src.MatchedRules)
 
