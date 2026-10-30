@@ -97,6 +97,13 @@ func (ia *Data) Set(name string, value interface{}) bool {
 	return true
 }
 
+// Delete removes a metadata value from the payload.
+func (ia *Data) Delete(name string) {
+	ia.mu.Lock()
+	defer ia.mu.Unlock()
+	delete(ia.data, name)
+}
+
 // Get returns a copy of the metadata.
 func (ia *Data) Get() map[string]interface{} {
 	ia.mu.Lock()

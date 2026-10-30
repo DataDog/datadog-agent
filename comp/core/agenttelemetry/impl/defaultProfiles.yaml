@@ -546,6 +546,7 @@ profiles:
         preserve_tags:
           - section
           - status
+      - name: metadata_streaming.history_resyncs
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind

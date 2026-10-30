@@ -11,12 +11,19 @@ import "encoding/json"
 
 type agentMetadata map[string]interface{}
 
+// RawFile is a scrubbed configuration file and the hash of its scrubbed content.
+type RawFile struct {
+	RawConfig string `json:"raw_config"`
+	Hash      string `json:"hash"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string        `json:"hostname"`
-	Timestamp int64         `json:"timestamp"`
-	Metadata  agentMetadata `json:"agent_metadata"`
-	UUID      string        `json:"uuid"`
+	Hostname      string             `json:"hostname"`
+	Timestamp     int64              `json:"timestamp"`
+	Metadata      agentMetadata      `json:"agent_metadata"`
+	FilesMetadata map[string]RawFile `json:"files_metadata,omitempty"`
+	UUID          string             `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON

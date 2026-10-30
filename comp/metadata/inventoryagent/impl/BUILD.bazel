@@ -53,6 +53,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/flare/helpers",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/ipc/def",
@@ -80,6 +81,7 @@ dd_agent_go_test(
         "//pkg/util/uuid",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )
