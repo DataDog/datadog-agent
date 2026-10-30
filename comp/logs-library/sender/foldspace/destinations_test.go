@@ -276,6 +276,55 @@ func TestStreamTimeouts(t *testing.T) {
 	})
 }
 
+func TestCompressionKind(t *testing.T) {
+	build := func(t *testing.T, kind string) (*DestinationConfig, error) {
+		cfg := configmock.New(t)
+		if kind != "" {
+			cfg.SetInTest("logs_config.foldspace.compression_kind", kind)
+		}
+		main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+		main.UseCompression = true
+		main.CompressionKind = "zstd"
+		main.CompressionLevel = 3
+		endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+		endpoints.Main = main
+		return BuildDestinationConfig(cfg, endpoints)
+	}
+
+	t.Run("empty follows logs_config compression", func(t *testing.T) {
+		dest, err := build(t, "")
+		require.NoError(t, err)
+		assert.Equal(t, Zstd, dest.Core.Compression)
+		assert.Equal(t, 3, dest.Core.ZstdLevel)
+	})
+	for _, kind := range []string{"jsplit", " JSplit "} {
+		t.Run(kind, func(t *testing.T) {
+			dest, err := build(t, kind)
+			require.NoError(t, err)
+			assert.Equal(t, JSplit, dest.Core.Compression)
+			assert.Zero(t, dest.Core.ZstdLevel)
+		})
+	}
+	for _, kind := range []string{"zstd", "gzip", "bogus"} {
+		t.Run(kind, func(t *testing.T) {
+			dest, err := build(t, kind)
+			require.ErrorContains(t, err, "logs_config.foldspace.compression_kind")
+			assert.Nil(t, dest)
+		})
+	}
+}
+
+func TestCompressionKindEnvOverride(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_FOLDSPACE_COMPRESSION_KIND", "jsplit")
+	cfg := configmock.New(t)
+	main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+	endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+	endpoints.Main = main
+	dest, err := BuildDestinationConfig(cfg, endpoints)
+	require.NoError(t, err)
+	assert.Equal(t, JSplit, dest.Core.Compression)
+}
+
 func TestStreamLifetimeEnvOverride(t *testing.T) {
 	t.Setenv("DD_LOGS_CONFIG_FOLDSPACE_STREAM_LIFETIME", "90s")
 	cfg := configmock.New(t)

@@ -198,6 +198,15 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 			compression = Identity
 		}
 	}
+	const compressionKey = "logs_config.foldspace.compression_kind"
+	switch kind := strings.TrimSpace(cfg.GetString(compressionKey)); {
+	case kind == "":
+	case strings.EqualFold(kind, "jsplit"):
+		compression = JSplit
+		zstdLevel = 0
+	default:
+		return nil, errors.New(compressionKey + ` must be empty or "jsplit"`)
+	}
 
 	batchCapacity := endpoints.BatchMaxSize
 	if batchCapacity <= 0 {
