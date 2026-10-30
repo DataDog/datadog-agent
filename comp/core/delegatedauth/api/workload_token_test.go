@@ -81,7 +81,7 @@ func TestGetWorkloadTokenFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				calls++
 				w.Header().Set("Location", "/redirect-target")
 				w.WriteHeader(tc.status)
