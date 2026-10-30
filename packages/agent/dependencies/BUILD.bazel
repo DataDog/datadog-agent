@@ -34,13 +34,11 @@ pkg_filegroup(
         "//packages/agent:linux_default": [
             "//deps/compile_policy:all_files",
             "//deps/security_agent_policies:all_files",
-            "//deps/agent_data_plane:all_files",
             # This is really part of system-probe
             "@libpcap//:all_files",
             "//deps/nfsiostat:all_files",
         ],
         "//packages/agent:linux_fips": [
-            "//deps/agent_data_plane:all_files",
             "//deps/compile_policy:all_files",
             "//deps/nfsiostat:all_files",
             "//deps/security_agent_policies:all_files",
@@ -50,12 +48,10 @@ pkg_filegroup(
     }) + select({
         "@platforms//os:macos": [
             ":collected_libs",
-            "//deps/agent_data_plane:all_files",
         ],
         "//conditions:default": [],
     }) + select({
         "@platforms//os:windows": [
-            "//deps/agent_data_plane:all_files",
             "//deps/compile_policy:all_files",
             "//deps/security_agent_policies:all_files",
             "//packages/windows:all_files",
