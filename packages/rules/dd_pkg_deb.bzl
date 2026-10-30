@@ -48,7 +48,7 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, descrip
     size_out = "%s_installed_size_out_" % name
     tar_md5sums(
         name = "%s_md5sums_" % name,
-        src = ":" + data,
+        src = ":" + data_tar,
         installed_size = size_out,
         md5sums = sums_out,
     )
