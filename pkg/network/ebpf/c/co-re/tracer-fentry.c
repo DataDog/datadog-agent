@@ -434,12 +434,7 @@ int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     log_debug("fexit/tcp_retransmit");
-    if (err < 0) {
-        return 0;
-    }
-
-    struct tcp_sock *tp = tcp_sk(sk);
-    if (tp->retrans_out < 0) {
+    if (err != 0) {
         return 0;
     }
 
