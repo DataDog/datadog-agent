@@ -102,4 +102,11 @@ type Component interface {
 	// or key exchange failures when AllowAsyncStartup is false. An unavailable
 	// auto-detected provider leaves the static key in place and returns nil.
 	AddInstance(ctx context.Context, params InstanceParams) error
+
+	// GetWorkloadToken requests a fresh token using the provider, organization, and
+	// site of the instance registered under apiKeyConfigKey (e.g. "api_key").
+	// It returns an error if that instance is unavailable or its provider does not
+	// support workload tokens. It never falls back to another instance or API key.
+	// Each call makes one attempt; it does not cache tokens or change intake keys.
+	GetWorkloadToken(ctx context.Context, apiKeyConfigKey string, request common.WorkloadTokenRequest) (string, error)
 }
