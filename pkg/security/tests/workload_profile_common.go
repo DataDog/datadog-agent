@@ -114,9 +114,14 @@ func workloadProfileExecPath(variant string) string {
 // test module and stay the same across module restarts.
 func startWorkloadProfileContainer(t *testing.T, test *testModule, tagger *FakeManualTagger, syscallTester string, image string, tag string) (*dockerCmdWrapper, cgroupModel.WorkloadSelector) {
 	t.Helper()
+	return startWorkloadProfileContainerWithRunArgs(t, test, tagger, syscallTester, image, tag, nil)
+}
+
+func startWorkloadProfileContainerWithRunArgs(t *testing.T, test *testModule, tagger *FakeManualTagger, syscallTester string, image string, tag string, extraRunArgs []string) (*dockerCmdWrapper, cgroupModel.WorkloadSelector) {
+	t.Helper()
 	tagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{Image: image, Tag: tag})
 
-	dockerInstance, err := test.StartADocker()
+	dockerInstance, err := test.startADocker(extraRunArgs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,6 +282,8 @@ type workloadProfileEventType struct {
 	unsupported func(kv *kernel.Version) bool
 	// trigger produces the activity of the variant in the container
 	trigger func(t *testing.T, dockerInstance *dockerCmdWrapper, variant string)
+	// containerRunArgs are extra docker run arguments the container needs to produce the activity
+	containerRunArgs []string
 	// hasNode returns true if the profile contains the entry of the variant
 	hasNode        func(p *profile.Profile, variant string) bool
 	hasMatchedRule func(p *profile.Profile, variant string, ruleID string) bool
@@ -723,6 +730,78 @@ func expectProfileSyscalls(t *testing.T, test *testModule, selector cgroupModel.
 			err = checkErr
 		}
 		t.Error(err)
+	}
+}
+
+// mountContainerRunArgs returns the docker run arguments a container needs to bind-mount inside itself
+func mountContainerRunArgs() []string {
+	return []string{"--cap-add", "SYS_ADMIN"}
+}
+
+// workloadProfileEventCooldownTypes returns the activities whose anomaly detection event cooldown is tested.
+// The same variant is produced three times: to learn it, during the cooldown, and after the cooldown.
+func workloadProfileEventCooldownTypes() []workloadProfileEventType {
+	byName := make(map[string]workloadProfileEventType, len(workloadProfileEventTypes()))
+	for _, et := range workloadProfileEventTypes() {
+		byName[et.name] = et
+	}
+
+	runInContainer := func(t *testing.T, dockerInstance *dockerCmdWrapper, bin string, args ...string) {
+		t.Helper()
+		if out, err := dockerInstance.Command(bin, args, []string{}).CombinedOutput(); err != nil {
+			t.Logf("%s %v: %v (%s)", bin, args, err, string(out))
+		}
+	}
+
+	return []workloadProfileEventType{
+		byName["open"],
+		byName["exec"],
+		byName["bind"],
+		byName["connect"],
+		byName["dns"],
+		{
+			name:      "capabilities",
+			eventType: model.CapabilitiesEventType,
+			unsupported: func(kv *kernel.Version) bool {
+				return !kv.HasBPFForEachMapElemHelper() || !sprobe.IsCapabilitiesMonitoringSupported(kv)
+			},
+			// The capability is reported when the monitoring period elapses, not when the syscall returns.
+			trigger: func(t *testing.T, dockerInstance *dockerCmdWrapper, _ string) {
+				runInContainer(t, dockerInstance, workloadProfileExecPath("capabilities"), "chroot", "/tmp")
+				time.Sleep(2 * time.Second)
+			},
+			matchAnomaly: func(anomaly workloadProfileAnomaly, _ string) bool {
+				return strings.Contains(anomaly.json, "wp-exec-capabilities") && strings.Contains(anomaly.json, "CAP_SYS_CHROOT")
+			},
+		},
+		{
+			name:      "syscalls",
+			eventType: model.SyscallsEventType,
+			// The syscalls of the process are sent when it exits
+			trigger: func(t *testing.T, dockerInstance *dockerCmdWrapper, _ string) {
+				runInContainer(t, dockerInstance, workloadProfileExecPath("syscalls"), "sleep", "1")
+			},
+			matchAnomaly: func(anomaly workloadProfileAnomaly, _ string) bool {
+				return strings.Contains(anomaly.json, "wp-exec-syscalls")
+			},
+		},
+		{
+			name:             "mount",
+			eventType:        model.FileMountEventType,
+			containerRunArgs: mountContainerRunArgs(),
+			trigger: func(t *testing.T, dockerInstance *dockerCmdWrapper, variant string) {
+				src, dst := "/tmp/wp-mount-src-"+variant, "/tmp/wp-mount-dst-"+variant
+				runInContainer(t, dockerInstance, "mkdir", "-p", src, dst)
+				// the destination may still be mounted from the previous attempt
+				runInContainer(t, dockerInstance, "umount", dst)
+				if out, err := dockerInstance.Command("mount", []string{"-o", "bind", src, dst}, []string{}).CombinedOutput(); err != nil {
+					t.Fatalf("mount %s on %s: %v (%s)", src, dst, err, out)
+				}
+			},
+			matchAnomaly: func(anomaly workloadProfileAnomaly, variant string) bool {
+				return strings.Contains(anomaly.json, "wp-mount-dst-"+variant)
+			},
+		},
 	}
 }
 
