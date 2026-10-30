@@ -29,7 +29,7 @@ const testSite = "datadoghq.com"
 
 // newExtensionConfig builds the private config component the way the upstream
 // datadogextension does, with the bridge appended as a host option.
-func newExtensionConfig(t *testing.T, extensionKey string, shared coreconfig.Component, logger log.Component) coreconfig.Component {
+func newExtensionConfig(t *testing.T, extensionKey string, shared coreconfig.Component, logger log.Component, extra ...agentcomponents.ConfigOption) coreconfig.Component {
 	t.Helper()
 	ddCfg := &datadogconfig.Config{
 		API: datadogconfig.APIConfig{
@@ -37,13 +37,14 @@ func newExtensionConfig(t *testing.T, extensionKey string, shared coreconfig.Com
 			Site: testSite,
 		},
 	}
-	return agentcomponents.NewConfigComponent(
+	opts := append([]agentcomponents.ConfigOption{
 		agentcomponents.WithAPIConfig(ddCfg),
 		agentcomponents.WithForwarderConfig(),
 		agentcomponents.WithPayloadsConfig(),
 		agentcomponents.WithLoggingConfig(),
 		Option(shared, logger),
-	)
+	}, extra...)
+	return agentcomponents.NewConfigComponent(opts...)
 }
 
 // newSharedConfig builds a stand-in for the Agent's live config component.
@@ -205,4 +206,47 @@ func TestBridgeRotatesRepeatedly(t *testing.T) {
 		assert.Equal(t, []string{key}, resolvers[domain].GetAPIKeys(),
 			"rotation to %q did not reach the extension's forwarder", key)
 	}
+}
+
+// TestBridgeToleratesRotationBeforeConstruction covers the window between Option
+// registering its callback and NewConfigComponent calling BuildSchema. A rotation
+// landing there reads the extension's key as empty, because reads on an unready config
+// yield the zero value rather than failing. The bridge must not conclude anything from
+// that: latching "not following" would make it ignore every later rotation, which is
+// exactly the bug this package exists to fix.
+func TestBridgeToleratesRotationBeforeConstruction(t *testing.T) {
+	logger := logmock.New(t)
+	shared := newSharedConfig(t, "key-old")
+
+	// Options are applied in order, so this one fires the callback Option just
+	// registered, while the private config is still unready.
+	rotateDuringConstruction := func(_ pkgconfigmodel.Config) {
+		shared.Set("api_key", "key-new", pkgconfigmodel.SourceLocalConfigProcess)
+	}
+	priv := newExtensionConfig(t, "key-old", shared, logger, rotateDuringConstruction)
+
+	// The in-window rotation could not be applied -- there was nothing readable to
+	// compare against -- but any later write reconciles it. configsync seeds a batch of
+	// settings on its first sync, so this is what production looks like too.
+	shared.Set("site", "datadoghq.eu", pkgconfigmodel.SourceLocalConfigProcess)
+
+	assert.Equal(t, "key-new", priv.GetString("api_key"),
+		"a rotation during construction must be reconciled, not latched away")
+
+	// And the bridge must still follow subsequent rotations normally.
+	shared.Set("api_key", "key-newer", pkgconfigmodel.SourceLocalConfigProcess)
+	assert.Equal(t, "key-newer", priv.GetString("api_key"))
+}
+
+// TestBridgeStillSkipsUserKeyAfterUnrelatedUpdate guards the other half of the
+// tri-state: subscribing to every setting must not turn an unrelated config write into
+// a way to overwrite a key the user set explicitly.
+func TestBridgeStillSkipsUserKeyAfterUnrelatedUpdate(t *testing.T) {
+	shared := newSharedConfig(t, "agent-key")
+	priv := newExtensionConfig(t, "user-supplied-key", shared, logmock.New(t))
+
+	shared.Set("site", "datadoghq.eu", pkgconfigmodel.SourceLocalConfigProcess)
+	shared.Set("api_key", "agent-key-rotated", pkgconfigmodel.SourceLocalConfigProcess)
+
+	assert.Equal(t, "user-supplied-key", priv.GetString("api_key"))
 }
