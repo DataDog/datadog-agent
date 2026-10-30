@@ -510,6 +510,7 @@
 /comp/core/diagnose @DataDog/fleet-remediation
 /comp/core/flare @DataDog/fleet-remediation
 /comp/core/gui @DataDog/fleet-remediation
+/comp/core/metricsevaluator @DataDog/fleet-remediation
 /comp/core/profiler @DataDog/fleet-remediation
 /comp/core/remoteflags @DataDog/fleet-remediation
 /comp/core/secrets @DataDog/fleet-automation
