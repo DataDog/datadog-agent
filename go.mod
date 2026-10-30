@@ -23,6 +23,9 @@ replace (
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
+// csaf-poc/csaf_distribution moved to gocsaf/csaf and the old path no longer serves v3.0.0
+replace github.com/csaf-poc/csaf_distribution/v3 => github.com/gocsaf/csaf/v3 v3.0.0
+
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path/
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/

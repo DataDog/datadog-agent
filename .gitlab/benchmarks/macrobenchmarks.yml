@@ -14,6 +14,7 @@ variables:
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
+  retry: !reference [.retry_only_infra_failure, retry]
   script:
     - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     - ./steps/run-benchmarks.sh
