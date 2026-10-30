@@ -601,8 +601,7 @@ Package traceroute provides the traceroute component
 
 *Datadog Team*: opentelemetry-agent
 
-Package otelcol contains the OTLP ingest bundle pipeline to be included
-into the agent components.
+Package otelcol contains the OpenTelemetry components used by the otel-agent.
 
 ### [comp/otelcol/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector)
 
