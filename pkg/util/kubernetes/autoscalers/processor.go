@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
@@ -24,6 +25,7 @@ import (
 	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,6 +53,25 @@ type Processor struct {
 	parallelQueries int
 }
 
+// requestPeak tracks concurrency within one QueryExternalMetric call.
+type requestPeak struct {
+	current atomic.Int64
+	peak    atomic.Int64
+}
+
+func (r *requestPeak) start() {
+	current := r.current.Add(1)
+	for peak := r.peak.Load(); current > peak; peak = r.peak.Load() {
+		if r.peak.CompareAndSwap(peak, current) {
+			break
+		}
+	}
+}
+
+func (r *requestPeak) done() {
+	r.current.Add(-1)
+}
+
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	externalMaxAge := math.Max(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.rollup"))
@@ -58,6 +79,7 @@ func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	if parallelQueries > maxParallelQueries || parallelQueries <= 0 {
 		parallelQueries = maxParallelQueries
 	}
+	ddRequestsParallelLimit.Set(float64(parallelQueries), le.JoinLeaderValue)
 
 	return &Processor{
 		externalMaxAge:  time.Duration(externalMaxAge) * time.Second,
@@ -209,11 +231,12 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 
 	var group errgroup.Group
 	group.SetLimit(p.parallelQueries)
+	var peak requestPeak
 
 	for _, chunk := range chunks {
 		group.Go(func() error {
 			// Either resp or err is nil
-			resp, err := p.queryDatadogExternal(currentTime, chunk, timeWindow)
+			resp, err := p.queryDatadogExternalWithTracker(currentTime, chunk, timeWindow, &peak)
 
 			// Not holding lock during network calls
 			responsesLock.Lock()
@@ -233,6 +256,9 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	}
 	// Errors are handled in `responses`, so we don't need to check the group error
 	_ = group.Wait()
+	if maximum := peak.peak.Load(); maximum > 0 {
+		ddRequestsInflightPeak.Observe(float64(maximum), le.JoinLeaderValue)
+	}
 
 	log.Debugf("Processed %d chunks with %d chunks in global error", len(chunks), responsesGlobalErrors)
 	return responses
