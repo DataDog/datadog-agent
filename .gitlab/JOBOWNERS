@@ -201,6 +201,9 @@ files_inventory_check                          @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring
 
+# Benchmarks
+logs_tokenizer_benchmark                       @DataDog/agent-log-pipelines
+
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations
 k8s-e2e-cspm-*                    @DataDog/agent-security

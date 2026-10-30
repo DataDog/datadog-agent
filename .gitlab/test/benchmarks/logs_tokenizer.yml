@@ -1,0 +1,37 @@
+---
+# Fails a change that makes the shared log tokenizer (pkg/logs/tokenizer) slower or makes it
+# allocate more. perf_compare.sh benchmarks the merge base and this commit on the same runner,
+# alternating between them; it exits 1 on a regression and 2 when the comparison cannot run.
+#
+# To measure this runner's noise, run the job with LOGS_TOKENIZER_BENCH_BASE=HEAD: both sides
+# are then the same tokenizer, so any reported regression is noise.
+logs_tokenizer_benchmark:
+  stage: benchmarks
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules: !reference [.on_logs_tokenizer_changes_or_manual]
+  needs: ["go_tools_deps"]
+  interruptible: true
+  timeout: 30m
+  retry: !reference [.retry_only_infra_failure, retry]
+  # Report-only until A/A runs on this runner show no false regressions. Then replace with
+  # `allow_failure: {exit_codes: [2]}`, so a regression blocks the merge and a comparison that
+  # cannot run (e.g. the base lacks an API the benchmarks call) only warns.
+  allow_failure: true
+  variables:
+    GIT_DEPTH: 0  # Full history: perf_compare.sh compares against git merge-base
+    GIT_STRATEGY: "clone" # needed because this job uses `git merge-base`
+    # Request = limit gives the pod guaranteed CPUs, so it is not throttled mid-run. The
+    # benchmarks themselves run on one core (-test.cpu 1).
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_CPU_LIMIT: 4
+    KUBERNETES_MEMORY_REQUEST: 4Gi
+    KUBERNETES_MEMORY_LIMIT: 4Gi
+  before_script:
+    - !reference [.retrieve_linux_go_tools_deps]  # benchstat
+  script:
+    # Exit 2 like perf_compare.sh when there is no base to compare against, not git's exit 1,
+    # which would read as a regression.
+    - git fetch origin "+refs/heads/$COMPARE_TO_BRANCH:refs/remotes/origin/$COMPARE_TO_BRANCH" || exit 2
+    - BASE="${LOGS_TOKENIZER_BENCH_BASE:-$(git merge-base HEAD "origin/$COMPARE_TO_BRANCH")}" || exit 2
+    - pkg/logs/tokenizer/perf_compare.sh "$BASE"
