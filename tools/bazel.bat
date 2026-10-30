@@ -161,15 +161,27 @@ set "_have_token="
 if defined BUILDBARN_ID_TOKEN set "_have_token=1"
 if defined DOTNET_RUNNING_IN_CONTAINER (
   if not defined _have_token (
-    >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:
-    >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
-    exit /b 1
+    call :buildbarn_token_readable || (
+      >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token or Vault session in this container. Mint a token on the host and inject it, e.g.:
+      >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
+      exit /b 1
+    )
   )
 ) else (
   if not defined _have_token where vault >nul 2>&1 || exit /b 1
 )
 call :remote_cache_reachable
 exit /b !errorlevel!
+
+:: True when Vault can mint a Buildbarn token. token lookup is not enough: a valid
+:: token may lack this path, and the credential helper would then try an interactive login.
+:buildbarn_token_readable
+setlocal
+where vault >nul 2>&1 || exit /b 1
+if not defined VAULT_ADDR set "VAULT_ADDR=https://vault.us1.ddbuild.io"
+set "VAULT_CLIENT_TIMEOUT=5"
+vault read -address=%VAULT_ADDR% -field=token identity/oidc/token/buildbarn >nul 2>&1
+exit /b %errorlevel%
 
 :: Reachability probe with asymmetric caching (mirrors remote-cache-select.sh).
 :: Any HTTPS response (incl. gRPC's 415) counts as reachable; only a

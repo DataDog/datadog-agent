@@ -9,7 +9,9 @@ package secretsimpl
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -822,7 +824,7 @@ func (r *secretResolver) RemoveOrigin(origin string) {
 }
 
 // mainConfigOrigin is the origin of secrets found in the main Agent configuration
-const mainConfigOrigin = "datadog.yaml"
+const coreAgentConfig = "datadog.yaml"
 
 // GetPathsAndHandles returns the setting path and handle of every place a secret appears in the configuration
 func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
@@ -847,10 +849,10 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	// NOTE: numeric indexes are compared numerically (example: "list.2" precedes "list.10")
 	slices.SortStableFunc(entries, func(a, b pathAndHandle) int {
 		if a.origin != b.origin {
-			if a.origin == mainConfigOrigin {
+			if a.origin == coreAgentConfig {
 				return -1
 			}
-			if b.origin == mainConfigOrigin {
+			if b.origin == coreAgentConfig {
 				return 1
 			}
 			return strings.Compare(a.origin, b.origin)
@@ -876,14 +878,33 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	handles := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		path := strings.Join(entry.path, ".")
-		// paths from datadog.yaml are kept as is, other origins are prefixed with "<origin>:"
-		if entry.origin != mainConfigOrigin {
+		// omit the datadog.yaml origin
+		// the only other possible origin is a hex digest that hashes an integration
+		if entry.origin != coreAgentConfig {
 			path = entry.origin + ":" + path
 		}
 		paths = append(paths, path)
 		handles = append(handles, entry.handle)
 	}
 	return paths, handles
+}
+
+// GetHashValues returns the SHA-256 hash (hex encoded) of the cached secret value for each given handle. Handles
+// without a value in the cache are omitted from the result.
+func (r *secretResolver) GetHashValues(handles []string) map[string]string {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	hashes := make(map[string]string, len(handles))
+	for _, handle := range handles {
+		secretValue, ok := r.cache[handle]
+		if !ok {
+			continue
+		}
+		sum := sha256.Sum256([]byte(secretValue))
+		hashes[handle] = hex.EncodeToString(sum[:])
+	}
+	return hashes
 }
 
 // performRefresh executes the actual secret refresh operation
