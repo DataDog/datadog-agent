@@ -196,6 +196,11 @@ func (p *Provider) render(owned map[string]map[string]json.RawMessage, malformed
 			if errsByKey == nil {
 				errsByKey = make(map[string]error, 1)
 			}
+			// A handler doing both can fail both, and each reason is reported.
+			if rendered := errsByKey[key]; rendered != nil {
+				errsByKey[key] = fmt.Errorf("%w; %w", rendered, err)
+				continue
+			}
 			errsByKey[key] = err
 		}
 

@@ -499,12 +499,20 @@ func TestUpdateDropsAMalformedPathsErrorOnceItLeavesTheSnapshot(t *testing.T) {
 // fakeBoth renders and snapshots the same key.
 type fakeBoth struct {
 	fakeHandler
-	snapshots []map[string]json.RawMessage
+	snapshots   []map[string]json.RawMessage
+	snapshotErr error
 }
 
 func (h *fakeBoth) Snapshot(docs map[string]json.RawMessage) map[string]error {
 	h.snapshots = append(h.snapshots, docs)
-	return nil
+	if h.snapshotErr == nil {
+		return nil
+	}
+	errs := make(map[string]error, len(docs))
+	for path := range docs {
+		errs[path] = h.snapshotErr
+	}
+	return errs
 }
 
 func TestUpdateBothRendersAndSnapshotsAHandlerThatDoesEach(t *testing.T) {
@@ -645,4 +653,28 @@ func keysOf(docs map[string]json.RawMessage) []string {
 		paths = append(paths, path)
 	}
 	return paths
+}
+
+func TestUpdateKeepsBothReasonsWhenAHandlerDoingEachFailsAtBoth(t *testing.T) {
+	h := &fakeBoth{
+		fakeHandler: fakeHandler{key: "snmp", err: errors.New("render failed")},
+		snapshotErr: errors.New("snapshot failed"),
+	}
+	p := newTestProvider(t, h)
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{
+		"path-a": rawConfig(`{"snmp":{}}`),
+	}, rec.callback)
+
+	require.Contains(t, p.GetConfigErrors(), "path-a")
+	for message := range p.GetConfigErrors()["path-a"] {
+		assert.Contains(t, message, "render failed")
+		assert.Contains(t, message, "snapshot failed")
+	}
+
+	require.Len(t, rec.states, 1)
+	assert.Equal(t, state.ApplyStateError, rec.states["path-a"].State)
+	assert.Contains(t, rec.states["path-a"].Error, "render failed")
+	assert.Contains(t, rec.states["path-a"].Error, "snapshot failed")
 }
