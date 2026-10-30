@@ -606,7 +606,7 @@ func (s *packageAgentSuite) TestFleetUpgradeAndReboot() {
 	remote.MustExecute(`printf '\nremote_updates: true\n' | sudo tee -a /etc/datadog-agent/datadog.yaml`)
 	remote.MustExecute("sudo systemctl restart datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
-	upgrade := &upgradeScenarioSuite{packageBaseSuite: s.packageBaseSuite}
+	upgrade := &upgradeScenarioSuite{packageBaseSuite: &s.packageBaseSuite}
 	upgrade.setCatalog(upgrade.testCatalog())
 	_, err := upgrade.startExperiment(datadogAgent, s.pipelineAgentVersion)
 	require.NoError(s.T(), err)
