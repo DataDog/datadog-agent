@@ -417,7 +417,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 	// Off-by-default fast path: when neither analysis nor recording is active the
 	// live observer noops every handle (see handleFunc below) and installs no log
-	// tap, so skip building the catalog, engine, storage, 1000-cap channels, and
+	// tap, so skip building the catalog, engine, storage, 500-cap channels, and
 	// dispatch goroutine — return the zero-allocation stub instead. The predicate
 	// mirrors the observerRequired/recorderEnabled gates used further down.
 	if !anomalydetectionconfig.ObserverRequired(cfg) {
@@ -497,8 +497,8 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
-		metricsCh:            make(chan observation, 1000),
-		logsCh:               make(chan observation, 1000),
+		metricsCh:            make(chan observation, 500),
+		logsCh:               make(chan observation, 500),
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 		metricFilter:         compiledMetricFilter,
