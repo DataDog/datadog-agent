@@ -130,6 +130,7 @@ var (
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
 	var tagInfos []*types.TagInfo
+	var kaiPodGroupIDs map[string]struct{}
 
 	for _, ev := range evBundle.Events {
 		entity := ev.Entity
@@ -138,6 +139,17 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
 			entityID.Kind == workloadmeta.KindKubelet {
 			// No tags. Ignore
+			continue
+		}
+
+		if entityID.Kind == workloadmeta.KindKubernetesKAIPodGroup {
+			// PodGroups have no tags, but the tags of their pods depend on
+			// them. A bundle can hold one PodGroup per pod, so pods are
+			// retagged once per bundle rather than once per PodGroup.
+			if kaiPodGroupIDs == nil {
+				kaiPodGroupIDs = make(map[string]struct{})
+			}
+			kaiPodGroupIDs[entityID.ID] = struct{}{}
 			continue
 		}
 
@@ -216,6 +228,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		}
 
 	}
+
+	tagInfos = append(tagInfos, c.retagKAIDependentPods(kaiPodGroupIDs)...)
 
 	if len(tagInfos) > 0 {
 		c.tagProcessor.ProcessTagInfo(tagInfos)
@@ -719,6 +733,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	tagList := taglist.NewTagList()
 	c.extractTagsFromPodLabels(pod, tagList)
 	c.extractTagsFromPodKueueInfo(pod, tagList)
+	c.extractTagsFromPodKAIInfo(pod, tagList)
 
 	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList, ev.IsComplete)}
 
@@ -1519,17 +1534,42 @@ func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
 }
 
 // retagKueueDependentPods recomputes the tags of the pods whose Kueue tags can
-// depend on the given Kueue entity. Pod tags are computed from the Kueue
-// entities in the store at that time, and setting, changing or removing those
-// entities later does not generate a new event for the pod.
+// depend on the given Kueue entity.
 func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Entity) []*types.TagInfo {
 	if !isKueueKind(entity.GetID().Kind) {
 		return nil
 	}
 
+	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
+		return kueueEntityAffectsPod(entity, pod)
+	})
+}
+
+// retagKAIDependentPods recomputes the tags of the pods that reference one of
+// the given KAI PodGroups.
+func (c *WorkloadMetaCollector) retagKAIDependentPods(podGroupIDs map[string]struct{}) []*types.TagInfo {
+	if len(podGroupIDs) == 0 {
+		return nil
+	}
+
+	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
+		podGroupName := pod.Annotations[kubernetes.KAIPodGroupAnnotationKey]
+		if podGroupName == "" {
+			return false
+		}
+		_, ok := podGroupIDs[workloadmeta.GenerateKAIPodGroupEntityID(pod.Namespace, podGroupName)]
+		return ok
+	})
+}
+
+// retagPods recomputes the tags of the pods for which affected returns true.
+// Pod tags are computed from the scheduler entities in the store at that time,
+// and setting, changing or removing those entities later does not generate a
+// new event for the pod.
+func (c *WorkloadMetaCollector) retagPods(affected func(*workloadmeta.KubernetesPod) bool) []*types.TagInfo {
 	var tagInfos []*types.TagInfo
 	for _, pod := range c.store.ListKubernetesPods() {
-		if !kueueEntityAffectsPod(entity, pod) {
+		if !affected(pod) {
 			continue
 		}
 		tagInfos = append(tagInfos, c.handleKubePod(workloadmeta.Event{
@@ -1579,6 +1619,44 @@ func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.Kuberne
 	}
 
 	return workload
+}
+
+func (c *WorkloadMetaCollector) extractTagsFromPodKAIInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	// The PodGroup is the main source of information for KAI. If it is not
+	// available, fall back to the queue label of the pod.
+	queueName := pod.Labels[kubernetes.KAIQueueLabelKey]
+	podGroup := c.getKAIPodGroupForPod(pod)
+	if podGroup == nil && queueName == "" {
+		return
+	}
+
+	if podGroup != nil {
+		tagList.AddOrchestrator(tags.SchedulerWorkload, podGroup.Name)
+		tagList.AddOrchestrator(tags.KAIWorkload, podGroup.Name)
+		groupResource := kubernetes.KAIPodGroupResourceName + "." + kubernetes.KAIGroupName
+		c.addResourceLabelsAndAnnotationsAsTags(groupResource, podGroup.Labels, podGroup.Annotations, tagList)
+		queueName = podGroup.QueueName
+	}
+
+	tagList.AddLow(tags.Scheduler, "kai")
+	tagList.AddLow(tags.SchedulerQueue, queueName)
+	tagList.AddLow(tags.KAIQueue, queueName)
+}
+
+func (c *WorkloadMetaCollector) getKAIPodGroupForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKAIPodGroup {
+	podGroupName := pod.Annotations[kubernetes.KAIPodGroupAnnotationKey]
+	if podGroupName == "" {
+		return nil
+	}
+
+	podGroupID := workloadmeta.GenerateKAIPodGroupEntityID(pod.Namespace, podGroupName)
+	podGroup, err := c.store.GetKubernetesKAIPodGroup(podGroupID)
+	if err != nil {
+		log.Debugf("Could not get KAI PodGroup entity for namespace %s and name %s: %v", pod.Namespace, podGroupName, err)
+		return nil
+	}
+
+	return podGroup
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {

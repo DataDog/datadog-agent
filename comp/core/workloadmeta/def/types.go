@@ -53,6 +53,7 @@ const (
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
 	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
+	KindKubernetesKAIPodGroup         Kind = "kubernetes_kai_pod_group"
 	KindECSTask                       Kind = "ecs_task"
 	KindContainerImageMetadata        Kind = "container_image_metadata"
 	KindProcess                       Kind = "process"
@@ -1716,6 +1717,53 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesKueueWorkload{}
+
+// GenerateKAIPodGroupEntityID returns the workloadmeta entity ID for a KAI PodGroup.
+func GenerateKAIPodGroupEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// KubernetesKAIPodGroup is an Entity representing a KAI Scheduler PodGroup.
+type KubernetesKAIPodGroup struct {
+	EntityID
+	EntityMeta
+	QueueName string
+}
+
+// GetID implements Entity#GetID.
+func (pg *KubernetesKAIPodGroup) GetID() EntityID {
+	return pg.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (pg *KubernetesKAIPodGroup) Merge(e Entity) error {
+	ppg, ok := e.(*KubernetesKAIPodGroup)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKAIPodGroup with different kind %T", e)
+	}
+
+	return merge(pg, ppg)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (pg KubernetesKAIPodGroup) DeepCopy() Entity {
+	cpg := deepcopy.Copy(pg).(KubernetesKAIPodGroup)
+	return &cpg
+}
+
+// String implements Entity#String.
+func (pg KubernetesKAIPodGroup) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, pg.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, pg.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- KAI PodGroup -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue:", pg.QueueName)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKAIPodGroup{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
