@@ -9,7 +9,9 @@ package coverage
 
 import (
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -22,7 +24,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -53,9 +55,10 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 }
 
 func requestCoverage(_ log.Component, config config.Component, ipc ipc.Component) error {
+	port := config.GetInt("apm_config.debug.port")
 	url := url.URL{
 		Scheme: "https",
-		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("apm_config.debug.port")),
+		Host:   net.JoinHostPort(pkgconfighelper.APMDebugHost(config), strconv.Itoa(port)),
 		Path:   "/coverage",
 	}
 	resp, err := ipc.GetClient().Get(url.String())

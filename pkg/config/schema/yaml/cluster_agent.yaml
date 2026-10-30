@@ -281,6 +281,14 @@ properties:
         - ^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$
         items:
           type: string
+  kai_scheduler:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   kueue:
     node_type: section
     type: object
