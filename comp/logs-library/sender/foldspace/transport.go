@@ -207,12 +207,13 @@ func (s *FakeStream) Recv(ctx context.Context) (uint32, int32, error) {
 // Close is a no-op.
 func (s *FakeStream) Close() error { return nil }
 
-// recordFromMessage maps a processed message onto a foldspace Record. Both tag
-// lists pass through the source's tag filter, as they do in the intake encoders.
-func recordFromMessage(msg *message.Message) Record {
+// recordFromMessage maps a processed message onto a foldspace Record. It follows
+// the intake encoders: the timestamp comes from LogTimestamp, and both tag lists
+// pass through the source's tag filter.
+func recordFromMessage(msg *message.Message, useContainerTimestamp bool) Record {
 	r := Record{
 		Body:            append([]byte(nil), msg.GetContent()...),
-		TimestampMillis: msg.GetTimestampUnixMilli(),
+		TimestampMillis: msg.LogTimestamp(useContainerTimestamp).UnixMilli(),
 		Status:          msg.Status,
 		Hostname:        msg.GetHostname(),
 		MRFAllowed:      msg.ParsingExtra.IsMRFAllow,
