@@ -97,15 +97,6 @@ pkg_filegroup(
     tags = ["manual"],
 )
 
-pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [":whole_distro"],
-    compression_level = get_compression_level(),
-    extension = "tar.xz",
-    owner = "0.0",
-    tags = ["manual"],
-)
-
 # README.md generation — platform-specific uninstall command substituted into the template.
 dd_agent_expand_template(
     name = "readme_deb_gen",
@@ -137,7 +128,6 @@ pkg_files(
 )
 
 # Deb-specific tarball that includes README.md.
-# whole_distro_tar (without README) remains as the XZ artifact passed to packaging stage.
 pkg_tar(
     name = "whole_distro_tar_deb",
     srcs = [

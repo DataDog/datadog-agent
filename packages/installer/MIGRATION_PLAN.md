@@ -38,18 +38,14 @@ What omnibus does inside this job:
    `embedded/lib/` with `.gitkeep` placeholders.
 2. **`installer.rb` (software)** runs `invoke installer.build --no-cgo …` → binary
    lands at `bin/installer/installer` in the repo root.
-3. **`installer.rb` (software)** then runs (via `command_on_repo_root`):
-   - `bazelisk build --config=release //packages/installer/linux:whole_distro_tar`
-   - `bazelisk build --config=release //packages/installer/linux:debian` (or `:rpm`)
-   The Bazel packages are **built here** but are **not uploaded as CI artifacts**.
-4. Omnibus license scanner creates `LICENSES/`, `LICENSE`,
+3. Omnibus license scanner creates `LICENSES/`, `LICENSE`,
    `version-manifest.json`, `version-manifest.txt` inside `install_dir`.
-5. **XZ packager** creates `datadog-installer_7-{arch}.tar.xz` containing:
+4. **XZ packager** creates `datadog-installer_7-{arch}.tar.xz` containing:
    - `install_dir/*` → everything under `/opt/datadog-installer/`
    - `extra_package_files`: `omnibus/package-scripts/installer-deb/`,
      `omnibus/package-scripts/installer-rpm/`,
      `omnibus/config/templates/installer/README.md.erb`
-6. `$OMNIBUS_PACKAGE_DIR/datadog-installer_7-{arch}.tar.xz` is saved as the CI artifact.
+5. `$OMNIBUS_PACKAGE_DIR/datadog-installer_7-{arch}.tar.xz` is saved as the CI artifact.
 
 ### Stage 2 — final deb/rpm packaging
 
@@ -267,8 +263,7 @@ Confirm the known differences from the table above appear in the diff.
   (`apt-get` vs `yum`) and distinct output filenames (`README_deb.md` / `README_rpm.md`)
   to avoid Bazel output name collisions, then `pkg_files` with `renames` normalises
   each to `README.md` at the install prefix.
-  - Deb: included in `whole_distro_tar_deb` (a separate tarball from `whole_distro_tar`
-    so the XZ intermediate artifact stays README-free).
+  - Deb: included in `whole_distro_tar_deb`.
   - RPM: included directly in `pkg_rpm.srcs`.
 
 - **RPM `epoch = "1"`**: Already present in `pkg_rpm`.
