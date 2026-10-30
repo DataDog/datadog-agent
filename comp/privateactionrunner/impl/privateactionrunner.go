@@ -21,6 +21,7 @@ import (
 	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -68,6 +69,7 @@ func isEnabled(cfg config.Component) bool {
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
+	DelegatedAuth delegatedauth.Component
 	Log           log.Component
 	Lifecycle     compdef.Lifecycle
 	Shutdowner    compdef.Shutdowner
@@ -89,6 +91,7 @@ type Provides struct {
 
 type PrivateActionRunner struct {
 	coreConfig     model.ReaderWriter
+	delegatedAuth  delegatedauth.Component
 	hostnameGetter hostnameinterface.Component
 	rcClient       pkgrcclient.Client
 	logger         log.Component
@@ -154,6 +157,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	runner.delegatedAuth = reqs.DelegatedAuth
 	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
@@ -179,6 +183,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	runner.delegatedAuth = reqs.DelegatedAuth
 	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
@@ -233,6 +238,9 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
+		if p.coreConfig.GetBool(par.WIFEnrollment) {
+			return nil, errors.New("WIF enrollment cannot replace an existing runner identity; migration must be completed separately")
+		}
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
@@ -588,10 +596,21 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner.
-// The enrollment mode is controlled by the api_key_only_enrollment flag:
+// WIF enrollment, when enabled, uses the primary intake identity for fresh enrollment.
+// Otherwise the enrollment mode is controlled by the api_key_only_enrollment flag:
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
+	if p.coreConfig.GetBool(par.WIFEnrollment) {
+		if cfg.Urn != "" || cfg.PrivateKey != nil {
+			return nil, errors.New("WIF enrollment requires a fresh runner; refusing to replace a partially configured identity")
+		}
+		result, err := enrollment.EnrollWithWorkloadToken(ctx, p.coreConfig, p.delegatedAuth, agentIdentifier)
+		if err != nil {
+			return nil, err
+		}
+		return p.saveEnrollmentIdentity(ctx, cfg, result)
+	}
 	apiKey := p.coreConfig.GetString("api_key")
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(par.APIKeyOnlyEnrollment)
 
@@ -620,6 +639,21 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	if err != nil {
 		return nil, err
 	}
+	cfg, err = p.saveEnrollmentIdentity(ctx, cfg, enrollmentResult)
+	if err != nil {
+		return nil, err
+	}
+
+	autoconnections.CreateConnectionsIfEnabled(
+		ctx, p.coreConfig, cfg, apiKey, appKey, cfg.RunnerId,
+		enrollmentResult, autoconnections.NewTagsProvider(p.tagger),
+	)
+
+	return cfg, nil
+}
+
+// saveEnrollmentIdentity keeps the existing save-after-success behavior for both enrollment paths.
+func (p *PrivateActionRunner) saveEnrollmentIdentity(ctx context.Context, cfg *parconfig.Config, enrollmentResult *enrollment.Result) (*parconfig.Config, error) {
 	p.logger.Info("Self-enrollment successful")
 
 	if err := enrollment.PersistIdentity(ctx, p.coreConfig, enrollmentResult); err != nil {
@@ -635,11 +669,6 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	}
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
-
-	autoconnections.CreateConnectionsIfEnabled(
-		ctx, p.coreConfig, cfg, apiKey, appKey, urnParts.RunnerID,
-		enrollmentResult, autoconnections.NewTagsProvider(p.tagger),
-	)
 
 	return cfg, nil
 }
