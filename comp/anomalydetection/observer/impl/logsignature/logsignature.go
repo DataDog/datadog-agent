@@ -10,55 +10,22 @@ package logsignature
 
 import "github.com/DataDog/datadog-agent/pkg/logs/tokenizer"
 
-// Generator computes log signatures. It owns reusable scratch state and is not
+// Generator computes log signatures. It owns a reusable tokenizer and is not
 // safe for concurrent use.
 type Generator struct {
-	maxEvalBytes int
-	tokenizer    *tokenizer.Tokenizer
-	tokens       []tokenizer.Token
+	tokenizer *tokenizer.Tokenizer
 }
 
 // NewGenerator creates a Generator that reads at most maxEvalBytes bytes of
 // each log (0 = no cap).
 func NewGenerator(maxEvalBytes int) *Generator {
-	return &Generator{maxEvalBytes: maxEvalBytes, tokenizer: tokenizer.NewTokenizer(maxEvalBytes)}
+	return &Generator{tokenizer: tokenizer.NewTokenizer(maxEvalBytes)}
 }
 
-// Generate returns the shape of the first maxEvalBytes bytes of content, as
-// printed by the Logs tokenizer (for example "CCC DDD" for "abc 123"). Severity
-// keywords and IPv4 addresses keep the letter and digit runs AAD has always
-// printed for them, so existing log.pattern series keep their names.
+// Generate returns the shape of the first maxEvalBytes bytes of content, exactly
+// as printed by the Logs tokenizer (for example "CCC DDD" for "abc 123",
+// "ERROR" for a severity keyword, "IPv4" for an address). Signatures follow the
+// Logs tokenizer, so a change to its output renames log.pattern series.
 func (g *Generator) Generate(content string) string {
-	if n := g.maxEvalBytes; n > 0 && len(content) > n {
-		content = content[:n] // the prefix the tokenizer reads, so the last token ends at len(input)
-	}
-	input := []byte(content)
-	view := g.tokenizer.TokenizeBorrowed(input)
-	toks, starts := view.Borrow(), view.Indices()
-
-	g.tokens = g.tokens[:0]
-	for i, t := range toks {
-		end := len(input)
-		if i+1 < len(starts) {
-			end = starts[i+1]
-		}
-		switch {
-		case t >= tokenizer.Warn && t <= tokenizer.Timeout:
-			g.tokens = append(g.tokens, min(tokenizer.C1+tokenizer.Token(end-starts[i]-1), tokenizer.C10))
-		case t == tokenizer.IPv4:
-			run := 0
-			for _, c := range input[starts[i]:end] {
-				if c == '.' {
-					g.tokens = append(g.tokens, tokenizer.D1+tokenizer.Token(run-1), tokenizer.Period)
-					run = 0
-				} else {
-					run++
-				}
-			}
-			g.tokens = append(g.tokens, tokenizer.D1+tokenizer.Token(run-1))
-		default:
-			g.tokens = append(g.tokens, t)
-		}
-	}
-	return tokenizer.TokensToString(g.tokens)
+	return tokenizer.TokensToString(g.tokenizer.TokenizeBorrowed([]byte(content)).Borrow())
 }
