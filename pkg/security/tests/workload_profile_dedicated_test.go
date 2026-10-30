@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
 
@@ -389,6 +391,257 @@ func TestWorkloadProfileDedicatedAnomalyDetection(t *testing.T) {
 			assert.True(t, et.hasAnomalyFor(anomalies, "new"), "a new %s activity should trigger an anomaly", et.name)
 		})
 	}
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedEventCooldown)
+
+const (
+	// cooldownNoSampling is sampling off. Filters are off too, so the kernel delivers every event without a cookie,
+	// and only the activity node cooldown, in userspace, holds the repeats.
+	cooldownNoSampling = "no-sampling"
+	// cooldownSampling is sampling on and no matching rule. The kernel sampler drops the repeats of a known sample
+	// key. When the cooldown of a node expires, its sample keys are deleted from the kernel, so that the next event
+	// reaches userspace with a new cookie.
+	cooldownSampling = "sampling"
+	// cooldownSamplingRule is sampling on, and a rule that approves the activity is loaded after its first sampled
+	// emit. The approver runs before the sampler, so the next events carry no cookie, and only the activity node
+	// cooldown holds the repeats.
+	cooldownSamplingRule = "sampling-rule"
+
+	// workloadProfileCooldownExpiryPeriod must match the period at which the security profile manager deletes the
+	// kernel sample keys of the nodes whose cooldown has expired
+	workloadProfileCooldownExpiryPeriod = 10 * time.Second
+)
+
+// TestWorkloadProfileDedicatedEventCooldown checks, for every event type and sampling mode, that an activity triggers
+// an anomaly, that repeating it during the event cooldown doesn't, and that repeating it once the cooldown has
+// expired does again. With sampling on, it also checks which of these events the kernel delivers.
+func TestWorkloadProfileDedicatedEventCooldown(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	for _, mode := range []string{cooldownNoSampling, cooldownSampling, cooldownSamplingRule} {
+		t.Run(mode, func(t *testing.T) {
+			runWorkloadProfileCooldownMode(t, mode)
+		})
+	}
+}
+
+func runWorkloadProfileCooldownMode(t *testing.T, mode string) {
+	t.Helper()
+
+	// The repeat, and the policy reload before it in the sampling-rule mode, must run inside it
+	const eventCooldown = 10 * time.Second
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.anomalyDetectionEventCooldown = eventCooldown
+	opts.capabilitiesMonitoringEnabled = true
+	opts.capabilitiesMonitoringPeriod = time.Second
+	opts.workloadProfileEventTypes = []string{"exec", "open", "dns", "bind", "connect", "capabilities", "mount", "syscalls"}
+	if mode == cooldownNoSampling {
+		opts.disableEventSampling = true
+		opts.disableFilters = true
+	}
+
+	// The policy file outlives the test module, and an empty rule list does not rewrite it. Always write one, so
+	// the rules of a previous test cannot approve the activity.
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_wp_cooldown_unused",
+		Expression: `open.file.path == "/tmp/wp-cooldown-unused"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, et := range workloadProfileEventCooldownTypes() {
+		t.Run(et.name, func(t *testing.T) {
+			if mode == cooldownSamplingRule && (!eventTypeHasSampleCookie(et.eventType) || workloadProfileCooldownRule(et) == nil) {
+				t.Skip("needs both a sampled event type and a rule that can approve the activity")
+			}
+			et.skipIfUnsupported(t)
+
+			dockerInstance, _ := startWorkloadProfileContainerWithRunArgs(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1", et.containerRunArgs)
+			// the kernel delivery is only observable for the event types that carry a sample cookie
+			sampled := eventTypeHasSampleCookie(et.eventType)
+
+			started := time.Now()
+			first, firstCookies := collectCooldownActivity(t, test, et, dockerInstance)
+			firstSent := time.Now()
+			require.True(t, et.hasAnomalyFor(first, "known"), "the first %s activity should trigger an anomaly", et.name)
+			if sampled {
+				if mode == cooldownNoSampling {
+					requireWithoutSampleCookie(t, et, firstCookies)
+				} else {
+					require.NotEmpty(t, newSampleCookies(firstCookies, nil), "the sampler should admit the first %s activity with a cookie", et.name)
+				}
+			}
+
+			if mode == cooldownSamplingRule {
+				ruleDefs = append(ruleDefs, workloadProfileCooldownRule(et))
+				require.NoError(t, setTestPolicy(commonCfgDir, nil, ruleDefs))
+				require.NoError(t, test.reloadPolicies())
+			}
+
+			repeat, repeatCookies := collectCooldownActivity(t, test, et, dockerInstance)
+			require.Less(t, time.Since(started), eventCooldown, "the repeat must run inside the event cooldown")
+			require.False(t, et.hasAnomalyFor(repeat, "known"), "the %s repeat shouldn't trigger an anomaly during the event cooldown", et.name)
+			if sampled {
+				switch {
+				case mode != cooldownSampling:
+					requireWithoutSampleCookie(t, et, repeatCookies)
+				case cooldownKernelAdmitsNewProcess(et):
+					require.NotEmpty(t, newSampleCookies(repeatCookies, firstCookies), "a new process is a new %s sample key, the kernel should deliver the repeat with a new cookie", et.name)
+				default:
+					require.Empty(t, repeatCookies, "the %s repeat has the sample key of the first activity, the kernel should drop it", et.name)
+				}
+			}
+
+			wait := eventCooldown + time.Second
+			if mode != cooldownNoSampling {
+				wait += workloadProfileCooldownExpiryPeriod
+			}
+			time.Sleep(time.Until(firstSent.Add(wait)))
+
+			again, againCookies := collectCooldownActivity(t, test, et, dockerInstance)
+			require.True(t, et.hasAnomalyFor(again, "known"), "the %s activity should trigger an anomaly again once the event cooldown has expired", et.name)
+			if sampled {
+				if mode == cooldownSampling {
+					require.NotEmpty(t, newSampleCookies(againCookies, firstCookies), "the expired cooldown should release the %s sample key, so that the kernel delivers the activity with a new cookie", et.name)
+				} else {
+					requireWithoutSampleCookie(t, et, againCookies)
+				}
+			}
+		})
+	}
+}
+
+// requireWithoutSampleCookie checks that the activity reached userspace without going through the kernel sampler
+func requireWithoutSampleCookie(t *testing.T, et workloadProfileEventType, cookies []uint64) {
+	t.Helper()
+	require.NotEmpty(t, cookies, "the %s activity should reach userspace", et.name)
+	require.Equal(t, make([]uint64, len(cookies)), cookies, "the %s activity shouldn't go through the kernel sampler", et.name)
+}
+
+// newSampleCookies returns the cookies that are neither 0 nor in known
+func newSampleCookies(cookies []uint64, known []uint64) []uint64 {
+	return slices.DeleteFunc(slices.Clone(cookies), func(cookie uint64) bool {
+		return cookie == 0 || slices.Contains(known, cookie)
+	})
+}
+
+// collectCooldownActivity triggers the "known" activity of et, and returns the anomalies, and the sample cookie of
+// every event of that activity.
+func collectCooldownActivity(t *testing.T, test *testModule, et workloadProfileEventType, dockerInstance *dockerCmdWrapper) ([]workloadProfileAnomaly, []uint64) {
+	t.Helper()
+
+	var (
+		lock    sync.Mutex
+		cookies []uint64
+	)
+	anomalies := collectAnomaliesWithProbeEvents(t, test, func() error {
+		et.trigger(t, dockerInstance, "known")
+		return nil
+	}, dockerInstance, func(event *model.Event) {
+		if !isCooldownActivity(et, event) {
+			return
+		}
+		lock.Lock()
+		cookies = append(cookies, eventSampleCookie(event))
+		lock.Unlock()
+	})
+
+	lock.Lock()
+	defer lock.Unlock()
+	return anomalies, slices.Clone(cookies)
+}
+
+// isCooldownActivity reports whether event is the "known" activity of et
+func isCooldownActivity(et workloadProfileEventType, event *model.Event) bool {
+	if event.GetEventType() != et.eventType {
+		return false
+	}
+	switch et.eventType {
+	case model.FileOpenEventType:
+		path, _ := event.GetFieldValue("open.file.path")
+		return path == "/tmp/wp-open-known"
+	case model.BindEventType:
+		port, _ := event.GetFieldValue("bind.addr.port")
+		return port == workloadProfilePorts["known"]
+	case model.ConnectEventType:
+		port, _ := event.GetFieldValue("connect.addr.port")
+		return port == workloadProfilePorts["known"]
+	default:
+		return false
+	}
+}
+
+// eventSampleCookie returns the kernel sample cookie of event, 0 if it has none
+func eventSampleCookie(event *model.Event) uint64 {
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		return event.Open.SampleCookie
+	case model.BindEventType:
+		return event.Bind.SampleCookie
+	case model.ConnectEventType:
+		return event.Connect.SampleCookie
+	default:
+		return 0
+	}
+}
+
+// eventTypeHasSampleCookie reports whether the kernel can attach a sample cookie to this event type.
+func eventTypeHasSampleCookie(eventType model.EventType) bool {
+	switch eventType {
+	case model.FileOpenEventType, model.BindEventType, model.ConnectEventType:
+		return true
+	default:
+		return false
+	}
+}
+
+// cooldownKernelAdmitsNewProcess reports whether a second process of the same activity is a new
+// kernel sample key, which the kernel delivers with a new cookie. The open sample key has no pid, so
+// a second process run by the same parent shares the key of the first one.
+func cooldownKernelAdmitsNewProcess(et workloadProfileEventType) bool {
+	switch et.eventType {
+	case model.BindEventType, model.ConnectEventType:
+		return true
+	default:
+		return false
+	}
+}
+
+// workloadProfileCooldownRule is the rule that approves the "known" activity of et.
+// nil means the event type cannot be matched by a SECL rule.
+func workloadProfileCooldownRule(et workloadProfileEventType) *rules.RuleDefinition {
+	var expression string
+	switch et.name {
+	case "open":
+		expression = `open.file.path == "/tmp/wp-open-known"`
+	case "exec":
+		expression = `exec.file.name == "wp-exec-known"`
+	case "bind":
+		expression = `bind.addr.family == AF_INET && bind.addr.port == 4251`
+	case "connect":
+		expression = `connect.addr.family == AF_INET && connect.addr.port == 4251`
+	case "dns":
+		expression = `dns.question.name == "one.one.one.one"`
+	case "capabilities":
+		expression = `capabilities.used == CAP_SYS_CHROOT && process.file.name == "wp-exec-capabilities"`
+	case "mount":
+		expression = `mount.mountpoint.path == "/tmp/wp-mount-dst-known"`
+	default:
+		return nil
+	}
+	return &rules.RuleDefinition{ID: "test_wp_cooldown_" + et.name, Expression: expression}
 }
 
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedAnomalyDetectionVariables)
