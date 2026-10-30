@@ -225,9 +225,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	}
 	recordResponse := func(response *admiv1.AdmissionResponse) {
 		span.SetTag("admission.allowed", response.Allowed)
-		// Validation reports processing failures explicitly: denied responses alone
-		// cannot distinguish errors from policy explanations. Our mutation response
-		// helper reports processing errors by failing open.
+		// Mutation errors fail open; validation failures are reported explicitly.
 		mutationFailed := webhookType == admicommon.MutatingWebhook && response.Allowed && response.Result != nil && response.Result.Message != ""
 		if processingFailed || mutationFailed {
 			spanErr = errAdmissionRequest

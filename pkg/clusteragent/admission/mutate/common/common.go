@@ -54,8 +54,6 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 }
 
 // MutateWithContext handles the shared mutation flow while preserving trace context.
-// The injection result and patch presence are separate: normalization or a mutator
-// returning false may still change the pod.
 func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) (patchJSON []byte, retErr error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -111,6 +109,7 @@ func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationTy
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
 
+	// Normalization or a mutator returning false may still produce a patch.
 	span.SetTag("patch_present", len(patch) > 0)
 	return json.Marshal(patch)
 }

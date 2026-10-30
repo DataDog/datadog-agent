@@ -100,9 +100,7 @@ func TestMutateTracing(t *testing.T) {
 	}
 }
 
-// Run without mocktracer: it retains spans and would distort allocation results.
-// Use this benchmark on the base and feature revisions with the same toolchain
-// to compare disabled-tracing overhead.
+// Avoid mocktracer: retained spans distort allocation measurements.
 func BenchmarkMutateTracingDisabled(b *testing.B) {
 	for _, containers := range []int{1, 20} {
 		for _, inject := range []bool{false, true} {
