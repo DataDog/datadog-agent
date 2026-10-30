@@ -46,8 +46,9 @@ func (b *SLESBackend) GetKernelHeaders(directory string) error {
 		}
 
 		if err := dnfv2.ExtractPackage(pkg, data, directory, b.target, b.logger); err != nil {
-			b.logger.Errorf("extract `%s` package: %w", pkgNevra, err)
-			continue
+			// Extraction may have written partial headers; return the failure so
+			// the download attempt removes them before another package is tried.
+			return fmt.Errorf("extract `%s` package: %w", targetPackageName, err)
 		}
 
 		installedPackages++

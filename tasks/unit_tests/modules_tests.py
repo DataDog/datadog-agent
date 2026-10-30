@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from tasks.libs.common.gomodules import (
     GoModule,
     get_default_modules,
 )
+from tasks.modules import update_go_mod
 
 """
 Here is an abstract of the go.mod file format:
@@ -115,6 +117,7 @@ class TestGoModuleSerialization(unittest.TestCase):
             'independent': True,
             'used_by_otel': True,
             'legacy_go_mod_version': None,
+            'workspace_path': 'pkg/my/module_local',
         }
         module = GoModule.from_dict(d['path'], d)
         d2 = module.to_dict(remove_defaults=False)
@@ -125,6 +128,7 @@ class TestGoModuleSerialization(unittest.TestCase):
         self.assertEqual(module2.path, module.path)
         self.assertEqual(module2.should_test_condition, module.should_test_condition)
         self.assertEqual(module2.used_by_otel, module.used_by_otel)
+        self.assertEqual(module2.workspace_dir(), 'pkg/my/module_local')
 
     def test_get_default_modules(self):
         # Ensure modules are loaded
@@ -248,3 +252,26 @@ class TestGoModuleConfiguration(unittest.TestCase):
 
         self.assertEqual(len(config['modules']), 2)
         self.assertEqual(config['modules']['ignored'], 'ignored')
+
+
+class TestUpdateGoMod(unittest.TestCase):
+    def test_workspace_dirs(self):
+        # A module with a workspace_path is replaced by that directory, and the go.mod living there gets no
+        # replace for its own module
+        with tempfile.TemporaryDirectory() as tmpdir, contextlib.chdir(tmpdir):
+            for root in ('pkg/a', 'pkg/snap_local'):
+                Path(root).mkdir(parents=True)
+                Path(root, 'go.mod').write_text('module example\n')
+
+            mods = ['pkg/a', 'pkg/snap']
+            workspace_dirs = {'pkg/snap': 'pkg/snap_local'}
+            update_go_mod(mods, 'pkg/a', workspace_dirs)
+            update_go_mod(mods, 'pkg/snap_local', workspace_dirs)
+
+            gomod_a = Path('pkg/a/go.mod').read_text()
+            self.assertIn('github.com/DataDog/datadog-agent/pkg/snap => ../../pkg/snap_local\n', gomod_a)
+            self.assertNotIn('pkg/a =>', gomod_a)
+
+            gomod_snap = Path('pkg/snap_local/go.mod').read_text()
+            self.assertIn('github.com/DataDog/datadog-agent/pkg/a => ../../pkg/a\n', gomod_snap)
+            self.assertNotIn('pkg/snap =>', gomod_snap)
