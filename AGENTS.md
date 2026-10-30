@@ -56,6 +56,12 @@ This also applies to indirect usage — do not shell out to `go build` or
 `go test` for compilation checks. If you need to verify that code compiles,
 build the relevant component with `dda inv *.build`.
 
+### Bits Code sandboxes
+
+Before invoking Bazel or `dda inv test` in a Datadog Bits Code sandbox, follow
+[Bazel's sandbox setup instructions](bazel/AGENTS.md#bits-code-sandboxes) to enable
+the existing ADMS archive mirror for that checkout.
+
 ### Common Commands
 
 ```bash
