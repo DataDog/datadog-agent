@@ -38,6 +38,15 @@ cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed (building: ${CURRENT_LIB:-unknown})."
         if [ -n "$CURRENT_LIB" ]; then
+            # Keep configure logs for post-mortem before removing the partial build dir
+            # (AIX rm also refuses to remove the current directory, so cd out first).
+            # Best-effort: never let the copy failures abort the trap before the rm.
+            cd "$BUILD_DIR" || true
+            for _logf in configure.log config.log; do
+                if [ -f "$BUILD_DIR/build/$CURRENT_LIB/$_logf" ]; then
+                    cp "$BUILD_DIR/build/$CURRENT_LIB/$_logf" "$BUILD_DIR/logs/$CURRENT_LIB-$_logf" || true
+                fi
+            done
             log "Removing partial build directory for $CURRENT_LIB"
             rm -rf "$BUILD_DIR/build/$CURRENT_LIB"
         fi
@@ -205,7 +214,9 @@ else
     rm -rf "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
-    ./configure --prefix="$EMBEDDED"
+    # zlib's configure probes the compiler with a bare "$CC -c" (no CFLAGS), which fails under
+    # OBJECT_MODE=64 (64-bit assembler vs gcc's default 32-bit dialect), so bake in -maix64.
+    CC="$CC -maix64" ./configure --prefix="$EMBEDDED"
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
     lib_cache_save zlib "$ZLIB_VERSION" "$_pre"
@@ -434,6 +445,8 @@ else
     SQLITE_NUM=$(printf "%d%02d%02d" "$_sqlite_major" "$_sqlite_minor" "$_sqlite_patch")
     SQLITE_YEAR="2026"
     SQLITE_DIR="sqlite-autoconf-${SQLITE_NUM}00"
+    # Cleanup expects CURRENT_LIB to match the extracted build directory name
+    CURRENT_LIB="$SQLITE_DIR"
     TARBALL="$BUILD_DIR/sources/${SQLITE_DIR}.tar.gz"
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://www.sqlite.org/${SQLITE_YEAR}/${SQLITE_DIR}.tar.gz"
