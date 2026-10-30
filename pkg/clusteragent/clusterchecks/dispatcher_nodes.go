@@ -98,10 +98,9 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
+//
+// The store must be read-locked.
 func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyNode bool) {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
 	if d.advancedDispatching.Load() {
 		node = d.getRandomNode(checkName)
 	} else {

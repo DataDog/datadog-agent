@@ -8,7 +8,9 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -380,6 +382,34 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	configsB, _, err := dispatcher.getClusterCheckConfigs("nodeB")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(configsB))
+}
+
+func TestAddDoesNotRecreateExpiredNode(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	for i := 0; i < 200; i++ {
+		dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+		dispatcher.store.Lock()
+		dispatcher.store.nodes["nodeA"].heartbeat = 0
+		dispatcher.store.Unlock()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			dispatcher.add(generateIntegration(fmt.Sprintf("check-%d", i)))
+		}()
+		go func() {
+			defer wg.Done()
+			dispatcher.expireNodes()
+		}()
+		wg.Wait()
+
+		require.NotContains(t, dispatcher.store.nodes, "nodeA", "expired node was recreated (iteration %d)", i)
+	}
+
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestDispatchFourConfigsTwoNodes(t *testing.T) {

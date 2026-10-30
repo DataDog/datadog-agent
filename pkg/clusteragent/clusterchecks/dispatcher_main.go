@@ -342,7 +342,13 @@ func (d *dispatcher) reschedule(configs []integration.Config) []string {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
+	// Pick and place under one lock: a node expired in between would
+	// otherwise be recreated by addConfig, without IP or heartbeat.
+	d.store.Lock()
 	target, anyNode := d.getNodeToScheduleCheck(config.Name)
+	added := d.addConfigLocked(config, target)
+	d.store.Unlock()
+
 	if target == "" {
 		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
 		if anyNode {
@@ -352,7 +358,7 @@ func (d *dispatcher) add(config integration.Config) bool {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}
 
-	return d.addConfig(config, target)
+	return added
 }
 
 // reset empties the store and resets all states
