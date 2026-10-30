@@ -12,5 +12,4 @@ claim_pattern:
 permissions:
   contents: read
   issues: write
-  # Setting labels on a pull request requires pull_requests: write, issues: write is not enough.
   pull_requests: write
