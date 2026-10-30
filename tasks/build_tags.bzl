@@ -112,7 +112,6 @@ AGENT_TAGS = set([
     "netcgo",
     "nvml",
     "oracle",
-    "otlp",
     "podman",
     "python",
     "sharedlibrarycheck",
@@ -239,7 +238,6 @@ TRACE_AGENT_TAGS = set([
     "containerd",
     "datadog.no_waf",
     "kubelet",
-    "otlp",
     "netcgo",
     "podman",
 ])
