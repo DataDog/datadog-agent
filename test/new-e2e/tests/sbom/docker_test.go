@@ -34,8 +34,8 @@ type dockerHostSuite struct {
 }
 
 // TestSBOMDockerHostSuite provisions a RHEL 10 EC2 VM running Docker, deploys the
-// Agent as a Docker container configured to scan the daemon's images (overlayfs
-// direct scan) and the host, runs the SBOM target images as Docker containers,
+// Agent as a Docker container that scans the daemon's images in place, its
+// default, and the host, runs the SBOM target images as Docker containers,
 // and asserts the same host + container SBOMs as the kubeadm suites. The Agent
 // auto-selects the docker collector from the mounted /var/run/docker.sock.
 func TestSBOMDockerHostSuite(t *testing.T) {
@@ -64,15 +64,14 @@ func dockerHostRunOptions() []scendocker.Option {
 			// skips apply. Without it the scan targets "/" and walks the live
 			// /host/proc, failing on the binfmt_misc symlink loop.
 			dockeragentparams.WithAgentServiceEnvVariable("HOST_ROOT", pulumi.String("/host")),
-			// Enable host + container SBOM with overlayfs direct scan and the os +
-			// languages analyzers, matching the kubeadm Helm values so the SBOMs
-			// are identical.
+			// Enable host + container SBOM with the os + languages analyzers,
+			// matching the kubeadm Helm values so the SBOMs are identical. Images
+			// are scanned in place by default.
 			dockeragentparams.WithAgentServiceEnvVariable("DD_SBOM_ENABLED", pulumi.String("true")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_SBOM_HOST_ENABLED", pulumi.String("true")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_SBOM_HOST_ANALYZERS", pulumi.String("os languages")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_CONTAINER_IMAGE_ENABLED", pulumi.String("true")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_SBOM_CONTAINER_IMAGE_ENABLED", pulumi.String("true")),
-			dockeragentparams.WithAgentServiceEnvVariable("DD_SBOM_CONTAINER_IMAGE_OVERLAYFS_DIRECT_SCAN", pulumi.String("true")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_SBOM_CONTAINER_IMAGE_ANALYZERS", pulumi.String("os languages")),
 			// Run the SBOM target images as long-lived Docker containers so their
 			// images are resident and InUse for the Agent to scan.

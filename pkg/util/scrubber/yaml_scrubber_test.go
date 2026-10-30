@@ -115,6 +115,72 @@ func TestScrubDataObj(t *testing.T) {
 	}
 }
 
+func TestScrubYamlPreserveStructure(t *testing.T) {
+	input := []byte(`# a comment that is intentionally omitted
+second: 2
+first: "keeps its style"
+unknown_setting:
+  nested: untouched
+endpoints:
+  "https://user:url-secret@example.com": enabled
+additional_endpoints:
+  https://user:endpoint-url-secret@example.com:
+    - endpoint-secret
+network_devices:
+  snmp_traps:
+    community_strings:
+      - public-community-secret
+      - private-community-secret
+api_key: short-secret
+!!binary YXBpX2tleQ==: binary-key-secret
+"auth_token": |
+  multiline-secret
+secret_backend: ENC[leave-me-alone]
+`)
+
+	cleaned, err := ScrubYamlPreserveStructure(input)
+	require.NoError(t, err)
+
+	result := string(cleaned)
+	assert.Less(t, strings.Index(result, "second:"), strings.Index(result, "first:"), "mapping order should be preserved")
+	assert.Contains(t, result, `first: "keeps its style"`)
+	assert.Contains(t, result, "unknown_setting:\n  nested: untouched")
+	assert.NotContains(t, result, "short-secret")
+	assert.NotContains(t, result, "binary-key-secret")
+	assert.NotContains(t, result, "multiline-secret")
+	assert.NotContains(t, result, "url-secret")
+	assert.NotContains(t, result, "endpoint-secret")
+	assert.NotContains(t, result, "endpoint-url-secret")
+	assert.NotContains(t, result, "public-community-secret")
+	assert.NotContains(t, result, "private-community-secret")
+	assert.Contains(t, result, "ENC[leave-me-alone]")
+	assert.NotContains(t, result, "a comment that is intentionally omitted")
+
+	var parsed interface{}
+	require.NoError(t, yaml.Unmarshal(cleaned, &parsed))
+}
+
+func TestScrubYamlPreserveStructureRejectsInvalidYAML(t *testing.T) {
+	for name, input := range map[string]string{
+		"invalid":            "api_key: [unterminated",
+		"duplicate key":      "api_key: first\napi_key: second\n",
+		"multiple documents": "first: document\n---\nsecond: document\n",
+		"alias":              "value: &value secret\nauth_token: *value\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cleaned, err := ScrubYamlPreserveStructure([]byte(input))
+			assert.Error(t, err)
+			assert.Nil(t, cleaned)
+		})
+	}
+}
+
+func TestScrubYamlPreserveStructureCommentOnly(t *testing.T) {
+	cleaned, err := ScrubYamlPreserveStructure([]byte("# comment\n\n"))
+	require.NoError(t, err)
+	assert.Empty(t, cleaned)
+}
+
 // Scrubs an api_key embedded in an additional_endpoints JSON-string value via the value-content pass.
 func TestScrubDataObj_AdditionalEndpoints(t *testing.T) {
 	layer := interface{}(map[string]interface{}{
@@ -1277,4 +1343,102 @@ redis_url: "redis://localhost:6379"
 			assert.Equal(t, expectedData, yamlData)
 		})
 	}
+}
+
+func TestGetStrippedKeys(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name: "known sensitive keys",
+			input: `
+username: user1
+password: password123
+snmp:
+  authKey: my-auth-key
+  privKey: my-priv-key
+`,
+			expected: []string{"authKey", "password", "privKey"},
+		},
+		{
+			name: "raw credentials in values",
+			input: `
+dd_url: https://user:secret@example.com
+custom_setting: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+headers: Bearer some-token-value
+`,
+			expected: []string{"custom_setting", "dd_url", "headers"},
+		},
+		{
+			name: "list elements are reported under their parent key",
+			input: `
+forwarder_keys:
+  - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+  - not-a-key
+endpoints:
+  - https://example.com
+  - https://user:secret@example.com
+`,
+			expected: []string{"endpoints", "forwarder_keys"},
+		},
+		{
+			name: "nested keys of structured replacers",
+			input: `
+logs_config:
+  additional_endpoints:
+    - api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+      host: example.com
+`,
+			expected: []string{"api_key"},
+		},
+		{
+			name: "map of endpoints to API keys",
+			input: `
+additional_endpoints:
+  https://example.com:
+    - some-key
+`,
+			expected: []string{"additional_endpoints"},
+		},
+		{
+			name: "empty values, booleans and ENC handles are not reported",
+			input: `
+api_key: ""
+pass_through: true
+password: ENC[my_handle]
+token:
+additional_endpoints: {}
+hostname: my-host
+`,
+			expected: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var data interface{}
+			require.NoError(t, yaml.Unmarshal([]byte(tc.input), &data))
+
+			scrubber := NewWithDefaults()
+			scrubber.ScrubDataObj(&data)
+			assert.Equal(t, tc.expected, scrubber.GetStrippedKeys())
+
+			scrubber.ClearStrippedKeys()
+			assert.Equal(t, []string{}, scrubber.GetStrippedKeys())
+		})
+	}
+}
+
+func TestGetStrippedKeysAddStrippedKeys(t *testing.T) {
+	AddStrippedKeys([]string{"get_stripped_keys_test_key"})
+
+	var data interface{} = map[string]interface{}{
+		"get_stripped_keys_test_key": "value",
+		"other_key":                  "value",
+	}
+	scrubber := NewWithDefaults()
+	scrubber.ScrubDataObj(&data)
+	assert.Equal(t, []string{"get_stripped_keys_test_key"}, scrubber.GetStrippedKeys())
 }

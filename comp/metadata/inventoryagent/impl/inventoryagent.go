@@ -8,11 +8,16 @@ package inventoryagentimpl
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"maps"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +30,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -57,18 +63,25 @@ var (
 	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
 		return configFetcher.ProcessAgentConfig(cfg, client, true)
 	}
-	fetchTraceConfig       = configFetcher.TraceAgentConfig
-	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
+	fetchTraceConfig         = configFetcher.TraceAgentConfig
+	fetchSystemProbeConfig   = sysprobeConfigFetcher.SystemProbeConfig
+	fetchSystemProbeFilename = getSystemProbeFilename
 )
 
 type agentMetadata map[string]interface{}
 
+type rawFile struct {
+	RawConfig string `json:"raw_config"`
+	Hash      string `json:"hash"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string        `json:"hostname"`
-	Timestamp int64         `json:"timestamp"`
-	Metadata  agentMetadata `json:"agent_metadata"`
-	UUID      string        `json:"uuid"`
+	Hostname      string             `json:"hostname"`
+	Timestamp     int64              `json:"timestamp"`
+	Metadata      agentMetadata      `json:"agent_metadata"`
+	FilesMetadata map[string]rawFile `json:"files_metadata,omitempty"`
+	UUID          string             `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -83,14 +96,12 @@ type inventoryagent struct {
 	log          log.Component
 	conf         config.Component
 	hostnameComp hostnameinterface.Component
+	secrets      secrets.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
 	client       ipc.HTTPClient
-	// See iainterface.Capabilities for the meaning of these fields.
-	skipFullAgentMetadataRefresh bool
-	payloadUUID                  func() string
 }
 
 // Requires defines the dependencies for the inventoryagent component
@@ -103,9 +114,7 @@ type Requires struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
-	// Capabilities is optional; absent means standard full-agent behavior.
-	// See iainterface.Capabilities.
-	Capabilities *iainterface.Capabilities `optional:"true"`
+	Secrets        secrets.Component `optional:"true"`
 }
 
 // Provides defines the output of the inventoryagent component
@@ -125,17 +134,12 @@ func NewComponent(deps Requires) Provides {
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
 		hostnameComp: deps.Hostname,
+		secrets:      deps.Secrets,
 		hostname:     hname,
 		data:         make(agentMetadata),
 		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
-
-	if deps.Capabilities != nil {
-		ia.SetReady(!deps.Capabilities.DeferUntilReady)
-		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh
-		ia.payloadUUID = deps.Capabilities.PayloadUUID
-	}
 
 	if ia.Enabled {
 		ia.initData()
@@ -452,6 +456,71 @@ func (ia *inventoryagent) fetchFleetMetadata() {
 	ia.data["config_id"] = ia.conf.GetString("config_id")
 }
 
+// fetchSecretsMetadata reports where secrets appear in the configuration, which handles are used and the hash of
+// their values. The hashes are stored under a key the default scrubber recognizes, so they are scrubbed from flares
+// and from the 'show-metadata' output.
+func (ia *inventoryagent) fetchSecretsMetadata() {
+	if ia.conf.GetBool("metadata_skip_secrets") {
+		delete(ia.data, "enc_info")
+		return
+	}
+	paths, handles := []string{}, []string{}
+	hashes := map[string]string{}
+	if ia.secrets != nil {
+		paths, handles = ia.secrets.GetPathsAndHandles()
+		hashes = ia.secrets.GetHashValues(handles)
+	}
+	// Scrub the configuration to find the keys holding credentials: either known sensitive keys or values that look
+	// like credentials. Defaults are excluded since they are not set by the user, and the secrets layer is excluded
+	// so values resolved from a handle are not reported twice.
+	configScrubber := scrubber.NewWithDefaults()
+	var settings interface{} = ia.conf.AllSettingsWithoutDefaultOrSecrets()
+	configScrubber.ScrubDataObj(&settings)
+	scrubbedKeys := filterScrubbedKeys(configScrubber.GetStrippedKeys(), paths)
+	ia.data["enc_info"] = map[string]interface{}{
+		"paths":          paths,
+		"handles":        handles,
+		"scrubbed":       scrubbedKeys,
+		"hash_secret_id": hashes,
+	}
+}
+
+// filterScrubbedKeys returns the deduplicated scrubbed keys that are not contained in paths
+func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
+	seen := make(map[string]struct{}, len(paths)+len(scrubbedKeys))
+	for _, path := range paths {
+		// Scrubbed keys are bare YAML key names (ex: "community_strings")
+		// Secret paths are full dotted settings, optionally prefixed by their origin
+		//   (ex: "snmp_traps.community_strings.0" or "a3f9c01b2d4e5f67:auth.password")
+		// get last non-numerical element of the path, to match what the scrubbed keys uses
+		last := getPathLastName(path)
+		seen[last] = struct{}{}
+	}
+	res := []string{}
+	for _, key := range scrubbedKeys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		res = append(res, key)
+	}
+	return res
+}
+
+// getPathLastName returns last element of a setting path, skipping the last if it's a number
+// origin prefix is removed if present
+func getPathLastName(path string) string {
+	if idx := strings.Index(path, ":"); idx != -1 {
+		path = path[idx+1:]
+	}
+	elems := strings.Split(path, ".")
+	leaf := elems[len(elems)-1]
+	if _, err := strconv.Atoi(leaf); err == nil && len(elems) >= 2 {
+		leaf = elems[len(elems)-2]
+	}
+	return leaf
+}
+
 func (ia *inventoryagent) refreshMetadata() {
 	// Core Agent / agent
 	ia.fetchCoreAgentMetadata()
@@ -467,11 +536,18 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchFleetMetadata()
 	// Application Monitoring (tracers)
 	ia.fetchApplicationMonitoringMetadata()
+	// Secrets
+	ia.fetchSecretsMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := ia.GetAsJSON()
+	data, err := ia.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, err, 500)
+		return
+	}
+	// Scrub by key name, as the flare does, so that sensitive fields such as the secret hashes are not exposed
+	scrubbed, err := scrubber.ScrubJSON(data)
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
@@ -540,13 +616,65 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 	}
 }
 
+func getSystemProbeFilename(opt option.Option[sysprobeconfig.Component]) string {
+	comp, found := opt.Get()
+	if !found {
+		return ""
+	}
+	return comp.ConfigFileUsed()
+}
+
+func (ia *inventoryagent) getRawFiles() map[string]rawFile {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return nil
+	}
+
+	configDir := filepath.Dir(ia.conf.ConfigFileUsed())
+	possibleFiles := []string{
+		ia.conf.ConfigFileUsed(),
+		fetchSystemProbeFilename(ia.sysprobeConf),
+		filepath.Join(configDir, "security-agent.yaml"),
+		filepath.Join(configDir, "application_monitoring.yaml"),
+	}
+
+	rawConfigFiles := make(map[string]rawFile)
+	for _, file := range possibleFiles {
+		if scrubbedConfig, ok := ia.readAndScrubConfig(file); ok {
+			hash := sha256.Sum256(scrubbedConfig)
+			rawConfigFiles[file] = rawFile{
+				RawConfig: string(scrubbedConfig),
+				Hash:      hex.EncodeToString(hash[:]),
+			}
+		}
+	}
+	return rawConfigFiles
+}
+
+func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, bool) {
+	if path == "" {
+		return nil, false
+	}
+	rawContent, err := os.ReadFile(path)
+	if err != nil {
+		ia.log.Debugf("could not read configuration file metadata for %q", path)
+		return nil, false
+	}
+	// Preserve yaml structure, except fields like `additional_endpoints` may
+	// lose order. This is acceptable behavior, since this setting isn't really used
+	// too often, and already has some strange edge-cases we handle specially.
+	scrubbedConfig, err := scrubber.ScrubYamlPreserveStructure(rawContent)
+	if err != nil {
+		ia.log.Warnf("could not safely scrub configuration file metadata for %q", path)
+		return nil, false
+	}
+	return scrubbedConfig, true
+}
+
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
 
-	if !ia.skipFullAgentMetadataRefresh {
-		ia.refreshMetadata()
-	}
+	ia.refreshMetadata()
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
@@ -555,21 +683,12 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.getConfigs(data)
 
 	return &Payload{
-		Hostname:  ia.hostname,
-		Timestamp: time.Now().UnixNano(),
-		Metadata:  data,
-		UUID:      ia.getUUID(),
+		Hostname:      ia.hostname,
+		Timestamp:     time.Now().UnixNano(),
+		Metadata:      data,
+		FilesMetadata: ia.getRawFiles(),
+		UUID:          uuid.GetUUID(),
 	}
-}
-
-// getUUID resolves the uuid override when one is supplied, otherwise the host machine GUID.
-func (ia *inventoryagent) getUUID() string {
-	if ia.payloadUUID != nil {
-		if id := ia.payloadUUID(); id != "" {
-			return id
-		}
-	}
-	return uuid.GetUUID()
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.

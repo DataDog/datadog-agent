@@ -98,6 +98,7 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 
 ### Unit Tests
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
+Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
@@ -151,8 +152,7 @@ Cross-linting for Windows needs mingw-w64 on `PATH` (`brew install mingw-w64` on
 macOS). `CGO_ENABLED=0` is not a substitute: core packages reach
 `pkg/util/winutil`, which requires real cgo. Note that
 `bazel build --platforms=@rules_go//go/toolchain:windows_amd64` builds libraries
-but cannot build `*_test` targets — Bazel requires exec platform == target
-platform for test rules — so the linter is the route for test files.
+and `*_test` targets alike, cgo included, but `bazel test` cannot run the latter.
 
 ## Build System
 

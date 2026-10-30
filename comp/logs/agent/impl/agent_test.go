@@ -35,6 +35,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	intakerouting "github.com/DataDog/datadog-agent/comp/intakerouting/def"
+	intakeroutingmock "github.com/DataDog/datadog-agent/comp/intakerouting/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
@@ -112,9 +114,6 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
 	// Set a short scan period to allow it to run in the time period of the tcp and http tests
 	suite.configOverrides["logs_config.file_scan_period"] = 1
-	// Disable auto multiline detection tagging by default in tests
-	// Individual tests can re-enable it if they need to test that feature
-	suite.configOverrides["logs_config.auto_multi_line_detection_tagging"] = false
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
@@ -529,6 +528,7 @@ type testAgentDeps struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	IntakeRouting      intakerouting.Component
 }
 
 func (suite *AgentTestSuite) createDeps() Requires {
@@ -547,6 +547,7 @@ func (suite *AgentTestSuite) createDeps() Requires {
 		}),
 		auditorfx.Module(),
 		fxutil.ProvideComponentConstructor(kubehealthmock.NewProvides),
+		intakeroutingmock.Module(),
 	)
 	return Requires{
 		Lc:                 d.Lc,
@@ -560,6 +561,7 @@ func (suite *AgentTestSuite) createDeps() Requires {
 		Tagger:             d.Tagger,
 		Compression:        d.Compression,
 		Secrets:            d.Secrets,
+		IntakeRouting:      d.IntakeRouting,
 	}
 }
 

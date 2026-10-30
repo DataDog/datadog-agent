@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -48,6 +47,11 @@ const (
 
 // ErrSpecTooLarge is returned when container Spec is too large
 var ErrSpecTooLarge = errors.New("Container spec is too large")
+
+// ErrNotUnpacked reports that neither nydus nor the default snapshotter holds
+// an image unpacked, so the image has no view to mount. Test for it with
+// errors.Is.
+var ErrNotUnpacked = errors.New("image is not unpacked")
 
 // ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
@@ -429,11 +433,13 @@ func unpackedSnapshotter(ctx context.Context, img containerd.Image) (string, err
 		return "nydus", nil
 	}
 	unpacked, err := img.IsUnpacked(ctx, defaults.DefaultSnapshotter)
-	if err != nil {
+	// containerd answers a question about a snapshotter it has not loaded
+	// with an invalid argument error.
+	if err != nil && !errdefs.IsInvalidArgument(err) {
 		return "", fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
 	}
 	if !unpacked {
-		return "", fmt.Errorf("unable to scan image named: %s, image is not unpacked for snapshotter %s", img.Name(), defaults.DefaultSnapshotter)
+		return "", fmt.Errorf("unable to scan image named: %s, %w for snapshotter %s", img.Name(), ErrNotUnpacked, defaults.DefaultSnapshotter)
 	}
 	return defaults.DefaultSnapshotter, nil
 }
@@ -511,26 +517,18 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 		for i := range mounts {
 			mounts[i].Source = image.SanitizeHostPath(mounts[i].Source)
 
-			var errs []error
 			for j, opt := range mounts[i].Options {
 				for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
 					if trimmedOpt, ok := strings.CutPrefix(opt, prefix); ok {
 						dirs := strings.Split(trimmedOpt, ":")
 						for n, dir := range dirs {
 							dirs[n] = image.SanitizeHostPath(dir)
-							if _, err := os.Stat(dirs[n]); err != nil {
-								errs = append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
-							}
 						}
 						mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
 					}
 				}
 
 				log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
-			}
-
-			if len(errs) > 0 {
-				log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errors.Join(errs...))
 			}
 		}
 	}

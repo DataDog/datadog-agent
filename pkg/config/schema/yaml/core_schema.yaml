@@ -195,6 +195,23 @@ properties:
     example: /var/lib/cloud/data/instance-id
     tags:
     - template_section:Common
+  hostname_use_serial:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Append the device serial number to the automatically detected hostname in
+      end_user_device infrastructure mode on macOS and Windows. macOS uses the
+      LocalHostName as its device-name source regardless of this setting. Explicit
+      hostname and hostname_file settings take precedence. Cloud provider hostnames,
+      hostname_fqdn, and EC2 instance-ID selection can still replace the device name,
+      including its serial-number suffix when enabled.
+      Restart the Agent after changing this setting;
+      changing the hostname changes the device identity in Datadog.
+    tags:
+    - template_section:Common
+    - platform_only:darwin,windows
   hostname_fqdn:
     node_type: setting
     type: boolean
@@ -538,7 +555,7 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: 'false'
+            default: datadog_only
             visibility: public
             description: |-
               Global default for the distribution metrics intake version. Accepted values:
@@ -2226,6 +2243,114 @@ properties:
             node_type: setting
             type: boolean
             default: false
+  network_pcap:
+    node_type: section
+    title: Network Pcap Configuration
+    type: object
+    description: Settings for the Private Action Runner's remote packet
+      capture action.
+    tags:
+    - full-agent-only:true
+    - platform_only:linux
+    properties:
+      forwarder:
+        node_type: section
+        type: object
+        description: Endpoints packet captures are uploaded to, read like the
+          event platform forwarders' endpoint settings. logs_dd_url (host:port)
+          or dd_url override the default "cnm-intake.<site>" host, and
+          additional_endpoints adds more. Uploads are neither batched nor
+          compressed per these settings, so the batch_* and compression keys
+          have no effect.
+        properties:
+          additional_endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          batch_max_concurrent_send:
+            node_type: setting
+            type: integer
+            default: 0
+          batch_max_content_size:
+            node_type: setting
+            type: integer
+            default: 5000000
+          batch_max_size:
+            node_type: setting
+            type: integer
+            default: 1000
+          batch_wait:
+            node_type: setting
+            type: number
+            default: 5
+          compression_kind:
+            node_type: setting
+            type: string
+            default: zstd
+          compression_level:
+            node_type: setting
+            type: integer
+            default: 6
+          connection_reset_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          dev_mode_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+            tags:
+            - no-env
+          input_chan_size:
+            node_type: setting
+            type: integer
+            default: 100
+          logs_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          logs_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+          sender_backoff_base:
+            node_type: setting
+            type: number
+            default: 1
+          sender_backoff_factor:
+            node_type: setting
+            type: number
+            default: 2
+          sender_backoff_max:
+            node_type: setting
+            type: number
+            default: 120
+          sender_recovery_interval:
+            node_type: setting
+            type: integer
+            default: 2
+          sender_recovery_reset:
+            node_type: setting
+            type: boolean
+            default: false
+          use_compression:
+            node_type: setting
+            type: boolean
+            default: true
+          use_v2_api:
+            node_type: setting
+            type: boolean
+            default: true
+          zstd_compression_level:
+            node_type: setting
+            type: integer
+            default: 1
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -3525,12 +3650,38 @@ properties:
       The list of environment variables that are allowed to be resolved in check
       configurations.
       If the list is not set or is empty, the default behavior applies: all envs
-      are allowed.
+      are allowed except the ones bound to Agent settings (see
+      `ad_allowed_agent_env_vars`).
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
         - <ENV_VAR_1>
         - <ENV_VAR_2>
+    tags:
+    - template_section:CoreAgent
+  ad_allowed_agent_env_vars:
+    node_type: setting
+    type: array
+    default:
+    - DD_CLUSTER_NAME
+    - DD_ENV
+    items:
+      type: string
+    visibility: public
+    description: |-
+      The list of environment variables bound to Agent settings that are allowed
+      to be resolved in check configurations. Other environment variables bound
+      to Agent settings are not resolved because some of them hold Agent
+      credentials, like `DD_API_KEY`.
+      Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
+      `DD_ENV` if you still need them.
+      This list only applies when `ad_allowed_env_vars` is not set or is empty,
+      and `ad_disable_env_var_resolution` is set to false.
+    example: |2-
+
+        - DD_CLUSTER_NAME
+        - DD_ENV
+        - <ENV_VAR_1>
     tags:
     - template_section:CoreAgent
   ad_disable_env_var_resolution:
@@ -6119,6 +6270,16 @@ properties:
     default: ''
     tags:
     - full-agent-only:true
+  clc_runner_group:
+    node_type: setting
+    type: string
+    default: ''
+    tags:
+    - full-agent-only:true
+    comment: Cluster checks runner group of this runner, advertised to the Cluster
+      Agent. The runner only receives the checks its group claims in the Cluster
+      Agent's cluster_checks.runner_groups. When empty, it is a general worker and
+      receives the checks no group claims.
   clc_runner_port:
     node_type: setting
     type: integer
@@ -6648,7 +6809,7 @@ properties:
           healthy host into a finding.
 
           The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
-          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          -- see test/regression/container/quality_gates/quality_gate_* -- rather than for tuning on real hosts, where the only
           knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
@@ -7722,6 +7883,49 @@ properties:
         node_type: setting
         type: integer
         default: 0
+  experimental:
+    node_type: section
+    type: object
+    properties:
+      metrics_endpoint_routing:
+        node_type: section
+        type: object
+        properties:
+          metric_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name allowlists.
+              Keys must exactly match the resolved primary URL (including any trailing dot)
+              or a key in additional_endpoints. Unknown endpoints are rejected. A metric is sent
+              if its normalized name matches this list or metric_prefix_allowlist for
+              the endpoint. Applies to series and sketches. Requires use_v2_api.series
+              to be enabled. Endpoints absent from both
+              maps keep ordinary delivery. An endpoint with two empty lists receives
+              no metrics. Policies are independent of Multi-Region Failover and require
+              a restart to change. Experimental settings may change without compatibility.
+          metric_prefix_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name prefix allowlists, combined with metric_allowlist.
+              Keys follow the same endpoint validation and restart requirements.
+              Prefixes are case-sensitive literal strings, not wildcards or regular
+              expressions. An empty string prefix allows every valid metric name.
+              An empty list allows no names. Incoming names are normalized for matching.
+              Configured entries and transmitted names are unchanged.
   expected_tags_duration:
     node_type: setting
     type: string
@@ -8049,18 +8253,40 @@ properties:
     node_type: section
     type: object
     properties:
+      reporter_interval:
+        node_type: setting
+        type: string
+        default: 60s
+        format: duration
+        description: |-
+          Interval between profile reports. Must be at least 60 seconds.
       additional_http_headers:
         node_type: setting
         type: object
         default: {}
         additionalProperties:
           type: string
+      include_env_vars:
+        node_type: setting
+        type: string
+        default: ''
+        description: |-
+          Comma-separated names of additional environment variables to collect from profiled processes.
+          These variables are collected in addition to the default service, environment, and version metadata.
+          Only include variables whose values are safe to send with profiles; do not include secrets.
       send_error_frames:
         node_type: setting
         type: boolean
         default: false
         description: |
           Includes unwind error frames in profiles for troubleshooting.
+      filter_min_process_age:
+        node_type: setting
+        type: string
+        default: 0s
+        format: duration
+        description: |
+          Skips profiling processes younger than this duration, to filter out short-lived processes. 0 disables the filter.
       ddprofiling:
         node_type: section
         type: object
@@ -8081,10 +8307,20 @@ properties:
         node_type: section
         type: object
         properties:
-          verbosity:
+          exporter:
+            node_type: section
+            type: object
+            properties:
+              verbosity:
+                node_type: setting
+                type: string
+                default: ''
+          ebpf_logs:
             node_type: setting
-            type: string
-            default: ''
+            type: boolean
+            default: false
+            description: |-
+              Enables verbose eBPF profiler logging for troubleshooting.
       health_metrics:
         node_type: section
         type: object
@@ -8109,6 +8345,42 @@ properties:
         node_type: setting
         type: string
         default: ${log_path}/host-profiler.log
+      symbol_uploader:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            description: |-
+              Uploads debug symbols to Datadog for native and Go symbolization.
+              Disabling uploads can leave profiles with unresolved frames.
+          options:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+          report:
+            node_type: section
+            type: object
+            properties:
+              interval:
+                node_type: setting
+                type: integer
+                default: 300
+                minimum: 1
+                maximum: 86400
+                description: How often, in seconds, the host profiler flushes a
+                  batched symbol upload report.
+              max_paths_per_report:
+                node_type: setting
+                type: integer
+                default: 100
+                minimum: 1
+                maximum: 100000
+                description: Maximum number of sampled binary paths kept per symbol
+                  upload report, per log level.
     tags:
     - full-agent-only:true
   hpa_configmap_name:
@@ -8212,6 +8484,34 @@ properties:
         node_type: setting
         type: boolean
         default: false
+    tags:
+    - full-agent-only:true
+  intake_routing:
+    node_type: section
+    type: object
+    description: Ask the Datadog backend which intake host to send telemetry to, for endpoints
+      that point at an official Datadog intake.
+    comment: Owned by comp/intakerouting. Undocumented until the backend contract is final.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Enables intake routing. Only the core logs agent uses it for now.
+      startup_grace_period:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        description: How long a sender waits at startup for the first routing decision before
+          starting on its configured endpoint. Clamped to [0s, 30s].
+      refresh_interval:
+        node_type: setting
+        type: string
+        default: 6h0m0s
+        format: duration
+        description: How often routing decisions are refreshed. Jittered by 10 percent, with a
+          minimum of 1m.
     tags:
     - full-agent-only:true
   integration:
@@ -8795,16 +9095,27 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  metadata_skip_secrets:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      When true, the inventory agent payload does not include the `enc_info` section (paths, handles and hashes
+      of the secrets used in the configuration).
   metric_filterlist:
     node_type: setting
     type: array
     default: []
+    renamed_from:
+      statsd_metric_blocklist: "7.86.0"
     items:
       type: string
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
     default: false
+    renamed_from:
+      statsd_metric_blocklist_match_prefix: "7.86.0"
   metric_filterlist_prefix:
     node_type: setting
     type: array
@@ -9372,7 +9683,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0.001
+            default: 0
           shadow_sites:
             node_type: setting
             type: array
@@ -9430,24 +9741,24 @@ properties:
         default: false
         tags:
         - no-env
-      inventory_enabled:
+      metadata_enabled:
         node_type: setting
         type: boolean
         default: false
         env_vars:
-        - DD_SERVERLESS_INIT_INVENTORY_ENABLED
-      inventory_wrapped_command_enabled:
+        - DD_SERVERLESS_INIT_METADATA_ENABLED
+      metadata_wrapped_command_enabled:
         node_type: setting
         type: boolean
         default: false
         description: |
-          Include the wrapped workload command in serverless-init inventory when inventory is enabled.
+          Include the wrapped workload command in serverless-init metadata when metadata collection is enabled.
           The command is omitted by default. Collection may transmit secrets in command-line arguments.
           Redaction is best effort and incomplete: it does not cover all argument names, formats,
           positional values, or embedded scripts. Enable only after verifying that your workload
           command contains no sensitive information.
         env_vars:
-        - DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED
+        - DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED
       logs_enabled:
         node_type: setting
         type: boolean
@@ -9691,16 +10002,6 @@ properties:
         node_type: setting
         type: integer
         default: 60
-  statsd_metric_blocklist:
-    node_type: setting
-    type: array
-    default: []
-    items:
-      type: string
-  statsd_metric_blocklist_match_prefix:
-    node_type: setting
-    type: boolean
-    default: false
   statsd_metric_namespace_blacklist:
     node_type: setting
     type: array

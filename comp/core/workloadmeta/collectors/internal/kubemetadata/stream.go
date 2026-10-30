@@ -212,6 +212,10 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 		events = append(events, p.buildKueueWorkloadEvents(update.updatedKueueWorkloads)...)
 	}
 
+	if len(update.updatedKAIPodGroups) > 0 {
+		events = append(events, p.buildKAIPodGroupEvents(update.updatedKAIPodGroups)...)
+	}
+
 	if update.updateIsFullState {
 		for _, uid := range seenPods {
 			if podEvent, ok := p.buildPodEventFromUID(uid); ok {
@@ -450,6 +454,33 @@ func (p *streamingProvider) buildKueueWorkloadEvents(updatedWorkloadIDs map[stri
 	return events
 }
 
+func (p *streamingProvider) buildKAIPodGroupEvents(updatedPodGroupIDs map[string]struct{}) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(updatedPodGroupIDs))
+	for podGroupID := range updatedPodGroupIDs {
+		podGroup, found := p.dcaStream.getKAIPodGroup(podGroupID)
+		if found {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceClusterOrchestrator,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: podGroup,
+			})
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKAIPodGroup{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKAIPodGroup,
+					ID:   podGroupID,
+				},
+			},
+		})
+	}
+	return events
+}
+
 type streamUpdate struct {
 	updateIsFullState           bool
 	updatedPods                 map[string]struct{} // keys are "namespace/name"
@@ -457,6 +488,7 @@ type streamUpdate struct {
 	updatedKueueQueues          map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKueueResourceFlavors map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKueueWorkloads       map[string]struct{} // keys are workloadmeta entity IDs
+	updatedKAIPodGroups         map[string]struct{} // keys are workloadmeta entity IDs
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -471,6 +503,7 @@ type dcaStreamClient struct {
 	kueueQueues          map[string]*workloadmeta.KubernetesKueueQueue
 	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
 	kueueWorkloads       map[string]*workloadmeta.KubernetesKueueWorkload
+	kaiPodGroups         map[string]*workloadmeta.KubernetesKAIPodGroup
 	initialized          bool
 	unimplemented        bool
 	pendingUpdate        streamUpdate
@@ -492,6 +525,7 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		kueueQueues:          make(map[string]*workloadmeta.KubernetesKueueQueue),
 		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
 		kueueWorkloads:       make(map[string]*workloadmeta.KubernetesKueueWorkload),
+		kaiPodGroups:         make(map[string]*workloadmeta.KubernetesKAIPodGroup),
 		readyCh:              make(chan struct{}),
 		updateCh:             make(chan struct{}, 1),
 	}
@@ -597,6 +631,17 @@ func (sc *dcaStreamClient) getKueueWorkload(workloadID string) (*workloadmeta.Ku
 	// workload is passed to workloadmeta after sc.mu is released, and it contains
 	// mutable maps such as Labels, Annotations, and PodSetAssignment flavors.
 	return workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload), true
+}
+
+func (sc *dcaStreamClient) getKAIPodGroup(podGroupID string) (*workloadmeta.KubernetesKAIPodGroup, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	podGroup, found := sc.kaiPodGroups[podGroupID]
+	if !found {
+		return nil, false
+	}
+	return podGroup.DeepCopy().(*workloadmeta.KubernetesKAIPodGroup), true
 }
 
 func (sc *dcaStreamClient) isUnimplemented() bool {
@@ -773,17 +818,33 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.kueueWorkloads = newKueueWorkloads
 
+		newKAIPodGroups := make(map[string]*workloadmeta.KubernetesKAIPodGroup, len(resp.KaiPodGroups))
+		updatedKAIPodGroups := make(map[string]struct{}, len(resp.KaiPodGroups)+len(sc.kaiPodGroups))
+		for podGroupID := range sc.kaiPodGroups {
+			updatedKAIPodGroups[podGroupID] = struct{}{}
+		}
+		for _, podGroupMetadata := range resp.KaiPodGroups {
+			podGroup := newKAIPodGroup(podGroupMetadata)
+			if podGroup == nil {
+				continue
+			}
+			newKAIPodGroups[podGroup.EntityID.ID] = podGroup
+			updatedKAIPodGroups[podGroup.EntityID.ID] = struct{}{}
+		}
+		sc.kaiPodGroups = newKAIPodGroups
+
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
 		sc.pendingUpdate.updatedKueueQueues = updatedKueueQueues
 		sc.pendingUpdate.updatedKueueResourceFlavors = updatedKueueResourceFlavors
 		sc.pendingUpdate.updatedKueueWorkloads = updatedKueueWorkloads
+		sc.pendingUpdate.updatedKAIPodGroups = updatedKAIPodGroups
 		sc.notifyUpdate()
 		sc.signalReady()
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -890,7 +951,28 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedKueueWorkloads[workloadID] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 {
+	for _, podGroupMetadata := range resp.KaiPodGroups {
+		podGroupID := kaiPodGroupID(podGroupMetadata)
+		switch podGroupMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			podGroup := newKAIPodGroup(podGroupMetadata)
+			if podGroup == nil {
+				continue
+			}
+			sc.kaiPodGroups[podGroupID] = podGroup
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kaiPodGroups, podGroupID)
+		default:
+			log.Errorf("Unknown event type %d for KAI PodGroup metadata %s", podGroupMetadata.Type, podGroupID)
+			continue
+		}
+		if sc.pendingUpdate.updatedKAIPodGroups == nil {
+			sc.pendingUpdate.updatedKAIPodGroups = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKAIPodGroups[podGroupID] = struct{}{}
+	}
+
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0 {
 		sc.notifyUpdate()
 	}
 }
@@ -955,9 +1037,11 @@ func newKueueWorkload(workloadMetadata *pb.KueueWorkload) *workloadmeta.Kubernet
 			Annotations: workloadMetadata.Annotations,
 			UID:         workloadMetadata.Uid,
 		},
-		QueueName:         workloadMetadata.Queue,
-		ClusterQueueName:  workloadMetadata.ClusterQueue,
-		PodSetAssignments: workloadmetaKueuePodSetAssignments(workloadMetadata.PodSetAssignments),
+		QueueName:              workloadMetadata.Queue,
+		ClusterQueueName:       workloadMetadata.ClusterQueue,
+		PodSetAssignments:      workloadmetaKueuePodSetAssignments(workloadMetadata.PodSetAssignments),
+		PodTemplateLabels:      workloadMetadata.PodTemplateLabels,
+		PodTemplateAnnotations: workloadMetadata.PodTemplateAnnotations,
 	}
 }
 
@@ -1009,6 +1093,31 @@ func kueueWorkloadID(workloadMetadata *pb.KueueWorkload) string {
 	}
 
 	return workloadmeta.GenerateKueueWorkloadEntityID(workloadMetadata.Namespace, workloadMetadata.Name)
+}
+
+func newKAIPodGroup(podGroupMetadata *pb.KAIPodGroup) *workloadmeta.KubernetesKAIPodGroup {
+	if podGroupMetadata == nil || podGroupMetadata.Name == "" || podGroupMetadata.Namespace == "" {
+		return nil
+	}
+
+	return &workloadmeta.KubernetesKAIPodGroup{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKAIPodGroup,
+			ID:   kaiPodGroupID(podGroupMetadata),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        podGroupMetadata.Name,
+			Namespace:   podGroupMetadata.Namespace,
+			Labels:      podGroupMetadata.Labels,
+			Annotations: podGroupMetadata.Annotations,
+			UID:         podGroupMetadata.Uid,
+		},
+		QueueName: podGroupMetadata.Queue,
+	}
+}
+
+func kaiPodGroupID(podGroupMetadata *pb.KAIPodGroup) string {
+	return workloadmeta.GenerateKAIPodGroupEntityID(podGroupMetadata.Namespace, podGroupMetadata.Name)
 }
 
 // notifyUpdate sends signal on updateCh. Must be called with sc.mu held.

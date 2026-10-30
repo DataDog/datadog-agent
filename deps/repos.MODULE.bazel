@@ -38,10 +38,10 @@ http_archive(
         "config.lzma-osx-x86_64.h": "//deps/xz:config.lzma-osx-x86_64.h",
         "config.lzma-windows.h": "//deps/xz:config.lzma-windows.h",
     },
-    sha256 = "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
-    strip_prefix = "xz-5.8.1",
+    sha256 = "0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9",
+    strip_prefix = "xz-5.8.4",
     urls = [
-        "https://tukaani.org/xz/xz-5.8.1.tar.gz",
+        "https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5.8.4.tar.gz",
     ],
 )
 
@@ -138,6 +138,26 @@ http_archive(
     strip_prefix = "libseccomp-2.6.0",
     urls = [
         "https://github.com/seccomp/libseccomp/releases/download/v2.6.0/libseccomp-2.6.0.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "checkpolicy",
+    build_file = "//deps:checkpolicy.BUILD.bazel",
+    sha256 = "9b81bfceef7fa9d02f9872e56a786f343dc58ef4b5713dce0d5c416e5b84cefa",
+    strip_prefix = "checkpolicy-3.11",
+    urls = [
+        "https://github.com/SELinuxProject/selinux/releases/download/3.11/checkpolicy-3.11.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "semodule_utils",
+    build_file = "//deps:semodule_utils.BUILD.bazel",
+    sha256 = "0c574e15413ff7ed660c45e011befe248bb89eaa273db6f56eb297d61deb2ed6",
+    strip_prefix = "semodule-utils-3.11",
+    urls = [
+        "https://github.com/SELinuxProject/selinux/releases/download/3.11/semodule-utils-3.11.tar.gz",
     ],
 )
 
@@ -372,11 +392,13 @@ http_archive(
     patch_strip = 1,
     patches = [
         "//deps:krb5/0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
+        "//deps:krb5/0002-Avoid-null-dereference-in-krb5_rd_cred.patch",
+        "//deps:krb5/0003-Avoid-another-null-dereference-in-krb5_rd_cred.patch",
     ],
-    sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
-    strip_prefix = "krb5-1.21.3",
+    sha256 = "3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13",
+    strip_prefix = "krb5-1.22.2",
     urls = [
-        "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
+        "https://kerberos.org/dist/krb5/1.22/krb5-1.22.2.tar.gz",
     ],
 )
 
