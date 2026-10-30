@@ -4,16 +4,15 @@
 # them into one GitLab job.
 #
 # Usage:
-#   technical_linters.sh [--runner PATH] [--repo PATH] [run_actions flags...]
+#   technical_linters.sh [--runner PATH] [run_actions flags...]
 #
 #   --runner PATH  prebuilt run_actions.zip. Default: $RUN_ACTIONS, else build
 #                  it with Bazel from the better_github checkout holding this
 #                  script ($BAZEL, else bazel or bazelisk on PATH).
-#   --repo PATH    datadog-agent checkout to run in. Default: $HOME/ws/datadog-agent
 #   Any other flags (e.g. --serial, --noshow_errors_last) go to run_actions.
 #
 # To try it on another machine, copy this script and run_actions.zip there:
-#   technical_linters.sh --runner ./run_actions.zip --repo ~/dd/datadog-agent
+#   technical_linters.sh --runner ./run_actions.zip
 #
 # Jobs left out, and why:
 #   lint_licenses, check_modules_replace  need the go_deps / go_tools_deps
