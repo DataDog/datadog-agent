@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan"
@@ -673,6 +674,123 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 		"git.repository_url:https://github.com/org/repo",
 		"git.commit.sha:deadbeef",
 	}, update.Updates[0].ProcessTags)
+
+	subscriber.Close()
+}
+
+// TestInvalidProbesArePassedOn verifies that probes whose definitions fail to
+// parse are passed on along with the reason, so that they can be reported.
+func TestInvalidProbesArePassedOn(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	scanner := &stubScanner{
+		results: []scanResult{
+			{
+				added: []procscan.DiscoveredProcess{
+					{
+						PID:            uint32(pid1),
+						TracerMetadata: md1,
+						Executable:     process.Executable{Path: "/exe1"},
+					},
+				},
+			},
+		},
+	}
+
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+	)
+	t.Cleanup(subscriber.Close)
+
+	updatesCh := make(chan process.ProcessesUpdate, 2)
+	subscriber.Subscribe(func(update process.ProcessesUpdate) {
+		updatesCh <- update
+	})
+	subscriber.Start()
+
+	s := <-streams
+
+	mockClock.Add(time.Millisecond)
+
+	trackReq, err := s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+
+	const (
+		path1 = "datadog/1/LIVE_DEBUGGING/logProbe_probe-1/config"
+		path2 = "datadog/1/LIVE_DEBUGGING/triggerProbe_probe-2/config"
+		path3 = "datadog/1/LIVE_DEBUGGING/logProbe_probe-3/config"
+		path4 = "datadog/1/LIVE_DEBUGGING/logProbe_probe-4/config"
+
+		goodSegments = `[{"str":"hello"}]`
+		badSegments  = `[{"unknown":"hello"}]`
+	)
+	logProbe := func(id string, version int, segments string) []byte {
+		return fmt.Appendf(nil,
+			`{"id":%q,"version":%d,"type":"LOG_PROBE",`+
+				`"where":{"methodName":"main.f"},"template":"hello","segments":%s}`,
+			id, version, segments,
+		)
+	}
+	sendFiles := func(files []*pbgo.File, matched ...string) {
+		require.NoError(t, s.stream.Send(&pbgo.ConfigSubscriptionResponse{
+			Client:         client1,
+			MatchedConfigs: matched,
+			TargetFiles:    files,
+		}))
+	}
+
+	sendFiles([]*pbgo.File{
+		{Path: path1, Raw: logProbe("probe-1", 1, goodSegments)},
+		{Path: path2, Raw: []byte(
+			`{"id":"probe-2","version":2,"type":"TRIGGER_PROBE","where":{"methodName":"main.f"}}`,
+		)},
+		{Path: path3, Raw: logProbe("probe-3", 3, badSegments)},
+		// This one does not even say which probe it is, so the failure is
+		// only logged.
+		{Path: path4, Raw: []byte(`{"id":`)},
+	}, path1, path2, path3, path4)
+
+	update := receiveSoon(t, updatesCh)
+	require.Len(t, update.Updates, 1)
+	cfg := update.Updates[0]
+	require.Len(t, cfg.Probes, 1)
+	require.Equal(t, "probe-1", cfg.Probes[0].GetID())
+	require.Len(t, cfg.InvalidProbes, 2)
+	require.Equal(t, process.InvalidProbe{
+		ID:      "probe-2",
+		Version: 2,
+		Issue: ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: "probe type TRIGGER_PROBE is not supported",
+		},
+	}, cfg.InvalidProbes[0])
+	malformed := cfg.InvalidProbes[1]
+	require.Equal(t, "probe-3", malformed.ID)
+	require.Equal(t, 3, malformed.Version)
+	require.Equal(t, ir.IssueKindInvalidProbeDefinition, malformed.Issue.Kind)
+	require.Contains(t, malformed.Issue.Message, "unknown segment type")
+
+	// Probe 1 is updated to a definition that does not parse, probe 3 is
+	// fixed, and probe 2 is deleted.
+	sendFiles([]*pbgo.File{
+		{Path: path1, Raw: logProbe("probe-1", 2, badSegments)},
+		{Path: path3, Raw: logProbe("probe-3", 4, goodSegments)},
+	}, path1, path3)
+
+	update = receiveSoon(t, updatesCh)
+	require.Len(t, update.Updates, 1)
+	cfg = update.Updates[0]
+	require.Len(t, cfg.Probes, 1)
+	require.Equal(t, "probe-3", cfg.Probes[0].GetID())
+	require.Equal(t, 4, cfg.Probes[0].GetVersion())
+	require.Len(t, cfg.InvalidProbes, 1)
+	require.Equal(t, "probe-1", cfg.InvalidProbes[0].ID)
+	require.Equal(t, 2, cfg.InvalidProbes[0].Version)
 
 	subscriber.Close()
 }
