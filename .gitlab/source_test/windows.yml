@@ -49,6 +49,7 @@
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .lint_windows_base:
   stage: source_test
@@ -73,6 +74,7 @@
       -e GOMODCACHE="c:\modcache"
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\lint.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  retry: !reference [.retry_only_infra_failure, retry]
 
 tests_windows-x64:
   extends: .tests_windows_base
