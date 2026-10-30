@@ -459,3 +459,63 @@ func TestCreateSourcesWithNilConfigurations(t *testing.T) {
 		})
 	}
 }
+
+// TestUnscheduleDetectsAnotherConfigForSameContainer replays a container that
+// has two logs configs scheduled at once, differing only by name (autodiscovery
+// names the logs config of a pod after its first check, and the order of a
+// multi-check annotation is not deterministic). Unscheduling one of them still
+// removes every source of the container, and the scheduler knows the other
+// config is still scheduled so it can report it.
+func TestUnscheduleDetectsAnotherConfigForSameContainer(t *testing.T) {
+	scheduler, spy := setup()
+	const containerID = "d264ffd438fe2d18f58cc863dda72ed11fec66822f00b2abd531158a28d70f48"
+	logsConfig := func(name string) integration.Config {
+		return integration.Config{
+			Name:          name,
+			LogsConfig:    []byte(`[{"service":"vault","source":"vault"}]`),
+			ADIdentifiers: []string{"vault"},
+			Provider:      names.KubeContainer,
+			TaggerEntity:  "container_id://" + containerID,
+			ServiceID:     "containerd://" + containerID,
+		}
+	}
+	vaultConfig, openmetricsConfig := logsConfig("vault"), logsConfig("openmetrics")
+
+	scheduler.Schedule([]integration.Config{vaultConfig, openmetricsConfig})
+	require.Len(t, spy.Events, 2)
+	vaultSource, openmetricsSource := spy.Events[0].Source, spy.Events[1].Source
+
+	// The container launcher adds a file source for the same container.
+	fileSource := sourcesPkg.NewLogSource("infra-vault-uk1/infra-vault-2/vault", &config.LogsConfig{
+		Type:       config.FileType,
+		Identifier: containerID,
+		Path:       "/var/log/pods/infra-vault-uk1_infra-vault-2_654ddc7b/vault/*.log",
+	})
+	otherSource := sourcesPkg.NewLogSource("other", &config.LogsConfig{Type: config.ContainerdType, Identifier: "other"})
+	spy.Sources = []*sourcesPkg.LogSource{vaultSource, openmetricsSource, fileSource, otherSource}
+	spy.Events = nil
+
+	// Each config sees the other one scheduled for the same container.
+	scheduler.mu.Lock()
+	assert.Equal(t, []string{"vault"}, scheduler.configsWithIdentifierLocked(containerID, openmetricsConfig.FastDigest()))
+	assert.Equal(t, []string{"openmetrics"}, scheduler.configsWithIdentifierLocked(containerID, vaultConfig.FastDigest()))
+	scheduler.mu.Unlock()
+
+	scheduler.Unschedule([]integration.Config{openmetricsConfig})
+
+	// Every source of the container is removed, as before.
+	var removed []*sourcesPkg.LogSource
+	for _, event := range spy.Events {
+		require.False(t, event.Add)
+		removed = append(removed, event.Source)
+	}
+	assert.ElementsMatch(t, []*sourcesPkg.LogSource{vaultSource, openmetricsSource, fileSource}, removed)
+
+	// vault stays tracked: autodiscovery still considers it scheduled.
+	scheduler.mu.Lock()
+	assert.Equal(t, []string{"vault"}, scheduler.configsWithIdentifierLocked(containerID, openmetricsConfig.FastDigest()))
+	scheduler.mu.Unlock()
+
+	// Unscheduling vault, the last config for the container, reports nothing.
+	assert.Empty(t, scheduler.untrackSources(vaultConfig, containerID))
+}
