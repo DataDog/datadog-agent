@@ -58,7 +58,7 @@ func TraceAgentConfig(config config.Reader, client ipc.HTTPClient) (string, erro
 
 	timeout := config.GetDuration("server_timeout") * time.Second
 
-	ipcAddressWithPort := fmt.Sprintf("https://127.0.0.1:%d/config", port)
+	ipcAddressWithPort := "https://" + net.JoinHostPort(pkgconfighelper.APMDebugHost(config), strconv.Itoa(port)) + "/config"
 
 	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "trace-agent", ipchttp.WithTimeout(timeout))
 	return settingsClient.FullConfig()

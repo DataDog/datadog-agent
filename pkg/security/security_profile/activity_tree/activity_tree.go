@@ -198,7 +198,8 @@ type ActivityTree struct {
 	Mounts     []*MountNode
 	mountIndex map[mountNodeKey]*MountNode
 
-	baseMountNamespaceIDs map[uint32]int
+	baseMountNSByCgroup     map[uint64]uint32
+	seededMountNamespaceIDs map[uint64]map[uint32]mountNamespaceSeedState
 
 	imageTagIDs []imageTagEntry
 }
@@ -218,15 +219,16 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
 
 	return &ActivityTree{
-		treeType:              treeType,
-		validator:             validator,
-		pathsReducer:          pathsReducer,
-		Stats:                 NewActivityTreeNodeStats(),
-		CookieToProcessNode:   cache,
-		SyscallsMask:          make(map[int]int),
-		DNSNames:              utils.NewStringKeys(nil),
-		baseMountNamespaceIDs: make(map[uint32]int),
-		mountIndex:            make(map[mountNodeKey]*MountNode),
+		treeType:                treeType,
+		validator:               validator,
+		pathsReducer:            pathsReducer,
+		Stats:                   NewActivityTreeNodeStats(),
+		CookieToProcessNode:     cache,
+		SyscallsMask:            make(map[int]int),
+		DNSNames:                utils.NewStringKeys(nil),
+		baseMountNSByCgroup:     make(map[uint64]uint32),
+		seededMountNamespaceIDs: make(map[uint64]map[uint32]mountNamespaceSeedState),
+		mountIndex:              make(map[mountNodeKey]*MountNode),
 	}
 }
 
@@ -249,7 +251,9 @@ func (at *ActivityTree) removeImageTag(imageTag string) uint64 {
 	for i, entry := range at.imageTagIDs {
 		if entry.inUse && entry.tag == imageTag {
 			at.imageTagIDs[i].inUse = false
-			return uint64(i + 1)
+			id := uint64(i + 1)
+			delete(at.seededMountNamespaceIDs, id)
+			return id
 		}
 	}
 	return 0
@@ -609,9 +613,9 @@ func IsContainerRuntime(entry *model.ProcessContext) bool {
 	return false
 }
 
-// FindRootProcess returns the process this entry would be rooted on in the tree
-// (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
-// runtime processes via isValidRootNode), or nil if there is none.
+// FindRootProcess returns the outermost valid workload process in the entry's
+// ancestor chain (skipping container runtime processes via isValidRootNode),
+// or nil if there is none.
 //
 // The walk stops at the workload boundary: ancestors outside the entry's
 // container (e.g. the host container runtime) are not eligible as the root.
@@ -626,11 +630,10 @@ func FindRootProcess(entry *model.ProcessContext) *model.ProcessContext {
 			break
 		}
 		branch = append(branch, cur)
-		ancestor := GetNextAncestorBinaryOrArgv0(cur)
-		if ancestor == nil {
+		if cur.Ancestor == nil || cur.Ancestor.FileEvent.Inode == 0 {
 			break
 		}
-		cur = &ancestor.ProcessContext
+		cur = &cur.Ancestor.ProcessContext
 	}
 
 	for i := len(branch) - 1; i >= 0; i-- {
@@ -1069,10 +1072,12 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
 		rootNode.TagAllNodes(imageTagID, timestamp)
 	}
+	// every node may have grown a seen slot; the walk costs the same as tagging
+	at.recomputeSizeBytes()
 }
 
 // recomputeSizeBytes walks the full tree and resets Stats.SizeBytes to the accurate current value.
-// Called only from ComputeActivityTreeStats to periodically correct any accumulated drift.
+// Called from ComputeActivityTreeStats and TagAllNodes to correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
 	var total int64
 	openList := make([]*ProcessNode, len(at.ProcessNodes))
@@ -1141,6 +1146,49 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 	return total
 }
 
+// FinalizePatterns runs a merge pass on every FileNode map in the tree
+// using MinGroupSize as the threshold, then folds covered patterns. No-op
+// when path-pattern merging is disabled on the tree. Idempotent.
+func (at *ActivityTree) FinalizePatterns() {
+	if at == nil {
+		return
+	}
+	cfg := at.Stats.PathPatternConfig()
+	if !cfg.Enabled {
+		return
+	}
+	for _, pn := range at.ProcessNodes {
+		at.finalizePatternsOnProcess(pn, cfg.MinGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize int) {
+	if pn == nil {
+		return
+	}
+	mergeChildren(pn.Files, minGroupSize, at.Stats)
+	foldCoveredPatterns(pn.Files, at.Stats)
+	pn.filesIndex.reset()
+	for _, fn := range pn.Files {
+		at.finalizePatternsOnFile(fn, minGroupSize)
+	}
+	for _, child := range pn.Children {
+		at.finalizePatternsOnProcess(child, minGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
+	if fn == nil || len(fn.Children) == 0 {
+		return
+	}
+	mergeChildren(fn.Children, minGroupSize, at.Stats)
+	foldCoveredPatterns(fn.Children, at.Stats)
+	fn.childrenIndex.reset()
+	for _, child := range fn.Children {
+		at.finalizePatternsOnFile(child, minGroupSize)
+	}
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
@@ -1169,7 +1217,7 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	for _, mn := range at.Mounts {
 		if mn.EvictImageTag(imageTagID) {
 			removedBytes += mn.size()
-			delete(at.mountIndex, mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags})
+			delete(at.mountIndex, mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags, inBaseNamespace: mn.InBaseNamespace})
 			continue
 		}
 		newMounts = append(newMounts, mn)
@@ -1187,14 +1235,17 @@ func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(proce
 	cb(processNode)
 }
 
-func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+// visitFileNode calls cb on every leaf with the IsPattern flags of its path.
+// cb must not retain isPattern, its backing array is reused.
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, isPattern []bool, cb func(fileNode *FileNode, isPattern []bool)) {
+	isPattern = append(isPattern, fileNode.IsPattern)
 	if len(fileNode.Children) == 0 {
-		cb(fileNode)
+		cb(fileNode, isPattern)
 		return
 	}
 
 	for _, file := range fileNode.Children {
-		at.visitFileNode(file, cb)
+		at.visitFileNode(file, isPattern, cb)
 	}
 }
 
@@ -1215,13 +1266,11 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 		var fimPaths []string
 		if fimEnabled {
 			for _, file := range processNode.Files {
-				at.visitFileNode(file, func(fileNode *FileNode) {
-					path, ok := modifiedPaths[fileNode.File.PathnameStr]
-					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
-						path = modifiedPaths[fileNode.File.PathnameStr]
+				at.visitFileNode(file, nil, func(fileNode *FileNode, isPattern []bool) {
+					if fileNode.File == nil {
+						return
 					}
-					if len(path) > 0 {
+					if path := rulePathFromProfilePath(fileNode.File.PathnameStr, isPattern); len(path) > 0 {
 						fimPaths = append(fimPaths, path)
 					}
 				})

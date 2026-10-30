@@ -773,16 +773,16 @@ binary (e.g. `//pkg/security/generators/backend_doc`, which produces
 output therefore cannot be cross-compiled: it needs a binary built *for* that
 platform and then actually executed.
 
-For Windows, such a generator runs on Linux under `//bazel/tools/wine:wine_run`,
-which uses a pinned Wine (under box64 on aarch64) from its runfiles, never the
-host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
-the generator for `windows_amd64`, a native `run_binary` and a Wine `run_binary`,
-and an `alias` that selects between them on `@platforms//os:windows`. `wine_run`
-only supports Linux x86_64 and aarch64 (4K pages), so on macOS the Wine target
-is skipped as incompatible. Wine is for local regeneration only (it is flaky
-under box64 on CI): tag the Wine target, the alias and its `write_source_file`
-`manual`, and check the committed output with a `diff_test` against the native
-target, which only runs on Windows.
+For Windows, such a generator runs through `@rules_wine`. The module
+downloads a pinned Wine and executes it from a throwaway prefix; on Linux and
+macOS arm64 an x86_64 payload runs under FEX inside a native arm64 Wine. Follow
+the `backend_windows_schema_gen` pattern: a `go_cross_binary` of the generator
+for `windows_amd64`, a native `run_binary` on Windows, a rule that calls
+`windows_actions` elsewhere, and an `alias` that selects on
+`@platforms//os:windows`. Intel macOS has no default distribution. Wine is for
+local regeneration only: tag the Wine target, the alias and its
+`write_source_file` `manual`, and check the committed output with a `diff_test`
+against the native target, which only runs on Windows.
 
 ## Depsets and rule performance
 

@@ -1,6 +1,7 @@
 load("@bazel_lib//lib:diff_test.bzl", "diff_test")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
+load(":windows_schema.bzl", "windows_schema_gen")
 
 package(default_visibility = ["//visibility:private"])
 
@@ -70,24 +71,13 @@ run_binary(
     tool = "//pkg/security/generators/backend_doc",
 )
 
-# Linux hosts run the Windows cross-build under Wine. wine_run passes the
-# generator as its first argument, and is incompatible off Linux x86_64/aarch64.
-# Manual: Wine is for local regeneration only (flaky under box64 on CI);
-# backend_windows_schema_test covers CI on Windows.
-run_binary(
+# Linux and macOS arm64 run the Windows cross-build under rules_wine.
+# Manual: regeneration only. backend_windows_schema_test covers CI on Windows.
+windows_schema_gen(
     name = "backend_windows_schema_gen_wine",
-    srcs = [
-        "//pkg/security/generators/backend_doc:backend_doc_windows",
-        "//pkg/security/serializers:serializers_go_files",
-    ],
-    outs = ["backend_windows_schema_gen_wine/backend_windows.schema.json"],
-    args = [
-        "$(execpath //pkg/security/generators/backend_doc:backend_doc_windows)",
-        "-serializers-dir=pkg/security/serializers",
-        "-output=$(execpath backend_windows_schema_gen_wine/backend_windows.schema.json)",
-    ],
+    srcs = ["//pkg/security/serializers:serializers_go_files"],
     tags = ["manual"],
-    tool = "//bazel/tools/wine:wine_run",
+    tool = "//pkg/security/generators/backend_doc:backend_doc_windows",
 )
 
 alias(
