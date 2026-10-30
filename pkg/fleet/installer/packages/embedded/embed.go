@@ -40,6 +40,11 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/pm
 var procmgrUnits embed.FS
 
+// launchdJobs holds the launchd job definitions for macOS (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/darwin
+var launchdJobs embed.FS
+
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //
@@ -128,6 +133,11 @@ func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported
 // GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
 func GetProcmgrProcess(name string) ([]byte, error) {
 	return procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", "processes.d", name))
+}
+
+// GetLaunchdJob returns the launchd job definition for the given label, e.g. "com.datadoghq.agent".
+func GetLaunchdJob(label string) ([]byte, error) {
+	return launchdJobs.ReadFile(path.Join("tmpl/gen/darwin", label+".plist"))
 }
 
 // ShippedProcmgrConfigFiles returns the basenames of processes.d YAML files the installer embeds
