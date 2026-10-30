@@ -16,24 +16,24 @@ import (
 
 var collectSystemInfo = systeminfo.Collect
 
-// Get returns the device name, optionally suffixed with its hardware serial.
+// Get returns the device name, optionally suffixed with its device serial number.
 // Missing identity is an error so callers can retain legacy hostname resolution.
 func Get(useSerial bool) (string, error) {
-	info := &systeminfo.SystemInfo{}
+	var serial string
 	// System information is only needed for the optional serial suffix.
 	if useSerial {
-		var err error
-		info, err = collectSystemInfo()
+		info, err := collectSystemInfo()
 		if err != nil {
 			return "", fmt.Errorf("collecting device identity: %w", err)
 		}
 		if info == nil {
 			return "", errors.New("device identity is unavailable")
 		}
+		serial = info.SerialNumber
 	}
 	name, err := deviceName()
 	if err != nil {
 		return "", err
 	}
-	return formatHostname(name, info.SerialNumber, useSerial)
+	return formatHostname(name, serial, useSerial)
 }

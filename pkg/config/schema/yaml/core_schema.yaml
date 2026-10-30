@@ -201,7 +201,7 @@ properties:
     default: false
     visibility: public
     description: |-
-      Append the hardware serial number to the automatically detected hostname in
+      Append the device serial number to the automatically detected hostname in
       end_user_device infrastructure mode on macOS and Windows. macOS uses the
       LocalHostName as its device-name source regardless of this setting. Explicit
       hostname and hostname_file settings take precedence. Cloud provider hostnames,

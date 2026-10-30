@@ -5,10 +5,11 @@ upgrade:
     LocalHostName from SystemConfiguration as its device-name source.
     Unavailable or invalid names fall back to existing hostname resolution.
     On macOS and Windows in ``end_user_device`` mode, set
-    ``hostname_use_serial: true`` to append the hardware serial number and
+    ``hostname_use_serial: true`` to append the device serial number and
     help prevent duplicate hostnames (disabled by default).
     Explicit hostname overrides are preserved. Cloud provider hostnames,
     ``hostname_fqdn``, and EC2 instance-ID selection can still replace the
     device name, including its serial-number suffix when enabled.
-    Restart the Agent after changing this setting. Existing device history
-    is not migrated when the hostname changes.
+    Restart the Agent after changing this setting. Changing the hostname changes
+    the device identity in Datadog. Previously collected telemetry remains
+    associated with the previous hostname.

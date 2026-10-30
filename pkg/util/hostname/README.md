@@ -41,7 +41,7 @@ When calling a provider we always:
 3. If running on **Fargate**: we set an empty hostname as the idea of a host doesn't exist. We **DO NOT** set hostname
    provider in `goexpvar` and `inventories`
 4. **EUDM**: on macOS and Windows in end-user-device mode, use device name with an optional serial suffix (see below).
-   Continue resolution so cloud, FQDN and container providers can replace this provisional name.
+   Continue resolution so cloud, FQDN and container providers can replace this initial name.
 5. **GCE**: if we can fetch a hostname from the GCE metadata API we use it.
 6. **Azure**: if we can fetch a hostname from the Azure metadata API we use it.
 
@@ -88,21 +88,24 @@ The notion of `isOSHostnameUsable` means:
 
 ## End-user-device hostnames
 
-On macOS and Windows, `infrastructure_mode: end_user_device` supplies a provisional device name before cloud
+On macOS and Windows, `infrastructure_mode: end_user_device` supplies an initial device name before cloud
 discovery. GCE, Azure, FQDN (when enabled) and container providers can replace it, and EC2 gets the final
 opportunity to select its instance ID under its existing rules. OS discovery only supplies a fallback if no
 name has been found, preserving macOS LocalHostName when no higher-priority provider succeeds.
 Explicit `hostname` and `hostname_file` settings still take precedence, and sidecar hostname handling is
 unchanged. Other operating systems and modes keep the existing resolution order.
 
-Set `hostname_use_serial: true` (or `DD_HOSTNAME_USE_SERIAL=true`) to append the hardware serial number.
+Set `hostname_use_serial: true` (or `DD_HOSTNAME_USE_SERIAL=true`) to append the device serial number.
 The default is `false`; macOS still uses LocalHostName when serial appending is disabled.
 
-With serial appending enabled, the final hostname combines a name and serial on both platforms:
+With serial appending enabled, EUDM combines the device name and serial on both platforms:
 
 - **Windows:** `<OS-hostname>-<serial-number>`, using `os.Hostname()` and `Win32_BIOS.SerialNumber`.
 - **macOS:** `<LocalHostName>-<serial-number>`, using the current LocalHostName from SystemConfiguration and
-  the hardware serial from IOKit.
+  the device serial number from IOKit.
+
+The serial suffix is lowercased, with runs of non-ASCII-alphanumeric characters replaced by a hyphen
+and leading/trailing hyphens removed. Device-name casing is preserved.
 
 This also applies to VMs. On macOS, LocalHostName is read directly through
 `SCDynamicStoreCopyLocalHostName`, independently of system-info collection. It excludes `.local` and
@@ -114,7 +117,8 @@ The result is cached until restart. LocalHostName avoids network-derived DNS hos
 still change when a user renames the Mac or Bonjour resolves a naming conflict. Those changes, and changes
 to `hostname_use_serial`, take effect after restart. The selected name is the primary
 Agent hostname and is sent as `internalHostname` in host metadata. Existing OS/cloud metadata and configured/cloud aliases remain available.
-No historical identity migration is performed. Devices sharing both a device name and serial can still collide,
+Previously collected telemetry remains associated with the previous hostname when the hostname changes.
+Devices sharing both a device name and serial can still collide,
 and, when serial appending is enabled, failed serial collection across restarts can switch a host back to its legacy identity.
 Changing `hostname_use_serial` changes the device identity in Datadog.
 
