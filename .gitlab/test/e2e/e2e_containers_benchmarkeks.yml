@@ -6,7 +6,8 @@
 #
 # TestBenchmarkEKSSuite deploys a baseline and a comparison Agent (node Agent, Cluster Agent and cluster checks runner)
 # on an EKS cluster and compares their resource usage. The comparison is the Agent of the pipeline, the baseline the one
-# of a commit of the base branch chosen like SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`).
+# of a commit of the base branch chosen like SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`). The report
+# is posted to the pull request when a metric improved, regressed or couldn't be compared.
 #
 # The benchmark keeps an EKS cluster for about 1.5 h, so it only runs on dev branches: automatically when they change
 # the code it measures, a regression then failing the pipeline, and manually otherwise. To run it manually, play
@@ -155,3 +156,36 @@ new-e2e-containers-benchmarkeks:
     DYNAMIC_TESTS_FLAG: "" # Never skipped by the test selection
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
   retry: !reference [.retry_only_infra_failure, retry]
+
+# Posts the report of the benchmark to the pull request, in a job of its own as the GitHub token only lives an hour.
+new-e2e-containers-benchmarkeks-pr-comment:
+  stage: e2e
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends: .dd_octo_sts
+  rules:
+    - !reference [.except_benchmarkeks_unsupported]
+    # Also after a failure of the benchmark, which is how it reports a regression
+    - changes: *benchmarkeks_changes
+      when: always
+    # On a manual run, the benchmark is allowed to fail: this job runs after it whatever its result
+    - !reference [.on_benchmarkeks_manual_run]
+  needs:
+    - job: new-e2e-containers-benchmarkeks
+      artifacts: true
+  variables:
+    BENCHMARKEKS_PR_COMMENT_TITLE: Agent performance comparison (benchmarkeks)
+    # E2E_BENCHMARKEKS_REPORT_DIR of new-e2e-containers-benchmarkeks, relative to the project directory
+    BENCHMARKEKS_REPORT_DIR: e2e-output/benchmarkeks-report
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    # report.md is only written when a metric changed significantly or couldn't be compared, report.json once the comparison completed
+    - |
+      if [ -s "$BENCHMARKEKS_REPORT_DIR/report.md" ]; then
+        dda inv -- -e github.pr-commenter --title="$BENCHMARKEKS_PR_COMMENT_TITLE" --body-file="$BENCHMARKEKS_REPORT_DIR/report.md"
+      elif [ -f "$BENCHMARKEKS_REPORT_DIR/report.json" ]; then
+        dda inv -- -e github.pr-commenter --title="$BENCHMARKEKS_PR_COMMENT_TITLE" --force-delete
+      else
+        echo "The benchmark did not complete, the pull request comment of a previous run is left as is"
+      fi
