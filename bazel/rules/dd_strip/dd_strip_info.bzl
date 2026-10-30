@@ -1,23 +1,16 @@
-"""Provider reporting the stripped/debug split produced by dd_strip_debug."""
+"""Provider reporting the packaged/debug split produced by dd_strip_symbols."""
 
 DdStripInfo = provider(
-    doc = """Provides the outputs of splitting a single binary/library into a
-    stripped artifact (for the main distribution package) and a debug-only
-    artifact (for a companion "dbg" package).
-
-    Consumers (such as dd_pkg_*) could read this provider off a wrapped
-    target to decide which file to place in the shipped package vs. the
-    debug-only package. The "original" member exists to specify a target
-    from the overall dependency graph that needs to be replace with either
-    stripped or debug.
+    doc = """Provides the packaging-relevant outputs of dd_strip_symbols: the
+    file packages install and its debug-only twin for the companion
+    "dbg" package.
     """,
     fields = {
-        "original": "Label of the orignal target.",
-        "original_file": "File. The unstripped input as originally built.",
-        "stripped_file": """File. The binary/library with debug symbols removed.
-            Equal to original_file when excluded is True or no strip toolchain
-            is available.""",
-        "debug_file": """File or None. The extracted debug information.
+        "original": "Label of the wrapped target.",
+        "packaged_file": """File. The file packages install: the unstripped
+            original by default, the stripped twin when
+            //:install_stripped_binaries is enabled.""",
+        "debug_file": """File or Directory. The extracted debug information.
             A regular File on Linux (objcopy --only-keep-debug output) and
             Windows (the unstripped original), a Directory for macOS .dSYM
             bundles.""",

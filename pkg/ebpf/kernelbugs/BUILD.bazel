@@ -99,6 +99,10 @@ cc_binary(
     linkopts = [
         "-static",
         "-Wl,--gc-sections",
+        # Ignore global --strip=never, always stripping.
+        # This program gets embedded in the go binary and can't get stripped afterwards
+        # by our stripping pipeline.
+        "-Wl,--strip-debug",
     ],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
