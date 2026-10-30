@@ -20,6 +20,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -55,14 +56,15 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 				fmt.Fprint(w, `{"data":{"type":"createRunnerResponse","id":"runner","attributes":{"org_id":42,"runner_id":"runner"}}}`)
 			}))
 			defer srv.Close()
-			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+			overrides := map[string]interface{}{
 				"private_action_runner.wif_enrollment": tc.optIn,
 				"delegated_auth.org_uuid":              tc.primaryOrg,
 				"logs_config.delegated_auth.org_uuid":  tc.logsOrg,
 				"api_key":                              "test-key", "dd_url": srv.URL, "private_action_runner.enabled": true,
 				"private_action_runner.self_enroll": true, "private_action_runner.api_key_only_enrollment": true,
 				"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
-			})
+			}
+			cfg := coreconfig.NewMockWithOverrides(t, overrides)
 			flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
 			hostname, _ := hostnamemock.NewMock("test-host")
 			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
@@ -76,7 +78,12 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, 1, posts.Load(), "a saved identity follows existing reuse behavior")
 			// The opt-in must not block the existing API-key rotation path either.
-			cfg.SetInTest("api_key", "rotated-key")
+			overrides["api_key"] = "rotated-key"
+			cfg = coreconfig.NewMockWithOverrides(t, overrides)
+			// Config mocks share a backing store; discard identity populated by the previous startup.
+			cfg.UnsetForSource("private_action_runner.urn", model.SourceAgentRuntime)
+			cfg.UnsetForSource("private_action_runner.private_key", model.SourceAgentRuntime)
+			runner.coreConfig = cfg
 			_, err = runner.getRunnerConfig(context.Background())
 			require.NoError(t, err)
 			require.EqualValues(t, 2, posts.Load())
