@@ -19,10 +19,6 @@ Binaries are linked unstripped (repo-wide `--strip=never`, see .bazelrc);
 stripping happens exclusively in this chain. Non-packaging consumers of the
 same binary (tests, `bazel run`, dev tooling) therefore keep full debug info
 and intact Go providers.
-
-Transform order matters: rpath rewriting runs on the unstripped binary and
-the strip/split runs last, so the debug-symbols file corresponds to the
-binary that actually ships (build-id included).
 """
 
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
