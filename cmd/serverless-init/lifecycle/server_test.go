@@ -233,6 +233,35 @@ func TestHandleRun_NilMetadataReporter_NoPanic(t *testing.T) {
 	})
 }
 
+func TestMetadataReporterPanic_ReleasesLock(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	panicked := false
+	srv.SetMetadataReporter(MetadataReporterFunc(func(id string) {
+		if !panicked {
+			panicked = true
+			panic("reporter failure")
+		}
+		reporter.ReportMetadata(id)
+	}))
+
+	assert.Panics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(`{"microvmId":"vm-abc123"}`)))
+	})
+
+	resumed := make(chan struct{})
+	go func() {
+		defer close(resumed)
+		srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+	}()
+	select {
+	case <-resumed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("resume blocked on the metadata lock after a reporter panic")
+	}
+	assert.Equal(t, []string{"vm-abc123"}, reporter.getIDs())
+}
+
 // TestHandleRun_BodyReadError_Returns500 verifies that a body read failure
 // aborts the handler before any state is mutated, rather than silently
 // proceeding with a truncated/empty body. errReader is defined in
