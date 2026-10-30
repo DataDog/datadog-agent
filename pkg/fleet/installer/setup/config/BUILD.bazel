@@ -5,6 +5,7 @@ go_library(
     name = "config",
     srcs = [
         "config.go",
+        "par.go",
         "write.go",
         "write_nix.go",
         "write_windows.go",
@@ -26,6 +27,7 @@ dd_agent_go_test(
     name = "config_test",
     srcs = [
         "config_test.go",
+        "par_test.go",
         "write_test.go",
         "write_windows_test.go",
     ],

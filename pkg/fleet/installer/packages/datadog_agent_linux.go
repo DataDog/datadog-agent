@@ -242,6 +242,11 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err := file.EnsureConfigFromExample("/etc/datadog-agent", "private-action-runner/script-config.yaml"); err != nil {
 		log.Warnf("failed to initialize PAR script config: %v", err)
 	}
+	if service.GetServiceManagerType(ctx.PackagePath) == service.ProcmgrType {
+		if err := configurePARDefault(); err != nil {
+			return fmt.Errorf("failed to configure PAR default: %w", err)
+		}
+	}
 	if err = agentConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}

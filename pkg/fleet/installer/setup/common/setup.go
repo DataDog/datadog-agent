@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -146,6 +147,10 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		}
 	}
 
+	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "false") || parEnabledEnv == "0" {
+		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(false)
+	}
+
 	return s, nil
 }
 
@@ -177,6 +182,9 @@ func (s *Setup) Run() (err error) {
 	// After package installation we backfill template comments into these files.
 	freshConfigs := s.detectFreshConfigs()
 	if !s.NoConfig {
+		if err := s.setPARDefault(packages, runtime.GOOS, systemd.IsRunning); err != nil {
+			return fmt.Errorf("failed to configure Private Action Runner: %w", err)
+		}
 		err = config.WriteConfigs(s.Config, s.configDir)
 		if err != nil {
 			return fmt.Errorf("failed to write configuration: %w", err)

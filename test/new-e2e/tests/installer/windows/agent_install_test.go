@@ -10,6 +10,9 @@ package installer
 import (
 	"path/filepath"
 
+	"go.yaml.in/yaml/v3"
+
+	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -65,6 +68,7 @@ func (s *testAgentInstallSuite) installAgentViaSetupScript() {
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to install via setup script: %s", output)
+	s.assertPARConfigured(true)
 	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogAgentService()
 }
 
@@ -117,4 +121,43 @@ func (s *testAgentInstallSuite) uninstallAgentWithMSI() {
 	// Assert
 	s.Require().NoErrorf(err, "failed to uninstall the Datadog Agent package")
 	// we default to purge everything, so we don't need to check for the package directory
+}
+
+// TestPARMSI verifies the native MSI hook, including its deferred opt-out property.
+func (s *testAgentInstallSuite) TestPARMSI() {
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+	}{{"default", true}, {"opt-out", false}} {
+		s.Run(tc.name, func() {
+			options := []MsiOption{
+				WithOption(WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
+				WithMSILogFile("install-par-" + tc.name + ".log"),
+				WithMSIArg("APIKEY=" + unixinstaller.GetAPIKey()),
+				WithMSIArg("SITE=datadoghq.com"),
+				WithMSIArg("DD_INSTALLER_REGISTRY_URL=" + consts.PipelineOCIRegistry),
+			}
+			if !tc.enabled {
+				options = append(options, WithMSIArg("DD_PRIVATE_ACTION_RUNNER_ENABLED=false"))
+			}
+			s.Require().NoError(s.Installer().Install(options...))
+			defer func() {
+				s.Assert().NoError(s.Installer().Uninstall(WithMSILogFile("uninstall-par-" + tc.name + ".log")))
+			}()
+			s.assertPARConfigured(tc.enabled)
+		})
+	}
+}
+
+func (s *testAgentInstallSuite) assertPARConfigured(enabled bool) {
+	data, err := s.Env().RemoteHost.ReadFile(`C:\ProgramData\Datadog\datadog.yaml`)
+	s.Require().NoError(err)
+	var cfg struct {
+		PAR struct {
+			Enabled *bool `yaml:"enabled"`
+		} `yaml:"private_action_runner"`
+	}
+	s.Require().NoError(yaml.Unmarshal(data, &cfg))
+	s.Require().NotNil(cfg.PAR.Enabled)
+	s.Require().Equal(enabled, *cfg.PAR.Enabled)
 }
