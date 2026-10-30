@@ -6,12 +6,65 @@
 package profile
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestRemoteConfigClearsCorrectedProfileError(t *testing.T) {
+	const profileName = "rc-updated-profile"
+	const otherProfileName = "rc-invalid-profile"
+	t.Cleanup(func() {
+		profileExpVar.Delete(profileName)
+		profileExpVar.Delete(otherProfileName)
+	})
+
+	const validProfile = `{
+		"profile_definition": {
+			"name": "rc-updated-profile",
+			"metrics": [{
+				"symbols": [{"OID": "1.3.6.1.2.1.2.2.1.10", "name": "ifInOctets"}],
+				"metric_tags": [{
+					"tag": "interface",
+					"symbol": {"OID": "1.3.6.1.2.1.2.2.1.2", "name": "ifDescr"}
+				}]
+			}]
+		}
+	}`
+	invalidProfile := strings.Replace(validProfile, `"name": "ifDescr"`, `"name": ""`, 1)
+	updates := map[string]state.RawConfig{
+		"updated-profile-id": {Config: []byte(invalidProfile)},
+		"other-profile-id":   {Config: []byte(strings.Replace(invalidProfile, profileName, otherProfileName, 1))},
+	}
+	provider := &UpdatableProvider{}
+	onUpdate := makeOnUpdate(provider)
+	applyStateCallback := func(string, state.ApplyStatus) {}
+
+	onUpdate(updates, applyStateCallback)
+	require.False(t, provider.HasProfile(profileName))
+	require.NotNil(t, profileExpVar.Get(profileName))
+	assert.Contains(t, profileExpVar.Get(profileName).String(), "symbol name missing")
+	require.NotNil(t, profileExpVar.Get(otherProfileName))
+	otherError := profileExpVar.Get(otherProfileName).String()
+
+	updates["updated-profile-id"] = state.RawConfig{Config: []byte(validProfile)}
+	onUpdate(updates, applyStateCallback)
+	require.True(t, provider.HasProfile(profileName))
+	assert.Nil(t, profileExpVar.Get(profileName))
+	require.NotNil(t, profileExpVar.Get(otherProfileName))
+	assert.Equal(t, otherError, profileExpVar.Get(otherProfileName).String())
+	assert.False(t, provider.HasProfile(otherProfileName))
+
+	updates["updated-profile-id"] = state.RawConfig{Config: []byte(invalidProfile)}
+	onUpdate(updates, applyStateCallback)
+	assert.False(t, provider.HasProfile(profileName))
+	require.NotNil(t, profileExpVar.Get(profileName))
+	assert.Contains(t, profileExpVar.Get(profileName).String(), "symbol name missing")
+}
 
 func TestUnpackRawConfigs(t *testing.T) {
 	brokenConfig := state.RawConfig{Config: []byte(`{
