@@ -93,6 +93,15 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 	return &grpcStream{stream: clientStream, cancel: cancel}, nil
 }
 
+// CredentialState reports the delegated-auth state of sender's endpoint key.
+func (t *GRPCTransport) CredentialState(sender SenderID) (ready, awaiting bool) {
+	state := t.specs[sender].CredentialState
+	if state == nil {
+		return true, false
+	}
+	return state()
+}
+
 func (t *GRPCTransport) conn(ctx context.Context, sender SenderID) (*grpc.ClientConn, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()

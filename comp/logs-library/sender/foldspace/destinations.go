@@ -50,6 +50,10 @@ type SenderSpec struct {
 	UseTLS   bool
 	IsMRF    bool
 	Endpoint config.Endpoint
+	// CredentialState reports whether APIKey holds a key to dial with and,
+	// when it does not, whether delegated auth is still to write one. Nil
+	// means the key is always ready.
+	CredentialState func() (ready, awaiting bool)
 }
 
 // DestinationConfig is the driver-facing view of logs_config.foldspace plus
@@ -164,6 +168,10 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 			UseTLS:   endpoint.UseSSL(),
 			IsMRF:    ep.IsMRF,
 			Endpoint: endpoint,
+			CredentialState: func() (bool, bool) {
+				_, ready := endpoint.GetAPIKeyIfReady()
+				return ready, endpoint.AwaitsDelegatedAuthKey()
+			},
 		})
 	}
 	if len(senders) == 0 {
