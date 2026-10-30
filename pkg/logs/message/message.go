@@ -7,6 +7,7 @@
 package message
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -84,7 +85,8 @@ type MessageMetadata struct {
 	routingToken uint64
 	// routingBarrier is used only by injected provider flush markers. Markers
 	// never enter a batch or an intake payload.
-	routingBarrier chan struct{}
+	routingBarrier        chan struct{}
+	routingBarrierContext context.Context
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
 	// This is also used to track the original content size before the message is processed and encoded later
@@ -117,6 +119,14 @@ func (m *MessageMetadata) RoutingBarrier() chan struct{} { return m.routingBarri
 
 // SetRoutingBarrier marks an internal flush barrier before pipeline dispatch.
 func (m *MessageMetadata) SetRoutingBarrier(done chan struct{}) { m.routingBarrier = done }
+
+// SetRoutingBarrierContext lets dispatch abandon a cancelled flush's wait.
+func (m *MessageMetadata) SetRoutingBarrierContext(ctx context.Context) {
+	m.routingBarrierContext = ctx
+}
+
+// RoutingBarrierContext returns the originating flush context, if any.
+func (m *MessageMetadata) RoutingBarrierContext() context.Context { return m.routingBarrierContext }
 
 // MessageContent contains the message and possibly the tailer internal representation
 // of every message.

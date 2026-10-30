@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
@@ -1140,10 +1141,6 @@ func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	currentInput, err := p.SourceInput("file:test", 7)
-	if err != nil {
-		t.Fatal(err)
-	}
 	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
 	makeRecord := func(content, offset string) *message.Message {
 		m := message.NewMessageWithSource([]byte(content), "info", source, time.Now().UnixNano())
@@ -1164,6 +1161,10 @@ func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
 	}
 	oldInput <- makeRecord("old", "old-1")
 	checkpoint("old-1")
+	currentInput, err := p.SourceInput("file:test", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
 	currentInput <- makeRecord("current", "new-1")
 	checkpoint("new-1")
 	if err := p.RetireSource("file:test", 42); err != nil {
@@ -1183,5 +1184,191 @@ func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
 	checkpoint("new-2")
 	if got := p.progress.Pending(); got != 0 {
 		t.Fatalf("retired producer left %d pending records", got)
+	}
+}
+
+func TestRoutedProviderStopCancelsRetryingHTTPAfterGrace(t *testing.T) {
+	received := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case received <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	parsed, _ := url.Parse(server.URL)
+	port, _ := strconv.Atoi(parsed.Port())
+	endpoint := config.NewEndpoint("test-key", "", parsed.Hostname(), port, "", false)
+	endpoint.BackoffBase, endpoint.BackoffMax, endpoint.BackoffFactor = 1, 2, 2
+	endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Millisecond, 1, 1, 1024, 2)
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.routing.max_groups", 4)
+	ctx := client.NewDestinationsContext()
+	ctx.Start()
+	defer ctx.Stop()
+	sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
+	p, err := NewRoutedProvider(RoutedOptions{
+		NumberOfPipelines: 1, Sink: sink, DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+		Groups: []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Resolve: func(*message.Message) (routing.Selection, error) {
+			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
+		},
+		DestinationsContext: ctx, Config: cfg, Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Start()
+	input, err := p.SourceInput("file:audit", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := sources.NewLogSource("audit", &config.LogsConfig{Type: config.StringChannelType})
+	msg := message.NewMessageWithSource([]byte("audit"), "info", source, time.Now().UnixNano())
+	msg.Origin.Identifier = "file:audit"
+	msg.Origin.Offset = "1"
+	input <- msg
+	select {
+	case <-received:
+	case <-time.After(5 * time.Second):
+		ctx.Stop()
+		p.Stop()
+		t.Fatal("HTTP request did not start")
+	}
+	stopped := make(chan struct{})
+	go func() { p.Stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(routedStopGrace + 2*time.Second):
+		ctx.Stop() // Release the existing sender for test cleanup.
+		select {
+		case <-stopped:
+		case <-time.After(5 * time.Second):
+			t.Fatal("shutdown still blocked after cancelling destinations")
+		}
+		t.Error("provider Stop exceeded its grace period; it required external DestinationsContext.Stop")
+	}
+	if ctx.Context().Err() != nil {
+		t.Fatal("provider Stop cancelled the caller's shared destinations context")
+	}
+	if len(sink.ch) != 0 {
+		t.Fatal("retrying record was acknowledged")
+	}
+}
+
+func TestRoutedProviderCancelledFlushDoesNotStallHealthySource(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("logs_config.routing.max_groups", 4)
+		endpoint := config.NewEndpoint("key", "", "localhost", 12345, "", false)
+		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+		p, err := NewRoutedProvider(RoutedOptions{
+			NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 4)},
+			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+			Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}, {ID: "b", Endpoints: endpoints}},
+			Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{}, nil },
+			DestinationsContext:       client.NewDestinationsContext(), Config: cfg,
+			Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Exercise processing and dispatch with a saturated A queue, without HTTP.
+		// This represents other A-bound sources filling that bounded stage.
+		for i := 0; i < cap(p.streams["group:a"].input); i++ {
+			p.streams["group:a"].input <- &message.Message{}
+		}
+		p.processors[0].Start()
+		go p.dispatchProcessed()
+		defer func() {
+			p.cancel()
+			p.processors[0].Stop()
+			close(p.processed)
+			<-p.processedDone
+			p.started = false
+			p.Stop()
+		}()
+		source := sources.NewLogSource("audit", &config.LogsConfig{Type: config.StringChannelType})
+		record := func(id string, groups []string) *message.Message {
+			m := message.NewMessageWithSource([]byte(id), "info", source, time.Now().UnixNano())
+			m.Origin.Identifier = id
+			m.Origin.Offset = "1"
+			if _, err := p.progress.Register(context.Background(), m, routing.Selection{Groups: groups, Generation: 1}, groups); err != nil {
+				t.Fatal(err)
+			}
+			return m
+		}
+		p.processed <- record("x", []string{"a", "b"})
+		<-p.streams["group:b"].input // X reached B; its source worker waits for A.
+		// The public Flush has no ingress to drain in this dispatcher-only setup.
+		p.inputs = nil
+		p.started = true
+		for i := 0; i < 2*routing.SourcePendingLimit; i++ {
+			flushCtx, cancel := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			go func() { p.Flush(flushCtx); close(done) }()
+			synctest.Wait() // Flush waits for X's stalled dispatch, without queue markers.
+			cancel()
+			<-done
+		}
+		// More X work must fit in its data queue despite all abandoned flushes.
+		p.processed <- record("x", []string{"a", "b"})
+		p.processed <- record("y", []string{"b"})
+		synctest.Wait()
+		select {
+		case m := <-p.streams["group:b"].input:
+			if m.Origin == nil || m.Origin.Identifier != "y" {
+				t.Fatal("wrong record")
+			}
+		default:
+			t.Error("cancelled Flush left a barrier blocking healthy Y behind stalled X")
+		}
+	})
+}
+
+func TestRoutedProviderRetiresSourceWhoseFirstRecordIsInvalid(t *testing.T) {
+	endpoint := config.NewEndpoint("key", "", "localhost", 12345, "", false)
+	endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.routing.max_groups", 4)
+	p, err := NewRoutedProvider(RoutedOptions{
+		NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 1)},
+		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{Generation: 1}, nil },
+		OnError:                   func(error) {}, DestinationsContext: client.NewDestinationsContext(), Config: cfg,
+		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Start()
+	defer p.Stop()
+	input, err := p.SourceInput("file:invalid-first", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
+	msg := message.NewMessageWithSource([]byte("invalid"), "info", source, time.Now().UnixNano())
+	msg.Origin.Identifier = "file:invalid-first"
+	input <- msg
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	p.Flush(ctx)
+	if err := ctx.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.RetireSource("file:invalid-first", 1); err != nil {
+		t.Fatalf("could not retire producer after initial invalid selection: %v", err)
+	}
+	if !p.progress.OwnsSource("file:invalid-first") || p.progress.Pending() != 1 {
+		t.Fatal("retirement removed the checkpoint barrier")
+	}
+	p.lifecycle.RLock()
+	_, retained := p.sourceInputs[sourceInputKey{identifier: "file:invalid-first", generation: 1}]
+	p.lifecycle.RUnlock()
+	if retained {
+		t.Fatal("retired producer retained its source input")
 	}
 }

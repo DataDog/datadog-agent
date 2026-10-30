@@ -19,6 +19,7 @@ var (
 	ErrObsoleteGeneration = errors.New("log routing source generation retired")
 	ErrStopped            = errors.New("log routing progress stopped")
 	ErrSourcePending      = errors.New("log routing source still has pending records")
+	ErrSourceCapacity     = errors.New("log routing source ownership capacity exhausted")
 	ErrUnknownGeneration  = errors.New("log routing source generation not owned")
 )
 
@@ -88,6 +89,40 @@ func (p *Progress) forward() {
 			return // A blocked sink must not prevent shutdown.
 		}
 	}
+}
+
+// RegisterSource reserves bounded generation ownership before producer input is
+// accepted. This includes producers with no valid records yet. A new generation
+// becomes current here; older registered producers may continue draining.
+func (p *Progress) RegisterSource(identifier string, generation uint64) error {
+	if identifier == "" || generation == 0 {
+		return ErrInvalidSelection
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped {
+		return ErrStopped
+	}
+	source := p.sources[identifier]
+	if source != nil {
+		if retired, seen := source.seenGenerations[generation]; seen {
+			if retired {
+				return ErrObsoleteGeneration
+			}
+			return nil
+		}
+	}
+	if (source == nil && len(p.sources) >= p.limit) || p.histories >= p.limit {
+		return ErrSourceCapacity
+	}
+	if source == nil {
+		source = &sourceProgress{seenGenerations: make(map[uint64]bool)}
+		p.sources[identifier] = source
+	}
+	source.currentGeneration = generation
+	source.seenGenerations[generation] = false
+	p.histories++
+	return nil
 }
 
 // Register reserves a record before processing lanes can reorder it. A
@@ -266,7 +301,8 @@ func (p *Progress) advance(r *record) {
 // been admitted. A drained queue alone is insufficient evidence of this. Old
 // generation retirement does not release newer ownership; history is released
 // only when every generation for the identifier has retired and the queue is
-// empty. Callers must not retire an active producer.
+// empty. Completed records retained behind a source barrier do not prevent
+// producer retirement. Callers must not retire an active producer.
 func (p *Progress) RetireSource(identifier string, generation uint64) error {
 	if identifier == "" {
 		return nil
@@ -288,7 +324,7 @@ func (p *Progress) RetireSource(identifier string, generation uint64) error {
 		return nil
 	}
 	for _, record := range source.queue {
-		if record.generation == generation {
+		if record.generation == generation && !record.done {
 			return ErrSourcePending
 		}
 	}
@@ -312,14 +348,15 @@ func (p *Progress) notifySpace() {
 	p.space = make(chan struct{})
 }
 
-// Pending is the count of registered records retaining delivery obligations.
+// Pending counts records retained for delivery or ordered checkpoint progress.
 func (p *Progress) Pending() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return len(p.records)
 }
 
-// OwnsSource reports whether any active generation still owns this identifier.
+// OwnsSource reports whether producer ownership or an unresolved source barrier
+// still protects this identifier.
 func (p *Progress) OwnsSource(identifier string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()

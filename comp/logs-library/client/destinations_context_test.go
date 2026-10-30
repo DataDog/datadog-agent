@@ -6,6 +6,7 @@
 package client
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,4 +29,23 @@ func TestNewDestinationsContext(t *testing.T) {
 	destinationsCtx.Start()
 	assert.NotNil(t, destinationsCtx.Context())
 	assert.NotEqual(t, context, destinationsCtx.Context())
+}
+
+func TestDestinationsContextChildCancellation(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	child := NewDestinationsContext()
+	child.StartWithContext(parent)
+	child.Stop()
+	if child.Context().Err() != context.Canceled {
+		t.Fatal("child did not stop")
+	}
+	if parent.Err() != nil {
+		t.Fatal("child stopped the parent")
+	}
+	child.StartWithContext(parent)
+	cancel()
+	if child.Context().Err() != context.Canceled {
+		t.Fatal("parent cancellation did not stop child")
+	}
 }

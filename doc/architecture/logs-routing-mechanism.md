@@ -8,7 +8,7 @@ The PR adds an HTTP routing mechanism. Agent startup does not enable it. A calle
 - Reuse processing, batching, compression, HTTP senders, and the auditor. Add coordination for delivery groups and ordered source progress.
 - Require every selected group to finish before advancing one persisted source checkpoint. Queue acceptance is not completion.
 - Require separate `SourceInput(identifier, generation)` channels for source isolation. Shared `NextPipelineChan` and `NextPipelineChanWithMonitor` ingress can block healthy sources behind a stalled source; existing launchers need explicit integration to gain isolation.
-- Allow older, unretired producers to drain after replacement, without reclaiming current checkpoint ownership. Report and discard records from retired producers without adding a source barrier.
+- Reserve producer generation ownership when `SourceInput` is created, before the first record. Allow older, unretired producers to drain after replacement, without reclaiming current checkpoint ownership. Report and discard records from retired producers without adding a source barrier.
 - Distinguish explicit exclusion from missing or invalid selection. Exclusion completes locally; a missing or invalid decision holds the checkpoint until correction and replay. Barriers belong to the source, not a producer generation, so producer retirement can still clean up its input.
 - Bound pending records and source history. Aggregate exhaustion can pause all sources, even with separate inputs.
 - Keep group progress in memory and one saved checkpoint per source. Restart can duplicate delivery; this PR adds no durable spool or per-group persisted checkpoint.
@@ -63,7 +63,7 @@ Delivery uses the existing processor, batch strategy, and HTTP sender. The routi
 
 The caller also owns source startup, replacement, and shutdown. Source isolation requires a separate `SourceInput(identifier, generation)` per producer. Shared `NextPipelineChan` and `NextPipelineChanWithMonitor` ingress can block healthy sources behind a stalled source; this PR does not add isolation to that interface or reject records arriving there. Existing launchers need explicit integration to use isolated inputs. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
 
-After a producer stops and its output is admitted, call `RetireSource`. Pending records must finish before retirement succeeds. An invalid-selection barrier retains source ownership independently, but does not prevent retirement of a producer whose own pending records have drained. Start the auditor before the provider; stop producers before stopping the provider.
+After a producer stops and its output is admitted, call `RetireSource`. Pending records must finish before retirement succeeds. An invalid-selection barrier retains source ownership independently, but does not prevent retirement once the producer’s delivery obligations have completed. This includes a producer whose first record is invalid and records that completed behind an unresolved barrier. Completed records can remain retained to preserve checkpoint ordering after the producer input is retired. Start the auditor before the provider; stop producers before stopping the provider.
 
 ## Selection behavior
 
@@ -116,6 +116,12 @@ The X/Y cases below describe the routed path with separate `SourceInput` channel
 X’s checkpoint cannot bypass an earlier pending record, even if a later record selects only healthy B.
 
 Independent checkpoints do not mean unlimited isolation. Aggregate capacity exhaustion can pause otherwise healthy sources too.
+
+## Flush and shutdown
+
+`Flush(ctx)` waits for earlier admitted records to reach batching, not for HTTP delivery. Cancelling the call releases its dispatcher waits so an abandoned flush does not keep healthy sources blocked behind a stalled source.
+
+`Stop` allows accepted work five seconds to finish, then cancels the provider's routing workers and HTTP requests without acknowledging unfinished delivery. Each provider owns its HTTP cancellation context: stopping it does not cancel a caller-supplied context shared with other senders. Cancellation of the caller's context still stops the provider.
 
 ## New limits introduced by this PR
 

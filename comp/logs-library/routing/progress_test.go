@@ -535,3 +535,94 @@ func TestProgressCancellationUnblocksFullCheckpointQueue(t *testing.T) {
 		}
 	})
 }
+
+func TestRetireProducerWhoseFirstRecordIsInvalid(t *testing.T) {
+	p, err := NewProgress(4, &progressTestSink{ch: make(chan *message.Payload, 4)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if err := p.RegisterSource("file", 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.HoldInvalid(context.Background(), progressMessage("file", "bad-1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.RetireSource("file", 1); err != nil {
+		t.Fatalf("producer with no pending delivery cannot retire: %v", err)
+	}
+	if !p.OwnsSource("file") {
+		t.Fatal("source barrier was released")
+	}
+}
+
+func TestRetireAfterCompletedRecordBehindBarrier(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 4)}
+	p, err := NewProgress(4, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	first := progressMessage("file", "1")
+	if _, err := p.Register(context.Background(), first, Selection{Generation: 1}, []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	p.CompleteGroup("a", terminalPayload(first))
+	_ = nextCheckpoint(t, sink.ch)
+	if err := p.HoldInvalid(context.Background(), progressMessage("file", "bad-2")); err != nil {
+		t.Fatal(err)
+	}
+	third := progressMessage("file", "3")
+	if _, err := p.Register(context.Background(), third, Selection{Generation: 1}, []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	p.CompleteGroup("a", terminalPayload(third))
+	if err := p.RetireSource("file", 1); err != nil {
+		t.Fatalf("producer whose delivery completed cannot retire behind source barrier: %v", err)
+	}
+	if !p.OwnsSource("file") {
+		t.Fatal("source barrier was released")
+	}
+}
+
+func TestRegisterSourceReservesOwnershipAndHistoryBeforeRecords(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 2)}
+	p, err := NewProgress(2, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	for _, gen := range []uint64{42, 7} {
+		if err := p.RegisterSource("file", gen); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := progressMessage("file", "old")
+	if _, err := p.Register(context.Background(), old, Selection{Generation: 42, Excluded: true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-sink.ch:
+		t.Fatal("older producer reclaimed current ownership on its first record")
+	default:
+	}
+	current := progressMessage("file", "new")
+	if _, err := p.Register(context.Background(), current, Selection{Generation: 7, Excluded: true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := nextCheckpoint(t, sink.ch); got != "new" {
+		t.Fatal(got)
+	}
+	if err := p.RegisterSource("other", 1); !errors.Is(err, ErrSourceCapacity) {
+		t.Fatalf("ownership reservation exceeded history limit: %v", err)
+	}
+	if err := p.RetireSource("file", 42); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.RetireSource("file", 7); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.RegisterSource("other", 1); err != nil {
+		t.Fatalf("retirement did not release capacity: %v", err)
+	}
+}
