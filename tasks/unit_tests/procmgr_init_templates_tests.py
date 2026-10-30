@@ -20,6 +20,7 @@ UPSTART_DEBIAN = REPO_ROOT / 'packages/debian/etc/upstart_debian.procmgr.conf.in
 UPSTART_REDHAT = REPO_ROOT / 'packages/redhat/etc/upstart_redhat.procmgr.conf.in'
 SYSV_RUNTIME_DIR = '/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2'
 UPSTART_RUNTIME_DIR = '/usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1'
+INSTALLER_PROCMGR_DEFAULTS = '/etc/datadog-agent/datadog-agent-procmgr'
 PARENT_SPLIT = 'true'
 
 
@@ -158,6 +159,7 @@ exit 93
         script = render(source, layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
+        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(self.root / 'datadog-agent-procmgr'))
         # The real path is /var/run, which this user cannot create. install still runs.
         script = script.replace(
             SYSV_RUNTIME_DIR,
@@ -385,9 +387,18 @@ exec "$@"
         self.assertFalse(daemon_pid.exists())
         self.assertFalse(layout.env_out.exists())
 
+    def test_procmgr_reads_the_installer_file_before_the_admin_file(self):
+        sysv = SYSV_PROCMGR.read_text()
+        self.assertLess(sysv.index(INSTALLER_PROCMGR_DEFAULTS), sysv.index('/etc/default/${NAME}'))
+        for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
+            text = template.read_text()
+            self.assertEqual(text.count(INSTALLER_PROCMGR_DEFAULTS), text.count('/etc/default/datadog-agent-procmgr'))
+            self.assertLess(text.index(INSTALLER_PROCMGR_DEFAULTS), text.index('/etc/default/datadog-agent-procmgr'))
+
     def test_upstart_exits_when_the_defaults_file_disables_procmgr(self):
-        defaults = self.root / 'default' / 'datadog-agent-procmgr'
-        defaults.parent.mkdir()
+        installer = self.root / 'datadog-agent-procmgr'
+        admin = self.root / 'default' / 'datadog-agent-procmgr'
+        admin.parent.mkdir()
         called = self.root / 'called'
         install = self.root / 'install'
         binary = install / 'embedded/bin/dd-procmgrd'
@@ -398,15 +409,26 @@ exec "$@"
             (UPSTART_DEBIAN, ('script',)),
             (UPSTART_REDHAT, ('pre-start script', 'script')),
         )
+        files = (
+            ('DATADOG_ENABLED=no\n', None, True),
+            (None, 'DATADOG_ENABLED=no\n', True),
+            (None, 'DATADOG_ENABLED=yes\n', False),
+            ('DATADOG_ENABLED=no\n', 'DATADOG_ENABLED=yes\n', False),
+        )
         for template, headers in cases:
             for header in headers:
                 block = upstart_block(template, header)
-                for contents, disabled in (('DATADOG_ENABLED=no\n', True), ('DATADOG_ENABLED=yes\n', False)):
+                for installer_text, admin_text, disabled in files:
                     with self.subTest(template=template.name, block=header, disabled=disabled):
-                        defaults.write_text(contents)
+                        for path, contents in ((installer, installer_text), (admin, admin_text)):
+                            if contents is None:
+                                path.unlink(missing_ok=True)
+                            else:
+                                path.write_text(contents)
                         called.unlink(missing_ok=True)
                         script = render(block, install, self.root / 'etc')
-                        script = script.replace('/etc/default/datadog-agent-procmgr', str(defaults))
+                        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
+                        script = script.replace('/etc/default/datadog-agent-procmgr', str(admin))
                         reached = f'touch "{called}"; exit 0'
                         script = script.replace(UPSTART_RUNTIME_DIR, reached)
                         script = script.replace('groups=$(/usr/bin/id -G dd-agent) || exit 1', reached)
@@ -461,6 +483,7 @@ exit 0
         script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
+        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(self.root / 'datadog-agent-procmgr'))
         rendered = self.root / 'init-script'
         rendered.write_text(script)
         env = self.base_env(f'{commands}:/usr/bin:/bin')
@@ -508,6 +531,7 @@ exit 0
         script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
+        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(self.root / 'datadog-agent-procmgr'))
         script = script.replace('/usr/bin/install', str(commands / 'install'))
         rendered = self.root / 'init-script'
         rendered.write_text(script)

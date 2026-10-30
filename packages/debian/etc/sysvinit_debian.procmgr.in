@@ -64,7 +64,10 @@ if [ ! -x $AGENTPATH ]; then
 	exit 0
 fi
 
-# /etc/default is root-owned, so it is read here and not in load-env.
+# load-env runs as dd-agent. Read both here, and read the admin file last so it wins.
+if [ -r /etc/datadog-agent/datadog-agent-procmgr ]; then
+	. /etc/datadog-agent/datadog-agent-procmgr
+fi
 if [ -r "/etc/default/${NAME}" ]; then
 	. "/etc/default/${NAME}"
 fi

@@ -11,6 +11,9 @@ kill timeout 200
 console output
 
 script
+  if [ -r /etc/datadog-agent/datadog-agent-procmgr ]; then
+    . /etc/datadog-agent/datadog-agent-procmgr
+  fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then
     . /etc/default/datadog-agent-procmgr
   fi
@@ -64,6 +67,9 @@ END_LOAD_ENV
 end script
 
 pre-start script
+  if [ -r /etc/datadog-agent/datadog-agent-procmgr ]; then
+    . /etc/datadog-agent/datadog-agent-procmgr
+  fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then
     . /etc/default/datadog-agent-procmgr
   fi
