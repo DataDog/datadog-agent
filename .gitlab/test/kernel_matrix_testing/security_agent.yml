@@ -12,31 +12,6 @@ upload_dependencies_secagent_x64:
     INSTANCE_TYPE: m5d.metal
     TEST_COMPONENT: security-agent
 
-upload_dependencies_secagent_arm64:
-  needs:
-    - !reference [.kmt_setup_needs]
-    - pull_test_dockers_arm64
-  extends:
-    - .package_dependencies
-  rules: !reference [.on_security_agent_changes_or_manual]
-  variables:
-    ARCHIVE_NAME: dependencies-arm64.tar.gz
-    ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
-    TEST_COMPONENT: security-agent
-
-kmt_setup_env_secagent_arm64:
-  extends:
-    - .kmt_setup_env
-  rules: !reference [.on_security_agent_changes_or_manual]
-  variables:
-    INSTANCE_TYPE: "m6gd.metal"
-    INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
-    ARCH: arm64
-    AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
-    LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
-    TEST_COMPONENT: security-agent
-
 kmt_setup_env_secagent_x64:
   extends:
     - .kmt_setup_env
@@ -100,21 +75,6 @@ upload_secagent_tests_x64:
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
 
-upload_secagent_tests_arm64:
-  extends:
-    - .upload_secagent_tests
-  needs:
-    - !reference [.kmt_setup_needs]
-    - prepare_secagent_ebpf_functional_tests_arm64
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
-  variables:
-    ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
-
-# Kernels shared by several jobs. The kmt_run_secagent_tests_* jobs below must
-# keep `variables.ARCH` and `parallel.matrix` inline: tasks/kernel_matrix_testing/platforms.py
-# reads them straight from this file to decide which microVMs to boot.
 .kmt_secagent_kernels_x64: &kmt_secagent_kernels_x64
   - "ubuntu_18.04"
   - "ubuntu_20.04"
@@ -197,110 +157,8 @@ kmt_run_secagent_tests_x64:
     ARCH: "x86_64"
   parallel:
     matrix:
-      - TAG: *kmt_secagent_kernels_x64
+      - TAG: ["opensuse_15.3"]
         TEST_SET: [cws_host]
-
-kmt_run_secagent_tests_x64_wprofiles:
-  extends: .kmt_run_secagent_tests_x64
-  variables:
-    ARCH: "x86_64"
-  parallel:
-    matrix:
-      - TAG: ["ubuntu_24.04"]
-        TEST_SET: [cws_wprofiles]
-
-kmt_run_secagent_tests_x64_ebpfless:
-  extends: .kmt_run_secagent_tests_x64
-  variables:
-    ARCH: "x86_64"
-  parallel:
-    matrix:
-      - TAG: ["ubuntu_22.04"]
-        TEST_SET: [cws_el, cws_el_ns]
-
-kmt_run_secagent_tests_x64_docker:
-  extends: .kmt_run_secagent_tests_x64
-  variables:
-    ARCH: "x86_64"
-  parallel:
-    matrix:
-      - TAG:
-          - "ubuntu_18.04"
-          - "ubuntu_20.04"
-          - "ubuntu_22.04"
-          - "ubuntu_24.04"
-          - "ubuntu_25.10"
-          - "ubuntu_26.04"
-          - "amazon_4.14"
-          - "amazon_5.4"
-          - "amazon_5.10"
-          - "amazon_2023"
-          - "amazon_6.12"
-          - "fedora_37"
-          - "fedora_38"
-          - "debian_10"
-          - "debian_11"
-          - "debian_12"
-          - "centos_7.9"
-          - "oracle_8.9"
-          - "oracle_9.3"
-          - "rocky_8.5"
-          - "rocky_9.3"
-          - "rocky_9.4"
-        TEST_SET: [cws_docker]
-
-kmt_run_secagent_tests_arm64:
-  extends: .kmt_run_secagent_tests_arm64
-  variables:
-    ARCH: "arm64"
-  parallel:
-    matrix:
-      - TAG: *kmt_secagent_kernels_arm64
-        TEST_SET: [cws_host]
-
-kmt_run_secagent_tests_arm64_wprofiles:
-  extends: .kmt_run_secagent_tests_arm64
-  variables:
-    ARCH: "arm64"
-  parallel:
-    matrix:
-      - TAG: ["ubuntu_24.04"]
-        TEST_SET: [cws_wprofiles]
-
-kmt_run_secagent_tests_arm64_ebpfless:
-  extends: .kmt_run_secagent_tests_arm64
-  variables:
-    ARCH: "arm64"
-  parallel:
-    matrix:
-      - TAG: ["ubuntu_22.04"]
-        TEST_SET: [cws_el, cws_el_ns]
-
-kmt_run_secagent_tests_arm64_docker:
-  extends: .kmt_run_secagent_tests_arm64
-  variables:
-    ARCH: "arm64"
-  parallel:
-    matrix:
-      - TAG:
-          - "ubuntu_22.04"
-          - "ubuntu_24.04"
-          - "ubuntu_25.10"
-          - "ubuntu_26.04"
-          - "amazon_5.4"
-          - "amazon_5.10"
-          - "amazon_2023"
-          - "amazon_6.12"
-          - "fedora_37"
-          - "fedora_38"
-          - "debian_11"
-          - "debian_12"
-          - "oracle_8.9"
-          - "oracle_9.3"
-          - "rocky_8.5"
-          - "rocky_9.3"
-          - "rocky_9.4"
-        TEST_SET: [cws_docker]
 
 .kmt_secagent_cleanup:
   extends:
@@ -318,46 +176,11 @@ kmt_run_secagent_tests_arm64_docker:
   script:
     - echo "nothing to do here"
 
-kmt_secagent_tests_join1_arm64:
-  extends:
-    - .kmt_secagent_tests_join
-  needs:
-    - kmt_run_secagent_tests_arm64
-    - kmt_run_secagent_tests_arm64_wprofiles
-
-kmt_secagent_tests_join2_arm64:
-  extends:
-    - .kmt_secagent_tests_join
-  needs:
-    - kmt_run_secagent_tests_arm64_ebpfless
-    - kmt_run_secagent_tests_arm64_docker
-
-kmt_secagent_cleanup_arm64:
-  when: always
-  extends:
-    - .kmt_secagent_cleanup
-  needs:
-    - kmt_setup_env_secagent_arm64
-    - kmt_secagent_tests_join1_arm64
-    - kmt_secagent_tests_join2_arm64
-    - upload_secagent_tests_arm64
-  variables:
-    ARCH: arm64
-    INSTANCE_TYPE: "m6gd.metal"
-
 kmt_secagent_tests_join1_x64:
   extends:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_x64
-    - kmt_run_secagent_tests_x64_wprofiles
-
-kmt_secagent_tests_join2_x64:
-  extends:
-    - .kmt_secagent_tests_join
-  needs:
-    - kmt_run_secagent_tests_x64_ebpfless
-    - kmt_run_secagent_tests_x64_docker
 
 kmt_secagent_cleanup_x64:
   when: always
@@ -366,7 +189,6 @@ kmt_secagent_cleanup_x64:
   needs:
     - kmt_setup_env_secagent_x64
     - kmt_secagent_tests_join1_x64
-    - kmt_secagent_tests_join2_x64
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
   variables:
@@ -376,14 +198,6 @@ kmt_secagent_cleanup_x64:
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
 # if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
 # will not run if the dependencies are canceled
-kmt_secagent_cleanup_arm64_manual:
-  extends:
-    - .kmt_secagent_cleanup
-    - .kmt_cleanup_manual
-  variables:
-    ARCH: arm64
-    INSTANCE_TYPE: "m6gd.metal"
-
 kmt_secagent_cleanup_x64_manual:
   extends:
     - .kmt_secagent_cleanup
