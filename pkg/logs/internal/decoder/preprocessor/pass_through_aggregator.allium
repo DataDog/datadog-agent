@@ -13,8 +13,8 @@
 --   rolling truncation-flag carry semantics.
 -- Excludes:
 --   - Other Aggregator implementations. RegexAggregator,
---     DetectingAggregator, CombiningAggregator and JSONAggregator
---     each live in their own spec modules.
+--     CombiningAggregator and JSONAggregator each live in their
+--     own spec modules.
 --   - The selection logic that decides when a log source uses
 --     PassThroughAggregator vs another implementation. That is a
 --     preprocessor configuration concern.

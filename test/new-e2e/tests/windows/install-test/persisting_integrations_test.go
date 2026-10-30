@@ -213,7 +213,7 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 
 	// upgrade to the new version, but intentionally fail with our persistence flag
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
-		_, err := windowsAgent.InstallAgent(vm,
+		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -305,7 +305,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 	// now we are ignoring the results of the custom action, which means that the install will pass
 	// but the integrations will not be installed as the folder permissions are incorrect
 	if !s.Run(fmt.Sprintf("Install %s with failure", s.upgradeAgentPackge.AgentVersion()), func() {
-		_, err := windowsAgent.InstallAgent(vm,
+		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(logFilePath),
 			windowsAgent.WithIntegrationsPersistence("1"),
@@ -385,7 +385,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 
 	// upgrade to the new version, but intentionally fail with our persistence flag
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.upgradeAgentPackge.AgentVersion()), func() {
-		_, err := windowsAgent.InstallAgent(vm,
+		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),

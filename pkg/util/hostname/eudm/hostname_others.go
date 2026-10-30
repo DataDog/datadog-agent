@@ -13,6 +13,6 @@ import (
 )
 
 // Get always fails: EUDM device identity is only available on macOS and Windows.
-func Get() (string, error) {
+func Get(_ bool) (string, error) {
 	return "", fmt.Errorf("EUDM hostname is only supported on macOS and Windows: %w", errors.ErrUnsupported)
 }

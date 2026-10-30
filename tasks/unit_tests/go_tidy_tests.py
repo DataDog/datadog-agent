@@ -46,6 +46,17 @@ class TestTidy(unittest.TestCase):
         bazel_tidy.assert_not_called()
         go_only_tidy.assert_called_once()
 
+    def test_generates_settings_when_the_module_exists(self):
+        Path(go.GENERATED_SETTINGS_DIR).mkdir(parents=True)
+        with patch.object(go, "schema_codegen") as schema_codegen:
+            self._run_tidy(bazel_on_path=False)
+        schema_codegen.assert_called_once()
+
+    def test_skips_settings_generation_without_the_module(self):
+        with patch.object(go, "schema_codegen") as schema_codegen:
+            self._run_tidy(bazel_on_path=False)
+        schema_codegen.assert_not_called()
+
     def test_go_only_tidy_skips_work_sync_without_go_work(self):
         ctx = MagicMock(spec=Context)
         with patch.object(go, "get_default_modules", return_value={}):

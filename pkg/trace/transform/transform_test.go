@@ -1930,3 +1930,40 @@ func TestOTelSpanLinksToDD(t *testing.T) {
 		})
 	}
 }
+
+// TestOtelSpanToDDSpanSpanAttributePrecedence verifies that a span attribute wins over a resource
+// attribute with the same key, including when the span value is numeric and stored in Metrics.
+func TestOtelSpanToDDSpanSpanAttributePrecedence(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		setSpanAttr func(pcommon.Map)
+		wantMeta    string
+		wantMetric  float64
+	}{
+		{name: "string", setSpanAttr: func(m pcommon.Map) { m.PutStr("team", "infra") }, wantMeta: "infra"},
+		{name: "int", setSpanAttr: func(m pcommon.Map) { m.PutInt("team", 7) }, wantMetric: 7},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			tt.setSpanAttr(span.Attributes())
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("team", "core")
+			cfg := &config.AgentConfig{Features: map[string]struct{}{}, OTLPReceiver: &config.OTLP{}}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+			ddspan := OtelSpanToDDSpan(span, res, pcommon.NewInstrumentationScope(), cfg)
+
+			if tt.wantMeta != "" {
+				assert.Equal(t, tt.wantMeta, ddspan.Meta["team"])
+			} else {
+				assert.NotContains(t, ddspan.Meta, "team")
+			}
+			if tt.wantMetric != 0 {
+				assert.Equal(t, tt.wantMetric, ddspan.Metrics["team"])
+			} else {
+				assert.NotContains(t, ddspan.Metrics, "team")
+			}
+		})
+	}
+}

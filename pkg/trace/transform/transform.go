@@ -382,6 +382,12 @@ func OtelSpanToDDSpan(
 	}
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
+		// Span attributes take precedence over resource attributes. Numeric span attributes
+		// are stored in Metrics rather than Meta, so skip resource attributes whose key is
+		// already present in Metrics to avoid emitting a stale duplicate in Meta.
+		if _, ok := ddspan.Metrics[GetDDKeyForOTLPAttribute(k)]; ok {
+			return true
+		}
 		value := v.AsString()
 		conditionallyMapOTLPAttributeToMeta(k, value, ddspan)
 		return true

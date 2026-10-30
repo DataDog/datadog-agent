@@ -152,11 +152,14 @@ def install_with_bazel(ctx):
 @task
 def test(ctx):
     with gitlab_section("Run rtloader tests", collapsed=True):
-        ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
+        bazel("test", "//rtloader/...")
 
 
 @task
 def format(ctx, raise_if_changed=False):
+    print("`dda inv rtloader.format` is deprecated.")
+    print("Use `bazel test //rtloader:clang_format_test` to see formatting issues.")
+
     with gitlab_section("Run clang-format on rtloader", collapsed=True):
         run_make_command(ctx, "clang-format")
 
