@@ -159,6 +159,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			go ta.Run()
 			return &serverlessTraceAgent{
 				ta:          ta,
+				convertToV1: !tc.HasFeature("disable-convert-traces"),
 				cancel:      cancel,
 				stopTimeout: stopTimeout,
 			}
@@ -187,6 +188,10 @@ type serverlessTraceAgent struct {
 	ta          *agent.Agent
 	cancel      context.CancelFunc
 	stopTimeout time.Duration
+
+	// convertToV1 mirrors the receiver's convert-traces behavior: payloads
+	// are converted to v1 unless the disable-convert-traces feature is set.
+	convertToV1 bool
 }
 
 // Flush performs a synchronous flushing in the trace agent
@@ -195,8 +200,29 @@ func (t *serverlessTraceAgent) Flush() {
 }
 
 // Process processes a payload in the trace agent.
+//
+// Like the receiver, the payload is converted to the v1 (string-indexed)
+// format and processed by the v1 path unless the disable-convert-traces
+// feature is set, in which case the legacy path is used. An empty
+// originPayloadVersion skips the _dd.convertedv1 debug attribute, since
+// these payloads are generated in-process rather than received on the wire.
+//
+// TODO(v1): once the legacy processing path is removed, callers should build
+// v1 payloads directly and this conversion should be dropped.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
-	t.ta.Process(p)
+	if !t.convertToV1 {
+		t.ta.Process(p)
+		return
+	}
+	t.ta.ProcessV1(&api.PayloadV1{
+		Source:                 p.Source,
+		TracerPayload:          api.ConvertToIdx(p.TracerPayload, ""),
+		ClientComputedTopLevel: p.ClientComputedTopLevel,
+		ClientComputedStats:    p.ClientComputedStats,
+		ClientDroppedP0s:       p.ClientDroppedP0s,
+		ProcessTags:            p.ProcessTags,
+		ContainerTags:          p.ContainerTags,
+	})
 }
 
 type taggable interface {

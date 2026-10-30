@@ -37,12 +37,13 @@ import (
 // sbom.ErrScanNotSupported and the scanner drops the request.
 var errLayerCountMismatch = fmt.Errorf("%w: overlayfs mount layer count does not match image config", sbom.ErrScanNotSupported)
 
-// errLayerUnreadable means the Agent cannot list the directory of an image
-// layer, as when the container runtime's storage is missing from the Agent
-// container or closed to the Agent's user. The walk of a layer skips what it
-// cannot read, so the layer would scan as an empty one. A retry finds the
-// same mounts, so the error wraps sbom.ErrScanNotSupported.
-var errLayerUnreadable = fmt.Errorf("%w: cannot read image layer", sbom.ErrScanNotSupported)
+// ErrLayerUnreadable reports that the Agent cannot list the directory of an
+// image layer, as when the container runtime's storage is missing from the
+// Agent container or closed to the Agent's user. The walk of a layer skips
+// what it cannot read, so the layer would scan as an empty one. A retry finds
+// the same mounts, so the error wraps sbom.ErrScanNotSupported. Test for it
+// with errors.Is.
+var ErrLayerUnreadable = fmt.Errorf("%w: cannot read image layer", sbom.ErrScanNotSupported)
 
 // fakeContainer adapts a pre-paired set of LayerPaths into the
 // ftypes.Container surface Trivy expects. It carries imgMeta separately
@@ -91,7 +92,7 @@ func (c *fakeContainer) Layers() []ftypes.LayerPath {
 }
 
 // checkLayers returns an error for the first of layers whose directory cannot
-// be opened and listed. The error wraps errLayerUnreadable when the directory
+// be opened and listed. The error wraps ErrLayerUnreadable when the directory
 // is missing or closed to the Agent.
 func checkLayers(layers []string) error {
 	for _, layer := range layers {
@@ -104,7 +105,7 @@ func checkLayers(layers []string) error {
 			continue
 		}
 		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) {
-			return fmt.Errorf("%w: %w", errLayerUnreadable, err)
+			return fmt.Errorf("%w: %w", ErrLayerUnreadable, err)
 		}
 		return fmt.Errorf("unable to read image layer: %w", err)
 	}

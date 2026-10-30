@@ -8,6 +8,7 @@
 package serializer
 
 import (
+	"bytes"
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/base64"
@@ -42,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -515,6 +517,33 @@ func TestSendMetadata(t *testing.T) {
 			require.NotNil(t, err)
 		})
 	}
+}
+
+func TestSendMetadataDoesNotLogPayload(t *testing.T) {
+	var logs bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&logs, pkglog.DebugLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, pkglog.DebugStr)
+	t.Cleanup(func() {
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		logger.Close()
+	})
+
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, pkglog.NewWrapper(2), "testhost")
+	f.On("SubmitMetadata", mock.Anything, mock.Anything).Return(nil).Times(1)
+
+	payload := rawJSONPayload(`{"agent_metadata":{"enc_info":{"handles":["my_key"],"hash_secret_id":{"my_key":"234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa"}}}}`)
+	require.NoError(t, s.SendMetadata(payload))
+	f.AssertExpectations(t)
+	logger.Flush()
+
+	assert.Contains(t, logs.String(), "Sending metadata payload")
+	assert.NotContains(t, logs.String(), "enc_info")
+	assert.NotContains(t, logs.String(), "my_key")
+	assert.NotContains(t, logs.String(), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
 }
 
 func TestSendProcessesMetadata(t *testing.T) {

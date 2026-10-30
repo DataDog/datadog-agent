@@ -108,6 +108,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_ENV")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
