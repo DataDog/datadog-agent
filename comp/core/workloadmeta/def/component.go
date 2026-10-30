@@ -94,6 +94,10 @@ type Component interface {
 	// It fetches the entity with kind KindKubernetesKueueWorkload and the given ID.
 	GetKubernetesKueueWorkload(id string) (*KubernetesKueueWorkload, error)
 
+	// GetKubernetesKAIPodGroup returns metadata about a KAI Scheduler PodGroup.
+	// It fetches the entity with kind KindKubernetesKAIPodGroup and the given ID.
+	GetKubernetesKAIPodGroup(id string) (*KubernetesKAIPodGroup, error)
+
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
 	GetKubernetesMetadata(id KubeMetadataEntityID) (*KubernetesMetadata, error)

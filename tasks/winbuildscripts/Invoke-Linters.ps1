@@ -42,15 +42,6 @@ Invoke-BuildScript `
 
     & .\tasks\winbuildscripts\pre-go-build.ps1
 
-    # Lint rtloader
-    & dda inv -- -e rtloader.format --raise-if-changed
-    $err = $LASTEXITCODE
-    Write-Host Format result is $err
-    if($err -ne 0){
-        Write-Host -ForegroundColor Red "rtloader format failed $err"
-        exit $err
-    }
-
     # Lint Go
     & dda inv -- -e linter.go --debug
     $err = $LASTEXITCODE

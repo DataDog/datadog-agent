@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "crd.go",
         "deployments.go",
+        "kai.go",
         "kubeapiserver.go",
         "kubeapiserver_nop.go",
         "kueue.go",
@@ -69,6 +70,7 @@ dd_agent_go_test(
     name = "kubeapiserver_test",
     srcs = [
         "deployments_test.go",
+        "kai_test.go",
         "kube_capabilities_test.go",
         "kubeapiserver_test.go",
         "main_test.go",
@@ -107,6 +109,7 @@ dd_agent_go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",

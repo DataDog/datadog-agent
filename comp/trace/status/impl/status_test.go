@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -58,6 +59,40 @@ func TestStatusOut(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.assertFunc(t)
+		})
+	}
+}
+
+type recordingClient struct {
+	ipc.HTTPClient
+	url string
+}
+
+func (c *recordingClient) Get(rawURL string, _ ...ipc.RequestOption) ([]byte, error) {
+	c.url = rawURL
+	return []byte(`{}`), nil
+}
+
+func TestPopulateStatusDialsDebugServer(t *testing.T) {
+	tests := []struct {
+		cmdHost string
+		url     string
+	}{
+		{cmdHost: "localhost", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "127.0.0.1", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "::1", url: "https://[::1]:5012/debug/vars"},
+		{cmdHost: "127.0.0.2", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "111.111.111.111", url: "https://127.0.0.1:5012/debug/vars"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.cmdHost, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				"cmd_host":              tt.cmdHost,
+				"apm_config.debug.port": 5012,
+			})
+			client := &recordingClient{}
+			statusProvider{Config: cfg, Client: client}.populateStatus()
+			assert.Equal(t, tt.url, client.url)
 		})
 	}
 }

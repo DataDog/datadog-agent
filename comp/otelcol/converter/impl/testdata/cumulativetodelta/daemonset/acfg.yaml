@@ -1,0 +1,6 @@
+otelcollector:
+  converter:
+    enabled: true
+    features: ["cumulativetodelta"]
+  gateway:
+    daemonset: true
