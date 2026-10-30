@@ -17,19 +17,11 @@ fi
 # Add dd-agent to adm group (required for sar — used by the CPU check)
 chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
 
-# Raise the data-segment limit for dd-agent to 512MiB (1048576 blocks of 512 bytes).
-#
-# When no `data` attribute is set for the user (in their own stanza or the
-# default stanza), processes run with the AIX 128MiB default soft RLIMIT_DATA
-# (the stock default stanza carries the same value). agent-data-plane buffers
-# DogStatsD traffic in malloc'd heap memory; on busy hosts the process pins
-# against that 128MiB limit, malloc starts failing (zstd "Allocation error"
-# floods), and the process eventually aborts with SIGABRT and SRC restarts it.
-#
-# Only raise: -1 (unlimited), 0, any value at or above 512MiB, and anything we
-# cannot parse are all left untouched, so customer-configured limits are never
-# lowered. The agent-data-plane wrapper raises the soft limit itself as well,
-# because whether SRC applies this stanza to subsystems is undocumented.
+# Raise dd-agent's data-segment limit to 512MiB (1048576 blocks of 512 bytes) when
+# it is unset or lower: the AIX default soft RLIMIT_DATA is 128MiB, which
+# agent-data-plane's malloc'd heap can exceed on busy hosts, causing malloc
+# failures and SIGABRTs. Only ever raise — an unlimited or higher
+# customer-configured limit is left untouched.
 _dd_data=$(awk '
     BEGIN { stanza = ""; udata = ""; ddata = "" }
     /^[A-Za-z_][A-Za-z0-9_.-]*:/ { stanza = $1; sub(":$", "", stanza) }
