@@ -301,6 +301,21 @@ api_key:
 #
 # aggregator_buffer_size: 100
 
+## @param check_sampler_batch_sizes - object - optional - default: {}
+## @env DD_CHECK_SAMPLER_BATCH_SIZES - JSON object - optional - default: {}
+## Map check names to a metric sample or histogram bucket limit per batch.
+## Batching is disabled unless a check has a positive limit. The example enables
+## 100000-sample batches for all SQL Server instances, including custom queries.
+## Each batch is an aggregation window: gauges keep their last value, counts and
+## histograms aggregate within the batch, and counter/rate baselines persist.
+## Commits wait for distinct seconds to preserve count totals at ingestion;
+## small limits can slow collection. Each check instance waits for its own batch
+## to drain while other senders remain active. This bounds transient sample
+## accumulation per check, not total
+## Agent memory or query results. Does not apply to `agent check`. Requires restart.
+#
+# check_sampler_batch_sizes: {sqlserver: 100000}
+
 ## @param forwarder_timeout - integer - optional - default: 20
 ## @env DD_FORWARDER_TIMEOUT - integer - optional - default: 20
 ## Forwarder timeout in seconds

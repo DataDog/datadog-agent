@@ -65,6 +65,9 @@ var (
 	monotonic       bool
 )
 
+var metricGILReleased bool
+var bucketGILReleased bool
+
 type event struct {
 	title          string
 	text           string
@@ -106,12 +109,17 @@ func setUp() error {
 	}
 
 	C.initAggregatorTests(rtloader)
+	setSubmissionGILRelease(true)
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
 	}
 
 	return nil
+}
+
+func setSubmissionGILRelease(enabled bool) {
+	C.set_metric_submission_gil_release(rtloader, C.bool(enabled))
 }
 
 func run(call string) (string, error) {
@@ -166,6 +174,10 @@ func charArrayToSlice(array **C.char) (res []string) {
 
 //export submitMetric
 func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.double, t **C.char, hname *C.char, fFirstValue C.bool) {
+	// ensure_gil returns the previous state; restore it before returning to Python.
+	state := C.ensure_gil(rtloader)
+	metricGILReleased = state == C.DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
+	C.release_gil(rtloader, state)
 	checkID = C.GoString(id)
 	metricType = int(mt)
 	name = C.GoString(mname)
@@ -237,6 +249,9 @@ func submitHistogramBucketMulti(id *C.char, cMetricName *C.char, cVal C.longlong
 
 func recordHistogramBucket(callback string, id *C.char, cMetricName *C.char, cVal C.longlong, bucketLowerBound float64, bucketUpperBound float64, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
 	bucketCallback = callback
+	state := C.ensure_gil(rtloader)
+	bucketGILReleased = state == C.DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
+	C.release_gil(rtloader, state)
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
 	intValue = int(cVal)
