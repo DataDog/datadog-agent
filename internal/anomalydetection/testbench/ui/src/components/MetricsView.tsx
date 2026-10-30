@@ -373,18 +373,14 @@ export function MetricsView({
     const mainGroups = [...visibleGroups]
       .filter((g) => g.namespace !== 'telemetry' && !g.virtual);
 
-    const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
-    const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
-    const defaultKeys = defaultGroup
-      ? [defaultGroup.key]
-      : mainGroups
-          .sort((a, b) => {
-            const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
-            if (countDiff !== 0) return countDiff;
-            return a.baseName.localeCompare(b.baseName);
-          })
-          .slice(0, 6)
-          .map((g) => g.key);
+    const defaultKeys = mainGroups
+      .sort((a, b) => {
+        const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+        if (countDiff !== 0) return countDiff;
+        return a.baseName.localeCompare(b.baseName);
+      })
+      .slice(0, 50)
+      .map((g) => g.key);
 
     setSelectedGroups(new Set(defaultKeys));
     setGroupSeriesData(new Map());
