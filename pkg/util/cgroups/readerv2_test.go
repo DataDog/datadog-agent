@@ -8,12 +8,14 @@
 package cgroups
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReaderV2(t *testing.T) {
@@ -68,4 +70,60 @@ func TestReaderV2(t *testing.T) {
 	}
 
 	assert.Empty(t, cmp.Diff(expected, cgroups, cmp.AllowUnexported(cgroupV2{})))
+}
+
+// vanishingDirFilter wraps ContainerFilter and removes `toRemove` the first time a folder named `trigger` is visited,
+// simulating a cgroup (e.g. a transient systemd scope) disappearing while the cgroup tree is being walked.
+func vanishingDirFilter(t *testing.T, trigger, toRemove string) ReaderFilter {
+	removed := false
+	return func(path, name string) (string, error) {
+		if name == trigger && !removed {
+			removed = true
+			require.NoError(t, os.RemoveAll(toRemove))
+		}
+		return ContainerFilter(path, name)
+	}
+}
+
+func TestReaderV2CgroupVanishesDuringWalk(t *testing.T) {
+	fakeFsPath := t.TempDir()
+	const (
+		id1 = "2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40"
+		id2 = "2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41"
+		id3 = "2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42"
+	)
+	// filepath.WalkDir visits entries in lexical order: "a.slice", then "b.slice", then "c.slice".
+	paths := []string{
+		"a.slice/docker-" + id1 + ".scope",
+		"b.slice/session-13.scope/docker-" + id2 + ".scope",
+		"c.slice/docker-" + id3 + ".scope",
+	}
+	for _, p := range paths {
+		require.NoError(t, os.MkdirAll(filepath.Join(fakeFsPath, p), 0o750))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "cgroup.controllers"), []byte("cpu io memory"), 0o640))
+
+	// "b.slice" is listed when reading the root, but removed before the walk descends into it.
+	r, err := newReaderV2("", fakeFsPath, vanishingDirFilter(t, "a.slice", filepath.Join(fakeFsPath, "b.slice")), "")
+	require.NoError(t, err)
+	r.pidMapper = nil
+
+	cgroups, err := r.parseCgroups()
+	require.NoError(t, err)
+	assert.Len(t, cgroups, 2)
+	assert.Contains(t, cgroups, id1)
+	assert.Contains(t, cgroups, id3)
+}
+
+func TestReaderV2MissingRoot(t *testing.T) {
+	fakeFsPath := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "cgroup.controllers"), []byte("cpu io memory"), 0o640))
+
+	r, err := newReaderV2("", fakeFsPath, ContainerFilter, "")
+	require.NoError(t, err)
+	r.pidMapper = nil
+
+	require.NoError(t, os.RemoveAll(fakeFsPath))
+	_, err = r.parseCgroups()
+	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
