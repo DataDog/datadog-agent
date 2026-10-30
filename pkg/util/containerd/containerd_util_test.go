@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/containerd/containerd/v2/pkg/cio"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/containerd/errdefs"
 	"github.com/containerd/typeurl/v2"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -382,11 +384,12 @@ func (i *unpackedImage) IsUnpacked(_ context.Context, snapshotter string) (bool,
 func TestUnpackedSnapshotter(t *testing.T) {
 	notLoaded := errors.New("snapshotter not loaded: nydus")
 	tests := []struct {
-		name     string
-		unpacked map[string]bool
-		errs     map[string]error
-		want     string
-		wantErr  bool
+		name            string
+		unpacked        map[string]bool
+		errs            map[string]error
+		want            string
+		wantErr         bool
+		wantNotUnpacked bool
 	}{
 		{
 			name:     "unpacked by nydus",
@@ -405,8 +408,15 @@ func TestUnpackedSnapshotter(t *testing.T) {
 			want:     defaults.DefaultSnapshotter,
 		},
 		{
-			name:    "unpacked by neither",
-			wantErr: true,
+			name:            "unpacked by neither",
+			wantErr:         true,
+			wantNotUnpacked: true,
+		},
+		{
+			name:            "default snapshotter not loaded",
+			errs:            map[string]error{"nydus": notLoaded, defaults.DefaultSnapshotter: fmt.Errorf("snapshotter not loaded: %s: %w", defaults.DefaultSnapshotter, errdefs.ErrInvalidArgument)},
+			wantErr:         true,
+			wantNotUnpacked: true,
 		},
 		{
 			name:    "default snapshotter fails",
@@ -419,6 +429,7 @@ func TestUnpackedSnapshotter(t *testing.T) {
 			got, err := unpackedSnapshotter(context.Background(), &unpackedImage{unpacked: tt.unpacked, errs: tt.errs})
 			if tt.wantErr {
 				require.Error(t, err)
+				require.Equal(t, tt.wantNotUnpacked, errors.Is(err, ErrNotUnpacked), "errors.Is(%v, ErrNotUnpacked)", err)
 				return
 			}
 			require.NoError(t, err)
