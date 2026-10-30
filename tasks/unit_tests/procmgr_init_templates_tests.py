@@ -314,6 +314,15 @@ exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
             self.assertIn(f'export {name}=', heredoc)
         self.assertLess(heredoc.index('export "$key=$value"'), heredoc.index('export DD_LOG_TO_CONSOLE=false'))
 
+    def test_procmgr_stop_waits_for_par_control(self):
+        sysv = SYSV_PROCMGR.read_text()
+        self.assertIn('--retry=TERM/200/KILL/5', sysv)
+        self.assertNotIn('--retry=30', sysv)
+        for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
+            text = template.read_text()
+            self.assertRegex(text, r'(?m)^kill timeout 200$')
+            self.assertLess(text.index('kill timeout 200'), text.index('\nscript\n'))
+
     def test_runtime_dir_is_created_as_root_before_the_daemon(self):
         sysv = SYSV_PROCMGR.read_text()
         self.assertIn(SYSV_RUNTIME_DIR, sysv)
