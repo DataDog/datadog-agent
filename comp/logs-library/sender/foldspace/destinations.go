@@ -34,6 +34,11 @@ const (
 	// Mirrors the library's own stream lifetime, since a zero value there means
 	// rotate on every open rather than use the default.
 	defaultStreamLifetime = 15 * time.Minute
+
+	// maxProtocolBatchBytes is the stateful protocol's batch cap. The library
+	// refuses a max_payload_bytes above it, so a batch_max_content_size past it
+	// is held to it.
+	maxProtocolBatchBytes = 5 * 1024 * 1024
 )
 
 // SenderSpec is one foldspace sender derived from a logs endpoint.
@@ -194,6 +199,7 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	if maxPayload <= 0 {
 		maxPayload = 1024 * 1024
 	}
+	maxPayload = min(maxPayload, maxProtocolBatchBytes)
 	batchWait := endpoints.BatchWait
 	if batchWait <= 0 {
 		batchWait = 5 * time.Second
@@ -230,7 +236,6 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 			ReconnectBackoffCap:    time.Duration(cfg.GetFloat64("logs_config.sender_backoff_max") * float64(time.Second)),
 			DrainTimeout:           5 * time.Second,
 			StreamLifetime:         streamLifetime,
-			FirstBatchID:           0,
 		},
 		PipelineDepth:     pipelineDepth,
 		ConnectTimeout:    httpTimeout,
