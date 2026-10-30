@@ -445,9 +445,7 @@ log_failure_msg() { echo "$*"; }''',
                     logfile = root / 'errors.log'
                     unix_table = root / 'unix'
                     if row is not None:
-                        unix_table.write_text(
-                            'Num       RefCount Protocol Flags    Type St Inode Path\n' + row
-                        )
+                        unix_table.write_text('Num       RefCount Protocol Flags    Type St Inode Path\n' + row)
                     script = script.replace('/proc/net/unix', str(unix_table))
                     script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
                     self.executable(
