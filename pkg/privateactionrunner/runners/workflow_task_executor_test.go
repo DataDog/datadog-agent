@@ -7,7 +7,12 @@ package runners
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
@@ -28,6 +34,129 @@ import (
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
+
+type investigationAction struct {
+	err error
+}
+
+func (a investigationAction) Run(ctx context.Context, _ *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
+	if _, ok := telemetry.SpanFromContext(ctx); !ok {
+		return nil, errors.New("diagnostic: action context has no registered span")
+	}
+	return "synthetic-output", a.err
+}
+
+type investigationTransport struct{ collector *url.URL }
+
+func (tr investigationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	copy := req.Clone(req.Context())
+	copy.URL.Scheme, copy.URL.Host = tr.collector.Scheme, tr.collector.Host
+	return http.DefaultTransport.RoundTrip(copy)
+}
+
+// Diagnostic only: execute fake actions through the shared production seam,
+// then explicitly add a sender to distinguish finished spans from delivery.
+func TestInvestigationActionSpans(t *testing.T) {
+	type wireSpan struct {
+		Name     string            `json:"name"`
+		Service  string            `json:"service"`
+		Resource string            `json:"resource"`
+		TraceID  uint64            `json:"trace_id"`
+		SpanID   uint64            `json:"span_id"`
+		ParentID uint64            `json:"parent_id"`
+		Duration int64             `json:"duration"`
+		Error    int               `json:"error"`
+		Meta     map[string]string `json:"meta"`
+	}
+	var mu sync.Mutex
+	var spans []wireSpan
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var event struct {
+			Payload struct {
+				Traces [][]wireSpan `json:"traces"`
+			} `json:"payload"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, trace := range event.Payload.Traces {
+			spans = append(spans, trace...)
+		}
+	}))
+	defer collector.Close()
+	const bundleID = "com.datadoghq.diagnostic"
+	makeExecutor := func(action types.Action) *WorkflowTaskExecutor {
+		return &WorkflowTaskExecutor{
+			registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{bundleID: &fakeBundle{action: action}}},
+			config:   &config.Config{ActionsAllowlist: map[string]sets.Set[string]{bundleID: sets.New("noop")}, MetricsClient: &statsd.NoOpClient{}},
+		}
+	}
+	makePrepared := func(id string) *PreparedWorkflowTask {
+		task := newWorkflowTask(id, bundleID, "noop", "synthetic-job")
+		task.Data.Attributes.TraceId = 9007199254740993
+		task.Data.Attributes.SpanId = 18446744073709551614
+		return &PreparedWorkflowTask{Task: task}
+	}
+	_, err := makeExecutor(investigationAction{}).RunPrepared(context.Background(), makePrepared("success"))
+	require.NoError(t, err)
+	_, err = makeExecutor(investigationAction{err: errors.New("synthetic failure")}).RunPrepared(context.Background(), makePrepared("error"))
+	require.Error(t, err)
+	for _, rejection := range []string{"missing-bundle", "missing-action", "allowlist"} {
+		executor := makeExecutor(investigationAction{})
+		switch rejection {
+		case "missing-bundle":
+			delete(executor.registry.Bundles, bundleID)
+		case "missing-action":
+			executor.registry.Bundles[bundleID] = &fakeBundle{}
+		case "allowlist":
+			delete(executor.config.ActionsAllowlist, bundleID)
+		}
+		_, err := executor.RunPrepared(context.Background(), makePrepared(rejection))
+		require.Error(t, err)
+	}
+	var wg sync.WaitGroup
+	for _, id := range []string{"concurrent-1", "concurrent-2", "concurrent-3"} {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			_, err := makeExecutor(investigationAction{}).RunPrepared(context.Background(), makePrepared(id))
+			assert.NoError(t, err)
+		}(id)
+	}
+	wg.Wait()
+	mu.Lock()
+	require.Empty(t, spans, "span creation/finish alone must not send")
+	mu.Unlock()
+	collectorURL, err := url.Parse(collector.URL)
+	require.NoError(t, err)
+	sender := telemetry.NewTelemetry(&http.Client{Transport: investigationTransport{collector: collectorURL}}, "fake-api-key", "datadoghq.com", "private-action-runner")
+	sender.Stop()
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, spans, 5, "only executed actions should have finished spans")
+	ids := make(map[uint64]bool)
+	for _, span := range spans {
+		assert.Equal(t, "action.run", span.Name)
+		assert.Equal(t, "private-action-runner", span.Service)
+		assert.Equal(t, bundleID+".noop", span.Resource)
+		assert.Equal(t, uint64(9007199254740993), span.TraceID)
+		assert.Equal(t, uint64(18446744073709551614), span.ParentID)
+		assert.NotZero(t, span.SpanID)
+		assert.False(t, ids[span.SpanID])
+		ids[span.SpanID] = true
+		assert.Positive(t, span.Duration)
+		if span.Meta["task_id"] == "error" {
+			assert.Equal(t, 1, span.Error)
+		} else {
+			assert.Zero(t, span.Error)
+		}
+	}
+	t.Log("five completed action.run spans reached loopback only after explicitly starting/stopping a sender; pre-execution rejections produced none")
+}
 
 type fakeTaskVerifier struct {
 	unwrappedTask *types.Task

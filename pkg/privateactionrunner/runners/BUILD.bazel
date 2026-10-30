@@ -44,6 +44,7 @@ dd_agent_go_test(
     ],
     embed = [":runners"],
     deps = [
+        "//pkg/fleet/installer/telemetry",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/bundles",

@@ -48,10 +48,12 @@ type fakeExecutor struct {
 	runGate    chan struct{} // when non-nil, blocks RunPrepared until closed, to hold an action in-flight
 
 	gotRawTask []byte
+	gotTask    *types.Task
 }
 
 func (f *fakeExecutor) PrepareTask(_ context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error) {
 	f.gotRawTask = task.Raw
+	f.gotTask = task
 	if f.prepareErr != nil {
 		return nil, task, f.prepareErr
 	}
@@ -224,10 +226,12 @@ func TestServeRunActionStreamsOutputAndForwardsRawTask(t *testing.T) {
 
 	client := startTestServer(t, srv)
 
-	rawTask := []byte(`{"data":{"id":"task-1","attributes":{"job_id":"job-1"}}}`)
+	rawTask := []byte(`{"data":{"id":"task-1","attributes":{"job_id":"job-1","trace_id":9007199254740993,"span_id":18446744073709551614}}}`)
 	result := runAction(t, client, rawTask)
 
 	assert.Equal(t, rawTask, fake.gotRawTask)
+	assert.Equal(t, uint64(9007199254740993), fake.gotTask.Data.Attributes.TraceId)
+	assert.Equal(t, uint64(18446744073709551614), fake.gotTask.Data.Attributes.SpanId)
 
 	require.NotNil(t, result.GetOutput(), "expected a success output, got error: %v", result.GetError())
 	var got map[string]interface{}

@@ -8,17 +8,114 @@ package telemetry
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Diagnostic only: exercise the real sender in isolated short-lived processes.
+func TestInvestigationProcessExport(t *testing.T) {
+	if mode := os.Getenv("PAR_TRACE_DIAGNOSTIC_MODE"); mode != "" {
+		ctx := WithService(context.Background(), "private-action-runner")
+		s, _ := StartSpanFromUint64IDs(ctx, "action.run", 9007199254740993, 18446744073709551614)
+		s.SetResourceName("com.datadoghq.diagnostic.noop")
+		s.SetTag("task_id", "synthetic-task")
+		s.Finish(errors.New("synthetic error"))
+		require.Len(t, globalTracer.completedSpans, 1)
+		if mode == "no-sender" {
+			return
+		}
+		tel := newTelemetry(&http.Client{}, "fake-api-key", "datadoghq.com", "private-action-runner")
+		tel.telemetryClient.endpoints[0].Host = os.Getenv("PAR_TRACE_DIAGNOSTIC_COLLECTOR")
+		tel.Start()
+		switch mode {
+		case "no-stop":
+			return
+		case "stop", "http-failure":
+			tel.Stop()
+		case "periodic":
+			time.Sleep(62 * time.Second)
+			globalTracer.mu.Lock()
+			remaining := len(globalTracer.completedSpans)
+			globalTracer.mu.Unlock()
+			require.Zero(t, remaining, "periodic tick must drain before Stop")
+			tel.Stop()
+		}
+		require.Empty(t, globalTracer.completedSpans)
+		// A failed HTTP send is not requeued or retried by another flush.
+		tel.sendCompletedSpans()
+		return
+	}
+	for _, mode := range []string{"no-sender", "no-stop", "stop", "periodic", "http-failure"} {
+		t.Run(mode, func(t *testing.T) {
+			var mu sync.Mutex
+			var payloads []tracePayload
+			collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/api/v2/apmtelemetry", r.URL.Path)
+				assert.Equal(t, "fake-api-key", r.Header.Get("dd-api-key"))
+				var body struct {
+					RequestType string       `json:"request_type"`
+					Payload     tracePayload `json:"payload"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+					w.WriteHeader(400)
+					return
+				}
+				assert.Equal(t, "traces", body.RequestType)
+				mu.Lock()
+				payloads = append(payloads, body.Payload)
+				mu.Unlock()
+				if mode == "http-failure" {
+					w.WriteHeader(500)
+				}
+			}))
+			defer collector.Close()
+			binary, err := os.Executable()
+			require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, binary, "-test.run=^TestInvestigationProcessExport$", "-test.v")
+			cmd.Env = append(os.Environ(), "PAR_TRACE_DIAGNOSTIC_MODE="+mode, "PAR_TRACE_DIAGNOSTIC_COLLECTOR="+collector.URL)
+			started := time.Now()
+			output, err := cmd.CombinedOutput()
+			require.NoError(t, err, "%s", output)
+			mu.Lock()
+			defer mu.Unlock()
+			t.Logf("mode=%s elapsed=%s collector_requests=%d", mode, time.Since(started), len(payloads))
+			if mode == "no-sender" || mode == "no-stop" {
+				require.Empty(t, payloads)
+				return
+			}
+			require.Len(t, payloads, 1)
+			require.Len(t, payloads[0].Traces, 1)
+			require.Len(t, payloads[0].Traces[0], 1)
+			s := payloads[0].Traces[0][0]
+			assert.Equal(t, uint64(9007199254740993), s.TraceID)
+			assert.Equal(t, uint64(18446744073709551614), s.ParentID)
+			assert.NotZero(t, s.SpanID)
+			assert.Positive(t, s.Duration)
+			assert.Equal(t, "action.run", s.Name)
+			assert.Equal(t, "private-action-runner", s.Service)
+			assert.Equal(t, "com.datadoghq.diagnostic.noop", s.Resource)
+			assert.Equal(t, "synthetic-task", s.Meta["task_id"])
+			assert.Equal(t, int32(1), s.Error)
+			assert.Equal(t, 2.0, s.Metrics["_sampling_priority_v1"])
+		})
+	}
+}
 
 func TestFreshSpan(t *testing.T) {
 	ctx := context.Background()
