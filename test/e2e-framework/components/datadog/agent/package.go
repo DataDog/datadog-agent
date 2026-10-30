@@ -102,6 +102,11 @@ func GetPackagePath(localPath string, flavor tifos.Flavor, agentFlavor string, a
 					if !strings.Contains(entry.Name(), "x86_64") && !strings.Contains(entry.Name(), "amd64") {
 						continue
 					}
+				} else if arch == tifos.ARM64Arch {
+					// deb packages are named arm64 and rpm packages aarch64
+					if !strings.Contains(entry.Name(), "arm64") && !strings.Contains(entry.Name(), "aarch64") {
+						continue
+					}
 				} else if !strings.Contains(entry.Name(), archStr) {
 					continue
 				}
@@ -147,6 +152,8 @@ func GetPackagePath(localPath string, flavor tifos.Flavor, agentFlavor string, a
 			if flavor != tifos.WindowsServer {
 				if arch == tifos.AMD64Arch {
 					archInfo = " with architecture x86_64 or amd64"
+				} else if arch == tifos.ARM64Arch {
+					archInfo = " with architecture arm64 or aarch64"
 				} else {
 					archInfo = fmt.Sprintf(" with architecture %s", arch)
 				}

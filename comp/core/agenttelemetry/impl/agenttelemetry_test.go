@@ -13,6 +13,8 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -3294,6 +3296,11 @@ func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
 	require.NoError(t, err2)
 	require.True(t, ok)
 	assert.Equal(t, "ddnpm+0x1a3", v)
+
+	v, ok, err2 = jsonquery.RunSingleOutput(".payload.agent_bsod.agent_metadata.page_size", topPayload)
+	require.NoError(t, err2)
+	require.True(t, ok)
+	assert.Equal(t, strconv.Itoa(os.Getpagesize()), v)
 }
 
 func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
@@ -3615,4 +3622,35 @@ func TestDetectedFeatures(t *testing.T) {
 
 	env.SetFeatures(t)
 	assert.Equal(t, []string{}, detectedFeatures())
+}
+
+func TestAgentMetadataPageSize(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: foo.bar
+    `
+	tel := makeTelMock(t)
+	tel.NewCounter("foo", "bar", []string{}, "").Inc()
+
+	a := getTestAtel(t, tel, c, nil, nil, nil)
+	require.True(t, a.enabled)
+
+	payloadJSON, err := a.getAsJSON()
+	require.NoError(t, err)
+	var payload struct {
+		Payload struct {
+			Metrics struct {
+				AgentMetadata map[string]interface{} `json:"agent_metadata"`
+			} `json:"metrics"`
+		} `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal(payloadJSON, &payload))
+
+	// A JSON number, so it can be used as a measure in ddcoat
+	assert.Equal(t, float64(os.Getpagesize()), payload.Payload.Metrics.AgentMetadata["page_size"])
 }
