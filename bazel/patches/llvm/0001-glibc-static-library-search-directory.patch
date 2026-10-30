@@ -1,0 +1,51 @@
+diff --git a/runtimes/glibc/BUILD.bazel b/runtimes/glibc/BUILD.bazel
+index 32c3228..323e7c0 100644
+--- a/runtimes/glibc/BUILD.bazel
++++ b/runtimes/glibc/BUILD.bazel
+@@ -120,6 +120,19 @@ copy_to_directory(
+     visibility = ["//visibility:public"],
+ )
+ 
++# Static glibc archives (libc.a, libpthread.a, ...) matching the target glibc
++# version. The stubs above are shared objects only, so -static links need this.
++label_flag(
++    name = "glibc_static_library_search_directory",
++    build_setting_default = ":empty_static_library_search_directory",
++    visibility = ["//visibility:public"],
++)
++
++copy_to_directory(
++    name = "empty_static_library_search_directory",
++    srcs = [],
++)
++
+ alias(
+     name = "glibc_headers_include_search_directory",
+     actual = "@glibc//:glibc_headers_directory",
+diff --git a/toolchain/args/linux/BUILD.bazel b/toolchain/args/linux/BUILD.bazel
+index b3f76a5..6aef3ca 100644
+--- a/toolchain/args/linux/BUILD.bazel
++++ b/toolchain/args/linux/BUILD.bazel
+@@ -114,6 +114,10 @@ cc_args(
+         # We need to support copts like -lc -ldl etc...
+         "-L{libc_library_search_path}",
+ 
++        # Searched after the stubs, so only -static links, which skip the
++        # stubs' shared objects and linker scripts, resolve archives from it.
++        "-L{libc_static_library_search_path}",
++
+         # In prevention of when all of those can be shared libraries.
+         "-Wl,--push-state",
+         "-Wl,--as-needed",
+@@ -126,9 +130,11 @@ cc_args(
+     ],
+     data = [
+         "//runtimes/glibc:glibc_library_search_directory",
++        "//runtimes/glibc:glibc_static_library_search_directory",
+     ],
+     format = {
+         "libc_library_search_path": "//runtimes/glibc:glibc_library_search_directory",
++        "libc_static_library_search_path": "//runtimes/glibc:glibc_static_library_search_directory",
+     },
+ )
+ 

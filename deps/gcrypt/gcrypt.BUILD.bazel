@@ -349,7 +349,6 @@ cc_library(
         "random/random-drbg.c",
         "random/random-system.c",
         "random/rndegd.c",
-        "random/rndgetentropy.c",
         "random/rndhw.c",
         "random/rndoldlinux.c",
         "random/rndunix.c",
