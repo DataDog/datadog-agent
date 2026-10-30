@@ -603,11 +603,9 @@ func TestWorkloadProfileDedicatedAnomalyTags(t *testing.T) {
 
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedTags)
 
-// TestWorkloadProfileDedicatedTags checks that the tags sent with a profile shared by several image tags and containers
-// cover all of them.
+// TestWorkloadProfileDedicatedTags checks that each version context of a profile shared by several image tags and
+// containers holds the tags of its own containers, and that the tags sent with the profile cover all of them.
 func TestWorkloadProfileDedicatedTags(t *testing.T) {
-	t.Skip("Skip until the fix is implemented")
-
 	skipIfNoWorkloadProfileEnv(t)
 
 	tagger := NewFakeManualTagger()
@@ -628,13 +626,21 @@ func TestWorkloadProfileDedicatedTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// the profile format doesn't hold the tags of the profile, the live profile does and they are sent with it to the backend
 	live := m.GetProfile(*p.GetWorkloadSelector())
 	if live == nil {
 		t.Fatal("no live profile")
 	}
-	tags := live.GetTags()
-	if !assert.NotEmpty(t, tags, "the live profile should hold tags") {
+	for imageTag, instance := range map[string]*dockerCmdWrapper{"v1": v1Instance, "v2": v2Instance} {
+		versionTags, ok := live.GetVersionContextTags(imageTag)
+		if !assert.True(t, ok, "the profile should hold the %s version", imageTag) {
+			continue
+		}
+		assert.Equal(t, []string{imageTag}, tagValues(versionTags, "image_tag"), "the %s version should only hold its own image tag", imageTag)
+		assert.Equal(t, []string{instance.containerID}, tagValues(versionTags, "container_id"), "the %s version should only hold the container id of its container", imageTag)
+	}
+
+	tags := live.GetDumpTags()
+	if !assert.NotEmpty(t, tags, "the profile should be sent with tags") {
 		return
 	}
 	if imageTags := tagValues(tags, "image_tag"); len(imageTags) > 0 {
@@ -643,6 +649,62 @@ func TestWorkloadProfileDedicatedTags(t *testing.T) {
 	if containerIDs := tagValues(tags, "container_id"); len(containerIDs) > 0 {
 		assert.ElementsMatch(t, []string{v1Instance.containerID, v2Instance.containerID}, containerIDs, "the tags of a profile shared by several containers shouldn't only hold the container id of its first container")
 	}
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedEvictedVersionTags)
+
+// TestWorkloadProfileDedicatedEvictedVersionTags checks that, once the max number of image tags is reached, the tags
+// of the evicted image tag and of its container are no longer sent with the profile.
+func TestWorkloadProfileDedicatedEvictedVersionTags(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.securityProfileMaxImageTags = 2
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := getManagerV2(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execType := workloadProfileEventTypeByName(t, "exec")
+
+	// the v1 container stays idle once v2 is started: any later event of it would bring v1 back and evict v2
+	v1Instance, v2Instance, p := startTwoImageTagsWorkload(t, test, tagger, syscallTester)
+	selector := *p.GetWorkloadSelector()
+
+	dumpTags := func() []string {
+		live := m.GetProfile(selector)
+		if live == nil {
+			t.Fatal("no live profile")
+		}
+		return live.GetDumpTags()
+	}
+
+	tags := dumpTags()
+	assert.ElementsMatch(t, []string{"v1", "v2"}, tagValues(tags, "image_tag"))
+	assert.ElementsMatch(t, []string{v1Instance.containerID, v2Instance.containerID}, tagValues(tags, "container_id"))
+
+	v3Instance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, selector.Image, "v3")
+	execType.trigger(t, v3Instance, "known")
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return slices.Contains(p.GetVersions(), "v3")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	assert.ElementsMatch(t, []string{"v2", "v3"}, m.GetProfile(selector).GetVersions(), "v1 should have been evicted")
+	tags = dumpTags()
+	assert.ElementsMatch(t, []string{"v2", "v3"}, tagValues(tags, "image_tag"), "the image tag of the evicted version shouldn't be sent with the profile")
+	assert.ElementsMatch(t, []string{v2Instance.containerID, v3Instance.containerID}, tagValues(tags, "container_id"), "the container id of the evicted version shouldn't be sent with the profile")
 }
 
 // Profile lifecycle

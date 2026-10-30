@@ -253,12 +253,11 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Service:          p.Header.Service,
 		Source:           p.Header.Source,
 		Metadata:         mtdt.ToProto(&p.Metadata),
-		Tags:             make([]string, len(p.tags)),
+		Tags:             p.getDumpTags(),
 		Tree:             activity_tree.ToProto(p.ActivityTree),
 		SecurityContexts: securityContextsToProto(p.SecurityContexts),
 		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
 	}
-	copy(pad.Tags, p.tags)
 
 	return pad
 }

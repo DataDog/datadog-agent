@@ -50,6 +50,21 @@ type VersionContext struct {
 	Tags []string
 }
 
+// AddTags adds to the version context the tags it doesn't hold yet. Two values of the
+// same tag name are both kept, so that each workload running this version contributes its tags.
+func (ctx *VersionContext) AddTags(tags []string) {
+	ctx.Tags = appendMissingTags(ctx.Tags, tags)
+}
+
+func appendMissingTags(dst []string, tags []string) []string {
+	for _, tag := range tags {
+		if tag != "" && !slices.Contains(dst, tag) {
+			dst = append(dst, tag)
+		}
+	}
+	return dst
+}
+
 // EventTypeState defines an event type state
 type EventTypeState struct {
 	LastAnomalyNano uint64
@@ -504,6 +519,23 @@ func (p *Profile) GetTags() []string {
 	return tags
 }
 
+// GetDumpTags returns the tags sent with a dump of the profile: the profile tags, then the
+// tags of each version context, each distinct tag once.
+func (p *Profile) GetDumpTags() []string {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.getDumpTags()
+}
+
+func (p *Profile) getDumpTags() []string {
+	tags := slices.Clone(p.tags)
+	for _, ctx := range p.getTimeOrderedVersionContexts() {
+		tags = appendMissingTags(tags, ctx.Tags)
+	}
+	return tags
+}
+
 // Snapshot collects procfs data for all the processes in the activity tree
 func (p *Profile) Snapshot(newEvent func() *model.Event) {
 	p.Lock()
@@ -649,6 +681,18 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	return ctx, ok
 }
 
+// GetVersionContextTags returns the tags of the given version if any. They grow as new workloads are seen.
+func (p *Profile) GetVersionContextTags(imageTag string) ([]string, bool) {
+	p.Lock()
+	defer p.Unlock()
+
+	ctx, ok := p.versionContexts[imageTag]
+	if !ok {
+		return nil, false
+	}
+	return ctx.Tags, true
+}
+
 // UpdateVersionContextLastSeen refreshes an existing version's last seen timestamp.
 // It returns false if the version has already been evicted.
 func (p *Profile) UpdateVersionContextLastSeen(imageTag string, nowTimestamp uint64) bool {
@@ -720,7 +764,8 @@ func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteri
 	return globalState // AutoLearning or StableEventType
 }
 
-// PrepareNewVersion creates a version context or refreshes its last seen timestamp.
+// PrepareNewVersion creates a version context or refreshes its last seen timestamp, and
+// adds to it the tags it doesn't hold yet.
 // It evicts the least recently seen versions to enforce maxImageTags, retaining at
 // least one version and never evicting the version being observed.
 func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
@@ -732,10 +777,10 @@ func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags
 		ctx = &VersionContext{
 			EventTypeState: make(map[model.EventType]*EventTypeState),
 			FirstSeenNano:  nowTimestamp,
-			Tags:           slices.Clone(tags),
 		}
 		p.versionContexts[imageTag] = ctx
 	}
+	ctx.AddTags(tags)
 	ctx.LastSeenNano = nowTimestamp
 
 	// Also trim profiles loaded from disk with more versions than the current limit.
