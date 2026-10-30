@@ -191,6 +191,7 @@ rust_test(
         "//pkg/fleet/installer/packages/user/windows:user.go",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-data-plane.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-otel.yaml",
+        "//Dockerfiles/agent/processes.d:aio/datadog-agent-par-control.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-process.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-security.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-sysprobe.yaml",

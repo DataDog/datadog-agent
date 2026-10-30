@@ -6,6 +6,8 @@ args:
   - --ipc-cert-file
   - ${DD_IPC_CERT_FILE_PATH}
 auto_start: true
+# FIPS images omit this binary. Skip the process when it is not installed.
+condition_path_exists: /opt/datadog-agent/embedded/bin/par-control
 # par-control drains for at most 170 seconds, including terminal publication.
 stop_timeout: 180
 restart: on-failure
