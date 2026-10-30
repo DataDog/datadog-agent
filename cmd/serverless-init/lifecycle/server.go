@@ -706,27 +706,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.MicroVMID != "" {
 		log.Infof("MicroVM lifecycle: run (microvm_id=%s)", body.MicroVMID)
-		s.metadataMu.Lock()
-		s.instanceID.Store(body.MicroVMID)
-		s.heartbeat.SetMicroVMID(body.MicroVMID)
-		if s.logsTagSetter != nil {
-			s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseLogTags...), lambdaMicroVMIDPrefix+body.MicroVMID))
-		}
-		if s.traceTagSetter != nil {
-			tags := maps.Clone(s.baseTraceTags)
-			if tags == nil {
-				tags = make(map[string]string, 1)
-			}
-			tags[lambdaMicroVMIDKey] = body.MicroVMID
-			s.traceTagSetter.SetTraceTags(tags)
-		}
-		if s.metricTagSetter != nil {
-			s.metricTagSetter.SetMetricTags(append(append([]string{}, s.baseUsageMetricTags...), "instance:"+body.MicroVMID))
-		}
-		if s.metadataReporter != nil {
-			s.metadataReporter.ReportMetadata(body.MicroVMID)
-		}
-		s.metadataMu.Unlock()
+		s.applyMicroVMID(body.MicroVMID)
 	} else {
 		log.Info("MicroVM lifecycle: run")
 	}
@@ -741,6 +721,41 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	s.dispatchHook(runMetricName, pathRun, noFlush, s.enabledHooks.Run, w, r)
 }
 
+// applyMicroVMID stores the instance ID, tags all telemetry with it, and
+// reports metadata for it.
+func (s *Server) applyMicroVMID(microVMID string) {
+	s.metadataMu.Lock()
+	defer s.metadataMu.Unlock()
+	s.instanceID.Store(microVMID)
+	s.heartbeat.SetMicroVMID(microVMID)
+	if s.logsTagSetter != nil {
+		s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseLogTags...), lambdaMicroVMIDPrefix+microVMID))
+	}
+	if s.traceTagSetter != nil {
+		tags := maps.Clone(s.baseTraceTags)
+		if tags == nil {
+			tags = make(map[string]string, 1)
+		}
+		tags[lambdaMicroVMIDKey] = microVMID
+		s.traceTagSetter.SetTraceTags(tags)
+	}
+	if s.metricTagSetter != nil {
+		s.metricTagSetter.SetMetricTags(append(append([]string{}, s.baseUsageMetricTags...), "instance:"+microVMID))
+	}
+	if s.metadataReporter != nil {
+		s.metadataReporter.ReportMetadata(microVMID)
+	}
+}
+
+// reportStoredMetadata reports metadata for the stored instance ID, if any.
+func (s *Server) reportStoredMetadata() {
+	s.metadataMu.Lock()
+	defer s.metadataMu.Unlock()
+	if id := s.instanceID.Load(); id != "" && s.metadataReporter != nil {
+		s.metadataReporter.ReportMetadata(id)
+	}
+}
+
 // handleResume emits the resume metric, restarts the heartbeat (stopped at
 // /suspend), reports metadata for the stored instance ID, and (when a
 // forwarder is configured and enabled) mirrors the user app's response.
@@ -748,11 +763,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
 	// Resume reports the stored ID; only /run changes it.
-	s.metadataMu.Lock()
-	if id := s.instanceID.Load(); id != "" && s.metadataReporter != nil {
-		s.metadataReporter.ReportMetadata(id)
-	}
-	s.metadataMu.Unlock()
+	s.reportStoredMetadata()
 	s.dispatchHook(resumeMetricName, pathResume, noFlush, s.enabledHooks.Resume, w, r)
 }
 
