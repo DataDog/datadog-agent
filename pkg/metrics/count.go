@@ -37,3 +37,7 @@ func (c *Count) flush(timestamp float64) ([]*Serie, error) {
 func (c *Count) isStateful() bool {
 	return false
 }
+
+func (c *Count) metricType() MetricType {
+	return CountType
+}

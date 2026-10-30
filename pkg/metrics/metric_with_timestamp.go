@@ -39,3 +39,10 @@ func (mt *MetricWithTimestamp) flush(_ float64) ([]*Serie, error) {
 func (mt *MetricWithTimestamp) isStateful() bool {
 	return false
 }
+
+func (mt *MetricWithTimestamp) metricType() MetricType {
+	if mt.apiType == APIGaugeType {
+		return GaugeWithTimestampType
+	}
+	return CountWithTimestampType
+}

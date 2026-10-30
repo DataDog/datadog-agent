@@ -62,6 +62,7 @@ type Metric interface {
 	// isStateful() indicates that metric preserves information between flushes, which is
 	// required for correct operation (e.g. monotonic count keeps previous value).
 	isStateful() bool
+	metricType() MetricType
 }
 
 // NoSerieError is the error returned by a metric when not enough samples have been

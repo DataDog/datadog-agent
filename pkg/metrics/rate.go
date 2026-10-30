@@ -53,3 +53,7 @@ func (r *Rate) flush(_ float64) ([]*Serie, error) {
 func (r *Rate) isStateful() bool {
 	return true
 }
+
+func (r *Rate) metricType() MetricType {
+	return RateType
+}
