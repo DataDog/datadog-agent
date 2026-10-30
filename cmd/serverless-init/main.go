@@ -625,7 +625,7 @@ func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 			unifiedServiceTags[key] = value
 		}
 	}
-	enhancedUsageMetricTags := serverlessTag.MergeWithOverwrite(unifiedServiceTags, enhancedMetricTagSets.Usage)
+	enhancedUsageMetricTags := serverlessTag.MergeWithOverwrite(baseTags, enhancedMetricTagSets.Usage)
 
 	serverlessInitTag.SetVersionMode(enhancedUsageMetricTags, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedUsageMetricTags, modeConf.SidecarMode)
