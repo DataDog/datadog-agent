@@ -9,7 +9,6 @@ package autodiscoveryimpl
 
 import (
 	"encoding/json"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // stubDiscoverer is a discoverer.ConfigDiscoverer used by configmgr tests.
@@ -135,12 +133,9 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 				Hosts:         map[string]string{"main": "10.0.0.1"},
 			}
 
-			// processNewConfig + processNewService should NOT schedule synchronously
-			// — the template goes through the discovery path instead.
-			_, _ = cm.processNewConfig(tpl)
-			changes := cm.processNewService(svc)
-			assertConfigsMatch(t, changes.Schedule)
-			assertConfigsMatch(t, changes.Unschedule)
+			// Resolve the template through the discovery worker.
+			cm.processNewConfig(tpl)
+			cm.processNewService(svc)
 
 			// Wait for the worker to publish the resolved config.
 			discovered := published.wait(t)
@@ -220,10 +215,8 @@ func TestConfigMgr_DiscoveryTemplate_TagsAllInstances(t *testing.T) {
 		Tags:          []string{"service:tag"},
 	}
 
-	_, _ = cm.processNewConfig(tpl)
-	changes := cm.processNewService(svc)
-	assertConfigsMatch(t, changes.Schedule)
-	assertConfigsMatch(t, changes.Unschedule)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	discovered := published.wait(t)
 	require.Len(t, discovered.Schedule, 1)
@@ -267,8 +260,8 @@ func TestConfigMgr_DiscoveryTemplate_TagPersistsAcrossRediscovery(t *testing.T) 
 	// applyDiscoveredConfigsLocked directly (as the worker's callback would),
 	// so no discoverer or running goroutine is needed.
 	cm := newReconcilingConfigManager(&mockResolver, nil, nil, nil, nil, noopConfigPublisher).(*reconcilingConfigManager)
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	tplDigest := tpl.Digest()
 	firstConfigs := []integration.Config{{
@@ -319,8 +312,8 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 		Hosts:         map[string]string{"main": "10.0.0.1"},
 	}
 
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	// Wait until the worker has actually run at least one probe.
 	require.Eventually(t, func() bool { return disco.called.Load() >= 1 }, time.Second, 5*time.Millisecond)
@@ -328,7 +321,7 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 	// Delete the service and confirm that probes stop. We can't tell with
 	// certainty when an in-flight retry has settled, so we observe the
 	// current call count, wait, and assert it didn't grow.
-	_ = cm.processDelService(svc)
+	cm.processDelService(svc)
 	settled := disco.called.Load()
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, settled, disco.called.Load(),
@@ -397,8 +390,8 @@ func newMidFlightDiscoverySuppressionHarness(t *testing.T, staticConfigIndex *li
 	}
 	svc.filterTemplates = filterTemplates
 
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	select {
 	case <-probeStarted:
@@ -487,7 +480,8 @@ func TestConfigMgr_Discovery_StaleProbeResultSuppressedByMidFlightConflict(t *te
 			ADIdentifiers: []string{"krakend"},
 			Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.1:9091/metrics")},
 		}
-		changes, _ := h.cm.processNewConfig(sibling)
+		h.cm.processNewConfig(sibling)
+		changes := h.published.wait(t)
 		assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
 
 		h.releaseAndAssertSuppressed(t)
@@ -517,7 +511,8 @@ func TestConfigMgr_Discovery_StaleProbeResultSuppressedByMidFlightConflict(t *te
 			Name:      "openmetrics",
 			Instances: []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.2:9091/metrics")},
 		}
-		changes, _ := h.cm.processNewConfig(staticOpenmetrics)
+		h.cm.processNewConfig(staticOpenmetrics)
+		changes := h.published.wait(t)
 		assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
 		assert.True(t, idx.Has("openmetrics"))
 
@@ -540,38 +535,6 @@ func makeDiscoveryCM(t *testing.T, payload string) (*reconcilingConfigManager, *
 	return cm, disco, published
 }
 
-// configChangeRecorder observes received change publications.
-type configChangeRecorder struct {
-	mu      sync.Mutex
-	changes []integration.ConfigChanges
-}
-
-func (r *configChangeRecorder) record(changes integration.ConfigChanges, _ map[checkid.ID]checkid.ID) {
-	if len(changes.Schedule)+len(changes.Unschedule) == 0 {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.changes = append(r.changes, changes)
-}
-
-func (r *configChangeRecorder) snapshot() []integration.ConfigChanges {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return slices.Clone(r.changes)
-}
-
-func (r *configChangeRecorder) wait(t *testing.T) integration.ConfigChanges {
-	t.Helper()
-	require.Eventually(t, func() bool { return len(r.snapshot()) > 0 }, 2*time.Second, time.Millisecond,
-		"timed out waiting for published changes")
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	changes := r.changes[0]
-	r.changes = r.changes[1:]
-	return changes
-}
-
 // TestConfigMgr_Lifecycle_ServiceArrivesBeforeTemplate is the symmetric flow
 // to the happy-path test: when the service is registered first and the
 // Discovery template arrives later, the probe still fires once both are
@@ -591,18 +554,13 @@ func TestConfigMgr_Lifecycle_ServiceArrivesBeforeTemplate(t *testing.T) {
 	}
 
 	// Service first.
-	changes := cm.processNewService(svc)
-	assertConfigsMatch(t, changes.Schedule)
-	assertConfigsMatch(t, changes.Unschedule)
+	cm.processNewService(svc)
 	// No probes have been queued because there's no Discovery template yet.
 	time.Sleep(20 * time.Millisecond)
 	assert.Zero(t, disco.called.Load())
 
-	// Template arrives — synchronous returned changes stay empty (deferred),
-	// but the worker now has work to do.
-	changes, _ = cm.processNewConfig(tpl)
-	assertConfigsMatch(t, changes.Schedule)
-	assertConfigsMatch(t, changes.Unschedule)
+	// The template arrives and gives the discovery worker work to do.
+	cm.processNewConfig(tpl)
 
 	got := published.wait(t)
 	assertConfigsMatch(t, got.Schedule, matchName("krakend"))
@@ -627,8 +585,8 @@ func TestConfigMgr_Lifecycle_ServiceRemovedAfterDiscovery(t *testing.T) {
 		ADIdentifiers: []string{"krakend"},
 		Discovery:     &integration.DiscoveryConfig{},
 	}
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	// First arrival: scheduled by the worker.
 	got := published.wait(t)
@@ -637,7 +595,8 @@ func TestConfigMgr_Lifecycle_ServiceRemovedAfterDiscovery(t *testing.T) {
 
 	// Service deletion should unschedule the resolved config that the
 	// worker had previously scheduled.
-	changes := cm.processDelService(svc)
+	cm.processDelService(svc)
+	changes := published.wait(t)
 	assertConfigsMatch(t, changes.Schedule)
 	assertConfigsMatch(t, changes.Unschedule, matchDigest(scheduledDigest))
 }
@@ -658,15 +617,16 @@ func TestConfigMgr_Lifecycle_TemplateRemovedAfterDiscovery(t *testing.T) {
 		ADIdentifiers: []string{"krakend"},
 		Discovery:     &integration.DiscoveryConfig{},
 	}
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	got := published.wait(t)
 	require.Len(t, got.Schedule, 1)
 	scheduledDigest := got.Schedule[0].Digest()
 
 	// Removing the template must unschedule the resolved config.
-	changes := cm.processDelConfigs([]integration.Config{tpl})
+	cm.processDelConfigs([]integration.Config{tpl})
+	changes := published.wait(t)
 	assertConfigsMatch(t, changes.Schedule)
 	assertConfigsMatch(t, changes.Unschedule, matchDigest(scheduledDigest))
 }
@@ -700,8 +660,8 @@ func TestConfigMgr_Lifecycle_EmptyDiscoveryResult(t *testing.T) {
 		ADIdentifiers: []string{"krakend"},
 		Hosts:         map[string]string{"main": "10.0.0.1"},
 	}
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	// Wait long enough for all retry attempts to be exhausted.
 	require.Eventually(t, func() bool { return disco.called.Load() >= int32(fastWorkerMaxAttempts) },
@@ -731,8 +691,8 @@ func TestConfigMgr_Lifecycle_MultipleInstances(t *testing.T) {
 		ADIdentifiers: []string{"krakend"},
 		Hosts:         map[string]string{"main": "10.0.0.1"},
 	}
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	got := published.wait(t)
 	require.Len(t, got.Schedule, 1, "exactly one Config should be scheduled even with multiple instances")
@@ -770,8 +730,8 @@ func TestConfigMgr_Lifecycle_HostPortsPassedToDiscoverer(t *testing.T) {
 			{Name: "metrics", Port: 9090},
 		},
 	}
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	_ = published.wait(t)
 
@@ -819,8 +779,8 @@ func TestConfigMgr_Lifecycle_HostMultiNetworkBridge(t *testing.T) {
 		ADIdentifiers: []string{"krakend"},
 		Hosts:         map[string]string{"custom": "1.2.3.4", "bridge": "10.0.0.1"},
 	}
-	_, _ = cm.processNewConfig(tpl)
-	_ = cm.processNewService(svc)
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
 
 	_ = published.wait(t)
 

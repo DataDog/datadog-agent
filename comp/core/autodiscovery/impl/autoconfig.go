@@ -579,8 +579,8 @@ func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error 
 }
 
 // processNewConfig store (in template cache) and resolves a given config,
-// publishing changes before returning them for inspection.
-func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
+// publishing the resulting scheduling changes.
+func (ac *AutoConfig) processNewConfig(config integration.Config) {
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics := ac.store.getJMXMetricsForConfigName(config.Name)
@@ -595,11 +595,10 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 	if err != nil {
 		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
 		errorStats.setConfigError(config.Name, err.Error())
-		return integration.ConfigChanges{}
+		return
 	}
 
-	changes, _ := ac.cfgMgr.processNewConfig(config)
-	return changes
+	ac.cfgMgr.processNewConfig(config)
 }
 
 // AddListeners tries to initialise the listeners listed in the given configs. A first
@@ -785,19 +784,16 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 
 // processRefreshConfig takes a secret origin and matches it against an active config. If found
 // it will refresh the config to apply the new secret.
-func (ac *AutoConfig) processRefreshConfig(origin string) integration.ConfigChanges {
-	var changes integration.ConfigChanges
-
+func (ac *AutoConfig) processRefreshConfig(origin string) {
 	rawConfig, found := ac.cfgMgr.getActiveConfigs()[origin]
 	if !found {
 		ac.logs.Debugf("no active config found for secret origin %s", origin)
-		return changes
+		return
 	}
 
 	ac.logs.Infof("Found config '%v' using refreshed secret. Refreshing config.", rawConfig.Name)
 	ac.processRemovedConfigs([]integration.Config{rawConfig})
-	changes = ac.processNewConfig(rawConfig)
-	return changes
+	ac.processNewConfig(rawConfig)
 }
 
 // GetAutodiscoveryErrors fetches AD errors from each ConfigProvider.  The

@@ -374,6 +374,18 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
+// recordAutoConfigChanges observes publications while retaining real scheduling.
+func recordAutoConfigChanges(ac *AutoConfig) *configChangeRecorder {
+	recorded := &configChangeRecorder{}
+	cm := ac.cfgMgr.(*reconcilingConfigManager)
+	publish := cm.publish
+	cm.publish = func(changes integration.ConfigChanges, ids map[checkid.ID]checkid.ID) {
+		recorded.record(changes, ids)
+		publish(changes, ids)
+	}
+	return recorded
+}
+
 func getResolveTestConfig(t *testing.T) (*MockScheduler, *AutoConfig) {
 	deps := createDeps(t)
 
@@ -500,7 +512,9 @@ func TestResolveTemplate(t *testing.T) {
 			Name:        "container-check-1",
 			CELSelector: workloadfilter.Rules{Containers: []string{`container.name.matches("container-name") && container.image.reference.matches("container-image")`}},
 		}
-		changes := ac.processNewConfig(tpl)
+		published := recordAutoConfigChanges(ac)
+		ac.processNewConfig(tpl)
+		changes := published.last()
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Pod name and namespace matching
@@ -622,7 +636,9 @@ func TestRemoveTemplate(t *testing.T) {
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
-	changes := ac.processNewConfig(tpl)
+	published := recordAutoConfigChanges(ac)
+	ac.processNewConfig(tpl)
+	changes := published.last()
 	assert.Len(t, changes.Schedule, 1)
 	assert.Equal(t, countLoadedConfigs(ac), 2)
 
@@ -662,7 +678,11 @@ func TestDecryptConfig(t *testing.T) {
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 	ac.processNewService(&dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
-	changes := ac.processNewConfig(tpl)
+	published := recordAutoConfigChanges(ac)
+
+	ac.processNewConfig(tpl)
+
+	changes := published.last()
 
 	require.Len(t, changes.Schedule, 1)
 
@@ -826,7 +846,9 @@ func TestSecretRefreshesAreCoalescedByOrigin(t *testing.T) {
 	}}
 
 	ac := createNewAutoConfig(schedulerController, resolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp, hpnoopimpl.NewNoopComponent(), nil)
-	changes := ac.processNewConfig(config)
+	published := recordAutoConfigChanges(ac)
+	ac.processNewConfig(config)
+	changes := published.last()
 	require.Len(t, changes.Schedule, 1)
 
 	resolver.scenarios[1].returnedData = []byte("foo: recovered")
@@ -869,7 +891,9 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 		},
 	}}
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
-	changes := ac.processNewConfig(tpl)
+	published := recordAutoConfigChanges(ac)
+	ac.processNewConfig(tpl)
+	changes := published.last()
 
 	require.Len(t, changes.Schedule, 1)
 
@@ -904,7 +928,9 @@ func TestWriteConfigEndpoint(t *testing.T) {
 		MetricConfig: integration.Data{},
 		LogsConfig:   integration.Data{},
 	}
-	changes := ac.processNewConfig(tpl)
+	published := recordAutoConfigChanges(ac)
+	ac.processNewConfig(tpl)
+	changes := published.last()
 
 	require.Len(t, changes.Schedule, 1)
 

@@ -54,35 +54,35 @@ func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceTran
 		{name: "annotation arrives first", first: annotationV1, last: crV1},
 	} {
 		suite.Run(tc.name, func() {
-			cm := suite.factory()
-			changes := cm.processNewService(newService())
-			require.True(suite.T(), changes.IsEmpty())
+			cm := suite.factory(suite.captureChanges)
+			cm.processNewService(newService())
+			require.True(suite.T(), suite.changes.IsEmpty())
 
-			changes, _ = cm.processNewConfig(tc.first)
-			assert.Len(suite.T(), changes.Schedule, 1)
-			assert.Empty(suite.T(), changes.Unschedule)
+			cm.processNewConfig(tc.first)
+			assert.Len(suite.T(), suite.changes.Schedule, 1)
+			assert.Empty(suite.T(), suite.changes.Unschedule)
 
-			changes, _ = cm.processNewConfig(tc.last)
+			cm.processNewConfig(tc.last)
 			if tc.last.Provider == names.KubeEndpointSlices {
-				assertConfigsMatch(suite.T(), changes.Schedule, matchProvider(names.KubeEndpointSlices))
-				assertConfigsMatch(suite.T(), changes.Unschedule, matchProvider(names.KubeEndpointSlicesCR))
+				assertConfigsMatch(suite.T(), suite.changes.Schedule, matchProvider(names.KubeEndpointSlices))
+				assertConfigsMatch(suite.T(), suite.changes.Unschedule, matchProvider(names.KubeEndpointSlicesCR))
 			} else {
-				require.True(suite.T(), changes.IsEmpty())
+				require.True(suite.T(), suite.changes.IsEmpty())
 			}
 			assertLoadedConfigsMatch(suite.T(), cm, matchProvider(names.KubeEndpointSlices))
 
 			// Removing the overridden CR must leave the annotation running.
-			changes = cm.processDelConfigs([]integration.Config{crV1})
-			require.True(suite.T(), changes.IsEmpty())
+			cm.processDelConfigs([]integration.Config{crV1})
+			require.True(suite.T(), suite.changes.IsEmpty())
 			assertLoadedConfigsMatch(suite.T(), cm, matchProvider(names.KubeEndpointSlices))
 
 			// Restoring the CR while the annotation exists has no scheduling effect;
 			// removing the annotation then hands scheduling back to the CR.
-			changes, _ = cm.processNewConfig(crV1)
-			require.True(suite.T(), changes.IsEmpty())
-			changes = cm.processDelConfigs([]integration.Config{annotationV1})
-			assertConfigsMatch(suite.T(), changes.Schedule, matchProvider(names.KubeEndpointSlicesCR))
-			assertConfigsMatch(suite.T(), changes.Unschedule, matchProvider(names.KubeEndpointSlices))
+			cm.processNewConfig(crV1)
+			require.True(suite.T(), suite.changes.IsEmpty())
+			cm.processDelConfigs([]integration.Config{annotationV1})
+			assertConfigsMatch(suite.T(), suite.changes.Schedule, matchProvider(names.KubeEndpointSlicesCR))
+			assertConfigsMatch(suite.T(), suite.changes.Unschedule, matchProvider(names.KubeEndpointSlices))
 			assertLoadedConfigsMatch(suite.T(), cm, matchProvider(names.KubeEndpointSlicesCR))
 		})
 	}
@@ -96,31 +96,31 @@ func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceUpda
 	annotationV1 := newTemplate(names.KubeEndpointSlices, "kube_endpoints:default/myservice", "annotation-v1")
 	crV1 := newTemplate(names.KubeEndpointSlicesCR, "datadoginstrumentation:default/cr1", "cr-v1")
 
-	cm := suite.factory()
-	changes := cm.processNewService(service)
-	require.True(suite.T(), changes.IsEmpty())
-	_, _ = cm.processNewConfig(crV1)
-	_, _ = cm.processNewConfig(annotationV1)
+	cm := suite.factory(suite.captureChanges)
+	cm.processNewService(service)
+	require.True(suite.T(), suite.changes.IsEmpty())
+	cm.processNewConfig(crV1)
+	cm.processNewConfig(annotationV1)
 
 	crV2 := newTemplate(names.KubeEndpointSlicesCR, "datadoginstrumentation:default/cr1", "cr-v2")
-	changes = cm.processDelConfigs([]integration.Config{crV1})
-	require.True(suite.T(), changes.IsEmpty())
-	changes, _ = cm.processNewConfig(crV2)
-	require.True(suite.T(), changes.IsEmpty())
+	cm.processDelConfigs([]integration.Config{crV1})
+	require.True(suite.T(), suite.changes.IsEmpty())
+	cm.processNewConfig(crV2)
+	require.True(suite.T(), suite.changes.IsEmpty())
 	assertLoadedConfigsMatch(suite.T(), cm, matchProvider(names.KubeEndpointSlices))
 
 	annotationV2 := newTemplate(names.KubeEndpointSlices, "kube_endpoints:default/myservice", "annotation-v2")
-	changes = cm.processDelConfigs([]integration.Config{annotationV1})
-	assertConfigsMatch(suite.T(), changes.Schedule, matchProvider(names.KubeEndpointSlicesCR))
-	assertConfigsMatch(suite.T(), changes.Unschedule, matchProvider(names.KubeEndpointSlices))
-	require.Contains(suite.T(), string(changes.Schedule[0].Instances[0]), "version: cr-v2")
-	changes, _ = cm.processNewConfig(annotationV2)
-	assertConfigsMatch(suite.T(), changes.Schedule, matchProvider(names.KubeEndpointSlices))
-	assertConfigsMatch(suite.T(), changes.Unschedule, matchProvider(names.KubeEndpointSlicesCR))
-	require.Contains(suite.T(), string(changes.Schedule[0].Instances[0]), "version: annotation-v2")
+	cm.processDelConfigs([]integration.Config{annotationV1})
+	assertConfigsMatch(suite.T(), suite.changes.Schedule, matchProvider(names.KubeEndpointSlicesCR))
+	assertConfigsMatch(suite.T(), suite.changes.Unschedule, matchProvider(names.KubeEndpointSlices))
+	require.Contains(suite.T(), string(suite.changes.Schedule[0].Instances[0]), "version: cr-v2")
+	cm.processNewConfig(annotationV2)
+	assertConfigsMatch(suite.T(), suite.changes.Schedule, matchProvider(names.KubeEndpointSlices))
+	assertConfigsMatch(suite.T(), suite.changes.Unschedule, matchProvider(names.KubeEndpointSlicesCR))
+	require.Contains(suite.T(), string(suite.changes.Schedule[0].Instances[0]), "version: annotation-v2")
 	assertLoadedConfigsMatch(suite.T(), cm, matchProvider(names.KubeEndpointSlices))
 
-	changes = cm.processDelConfigs([]integration.Config{crV2})
-	require.True(suite.T(), changes.IsEmpty())
+	cm.processDelConfigs([]integration.Config{crV2})
+	require.True(suite.T(), suite.changes.IsEmpty())
 	assertLoadedConfigsMatch(suite.T(), cm, matchProvider(names.KubeEndpointSlices))
 }
