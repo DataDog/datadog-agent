@@ -388,9 +388,9 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
 	ia.data["feature_discovery_service_map_enabled"] = sysProbeConf.GetBool("discovery.service_map.enabled")
 
-	// GPU monitoring / system-probe
-
-	ia.data["feature_gpu_monitoring_enabled"] = sysProbeConf.GetBool("gpu_monitoring.enabled")
+	// GPU monitoring is on when the core check (datadog.yaml gpu.enabled) or the
+	// system-probe module (system-probe.yaml gpu_monitoring.enabled) is enabled.
+	ia.data["feature_gpu_monitoring_enabled"] = ia.conf.GetBool("gpu.enabled") || sysProbeConf.GetBool("gpu_monitoring.enabled")
 
 	// miscellaneous / system-probe
 

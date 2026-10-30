@@ -995,6 +995,18 @@ gpu_monitoring:
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 }
 
+func TestFeatureGPUMonitoringEnabledFromCoreConfig(t *testing.T) {
+	original := fetchSystemProbeConfig
+	t.Cleanup(func() { fetchSystemProbeConfig = original })
+	fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+		return "gpu_monitoring:\n  enabled: false\n", nil
+	}
+
+	ia := getTestInventoryPayload(t, map[string]any{"gpu.enabled": true}, nil)
+	ia.fetchSystemProbeMetadata()
+	assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
+}
+
 func TestFetchFleet(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"config_id": "my-config",
