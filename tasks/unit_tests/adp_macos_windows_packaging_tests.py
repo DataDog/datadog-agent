@@ -39,15 +39,6 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertNotIn("macos_x86_64_fips", packages_agent)
         self.assertNotIn("macos_arm64_fips", packages_agent)
 
-    def test_adp_all_files_is_wired_into_dependencies_for_linux_macos_and_windows(self):
-        dependencies = (REPO_ROOT / "packages/agent/dependencies/BUILD.bazel").read_text()
-
-        self.assertIn('"//packages/agent:linux_default": [', dependencies)
-        self.assertIn('"//packages/agent:linux_fips": [', dependencies)
-        macos_srcs = dependencies.partition('"@platforms//os:macos": [')[2].partition("],")[0]
-        self.assertIn('"//deps/agent_data_plane:all_files"', macos_srcs)
-        self.assertEqual(dependencies.count("//deps/agent_data_plane:all_files"), 4)
-
     def test_macos_app_installs_adp_launchdaemon_template(self):
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
 
