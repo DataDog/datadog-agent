@@ -21,9 +21,9 @@ state; they do not cause core to launch or stop a monolithic runner.
   and extra PAR config files are not supported. Live credential/endpoint changes need
   a coordinated restart.
 - The standard supervisor socket is `/var/run/datadog-procmgrd/dd-procmgrd.sock`.
-  `DD_PM_SOCKET_PATH` may override it with an absolute path. If overridden, configure
-  the same socket for core, supervisor and children; the supervisor environment is
-  not automatically inherited by children.
+  `DD_PM_SOCKET_PATH` may override it with an absolute path. Same-user children
+  receive it from the supervisor. Core needs it set when core is not one of
+  those children.
 - Identity location uses the existing enrollment resolver: explicit
   `private_action_runner.identity_file_path`, otherwise next to `auth_token_file_path`
   when configured, otherwise next to `datadog.yaml`. The resolved path must be absolute.
