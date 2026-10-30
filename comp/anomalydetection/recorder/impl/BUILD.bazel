@@ -43,7 +43,6 @@ dd_agent_go_test(
         "//comp/anomalydetection/recorder/def",
         "//comp/core/config",
         "//comp/core/workloadfilter/def",
-        "//comp/core/workloadfilter/util/workloadmeta",
         "//comp/core/workloadmeta/def",
         "//comp/def",
         "//pkg/metrics",
