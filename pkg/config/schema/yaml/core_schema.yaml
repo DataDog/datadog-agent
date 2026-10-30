@@ -8193,6 +8193,13 @@ properties:
     node_type: section
     type: object
     properties:
+      reporter_interval:
+        node_type: setting
+        type: string
+        default: 60s
+        format: duration
+        description: |-
+          Interval between profile reports. Must be at least 60 seconds.
       additional_http_headers:
         node_type: setting
         type: object
@@ -8213,6 +8220,13 @@ properties:
         default: false
         description: |
           Includes unwind error frames in profiles for troubleshooting.
+      filter_min_process_age:
+        node_type: setting
+        type: string
+        default: 0s
+        format: duration
+        description: |
+          Skips profiling processes younger than this duration, to filter out short-lived processes. 0 disables the filter.
       ddprofiling:
         node_type: section
         type: object
@@ -8233,10 +8247,20 @@ properties:
         node_type: section
         type: object
         properties:
-          verbosity:
+          exporter:
+            node_type: section
+            type: object
+            properties:
+              verbosity:
+                node_type: setting
+                type: string
+                default: ''
+          ebpf_logs:
             node_type: setting
-            type: string
-            default: ''
+            type: boolean
+            default: false
+            description: |-
+              Enables verbose eBPF profiler logging for troubleshooting.
       health_metrics:
         node_type: section
         type: object
@@ -8265,6 +8289,18 @@ properties:
         node_type: section
         type: object
         properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            description: |-
+              Uploads debug symbols to Datadog for native and Go symbolization.
+              Disabling uploads can leave profiles with unresolved frames.
+          options:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
           report:
             node_type: section
             type: object
