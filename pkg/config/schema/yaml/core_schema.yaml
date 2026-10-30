@@ -9078,12 +9078,16 @@ properties:
     node_type: setting
     type: array
     default: []
+    renamed_from:
+      statsd_metric_blocklist: "7.86.0"
     items:
       type: string
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
     default: false
+    renamed_from:
+      statsd_metric_blocklist_match_prefix: "7.86.0"
   metric_filterlist_prefix:
     node_type: setting
     type: array
@@ -9970,16 +9974,6 @@ properties:
         node_type: setting
         type: integer
         default: 60
-  statsd_metric_blocklist:
-    node_type: setting
-    type: array
-    default: []
-    items:
-      type: string
-  statsd_metric_blocklist_match_prefix:
-    node_type: setting
-    type: boolean
-    default: false
   statsd_metric_namespace_blacklist:
     node_type: setting
     type: array
