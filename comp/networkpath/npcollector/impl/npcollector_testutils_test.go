@@ -33,6 +33,7 @@ import (
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
@@ -53,7 +54,10 @@ var MockTimeNow = func() time.Time {
 var testOptions = fx.Options(
 	fxutil.FxAgentBase(),
 	Module(),
-	forwardermock.MockModule(),
+	fx.Provide(func(t testing.TB) (forwarder.Component, forwardermock.MockComponent) {
+		mock := forwardermock.New(t)
+		return mock, mock
+	}),
 	demultiplexerimpl.MockModule(),
 	defaultforwardermock.MockModule(),
 	eventplatformmock.MockModule(),
