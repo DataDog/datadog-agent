@@ -410,6 +410,7 @@ func TestFoldspaceDualShipKeepsHTTPSender(t *testing.T) {
 		&sender.NoopSink{},
 		&diagnostic.BufferedMessageReceiver{},
 		nil,
+		nil,
 		endpoints,
 		&client.DestinationsContext{},
 		statusinterface.NewStatusProviderMock(),
