@@ -207,7 +207,8 @@ func (s *FakeStream) Recv(ctx context.Context) (uint32, int32, error) {
 // Close is a no-op.
 func (s *FakeStream) Close() error { return nil }
 
-// recordFromMessage maps a processed message onto a foldspace Record.
+// recordFromMessage maps a processed message onto a foldspace Record. Both tag
+// lists pass through the source's tag filter, as they do in the intake encoders.
 func recordFromMessage(msg *message.Message) Record {
 	r := Record{
 		Body:            append([]byte(nil), msg.GetContent()...),
@@ -219,10 +220,17 @@ func recordFromMessage(msg *message.Message) Record {
 	if msg.Origin != nil {
 		r.Service = msg.Origin.Service()
 		r.Source = msg.Origin.Source()
-		r.Tags = append([]string(nil), msg.Origin.Tags()...)
+		r.Tags = append([]string(nil), msg.Origin.TransportTags()...)
 	}
-	if len(msg.ParsingExtra.Tags) > 0 {
-		r.ProcessingTags = append([]string(nil), msg.ParsingExtra.Tags...)
+	if processing := msg.ParsingExtra.Tags; len(processing) > 0 {
+		if msg.Origin != nil && msg.Origin.LogSource != nil {
+			if f, _ := msg.Origin.LogSource.TagFilter(); f != nil {
+				processing = f.Keep(processing)
+			}
+		}
+		if len(processing) > 0 {
+			r.ProcessingTags = append([]string(nil), processing...)
+		}
 	}
 	return r
 }
