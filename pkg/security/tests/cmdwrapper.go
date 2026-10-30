@@ -141,6 +141,8 @@ func (d *dockerCmdWrapper) stop() ([]byte, error) {
 
 func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	t.Run(name, func(t *testing.T) {
+		checkDockerWrapperCompatibility(t)
+
 		// force stop in case of previous failure
 		_, _ = d.stop()
 

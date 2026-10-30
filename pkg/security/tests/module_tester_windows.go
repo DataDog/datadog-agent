@@ -278,3 +278,5 @@ func (tm *testModule) WaitForETWReady(timeout time.Duration) bool {
 
 func (tm *testModule) writePlatformSpecificTimeoutError(b *strings.Builder) {
 }
+
+func checkDockerWrapperCompatibility(_ testing.TB) {}

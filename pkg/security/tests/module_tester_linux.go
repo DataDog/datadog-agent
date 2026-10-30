@@ -1237,6 +1237,14 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
+// checkDockerWrapperCompatibility skips tests running commands in a docker wrapper on kernels where they are known to fail
+func checkDockerWrapperCompatibility(tb testing.TB) {
+	tb.Helper()
+	checkKernelCompatibility(tb, "docker wrapper events resolve doubled paths on OpenSUSE 15.3 (CWS-7191)", func(kv *kernel.Version) bool {
+		return kv.IsOpenSUSELeap15_3Kernel()
+	})
+}
+
 type dockerInfo struct {
 	once sync.Once
 	err  error
