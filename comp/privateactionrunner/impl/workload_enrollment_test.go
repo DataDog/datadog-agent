@@ -9,7 +9,6 @@ package privateactionrunnerimpl
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -99,6 +98,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 	require.NotNil(t, saved)
 	require.Equal(t, enrolled.Urn, saved.URN)
 	require.Empty(t, saved.APIKeyHash)
+	require.True(t, saved.WIFEnrolled)
 	require.Equal(t, "ENC[unused-intake-key]", cfg.GetString("api_key"))
 
 	// A new component/config simulates restart: reuse the file, not runtime config writes.
@@ -178,31 +178,4 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 			require.True(t, os.IsNotExist(err))
 		})
 	}
-}
-
-func TestWIFOptInDoesNotReplaceExistingAPIKeyRunner(t *testing.T) {
-	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
-	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		"api_key": "original-key", par.WIFEnrollment: true, par.SelfEnroll: true,
-		par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
-	})
-	key, _, err := util.GenerateKeys()
-	require.NoError(t, err)
-	// Seed the identity using the same storage used by API-key enrollment.
-	identity := &enrollment.Result{URN: util.MakeRunnerURN("us1", 42, "existing-runner"), Hostname: "test-host", APIKeyHash: enrollment.HashAPIKey("original-key")}
-	identity.PrivateKey = key.Key.(*ecdsa.PrivateKey)
-	require.NoError(t, enrollment.PersistIdentity(context.Background(), cfg, identity))
-	before, err := os.ReadFile(enrollment.GetIdentityFilePath(cfg))
-	require.NoError(t, err)
-	hostname, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
-	reused, err := runner.getRunnerConfig(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, identity.URN, reused.Urn)
-	cfg.SetInTest("api_key", "rotated-key")
-	_, err = runner.getRunnerConfig(context.Background())
-	require.ErrorContains(t, err, "cannot replace an existing runner")
-	after, err := os.ReadFile(enrollment.GetIdentityFilePath(cfg))
-	require.NoError(t, err)
-	require.Equal(t, before, after)
 }

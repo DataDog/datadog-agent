@@ -237,9 +237,20 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
+	if p.coreConfig.GetBool(par.WIFEnrollment) && p.coreConfig.GetBool(par.SelfEnroll) && persistedIdentity != nil && !persistedIdentity.WIFEnrolled {
+		result, err := enrollment.MigrateToWIF(ctx, p.coreConfig, p.delegatedAuth, agentIdentifier, persistedIdentity)
+		if err != nil {
+			return nil, fmt.Errorf("WIF migration failed: %w", err)
+		}
+		if err := enrollment.PersistIdentity(ctx, p.coreConfig, result); err != nil {
+			return nil, fmt.Errorf("failed to persist WIF migration: %w", err)
+		}
+		persistedIdentity.APIKeyHash = ""
+		persistedIdentity.WIFEnrolled = true
+	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
 		if p.coreConfig.GetBool(par.WIFEnrollment) {
-			return nil, errors.New("WIF enrollment cannot replace an existing runner identity; migration must be completed separately")
+			return nil, errors.New("WIF enrollment cannot replace an existing runner identity")
 		}
 		persistedIdentity = nil
 	}

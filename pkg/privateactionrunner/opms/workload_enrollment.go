@@ -31,28 +31,47 @@ import (
 // falls back to API-key enrollment. The caller owns identity persistence and
 // retries: a short-lived token must be refreshed before a later attempt, and an
 // ambiguous response must not cause a new key/runner to be created.
-// This endpoint creates new runners; it does not migrate an existing runner.
+// Use MigrateWithWorkloadToken to move an existing runner to WIF.
 func EnrollWithWorkloadToken(ctx context.Context, cfg model.Reader, ddBaseURL, token string, request par.CreateRunnerRequest) (*par.CreateRunnerResponse, error) {
-	if token == "" {
-		return nil, errors.New("workload enrollment token is required")
-	}
 	if request.ID != "" {
 		return nil, errors.New("workload enrollment cannot specify an existing runner ID")
+	}
+	payload, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
+	if err != nil {
+		return nil, fmt.Errorf("marshal workload enrollment request: %w", err)
+	}
+	return sendWorkloadEnrollment(ctx, cfg, ddBaseURL, token, "", "", payload)
+}
+
+// MigrateWithWorkloadToken changes the authorization of an existing runner.
+// The proof must be signed by that runner's key and bound to this workload token.
+func MigrateWithWorkloadToken(ctx context.Context, cfg model.Reader, ddBaseURL, token, runnerID, proof string) (*par.CreateRunnerResponse, error) {
+	if runnerID == "" || proof == "" {
+		return nil, errors.New("workload migration requires a runner ID and ownership proof")
+	}
+	return sendWorkloadEnrollment(ctx, cfg, ddBaseURL, token, runnerID, proof, nil)
+}
+
+func sendWorkloadEnrollment(ctx context.Context, cfg model.Reader, ddBaseURL, token, runnerID, proof string, payload []byte) (*par.CreateRunnerResponse, error) {
+	if token == "" {
+		return nil, errors.New("workload enrollment token is required")
 	}
 	endpoint := strings.TrimSuffix(ddBaseURL, "/") + "/api/unstable/on_prem_runners/workload_token"
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
 		return nil, errors.New("workload enrollment endpoint must use HTTPS")
 	}
-	payload, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
-	if err != nil {
-		return nil, fmt.Errorf("marshal workload enrollment request: %w", err)
+	if runnerID != "" {
+		parsed.RawQuery = url.Values{"existing_runner_id": {runnerID}}.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, parsed.String(), bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	if proof != "" {
+		req.Header.Set("X-Datadog-PAR-Proof", proof)
+	}
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set(app.VersionHeaderName, parversion.RunnerVersion)

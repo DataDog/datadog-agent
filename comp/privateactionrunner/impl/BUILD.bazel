@@ -57,6 +57,7 @@ dd_agent_go_test(
         "privateactionrunner_test.go",
         "standalone_enrollment_test.go",
         "workload_enrollment_test.go",
+        "workload_migration_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -82,6 +83,8 @@ dd_agent_go_test(
         "//pkg/util/flavor",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_jsonapi//:jsonapi",
+        "@com_github_go_jose_go_jose_v4//:go-jose",
+        "@com_github_go_jose_go_jose_v4//jwt",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({

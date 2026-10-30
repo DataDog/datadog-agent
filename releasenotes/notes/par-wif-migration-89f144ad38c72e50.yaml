@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    When private_action_runner.wif_enrollment and self_enroll are enabled,
+    node Agent Private Action Runners can migrate their saved API-key identity
+    to the authorized WIF intake mapping without changing their runner ID or
+    private key. Disabling WIF enrollment does not undo a completed migration.

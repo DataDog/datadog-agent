@@ -9,6 +9,7 @@ go_library(
         "k8s_secret_nocompile.go",
         "storage.go",
         "workload.go",
+        "workload_migration.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment",
     visibility = ["//visibility:public"],
