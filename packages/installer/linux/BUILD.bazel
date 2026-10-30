@@ -11,8 +11,6 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//compliance/rules:version_manifest.bzl", "version_manifest")
@@ -127,19 +125,6 @@ pkg_files(
     renames = {":readme_rpm_gen": "README.md"},
 )
 
-# Deb-specific tarball that includes README.md.
-pkg_tar(
-    name = "whole_distro_tar_deb",
-    srcs = [
-        ":readme_deb",
-        ":whole_distro",
-    ],
-    compression_level = get_compression_level(),
-    extension = "tar.xz",
-    owner = "0.0",
-    tags = ["manual"],
-)
-
 _DESCRIPTION = """Datadog Installer
 The Datadog Installer is a lightweight process that installs and updates
 the Datadog Agent and Tracers.
@@ -149,9 +134,12 @@ See http://www.datadoghq.com/ for more information
 
 dd_pkg_deb(
     name = "debian",
+    srcs = [
+        ":readme_deb",
+        ":whole_distro",
+    ],
     # convenience symlink to the output. The actual filename is specified with package_file_name.
     out = "debian.out",
-    data = ":whole_distro_tar_deb",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     license = "Apache License Version 2.0",

@@ -87,7 +87,7 @@ when set, omnibus skips building and just repackages a pre-built tarball.
 | `extra_package_file` | additional `pkg_filegroup` entries outside `install_dir` |
 | `package :deb { ... }` | `pkg_deb(...)` in BUILD.bazel |
 | `package :rpm { ... }` | `pkg_rpm(...)` in BUILD.bazel |
-| `package :xz { ... }` | `pkg_tar(name = "whole_distro_tar", ...)` |
+| `package :xz { ... }` | `pkg_tar(...)` |
 | `package_scripts_path` | `preinst`/`postinst`/`prerm`/`postrm` attrs on `pkg_deb`/`pkg_rpm` |
 | `runtime_script_dependency :pre, "foo"` | `requires_contextual = {"pre": ["foo"]}` in `pkg_rpm` |
 | `runtime_recommended_dependency 'foo'` | `recommends = ["foo"]` in `pkg_deb` |

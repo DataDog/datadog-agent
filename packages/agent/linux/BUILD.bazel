@@ -7,10 +7,8 @@ load(
     "pkg_filegroup",
     "pkg_mkdirs",
 )
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
 load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
-load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
 load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
 load("//compliance:package_licenses.bzl", "package_licenses")
@@ -94,16 +92,6 @@ pkg_filegroup(
     }),
 )
 
-pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [":whole_distro"],
-    # TODO: account for pipeline injected compression level.
-    # https://datadoghq.atlassian.net/browse/ABLD-364
-    compression_level = get_compression_level(),
-    extension = "tar.xz",
-    owner = "0.0",
-)
-
 _DESCRIPTION = """Datadog Monitoring Agent
 The Datadog Monitoring Agent is a lightweight process that monitors system
 processes and services, and sends information back to your Datadog account.
@@ -117,9 +105,9 @@ See http://www.datadoghq.com/ for more information
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
 dd_pkg_deb(
     name = "debian",
+    srcs = [":whole_distro"],
     out = "debian.deb",
     conflicts = ["datadog-iot-agent"],
-    data = ":whole_distro_tar",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # vendor = "Datadog <package@datadoghq.com>",
