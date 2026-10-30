@@ -668,9 +668,43 @@ func (p *RoutedProvider) GuardRegistry(registry routing.Registry) routing.Regist
 	return p.progress.GuardRegistry(registry)
 }
 
-// RetireSource releases a producer's generation ownership after it stops and
-// all of its decoder output has been admitted.
+// RetireSource waits for admission before releasing a stopped producer's ownership.
+// Callers must stop sending first. Full input queues return ErrSourcePending.
 func (p *RoutedProvider) RetireSource(identifier string, generation uint64) error {
+	key := sourceInputKey{identifier, generation}
+	p.lifecycle.RLock()
+	if p.stopped {
+		p.lifecycle.RUnlock()
+		return routing.ErrStopped
+	}
+	var admitted chan struct{}
+	if input := p.sourceInputs[key]; input != nil {
+		if p.started {
+			admitted = make(chan struct{})
+			marker := &message.Message{}
+			marker.SetRoutingBarrier(admitted)
+			select {
+			case input <- marker:
+			default:
+				p.lifecycle.RUnlock()
+				return routing.ErrSourcePending
+			}
+		} else if len(input) != 0 {
+			p.lifecycle.RUnlock()
+			return routing.ErrSourcePending
+		}
+	}
+	// Waiting for admission must not block replacement producers or shutdown.
+	p.lifecycle.RUnlock()
+	if admitted != nil {
+		select {
+		case <-admitted:
+		case <-p.ctx.Done():
+			return routing.ErrStopped
+		case <-p.stopRequested:
+			return routing.ErrStopped
+		}
+	}
 	p.sourceDispatchMu.Lock()
 	if err := p.progress.RetireSource(identifier, generation); err != nil {
 		p.sourceDispatchMu.Unlock()
@@ -684,7 +718,6 @@ func (p *RoutedProvider) RetireSource(identifier string, generation uint64) erro
 		}
 	}
 	p.sourceDispatchMu.Unlock()
-	key := sourceInputKey{identifier, generation}
 	p.lifecycle.Lock()
 	if input := p.sourceInputs[key]; input != nil && !p.stopped {
 		close(input)

@@ -1187,6 +1187,189 @@ func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
 	}
 }
 
+func TestRoutedProviderRetirementKeepsBufferedInputBeforeStart(t *testing.T) {
+	progress, err := routing.NewProgress(4, &routedTestSink{ch: make(chan *message.Payload, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer progress.Close()
+	p := &RoutedProvider{
+		progress:     progress,
+		sourceInputs: make(map[sourceInputKey]chan *message.Message),
+		inputKeys:    make(map[chan *message.Message]sourceInputKey),
+	}
+	input, err := p.SourceInput("file:test", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input <- &message.Message{}
+	if err := p.RetireSource("file:test", 42); !errors.Is(err, routing.ErrSourcePending) {
+		t.Fatalf("retirement before admission = %v, want ErrSourcePending", err)
+	}
+	if !progress.OwnsSource("file:test") {
+		t.Fatal("buffered input lost its source ownership")
+	}
+	<-input
+	if err := p.RetireSource("file:test", 42); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRoutedProviderRetirementWaitCancels(t *testing.T) {
+	for _, stop := range []bool{false, true} {
+		name := "cancel"
+		if stop {
+			name = "stop"
+		}
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				progress, err := routing.NewProgress(4, &routedTestSink{ch: make(chan *message.Payload, 1)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer progress.Close()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				p := &RoutedProvider{
+					progress: progress, ctx: ctx, stopRequested: make(chan struct{}),
+					sourceInputs: make(map[sourceInputKey]chan *message.Message),
+					inputKeys:    make(map[chan *message.Message]sourceInputKey),
+				}
+				if _, err := p.SourceInput("file:test", 42); err != nil {
+					t.Fatal(err)
+				}
+				p.started = true
+				retired := make(chan error, 1)
+				go func() { retired <- p.RetireSource("file:test", 42) }()
+				synctest.Wait()
+				select {
+				case err := <-retired:
+					t.Fatalf("retirement completed before admission: %v", err)
+				default:
+				}
+				if stop {
+					close(p.stopRequested)
+				} else {
+					cancel()
+				}
+				if err := <-retired; !errors.Is(err, routing.ErrStopped) {
+					t.Fatalf("cancelled retirement = %v, want ErrStopped", err)
+				}
+				if !progress.OwnsSource("file:test") {
+					t.Fatal("cancelled retirement released ownership")
+				}
+			})
+		})
+	}
+}
+
+func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
+	for _, buffered := range []bool{false, true} {
+		name := "in-flight"
+		if buffered {
+			name = "buffered"
+		}
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
+				endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+				cfg := configmock.New(t)
+				cfg.SetInTest("logs_config.routing.max_groups", 4)
+				sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
+				resolving := make(chan struct{})
+				release := make(chan struct{})
+				p, err := NewRoutedProvider(RoutedOptions{
+					NumberOfPipelines: 1, Sink: sink,
+					DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+					Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+					Resolve: func(m *message.Message) (routing.Selection, error) {
+						if string(m.GetContent()) == "old-first" {
+							close(resolving)
+							<-release
+						}
+						generation := uint64(7)
+						if bytes.HasPrefix(m.GetContent(), []byte("old")) {
+							generation = 42
+						}
+						return routing.Selection{Excluded: true, Generation: generation}, nil
+					},
+					DestinationsContext: client.NewDestinationsContext(), Config: cfg,
+					Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				p.Start()
+				defer p.Stop()
+				defer func() {
+					select {
+					case <-release:
+					default:
+						close(release)
+					}
+				}()
+				oldInput, err := p.SourceInput("file:test", 42)
+				if err != nil {
+					t.Fatal(err)
+				}
+				source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
+				makeRecord := func(content string) *message.Message {
+					m := message.NewMessageWithSource([]byte(content), "info", source, time.Now().UnixNano())
+					m.Origin.Identifier = "file:test"
+					m.Origin.Offset = content
+					return m
+				}
+				oldInput <- makeRecord("old-first")
+				<-resolving
+				if buffered {
+					oldInput <- makeRecord("old-last")
+				}
+				retired := make(chan error, 1)
+				go func() { retired <- p.RetireSource("file:test", 42) }()
+				synctest.Wait()
+				if buffered {
+					if err := <-retired; !errors.Is(err, routing.ErrSourcePending) {
+						t.Fatalf("retirement with buffered input = %v, want ErrSourcePending", err)
+					}
+				} else {
+					select {
+					case err := <-retired:
+						t.Fatalf("retirement completed before admission: %v", err)
+					default:
+					}
+				}
+				currentInput, err := p.SourceInput("file:test", 7)
+				if err != nil {
+					t.Fatal(err)
+				}
+				currentInput <- makeRecord("current")
+				close(release)
+				synctest.Wait()
+				if buffered {
+					if err := p.RetireSource("file:test", 42); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := <-retired; err != nil {
+					t.Fatal(err)
+				}
+				select {
+				case payload := <-sink.ch:
+					if got := payload.MessageMetas[0].Origin.Offset; got != "current" {
+						t.Fatalf("obsolete checkpoint %q replaced current ownership", got)
+					}
+				default:
+					t.Fatal("replacement checkpoint did not arrive")
+				}
+				select {
+				case payload := <-sink.ch:
+					t.Fatalf("unexpected checkpoint: %s", payload.MessageMetas[0].Origin.Offset)
+				default:
+				}
+			})
+		})
+	}
+}
+
 func TestRoutedProviderStopCancelsRetryingHTTPAfterGrace(t *testing.T) {
 	received := make(chan struct{}, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
