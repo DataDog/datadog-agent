@@ -609,6 +609,8 @@ var _ = declare(TestFilterOpenSavedByWorkloadProfileSampler, testOpts{eventSampl
 // to user space when the workload profile sampler samples it, flagged so that the rule engine doesn't evaluate it,
 // and that the sampler then rejects the same event for the same process.
 func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
+	checkDockerWrapperCompatibility(t)
+
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
