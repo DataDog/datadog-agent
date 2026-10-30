@@ -83,7 +83,7 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.1@sha256:cddbfcdc4c30efe7cfb61d5373449ff14d42bf2ddc0c390adf2372c6410fc73f"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.2@sha256:edb002ec217b92d889e45d1a18db51b107e6bb0d3829206854a765b14d6c69d8"
 
 new-e2e-containers-k8s-rc-latest:
   extends:

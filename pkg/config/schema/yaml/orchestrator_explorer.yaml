@@ -72,6 +72,21 @@ properties:
     default: []
     items:
       type: string
+  helm_releases:
+    node_type: section
+    type: object
+    properties:
+      configmaps:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |
+              Collects Helm releases stored in ConfigMaps (Helm's configmap storage driver), with their release data.
+              These ConfigMaps are then excluded from the regular ConfigMap collection.
   kubelet_config_check:
     node_type: section
     type: object

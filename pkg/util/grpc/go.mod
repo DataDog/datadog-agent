@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/grpc
 go 1.26.0
 
 require (
-	cloud.google.com/go/compute v1.73.0
+	cloud.google.com/go/compute v1.74.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
@@ -19,7 +19,7 @@ require (
 	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.215 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000 // indirect

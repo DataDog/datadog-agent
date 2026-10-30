@@ -32,6 +32,7 @@ go_library(
         "//pkg/util/containerd",
         "//pkg/util/containers/image",
         "//pkg/util/crio",
+        "//pkg/util/filesystem",
         "//pkg/util/log",
         "@com_github_aquasecurity_trivy//pkg/cache",
         "@com_github_aquasecurity_trivy//pkg/fanal/applier",
