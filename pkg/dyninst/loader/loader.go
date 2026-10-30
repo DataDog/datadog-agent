@@ -725,6 +725,12 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 	); err != nil {
 		return err
 	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_moduledata__etypes",
+		serialized.goModuledataInfo.ETypesOffset,
+	); err != nil {
+		return err
+	}
 	g := serialized.commonTypes.G
 	m := serialized.commonTypes.M
 	stack, ok := g.FieldByName("stack")

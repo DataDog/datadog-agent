@@ -28,6 +28,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"go/token"
 	"io"
 	"iter"
 	"maps"
@@ -2628,7 +2629,7 @@ func materializePending(
 					}
 					if locField := inlVar.AttrField(dwarf.AttrLocation); locField != nil {
 						locs := computeLocations(
-							p.unit, inlVar.Offset, ranges, baseVar.Type, locField,
+							inl.unit, inlVar.Offset, ranges, baseVar.Type, locField,
 							loclistReader, pointerSize,
 						)
 						baseVar.Locations = append(baseVar.Locations, locs...)
@@ -2636,7 +2637,7 @@ func materializePending(
 				} else {
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar,
+						inl.unit, inlVar,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
@@ -3076,8 +3077,8 @@ func (v *unitChildVisitor) push(
 		}
 
 		probesCfgs := v.root.interests.subprograms[name]
-		if len(probesCfgs) == 0 {
-			probesCfgs = v.root.interests.matchGenericPatterns(name)
+		if generic := v.root.interests.matchGenericPatterns(name); len(generic) > 0 {
+			probesCfgs = append(slices.Clone(probesCfgs), generic...)
 		}
 		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
 		if err != nil {
@@ -3177,6 +3178,10 @@ func (v *unitChildVisitor) push(
 			if err != nil {
 				return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
 			}
+			_, etypesOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "etypes")
+			if err != nil {
+				return nil, fmt.Errorf("failed to find moduledata.etypes offset: %w", err)
+			}
 			location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
@@ -3195,9 +3200,10 @@ func (v *unitChildVisitor) push(
 			v.root.goRuntimeInformation = ir.GoModuledataInfo{
 				FirstModuledataAddr: addr.Addr,
 				TypesOffset:         memberOffset,
+				ETypesOffset:        etypesOffset,
 			}
 
-		case "runtime.useAeshash", "runtime.aeskeysched":
+		case "runtime.useAeshash", "runtime.aeskeysched", "internal/runtime/maps.UseAeshash", "internal/runtime/maps.aeskeysched":
 			// Extract addresses of hash-related globals needed for swiss
 			// table map lookups. See go_swiss_maps.md for details.
 			addr, err := extractGlobalVarAddr(entry, name, v.root.pointerSize)
@@ -3206,9 +3212,9 @@ func (v *unitChildVisitor) push(
 				return nil, nil
 			}
 			switch name {
-			case "runtime.useAeshash":
+			case "runtime.useAeshash", "internal/runtime/maps.UseAeshash":
 				v.root.goMapHashInfo.UseAeshashAddr = addr
-			case "runtime.aeskeysched":
+			case "runtime.aeskeysched", "internal/runtime/maps.aeskeysched":
 				v.root.goMapHashInfo.AeskeyschedAddr = addr
 			}
 		}
@@ -3456,8 +3462,8 @@ type abstractSubprogram struct {
 	unit       *dwarf.Entry
 	probesCfgs []ir.ProbeDefinition
 	name       string
-	// Aggregated ranges from out-of-line and inlined instances.
-	outOfLinePCRanges []ir.PCRange
+	// Concrete out-of-line bodies can share an abstract DIE (Go 1.27).
+	outOfLine []*inlinedSubprogram
 	// Variables defined under the abstract DIE keyed by DIE offset.
 	variables map[dwarf.Offset]*dwarf.Entry
 	// Inlined instances discovered for this abstract subprogram.
@@ -3612,21 +3618,13 @@ func convertAbstractSubprogramsToPending(
 		if !abs.issue.IsNone() {
 			continue
 		}
-		if len(abs.outOfLinePCRanges) != 0 {
-			abs.issue = ir.Issue{
-				Kind:    ir.IssueKindMalformedExecutable,
-				Message: "multiple out-of-line instances of abstract subprogram",
-			}
-			continue
-		}
 		outOfLine := &inlinedSubprogram{
 			unit:              ctx.unitEntry,
 			abstractOrigin:    ctx.abstractOrigin,
 			outOfLinePCRanges: ctx.entryRanges,
 			variables:         ctx.variables,
 		}
-		abs.outOfLinePCRanges = append(abs.outOfLinePCRanges, ctx.entryRanges...)
-		abs.inlined = append(abs.inlined, outOfLine)
+		abs.outOfLine = append(abs.outOfLine, outOfLine)
 	}
 
 	// Append the abstract sub-programs in deterministic order.
@@ -3645,18 +3643,39 @@ func convertAbstractSubprogramsToPending(
 				varVars = append(varVars, abs.variables[k])
 			}
 		}
-		ret = append(ret, &pendingSubprogram{
-			unit:              abs.unit,
-			subprogramEntry:   nil,
-			name:              abs.name,
-			outOfLinePCRanges: abs.outOfLinePCRanges,
-			inlined:           abs.inlined,
-			variables:         varVars,
-			probesCfgs:        abs.probesCfgs,
-			issue:             abs.issue,
-			id:                idAllocator.next(),
-			abstract:          true,
-		})
+		appendPending := func(unit *dwarf.Entry, ranges []ir.PCRange, instances []*inlinedSubprogram) {
+			ret = append(ret, &pendingSubprogram{
+				unit:              unit,
+				name:              abs.name,
+				outOfLinePCRanges: ranges,
+				inlined:           instances,
+				variables:         varVars,
+				probesCfgs:        abs.probesCfgs,
+				issue:             abs.issue,
+				id:                idAllocator.next(),
+				abstract:          true,
+			})
+		}
+		if len(abs.outOfLine) == 0 {
+			appendPending(abs.unit, nil, abs.inlined)
+			continue
+		}
+		var bodyRanges []ir.PCRange
+		for _, body := range abs.outOfLine {
+			bodyRanges = append(bodyRanges, body.outOfLinePCRanges...)
+		}
+		slices.SortFunc(bodyRanges, cmpRange)
+		if err := validateNonOverlappingPCRanges(bodyRanges, 0, "abstract subprogram bodies"); err != nil {
+			abs.issue = ir.Issue{Kind: ir.IssueKindInvalidDWARF, Message: err.Error()}
+		}
+		for i, body := range abs.outOfLine {
+			instances := []*inlinedSubprogram{body}
+			if i == 0 {
+				// Inline call sites belong to the abstract function, not each body.
+				instances = append(slices.Clone(abs.inlined), body)
+			}
+			appendPending(body.unit, body.outOfLinePCRanges, instances)
+		}
 	}
 
 	return ret, nil
@@ -8917,7 +8936,7 @@ func processVariable(
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(name, ".") {
+	if strings.HasPrefix(name, ".") || (entry.Tag == dwarf.TagVariable && !token.IsIdentifier(name)) {
 		return nil, nil
 	}
 	typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)

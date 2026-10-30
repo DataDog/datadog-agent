@@ -1009,6 +1009,7 @@ Probes:
         sourceFile: complex.go
         lines: ["111"]
       tags:
+        - version_diff:go1.27.2
         - config_diff:arch=amd64,toolchain=go1.26rc1
         - skip_integration:arch=arm64,toolchain=go1.25.0
       sampling: {snapshotsPerSecond: 100}
@@ -2137,7 +2138,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testInlinedSumArray}
-      tags: ['foo:bar']
+      tags: ['version_diff:go1.27.2', 'foo:bar']
       sampling: {snapshotsPerSecond: 10}
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
@@ -2399,7 +2400,7 @@ Probes:
         methodName: main.testLongFunctionWithChangingState
         sourceFile: complex.go
         lines: ["240"]
-      tags: ['version_diff:go1.26rc1']
+      tags: ['version_diff:go1.27.2', 'version_diff:go1.26rc1']
       sampling: {snapshotsPerSecond: 100}
       template: testLongFunctionWithChangingState
       segments: [testLongFunctionWithChangingState]
@@ -2421,7 +2422,7 @@ Probes:
         methodName: main.testLongFunctionWithChangingState
         sourceFile: complex.go
         lines: ["245"]
-      tags: ['version_diff:go1.26rc1']
+      tags: ['version_diff:go1.27.2', 'version_diff:go1.26rc1']
       sampling: {snapshotsPerSecond: 100}
       template: testLongFunctionWithChangingState
       segments: [testLongFunctionWithChangingState]
@@ -8187,16 +8188,6 @@ Subprograms:
           Role: Return
           DictIndex: -1
           LoopBaseOffset: 0
-        - Name: '&result'
-          Type: 102 PointerType *int
-          Locations:
-            - Range: 0xce4dff..0xce4e19
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0xce4e19..0xce4e6f
-              Pieces: [{Size: 8, Op: {CfaOffset: -24}}]
-          Role: Local
-          DictIndex: -1
-          LoopBaseOffset: 0
       DictRegister: null
     - ID: 104
       Name: main.testReturnsIntAndFloat
@@ -8499,14 +8490,6 @@ Subprograms:
           Type: 9 BaseType int
           Locations:
             - Range: 0xce51c0..0xce51c6
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          Role: Local
-          DictIndex: -1
-          LoopBaseOffset: 0
-        - Name: '&result'
-          Type: 102 PointerType *int
-          Locations:
-            - Range: 0xce5205..0xce5224
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
@@ -46492,7 +46475,10 @@ Issues:
       issue:
         Kind: 7
         Message: return value selector (e.g., @return.r0) must be used for multi-value returns
-GoModuledataInfo: {FirstModuledataAddr: "0x1821540", TypesOffset: 296}
+GoModuledataInfo:
+    FirstModuledataAddr: "0x1821540"
+    TypesOffset: 296
+    ETypesOffset: 304
 GoMapHashInfo:
     UseAeshashAddr: "0x191452a"
     AeskeyschedAddr: "0x1915600"

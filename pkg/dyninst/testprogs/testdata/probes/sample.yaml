@@ -1522,6 +1522,7 @@ probes:
   - id: testInlinedSumArray
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "foo:bar"
     where:
       methodName: main.testInlinedSumArray
@@ -2225,6 +2226,7 @@ probes:
   - id: testLongFunctionWithChangingStateLineB
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
@@ -2240,6 +2242,7 @@ probes:
   - id: testLongFunctionWithChangingStateLineC
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
@@ -2751,6 +2754,7 @@ probes:
   - id: testErrorAtLine
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "config_diff:arch=amd64,toolchain=go1.26rc1"
       - "skip_integration:arch=arm64,toolchain=go1.25.0" # https://github.com/golang/go/issues/74576
     where:

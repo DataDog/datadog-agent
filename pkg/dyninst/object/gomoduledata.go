@@ -70,6 +70,8 @@ type ModuleData struct {
 	Types uint64
 	// The address of the end of the types blob
 	ETypes uint64
+	// Length of the packed typelink descriptor prefix (Go 1.27 and later).
+	TypeDescLen uint64
 	// The address of the go:func.* blob
 	GoFunc uint64
 	// The address of the runtime.gcdata symbol
@@ -348,6 +350,10 @@ func tryParseModuleDataAt(
 	minPC := binary.LittleEndian.Uint64(moduledataData[minPCOffset:])
 	maxPC := binary.LittleEndian.Uint64(moduledataData[minPCOffset+8:])
 
+	var typeDescLen uint64
+	if version == version127 {
+		typeDescLen = binary.LittleEndian.Uint64(moduledataData[typesStart+8:])
+	}
 	return &ModuleData{
 		FirstModuleData: moduledataSection.Addr + uint64(offset),
 		MinPC:           minPC,
@@ -358,6 +364,7 @@ func tryParseModuleDataAt(
 		EBSS:            ebss,
 		Types:           types,
 		ETypes:          etypes,
+		TypeDescLen:     typeDescLen,
 		GoFunc:          gofunc,
 		GcData:          gcdata,
 		TextSectMap:     textsectMap,

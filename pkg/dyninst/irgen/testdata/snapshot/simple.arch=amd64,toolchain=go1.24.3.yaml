@@ -30315,7 +30315,10 @@ Issues:
       issue:
         Kind: 3
         Message: probe kind ProbeKindSpan is not supported
-GoModuledataInfo: {FirstModuledataAddr: "0x594340", TypesOffset: 296}
+GoModuledataInfo:
+    FirstModuledataAddr: "0x594340"
+    TypesOffset: 296
+    ETypesOffset: 304
 GoMapHashInfo: {UseAeshashAddr: "0x5bd66a", AeskeyschedAddr: "0x5bdd60"}
 CommonTypes:
     G: 24 StructureType runtime.g
