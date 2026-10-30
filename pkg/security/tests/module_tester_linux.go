@@ -162,8 +162,19 @@ runtime_security_config:
     node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     anomaly_detection:
       enabled: {{ .EnableAnomalyDetection }}
+{{if gt .AnomalyDetectionEventCooldown 0}}
+      event_cooldown: {{ .AnomalyDetectionEventCooldown }}
 {{end}}
-{{if .EventSamplingOpenRateUnlimited}}
+{{end}}
+{{if .DisableEventSampling}}
+  event_sampling:
+    open:
+      enabled: false
+    bind:
+      enabled: false
+    connect:
+      enabled: false
+{{else if .EventSamplingOpenRateUnlimited}}
   event_sampling:
     open:
       rate: 0
@@ -1323,11 +1334,16 @@ func DecodeSecurityProfile(path string) (*profile.Profile, error) {
 }
 
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
+	return tm.startADocker(nil)
+}
+
+func (tm *testModule) startADocker(extraRunArgs []string) (*dockerCmdWrapper, error) {
 	// we use alpine to use nslookup on some tests, and validate all busybox specificities
 	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine", "")
 	if err != nil {
 		return nil, err
 	}
+	docker.runArgs = extraRunArgs
 
 	_, err = docker.start()
 	if err != nil {

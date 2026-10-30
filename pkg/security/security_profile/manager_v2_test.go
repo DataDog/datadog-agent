@@ -731,7 +731,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 		t.Run(eventType.String(), func(t *testing.T) {
 			m, _ := newInsertionTestManagerV2(t)
 
-			p, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
 			require.NotNil(t, p)
 			assert.True(t, inserted, "a first activity should create a new entry")
 			assert.Equal(t, testSelector, *p.GetWorkloadSelector(), "the profile should be shared by all the tags of the image")
@@ -741,7 +741,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.True(t, ok, "the node should be tagged with v1")
 
 			// the same activity under another tag of the image only adds the tag to the existing entry
-			p2, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
+			p2, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
 			require.Same(t, p, p2)
 			assert.False(t, inserted, "a known activity under another tag shouldn't create a new entry")
 			assert.ElementsMatch(t, []string{"v1", "v2"}, p.GetVersions())
@@ -750,7 +750,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			_, _, ok = node.GetSeenTimes(p.ActivityTree.GetImageTagID("v2"))
 			assert.True(t, ok, "the existing node should be tagged with v2")
 
-			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			_, inserted, _ = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
 			assert.True(t, inserted, "a new activity should create a new entry")
 			assert.NotNil(t, findTestEventNode(p, eventType, "new"))
 		})
@@ -766,7 +766,7 @@ func TestManagerV2_insertEventIntoProfile_maxImageTags(t *testing.T) {
 
 			for i := 0; i < wantLimit+5; i++ {
 				tag := fmt.Sprintf("v%d", i)
-				p, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+				p, _, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
 				require.NotNil(t, p)
 				assert.Len(t, p.GetVersions(), min(i+1, wantLimit))
 				assert.Contains(t, p.GetVersions(), tag, "the current version must not be evicted")
@@ -781,9 +781,9 @@ func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *test
 			m, _ := newInsertionTestManagerV2(t)
 			m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
 
-			p, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			p, _, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
 			require.NotNil(t, p)
-			_, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			_, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
 			require.True(t, inserted)
 
 			v1, ok := p.GetVersionContext("v1")
@@ -797,13 +797,13 @@ func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *test
 
 			event := newTestEventV2(eventType, "v1", "known")
 			event.ProcessContext.Process.ContainerContext.Tags = append(event.ProcessContext.Process.ContainerContext.Tags, "service:another-container")
-			_, inserted = m.insertEventIntoProfile(event)
+			_, inserted, _ = m.insertEventIntoProfile(event)
 			require.False(t, inserted)
 			assert.Greater(t, v1.LastSeenNano, uint64(2), "known activities must refresh the version's last seen time")
 			assert.Equal(t, uint64(1), v1.FirstSeenNano)
 			assert.Equal(t, originalTags, v1.Tags, "refreshing a version must keep the tags of its first workload")
 
-			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
+			_, inserted, _ = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
 			assert.False(t, inserted, "activities shared with a retained version must stay learned")
 			assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
 			assert.Zero(t, p.ActivityTree.GetImageTagID("v2"))
@@ -821,7 +821,7 @@ func TestManagerV2_versionEviction_freesSpaceBeforeSizeCheck(t *testing.T) {
 	m, _ := newInsertionTestManagerV2(t)
 	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 1
 
-	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.NotNil(t, p)
 	require.True(t, inserted)
 	maxSize := int(p.ComputeHeapSize())
@@ -829,7 +829,7 @@ func TestManagerV2_versionEviction_freesSpaceBeforeSizeCheck(t *testing.T) {
 	m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return maxSize }
 
 	for i := 2; i < 25; i++ {
-		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, fmt.Sprintf("v%d", i), "known"))
+		p, inserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, fmt.Sprintf("v%d", i), "known"))
 		require.NotNil(t, p, "evicting the previous version must free room for the next one")
 		require.True(t, inserted)
 		assert.Len(t, p.GetVersions(), 1)
@@ -841,7 +841,7 @@ func TestManagerV2_insertEventIntoProfile_limitsPersistedVersions(t *testing.T) 
 	m, _ := newInsertionTestManagerV2(t)
 	var p *profile.Profile
 	for i, tag := range []string{"v1", "v2", "v3"} {
-		p, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+		p, _, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
 		require.NotNil(t, p)
 		ctx, ok := p.GetVersionContext(tag)
 		require.True(t, ok)
@@ -855,7 +855,7 @@ func TestManagerV2_insertEventIntoProfile_limitsPersistedVersions(t *testing.T) 
 	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
 
 	// The incoming tag already exists in the saved profile: it still needs trimming.
-	reloaded, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	reloaded, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.NotNil(t, reloaded)
 	require.NotSame(t, p, reloaded)
 	assert.False(t, inserted)
@@ -876,7 +876,7 @@ func TestManagerV2_versionEviction_sampleRefresh(t *testing.T) {
 	for i, tag := range []string{"v1", "v2"} {
 		event := newTestEventV2(model.FileOpenEventType, tag, "known")
 		event.Open.SampleCookie = uint64(i + 1)
-		p, _ := m.insertEventIntoProfile(event)
+		p, _, _ := m.insertEventIntoProfile(event)
 		require.NotNil(t, p)
 		ctx, ok := p.GetVersionContext(tag)
 		require.True(t, ok)
@@ -896,13 +896,13 @@ func TestManagerV2_versionEviction_sampleRefresh(t *testing.T) {
 	require.True(t, ok)
 	assert.Greater(t, v1.LastSeenNano, uint64(2), "sample refreshes must count as version activity")
 
-	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v3", "known"))
+	_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v3", "known"))
 	assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
 	assert.True(t, m.sampleCookieMap.Contains(1), "cookies of retained versions must stay cached")
 	assert.False(t, m.sampleCookieMap.Contains(2), "cookies of an evicted version must be purged even when their node is shared")
 	assert.True(t, m.sampleCookieMap.Contains(3), "cookies belonging to another profile must not be purged")
 
-	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v2", "known"))
+	_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v2", "known"))
 	assert.False(t, m.sampleCookieMap.Contains(2), "a returning version must not revive old cookies")
 	m.HandleSampleRefresh(2)
 	assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
@@ -953,6 +953,101 @@ func TestManagerV2_onEventTagsResolved(t *testing.T) {
 				require.NotNil(t, p)
 				assert.NotNil(t, findTestEventNode(p, eventType, "known"), "the activity should still be learned")
 			})
+
+			t.Run("a known activity is sent again once the event cooldown has elapsed", func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEventCooldown = time.Hour
+
+				start := time.Now()
+				first := newTestEventV2(eventType, "v1", "known")
+				first.Timestamp = start
+				m.onEventTagsResolved(first)
+				require.Len(t, *anomalies, 1)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				node := findTestEventNode(p, eventType, "known")
+				require.NotNil(t, node)
+				lastSent, ok := node.GetLastAnomalySent()
+				require.True(t, ok, "sending an anomaly should record lastAnomalySent")
+				assert.True(t, lastSent.Equal(start))
+
+				again := newTestEventV2(eventType, "v1", "known")
+				again.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(again)
+				assert.Len(t, *anomalies, 1, "an activity re-seen within the event cooldown shouldn't trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(start), "a suppressed occurrence shouldn't move lastAnomalySent")
+
+				otherTag := newTestEventV2(eventType, "v2", "known")
+				otherTag.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(otherTag)
+				assert.Len(t, *anomalies, 1, "the event cooldown belongs to the activity node and is shared by every tag of the image")
+
+				later := newTestEventV2(eventType, "v1", "known")
+				later.Timestamp = start.Add(2 * time.Hour)
+				m.onEventTagsResolved(later)
+				assert.Len(t, *anomalies, 2, "an activity re-seen after the event cooldown should trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(later.Timestamp))
+			})
+		})
+	}
+}
+
+// TestManagerV2_eventCooldownSurvivesReload persists a profile to local storage and reloads it in another manager,
+// as after a restart. The reloaded activity keeps its emission history: an alerted one is held until the event
+// cooldown elapses and is then sent once, an activity learned without an anomaly stays quiet.
+func TestManagerV2_eventCooldownSurvivesReload(t *testing.T) {
+	for _, eventType := range testEventTypesV2 {
+		t.Run(eventType.String(), func(t *testing.T) {
+			dir := t.TempDir()
+			newManager := func() (*ManagerV2, *[]*model.Event) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEventCooldown = time.Hour
+				localStorage, err := storage.NewDirectory(dir, 100)
+				require.NoError(t, err)
+				m.localStorage = localStorage
+				m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+					config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+				})
+				return m, anomalies
+			}
+			at := func(variant string, timestamp time.Time) *model.Event {
+				event := newTestEventV2(eventType, "v1", variant)
+				event.Timestamp = timestamp
+				return event
+			}
+
+			start := time.Now()
+			before, sent := newManager()
+			before.onEventTagsResolved(at("known", start))
+			require.Len(t, *sent, 1)
+			_, inserted, _ := before.insertEventIntoProfile(at("new", start))
+			require.True(t, inserted, "the activity learned without an anomaly should be inserted")
+			before.persistProfile(before.profiles[testSelector])
+
+			after, anomalies := newManager()
+			after.onEventTagsResolved(at("known", start.Add(30*time.Minute)))
+			p := after.profiles[testSelector]
+			require.NotNil(t, p)
+			require.NotNil(t, findTestEventNode(p, eventType, "new"), "the profile should be reloaded from local storage")
+			lastSent, ok := findTestEventNode(p, eventType, "known").GetLastAnomalySent()
+			require.True(t, ok, "the reloaded activity should keep its last anomaly sent")
+			assert.True(t, lastSent.Equal(start))
+			_, ok = findTestEventNode(p, eventType, "new").GetLastAnomalySent()
+			assert.False(t, ok, "the activity learned without an anomaly should reload without one")
+			assert.Empty(t, *anomalies, "a reloaded activity re-seen within the event cooldown shouldn't trigger an anomaly")
+
+			after.onEventTagsResolved(at("known", start.Add(2*time.Hour)))
+			after.onEventTagsResolved(at("known", start.Add(2*time.Hour+time.Minute)))
+			assert.Len(t, *anomalies, 1, "a reloaded activity re-seen after the event cooldown should trigger exactly one anomaly")
+
+			after.onEventTagsResolved(at("new", start.Add(30*time.Minute)))
+			after.onEventTagsResolved(at("new", start.Add(2*time.Hour)))
+			assert.Len(t, *anomalies, 1, "a reloaded activity learned without an anomaly should stay quiet")
 		})
 	}
 }
@@ -963,11 +1058,11 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 		m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return 1 }
 
 		// the size is checked before the insertion: an empty profile is below any max size
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
-		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		p, inserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
 		assert.Nil(t, p)
 		assert.False(t, inserted)
 
@@ -985,7 +1080,7 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 	t.Run("a profile below the max size keeps learning", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		assert.True(t, inserted)
 		assert.True(t, p.IsEnabled())
@@ -1037,11 +1132,11 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-		_, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
 
-		_, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
 
 		m.cleanupPendingProfiles()
@@ -1058,7 +1153,7 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m, _ := newInsertionTestManagerV2(t)
 	m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.True(t, inserted)
 	require.Len(t, p.Instances, 1, "the workload of the event should be linked to the profile")
 
@@ -1193,7 +1288,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		ev := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		ev.ProcessCacheEntry.Process.MntNS = baseNs
 
-		p, inserted := m.insertEventIntoProfile(ev)
+		p, inserted, _ := m.insertEventIntoProfile(ev)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 		assert.Empty(t, p.ActivityTree.Mounts)
@@ -1238,7 +1333,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		ev.ProcessCacheEntry = childEntry
 		ev.ProcessContext = &childEntry.ProcessContext
 
-		p, inserted := m.insertEventIntoProfile(ev)
+		p, inserted, _ := m.insertEventIntoProfile(ev)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
@@ -1295,7 +1390,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		ev.ProcessCacheEntry = childEntry
 		ev.ProcessContext = &childEntry.ProcessContext
 
-		p, inserted := m.insertEventIntoProfile(ev)
+		p, inserted, _ := m.insertEventIntoProfile(ev)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
@@ -1346,7 +1441,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		evDead.ProcessCacheEntry = deadChild
 		evDead.ProcessContext = &deadChild.ProcessContext
 
-		p, inserted := m.insertEventIntoProfile(evDead)
+		p, inserted, _ := m.insertEventIntoProfile(evDead)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
@@ -1372,7 +1467,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		evMount.ProcessCacheEntry = liveChild
 		evMount.ProcessContext = &liveChild.ProcessContext
 
-		p, inserted = m.insertEventIntoProfile(evMount)
+		p, inserted, _ = m.insertEventIntoProfile(evMount)
 		require.NotNil(t, p)
 		assert.True(t, inserted, "live mount event must not be pre-inserted as Snapshot during seeding")
 
@@ -1388,4 +1483,44 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		assert.True(t, foundProcSnapshot, "pre-existing mounts in clonedNs must be synced and seeded as Snapshot")
 		assert.True(t, foundLiveRuntime, "triggering live mount event must be inserted as Runtime")
 	})
+}
+
+func TestActivityNodeForEvent_capabilitiesSyscallsAndMount(t *testing.T) {
+	now := time.Now()
+	proc := &activity_tree.ProcessNode{}
+	chroot := activity_tree.NewCapabilityNode(unix.CAP_SYS_CHROOT, true, false, false, now, 1, activity_tree.Runtime)
+	admin := activity_tree.NewCapabilityNode(unix.CAP_SYS_ADMIN, false, true, false, now, 1, activity_tree.Runtime)
+	proc.Capabilities = []*activity_tree.CapabilityNode{chroot, admin}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.CapabilitiesEventType)
+	event.CapabilitiesUsage.Attempted = (1 << unix.CAP_SYS_CHROOT) | (1 << unix.CAP_SYS_ADMIN) | (1 << unix.CAP_NET_BIND_SERVICE)
+	event.CapabilitiesUsage.Used = 1 << unix.CAP_SYS_CHROOT
+	event.CapabilitiesUsage.AttemptedHostUserNS = 1 << unix.CAP_SYS_ADMIN
+
+	nodes := activityNodeForEvent(nil, proc, nil, event, nil)
+	require.Equal(t, []*activity_tree.NodeBase{&chroot.NodeBase, &admin.NodeBase}, nodes)
+
+	openat := activity_tree.NewSyscallNode(int(model.SysOpenat), now, 1, activity_tree.Runtime)
+	read := activity_tree.NewSyscallNode(int(model.SysRead), now, 1, activity_tree.Runtime)
+	proc.Syscalls = map[int]*activity_tree.SyscallNode{openat.Syscall: openat, read.Syscall: read}
+	event.Type = uint32(model.SyscallsEventType)
+	event.Syscalls.Syscalls = []model.Syscall{model.SysOpenat, model.SysWrite}
+
+	nodes = activityNodeForEvent(nil, proc, nil, event, nil)
+	require.Equal(t, []*activity_tree.NodeBase{&openat.NodeBase}, nodes)
+
+	tree := activity_tree.NewActivityTree(nil, nil, "test")
+	require.True(t, tree.InsertMount(0, 0, "/tmp/wp-mount-dst", "/", "ext4", 0, 1, activity_tree.Runtime, now, false))
+	require.Len(t, tree.Mounts, 1)
+	mountNode := tree.Mounts[0]
+	event.Type = uint32(model.FileMountEventType)
+	event.Mount.Mount.Path = "/tmp/wp-mount-dst"
+	event.Mount.Mount.FSType = "ext4"
+
+	nodes = activityNodeForEvent(tree, nil, nil, event, nil)
+	require.Equal(t, []*activity_tree.NodeBase{&mountNode.NodeBase}, nodes)
+
+	event.Mount.Mount.MountFlags = 1
+	assert.Nil(t, activityNodeForEvent(tree, nil, nil, event, nil))
 }
