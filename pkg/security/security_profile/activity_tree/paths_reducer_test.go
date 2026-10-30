@@ -141,6 +141,30 @@ var tests = []struct {
 		want: "/var/run/docker/overlay2/<container_id>/merged/etc/passwd",
 	},
 	{
+		name: "container_id_2",
+		input: input{
+			path:      "/var/lib/docker/containers/47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7/47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7-json.log",
+			fileEvent: &model.FileEvent{},
+		},
+		want: "/var/lib/docker/containers/<container_id>/<container_id>-json.log",
+	},
+	{
+		name: "uuid_not_container_id",
+		input: input{
+			path:      "/srv/app/8f14e45f-ceea-4a7b-9c1d-2b3c4d5e6f70.json",
+			fileEvent: &model.FileEvent{},
+		},
+		want: "/srv/app/8f14e45f-ceea-4a7b-9c1d-2b3c4d5e6f70.json",
+	},
+	{
+		name: "long_hex_not_container_id",
+		input: input{
+			path:      "/srv/cache/cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+			fileEvent: &model.FileEvent{},
+		},
+		want: "/srv/cache/cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+	},
+	{
 		name: "block_device_1",
 		input: input{
 			path: "/host/proc/self/root/sys/devices/virtual/block/dm-0",

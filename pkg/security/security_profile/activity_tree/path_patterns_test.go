@@ -652,6 +652,28 @@ func TestInsertFileEvent_ReducerWritesPatternNodes(t *testing.T) {
 	}
 }
 
+func TestInsertFileEvent_UUIDNamesMergeThroughReducer(t *testing.T) {
+	at, pn := newPatternTestTree()
+	reducer := NewPathsReducer()
+	insert := func(path string, dryRun bool) bool {
+		ev := newTestEvent(path)
+		isNew, _ := pn.InsertFileEvent(&ev.Open.File, ev, 1, Unknown, at.Stats, dryRun, reducer, nil)
+		return isNew
+	}
+
+	for _, id := range []string{
+		"8f14e45f-ceea-4a7b-9c1d-2b3c4d5e6f70",
+		"c9f0f895-fb98-4b91-8c2d-1a2b3c4d5e6f",
+		"45c48cce-2e2d-4fbd-a1b2-c3d4e5f60718",
+	} {
+		insert("/srv/app/"+id+".json", false)
+	}
+	at.FinalizePatterns()
+
+	require.Equal(t, []string{"<uuid>.json"}, childrenNames(pn.Files["srv"].Children["app"].Children))
+	assert.False(t, insert("/srv/app/6512bd43-d9ca-4a6e-8f1b-0c1d2e3f4a5b.json", true))
+}
+
 func TestInsertFileEvent_PlaceholderLikeFileNameStaysLiteral(t *testing.T) {
 	pn := &ProcessNode{Files: make(map[string]*FileNode), NodeBase: NewNodeBase()}
 	stats := enablePatternsTestStats()

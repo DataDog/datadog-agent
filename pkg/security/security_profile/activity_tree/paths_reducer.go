@@ -178,6 +178,10 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
+				// a match inside a longer hex run, like the first 28 characters of a UUID, is not a container ID
+				if (start > 0 && isHexChar(ctx.path[start-1])) || (end < len(ctx.path) && isHexChar(ctx.path[end])) {
+					return
+				}
 				ctx.replaceBy(start, end, classes[classContainerID].placeholder)
 			},
 		},
