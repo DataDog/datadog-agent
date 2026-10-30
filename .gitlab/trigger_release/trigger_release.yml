@@ -4,6 +4,8 @@
 
 .agent_release_management_trigger:
   stage: trigger_release
+  # A rerun would start another promote pipeline
+  retry: !reference [.retry_only_infra_failure, retry]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because

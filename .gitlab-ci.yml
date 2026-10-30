@@ -1118,7 +1118,7 @@ workflow:
         - .gitlab/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-# Jobs too long or too expensive to rerun on any failure (Windows unit tests, EKS, KMT VMs, benchmarks)
+# Jobs too long, too expensive or unsafe to rerun on any failure (Windows unit tests, EKS, KMT VMs, benchmarks, SMP, release triggers)
 .retry_only_infra_failure:
   retry:
     max: 2
