@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    APM Single Step Instrumentation through the Datadog CSI driver (the
+    ``csi`` injection mode) is now generally available.
