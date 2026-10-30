@@ -11,6 +11,12 @@ kill timeout 200
 console output
 
 script
+  if [ -r /etc/default/datadog-agent-procmgr ]; then
+    . /etc/default/datadog-agent-procmgr
+  fi
+  if [ "$DATADOG_ENABLED" = "no" ]; then
+    exit 0
+  fi
   if [ ! -x {install_dir}/embedded/bin/dd-procmgrd ]; then
     exit 0
   fi
@@ -58,6 +64,12 @@ END_LOAD_ENV
 end script
 
 pre-start script
+  if [ -r /etc/default/datadog-agent-procmgr ]; then
+    . /etc/default/datadog-agent-procmgr
+  fi
+  if [ "$DATADOG_ENABLED" = "no" ]; then
+    exit 0
+  fi
   # dd-agent cannot create this directory under root-owned /var/run.
   /usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1
   # Manual rotation of errors log
