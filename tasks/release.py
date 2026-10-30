@@ -7,11 +7,12 @@ Notes about Agent6:
 """
 
 import os
+import re
 import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from time import sleep
 
 from gitlab import GitlabError
@@ -39,7 +40,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import join_command, running_in_ci, set_gitconfig_in_ci
+from tasks.libs.common.utils import running_in_ci, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -80,13 +81,66 @@ from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 QUALIFICATION_TAG = "qualification"
 
 
-def _get_module_pseudo_version(ctx, module, commit):
-    """Resolve the canonical pseudo-version for a module at a commit."""
-    command = join_command(["go", "list", "-m", "-mod=mod", "-f={{.Version}}", f"{module.import_path}@{commit}"])
-    version = ctx.run(command, hide=True).stdout.strip()
-    if not version:
-        raise Exit(f"Could not resolve a pseudo-version for {module.import_path} at {commit}")
-    return version
+# Semantic versions as accepted by golang.org/x/mod/semver, and the pseudo-versions Go ignores as tags
+GO_SEMVER_RE = re.compile(
+    r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?"
+    r"(\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+GO_PSEUDO_VERSION_RE = re.compile(r"^v\d+\.(?:0\.0-|\d+\.\d+-(?:[^+]*\.)?0\.)\d{14}-[A-Za-z0-9]+(?:\+.*)?$")
+
+
+def _go_semver_key(version):
+    """Sort key ordering versions like golang.org/x/mod/semver.Compare."""
+    major, minor, patch, prerelease, _ = GO_SEMVER_RE.match(version).groups()
+    if prerelease is None:
+        return int(major), int(minor), int(patch), 1, ()
+    identifiers = tuple((0, int(i), "") if i.isdigit() else (1, 0, i) for i in prerelease.split("."))
+    return int(major), int(minor), int(patch), 0, identifiers
+
+
+def _get_commit_refs(ctx, commit):
+    """Get the tags and pseudo-version suffix Go uses to name the modules of the repository at a commit."""
+    ctx.run("git fetch --tags --force origin", hide=True)
+    timestamp = int(ctx.run(f"git log -1 --format=%ct {commit}", hide=True).stdout.strip())
+    return {
+        "merged_tags": ctx.run(f"git tag --merged {commit}", hide=True).stdout.split(),
+        "commit_tags": ctx.run(f"git tag --points-at {commit}", hide=True).stdout.split(),
+        "suffix": f"{datetime.fromtimestamp(timestamp, timezone.utc):%Y%m%d%H%M%S}-{commit[:12]}",
+    }
+
+
+def _get_module_pseudo_version(module, refs):
+    """Compute the version `go list -m <module>@<commit>` resolves, from the refs of `_get_commit_refs`.
+
+    Asking Go makes it fetch every branch and tag of the repository: the module proxies time out on it
+    and the direct git fetch can hang for hours.
+    """
+    prefix = "" if module.path == "." else f"{module.path}/"
+    path_major = re.search(r"/v(\d+)$", module.import_path)
+    majors = {path_major.group(1)} if path_major else {"0", "1"}
+
+    def versions(tags, canonical_only):
+        for tag in tags:
+            version = tag.removeprefix(prefix)
+            match = tag.startswith(prefix) and GO_SEMVER_RE.match(version)
+            if not match or GO_PSEUDO_VERSION_RE.match(version) or match.group(1) not in majors:
+                continue
+            if canonical_only and match.group(5):
+                continue
+            yield version.split("+")[0]
+
+    # A tag on the commit itself names it, otherwise the pseudo-version is based on the highest tag before it
+    tagged = max(versions(refs["commit_tags"], canonical_only=True), key=_go_semver_key, default=None)
+    if tagged:
+        return tagged
+    base = max(versions(refs["merged_tags"], canonical_only=False), key=_go_semver_key, default=None)
+    if base is None:
+        return f"v{min(majors)}.0.0-{refs['suffix']}"
+    if "-" in base:
+        return f"{base}.0.{refs['suffix']}"
+    major_minor, patch = base.rsplit(".", 1)
+    return f"{major_minor}.{int(patch) + 1}-0.{refs['suffix']}"
 
 
 @task
@@ -110,7 +164,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
 
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
-        commit = ctx.run("git rev-parse HEAD", hide=True).stdout.strip() if agent6_rc else None
+        refs = _get_commit_refs(ctx, ctx.run("git rev-parse HEAD", hide=True).stdout.strip()) if agent6_rc else None
         pseudo_versions = {}
         for module in modules.values():
             for dependency in module.dependencies(ctx):
@@ -124,7 +178,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
                     continue
                 if agent6_rc:
                     if dependency not in pseudo_versions:
-                        pseudo_versions[dependency] = _get_module_pseudo_version(ctx, dependency_mod, commit)
+                        pseudo_versions[dependency] = _get_module_pseudo_version(dependency_mod, refs)
                     dependency_path = f"{dependency_mod.import_path}@{pseudo_versions[dependency]}"
                 else:
                     dependency_path = dependency_mod.dependency_path(agent_version)
