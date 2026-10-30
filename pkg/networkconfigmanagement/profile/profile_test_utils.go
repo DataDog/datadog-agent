@@ -166,6 +166,18 @@ var TestProfiles = Map{
 			GetVersion: MkCommand("show ver"),
 		},
 	},
+	// ProfileCiscoIOS has no Verify command, so it is only used when a device
+	// explicitly selects it.
+	ProfileCiscoIOS: &NCMProfile{
+		Name: ProfileCiscoIOS,
+		Commands: CommandSet{
+			GetRunning: MkCommand("show running-config"),
+			GetStartup: MkCommand("show startup-config"),
+		},
+		Redactions: []RedactionRule{
+			MkRedaction(`(?m)^(enable (password|secret)( level \d+)? \d) .+`),
+		},
+	},
 	"p2": &NCMProfile{
 		Name: "p2",
 		Commands: CommandSet{
