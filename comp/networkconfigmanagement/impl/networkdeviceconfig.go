@@ -26,7 +26,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
-func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, sender sender.Sender, hostname string, profiles ncmprofile.Map, connectFn func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error), clock clock.Clock) *networkDeviceConfigImpl {
+// connFn is a function that gets a connection to a device; it is an argument
+// instead of a baked-in method so that A) it is easier to test, and B) it will
+// be easy to swap out for non-ssh connections if we ever need to.
+type connFn = func(device *ncmconfig.DeviceInstance) (ncmremote.Connection, error)
+
+func newNetworkDeviceConfigImpl(
+	log log.Component,
+	store ncmstore.ConfigStore,
+	sender sender.Sender,
+	hostname string,
+	profiles ncmprofile.Map,
+	connectFn connFn,
+	clock clock.Clock,
+) *networkDeviceConfigImpl {
 	return &networkDeviceConfigImpl{
 		log:      log,
 		store:    store,
@@ -59,7 +72,7 @@ type networkDeviceConfigImpl struct {
 	hostname              string
 	profiles              ncmprofile.Map
 
-	connect func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error)
+	connect connFn
 }
 
 // RegisterDevice tells the component how to connect to a device.
