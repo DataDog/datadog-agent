@@ -52,13 +52,27 @@ runner_status()
 	agent_start_stop_daemon --status --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
 }
 
-PROCMGR_PIDFILE="$INSTALL_DIR/run/dd-procmgrd.pid"
-PROCMGR_PATH="$INSTALL_DIR/embedded/bin/dd-procmgrd"
-
-# Boot and the core Agent both start dd-procmgrd before this check.
+# A pid file can exist before dd-procmgrd is listening.
 procmgr_running()
 {
-	agent_start_stop_daemon --status --quiet --pidfile "$PROCMGR_PIDFILE" --user "$AGENT_USER" --exec "$PROCMGR_PATH"
+	attempt=0
+	while [ "$attempt" -lt 10 ]; do
+		# 00010000: listening. 0001: stream socket. 01: listener state.
+		if awk '
+			$4 == "00010000" &&
+			$5 == "0001" &&
+			$6 == "01" &&
+			$NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
+				ready = 1
+			}
+			END { exit !ready }
+		' /proc/net/unix; then
+			return 0
+		fi
+		attempt=$((attempt + 1))
+		sleep 1
+	done
+	return 1
 }
 
 #
