@@ -65,6 +65,7 @@ service:
     extensions:
         - hpflare
         - ddprofiling
+        - oom
     pipelines:
         metrics:
             exporters:

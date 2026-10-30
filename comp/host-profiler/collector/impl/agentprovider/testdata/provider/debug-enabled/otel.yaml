@@ -63,6 +63,7 @@ receivers:
 service:
     extensions:
         - hpflare
+        - oom
     pipelines:
         metrics:
             exporters:

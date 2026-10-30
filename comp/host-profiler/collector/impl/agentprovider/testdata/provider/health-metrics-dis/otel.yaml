@@ -38,6 +38,7 @@ receivers:
 service:
     extensions:
         - hpflare
+        - oom
     pipelines:
         profiles:
             exporters:
