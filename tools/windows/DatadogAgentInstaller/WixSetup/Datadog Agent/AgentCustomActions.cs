@@ -82,6 +82,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction ConfigureServicesRollback { get; }
 
+        public ManagedAction StopDDServicesRollback { get; }
+
         public ManagedAction StopDDServices { get; }
 
         public ManagedAction StartDDServices { get; }
@@ -658,15 +660,35 @@ namespace WixSetup.Datadog_Agent
             // WiX built-in StopServices only stops services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
             // during change operations.
+            // An early InstallExecute disables and stops services before the old product is
+            // uninstalled, preventing services from restarting while files and permissions
+            // are being updated. The nested uninstall only stops services; it does not
+            // overwrite the incoming MSI's startup settings snapshot.
             StopDDServices = new CustomAction<CustomActions>(
                 new Id(nameof(StopDDServices)),
                 CustomActions.StopDDServices,
                 Return.check,
-                When.Before,
-                Step.StopServices
+                When.After,
+                Step.InstallInitialize,
+                Condition.Always
             )
             {
                 Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "RollbackDisabled=[RollbackDisabled]");
+
+            StopDDServicesRollback = new CustomAction<CustomActions>(
+                new Id(nameof(StopDDServicesRollback)),
+                CustomActions.StopDDServicesRollback,
+                Return.ignore,
+                When.Before,
+                new Step(StopDDServices.Id),
+                Condition.NOT(Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.rollback,
                 Impersonate = false
             };
 
@@ -687,7 +709,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
-            // Rollback StartDDServices stops the the services so that any file locks are released.
+            // Rollback StartDDServices disables and stops services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(
                 new Id(nameof(StartDDServicesRollback)),
                 CustomActions.StartDDServicesRollback,
@@ -743,9 +765,8 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.DoRollback,
                     Return.ignore,
                     When.After,
-                    // This is the earliest we can schedule this action
-                    // during an uninstall
-                    Step.InstallInitialize,
+                    // After the early service-protection execution phase
+                    new Step(nameof(DDCreateFolders)),
                     // Run when REMOVE="ALL" which runs also on upgrade
                     // This ensures this product can be removed before
                     // the new one is installed.
@@ -755,15 +776,14 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            // Scheduled right after InstallInitialize, the earliest a deferred action can run:
-            // the config root must already be secure before any other install/uninstall action
-            // that may rely on its contents.
+            // Secure the config root after old-product removal, before other file actions.
+            // Only service protection may execute in the early InstallExecute phase.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
                     When.After,
-                    Step.InstallInitialize,
+                    Step.RemoveExistingProducts,
                     Condition.Always
                     )
             {

@@ -312,7 +312,9 @@ namespace WixSetup.Datadog_Agent
             project.MajorUpgrade = MajorUpgrade.Default;
             // Set to true otherwise RC versions can't upgrade each other.
             project.MajorUpgrade.AllowSameVersionUpgrades = true;
-            project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
+            // InstallExecute is explicitly sequenced early below: it applies only service
+            // protection, keeping old-product removal ahead of all file/component changes.
+            project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallExecute;
             project.MajorUpgrade.DowngradeErrorMessage =
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
@@ -424,6 +426,12 @@ namespace WixSetup.Datadog_Agent
                         value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
                                  value.StartsWith("EXAMPLECONFSLOCATION")))
                     .ForEach(c => c.SetAttributeValue("KeyPath", "yes"));
+                // Execute the service-protection script before invoking the old MSI.
+                // Merely scheduling deferred actions before RemoveExistingProducts would
+                // not run them before removal. Keep this before ProcessComponents (1600).
+                document.Select("Wix/Package/InstallExecuteSequence")
+                    .AddElement("InstallExecute", "Sequence=1550; Condition=NOT UPGRADINGPRODUCTCODE");
+
                 // WiX 5 migration: WixFailWhenDeferred was replaced with util:FailWhenDeferred element
                 document
                     .Select("Wix/Package")
@@ -542,8 +550,8 @@ namespace WixSetup.Datadog_Agent
                 StartOn = null,
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
-                Start = SvcStartType.auto,
-                DelayedAutoStart = true,
+                // StartDDServices sets automatic delayed start after configuration is safe.
+                Start = SvcStartType.disabled,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -704,6 +712,7 @@ namespace WixSetup.Datadog_Agent
                 "Manage Datadog agent processes",
                 "LocalSystem",
                 null);
+            procmgrService.Start = SvcStartType.disabled;
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {
@@ -742,7 +751,7 @@ namespace WixSetup.Datadog_Agent
                         // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                         StopOn = null,
                         RemoveOn = SvcEvent.Uninstall_Wait,
-                        Start = SvcStartType.demand,
+                        Start = SvcStartType.disabled,
                         ServiceSid = ServiceSid.none,
                         FirstFailureActionType = FailureActionType.restart,
                         SecondFailureActionType = FailureActionType.restart,

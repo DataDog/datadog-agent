@@ -91,6 +91,7 @@
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="Service\ProcmgrStartTypeTests.cs" />
     <Compile Include="Service\ServiceCustomActionTests.cs" />
+    <Compile Include="Service\ServiceStartupTests.cs" />
     <Compile Include="Service\ServiceCustomActionsTestSetup.cs" />
     <Compile Include="SessionExtensionsTests.cs" />
     <Compile Include="SessionTestBaseSetup.cs" />

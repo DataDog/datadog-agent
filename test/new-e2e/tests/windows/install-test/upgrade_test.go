@@ -35,6 +35,7 @@ func TestUpgrade(t *testing.T) {
 type testUpgradeSuite struct {
 	baseAgentMSISuite
 	previousAgentPackge *windowsAgent.Package
+	expectProcmgrAbsent bool
 }
 
 func (s *testUpgradeSuite) TestUpgrade() {
@@ -42,6 +43,9 @@ func (s *testUpgradeSuite) TestUpgrade() {
 
 	// install previous version
 	s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackge)
+	if s.expectProcmgrAbsent {
+		s.requireProcmgrAbsent()
+	}
 
 	// simulate upgrading from a version that didn't have the runtime-security.d directory
 	// to ensure upgrade places new config files.
@@ -81,6 +85,47 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)
+}
+
+// Windows MSI first included procmgr in 7.80.0 (PR #49719, commit 48038ecbf7b).
+// Pin a preceding 7.x release so this scenario does not change with last stable.
+func packageBeforeProcmgr(t *testing.T) *windowsAgent.Package {
+	t.Helper()
+	pkg := &windowsAgent.Package{Version: "7.79.0-1", Arch: "x86_64"}
+	var err error
+	pkg.URL, err = windowsAgent.GetStableMSIURL(pkg.Version, pkg.Arch, "")
+	require.NoError(t, err, "should resolve the MSI from before procmgr was packaged")
+	return pkg
+}
+
+func TestUpgradeFromBeforeProcmgr(t *testing.T) {
+	s := &testUpgradeFromBeforeProcmgrSuite{}
+	s.previousAgentPackge = packageBeforeProcmgr(t)
+	s.expectProcmgrAbsent = true
+	Run(t, s)
+}
+
+type testUpgradeFromBeforeProcmgrSuite struct {
+	testUpgradeSuite
+}
+
+func TestUpgradeRollbackFromBeforeProcmgr(t *testing.T) {
+	s := &testUpgradeRollbackFromBeforeProcmgrSuite{}
+	s.previousAgentPackage = packageBeforeProcmgr(t)
+	s.expectProcmgrAbsent = true
+	Run(t, s)
+}
+
+type testUpgradeRollbackFromBeforeProcmgrSuite struct {
+	testUpgradeRollbackSuite
+}
+
+func (s *baseAgentMSISuite) requireProcmgrAbsent() {
+	s.T().Helper()
+	exists, err := windowsCommon.RegistryKeyExists(s.Env().RemoteHost,
+		`HKLM:\SYSTEM\CurrentControlSet\Services\dd-procmgr-service`)
+	s.Require().NoError(err)
+	s.Require().False(exists, "procmgr must not be installed in the pre-procmgr version")
 }
 
 // TestUpgradeFromLatest tests upgrading the agent from the current version to the upgrade-test version
@@ -155,6 +200,8 @@ func TestUpgradeRollback(t *testing.T) {
 
 type testUpgradeRollbackSuite struct {
 	baseAgentMSISuite
+	previousAgentPackage *windowsAgent.Package
+	expectProcmgrAbsent  bool
 }
 
 // TC-INS-002
@@ -162,7 +209,16 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 	vm := s.Env().RemoteHost
 
 	// install previous version
-	previousAgentPackage := s.installAndTestLastStable(vm)
+	previousAgentPackage := s.previousAgentPackage
+	if previousAgentPackage == nil {
+		previousAgentPackage = s.installAndTestLastStable(vm)
+	} else {
+		s.installAndTestPreviousAgentVersion(vm, previousAgentPackage)
+	}
+	if s.expectProcmgrAbsent {
+		s.requireProcmgrAbsent()
+	}
+	originalStartup := s.captureProtectedServiceStartup()
 
 	// upgrade to the new version, but intentionally fail
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
@@ -174,6 +230,12 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
+	}
+
+	// Check before the manual start below: it must not hide a service left disabled.
+	s.assertProtectedServiceStartup(originalStartup)
+	if s.expectProcmgrAbsent {
+		s.requireProcmgrAbsent()
 	}
 
 	// TODO: we shouldn't have to start the agent manually after rollback
@@ -226,6 +288,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 
 	// install previous version
 	s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackage)
+	originalStartup := s.captureProtectedServiceStartup()
 
 	// upgrade to the new version, but intentionally fail
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
@@ -238,6 +301,8 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
+
+	s.assertProtectedServiceStartup(originalStartup)
 
 	// TODO: we shouldn't have to start the agent manually after rollback
 	//       but the kitchen tests did too.
@@ -451,4 +516,39 @@ func TestUpgradeFromV6(t *testing.T) {
 	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch, "")
 	require.NoError(t, err)
 	Run(t, s)
+}
+
+// protectedServiceStartup records only startup configuration, not running state.
+// Rollback does not promise to restart services.
+type protectedServiceStartup struct {
+	startType        int
+	delayedAutoStart string
+}
+
+func (s *baseAgentMSISuite) captureProtectedServiceStartup() map[string]protectedServiceStartup {
+	vm := s.Env().RemoteHost
+	settings := make(map[string]protectedServiceStartup)
+	for _, name := range []string{"datadogagent", "dd-procmgr-service", "Datadog Installer"} {
+		registryPath := `HKLM:\SYSTEM\CurrentControlSet\Services\` + name
+		exists, err := windowsCommon.RegistryKeyExists(vm, registryPath)
+		s.Require().NoError(err)
+		if !exists {
+			continue // Older Agent packages do not contain all three services.
+		}
+		config, err := windowsCommon.GetServiceConfig(vm, name)
+		s.Require().NoError(err)
+		setting := protectedServiceStartup{startType: config.StartType}
+		if name == "datadogagent" {
+			setting.delayedAutoStart, err = windowsCommon.GetRegistryValue(vm, registryPath, "DelayedAutoStart")
+			s.Require().NoError(err)
+		}
+		settings[name] = setting
+	}
+	return settings
+}
+
+func (s *baseAgentMSISuite) assertProtectedServiceStartup(expected map[string]protectedServiceStartup) {
+	actual := s.captureProtectedServiceStartup()
+	// Equality also checks that a service introduced by the failed upgrade was removed.
+	s.Assert().Equal(expected, actual, "rollback must restore original service startup settings before manual start")
 }

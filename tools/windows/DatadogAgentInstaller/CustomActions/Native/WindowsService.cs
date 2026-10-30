@@ -39,6 +39,15 @@ namespace Datadog.CustomActions.Native
                 throw new Exception($"Unexpected Start value for service {_service.ServiceName}");
             }
         }
+        public bool DelayedAutoStart
+        {
+            get
+            {
+                using var key = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{_service.ServiceName}");
+                return Convert.ToInt32(key?.GetValue("DelayedAutoStart", 0)) != 0;
+            }
+        }
+
         public void Refresh() => _service.Refresh();
     }
 }
