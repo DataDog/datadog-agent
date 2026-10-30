@@ -108,6 +108,7 @@ def build(
         bin_path=bin_path,
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        fips_mode=fips_mode,
     )
 
 

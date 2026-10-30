@@ -29,7 +29,7 @@ module Omnibus
     #
     def inspect_binary(binary_path, &block)
       @inspectors ||= []
-      @inspectors.append(GoSymbolsInspector.new(binary_path, &block))
+      @inspectors.append(GoSymbolsInspector.new(binary_path, fips_mode: fips_mode?, omnibazel_flags: omnibazel_flags, &block))
     end
 
     # Override the package_me step to sign the binaries just before the packagers run
