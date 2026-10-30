@@ -6,5 +6,6 @@
 #include "raw_packet_test.h"
 #include "path_id_test.h"
 #include "syscall_usage_test.h"
+#include "approvers_test.h"
 
 #endif
