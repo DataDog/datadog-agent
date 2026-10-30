@@ -11,6 +11,7 @@ package loader
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/ringbuf"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -119,13 +121,16 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
+	progSpec, ok := spec.Programs["probe_run_with_cookie"]
+	if !ok {
+		return nil, errors.New("probe_run_with_cookie program not found in eBPF spec")
+	}
 	useMultiAttach := l.config.forceMultiAttach || canUseMultiAttach()
 	if useMultiAttach {
-		progSpec, ok := spec.Programs["probe_run_with_cookie"]
-		if !ok {
-			return nil, errors.New("probe_run_with_cookie program not found in eBPF spec")
-		}
 		progSpec.AttachType = ebpf.AttachTraceUprobeMulti
+	}
+	if UsesSleepable() {
+		makeSleepable(progSpec)
 	}
 
 	opts := ebpf.CollectionOptions{}
@@ -176,6 +181,54 @@ var canUseMultiAttach = sync.OnceValue(func() bool {
 	}
 	return v >= kernel.VersionCode(6, 10, 0)
 })
+
+// sleepableDisabledEnvVar turns off sleepable mode even on kernels that
+// support it. It exists to compare the two modes on the same build.
+const sleepableDisabledEnvVar = "DD_DYNINST_DISABLE_SLEEPABLE"
+
+// UsesSleepable reports whether programs are loaded as sleepable uprobes.
+func UsesSleepable() bool {
+	return os.Getenv(sleepableDisabledEnvVar) == "" && canUseSleepable()
+}
+
+// canUseSleepable reports whether the kernel accepts sleepable uprobe
+// programs (Linux 6.0+). It loads a trivial sleepable kprobe-type program:
+// older verifiers only allow fentry/fexit/fmod_ret and LSM programs to be
+// sleepable. Probing rather than checking the version keeps backports working.
+var canUseSleepable = sync.OnceValue(func() bool {
+	prog, err := ebpf.NewProgramWithOptions(&ebpf.ProgramSpec{
+		Type:    ebpf.Kprobe,
+		Flags:   unix.BPF_F_SLEEPABLE,
+		License: "GPL",
+		Instructions: asm.Instructions{
+			asm.Mov.Imm(asm.R0, 0),
+			asm.Return(),
+		},
+	}, ebpf.ProgramOptions{LogDisabled: true})
+	if err != nil {
+		log.Infof("dyninst: sleepable uprobes not supported: %v", err)
+		return false
+	}
+	_ = prog.Close()
+	log.Infof("dyninst: using sleepable uprobes")
+	return true
+})
+
+// makeSleepable marks the program sleepable and replaces bpf_probe_read_user
+// calls with bpf_copy_from_user. Unlike bpf_probe_read_user, which runs with
+// page faults disabled, bpf_copy_from_user can fault in pages that are not
+// mapped in the target process yet (for example file-backed pages of the
+// binary that it has not touched). Both helpers have the same signature and
+// zero the destination on failure.
+func makeSleepable(prog *ebpf.ProgramSpec) {
+	prog.Flags |= unix.BPF_F_SLEEPABLE
+	for i := range prog.Instructions {
+		ins := &prog.Instructions[i]
+		if ins.IsBuiltinCall() && ins.Constant == int64(asm.FnProbeReadUser) {
+			ins.Constant = int64(asm.FnCopyFromUser)
+		}
+	}
+}
 
 // stripRelocations removes the relocation metadata from the instructions.
 // These are not needed for pt_regs as long as we're not trying to build
@@ -296,6 +349,10 @@ type RuntimeStats struct {
 	// value indicates either a runtime.recovery firing pattern this
 	// code doesn't understand or a DWARF/ABI mismatch.
 	RecoveryInvalidState uint64
+	// BusyDrops counts probe hits dropped because another invocation on the
+	// same CPU was using the per-CPU scratch maps (it was preempted or, in
+	// sleepable mode, sleeping on a page fault).
+	BusyDrops uint64
 }
 
 // RuntimeStats returns the per-probe runtime stats for the program,

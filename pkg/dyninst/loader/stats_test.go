@@ -33,6 +33,7 @@ func TestRuntimeStatsHasSameLayoutAsStats(t *testing.T) {
 		RecoveryNoOpenCalls:    cStats.Recovery_no_open_calls,
 		RecoveryFilteredGoexit: cStats.Recovery_filtered_goexit,
 		RecoveryInvalidState:   cStats.Recovery_invalid_state,
+		BusyDrops:              cStats.Busy_drops,
 	}
 	require.Equal(t, runtimeStats, *(*RuntimeStats)(unsafe.Pointer(&cStats)))
 	require.Equal(t, cStats, *(*stats)(unsafe.Pointer(&runtimeStats)))
