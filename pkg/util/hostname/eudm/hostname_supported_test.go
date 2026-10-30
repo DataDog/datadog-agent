@@ -19,14 +19,14 @@ func TestGetMissingIdentity(t *testing.T) {
 	old := collectSystemInfo
 	t.Cleanup(func() { collectSystemInfo = old })
 	collectSystemInfo = func() (*systeminfo.SystemInfo, error) { return nil, errors.New("unavailable") }
-	_, err := Get()
+	_, err := Get(true)
 	require.Error(t, err)
 	collectSystemInfo = func() (*systeminfo.SystemInfo, error) { return nil, nil }
-	_, err = Get()
+	_, err = Get(true)
 	require.Error(t, err)
 	collectSystemInfo = func() (*systeminfo.SystemInfo, error) {
 		return &systeminfo.SystemInfo{ComputerName: "device", SerialNumber: "Unknown"}, nil
 	}
-	_, err = Get()
+	_, err = Get(true)
 	require.Error(t, err)
 }
