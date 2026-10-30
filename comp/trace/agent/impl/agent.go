@@ -312,8 +312,7 @@ func stop(ag component) error {
 func handleSignal(shutdowner fx.Shutdowner, statsd ddgostatsd.ClientInterface) {
 	defer watchdog.LogOnPanic(statsd)
 
-	// Install the SIGDANGER handler (AIX paging-space-low warning; no-op on
-	// other platforms).
+	// Handle SIGDANGER (AIX paging space low); no-op on other platforms.
 	sigdanger.Init()
 
 	sigChan := make(chan os.Signal, 1)

@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    On AIX, the Agent and trace-agent now handle the ``SIGDANGER`` signal that
+    the kernel sends when system paging space is nearly exhausted. The signal
+    was previously ignored, and the kernel could then kill the processes with
+    no trace in the logs. On receipt, the Agent logs a critical message and
+    runs a garbage collection to release memory. If this message appears,
+    check paging space usage with ``lsps -s`` and consider increasing its
+    size.

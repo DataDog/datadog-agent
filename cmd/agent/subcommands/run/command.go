@@ -338,9 +338,7 @@ func run(log log.Component,
 		stopAgent(cfg, sysprobeConf)
 	}()
 
-	// Install the SIGDANGER handler (AIX paging-space-low warning; no-op on other
-	// platforms). See pkg/util/sigdanger for why this must not be left to the
-	// Go runtime's default behavior.
+	// Handle SIGDANGER (AIX paging space low); no-op on other platforms.
 	sigdanger.Init()
 
 	// Setup a channel to catch OS signals

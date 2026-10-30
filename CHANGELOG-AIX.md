@@ -10,7 +10,6 @@
 <!-- Add entries here for changes not yet in a release. -->
 
 - Refuse to install Agent 7 when the legacy Datadog Unix Agent (fileset `datadog-unix-agent`) is installed, since the two share `/opt/datadog-agent`, the `dd-agent` user, and the `datadog-agent` SRC subsystem and cannot coexist. The install script (`install_aix.sh`) and the BFF's pre-installation script abort fresh installs with a message warning that uninstalling the Unix Agent deletes its configuration under `/etc/datadog-agent` and suggesting to save a backup copy for reference (the Unix Agent and Agent 7 use different configuration formats), then remove it with `installp -u datadog-unix-agent`.
-- Catch `SIGDANGER` (AIX signal 33, sent by the kernel when system paging space is nearly exhausted) in the agent and trace-agent, and log a critical message before the situation escalates. Without this, the Go runtime silently absorbs the signal (it only knows it as "signal 33" and nothing registers interest in it) and, if paging space is later fully exhausted, the kernel kills processes with an uncatchable `SIGKILL` — an invisible death that leaves no output in `-stderr.log` or the agent logs. The handler also forces a garbage collection (`debug.FreeOSMemory`) to release memory back to the OS, as the signal's documented intent is "free up some page space".
 
 --
 
