@@ -490,6 +490,25 @@ func TestUnscheduleDanglingConfig(t *testing.T) {
 	assert.Empty(t, testDispatcher.store.idToDigest)
 }
 
+func TestRemoveConfigDanglingGauge(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	gauge := danglingConfigs.WithValues(le.JoinLeaderValue)
+	initial := gauge.Get()
+
+	config := generateIntegration("dangling-gauge-check")
+	dispatcher.Schedule([]integration.Config{config})
+	require.Equal(t, initial+1, gauge.Get())
+
+	dispatcher.Unschedule([]integration.Config{config})
+	assert.Equal(t, initial, gauge.Get())
+
+	dispatcher.removeConfig("unknown-digest")
+	assert.Equal(t, initial, gauge.Get())
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestReset(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)

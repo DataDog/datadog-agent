@@ -188,7 +188,6 @@ func (d *dispatcher) removeConfig(digest string) {
 	}
 
 	if !found { // Dangling config. Not assigned to any node.
-		danglingConfigs.Dec(le.JoinLeaderValue)
 		return
 	}
 
