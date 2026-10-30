@@ -28,6 +28,7 @@ go_library(
         "//pkg/clusteragent/admission/probe",
         "//pkg/clusteragent/autoscaling/cluster/spot",
         "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/hardening",
         "//pkg/clusteragent/instrumentation",
         "//pkg/config/remote/client",
         "//pkg/config/setup",
