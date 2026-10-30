@@ -180,16 +180,16 @@ def _assign_pr_team_labels(gh, pr_id, teams):
 
 
 @task
-def handle_community_pr(_, repo='', pr_id=-1, labels=''):
+def notify_community_pr(_, repo='', pr_id=-1):
     """
-    Will set labels and notify teams about a newly opened community PR
+    Will notify the teams owning the changed files about a community PR
     """
     from slack_sdk import WebClient
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
-    # Get review teams / channels
     gh = GithubAPI()
+    pr = gh.get_pr(pr_id)
 
     # Find teams corresponding to file changes
     teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
@@ -198,17 +198,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     # Remove duplicates
     channels = list(set(channels))
 
-    # Update labels
-    for label in labels.split(','):
-        if label:
-            gh.add_pr_label(pr_id, label)
-
-    if teams != [ALL_TEAMS]:
-        _assign_pr_team_labels(gh, pr_id, teams)
-
     # Create message
-    pr = gh.get_pr(pr_id)
-    title = pr.title.strip()
+    # Escape Slack control characters: the title comes from an external contributor
+    title = pr.title.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message

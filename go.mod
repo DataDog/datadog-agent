@@ -209,7 +209,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
-	github.com/DataDog/datadog-traceroute v1.0.21
+	github.com/DataDog/datadog-traceroute v1.0.22
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.11.2
 	github.com/DataDog/ddtrivy v0.0.0-20261015134340-48092a734bbb
@@ -233,14 +233,14 @@ require (
 	github.com/aptly-dev/aptly v1.6.3
 	github.com/aquasecurity/trivy v0.76.1
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
-	github.com/aws/aws-sdk-go-v2 v1.47.3
-	github.com/aws/aws-sdk-go-v2/config v1.33.9
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.9
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.340.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.131.0
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.5
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.80.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.51.4
+	github.com/aws/aws-sdk-go-v2 v1.47.4
+	github.com/aws/aws-sdk-go-v2/config v1.33.10
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.10
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.341.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.131.1
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.6
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.5
 	github.com/aws/karpenter-provider-aws v1.14.0
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.65.0
@@ -410,9 +410,9 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.30.1
+	gitlab.com/gitlab-org/api/client-go/v3 v3.32.0
 	go.etcd.io/bbolt v1.5.0
-	go.etcd.io/etcd/client/v2 v2.305.34
+	go.etcd.io/etcd/client/v2 v2.305.35
 	go.mongodb.org/mongo-driver/v2 v2.9.2
 	go.opentelemetry.io/collector/component v1.69.0
 	go.opentelemetry.io/collector/component/componentstatus v0.163.0
@@ -580,23 +580,23 @@ require (
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.6 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.104.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.60.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.21 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.22 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.63.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.64.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.49.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.10.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.38.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.4 // indirect
-	github.com/aws/smithy-go v1.28.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.10.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.38.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.5 // indirect
+	github.com/aws/smithy-go v1.28.6 // indirect
 	github.com/awslabs/operatorpkg v0.0.0-20260708223819-4da4c353c5fa // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
