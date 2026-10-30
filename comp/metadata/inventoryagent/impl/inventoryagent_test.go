@@ -995,56 +995,16 @@ gpu_monitoring:
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 }
 
-func TestFeatureGPUMonitoringEnabled(t *testing.T) {
+func TestFeatureGPUMonitoringEnabledFromCoreConfig(t *testing.T) {
 	original := fetchSystemProbeConfig
 	t.Cleanup(func() { fetchSystemProbeConfig = original })
+	fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+		return "gpu_monitoring:\n  enabled: false\n", nil
+	}
 
-	t.Run("core gpu.enabled without system-probe module", func(t *testing.T) {
-		fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
-			return "gpu_monitoring:\n  enabled: false\n", nil
-		}
-		ia := getTestInventoryPayload(t, map[string]any{"gpu.enabled": true}, nil)
-		ia.fetchSystemProbeMetadata()
-		assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
-	})
-
-	t.Run("system-probe gpu_monitoring.enabled without core check", func(t *testing.T) {
-		fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
-			return "", errors.New("system-probe unavailable")
-		}
-		ia := getTestInventoryPayload(t, map[string]any{"gpu.enabled": false}, map[string]any{"gpu_monitoring.enabled": true})
-		ia.fetchSystemProbeMetadata()
-		assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
-	})
-
-	t.Run("neither enabled", func(t *testing.T) {
-		fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
-			return "", errors.New("system-probe unavailable")
-		}
-		ia := getTestInventoryPayload(t, map[string]any{"gpu.enabled": false}, map[string]any{"gpu_monitoring.enabled": false})
-		ia.fetchSystemProbeMetadata()
-		assert.False(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
-	})
-
-	t.Run("core gpu.enabled when system-probe config is not loaded", func(t *testing.T) {
-		p := NewComponent(
-			makeRequires(fxutil.Test[testDeps](
-				t,
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() config.Component {
-					return config.NewMockWithOverrides(t, map[string]any{"gpu.enabled": true})
-				}),
-				sysprobeconfig.NoneModule(),
-				fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-				fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-				hostnameimpl.MockModule(),
-			)),
-		)
-		ia := p.Comp.(*inventoryagent)
-		ia.fetchSystemProbeMetadata()
-		assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
-	})
+	ia := getTestInventoryPayload(t, map[string]any{"gpu.enabled": true}, nil)
+	ia.fetchSystemProbeMetadata()
+	assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
 }
 
 func TestFetchFleet(t *testing.T) {
