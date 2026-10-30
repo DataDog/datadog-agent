@@ -45,10 +45,7 @@ type GRPCTransport struct {
 // has no effect on it. There is accordingly no window worth configuring here,
 // and grpc-go's own dynamic (BDP-estimated) default applies.
 func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
-	enc := "identity"
-	if dest.Core.Compression == Zstd {
-		enc = "zstd"
-	}
+	enc := EncodingName(dest.Core.Compression)
 	return &GRPCTransport{
 		specs: dest.Senders,
 		conns: make([]*grpc.ClientConn, len(dest.Senders)),
@@ -232,12 +229,17 @@ func NewStatefulIntakeServer(srv StatefulIntakeServer, opts ...grpc.ServerOption
 	return s
 }
 
-// EncodingName is the dd-content-encoding header value.
+// EncodingName is the dd-content-encoding header value, which is the name
+// foldspace_content_encoding gives the encoding.
 func EncodingName(c Compression) string {
-	if c == Zstd {
+	switch c {
+	case Zstd:
 		return "zstd"
+	case JSplit:
+		return "fs-jsplit"
+	default:
+		return "identity"
 	}
-	return "identity"
 }
 
 // HeaderAPIKey reads dd-api-key from incoming metadata.

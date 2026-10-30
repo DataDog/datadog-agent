@@ -263,3 +263,12 @@ func TestTwoGRPCIntakesReceiveSameBytes(t *testing.T) {
 	assert.Equal(t, []string{"key-b"}, b.keys)
 	b.mu.Unlock()
 }
+
+// The intake decodes a batch body by its dd-content-encoding, so each
+// encoding has to go out under the name foldspace itself gives it.
+func TestEncodingName(t *testing.T) {
+	assert.Equal(t, "identity", EncodingName(Default))
+	assert.Equal(t, "identity", EncodingName(Identity))
+	assert.Equal(t, "zstd", EncodingName(Zstd))
+	assert.Equal(t, "fs-jsplit", EncodingName(JSplit))
+}
