@@ -29,25 +29,27 @@ import (
 
 // configManager implements the logic of handling additions and removals of
 // configs (which may or may not be templates) and services, and reconciling
-// those together to resolve templates.
+// those together to resolve templates. It also publishes the resulting
+// scheduling changes to the scheduler controller.
 //
-// This type is threadsafe, internally using a mutex to serialize operations.
+// This type is threadsafe. Mutations and publication are serialized under the
+// same mutex; scheduler callbacks run asynchronously.
 type configManager interface {
 	// processNewService handles a new service
-	processNewService(svc listeners.Service) integration.ConfigChanges
+	processNewService(svc listeners.Service)
 
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
-	processDelService(svc listeners.Service) integration.ConfigChanges
+	processDelService(svc listeners.Service)
 
 	// processNewConfig handles a new config
-	processNewConfig(config integration.Config) (integration.ConfigChanges, map[checkid.ID]checkid.ID)
+	processNewConfig(config integration.Config)
 
 	// processDelConfigs handles removal of a config, unscheduling the config
 	// itself or, if it is a template, any configs resolved from it.  Note that
 	// this applies to a slice of configs, where the other methods in this
 	// interface apply to only one config.
-	processDelConfigs(configs []integration.Config) integration.ConfigChanges
+	processDelConfigs(configs []integration.Config)
 
 	// mapOverLoadedConfigs calls the given function with a map of all
 	// loaded configs (those which have been scheduled but not unscheduled).
@@ -118,8 +120,7 @@ type reconcilingConfigManager struct {
 
 	// scheduledConfigs contains an entry for each scheduled config, keyed
 	// by its digest.  This is a mix of resolved templates and non-template
-	// configs.  The returned integration.ConfigChanges from interface
-	// methods correspond exactly to changes in this map.
+	// configs. Published ConfigChanges correspond exactly to changes in this map.
 	scheduledConfigs map[string]integration.Config
 
 	// nonTemplateResolutions maps raw non-template config digests to the exact
@@ -165,15 +166,15 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 }
 
 // processNewService implements configManager#processNewService.
-func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) (result integration.ConfigChanges) {
+func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	defer func() { cm.publish(result, nil) }()
 
 	svcID := svc.GetServiceID()
 	if _, found := cm.activeServices[svcID]; found {
 		log.Debugf("Service %s is already tracked by autodiscovery", svcID)
-		return integration.ConfigChanges{}
+		cm.publish(integration.ConfigChanges{}, nil)
+		return
 	}
 
 	adIdentifiers := svc.GetADIdentifiers()
@@ -195,20 +196,20 @@ func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) (re
 	changes := cm.reconcileService(svcID)
 
 	//  4. update scheduledConfigs
-	return cm.applyChanges(changes)
+	cm.publish(cm.applyChanges(changes), nil)
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) (result integration.ConfigChanges) {
+func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	defer func() { cm.publish(result, nil) }()
 
 	svcID := svc.GetServiceID()
 	svcAndADIDs, found := cm.activeServices[svcID]
 	if !found {
 		log.Debugf("Service %s is not tracked by autodiscovery", svcID)
-		return integration.ConfigChanges{}
+		cm.publish(integration.ConfigChanges{}, nil)
+		return
 	}
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
@@ -227,21 +228,21 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) (re
 	changes := cm.reconcileService(svcID)
 
 	//  4. update scheduledConfigs
-	return cm.applyChanges(changes)
+	cm.publish(cm.applyChanges(changes), nil)
 }
 
 // processNewConfig implements configManager#processNewConfig.
-func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) (result integration.ConfigChanges, changedIDsOfSecretsWithConfigs map[checkid.ID]checkid.ID) {
+func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	defer func() { cm.publish(result, changedIDsOfSecretsWithConfigs) }()
 
-	changedIDsOfSecretsWithConfigs = make(map[checkid.ID]checkid.ID)
+	changedIDsOfSecretsWithConfigs := make(map[checkid.ID]checkid.ID)
 
 	digest := config.Digest()
 	if _, found := cm.activeConfigs[digest]; found {
 		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", config.Name, config.Digest())
-		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
+		cm.publish(integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs)
+		return
 	}
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
@@ -269,7 +270,8 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		if err != nil {
 			if len(decryptedConfig.Instances) == 0 {
 				log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
-				return cm.applyChanges(changes), changedIDsOfSecretsWithConfigs
+				cm.publish(cm.applyChanges(changes), changedIDsOfSecretsWithConfigs)
+				return
 			}
 			log.Warnf("Unable to resolve secrets for some instances of config '%s', dropping instances that failed to decrypt, err: %s", config.Name, err.Error())
 		}
@@ -301,14 +303,13 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 	}
 
 	//  4. update scheduledConfigs
-	return cm.applyChanges(changes), changedIDsOfSecretsWithConfigs
+	cm.publish(cm.applyChanges(changes), changedIDsOfSecretsWithConfigs)
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
-func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) (result integration.ConfigChanges) {
+func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	defer func() { cm.publish(result, nil) }()
 
 	var allChanges integration.ConfigChanges
 	for _, config := range configs {
@@ -357,7 +358,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		allChanges.Merge(cm.applyChanges(changes))
 	}
 
-	return allChanges
+	cm.publish(allChanges, nil)
 }
 
 // mapOverLoadedConfigs implements configManager#mapOverLoadedConfigs.
