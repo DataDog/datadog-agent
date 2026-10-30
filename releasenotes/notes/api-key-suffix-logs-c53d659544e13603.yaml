@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The info- and warning-level log messages emitted at forwarder startup,
+    on API key rotation, on a failed API key validation, on delegated
+    authentication updates, and when runtime event and activity dump log
+    endpoints are listed at startup no longer include the trailing
+    characters of the API key. The error returned when the flare intake
+    rejects the API key no longer includes them either. Run ``agent status``
+    to see which API keys are in use.
