@@ -115,6 +115,37 @@ func TestMoveCheck(t *testing.T) {
 	}
 }
 
+func TestMoveConfigNotOnSource(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	config := integration.Config{
+		Name:       "check1",
+		Instances:  []integration.Data{integration.Data("")},
+		InitConfig: integration.Data(""),
+	}
+	digest := config.Digest()
+	id := checkid.BuildID(config.Name, config.FastDigest(), config.Instances[0], config.InitConfig)
+
+	for _, node := range []string{"nodeA", "nodeB", "nodeC"} {
+		dispatcher.store.nodes[node] = newNodeStore(node, "")
+	}
+	dispatcher.addConfig(config, "nodeA")
+	dispatcher.store.nodes["nodeA"].clcRunnerStats = types.CLCRunnersStats{string(id): types.CLCRunnerStats{}}
+
+	// Re-dispatched to nodeC after the rebalance snapshot saw it on nodeA.
+	dispatcher.addConfig(config, "nodeC")
+
+	err := dispatcher.moveConfig("nodeA", "nodeB", digest)
+	assert.Error(t, err)
+
+	assert.Equal(t, "nodeC", dispatcher.store.digestToNode[digest])
+	assert.Empty(t, dispatcher.store.nodes["nodeA"].digestToConfig)
+	assert.Empty(t, dispatcher.store.nodes["nodeB"].digestToConfig)
+	assert.Contains(t, dispatcher.store.nodes["nodeC"].digestToConfig, digest)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestRebalanceUsingUtilization(t *testing.T) {
 	// To simplify the test:
 	//   - Fill the store manually to avoid having to fetch the information from

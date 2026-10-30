@@ -54,6 +54,11 @@ func (d *dispatcher) moveConfig(src, dest, digest string) error {
 	if !configFound {
 		return fmt.Errorf("no config registered for digest %s", digest)
 	}
+	// The rebalance plan is computed from an earlier snapshot: the config may
+	// have been unscheduled, re-dispatched or moved since.
+	if current := d.store.digestToNode[digest]; current != src {
+		return fmt.Errorf("config %s is on node %q, not %q", digest, current, src)
+	}
 	if len(instanceIDs) == 0 {
 		return fmt.Errorf("no instances registered for digest %s", digest)
 	}
