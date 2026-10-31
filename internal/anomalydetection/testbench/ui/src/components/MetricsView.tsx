@@ -330,6 +330,19 @@ export function MetricsView({
     return metricGroups.filter((g) => (anomalyCountByGroup.get(g.key) ?? 0) > 0);
   }, [metricGroups, showAnomalyOnlyGroups, anomalyCountByGroup]);
 
+  const topAnomalousGroupKeys = useMemo(
+    () => visibleGroups
+      .filter((g) => g.namespace !== 'telemetry' && !g.virtual)
+      .sort((a, b) => {
+        const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+        if (countDiff !== 0) return countDiff;
+        return a.baseName.localeCompare(b.baseName);
+      })
+      .slice(0, 50)
+      .map((g) => g.key),
+    [visibleGroups, anomalyCountByGroup]
+  );
+
   const telemetryGroups = useMemo(
     () => visibleGroups.filter((g) => g.namespace === 'telemetry'),
     [visibleGroups]
@@ -363,52 +376,24 @@ export function MetricsView({
     }
   }, [state.activeScenario]);
 
-  const [autoSelectedScenario, setAutoSelectedScenario] = useState<string | null>(null);
+  const [selectionScenario, setSelectionScenario] = useState<string | null>(null);
   useEffect(() => {
-    if (!state.activeScenario || state.connectionState !== 'ready') return;
-    if (autoSelectedScenario === state.activeScenario) return;
-    const scenarioHasSeries = (state.status?.seriesCount ?? 0) > 0;
-    if (scenarioHasSeries && allSeries.length === 0) return;
-
-    const mainGroups = [...visibleGroups]
-      .filter((g) => g.namespace !== 'telemetry' && !g.virtual);
-
-    const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
-    const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
-    const defaultKeys = defaultGroup
-      ? [defaultGroup.key]
-      : mainGroups
-          .sort((a, b) => {
-            const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
-            if (countDiff !== 0) return countDiff;
-            return a.baseName.localeCompare(b.baseName);
-          })
-          .slice(0, 6)
-          .map((g) => g.key);
-
-    setSelectedGroups(new Set(defaultKeys));
+    if (!state.activeScenario || selectionScenario === state.activeScenario) return;
+    setSelectedGroups(new Set());
     setGroupSeriesData(new Map());
-    setAutoSelectedScenario(state.activeScenario);
+    setSelectionScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [
     state.activeScenario,
-    state.connectionState,
-    state.status?.seriesCount,
-    visibleGroups,
-    anomalyCountByGroup,
-    autoSelectedScenario,
+    selectionScenario,
     onTimeRangeChange,
-    allSeries.length,
   ]);
-
-  useEffect(() => {
-    prevSelectedGroupsRef.current = new Set();
-    setGroupSeriesData(new Map());
-  }, [state.activeScenario]);
 
   const prevSelectedGroupsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    if (selectionScenario !== state.activeScenario) return;
     if (selectedGroups.size === 0 || state.connectionState !== 'ready') {
+      prevSelectedGroupsRef.current = new Set();
       if (groupSeriesData.size > 0) setGroupSeriesData(new Map());
       return;
     }
@@ -422,10 +407,12 @@ export function MetricsView({
     const fetchSeriesData = async () => {
       const next = new Map<string, SeriesData[]>();
       for (const groupKey of selectedGroups) {
+        if (cancelled) return;
         const group = allGroupByKey.get(groupKey);
         if (!group) continue;
         const seriesList: SeriesData[] = [];
         for (const s of group.members) {
+          if (cancelled) return;
           try {
             const data = await api.getSeriesDataByID(s.id);
             seriesList.push(data);
@@ -444,7 +431,7 @@ export function MetricsView({
     return () => {
       cancelled = true;
     };
-  }, [selectedGroups, state.connectionState, state.activeScenario, allGroupByKey, groupSeriesData.size]);
+  }, [selectedGroups, selectionScenario, state.connectionState, state.activeScenario, allGroupByKey, groupSeriesData.size]);
 
   const toggleDetector = (name: string) => {
     actions.toggleComponent(name);
@@ -789,9 +776,19 @@ export function MetricsView({
 
         {state.connectionState === 'ready' && (
           <div className="space-y-6">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedGroups(new Set(topAnomalousGroupKeys))}
+                disabled={selectionScenario !== state.activeScenario || topAnomalousGroupKeys.length === 0}
+                className="px-3 py-2 text-xs font-medium rounded bg-purple-600 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Load top 50 most anomalous metrics
+              </button>
+            </div>
             {selectedGroups.size === 0 ? (
               <div className="text-center py-10 text-slate-500">
-                Select metric groups from the sidebar to view charts
+                Select metric groups from the sidebar or use “Load top 50 most anomalous metrics” to view charts
               </div>
             ) : groupSeriesData.size === 0 ? (
               <div className="text-center py-10 text-slate-500">Loading series data...</div>

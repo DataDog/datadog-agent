@@ -60,8 +60,14 @@ Open `http://localhost:5173` in your browser.
 
 ## UI Controls
 
+- Scenarios start with no metric charts selected. Select groups in the sidebar
+  or click **Load top 50 most anomalous metrics** to load up to 50 recorded metric
+  groups ranked by detections from enabled detectors. Ties are sorted by metric
+  name; telemetry and log-derived virtual groups are excluded from this shortcut.
 - **Drag** on chart to zoom time range
 - **Middle-drag** to pan when zoomed
 - **Shift+click** correlations to multi-select
 - **Resize** sidebar by dragging right edge
+- **Anomaly count** below each metric expands or collapses its anomaly list.
+  Lists start collapsed; clicking a chart marker opens the matching details.
 - Tree buttons: Expand / Collapse / Focus (hide unselected)
