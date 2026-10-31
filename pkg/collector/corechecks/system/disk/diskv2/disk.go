@@ -421,7 +421,7 @@ func (c *Check) configureExcludeMountPoint() error {
 	if len(c.excludedMountpoints) == 0 {
 		// https://github.com/DataDog/datadog-agent/issues/1961
 		// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1049
-		for _, val := range []string{"(/host)?/proc/sys/fs/binfmt_misc$"} {
+		for _, val := range []string{"(^|/)proc/sys/fs/binfmt_misc$"} {
 			if re, err := compileRegExp(val, defaultIgnoreCase()); err == nil {
 				c.excludedMountpoints = append(c.excludedMountpoints, *re)
 			} else {
