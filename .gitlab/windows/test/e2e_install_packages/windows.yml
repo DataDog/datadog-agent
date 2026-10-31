@@ -341,3 +341,4 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInjectorStats/TestDefaultSkipListCounter$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptStartsSystemProbe$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestStandaloneInstallDoesNotStartSystemProbe$"
+      - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptEnablesNetworkMonitoring$"

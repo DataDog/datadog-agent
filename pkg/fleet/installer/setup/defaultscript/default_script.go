@@ -59,6 +59,7 @@ var (
 		"DD_FIPS_MODE",
 		"DD_SYSTEM_PROBE_ENSURE_CONFIG",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED",
+		"DD_SYSTEM_PROBE_NETWORK_ENABLED",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED",
 		"DD_SBOM_HOST_ENABLED",
 		"DD_COMPLIANCE_CONFIG_ENABLED",
@@ -99,6 +100,9 @@ func SetupDefaultScript(s *common.Setup) error {
 	// Config management
 	setConfigTags(s)
 	setConfigSecurityProducts(s)
+	if err := setConfigNetworkMonitoring(s); err != nil {
+		return err
+	}
 	if err := setConfigProcessAgent(s); err != nil {
 		return err
 	}
@@ -159,6 +163,25 @@ func setConfigSecurityProducts(s *common.Setup) {
 		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
 		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
 	}
+}
+
+// setConfigNetworkMonitoring sets network_config.enabled in system-probe.yaml from
+// DD_SYSTEM_PROBE_NETWORK_ENABLED, to enable Cloud Network Monitoring. It must run after
+// setConfigSecurityProducts, which replaces SystemProbeYAML.
+func setConfigNetworkMonitoring(s *common.Setup) error {
+	val, ok := os.LookupEnv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
+	if !ok {
+		return nil
+	}
+	enabled, err := strconv.ParseBool(val)
+	if err != nil {
+		return fmt.Errorf("invalid boolean value %q for DD_SYSTEM_PROBE_NETWORK_ENABLED: %w", val, err)
+	}
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.NetworkConfig.Enabled = config.BoolToPtr(enabled)
+	return nil
 }
 
 // setConfigProcessAgent sets the process_config collection toggles from environment variables.
