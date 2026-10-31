@@ -9,7 +9,10 @@ Use `bazelisk` (or the `bazel` symlink it installs) to invoke Bazel. Bazelisk au
 specified in `.bazelversion`. Never invoke a pinned `bazel` binary directly — the version must match.
 
 ```sh
-# Format and lint all BUILD/.bzl files
+# CI runs this when Bazel files change. Re-run it after formatting.
+bazel run //bazel/buildifier:test
+
+# Rewrite BUILD, .bzl, and MODULE.bazel when the test fails
 bazel run //bazel/buildifier
 
 # Resolve and fetch all external deps (updates MODULE.bazel.lock as a side-effect)
@@ -202,6 +205,7 @@ generators and for other languages, sourced from third-party rulesets or written
 ```sh
 bazel run //:gazelle -- ./path/to/package   # generate or update BUILD.bazel
 bazel run //bazel/buildifier                # format
+bazel run //bazel/buildifier:test           # same check as CI
 ```
 
 Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extension's job is precisely to keep that
@@ -283,8 +287,10 @@ case-sensitive filesystem — Docker Desktop can expose the two as the same inod
 
 ### Formatting and structure
 
-- `buildifier` is mandatory. Run `bazel run //bazel/buildifier` before committing. It is the single source of truth for
-  formatting — do not debate style in code review.
+- `buildifier` is mandatory. When a change touches `BUILD`, `BUILD.bazel`, `*.bzl`, `MODULE.bazel`,
+  or `*.bazelrc`, run `bazel run //bazel/buildifier:test` before committing. That is what
+  `bazel:run-buildifier-test` runs. If it fails, `bazel run //bazel/buildifier` and re-run the test.
+  Do not debate style in code review.
 - File structure order: package description comment → `load()` statements → `package()` → rules (leaves first).
 - Standalone comments (not attached to a specific rule) require an empty line after them; attached comments do not.
 - Single blank line between top-level definitions.
