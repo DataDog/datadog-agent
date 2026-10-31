@@ -152,8 +152,8 @@ pkg_tar(
 )
 
 _DESCRIPTION = """Datadog Installer
-The Datadog Installer is a lightweight process that installs and updates
-the Datadog Agent and Tracers.
+The Datadog Installer is a lightweight process that installs and updates the Datadog Agent
+and Tracers.
 
 See http://www.datadoghq.com/ for more information
 """
