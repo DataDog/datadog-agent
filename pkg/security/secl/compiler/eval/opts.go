@@ -6,6 +6,11 @@
 // Package eval holds eval related files
 package eval
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
+)
+
 // MacroStore represents a store of SECL Macros
 type MacroStore struct {
 	macros []*Macro
@@ -38,15 +43,6 @@ func (s *MacroStore) Get(id MacroID) *Macro {
 		}
 	}
 	return nil
-}
-
-// GetMacroEvaluator returns the macro evaluator associated with the macro ID
-func (s *MacroStore) GetMacroEvaluator(id MacroID) (*MacroEvaluator, bool) {
-	macro := s.Get(id)
-	if macro == nil {
-		return nil, false
-	}
-	return macro.evaluator, true
 }
 
 // Contains returns returns true is there is already a macro with this ID in the store
@@ -143,4 +139,20 @@ func (o *Opts) AddVariable(name string, variable SECLVariable) *Opts {
 func (o *Opts) WithTelemetry(telemetry *Telemetry) *Opts {
 	o.Telemetry = telemetry
 	return o
+}
+
+// passes returns the compilation passes run over the trees of the rules and of
+// the macros.
+func (o *Opts) passes() []pass.Pass {
+	return []pass.Pass{o.expandMacros()}
+}
+
+// expandMacros returns the macro expansion pass.
+func (o *Opts) expandMacros() pass.Pass {
+	return pass.ExpandMacros(func(name string) (*ast.Macro, bool) {
+		if macro := o.MacroStore.Get(name); macro != nil {
+			return macro.ast, true
+		}
+		return nil, false
+	})
 }

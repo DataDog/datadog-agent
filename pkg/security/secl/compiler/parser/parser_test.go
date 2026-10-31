@@ -22,7 +22,7 @@ func parseRule(rule string) (*ast.Rule, error) {
 
 func parseMacro(macro string) (*ast.Macro, error) {
 	pc := NewParsingContext(false)
-	return pc.BuildMacro(macro)
+	return pc.BuildMacro("", macro)
 }
 
 func printTree(t *testing.T, node ast.Node) {

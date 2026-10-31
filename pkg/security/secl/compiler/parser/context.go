@@ -15,7 +15,7 @@ import (
 // rules use it.
 //
 // A cached tree is shared by every rule built from the same expression, which
-// is safe since the compilation doesn't mutate the tree.
+// is safe since the compilation passes run over a copy of it.
 //
 // A ParsingContext with a cache isn't safe for concurrent use.
 type ParsingContext struct {
@@ -52,8 +52,8 @@ func (pc *ParsingContext) BuildRule(expr string) (*ast.Rule, error) {
 }
 
 // BuildMacro parses the expression of a macro, see ParseMacro.
-func (pc *ParsingContext) BuildMacro(expr string) (*ast.Macro, error) {
-	return ParseMacro(expr)
+func (pc *ParsingContext) BuildMacro(id, expr string) (*ast.Macro, error) {
+	return ParseMacro(id, expr)
 }
 
 // BuildExpression parses an expression, see ParseExpression.
