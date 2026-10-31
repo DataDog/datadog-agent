@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"sync"
 	"testing"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -19,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func requireCounterMetricValueBySource(t *testing.T, source string, want float64, telemetryComp telemetry.Component) {
+func requireCounterMetricValueBySource(t testing.TB, source string, want float64, telemetryComp telemetry.Component) {
 	t.Helper()
 
 	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
@@ -43,10 +44,15 @@ func requireCounterMetricValueBySource(t *testing.T, source string, want float64
 		}
 	}
 
+	// Some variants create unused series only on use; absent is equivalent to zero.
+	if want == 0 {
+		return
+	}
+
 	t.Fatalf("counter %q with source=%q not found", metricName, source)
 }
 
-func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source string, telemetryComp telemetry.Component) {
+func requireNoCounterMetricForNameBySource(t testing.TB, metricName, source string, telemetryComp telemetry.Component) {
 	t.Helper()
 
 	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
@@ -662,6 +668,7 @@ func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.
 				testObserveMetric(h, &metricObs{name: metricName})
 			}
 			obs.Flush()
+			publishFilteredMetricsForTest(h)
 
 			requireCounterMetricValueBySource(t, "check", 1.0, telComp)
 			requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
@@ -1279,4 +1286,167 @@ anomaly_detection:
 	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
+
+func newFilteredMetricHandle(t *testing.T, source string, telemetryComp telemetry.Component) *handle {
+	t.Helper()
+
+	return &handle{
+		source:    source,
+		telemetry: newObserverTelemetry(telemetryComp),
+	}
+}
+
+func publishFilteredMetricsForTest(h observerdef.Handle) {
+	if producer, ok := h.(*handle); ok {
+		producer.publishFilteredMetricsIfDue(
+			time.Since(filteredMetricEpoch).Nanoseconds() +
+				int64(filteredMetricPublishInterval) + 1,
+		)
+	}
+}
+
+func TestHandleFilteredMetricPublishesFirstRejectionImmediately(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	h.recordFilteredMetric("kubelet")
+
+	requireCounterMetricValueBySource(t, "kubelet", 1.0, telComp)
+}
+
+func TestHandleFilteredMetricPublicationAtIntervalBoundary(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	h.pendingFilteredSource.Store(1)
+	h.pendingFilteredAgent.Store(1)
+	h.publishFilteredMetricsIfDue(1)
+	requireCounterMetricValueBySource(t, "kubelet", 1.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
+
+	// The interval is half-open: one second after the first claim is due.
+	h.pendingFilteredSource.Store(2)
+	h.publishFilteredMetricsIfDue(1 + int64(filteredMetricPublishInterval))
+	requireCounterMetricValueBySource(t, "kubelet", 3.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
+}
+
+func TestHandleFilteredMetricRepeatedPublicationDoesNotDoubleCount(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	h.pendingFilteredSource.Store(1)
+	h.pendingFilteredAgent.Store(2)
+	h.publishFilteredMetricsIfDue(1)
+	publishFilteredMetricsForTest(h)
+
+	requireCounterMetricValueBySource(t, "kubelet", 1.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 2.0, telComp)
+}
+
+func TestHandleFilteredMetricArbitrarySourceAndAgentSourceRemainSeparate(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	for i := 0; i < 5; i++ {
+		h.recordFilteredMetric("kubelet")
+	}
+	for i := 0; i < 3; i++ {
+		h.recordFilteredMetric(observerdef.AgentNamespace)
+	}
+	publishFilteredMetricsForTest(h)
+
+	requireCounterMetricValueBySource(t, "kubelet", 5.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 3.0, telComp)
+}
+
+func TestHandleFilteredMetricIdleTailRemainsPending(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+
+	h.recordFilteredMetric("check")
+	requireCounterMetricValueBySource(t, "check", 1.0, telComp)
+
+	// Simulate an idle producer tail that remains pending until the next call.
+	h.pendingFilteredSource.Store(2)
+	requireCounterMetricValueBySource(t, "check", 1.0, telComp)
+	publishFilteredMetricsForTest(h)
+	requireCounterMetricValueBySource(t, "check", 3.0, telComp)
+}
+
+func TestHandleFilteredMetricFirstAgentRejectionLeavesSourceAtZero(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
+	requireCounterMetricValueBySource(t, "check", 0.0, telComp)
+}
+
+func TestHandleFilteredMetricWithoutRejectionCreatesNoCounters(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	newFilteredMetricHandle(t, "check", telComp)
+
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, "check", telComp)
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, observerdef.AgentNamespace, telComp)
+}
+
+func TestHandleFilteredMetricAgentNamespaceHandleUsesOneSeries(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, observerdef.AgentNamespace, telComp)
+
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+	publishFilteredMetricsForTest(h)
+
+	metricFamilies, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+
+	metricName := "observer__" + telemetryFilteredMetrics
+	var sources []string
+	for _, family := range metricFamilies {
+		if family.GetName() != metricName {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "source" {
+					sources = append(sources, label.GetValue())
+				}
+			}
+		}
+	}
+	require.Equal(t, []string{observerdef.AgentNamespace}, sources)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 2.0, telComp)
+}
+
+func TestHandleFilteredMetricConcurrentMixedSourcesLosesNoIncrements(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+
+	const goroutines = 8
+	const perGoroutine = 100
+	publishAt := time.Since(filteredMetricEpoch).Nanoseconds() + 1
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perGoroutine; j++ {
+				h.recordFilteredMetric("check")
+				h.recordFilteredMetric(observerdef.AgentNamespace)
+				// Concurrent publication may claim counts; forced publication retains the rest.
+				h.publishFilteredMetricsIfDue(
+					publishAt + int64(i)*int64(filteredMetricPublishInterval),
+				)
+			}
+		}()
+	}
+	wg.Wait()
+	h.lastFilteredPublish.Store(0)
+	publishFilteredMetricsForTest(h)
+
+	requireCounterMetricValueBySource(t, "check", goroutines*perGoroutine, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, goroutines*perGoroutine, telComp)
 }
