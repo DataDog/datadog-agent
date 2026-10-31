@@ -33,6 +33,8 @@ target
 *.syso
 *.log
 /main
+# Version cache written by during releasing.
+/agent-version.cache
 
 # Build System Protocol (Bazel <-> JetBrains IDEs)
 /.bazelbsp/

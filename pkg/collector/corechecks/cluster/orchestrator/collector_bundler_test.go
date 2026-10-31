@@ -1599,3 +1599,47 @@ func warningMessages(cb *CollectorBundle) []string {
 	}
 	return messages
 }
+
+func TestImportBuiltinHelmReleaseConfigMapCollector(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			cfg := mockconfig.New(t)
+			cfg.SetInTest("orchestrator_explorer.helm_releases.configmaps.enabled", enabled)
+
+			collectorDiscovery := &discovery.DiscoveryCollector{}
+			collectorDiscovery.SetCache(discovery.DiscoveryCache{
+				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
+					{GroupVersion: "v1", Kind: "configmaps"}: {},
+				},
+			})
+
+			cb := CollectorBundle{
+				collectorDiscovery:  collectorDiscovery,
+				activatedCollectors: make(map[string]struct{}),
+				inventory:           inventory.NewCollectorInventory(cfg, nil, nil),
+				runCfg: &collectors.CollectorRunConfig{
+					K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+						APIClient: createMockAPIClient(),
+					},
+				},
+			}
+
+			cb.importBuiltinCollectors()
+			names := make([]string, 0, len(cb.collectors))
+			for _, collector := range cb.collectors {
+				names = append(names, collector.Metadata().FullName())
+			}
+
+			if enabled {
+				assert.Contains(t, names, "v1/helm-releases-configmaps")
+				for _, collector := range cb.collectors {
+					if collector.Metadata().Name == "helm-releases-configmaps" {
+						assert.True(t, collector.Metadata().IsStable)
+					}
+				}
+			} else {
+				assert.NotContains(t, names, "v1/helm-releases-configmaps")
+			}
+		})
+	}
+}

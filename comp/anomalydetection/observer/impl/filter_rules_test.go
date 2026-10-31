@@ -498,7 +498,8 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 	eng := newEngine(engineConfig{storage: storage})
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
 	}
@@ -509,7 +510,7 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -584,7 +585,8 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-		obsCh:                make(chan observation, 1),
+		metricsCh:            make(chan observation, 1),
+		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -596,7 +598,8 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 		close(done)
 	}()
 	t.Cleanup(func() {
-		close(obs.obsCh)
+		close(obs.metricsCh)
+		close(obs.logsCh)
 		<-done
 	})
 
@@ -636,7 +639,8 @@ func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.
 
 			obs := &observerImpl{
 				engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-				obsCh:                make(chan observation, len(tc.metricNames)),
+				metricsCh:            make(chan observation, len(tc.metricNames)),
+				logsCh:               make(chan observation, len(tc.metricNames)),
 				telemetry:            newObserverTelemetry(telComp),
 				ingestMetricsEnabled: true,
 				metricFilter:         filter,
@@ -648,7 +652,8 @@ func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.
 				close(done)
 			}()
 			t.Cleanup(func() {
-				close(obs.obsCh)
+				close(obs.metricsCh)
+				close(obs.logsCh)
 				<-done
 			})
 
@@ -698,7 +703,8 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: storage}),
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         defaultFilter,
@@ -710,7 +716,7 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -857,7 +863,8 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: storage}),
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -869,7 +876,7 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -913,7 +920,8 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: storage}),
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -925,7 +933,7 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -1021,7 +1029,8 @@ func TestNameOnlyFilteredMetricDoesNotConsumeFullChannel(t *testing.T) {
 
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-		obsCh:                make(chan observation, 1),
+		metricsCh:            make(chan observation, 1),
+		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -1057,7 +1066,8 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-		obsCh:                make(chan observation, 1),
+		metricsCh:            make(chan observation, 1),
+		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -1083,7 +1093,8 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 		close(done)
 	}()
 	t.Cleanup(func() {
-		close(obs.obsCh)
+		close(obs.metricsCh)
+		close(obs.logsCh)
 		<-done
 	})
 	obs.Flush()
@@ -1185,7 +1196,8 @@ anomaly_detection:
 
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 32),
+		metricsCh:            make(chan observation, 32),
+		logsCh:               make(chan observation, 32),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -1198,7 +1210,8 @@ anomaly_detection:
 		close(done)
 	}()
 	t.Cleanup(func() {
-		close(obs.obsCh)
+		close(obs.metricsCh)
+		close(obs.logsCh)
 		<-done
 	})
 

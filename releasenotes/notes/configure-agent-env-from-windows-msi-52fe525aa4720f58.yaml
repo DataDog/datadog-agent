@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Windows Agent MSI now accepts ``DD_ENV`` to set the Agent's ``env``
+    configuration during installation.

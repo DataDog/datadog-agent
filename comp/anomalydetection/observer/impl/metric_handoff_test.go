@@ -36,7 +36,7 @@ func (m *precheckOnlyMetricView) GetMetricType() metrics.MetricType {
 
 func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "dogstatsd"}
+	h := &handle{metricsCh: ch, source: "dogstatsd"}
 	sample := &metricObs{
 		name:       "requests",
 		value:      42,
@@ -71,7 +71,7 @@ func TestMetricHandoffRetainsImmutableCompositeTags(t *testing.T) {
 	require.NoError(t, err)
 
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "check", filter: filter}
+	h := &handle{metricsCh: ch, source: "check", filter: filter}
 	sample := &metricObs{
 		name:      "requests",
 		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod", "service:web"}),
@@ -95,7 +95,7 @@ func TestMetricHandoffDerivesContextKeyFromResolvedIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
+	h := &handle{metricsCh: ch, source: "dogstatsd", filter: filter}
 	sample := &metricObs{
 		name:      "requests",
 		host:      "host-a",
@@ -126,7 +126,7 @@ func TestMetricHandoffRejectsNameOnlyRuleBeforeSnapshot(t *testing.T) {
 	require.NoError(t, err)
 
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
+	h := &handle{metricsCh: ch, source: "dogstatsd", filter: filter}
 
 	require.False(t, h.observeMetricAndReportDrop(&precheckOnlyMetricView{
 		name: "system.cpu.user",
@@ -145,7 +145,7 @@ func TestMetricHandoffDefersTagDependentRule(t *testing.T) {
 	require.NoError(t, err)
 
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
+	h := &handle{metricsCh: ch, source: "dogstatsd", filter: filter}
 	sample := &metricObs{
 		name:      "requests",
 		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:dev"}),
@@ -164,12 +164,13 @@ func TestMetricTypesReachStorageThroughLiveAndReplayIngest(t *testing.T) {
 			filter, err := newDefaultMetricsFilterRules()
 			require.NoError(t, err)
 			obs := &observerImpl{
-				engine: newEngine(engineConfig{storage: newTimeSeriesStorageWith(StorageConfig{})}),
-				obsCh:  make(chan observation, 32), metricFilter: filter, ingestMetricsEnabled: true,
+				engine:    newEngine(engineConfig{storage: newTimeSeriesStorageWith(StorageConfig{})}),
+				metricsCh: make(chan observation, 32),
+				logsCh:    make(chan observation, 32), metricFilter: filter, ingestMetricsEnabled: true,
 			}
 			done := make(chan struct{})
 			go func() { obs.run(); close(done) }()
-			t.Cleanup(func() { close(obs.obsCh); <-done })
+			t.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh); <-done })
 			handle := obs.innerHandle(source)
 			types := []metrics.MetricType{observerdef.UnknownType, metrics.GaugeType, metrics.CountType, metrics.CounterType, metrics.MonotonicCountType, metrics.RateType, metrics.HistogramType, metrics.DistributionType}
 			for _, typ := range types {

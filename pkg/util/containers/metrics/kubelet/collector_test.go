@@ -288,6 +288,100 @@ func TestContainerIDForPodUIDAndContName(t *testing.T) {
 			expectedCid: "ephemeralID",
 		},
 		{
+			name: "native sidecar found without init flag",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "appID",
+						Name: "app",
+					},
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "sidecarID",
+						Name: "sidecar",
+					},
+				},
+			},
+			podUID:      "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+			contName:    "sidecar",
+			initCont:    false,
+			expectedCid: "sidecarID",
+		},
+		{
+			name: "init flag ignored for regular container",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "appID",
+						Name: "app",
+					},
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "sidecarID",
+						Name: "sidecar",
+					},
+				},
+			},
+			podUID:      "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+			contName:    "app",
+			initCont:    true,
+			expectedCid: "appID",
+		},
+		{
+			name: "init flag ignored for ephemeral container",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+				},
+				EphemeralContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "ephemeralID",
+						Name: "ephemeralContainer",
+					},
+				},
+			},
+			podUID:      "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+			contName:    "ephemeralContainer",
+			initCont:    true,
+			expectedCid: "ephemeralID",
+		},
+		{
+			name: "container name not in pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "appID",
+						Name: "app",
+					},
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "sidecarID",
+						Name: "sidecar",
+					},
+				},
+			},
+			podUID:      "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+			contName:    "missing",
+			initCont:    false,
+			expectedCid: "",
+		},
+		{
 			name:        "not found",
 			podUID:      "poduid",
 			contName:    "contname",

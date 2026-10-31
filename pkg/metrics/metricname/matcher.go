@@ -6,6 +6,7 @@
 package metricname
 
 import (
+	"encoding/json"
 	"slices"
 	"sort"
 	"strings"
@@ -83,6 +84,9 @@ func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRu
 		rulePrefixes = kept
 	}
 	rulePrefixes = compactPrefixes(rulePrefixes)
+	if len(exceptExact) == 0 && len(exceptPrefix) == 0 {
+		exact = removeCoveredExact(exact, rulePrefixes)
+	}
 
 	return Matcher{
 		exact:        exact,
@@ -91,6 +95,12 @@ func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRu
 		exceptExact:  exceptExact,
 		exceptPrefix: exceptPrefix,
 	}, dropped
+}
+
+// Key returns a deterministic key for the compiled matcher state.
+func (m Matcher) Key() string {
+	key, _ := json.Marshal([5][]string{m.exact, m.prefixes, m.rulePrefixes, m.exceptExact, m.exceptPrefix})
+	return string(key)
 }
 
 // NormalizeEntries normalizes raw metric_filterlist entries.
@@ -160,6 +170,10 @@ func compactExact(exact, prefixes []string) []string {
 	sort.Strings(exact)
 	exact = slices.Compact(exact)
 
+	return removeCoveredExact(exact, prefixes)
+}
+
+func removeCoveredExact(exact, prefixes []string) []string {
 	if len(prefixes) == 0 {
 		return exact
 	}
