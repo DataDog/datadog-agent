@@ -190,6 +190,7 @@ def _ebpf_prog_impl(ctx):
         mnemonic = "EbpfLlc",
         resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
         progress_message = "Linking eBPF %{label} (.bc -> .o)",
+        toolchain = _TOOLCHAIN_TYPE,
     )
 
     return [DefaultInfo(files = depset([obj_file]))]
@@ -210,6 +211,7 @@ def _stripped_ebpf_impl(ctx):
         arguments = ["-g", "-w", "-N", "LBB*", "--remove-section=.rel.BTF.ext", "-o", out.path, src.path],
         mnemonic = "EbpfStrip",
         progress_message = "Stripping eBPF %{label}",
+        toolchain = _TOOLCHAIN_TYPE,
     )
 
     return [DefaultInfo(files = depset([out]))]
