@@ -29,6 +29,11 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 
 const hiddenTagPrefix = "_"
 
+// envKey is the Meta tag the trace agent derives the env from (see
+// pkg/trace/traceutil.GetEnv). Replace rules must never rewrite it, otherwise
+// they can silently change the env used for sampling-bucket signatures.
+const envKey = "env"
+
 // Replace replaces all tags matching the Replacer's rules.
 func (f Replacer) Replace(trace pb.Trace) {
 	for _, rule := range f.rules {
@@ -37,11 +42,20 @@ func (f Replacer) Replace(trace pb.Trace) {
 			switch key {
 			case "*":
 				for k := range s.Meta {
+					if k == envKey {
+						// env must stay immutable to replace rules.
+						continue
+					}
 					if !strings.HasPrefix(k, hiddenTagPrefix) {
 						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 					}
 				}
 				for k := range s.Metrics {
+					if k == envKey {
+						// env must stay immutable to replace rules: replaceNumericTag
+						// can move a non-numeric result into Meta["env"].
+						continue
+					}
 					if !strings.HasPrefix(k, hiddenTagPrefix) {
 						f.replaceNumericTag(re, s, k, str)
 					}
@@ -58,6 +72,20 @@ func (f Replacer) Replace(trace pb.Trace) {
 				}
 			case "resource.name":
 				s.Resource = re.ReplaceAllString(s.Resource, str)
+			case envKey:
+				// The env tag must stay immutable to replace rules: the trace
+				// agent derives the sampling env from it (traceutil.GetEnv), so
+				// rewriting it could silently change sampling. This covers both
+				// the Meta path and the numeric-metrics path (replaceNumericTag
+				// can move a metric into Meta["env"]). Span-event attributes
+				// named env are not the sampling env, so they are still replaced.
+				for _, spanEvent := range s.SpanEvents {
+					if spanEvent != nil {
+						if val, ok := spanEvent.Attributes[key]; ok {
+							spanEvent.Attributes[key] = f.replaceAttributeAnyValue(re, val, str)
+						}
+					}
+				}
 			default:
 				if s.Meta != nil {
 					if _, ok := s.Meta[key]; ok {
@@ -90,6 +118,10 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 			case "*":
 				for k, v := range s.Attributes() {
 					kString := trace.Strings.Get(k)
+					if kString == envKey {
+						// env must stay immutable to replace rules.
+						continue
+					}
 					if strings.HasPrefix(kString, hiddenTagPrefix) {
 						continue
 					}
@@ -114,6 +146,15 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 				}
 			case "resource.name":
 				s.SetResource(re.ReplaceAllString(s.Resource(), str))
+			case envKey:
+				// The env tag must stay immutable to replace rules (see the V0
+				// path above); span-event attributes named env are not the
+				// sampling env, so they are still replaced.
+				for _, spanEvent := range s.Events() {
+					if val, ok := spanEvent.GetAttributeAsString(key); ok {
+						spanEvent.SetAttributeFromString(key, re.ReplaceAllString(val, str))
+					}
+				}
 			default:
 				if val, ok := s.GetAttributeAsString(key); ok {
 					s.SetAttributeFromString(key, re.ReplaceAllString(val, str))
