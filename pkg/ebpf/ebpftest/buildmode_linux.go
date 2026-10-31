@@ -25,10 +25,16 @@ func SupportedBuildModes() []BuildMode {
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, Prebuilt)
 	}
-	// fentry availability is patch-level dependent (the RCU-exit detach deadlock fix
-	// was AUTOSEL-backported to 6.6/6.7/6.8), so probe the runtime kernel instead
-	// of gating on a kernel-version floor.
-	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" || supportsFentry() {
+	// Fentry is gated by the "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED"
+	// environment variable of the KMT platform the tests are running on (see
+	// test/new-e2e/system-probe/config/platforms.json). The KMT test-runner
+	// exports it to the test binaries. It is unset when running the tests
+	// outside of KMT, in which case the runtime kernel probe decides
+	// (fentry availability is patch-level dependent: the RCU-exit detach
+	// deadlock fix was AUTOSEL-backported to 6.6/6.7/6.8).
+	if os.Getenv("DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED") == "true" ||
+		os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
+		supportsFentry() {
 		modes = append(modes, Fentry)
 	}
 	if os.Getenv("TEST_EBPFLESS_OVERRIDE") == "true" {
