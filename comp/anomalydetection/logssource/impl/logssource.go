@@ -113,8 +113,10 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	var pauseFilter workloadfilter.FilterBundle
+	var logsFilter workloadfilter.FilterBundle
 	if fs, ok := deps.FilterStore.Get(); ok {
 		pauseFilter = fs.GetContainerPausedFilters()
+		logsFilter = fs.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter)
 	}
 
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
@@ -147,7 +149,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		launchersMgr.AddLauncher(fileLauncher)
 		launchersMgr.AddLauncher(containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger))
 
-		sp = newSourceProvider(wmeta, logSources, pauseFilter)
+		sp = newSourceProvider(wmeta, logSources, pauseFilter, logsFilter)
 
 		services := service.NewServices()
 		adMgr = newADSourceManager(logSources, services, sp)

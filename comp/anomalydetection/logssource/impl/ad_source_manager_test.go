@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -35,7 +36,7 @@ func TestADSourceManagerAddSourceSkipsAgentContainer(t *testing.T) {
 	wmeta.Set(runningContainer("agent-container", "gcr.io/datadoghq/datadog-agent"))
 
 	logSources := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, logSources, nil)
+	sp := newSourceProvider(wmeta, logSources, nil, nil)
 	mgr := newADSourceManager(logSources, service.NewServices(), sp)
 
 	mgr.AddSource(newContainerADSource("agent-container"))
@@ -49,7 +50,7 @@ func TestADSourceManagerAddSourceKeepsNonAgentContainer(t *testing.T) {
 	wmeta.Set(runningContainer("app-container", "nginx"))
 
 	logSources := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, logSources, nil)
+	sp := newSourceProvider(wmeta, logSources, nil, nil)
 	mgr := newADSourceManager(logSources, service.NewServices(), sp)
 
 	src := newContainerADSource("app-container")
@@ -61,11 +62,36 @@ func TestADSourceManagerAddSourceKeepsNonAgentContainer(t *testing.T) {
 	assert.True(t, isSuppressed(sp, "app-container"), "active AD source should still suppress generic fallback collection")
 }
 
+func TestADSourceManagerAddSourceSkipsLogsExcludeAnnotation(t *testing.T) {
+	wmeta := &podAnnotationWmeta{
+		container: runningContainer("orchestrator-container", "alpine/k8s"),
+		pod: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "gensim-orchestrator-abc",
+				Annotations: map[string]string{
+					"ad.datadoghq.com/orchestrator.logs_exclude": "true",
+				},
+			},
+		},
+	}
+	logsFilter := &stubFilterBundle{excluded: true}
+
+	logSources := sources.NewLogSources()
+	sp := newSourceProvider(wmeta, logSources, nil, logsFilter)
+	mgr := newADSourceManager(logSources, service.NewServices(), sp)
+
+	mgr.AddSource(newContainerADSource("orchestrator-container"))
+
+	assert.Empty(t, logSources.GetSources(), "AD sources must not bypass logs-exclusion annotations")
+	assert.False(t, isSuppressed(sp, "orchestrator-container"))
+}
+
 func TestADSourceManagerAddSourceKeepsUnknownContainer(t *testing.T) {
 	wmeta := newWMetaMock(t)
 
 	logSources := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, logSources, nil)
+	sp := newSourceProvider(wmeta, logSources, nil, nil)
 	mgr := newADSourceManager(logSources, service.NewServices(), sp)
 
 	src := newContainerADSource("not-yet-in-workloadmeta")

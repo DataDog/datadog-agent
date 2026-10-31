@@ -66,6 +66,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
