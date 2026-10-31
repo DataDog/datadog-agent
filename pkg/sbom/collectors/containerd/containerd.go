@@ -49,10 +49,7 @@ func (r scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (r scanRequest) Type(opts sbom.ScanOptions) string {
-	if opts.UseMount {
-		return sbom.ScanFilesystemType
-	}
+func (r scanRequest) Type() string {
 	return sbom.ScanDaemonType
 }
 
@@ -118,10 +115,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	var report sbom.Report
 	var scanner scannerFunc
 	var scanMethod string
-	if c.opts.UseMount {
-		scanner = c.trivyCollector.ScanContainerdImageFromFilesystem
-		scanMethod = "filesystem"
-	} else if c.opts.OverlayFsScan {
+	if c.opts.OverlayFsScan {
 		scanner = c.trivyCollector.ScanContainerdImageFromSnapshotter
 		scanMethod = "overlayfs"
 	} else {

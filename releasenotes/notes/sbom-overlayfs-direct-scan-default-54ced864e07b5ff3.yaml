@@ -16,10 +16,9 @@ upgrade:
     export, as it did before, and logs a warning once. CRI-O images, which
     only the in-place scan reads, get SBOMs without further configuration.
     The SBOMs of images scanned in place carry ``scan_method:overlayfs`` in
-    place of ``scan_method:tarball``. Containerd images stay mounted when
-    ``sbom.container_image.use_mount`` is set. To export every Docker and
-    containerd image as before, set
-    ``sbom.container_image.overlayfs_direct_scan`` to ``false``.
+    place of ``scan_method:tarball``. To export every Docker and containerd
+    image as before, set ``sbom.container_image.overlayfs_direct_scan`` to
+    ``false``.
 enhancements:
   - |
     The check that the disk holds 20% more than the size of a container image

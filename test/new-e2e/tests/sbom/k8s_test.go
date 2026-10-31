@@ -138,7 +138,7 @@ func (suite *k8sSuite) TestSBOM() {
 	scanMethods := []scanMethod{
 		{
 			mode:       "default",
-			method:     "filesystem",
+			method:     "overlayfs",
 			helmValues: ``,
 		},
 		/*

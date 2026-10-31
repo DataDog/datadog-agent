@@ -63,7 +63,7 @@ func (s *scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (s *scanRequest) Type(sbom.ScanOptions) string {
+func (s *scanRequest) Type() string {
 	return s.scanRequestType
 }
 
@@ -633,6 +633,7 @@ sbom:
   container_image:
     overlayfs_disable_cache: false
     additional_directories: [/opt/app]
+    use_mount: true
   host:
     additional_directories: [/opt/app]
 `)
