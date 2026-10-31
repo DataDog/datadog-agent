@@ -89,65 +89,10 @@ static int hook_sk_attach_filter(ctx_t *ctx) {
         return 0;
     }
     if (syscall->setsockopt.optname != SO_ATTACH_FILTER) {
-        syscall->setsockopt.fprog = 0;
-        return 0;
-    }
-    struct sock_fprog *fprog = (struct sock_fprog *)CTX_PARM1(ctx);
-    syscall->setsockopt.fprog = fprog;
-    return 0;
-}
-
-HOOK_ENTRY("security_socket_setsockopt")
-static int hook_security_socket_setsockopt(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
-
-    if (!syscall) {
-        return 0;
-    }
-    struct socket *sock = (struct socket *)CTX_PARM1(ctx);
-    short socket_type;
-    u64 socket_type_offset;
-    LOAD_CONSTANT("socket_type_offset", socket_type_offset);
-    bpf_probe_read(&socket_type, sizeof(socket_type), (char *)sock + socket_type_offset);
-    if (socket_type) {
-        syscall->setsockopt.socket_type = socket_type;
-    }
-    return 0;
-}
-
-TAIL_CALL_TRACEPOINT_FNC(handle_sys_setsockopt_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_set_sock_opt_ret_impl(args, args->ret, TRACEPOINT_TYPE);
-}
-HOOK_ENTRY("release_sock")
-static int hook_release_sock(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
-    if (!syscall) {
-        return 0;
-    }
-    struct sock *sk = (struct sock *)CTX_PARM1(ctx);
-    struct sock_common *sockcommon = (void *)sk;
-    u16 socket_family = get_family_from_sock_common(sockcommon);
-    u16 socket_protocol = get_protocol_from_sock(sk);
-
-    syscall->setsockopt.socket_protocol = socket_protocol;
-    syscall->setsockopt.socket_family = socket_family;
-
-    return 0;
-}
-HOOK_EXIT("release_sock")
-static int rethook_release_sock(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
-    if (!syscall) {
-        return 0;
-    }
-    if (syscall->setsockopt.optname != SO_ATTACH_FILTER) {
-        syscall->setsockopt.filter_len = 0;
-        syscall->setsockopt.filter_size_to_send = 0;
-        syscall->setsockopt.truncated = 0;
         return 0;
     }
     struct sock_fprog prog;
-    int ret = bpf_probe_read(&prog, sizeof(struct sock_fprog), syscall->setsockopt.fprog);
+    int ret = bpf_probe_read(&prog, sizeof(struct sock_fprog), (struct sock_fprog *)CTX_PARM1(ctx));
 
     if (ret < 0) {
         return 0;
@@ -176,5 +121,33 @@ static int rethook_release_sock(ctx_t *ctx) {
     }
 
     return 0;
+}
+
+HOOK_ENTRY("security_socket_setsockopt")
+static int hook_security_socket_setsockopt(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
+
+    if (!syscall) {
+        return 0;
+    }
+    struct socket *sock = (struct socket *)CTX_PARM1(ctx);
+    short socket_type;
+    u64 socket_type_offset;
+    LOAD_CONSTANT("socket_type_offset", socket_type_offset);
+    bpf_probe_read(&socket_type, sizeof(socket_type), (char *)sock + socket_type_offset);
+    if (socket_type) {
+        syscall->setsockopt.socket_type = socket_type;
+    }
+
+    struct sock *sk = get_sock_from_socket(sock);
+    if (sk) {
+        syscall->setsockopt.socket_family = get_family_from_sock_common((struct sock_common *)sk);
+        syscall->setsockopt.socket_protocol = get_protocol_from_sock(sk);
+    }
+    return 0;
+}
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_setsockopt_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_set_sock_opt_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 #endif
