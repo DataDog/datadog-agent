@@ -1593,7 +1593,6 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	if timestampMs == 0 {
 		timestampMs = admissionTime.UnixMilli()
 	}
-	tags := copyTags(rawTags)
 	content := msg.GetContent()
 	if h.telemetry != nil {
 		// Increment before enqueue to avoid a race where the consumer dequeues and
@@ -1608,7 +1607,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			logSource:     logSource,
 			content:       content,
 			status:        status,
-			tags:          tags,
+			tags:          rawTags,
 			hostname:      msg.GetHostname(),
 			timestampMs:   timestampMs,
 			admissionTime: admissionTime,
