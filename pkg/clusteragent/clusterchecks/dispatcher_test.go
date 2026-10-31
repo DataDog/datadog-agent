@@ -8,7 +8,9 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -367,10 +369,9 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
 	assert.True(t, dispatcher.shouldDispatchDangling())
-	configs := dispatcher.retrieveDangling()
 	// Assert the check is scheduled
-	scheduledIDs := dispatcher.reschedule(configs)
-	dispatcher.deleteDangling(scheduledIDs)
+	dispatcher.dispatchDangling()
+	assert.Empty(t, dispatcher.store.danglingConfigs)
 	danglingConfig, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(danglingConfig))
@@ -380,6 +381,63 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	configsB, _, err := dispatcher.getClusterCheckConfigs("nodeB")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(configsB))
+}
+
+func TestAddDoesNotRecreateExpiredNode(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	for i := 0; i < 200; i++ {
+		dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+		dispatcher.store.Lock()
+		dispatcher.store.nodes["nodeA"].heartbeat = 0
+		dispatcher.store.Unlock()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			dispatcher.add(generateIntegration(fmt.Sprintf("check-%d", i)))
+		}()
+		go func() {
+			defer wg.Done()
+			dispatcher.expireNodes()
+		}()
+		wg.Wait()
+
+		require.NotContains(t, dispatcher.store.nodes, "nodeA", "expired node was recreated (iteration %d)", i)
+	}
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestRemoveConfigDuringDanglingDispatch(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+
+	for i := 0; i < 200; i++ {
+		config := generateIntegration(fmt.Sprintf("check-%d", i))
+		dispatcher.addConfig(config, "")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			dispatcher.dispatchDangling()
+		}()
+		go func() {
+			defer wg.Done()
+			dispatcher.removeConfig(config.Digest())
+		}()
+		wg.Wait()
+
+		require.Empty(t, dispatcher.store.digestToConfig, "removed config was dispatched (iteration %d)", i)
+		require.Empty(t, dispatcher.store.nodes["nodeA"].digestToConfig, "removed config was dispatched (iteration %d)", i)
+		require.Empty(t, dispatcher.store.danglingConfigs)
+	}
+
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestDispatchFourConfigsTwoNodes(t *testing.T) {
@@ -488,6 +546,25 @@ func TestUnscheduleDanglingConfig(t *testing.T) {
 	// Also check that internal structures not used by getAllConfigs() are cleaned up
 	assert.Empty(t, testDispatcher.store.danglingConfigs)
 	assert.Empty(t, testDispatcher.store.idToDigest)
+}
+
+func TestRemoveConfigDanglingGauge(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	gauge := danglingConfigs.WithValues(le.JoinLeaderValue)
+	initial := gauge.Get()
+
+	config := generateIntegration("dangling-gauge-check")
+	dispatcher.Schedule([]integration.Config{config})
+	require.Equal(t, initial+1, gauge.Get())
+
+	dispatcher.Unschedule([]integration.Config{config})
+	assert.Equal(t, initial, gauge.Get())
+
+	dispatcher.removeConfig("unknown-digest")
+	assert.Equal(t, initial, gauge.Get())
+
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestReset(t *testing.T) {

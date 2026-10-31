@@ -54,6 +54,11 @@ func (d *dispatcher) moveConfig(src, dest, digest string) error {
 	if !configFound {
 		return fmt.Errorf("no config registered for digest %s", digest)
 	}
+	// The rebalance plan is computed from an earlier snapshot: the config may
+	// have been unscheduled, re-dispatched or moved since.
+	if current := d.store.digestToNode[digest]; current != src {
+		return fmt.Errorf("config %s is on node %q, not %q", digest, current, src)
+	}
 	if len(instanceIDs) == 0 {
 		return fmt.Errorf("no instances registered for digest %s", digest)
 	}
@@ -99,7 +104,12 @@ func (d *dispatcher) moveConfig(src, dest, digest string) error {
 	return nil
 }
 
-func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
+func (d *dispatcher) rebalance(force bool) ([]types.RebalanceResponse, error) {
+	if !d.rebalanceMu.TryLock() {
+		return nil, types.ErrRebalanceInProgress
+	}
+	defer d.rebalanceMu.Unlock()
+
 	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
 		tracer.ResourceName("rebalanceChecks"),
 		tracer.SpanType("worker"))
@@ -108,7 +118,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 
 	result := d.rebalanceUsingUtilization(force)
 	span.SetTag("checks_moved", len(result))
-	return result
+	return result, nil
 }
 
 // rebalanceUsingUtilization rebalances the cluster checks deployed in a cluster

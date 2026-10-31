@@ -120,7 +120,11 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 func (d *dispatcher) addConfig(config integration.Config, targetNodeName string) bool {
 	d.store.Lock()
 	defer d.store.Unlock()
+	return d.addConfigLocked(config, targetNodeName)
+}
 
+// addConfigLocked must be called with the store locked.
+func (d *dispatcher) addConfigLocked(config integration.Config, targetNodeName string) bool {
 	// Register config
 	digest := config.Digest()
 	fastDigest := config.FastDigest()
@@ -188,7 +192,6 @@ func (d *dispatcher) removeConfig(digest string) {
 	}
 
 	if !found { // Dangling config. Not assigned to any node.
-		danglingConfigs.Dec(le.JoinLeaderValue)
 		return
 	}
 

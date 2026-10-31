@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"context"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -61,6 +62,7 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	rebalanceMu                      sync.Mutex // the ticker and the rebalance API can run concurrently
 	shardingStrategies               []shardingStrategy
 	shards                           *shardTracker
 	// checkGroup maps each check claimed by a runner group to
@@ -326,21 +328,36 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	}
 }
 
-// reschdule sends configurations to dispatching without checking or patching them as Schedule does.
-func (d *dispatcher) reschedule(configs []integration.Config) []string {
-	addedConfigIDs := make([]string, 0, len(configs))
-	for _, c := range configs {
-		log.Debugf("Rescheduling the check %s:%s", c.Name, c.Digest())
-		if d.add(c) {
-			addedConfigIDs = append(addedConfigIDs, c.Digest())
+// dispatchDangling places dangling configs on eligible nodes. The store stays
+// locked throughout so that a concurrent Unschedule can't be undone.
+func (d *dispatcher) dispatchDangling() {
+	d.store.Lock()
+	defer d.store.Unlock()
+
+	for digest, c := range d.store.danglingConfigs {
+		target, anyNode := d.getNodeToScheduleCheck(c.config.Name)
+		if target == "" {
+			log.Warnf("No eligible node to dispatch %s:%s on, will retry later", c.config.Name, digest)
+			if anyNode {
+				configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+			}
+			continue
 		}
+		log.Infof("Dispatching dangling configuration %s:%s to node %s", c.config.Name, digest, target)
+		d.addConfigLocked(c.config, target)
+		d.deleteDangling([]string{digest})
 	}
-	return addedConfigIDs
 }
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
+	// Pick and place under one lock: a node expired in between would
+	// otherwise be recreated by addConfig, without IP or heartbeat.
+	d.store.Lock()
 	target, anyNode := d.getNodeToScheduleCheck(config.Name)
+	added := d.addConfigLocked(config, target)
+	d.store.Unlock()
+
 	if target == "" {
 		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
 		if anyNode {
@@ -350,7 +367,7 @@ func (d *dispatcher) add(config integration.Config) bool {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}
 
-	return d.addConfig(config, target)
+	return added
 }
 
 // reset empties the store and resets all states
@@ -464,18 +481,16 @@ func (d *dispatcher) run(ctx context.Context) {
 
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDangling() {
-				danglingConfigs := d.retrieveDangling()
-				scheduledConfigIDs := d.reschedule(danglingConfigs)
-				d.store.Lock()
-				d.deleteDangling(scheduledConfigIDs)
-				d.store.Unlock()
+				d.dispatchDangling()
 			}
 		case <-unscheduledCheckTicker.C:
 			// Check for configs that have been dangling longer than expected
 			d.scanUnscheduledChecks()
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching.Load() {
-				d.rebalance(false)
+				if _, err := d.rebalance(false); err != nil {
+					log.Infof("Skipping periodic rebalance: %v", err)
+				}
 			}
 		}
 	}
