@@ -98,16 +98,36 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
-func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyNode bool) {
+//
+// Either way, a shard avoids the nodes already running another shard of the same
+// original config while some eligible node runs none, so that one config's shards
+// don't pile up on a single node.
+func (d *dispatcher) getNodeToScheduleCheck(checkName, digest string) (node string, anyNode bool) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
+	avoid := d.nodesRunningSiblings(digest)
 	if d.advancedDispatching.Load() {
-		node = d.getRandomNode(checkName)
+		node = d.getRandomNode(checkName, avoid)
 	} else {
-		node = d.getNodeWithLessChecks(checkName)
+		node = d.getNodeWithLessChecks(checkName, avoid)
 	}
 	return node, len(d.store.nodes) > 0
+}
+
+// nodesRunningSiblings returns the nodes running a shard produced from the same
+// original config as digest. The store must be read-locked.
+func (d *dispatcher) nodesRunningSiblings(digest string) map[string]struct{} {
+	var nodes map[string]struct{}
+	for _, sibling := range d.shards.siblings(digest) {
+		if node, found := d.store.digestToNode[sibling]; found && node != "" {
+			if nodes == nil {
+				nodes = make(map[string]struct{})
+			}
+			nodes[node] = struct{}{}
+		}
+	}
+	return nodes
 }
 
 // updateGroup records the worker's runner group. The store must be locked.
@@ -144,9 +164,13 @@ func (d *dispatcher) groupNodes(group string) []string {
 	return nodes
 }
 
-// getRandomNode must be called with the store read-locked.
-func (d *dispatcher) getRandomNode(checkName string) string {
+// getRandomNode returns a random eligible node, outside avoid if possible. It
+// must be called with the store read-locked.
+func (d *dispatcher) getRandomNode(checkName string, avoid map[string]struct{}) string {
 	nodes := d.groupNodes(d.checkGroup[checkName])
+	if preferred := withoutNodes(nodes, avoid); len(preferred) > 0 {
+		nodes = preferred
+	}
 	if len(nodes) == 0 {
 		return ""
 	}
@@ -154,22 +178,46 @@ func (d *dispatcher) getRandomNode(checkName string) string {
 	return nodes[rand.Intn(len(nodes))]
 }
 
-// getNodeWithLessChecks must be called with the store read-locked.
-func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
-	var selectedNode string
-	minNumChecks := 0
+// getNodeWithLessChecks returns the eligible node with the fewest checks,
+// outside avoid if possible. It must be called with the store read-locked.
+func (d *dispatcher) getNodeWithLessChecks(checkName string, avoid map[string]struct{}) string {
+	var selectedNode, selectedAvoidedNode string
+	minNumChecks, minNumChecksAvoided := 0, 0
 
 	for name, store := range d.store.nodes {
 		if !d.accepts(store, checkName) {
 			continue
 		}
-		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
-			selectedNode = name
-			minNumChecks = len(store.digestToConfig)
+		numChecks := len(store.digestToConfig)
+		if _, avoided := avoid[name]; avoided {
+			if selectedAvoidedNode == "" || numChecks < minNumChecksAvoided {
+				selectedAvoidedNode, minNumChecksAvoided = name, numChecks
+			}
+			continue
+		}
+		if selectedNode == "" || numChecks < minNumChecks {
+			selectedNode, minNumChecks = name, numChecks
 		}
 	}
 
+	if selectedNode == "" {
+		return selectedAvoidedNode
+	}
 	return selectedNode
+}
+
+// withoutNodes returns the nodes that are not in exclude.
+func withoutNodes(nodes []string, exclude map[string]struct{}) []string {
+	if len(exclude) == 0 {
+		return nodes
+	}
+	kept := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if _, excluded := exclude[node]; !excluded {
+			kept = append(kept, node)
+		}
+	}
+	return kept
 }
 
 // expireNodes iterates over nodes and removes the ones that have not

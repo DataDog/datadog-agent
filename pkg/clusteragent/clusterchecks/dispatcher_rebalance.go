@@ -210,6 +210,9 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	stickinessLowerLimit := config.GetFloat64("cluster_checks.stickiness_lower_limit")
 	currentCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
 	proposedCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
+	shardParents := d.shards.parentsOf(slices.Collect(maps.Keys(cohort.configs)))
+	currentCohort.shardParents = shardParents
+	proposedCohort.shardParents = shardParents
 
 	// Current: each config on its runner. Proposed: pinned configs stay, the
 	// rest go greedily to the least busy eligible runner.
@@ -345,6 +348,13 @@ func setPredictedUtilization(distribution configsDistribution) {
 }
 
 func rebalanceIsWorthIt(currentDistribution configsDistribution, proposedDistribution configsDistribution, minPercImprovement int) bool {
+	// Shards of one config are split to spread a single expensive check, so
+	// separating co-located shards matters even when utilization looks balanced:
+	// utilization only reflects run time, not the memory each shard holds.
+	if current, proposed := currentDistribution.numColocatedShards(), proposedDistribution.numColocatedShards(); current != proposed {
+		return proposed < current
+	}
+
 	// If the current utilization stddev is already good enough, consider that
 	// rescheduling checks is not worth it, unless the new distribution has
 	// fewer runners with a high utilization or leaves fewer runners empty.

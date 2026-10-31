@@ -270,3 +270,34 @@ func TestUtilizationStdDev(t *testing.T) {
 	// The stddev is sqrt(0.125/3) = 0.204
 	assert.InDelta(t, 0.204, distribution.utilizationStdDev(), 0.05)
 }
+
+func TestAddToLeastBusy_PrefersRunnerWithoutSiblingShard(t *testing.T) {
+	distribution := newConfigsDistribution(map[string]int{"runner-1": 4, "runner-2": 4}, false, 0, 0, 0)
+	distribution.shardParents = map[string]string{"shard-0": "parent", "shard-1": "parent"}
+	distribution.addConfig("shard-0", "kubernetes_state_core", 0.1, "runner-1", false)
+	distribution.addConfig("other", "postgres", 2, "runner-2", false)
+
+	distribution.addToLeastBusy("shard-1", "kubernetes_state_core", 0.1, "", false)
+
+	assert.Equal(t, "runner-2", distribution.Configs["shard-1"].Runner, "a busier runner beats one already running a sibling shard")
+}
+
+func TestAddToLeastBusy_FallsBackToLeastBusyWhenEveryRunnerHasSibling(t *testing.T) {
+	distribution := newConfigsDistribution(map[string]int{"runner-1": 4, "runner-2": 4}, false, 0, 0, 0)
+	distribution.shardParents = map[string]string{"shard-0": "parent", "shard-1": "parent", "shard-2": "parent"}
+	distribution.addConfig("shard-0", "kubernetes_state_core", 0.1, "runner-1", false)
+	distribution.addConfig("shard-1", "kubernetes_state_core", 2, "runner-2", false)
+
+	distribution.addToLeastBusy("shard-2", "kubernetes_state_core", 0.1, "", false)
+
+	assert.Equal(t, "runner-1", distribution.Configs["shard-2"].Runner)
+}
+
+func TestLeastBusyRunner_AvoidingAnUnknownRunnerStillAvoidsTheKnownOnes(t *testing.T) {
+	distribution := newConfigsDistribution(map[string]int{"runner-1": 4, "runner-2": 4}, false, 0, 0, 0)
+	distribution.addConfig("busy", "postgres", 2, "runner-2", false)
+
+	avoid := map[string]struct{}{"runner-1": {}, "runner-elsewhere": {}}
+
+	assert.Equal(t, "runner-2", distribution.leastBusyRunner("", 0.1, avoid))
+}

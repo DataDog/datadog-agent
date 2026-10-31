@@ -286,3 +286,91 @@ func createTestKSMConfig(collectors []string) integration.Config {
 		ClusterCheck: true,
 	}
 }
+
+func newTestDispatcherWithRunners(runners ...string) *dispatcher {
+	d := newTestDispatcher(true, true)
+	d.store.Lock()
+	for _, runner := range runners {
+		d.store.nodes[runner] = &nodeStore{name: runner, nodetype: cctypes.NodeTypeCLCRunner, digestToConfig: make(map[string]integration.Config)}
+	}
+	d.store.Unlock()
+	return d
+}
+
+func scheduleShards(t *testing.T, d *dispatcher, config integration.Config) []string {
+	shards, handled := d.prepareShardSchedule(config)
+	require.True(t, handled)
+	for _, shard := range shards {
+		d.add(shard)
+	}
+
+	d.store.RLock()
+	defer d.store.RUnlock()
+	nodes := make([]string, 0, len(shards))
+	for _, shard := range shards {
+		node, placed := d.store.digestToNode[shard.Digest()]
+		require.True(t, placed, "shard %s should have been placed", shard.Digest())
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+func TestAdd_SpreadsShardsOfOneConfigAcrossRunners(t *testing.T) {
+	tests := []struct {
+		name   string
+		config integration.Config
+	}{
+		{name: "ksm", config: createTestKSMConfig([]string{"pods", "nodes", "services"})},
+		{name: "instance", config: createTestMultiInstanceConfig("postgres", 3)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Placement is random, so repeat: random placement keeps 3 shards on 3
+			// distinct runners only 2 times out of 9.
+			for range 50 {
+				d := newTestDispatcherWithRunners("runner-1", "runner-2", "runner-3")
+				assert.ElementsMatch(t, []string{"runner-1", "runner-2", "runner-3"}, scheduleShards(t, d, tt.config))
+			}
+		})
+	}
+}
+
+func TestAdd_MoreShardsThanRunnersStillPlacesEveryShard(t *testing.T) {
+	for range 50 {
+		d := newTestDispatcherWithRunners("runner-1", "runner-2")
+		config := createTestMultiInstanceConfig("postgres", 3)
+
+		nodes := scheduleShards(t, d, config)
+
+		assert.Len(t, nodes, 3)
+		assert.Subset(t, nodes, []string{"runner-1", "runner-2"}, "both runners should get a shard before any runner gets two")
+	}
+}
+
+func TestAdd_RedispatchedShardAvoidsRunnersWithSiblings(t *testing.T) {
+	for range 50 {
+		d := newTestDispatcherWithRunners("runner-1", "runner-2", "runner-3")
+		config := createTestMultiInstanceConfig("postgres", 2)
+		shards, handled := d.prepareShardSchedule(config)
+		require.True(t, handled)
+		for _, shard := range shards {
+			d.add(shard)
+		}
+
+		// The runner of the first shard goes away and its shard is dispatched again,
+		// as expireNodes does: it must not join its sibling.
+		d.store.RLock()
+		lost, sibling := d.store.digestToNode[shards[0].Digest()], d.store.digestToNode[shards[1].Digest()]
+		d.store.RUnlock()
+		d.store.Lock()
+		delete(d.store.nodes, lost)
+		d.store.Unlock()
+
+		d.add(shards[0])
+
+		d.store.RLock()
+		assert.NotEqual(t, sibling, d.store.digestToNode[shards[0].Digest()])
+		d.store.RUnlock()
+	}
+}

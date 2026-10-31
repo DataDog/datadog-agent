@@ -46,3 +46,28 @@ func TestShardTracker_Reset(t *testing.T) {
 	assert.False(t, tracker.isTracked("digest-1"))
 	assert.False(t, tracker.isTracked("digest-2"))
 }
+
+func TestShardTracker_SiblingsAndParents(t *testing.T) {
+	tracker := newShardTracker()
+	tracker.mark("parent-1", []string{"shard-a", "shard-b", "shard-c"})
+	tracker.mark("parent-2", []string{"shard-d"})
+
+	assert.ElementsMatch(t, []string{"shard-b", "shard-c"}, tracker.siblings("shard-a"))
+	assert.Empty(t, tracker.siblings("shard-d"), "a lone shard has no siblings")
+	assert.Nil(t, tracker.siblings("not-a-shard"))
+	assert.Equal(t, map[string]string{"shard-a": "parent-1", "shard-d": "parent-2"}, tracker.parentsOf([]string{"shard-a", "shard-d", "not-a-shard"}))
+
+	// Removing a parent's shards also forgets that they are related.
+	tracker.pop("parent-1")
+	assert.Nil(t, tracker.siblings("shard-b"))
+	assert.Empty(t, tracker.parentsOf([]string{"shard-a"}))
+
+	tracker.reset()
+	assert.Empty(t, tracker.parentsOf([]string{"shard-d"}))
+}
+
+func TestShardTracker_NilTrackerHasNoShards(t *testing.T) {
+	var tracker *shardTracker
+	assert.Nil(t, tracker.siblings("shard-a"))
+	assert.Nil(t, tracker.parentsOf([]string{"shard-a"}))
+}
