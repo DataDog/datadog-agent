@@ -92,6 +92,21 @@ env: "old_env"
 	}, datadog)
 }
 
+func TestMergeReplacesExistingEnv(t *testing.T) {
+	tempDir := t.TempDir()
+	writeInitialDatadogConfig(t, tempDir, "api_key: old_key\nenv: production\n")
+
+	config := Config{}
+	config.DatadogYAML.APIKey = "old_key"
+	config.DatadogYAML.Env = "staging"
+
+	require.NoError(t, WriteConfigs(config, tempDir))
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "old_key",
+		"env":     "staging",
+	}, readDatadogYAML(t, tempDir))
+}
+
 // Tests that writing a process_config toggle merges into an existing
 // process_config block rather than clobbering its other keys.
 func TestMergeProcessConfig(t *testing.T) {

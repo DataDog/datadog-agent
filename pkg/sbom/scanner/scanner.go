@@ -153,7 +153,10 @@ func (s *Scanner) Scan(request sbom.ScanRequest) error {
 	return nil
 }
 
-func (s *Scanner) enoughDiskSpace(collectorName string, opts sbom.ScanOptions, imgMeta *workloadmeta.ContainerImageMetadata) error {
+// enoughDiskSpace returns an error when the disk holds less than
+// opts.MinAvailableDisk. The export of an image checks the room for the image
+// itself.
+func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 	if !opts.CheckDiskUsage {
 		return nil
 	}
@@ -167,38 +170,7 @@ func (s *Scanner) enoughDiskSpace(collectorName string, opts sbom.ScanOptions, i
 		return fmt.Errorf("not enough disk space to safely collect sbom, %d available, %d required", usage.Available, opts.MinAvailableDisk)
 	}
 
-	// Beyond the flat minimum, only scans that export the whole image to a
-	// tarball on disk (the "docker save" path) need room for the image itself.
-	if imgMeta == nil || !mayStoreTarball(collectorName, opts) {
-		return nil
-	}
-
-	// Check that we have either the minimum amount of disk space required for a scan
-	// or 20% more than the size of the image
-	sizeRequired := uint64(float64(imgMeta.SizeBytes) * 1.2)
-	if usage.Available < sizeRequired {
-		return fmt.Errorf("not enough disk space to safely collect sbom, %d available, %d required", usage.Available, sizeRequired)
-	}
-
 	return nil
-}
-
-// mayStoreTarball reports whether the collector, with these options, may export
-// the whole image to a tarball on disk (the "docker save" path), which is the
-// only scan mode that needs room for the image itself. CRI-O always scans
-// overlayfs in place; containerd exports only when neither overlayfs_direct_scan
-// nor use_mount is set; the Docker collector may always fall back to the tarball
-// export (it only uses the overlayfs path on the overlay2 graph driver and
-// ignores use_mount), so it cannot be ruled out ahead of the scan.
-func mayStoreTarball(collectorName string, opts sbom.ScanOptions) bool {
-	switch collectorName {
-	case collectors.CrioCollector:
-		return false
-	case collectors.ContainerdCollector:
-		return !opts.OverlayFsScan && !opts.UseMount
-	default:
-		return true
-	}
 }
 
 // sendResult sends a ScanResult to the channel associated with the collector.
@@ -323,7 +295,7 @@ func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.Conta
 func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) {
 	defer waitAfterScanIfNecessary(ctx, collector)
 
-	result := s.checkDiskSpace(request.Collector(), imgMeta, collector)
+	result := s.checkDiskSpace(imgMeta, collector)
 	errorType := "disk_space"
 
 	if result == nil {
@@ -386,8 +358,8 @@ func (s *Scanner) publishedSBOM(request sbom.ScanRequest) *workloadmeta.Compress
 // checkDiskSpace checks if there is enough disk space to perform the scan
 // It sends a scan result wrapping an error if there is not enough space
 // If everything is correct it returns nil.
-func (s *Scanner) checkDiskSpace(collectorName string, imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) *sbom.ScanResult {
-	err := s.enoughDiskSpace(collectorName, collector.Options(), imgMeta)
+func (s *Scanner) checkDiskSpace(imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) *sbom.ScanResult {
+	err := s.enoughDiskSpace(collector.Options())
 	if err == nil {
 		return nil
 	}

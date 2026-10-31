@@ -31,8 +31,9 @@ definitions consumed by `Tester`.
 
 `baseAgentMSISuite` (defined in `base.go`) embeds
 `windows.BaseAgentInstallerSuite[environments.WindowsHost]` and adds
-`BeforeTest`/`AfterTest` hooks, the `installAgentPackage()` helper (which
-wraps MSI install with xperf tracing and procdump), and cleanup utilities.
+`BeforeTest`/`AfterTest` hooks, process-attributed system-file deletion
+auditing, the `installAgentPackage()` helper (which wraps MSI install with
+xperf tracing and procdump), and cleanup utilities.
 
 ## Test entry point
 

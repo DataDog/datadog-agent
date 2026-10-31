@@ -8,9 +8,13 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
 
+# NOTE: do not re-enable `cancel-in-progress: true`: the backport bot's label burst
+# spawns concurrent runs, and a run cancelled after another succeeded leaves a
+# `cancelled` required check (skip-qa-check) on the head SHA, blocking the merge
+# queue (see #58439, #58926).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

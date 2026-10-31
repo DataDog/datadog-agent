@@ -237,7 +237,7 @@ func BenchmarkLogProducer_Handoff(b *testing.B) {
 				containers: newLogSourceRateState("info", -1, -1, -1),
 			}
 			h := &handle{
-				ch:        ch,
+				logsCh:    ch,
 				source:    "logs",
 				telemetry: newObserverTelemetry(telemetryComp),
 				logFilter: logFilter,
@@ -288,7 +288,7 @@ anomaly_detection:
 		b.Fatal(err)
 	}
 	obs := provides.Comp.(*observerImpl)
-	b.Cleanup(func() { close(obs.obsCh) })
+	b.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh) })
 
 	metricHandle := obs.GetHandle("check")
 	logHandle := obs.GetHandle("logs")

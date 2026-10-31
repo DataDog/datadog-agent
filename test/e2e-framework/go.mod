@@ -4,24 +4,24 @@ go 1.26.6
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.1
-	cloud.google.com/go/compute v1.73.0
+	cloud.google.com/go/compute v1.74.0
 	dario.cat/mergo v1.0.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
 	github.com/DataDog/dd-trace-go/v2 v2.11.2
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/aws/aws-sdk-go-v2 v1.47.3
-	github.com/aws/aws-sdk-go-v2/config v1.33.9
-	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.90.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.340.0
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.5
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.104.2
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.4
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.80.0
+	github.com/aws/aws-sdk-go-v2 v1.47.4
+	github.com/aws/aws-sdk-go-v2/config v1.33.10
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.90.2
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.341.0
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.6
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.1
+	github.com/aws/aws-sdk-go-v2/service/eks v1.104.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.5
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v7 v7.0.1
 	github.com/docker/cli v29.9.2+incompatible
@@ -29,7 +29,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
-	github.com/pkg/sftp v1.13.11
+	github.com/pkg/sftp v1.13.12
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.51.1
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.29.0
@@ -46,7 +46,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.4
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2
-	github.com/pulumi/pulumi/sdk/v3 v3.271.0
+	github.com/pulumi/pulumi/sdk/v3 v3.272.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -61,8 +61,6 @@ require (
 	k8s.io/kubectl v0.37.1
 )
 
-require k8s.io/streaming v0.37.1 // indirect
-
 require (
 	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
@@ -70,7 +68,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.215 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect
@@ -85,7 +83,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-go/v5 v5.9.1 // indirect
 	github.com/DataDog/go-libddwaf/v5 v5.0.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
@@ -104,21 +102,21 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.23 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.9 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.21 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.10.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.38.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.51.4 // indirect
-	github.com/aws/smithy-go v1.28.5 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.24 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.10 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.22 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.10.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.38.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.5 // indirect
+	github.com/aws/smithy-go v1.28.6 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -300,10 +298,10 @@ require (
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.mongodb.org/mongo-driver v1.17.9 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component v1.69.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.69.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.69.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.163.0 // indirect
+	go.opentelemetry.io/collector/component v1.70.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.70.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.70.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.164.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
@@ -351,11 +349,12 @@ require (
 	k8s.io/component-base v0.37.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
+	k8s.io/streaming v0.37.1 // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	lukechampine.com/frand v1.5.1 // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect
 	pgregory.net/rapid v1.3.0 // indirect
-	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
+	sigs.k8s.io/json v0.0.0-20260909141634-11ed52e25bc5 // indirect
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
