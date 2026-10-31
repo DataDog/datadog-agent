@@ -1,0 +1,263 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package networkconfigmanagementimpl
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+)
+
+// showVersion is a command block that renders to "show version".
+const showVersion = `[{"type":"show version"}]`
+
+func createTestIOSDevice() *ncmconfig.DeviceInstance {
+	device := createTestDevice()
+	device.Profile = string(ncmprofile.ProfileCiscoIOS)
+	return device
+}
+
+func doRunIOSCommandsRequest(t *testing.T, comp *networkDeviceConfigImpl, req RunIOSCommandsRequest) (*httptest.ResponseRecorder, types.RunIOSCommandsResponse) {
+	t.Helper()
+
+	body, err := json.Marshal(req)
+	require.NoError(t, err)
+	return doRunIOSCommandsRequestBody(t, comp, body)
+}
+
+func doRunIOSCommandsRequestBody(t *testing.T, comp *networkDeviceConfigImpl, body []byte) (*httptest.ResponseRecorder, types.RunIOSCommandsResponse) {
+	t.Helper()
+
+	r := httptest.NewRequest(http.MethodPost, "/agent/ncm/run-ios-commands", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	comp.RunIOSCommandsEndpointHandler()(w, r)
+
+	var resp types.RunIOSCommandsResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	return w, resp
+}
+
+func TestRunIOSCommandsEndpointHandler_Success(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(showVersion),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, resp.ErrorCode)
+	assert.Empty(t, resp.ErrorMsg)
+	if assert.NotNil(t, resp.CommandResult) {
+		assert.Equal(t, versionOutput, resp.CommandResult.Output)
+	}
+}
+
+func TestRunIOSCommandsEndpointHandler_NonIOSDevice(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(showVersion),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, resp.CommandResult)
+	assert.Equal(t, string(types.ErrCommandUnsupported), resp.ErrorCode)
+	assert.NotEmpty(t, resp.ErrorMsg)
+}
+
+func TestRunIOSCommandsEndpointHandler_RollbackCredentialSetRejected(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(showVersion),
+		CredentialSet: "rollback",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, resp.CommandResult)
+	assert.Equal(t, string(types.ErrCannotConnect), resp.ErrorCode)
+	assert.NotEmpty(t, resp.ErrorMsg)
+}
+
+func TestRunIOSCommandsEndpointHandler_UnknownDevice(t *testing.T) {
+	comp, _ := createTestComponent(t)
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      "default:10.0.0.99",
+		Command:       json.RawMessage(showVersion),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, resp.CommandResult)
+	assert.Equal(t, string(types.ErrNoSuchDevice), resp.ErrorCode)
+	assert.NotEmpty(t, resp.ErrorMsg)
+}
+
+func TestRunIOSCommandsEndpointHandler_UnknownCredentialSet(t *testing.T) {
+	comp, _ := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(showVersion),
+		CredentialSet: "superuser",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, resp.CommandResult)
+	assert.Equal(t, string(types.ErrCannotConnect), resp.ErrorCode)
+	assert.NotEmpty(t, resp.ErrorMsg)
+}
+
+func TestRunIOSCommandsEndpointHandler_BadRequestBody(t *testing.T) {
+	comp, _ := createTestComponent(t)
+
+	r := httptest.NewRequest(http.MethodPost, "/agent/ncm/run-ios-commands", bytes.NewReader([]byte("not json")))
+	w := httptest.NewRecorder()
+	comp.RunIOSCommandsEndpointHandler()(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestRunIOSCommandsEndpointHandler_MultiLineBlock(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	rendered := "configure terminal\nhostname r1\nend\nshow version"
+	reqs.connFactory.conn.OutputMap[rendered] = ok(versionOutput)
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(`[{"type":"hostname","hostname":"r1"},{"type":"show version"}]`),
+		CredentialSet: "admin",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, resp.ErrorCode)
+	assert.Empty(t, resp.ErrorMsg)
+	if assert.NotNil(t, resp.CommandResult) {
+		assert.Equal(t, rendered, resp.CommandResult.CommandStr)
+		assert.Equal(t, versionOutput, resp.CommandResult.Output)
+	}
+}
+
+func TestRunIOSCommandsEndpointHandler_InvalidCommand(t *testing.T) {
+	for name, command := range map[string]string{
+		"plain_string":   `"show version"`,
+		"object":         `{"type":"show version"}`,
+		"unknown_type":   `[{"type":"reload"}]`,
+		"unknown_field":  `[{"type":"show version","extra":1}]`,
+		"empty_block":    `[]`,
+		"injection":      `[{"type":"show interfaces","interface":"Gi1/0/1|python$IFS-c$IFS'print(\"gotcha\")'"}]`,
+		"zone_injection": `[{"type":"interface","name":"Gi1/0/1","commands":[{"type":"ipv6 address","prefix":"fe80::1%x\nreload","modifier":"link-local"}]}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			comp, reqs := createTestComponent(t)
+			device := createTestIOSDevice()
+			require.NoError(t, comp.RegisterDevice(device))
+
+			w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+				DeviceID:      device.DeviceID(),
+				Command:       json.RawMessage(command),
+				CredentialSet: "admin",
+			})
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Nil(t, resp.CommandResult)
+			assert.Equal(t, string(types.ErrInvalidCommand), resp.ErrorCode)
+			assert.NotEmpty(t, resp.ErrorMsg)
+			assert.False(t, reqs.connFactory.conn.Opened, "should not connect to the device")
+		})
+	}
+}
+
+func TestRunIOSCommandsEndpointHandler_MissingCommand(t *testing.T) {
+	for name, body := range map[string]string{
+		"absent": `{"device_id":"default:10.0.0.1","credential_set":"readonly"}`,
+		"null":   `{"device_id":"default:10.0.0.1","command":null,"credential_set":"readonly"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			comp, reqs := createTestComponent(t)
+			device := createTestIOSDevice()
+			require.NoError(t, comp.RegisterDevice(device))
+
+			w, resp := doRunIOSCommandsRequestBody(t, comp, []byte(body))
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Nil(t, resp.CommandResult)
+			assert.Equal(t, string(types.ErrInvalidCommand), resp.ErrorCode)
+			assert.False(t, reqs.connFactory.conn.Opened, "should not connect to the device")
+		})
+	}
+}
+
+func TestRunIOSCommandsEndpointHandler_RedactsOutput(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show running-config"] = ok("hostname r1\nenable secret 5 $1$abc$xyz\n")
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(`[{"type":"show running-config"}]`),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, resp.ErrorCode)
+	if assert.NotNil(t, resp.CommandResult) {
+		assert.Equal(t, "hostname r1\nenable secret 5 <secret hidden>", resp.CommandResult.Output)
+	}
+}
+
+func TestRunIOSCommandsEndpointHandler_RedactsFailedOutput(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show running-config"] = &result{
+		Output: "enable secret 5 $1$abc$xyz\n% Invalid input",
+		Error:  "Process exited with status 1",
+	}
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(`[{"type":"show running-config"}]`),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NotEmpty(t, resp.ErrorCode)
+	assert.Contains(t, resp.ErrorMsg, "Process exited with status 1")
+	assert.NotContains(t, resp.ErrorMsg, "$1$abc$xyz")
+	if assert.NotNil(t, resp.CommandResult) {
+		assert.Equal(t, "enable secret 5 <secret hidden>\n% Invalid input", resp.CommandResult.Output)
+	}
+}
