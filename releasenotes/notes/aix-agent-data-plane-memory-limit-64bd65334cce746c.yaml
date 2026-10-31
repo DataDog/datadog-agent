@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    On AIX, the ``dd-agent`` user is now created with a 512MiB data-segment
+    limit instead of the 128MiB system default, which agent-data-plane could
+    exhaust on busy hosts, causing allocation failures and repeated restarts.
+    Higher or unlimited limits are left unchanged.
