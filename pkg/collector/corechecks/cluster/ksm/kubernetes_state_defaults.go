@@ -102,6 +102,8 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_resourceslice_devices_total":     "resourceslice.devices",
 		"kube_resourceslice_capacity":          "resourceslice.capacity",
 		"kube_devicetaintrule_info":            "dra.device_taint_rule",
+		"kube_networkpolicy_spec_egress_rules":                                                     "networkpolicy.spec_egress_rules",
+		"kube_networkpolicy_spec_ingress_rules":                                                    "networkpolicy.spec_ingress_rules",
 	}
 }
 
@@ -127,7 +129,8 @@ func defaultLabelsMapper() map[string]string {
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
-		"ingress": "kube_ingress",
+		"ingress":       "kube_ingress",
+		"networkpolicy": "kube_networkpolicy",
 
 		// Standard Datadog labels
 		"label_tags_datadoghq_com_env":     tags.Env,
@@ -220,6 +223,10 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		},
 		"kube_cronjob_labels": {
 			LabelsToMatch: getLabelToMatchForKind("cronjob"),
+			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_networkpolicy_labels": {
+			LabelsToMatch: getLabelToMatchForKind("networkpolicy"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_node_labels": {
