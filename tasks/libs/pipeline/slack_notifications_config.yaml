@@ -1,0 +1,905 @@
+# Team Configuration
+# This file consolidates team information including:
+# - GitHub team handles
+# - Jira project mappings
+# - Slack channels for notifications (with per-notification-type granularity)
+# - Notification opt-in preferences
+#
+# Default values:
+# - DEFAULT_JIRA_PROJECT: AGNTR
+# - DEFAULT_SLACK_CHANNEL: #agent-devx-ops
+#
+# Slack Channels Structure:
+# - on_assignment: Channel for notifications when a PR/issue is assigned to the team
+# - author_responded: Channel for notifications when PR author responds to review comments
+# - first_response_reminder: Channel for initial reminder to teams to respond to PRs
+# - milestone_reached: Channel for notifications when PR milestones are reached
+# - ongoing_reminder: Channel for recurring reminders for pending actions
+#
+# Each notification type can have its own Slack channel, allowing teams to route
+# different types of notifications to different channels (e.g., reminders to ops channel,
+# milestones to team channel).
+
+teams:
+  action-platform:
+    github_team: '@datadog/action-platform'
+    jira_project: ACTP
+    slack_channels:
+      on_assignment: '#action-platform'
+      author_responded: '#action-platform'
+      first_response_reminder: '#action-platform'
+      milestone_reached: '#action-platform'
+      ongoing_reminder: '#action-platform'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-all:
+    github_team: '@datadog/agent-all'
+    jira_project: AGNTR
+    slack_channels:
+      on_assignment: '#datadog-agent-pipelines'
+      author_responded: '#datadog-agent-pipelines'
+      first_response_reminder: '#datadog-agent-pipelines'
+      milestone_reached: '#datadog-agent-pipelines'
+      ongoing_reminder: '#datadog-agent-pipelines'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-apm:
+    github_team: '@datadog/agent-apm'
+    jira_project: APMSP
+    slack_channels:
+      on_assignment: '#apm-agent'
+      author_responded: '#apm-agent'
+      first_response_reminder: '#apm-agent'
+      milestone_reached: '#apm-agent'
+      ongoing_reminder: '#apm-agent'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-build:
+    github_team: '@datadog/agent-build'
+    jira_project: ABLD
+    slack_channels:
+      on_assignment: '#agent-build-reviews'
+      author_responded: '#agent-build-reviews'
+      first_response_reminder: '#agent-build-reviews'
+      milestone_reached: '#agent-build-reviews'
+      ongoing_reminder: '#agent-build-reviews'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-configuration:
+    github_team: '@datadog/agent-configuration'
+    jira_project: AGENTCFG
+    slack_channels:
+      on_assignment: '#agent-configuration'
+      author_responded: '#agent-configuration'
+      first_response_reminder: '#agent-configuration'
+      milestone_reached: '#agent-configuration'
+      ongoing_reminder: '#agent-configuration'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-cspm:
+    github_team: '@datadog/agent-cspm'
+    jira_project: SEC
+    slack_channels:
+      on_assignment: '#security-and-compliance-agent'
+      author_responded: '#security-and-compliance-agent'
+      first_response_reminder: '#security-and-compliance-agent'
+      milestone_reached: '#security-and-compliance-agent'
+      ongoing_reminder: '#security-and-compliance-agent'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-delivery:
+    github_team: '@datadog/agent-delivery'
+    jira_project: BARX
+    slack_channels:
+      on_assignment: '#agent-delivery-reviews'
+      author_responded: '#agent-delivery-reviews'
+      first_response_reminder: '#agent-delivery-reviews'
+      milestone_reached: '#agent-delivery-reviews'
+      ongoing_reminder: '#agent-delivery-reviews'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-devx:
+    github_team: '@datadog/agent-devx'
+    jira_project: ACIX
+    slack_channels:
+      on_assignment: '#agent-devx-reviews'
+      author_responded: '#agent-devx-reviews'
+      first_response_reminder: '#agent-devx-reviews'
+      milestone_reached: '#agent-devx-reviews'
+      ongoing_reminder: '#agent-devx-reviews'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-discovery:
+    github_team: '@datadog/agent-discovery'
+    jira_project: DSCVR
+    slack_channels:
+      on_assignment: '#agent-discovery'
+      author_responded: '#agent-discovery'
+      first_response_reminder: '#agent-discovery'
+      milestone_reached: '#agent-discovery'
+      ongoing_reminder: '#agent-discovery'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-e2e-testing:
+    github_team: '@datadog/agent-e2e-testing'
+    jira_project: ADXT
+    slack_channels:
+      on_assignment: '#agent-devx-reviews'
+      author_responded: '#agent-devx-reviews'
+      first_response_reminder: '#agent-devx-reviews'
+      milestone_reached: '#agent-devx-reviews'
+      ongoing_reminder: '#agent-devx-reviews'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-health:
+    github_team: '@datadog/agent-health'
+    jira_project: AHEALTH
+    slack_channels:
+      on_assignment: '#agent-health'
+      author_responded: '#agent-health'
+      first_response_reminder: '#agent-health'
+      milestone_reached: '#agent-health'
+      ongoing_reminder: '#agent-health'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-integrations:
+    github_team: '@datadog/agent-integrations'
+    jira_project: AI
+    slack_channels:
+      on_assignment: '#agent-integrations-reviews'
+      author_responded: '#agent-integrations-reviews'
+      first_response_reminder: '#agent-integrations-reviews'
+      milestone_reached: '#agent-integrations-reviews'
+      ongoing_reminder: '#agent-integrations-reviews'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-log-pipelines:
+    github_team: '@datadog/agent-log-pipelines'
+    jira_project: AGNTLOG
+    slack_channels:
+      on_assignment: '#agent-log-pipelines'
+      author_responded: '#agent-log-pipelines'
+      first_response_reminder: '#agent-log-pipelines'
+      milestone_reached: '#agent-log-pipelines'
+      ongoing_reminder: '#agent-log-pipelines'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-metric-pipelines:
+    github_team: '@datadog/agent-metric-pipelines'
+    jira_project: AGTMETRICS
+    slack_channels:
+      on_assignment: '#agent-metric-pipelines'
+      author_responded: '#agent-metric-pipelines'
+      first_response_reminder: '#agent-metric-pipelines'
+      milestone_reached: '#agent-metric-pipelines'
+      ongoing_reminder: '#agent-metric-pipelines'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-metrics-logs:
+    github_team: '@datadog/agent-metrics-logs'
+    jira_project: AMLII
+    slack_channels:
+      on_assignment: '#agent-metrics-logs'
+      author_responded: '#agent-metrics-logs'
+      first_response_reminder: '#agent-metrics-logs'
+      milestone_reached: '#agent-metrics-logs'
+      ongoing_reminder: '#agent-metrics-logs'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-onboarding:
+    github_team: '@datadog/agent-onboarding'
+    jira_project: AGENTONB
+    slack_channels:
+      on_assignment: '#agent-onboarding-ops'
+      author_responded: '#agent-onboarding-ops'
+      first_response_reminder: '#agent-onboarding-ops'
+      milestone_reached: '#agent-onboarding-ops'
+      ongoing_reminder: '#agent-onboarding-ops'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-platform:
+    github_team: '@datadog/agent-platform'
+    jira_project: ACIX
+    slack_channels:
+      on_assignment: '#agent-devx-ops'
+      author_responded: '#agent-devx-ops'
+      first_response_reminder: '#agent-devx-ops'
+      milestone_reached: '#agent-devx-ops'
+      ongoing_reminder: '#agent-devx-ops'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-processing-and-routing:
+    github_team: '@datadog/agent-processing-and-routing'
+    jira_project: APR
+    slack_channels:
+      on_assignment: '#agent-processing-and-routing'
+      author_responded: '#agent-processing-and-routing'
+      first_response_reminder: '#agent-processing-and-routing'
+      milestone_reached: '#agent-processing-and-routing'
+      ongoing_reminder: '#agent-processing-and-routing'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-runtimes:
+    github_team: '@datadog/agent-runtimes'
+    jira_project: AGENTRUN
+    slack_channels:
+      on_assignment: '#agent-runtimes'
+      author_responded: '#agent-runtimes'
+      first_response_reminder: '#agent-runtimes'
+      milestone_reached: '#agent-runtimes'
+      ongoing_reminder: '#agent-runtimes'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  agent-security:
+    github_team: '@datadog/agent-security'
+    jira_project: CWS
+    slack_channels:
+      on_assignment: '#security-and-compliance-agent'
+      author_responded: '#security-and-compliance-agent'
+      first_response_reminder: '#security-and-compliance-agent'
+      milestone_reached: '#security-and-compliance-agent'
+      ongoing_reminder: '#security-and-compliance-agent'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  apm-ecosystems-performance:
+    github_team: '@datadog/apm-ecosystems-performance'
+    jira_project: AGNTR
+    slack_channels:
+      on_assignment: '#apm-benchmarking-platform'
+      author_responded: '#apm-benchmarking-platform'
+      first_response_reminder: '#apm-benchmarking-platform'
+      milestone_reached: '#apm-benchmarking-platform'
+      ongoing_reminder: '#apm-benchmarking-platform'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  apm-onboarding:
+    github_team: '@datadog/apm-onboarding'
+    jira_project: AGNTR
+    slack_channels:
+      on_assignment: '#apm-onboarding'
+      author_responded: '#apm-onboarding'
+      first_response_reminder: '#apm-onboarding'
+      milestone_reached: '#apm-onboarding'
+      ongoing_reminder: '#apm-onboarding'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  apm-trace-storage:
+    github_team: '@datadog/apm-trace-storage'
+    jira_project: TDH
+    slack_channels:
+      on_assignment: '#apm-trace-storage'
+      author_responded: '#apm-trace-storage'
+      first_response_reminder: '#apm-trace-storage'
+      milestone_reached: '#apm-trace-storage'
+      ongoing_reminder: '#apm-trace-storage'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  asm-go:
+    github_team: '@datadog/asm-go'
+    jira_project: APPSEC
+    slack_channels:
+      on_assignment: '#k9-library-go'
+      author_responded: '#k9-library-go'
+      first_response_reminder: '#k9-library-go'
+      milestone_reached: '#k9-library-go'
+      ongoing_reminder: '#k9-library-go'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  cloud-network-monitoring:
+    github_team: '@datadog/cloud-network-monitoring'
+    jira_project: CNM
+    slack_channels:
+      on_assignment: '#cloud-network-monitoring'
+      author_responded: '#cloud-network-monitoring'
+      first_response_reminder: '#cloud-network-monitoring'
+      milestone_reached: '#cloud-network-monitoring'
+      ongoing_reminder: '#cloud-network-monitoring'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  container-autoscaling:
+    github_team: '@datadog/container-autoscaling'
+    jira_project: CASCL
+    slack_channels:
+      on_assignment: '#container-autoscaling'
+      author_responded: '#container-autoscaling'
+      first_response_reminder: '#container-autoscaling'
+      milestone_reached: '#container-autoscaling'
+      ongoing_reminder: '#container-autoscaling'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  container-experiences:
+    github_team: '@datadog/container-experiences'
+    jira_project: CXP
+    slack_channels:
+      on_assignment: '#container-experiences'
+      author_responded: '#container-experiences'
+      first_response_reminder: '#container-experiences'
+      milestone_reached: '#container-experiences'
+      ongoing_reminder: '#container-experiences'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  container-integrations:
+    github_team: '@datadog/container-integrations'
+    jira_project: CONTINT
+    slack_channels:
+      on_assignment: '#container-integrations'
+      author_responded: '#container-integrations'
+      first_response_reminder: '#container-integrations'
+      milestone_reached: '#container-integrations'
+      ongoing_reminder: '#container-integrations'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  container-platform:
+    github_team: '@datadog/container-platform'
+    jira_project: CONTP
+    slack_channels:
+      on_assignment: '#container-platform'
+      author_responded: '#container-platform'
+      first_response_reminder: '#container-platform'
+      milestone_reached: '#container-platform'
+      ongoing_reminder: '#container-platform'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  data-jobs-monitoring:
+    github_team: '@datadog/data-jobs-monitoring'
+    jira_project: AGNTR
+    slack_channels:
+      on_assignment: '#data-jobs-monitoring'
+      author_responded: '#data-jobs-monitoring'
+      first_response_reminder: '#data-jobs-monitoring'
+      milestone_reached: '#data-jobs-monitoring'
+      ongoing_reminder: '#data-jobs-monitoring'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  data-streams-monitoring:
+    github_team: '@datadog/data-streams-monitoring'
+    jira_project: DSMON
+    slack_channels:
+      on_assignment: '#data-streams-monitoring'
+      author_responded: '#data-streams-monitoring'
+      first_response_reminder: '#data-streams-monitoring'
+      milestone_reached: '#data-streams-monitoring'
+      ongoing_reminder: '#data-streams-monitoring'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  database-monitoring:
+    github_team: '@datadog/database-monitoring'
+    jira_project: DBMON
+    slack_channels:
+      on_assignment: '#database-monitoring'
+      author_responded: '#database-monitoring'
+      first_response_reminder: '#database-monitoring'
+      milestone_reached: '#database-monitoring'
+      ongoing_reminder: '#database-monitoring'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  debugger:
+    github_team: '@datadog/debugger'
+    jira_project: DEBUG
+    slack_channels:
+      on_assignment: '#debugger'
+      author_responded: '#debugger'
+      first_response_reminder: '#debugger'
+      milestone_reached: '#debugger'
+      ongoing_reminder: '#debugger'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  debugger-go:
+    github_team: '@datadog/debugger-go'
+    jira_project: DEBUG
+    slack_channels:
+      on_assignment: '#debugger-go'
+      author_responded: '#debugger-go'
+      first_response_reminder: '#debugger-go'
+      milestone_reached: '#debugger-go'
+      ongoing_reminder: '#debugger-go'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  documentation:
+    github_team: '@datadog/documentation'
+    jira_project: DOCS
+    slack_channels:
+      on_assignment: '#documentation'
+      author_responded: '#documentation'
+      first_response_reminder: '#documentation'
+      milestone_reached: '#documentation'
+      ongoing_reminder: '#documentation'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  ebpf-platform:
+    github_team: '@datadog/ebpf-platform'
+    jira_project: EBPF
+    slack_channels:
+      on_assignment: '#ebpf-platform'
+      author_responded: '#ebpf-platform'
+      first_response_reminder: '#ebpf-platform'
+      milestone_reached: '#ebpf-platform'
+      ongoing_reminder: '#ebpf-platform'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  fleet:
+    github_team: '@datadog/fleet'
+    jira_project: FA
+    slack_channels:
+      on_assignment: '#fleet-automation'
+      author_responded: '#fleet-automation'
+      first_response_reminder: '#fleet-automation'
+      milestone_reached: '#fleet-automation'
+      ongoing_reminder: '#fleet-automation'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  injection-platform:
+    github_team: '@datadog/injection-platform'
+    jira_project: INPLAT
+    slack_channels:
+      on_assignment: '#injection-platform'
+      author_responded: '#injection-platform'
+      first_response_reminder: '#injection-platform'
+      milestone_reached: '#injection-platform'
+      ongoing_reminder: '#injection-platform'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  kubernetes-experiences:
+    github_team: '@datadog/kubernetes-experiences'
+    jira_project: CAP
+    slack_channels:
+      on_assignment: '#kubernetes-experiences'
+      author_responded: '#kubernetes-experiences'
+      first_response_reminder: '#kubernetes-experiences'
+      milestone_reached: '#kubernetes-experiences'
+      ongoing_reminder: '#kubernetes-experiences'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  metrics-aggregation:
+    github_team: '@datadog/metrics-aggregation'
+    jira_project: AGGR
+    slack_channels:
+      on_assignment: '#metrics-aggregation'
+      author_responded: '#metrics-aggregation'
+      first_response_reminder: '#metrics-aggregation'
+      milestone_reached: '#metrics-aggregation'
+      ongoing_reminder: '#metrics-aggregation'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  ndm-core:
+    github_team: '@datadog/ndm-core'
+    jira_project: NDMII
+    slack_channels:
+      on_assignment: '#ndm-core'
+      author_responded: '#ndm-core'
+      first_response_reminder: '#ndm-core'
+      milestone_reached: '#ndm-core'
+      ongoing_reminder: '#ndm-core'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  ndm-integrations:
+    github_team: '@datadog/ndm-integrations'
+    jira_project: NDINT
+    slack_channels:
+      on_assignment: '#ndm-integrations'
+      author_responded: '#ndm-integrations'
+      first_response_reminder: '#ndm-integrations'
+      milestone_reached: '#ndm-integrations'
+      ongoing_reminder: '#ndm-integrations'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  network-device-monitoring:
+    github_team: '@datadog/network-device-monitoring'
+    jira_project: NDMII
+    slack_channels:
+      on_assignment: '#network-device-monitoring'
+      author_responded: '#network-device-monitoring'
+      first_response_reminder: '#network-device-monitoring'
+      milestone_reached: '#network-device-monitoring'
+      ongoing_reminder: '#network-device-monitoring'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  network-path:
+    github_team: '@datadog/network-path'
+    jira_project: NETPATH
+    slack_channels:
+      on_assignment: '#network-path-dev'
+      author_responded: '#network-path-dev'
+      first_response_reminder: '#network-path-dev'
+      milestone_reached: '#network-path-dev'
+      ongoing_reminder: '#network-path-dev'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  opentelemetry:
+    github_team: '@datadog/opentelemetry'
+    jira_project: OTAGENT
+    slack_channels:
+      on_assignment: '#opentelemetry-ops'
+      author_responded: '#opentelemetry-ops'
+      first_response_reminder: '#opentelemetry-ops'
+      milestone_reached: '#opentelemetry-ops'
+      ongoing_reminder: '#opentelemetry-ops'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  opentelemetry-agent:
+    github_team: '@datadog/opentelemetry-agent'
+    jira_project: OTAGENT
+    slack_channels:
+      on_assignment: '#opentelemetry-agent'
+      author_responded: '#opentelemetry-agent'
+      first_response_reminder: '#opentelemetry-agent'
+      milestone_reached: '#opentelemetry-agent'
+      ongoing_reminder: '#opentelemetry-agent'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  profiling-full-host:
+    github_team: '@datadog/profiling-full-host'
+    jira_project: AGNTR
+    slack_channels:
+      on_assignment: '#profiling-full-host-project'
+      author_responded: '#profiling-full-host-project'
+      first_response_reminder: '#profiling-full-host-project'
+      milestone_reached: '#profiling-full-host-project'
+      ongoing_reminder: '#profiling-full-host-project'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  remote-config:
+    github_team: '@datadog/remote-config'
+    jira_project: RC
+    slack_channels:
+      on_assignment: '#remote-config-platform'
+      author_responded: '#remote-config-platform'
+      first_response_reminder: '#remote-config-platform'
+      milestone_reached: '#remote-config-platform'
+      ongoing_reminder: '#remote-config-platform'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  sdlc-security:
+    github_team: '@datadog/sdlc-security'
+    jira_project: SINT
+    slack_channels:
+      on_assignment: '#sdlc-security'
+      author_responded: '#sdlc-security'
+      first_response_reminder: '#sdlc-security'
+      milestone_reached: '#sdlc-security'
+      ongoing_reminder: '#sdlc-security'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  serverless:
+    github_team: '@datadog/serverless'
+    jira_project: SVLS
+    slack_channels:
+      on_assignment: '#serverless-agent'
+      author_responded: '#serverless-agent'
+      first_response_reminder: '#serverless-agent'
+      milestone_reached: '#serverless-agent'
+      ongoing_reminder: '#serverless-agent'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  serverless-azure-gcp:
+    github_team: '@datadog/serverless-azure-gcp'
+    jira_project: SVLS
+    slack_channels:
+      on_assignment: '#serverless-azure-gcp-team'
+      author_responded: '#serverless-azure-gcp-team'
+      first_response_reminder: '#serverless-azure-gcp-team'
+      milestone_reached: '#serverless-azure-gcp-team'
+      ongoing_reminder: '#serverless-azure-gcp-team'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  single-machine-performance:
+    github_team: '@datadog/single-machine-performance'
+    jira_project: SMP
+    slack_channels:
+      on_assignment: '#single-machine-performance'
+      author_responded: '#single-machine-performance'
+      first_response_reminder: '#single-machine-performance'
+      milestone_reached: '#single-machine-performance'
+      ongoing_reminder: '#single-machine-performance'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  synthetics-executing:
+    github_team: '@datadog/synthetics-executing'
+    jira_project: SYNORG
+    slack_channels:
+      on_assignment: '#synthetics'
+      author_responded: '#synthetics'
+      first_response_reminder: '#synthetics'
+      milestone_reached: '#synthetics'
+      ongoing_reminder: '#synthetics'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  universal-service-monitoring:
+    github_team: '@datadog/universal-service-monitoring'
+    jira_project: USMON
+    slack_channels:
+      on_assignment: '#universal-service-monitoring'
+      author_responded: '#universal-service-monitoring'
+      first_response_reminder: '#universal-service-monitoring'
+      milestone_reached: '#universal-service-monitoring'
+      ongoing_reminder: '#universal-service-monitoring'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+  windows-products:
+    github_team: '@datadog/windows-products'
+    jira_project: WINA
+    slack_channels:
+      on_assignment: '#windows-products-reviews'
+      author_responded: '#windows-products-reviews'
+      first_response_reminder: '#windows-products-reviews'
+      milestone_reached: '#windows-products-reviews'
+      ongoing_reminder: '#windows-products-reviews'
+    notifications:
+      on_assignment: false
+      author_responded: false
+      first_response_reminder: false
+      milestone_reached: false
+      ongoing_reminder: false
+
+
+
