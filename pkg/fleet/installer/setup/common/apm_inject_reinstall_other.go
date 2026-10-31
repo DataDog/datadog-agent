@@ -7,6 +7,6 @@
 
 package common
 
-func apmInjectorRequiresReinstall() bool {
+func apmInjectorRequiresReinstall(string) bool {
 	return false
 }
