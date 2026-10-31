@@ -51,7 +51,10 @@ func TestEnrollWithWorkloadToken(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("skip_ssl_validation", true)
 	cfg.SetInTest("api_key", "existing-intake-key")
-	response, err := EnrollWithWorkloadToken(context.Background(), cfg, server.URL, "workload-token", request)
+	client := NewPublicClient(cfg, server.URL, map[string]string{
+		"DD-API-KEY": "unused-api-key", "DD-APPLICATION-KEY": "unused-app-key", "Authorization": "unused-auth",
+	})
+	response, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", request)
 	require.NoError(t, err)
 	require.Equal(t, "runner-test", response.RunnerID)
 	require.EqualValues(t, 42, response.OrgID)
@@ -87,7 +90,7 @@ func TestWorkloadEnrollmentFailuresDoNotRetryOrExposeCredentials(t *testing.T) {
 			defer server.Close()
 			cfg := configmock.New(t)
 			cfg.SetInTest("skip_ssl_validation", true)
-			response, err := EnrollWithWorkloadToken(context.Background(), cfg, server.URL, "sensitive-token", par.CreateRunnerRequest{RunnerName: "test"})
+			response, err := NewPublicClient(cfg, server.URL, nil).EnrollWithWorkloadToken(context.Background(), "sensitive-token", par.CreateRunnerRequest{RunnerName: "test"})
 			require.Error(t, err)
 			require.Nil(t, response)
 			require.NotContains(t, err.Error(), "sensitive")
@@ -106,14 +109,53 @@ func TestWorkloadEnrollmentFailuresDoNotRetryOrExposeCredentials(t *testing.T) {
 
 func TestWorkloadEnrollmentInvalidInputAndCancellation(t *testing.T) {
 	cfg := configmock.New(t)
-	_, err := EnrollWithWorkloadToken(context.Background(), cfg, "https://api.datadoghq.com", "", par.CreateRunnerRequest{})
+	_, err := NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "", par.CreateRunnerRequest{})
 	require.ErrorContains(t, err, "token is required")
-	_, err = EnrollWithWorkloadToken(context.Background(), cfg, "https://api.datadoghq.com", "token", par.CreateRunnerRequest{ID: "existing-runner"})
+	_, err = NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{ID: "existing-runner"})
 	require.ErrorContains(t, err, "existing runner")
-	_, err = EnrollWithWorkloadToken(context.Background(), cfg, "http://127.0.0.1:1", "token", par.CreateRunnerRequest{})
+	_, err = NewPublicClient(cfg, "http://127.0.0.1:1", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{})
 	require.ErrorContains(t, err, "HTTPS")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = EnrollWithWorkloadToken(ctx, cfg, "https://127.0.0.1:1", "token", par.CreateRunnerRequest{})
+	_, err = NewPublicClient(cfg, "https://127.0.0.1:1", nil).EnrollWithWorkloadToken(ctx, "token", par.CreateRunnerRequest{})
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestWorkloadEnrollmentUsesPublicClientTransport(t *testing.T) {
+	calls := 0
+	client := &publicClient{
+		ddBaseURL: "https://api.datadoghq.com",
+		httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			calls++
+			require.Equal(t, "Bearer workload-token", req.Header.Get("Authorization"))
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"data":{"type":"createRunnerResponse","id":"runner-test","attributes":{"runner_id":"runner-test","org_id":42}}}`))}, nil
+		})},
+	}
+	_, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", par.CreateRunnerRequest{RunnerName: "test"})
+	require.NoError(t, err)
+	require.Equal(t, 1, calls)
+}
+
+func TestWorkloadEnrollmentPreservesAPIKeyRedirectPolicy(t *testing.T) {
+	redirected := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/result" {
+			redirected++
+			require.Equal(t, "api-key", r.Header.Get("DD-API-KEY"))
+			fmt.Fprint(w, "{}")
+			return
+		}
+		w.Header().Set("Location", "/result")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	cfg := configmock.New(t)
+	cfg.SetInTest("skip_ssl_validation", true)
+	client := NewPublicClient(cfg, server.URL, nil).(*publicClient)
+	_, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", par.CreateRunnerRequest{RunnerName: "test"})
+	require.ErrorIs(t, err, ErrEnrollmentRejected)
+	require.Zero(t, redirected)
+	_, _, err = client.doEnrollRequest(context.Background(), server.URL+createPARApiKeyOnlyPath, []byte("{}"), "api-key", "")
+	require.NoError(t, err)
+	require.Equal(t, 1, redirected)
 }
