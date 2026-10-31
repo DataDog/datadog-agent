@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
@@ -71,9 +72,9 @@ func (r *SECLRuleFilter) IsAccepted(filters []string) (bool, error) {
 
 	evalOpts := &eval.Opts{}
 	evalOpts.
-		WithConstants(map[string]interface{}{
-			"true":  &eval.BoolEvaluator{Value: true},
-			"false": &eval.BoolEvaluator{Value: false},
+		WithConstants(map[string]ast.Node{
+			"true":  &ast.Literal{Value: ast.MakeBool(true)},
+			"false": &ast.Literal{Value: ast.MakeBool(false)},
 		})
 
 	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, evalOpts)

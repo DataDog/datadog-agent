@@ -7,7 +7,6 @@
 package eval
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
@@ -19,7 +18,11 @@ import (
 // the concrete evaluators of this package, its type depends on the type of the
 // expression.
 func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
-	node = pass.Run(node, opts.passes()...)
+	pos := node.Position()
+	node, err := pass.Run(node, opts.passes()...)
+	if err != nil {
+		return nil, pos, err
+	}
 
 	switch node := node.(type) {
 	case *ast.Rule:
@@ -145,21 +148,45 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 	case *ast.Ident:
 		return identToEvaluator(node.Name, node.Pos, opts, state)
 
-	case *ast.IntLiteral:
+	case *ast.Literal:
+		return literalToEvaluator(node, opts, state)
+
+	case *ast.VariableRef:
+		return evaluatorFromVariable(node.Name, node.Pos, opts)
+
+	case *ast.FieldRef:
+		return evaluatorFromFieldReference(node.Name, node.Pos, state)
+
+	case *ast.Array:
+		return arrayToEvaluator(node)
+	}
+
+	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
+}
+
+// literalToEvaluator compiles a literal.
+func literalToEvaluator(node *ast.Literal, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	switch node.Value.Kind() {
+	case ast.Bool:
+		return &BoolEvaluator{
+			Value: ast.BoolVal(node.Value),
+		}, node.Pos, nil
+
+	case ast.Int:
 		return &IntEvaluator{
-			Value:  node.Value,
+			Value:  ast.IntVal(node.Value),
 			Offset: node.Pos.Offset,
 		}, node.Pos, nil
 
-	case *ast.DurationLiteral:
+	case ast.Duration:
 		return &IntEvaluator{
-			Value:      node.Value,
+			Value:      ast.IntVal(node.Value),
 			Offset:     node.Pos.Offset,
 			isDuration: true,
 		}, node.Pos, nil
 
-	case *ast.StringLiteral:
-		str := node.Value
+	case ast.String:
+		str := ast.StringVal(node.Value)
 
 		// contains variables or field references
 		hasVariables := len(variableRegex.FindAllIndex([]byte(str), -1)) > 0
@@ -174,26 +201,26 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 			Offset:    node.Pos.Offset,
 		}, node.Pos, nil
 
-	case *ast.PatternLiteral:
+	case ast.Pattern:
 		return &StringEvaluator{
-			Value:     node.Value,
+			Value:     ast.StringVal(node.Value),
 			ValueType: PatternValueType,
 			Weight:    PatternWeight,
 			Offset:    node.Pos.Offset,
 		}, node.Pos, nil
 
-	case *ast.RegexpLiteral:
+	case ast.Regexp:
 		return &StringEvaluator{
-			Value:     node.Value,
+			Value:     ast.StringVal(node.Value),
 			ValueType: RegexpValueType,
 			Weight:    RegexpWeight,
 			Offset:    node.Pos.Offset,
 		}, node.Pos, nil
 
-	case *ast.IPLiteral:
-		ipnet, err := ParseCIDR(node.Value)
+	case ast.IP, ast.CIDR:
+		ipnet, err := ParseCIDR(ast.StringVal(node.Value))
 		if err != nil {
-			return nil, node.Pos, NewError(node.Pos, "invalid IP '%s'", node.Value)
+			return nil, node.Pos, NewError(node.Pos, "invalid %s '%s'", node.Value.Kind(), ast.StringVal(node.Value))
 		}
 
 		return &CIDREvaluator{
@@ -201,47 +228,66 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 			ValueType: IPNetValueType,
 			Offset:    node.Pos.Offset,
 		}, node.Pos, nil
+	}
 
-	case *ast.CIDRLiteral:
-		ipnet, err := ParseCIDR(node.Value)
-		if err != nil {
-			return nil, node.Pos, NewError(node.Pos, "invalid CIDR '%s'", node.Value)
+	return nil, node.Pos, NewError(node.Pos, "unknown kind of value '%s'", node.Value.Kind())
+}
+
+// familyKinds holds the type reported for the members of an array of each family.
+var familyKinds = map[ast.Family]reflect.Kind{
+	ast.BoolFamily:   reflect.Bool,
+	ast.IntFamily:    reflect.Int,
+	ast.StringFamily: reflect.String,
+	ast.IPFamily:     reflect.Struct,
+}
+
+// arrayToEvaluator compiles an array literal, its family being the one of its
+// first member.
+func arrayToEvaluator(node *ast.Array) (interface{}, ast.Position, error) {
+	// an empty array, the values of a macro defined by an empty list, is an
+	// array of strings
+	if len(node.Members) == 0 {
+		return &StringValuesEvaluator{}, node.Pos, nil
+	}
+
+	family := node.Members[0].Value.Kind().Family()
+	for _, member := range node.Members[1:] {
+		if member.Value.Kind().Family() != family {
+			return nil, member.Pos, NewArrayTypeError(member.Pos, reflect.Array, familyKinds[family])
 		}
+	}
 
-		return &CIDREvaluator{
-			Value:     *ipnet,
-			ValueType: IPNetValueType,
-			Offset:    node.Pos.Offset,
-		}, node.Pos, nil
-
-	case *ast.VariableRef:
-		return evaluatorFromVariable(node.Name, node.Pos, opts)
-
-	case *ast.FieldRef:
-		return evaluatorFromFieldReference(node.Name, node.Pos, state)
-
-	case *ast.IntArray:
-		var evaluator IntArrayEvaluator
-		evaluator.AppendValues(node.Values...)
+	switch family {
+	case ast.BoolFamily:
+		var evaluator BoolArrayEvaluator
+		for _, member := range node.Members {
+			evaluator.AppendValues(ast.BoolVal(member.Value))
+		}
 		return &evaluator, node.Pos, nil
 
-	case *ast.StringArray:
+	case ast.IntFamily:
+		var evaluator IntArrayEvaluator
+		for _, member := range node.Members {
+			evaluator.AppendValues(ast.IntVal(member.Value))
+		}
+		return &evaluator, node.Pos, nil
+
+	case ast.StringFamily:
 		var evaluator StringValuesEvaluator
 		evaluator.AppendMembers(node.Members...)
 		return &evaluator, node.Pos, nil
 
-	case *ast.CIDRArray:
+	case ast.IPFamily:
 		var values CIDRValues
 		for _, member := range node.Members {
-			switch member := member.(type) {
-			case *ast.CIDRLiteral:
-				if err := values.AppendCIDR(member.Value); err != nil {
-					return nil, node.Pos, NewError(node.Pos, "invalid CIDR '%s'", member.Value)
-				}
-			case *ast.IPLiteral:
-				if err := values.AppendIP(member.Value); err != nil {
-					return nil, node.Pos, NewError(node.Pos, "invalid IP '%s'", member.Value)
-				}
+			var err error
+			if member.Value.Kind() == ast.CIDR {
+				err = values.AppendCIDR(ast.StringVal(member.Value))
+			} else {
+				err = values.AppendIP(ast.StringVal(member.Value))
+			}
+			if err != nil {
+				return nil, node.Pos, NewError(node.Pos, "invalid %s '%s'", member.Value.Kind(), ast.StringVal(member.Value))
 			}
 		}
 
@@ -250,52 +296,9 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 			ValueType: IPNetValueType,
 			Offset:    node.Pos.Offset,
 		}, node.Pos, nil
-
-	case *ast.IdentArray:
-		// Only "Constants" idents are supported, and only string, int and boolean constants are expected.
-		for _, name := range node.Names {
-			if _, ok := opts.Constants[name]; !ok {
-				return nil, node.Pos, fmt.Errorf("`%s` is not a constant, the members of an array of identifiers have to be constants", name)
-			}
-		}
-
-		// Determine the type with the first ident
-		switch reflect.TypeOf(opts.Constants[node.Names[0]]) {
-		case reflect.TypeOf(&IntEvaluator{}):
-			var evaluator IntArrayEvaluator
-			for _, name := range node.Names {
-				constant, ok := opts.Constants[name].(*IntEvaluator)
-				if !ok {
-					return nil, node.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type int", name)
-				}
-				evaluator.AppendValues(constant.Value)
-			}
-			return &evaluator, node.Pos, nil
-		case reflect.TypeOf(&StringEvaluator{}):
-			var evaluator StringValuesEvaluator
-			for _, name := range node.Names {
-				constant, ok := opts.Constants[name].(*StringEvaluator)
-				if !ok {
-					return nil, node.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type string", name)
-				}
-				evaluator.AppendMembers(&ast.StringLiteral{Value: constant.Value})
-			}
-			return &evaluator, node.Pos, nil
-		case reflect.TypeOf(&BoolEvaluator{}):
-			var evaluator BoolArrayEvaluator
-			for _, name := range node.Names {
-				constant, ok := opts.Constants[name].(*BoolEvaluator)
-				if !ok {
-					return nil, node.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type bool", name)
-				}
-				evaluator.AppendValues(constant.Value)
-			}
-			return &evaluator, node.Pos, nil
-		}
-		return nil, node.Pos, fmt.Errorf("constant `%s` can't be a member of an array, only int, string and boolean constants can", node.Names[0])
 	}
 
-	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
+	return nil, node.Pos, NewError(node.Pos, "unknown kind of array '%s'", node.Members[0].Value.Kind())
 }
 
 // A chain of a same associative operation, `a && b && c`, is grouped from the
@@ -437,8 +440,8 @@ func compileBitChain(node *ast.BitExpr, opts *Opts, state *State) (interface{}, 
 // compileArrayOperand compiles the right hand side of a membership test.
 func compileArrayOperand(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
 	// a lone CIDR is an array of one CIDR
-	if cidr, ok := node.(*ast.CIDRLiteral); ok {
-		node = &ast.CIDRArray{Meta: cidr.Meta, Members: []ast.CIDRArrayMember{cidr}}
+	if cidr, ok := node.(*ast.Literal); ok && cidr.Value.Kind() == ast.CIDR {
+		node = &ast.Array{Meta: cidr.Meta, Members: []*ast.Literal{cidr}}
 	}
 
 	return compileNode(node, opts, state)

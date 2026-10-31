@@ -18,13 +18,17 @@ package pass
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 
 // Pass is a compilation pass.
-type Pass func(ast.Node) ast.Node
+type Pass func(ast.Node) (ast.Node, error)
 
-// Run runs the passes, in order, over a copy of the tree.
-func Run(node ast.Node, passes ...Pass) ast.Node {
+// Run runs the passes, in order, over a copy of the tree. It stops at the first
+// pass returning an error.
+func Run(node ast.Node, passes ...Pass) (ast.Node, error) {
 	node = ast.DeepCopy(node)
 	for _, pass := range passes {
-		node = pass(node)
+		var err error
+		if node, err = pass(node); err != nil {
+			return nil, err
+		}
 	}
-	return node
+	return node, nil
 }

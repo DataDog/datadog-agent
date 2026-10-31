@@ -383,7 +383,7 @@ func bit(start ast.Position, op ast.BitOp, left ast.Node) func(ast.Node) ast.Nod
 //	Unary → Primary
 //
 // A sign directly followed by an integer, without whitespace, is part of the
-// literal: `-1` is an IntLiteral, `- 1` and `-x` are negations.
+// literal: `-1` is an integer literal, `- 1` and `-x` are negations.
 func (p *parser) parseUnary() ast.Node {
 	tok := p.tok
 
@@ -437,24 +437,24 @@ func (p *parser) parsePrimary() ast.Node {
 	case String:
 		p.next()
 		// escape sequences are kept as written
-		return &ast.StringLiteral{Meta: meta, Value: tok.Text[1 : len(tok.Text)-1]}
+		return &ast.Literal{Meta: meta, Value: ast.MakeString(tok.Text[1 : len(tok.Text)-1])}
 	case Pattern:
 		p.next()
-		return &ast.PatternLiteral{Meta: meta, Value: tok.Text[2 : len(tok.Text)-1]}
+		return &ast.Literal{Meta: meta, Value: ast.MakePattern(tok.Text[2 : len(tok.Text)-1])}
 	case Regexp:
 		p.next()
-		return &ast.RegexpLiteral{Meta: meta, Value: tok.Text[2 : len(tok.Text)-1]}
+		return &ast.Literal{Meta: meta, Value: ast.MakeRegexp(tok.Text[2 : len(tok.Text)-1])}
 	case Duration:
 		p.next()
 		// the scanner checked the duration
 		value, _ := time.ParseDuration(tok.Text)
-		return &ast.DurationLiteral{Meta: meta, Value: int(value.Nanoseconds())}
+		return &ast.Literal{Meta: meta, Value: ast.MakeDuration(int(value.Nanoseconds()))}
 	case IP:
 		p.next()
-		return &ast.IPLiteral{Meta: meta, Value: tok.Text}
+		return &ast.Literal{Meta: meta, Value: ast.MakeIP(tok.Text)}
 	case CIDR:
 		p.next()
-		return &ast.CIDRLiteral{Meta: meta, Value: tok.Text}
+		return &ast.Literal{Meta: meta, Value: ast.MakeCIDR(tok.Text)}
 	case Variable:
 		p.next()
 		return &ast.VariableRef{Meta: meta, Name: tok.Text[2 : len(tok.Text)-1]}
@@ -492,7 +492,7 @@ func (p *parser) parseInt(sign *Token) ast.Node {
 		p.errs.add(&Error{Pos: start, End: tok.End(), Msg: msg})
 		return nil
 	}
-	return &ast.IntLiteral{Meta: ast.At(start), Value: int(value)}
+	return &ast.Literal{Meta: ast.At(start), Value: ast.MakeInt(int(value))}
 }
 
 // parseParenthesized parses a parenthesized expression. The parentheses are
@@ -572,10 +572,8 @@ func (p *parser) parseArray() ast.Node {
 	}
 
 	var (
-		stringMembers []ast.StringArrayMember
-		cidrMembers   []ast.CIDRArrayMember
-		ints          []int
-		idents        []string
+		members []*ast.Literal
+		idents  []string
 	)
 
 	for {
@@ -586,12 +584,8 @@ func (p *parser) parseArray() ast.Node {
 		}
 
 		switch member := p.parseMember().(type) {
-		case ast.StringArrayMember:
-			stringMembers = append(stringMembers, member)
-		case ast.CIDRArrayMember:
-			cidrMembers = append(cidrMembers, member)
-		case *ast.IntLiteral:
-			ints = append(ints, member.Value)
+		case *ast.Literal:
+			members = append(members, member)
 		case *ast.Ident:
 			idents = append(idents, member.Name)
 		default:
@@ -612,16 +606,10 @@ func (p *parser) parseArray() ast.Node {
 		p.next()
 	}
 
-	switch kind {
-	case stringArray:
-		return &ast.StringArray{Meta: meta, Members: stringMembers}
-	case cidrArray:
-		return &ast.CIDRArray{Meta: meta, Members: cidrMembers}
-	case intArray:
-		return &ast.IntArray{Meta: meta, Values: ints}
-	default:
+	if kind == identArray {
 		return &ast.IdentArray{Meta: meta, Names: idents}
 	}
+	return &ast.Array{Meta: meta, Members: members}
 }
 
 // skipArray skips the rest of an array literal after an error: the tokens up
