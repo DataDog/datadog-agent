@@ -47,8 +47,9 @@ const (
 	enrollmentMaxBackoff     = 30 * time.Second
 )
 
-// PublicClient exposes enrollment endpoints used before a runner has its own identity.
+// PublicClient exposes enrollment endpoints authenticated with API keys or workload tokens.
 type PublicClient interface {
+	MigrateWithWorkloadToken(ctx context.Context, token, runnerID, proof string) (*par.CreateRunnerResponse, error)
 	EnrollWithWorkloadToken(ctx context.Context, token string, request par.CreateRunnerRequest) (*par.CreateRunnerResponse, error)
 
 	EnrollWithApiKey(
@@ -235,24 +236,40 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 // falls back to API-key enrollment. The caller owns identity persistence and
 // retries: a short-lived token must be refreshed before a later attempt, and an
 // ambiguous response must not cause a new key/runner to be created.
-// This endpoint creates new runners; it does not migrate an existing runner.
+// Use MigrateWithWorkloadToken to move an existing runner to WIF.
 func (p *publicClient) EnrollWithWorkloadToken(ctx context.Context, token string, request par.CreateRunnerRequest) (*par.CreateRunnerResponse, error) {
-	if token == "" {
-		return nil, errors.New("workload enrollment token is required")
-	}
 	if request.ID != "" {
 		return nil, errors.New("workload enrollment cannot specify an existing runner ID")
+	}
+	payload, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
+	if err != nil {
+		return nil, fmt.Errorf("marshal workload enrollment request: %w", err)
+	}
+	return p.sendWorkloadEnrollment(ctx, token, "", "", payload)
+}
+
+// MigrateWithWorkloadToken changes the authorization of an existing runner.
+// The proof must be signed by that runner's key and bound to this workload token.
+func (p *publicClient) MigrateWithWorkloadToken(ctx context.Context, token, runnerID, proof string) (*par.CreateRunnerResponse, error) {
+	if runnerID == "" || proof == "" {
+		return nil, errors.New("workload migration requires a runner ID and ownership proof")
+	}
+	return p.sendWorkloadEnrollment(ctx, token, runnerID, proof, nil)
+}
+
+func (p *publicClient) sendWorkloadEnrollment(ctx context.Context, token, runnerID, proof string, payload []byte) (*par.CreateRunnerResponse, error) {
+	if token == "" {
+		return nil, errors.New("workload enrollment token is required")
 	}
 	endpoint := p.ddBaseURL + createPARWorkloadPath
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
 		return nil, errors.New("workload enrollment endpoint must use HTTPS")
 	}
-	payload, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
-	if err != nil {
-		return nil, fmt.Errorf("marshal workload enrollment request: %w", err)
+	if runnerID != "" {
+		parsed.RawQuery = url.Values{"existing_runner_id": {runnerID}}.Encode()
 	}
-	req, err := newEnrollmentRequest(ctx, endpoint, payload)
+	req, err := newEnrollmentRequest(ctx, parsed.String(), payload)
 	if err != nil {
 		return nil, err
 	}
@@ -263,6 +280,9 @@ func (p *publicClient) EnrollWithWorkloadToken(ctx context.Context, token string
 	req.Header.Del("DD-API-KEY")
 	req.Header.Del("DD-APPLICATION-KEY")
 	req.Header.Set("Authorization", "Bearer "+token)
+	if proof != "" {
+		req.Header.Set("X-Datadog-PAR-Proof", proof)
+	}
 	// Share the configured transport and timeout without changing the legacy
 	// client's redirect policy. A workload token must not follow redirects.
 	client := *p.httpClient

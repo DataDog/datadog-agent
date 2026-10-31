@@ -67,10 +67,11 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 		return nil, err
 	}
 	return &Result{
-		PrivateKey: privateJWK.Key.(*ecdsa.PrivateKey),
-		URN:        util.MakeRunnerURN(regions.GetRegionFromDDSite(ddSite), response.OrgID, response.RunnerID),
-		Hostname:   agentIdentifier.Hostname,
-		RunnerName: runnerName,
+		PrivateKey:  privateJWK.Key.(*ecdsa.PrivateKey),
+		URN:         util.MakeRunnerURN(regions.GetRegionFromDDSite(ddSite), response.OrgID, response.RunnerID),
+		Hostname:    agentIdentifier.Hostname,
+		RunnerName:  runnerName,
+		WIFEnrolled: true,
 		// No APIKeyHash: this identity is authorized by WIF, not the rotating intake key.
 	}, nil
 }
