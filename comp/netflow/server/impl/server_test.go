@@ -22,6 +22,7 @@ import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
@@ -68,7 +69,7 @@ var testOptions = fx.Options(
 	nfconfigmock.MockModule(),
 	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
-	defaultforwardermock.MockModule(),
+	fx.Provide(func(t testing.TB) defaultforwarder.Component { return defaultforwardermock.New(t) }),
 	core.MockBundle(),
 	hostnameimpl.MockModule(),
 	rdnsquerierfxmock.MockModule(),
@@ -126,7 +127,7 @@ func TestNewComponentSkipsAggregatorWhenDisabled(t *testing.T) {
 		nfconfigmock.MockModule(),
 		forwardermock.MockModule(),
 		demultiplexerimpl.MockModule(),
-		defaultforwardermock.MockModule(),
+		fx.Provide(func() defaultforwarder.Component { return defaultforwardermock.New(t) }),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		rdnsquerierfxmock.MockModule(),

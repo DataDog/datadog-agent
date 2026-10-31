@@ -31,6 +31,7 @@ dd_agent_go_test(
         "//comp/core",
         "//comp/core/autodiscovery/integration",
         "//comp/core/hostname/hostnameimpl",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/mock",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/check/id",

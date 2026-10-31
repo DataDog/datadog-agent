@@ -26,6 +26,7 @@ dd_agent_go_test(
         "//comp/core/secrets/mock",
         "//comp/core/tagger/fx-noop",
         "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/mock",
         "//comp/forwarder/orchestrator/mock",
