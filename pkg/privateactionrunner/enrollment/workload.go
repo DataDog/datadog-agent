@@ -55,7 +55,8 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 		ddSite = "datadoghq.com"
 	}
 	runnerName := agentIdentifier.Hostname + "-" + time.Now().UTC().Format("20060102150405")
-	response, err := opms.EnrollWithWorkloadToken(ctx, cfg, enrollmentBaseURL(cfg, ddSite), token, par.CreateRunnerRequest{
+	client := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), nil)
+	response, err := client.EnrollWithWorkloadToken(ctx, token, par.CreateRunnerRequest{
 		RunnerName:    runnerName,
 		RunnerModes:   []modes.Mode{modes.ModePull},
 		PublicKeyPEM:  publicPEM,
