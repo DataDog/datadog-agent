@@ -55,13 +55,7 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 
 	f.logFileAccess(req.Path)
 
-	var file *os.File
-	var err error
-	if req.NoFollow {
-		file, err = validateAndOpenNoFollow(req.Path)
-	} else {
-		file, err = validateAndOpen(req.Path)
-	}
+	file, err := openLogFile(req.Path, req.NoFollow)
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, err.Error())
 		return
