@@ -1,10 +1,10 @@
 module github.com/DataDog/datadog-agent/internal/tools
 
-go 1.26.0
+go 1.27.3
 
 require (
 	github.com/aarzilli/whydeadcode v0.0.0-20260303092945-8d908f77de3a
-	github.com/bazelbuild/bazelisk v1.29.0
+	github.com/bazelbuild/bazelisk v1.30.0
 	github.com/favadi/protoc-go-inject-tag v1.4.0
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-delve/delve v1.27.2
