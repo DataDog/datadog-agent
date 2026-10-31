@@ -6,7 +6,6 @@ go_library(
     srcs = [
         "opms.go",
         "public_opms.go",
-        "workload_enrollment.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms",
     visibility = ["//visibility:public"],

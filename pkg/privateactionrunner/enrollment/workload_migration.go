@@ -72,7 +72,8 @@ func MigrateToWIF(ctx context.Context, cfg configmodel.Reader, auth delegatedaut
 	if ddSite == "" {
 		ddSite = "datadoghq.com"
 	}
-	response, err := opms.MigrateWithWorkloadToken(ctx, cfg, enrollmentBaseURL(cfg, ddSite), token, parts.RunnerID, proof)
+	client := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), nil)
+	response, err := client.MigrateWithWorkloadToken(ctx, token, parts.RunnerID, proof)
 	if err != nil {
 		return nil, err
 	}
