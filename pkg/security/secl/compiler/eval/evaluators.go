@@ -278,24 +278,28 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 }
 
 // AppendMembers add members to the evaluator
-func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
+func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringArrayMember) {
 	for _, member := range members {
 		var value FieldValue
-		if member.Pattern != nil {
+		switch member := member.(type) {
+		case *ast.PatternLiteral:
 			value = FieldValue{
-				Value: *member.Pattern,
+				Value: member.Value,
 				Type:  PatternValueType,
 			}
-		} else if member.Regexp != nil {
+		case *ast.RegexpLiteral:
 			value = FieldValue{
-				Value: *member.Regexp,
+				Value: member.Value,
 				Type:  RegexpValueType,
 			}
-		} else {
+		case *ast.StringLiteral:
 			value = FieldValue{
-				Value: *member.String,
+				Value: member.Value,
 				Type:  ScalarValueType,
 			}
+		default:
+			// unreachable, ast.StringArrayMember is a closed union
+			continue
 		}
 		s.Values.AppendFieldValue(value)
 	}

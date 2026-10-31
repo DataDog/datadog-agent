@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
 // MacroID - ID of a Macro
@@ -34,7 +35,7 @@ type MacroEvaluator struct {
 }
 
 // NewMacro parses an expression and returns a new macro
-func NewMacro(id, expression string, model Model, parsingContext *ast.ParsingContext, opts *Opts) (*Macro, error) {
+func NewMacro(id, expression string, model Model, parsingContext *parser.ParsingContext, opts *Opts) (*Macro, error) {
 	macro := &Macro{
 		ID:   id,
 		Opts: opts,
@@ -85,8 +86,8 @@ func (m *Macro) GetAst() *ast.Macro {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (m *Macro) Parse(parsingContext *ast.ParsingContext, expression string) error {
-	astMacro, err := parsingContext.ParseMacro(expression)
+func (m *Macro) Parse(parsingContext *parser.ParsingContext, expression string) error {
+	astMacro, err := parsingContext.BuildMacro(expression)
 	if err != nil {
 		return err
 	}
@@ -97,18 +98,7 @@ func (m *Macro) Parse(parsingContext *ast.ParsingContext, expression string) err
 func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*MacroEvaluator, error) {
 	state := NewState(model, field, opts.MacroStore)
 
-	var eval interface{}
-	var err error
-
-	switch {
-	case macro.Expression != nil:
-		eval, _, err = nodeToEvaluator(macro.Expression, opts, state)
-	case macro.Array != nil:
-		eval, _, err = nodeToEvaluator(macro.Array, opts, state)
-	case macro.Primary != nil:
-		eval, _, err = nodeToEvaluator(macro.Primary, opts, state)
-	}
-
+	eval, _, err := compileExpr(macro.Root, opts, state)
 	if err != nil {
 		return nil, err
 	}
