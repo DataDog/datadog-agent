@@ -82,6 +82,23 @@ static __always_inline __maybe_unused u32 pktbuf_data_end(pktbuf_t pkt)
     return 0;
 }
 
+// pktbuf_get_ctx returns the raw eBPF program context backing the packet
+// buffer: the __sk_buff for socket-filter (SKB) programs, or the pt_regs for
+// TLS uprobe programs. This is the context expected by bpf_perf_event_output,
+// used by the direct-consumer output path.
+static __always_inline __maybe_unused void *pktbuf_get_ctx(pktbuf_t pkt)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        return pkt.skb;
+    case PKTBUF_TLS:
+        return pkt.ctx;
+    }
+
+    pktbuf_invalid_operation();
+    return NULL;
+}
+
 static __always_inline long pktbuf_load_bytes_with_telemetry(pktbuf_t pkt, u32 offset, void *to, u32 len)
 {
     switch (pkt.type) {
