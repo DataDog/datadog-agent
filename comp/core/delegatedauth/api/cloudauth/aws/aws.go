@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -91,6 +92,26 @@ func (a *AWSAuth) LastCredentialSource() string {
 // This proof includes a signed AWS STS GetCallerIdentity request that proves access to AWS credentials.
 // The context parameter allows for cancellation of the proof generation.
 func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
+	return a.generateAuthProof(ctx, cfg, config, nil)
+}
+
+// GenerateWorkloadAuthProof signs the workload grants and optional key binding
+// into the same STS proof used for intake. Ordinary intake proofs stay unchanged.
+func (a *AWSAuth) GenerateWorkloadAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig, request common.WorkloadTokenRequest) (string, error) {
+	if err := request.Validate(); err != nil {
+		return "", err
+	}
+	headers := http.Header{}
+	headers.Set("X-Ddog-Workload-Grants", strings.Join(request.Grants, " "))
+	if request.JWKThumbprint != "" {
+		headers.Set("X-Ddog-Workload-Jwk-Thumbprint", request.JWKThumbprint)
+	}
+	return a.generateAuthProof(ctx, cfg, config, headers)
+}
+
+var _ common.WorkloadProvider = (*AWSAuth)(nil)
+
+func (a *AWSAuth) generateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig, headers http.Header) (string, error) {
 	// Check for context cancellation early
 	if ctx.Err() != nil {
 		return "", ctx.Err()
@@ -111,7 +132,7 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Read
 	}
 
 	// Use the credentials to generate the signing data
-	data, err := a.generateAwsAuthData(ctx, config.OrgUUID, credentials)
+	data, err := a.generateAwsAuthDataWithHeaders(ctx, config.OrgUUID, credentials, headers)
 	if err != nil {
 		return "", err
 	}
@@ -198,6 +219,10 @@ func (a *AWSAuth) getUserAgent() string {
 }
 
 func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCredentials *creds.SecurityCredentials) (*signingData, error) {
+	return a.generateAwsAuthDataWithHeaders(ctx, orgUUID, awsCredentials, nil)
+}
+
+func (a *AWSAuth) generateAwsAuthDataWithHeaders(ctx context.Context, orgUUID string, awsCredentials *creds.SecurityCredentials, headers http.Header) (*signingData, error) {
 	if orgUUID == "" {
 		return nil, errors.New("missing org UUID")
 	}
@@ -221,6 +246,10 @@ func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCr
 	req, err := http.NewRequest(http.MethodPost, stsFullURL, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	for name, values := range headers {
+		req.Header[name] = values
 	}
 
 	// Set required headers before signing
