@@ -282,11 +282,12 @@ func registerRemoteAgent(registry remoteagentregistry.Component, in *pb.Register
 	}
 
 	registration := &remoteagentregistry.RegistrationData{
-		AgentPID:         in.Pid,
-		AgentFlavor:      in.Flavor,
-		AgentDisplayName: in.DisplayName,
-		APIEndpointURI:   in.ApiEndpointUri,
-		Services:         in.Services,
+		AgentPID:          in.Pid,
+		ProcessInstanceID: in.ProcessInstanceId,
+		AgentFlavor:       in.Flavor,
+		AgentDisplayName:  in.DisplayName,
+		APIEndpointURI:    in.ApiEndpointUri,
+		Services:          in.Services,
 	}
 	sessionID, recommendedRefreshIntervalSecs, err := registry.RegisterRemoteAgent(registration)
 	if err != nil {
