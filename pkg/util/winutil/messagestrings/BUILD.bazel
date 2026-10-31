@@ -4,7 +4,7 @@ load("//bazel/rules/windows:resources.bzl", "win_messagetable")
 win_messagetable(
     name = "messagetable",
     src = "messagestrings.mc",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
 )
 
@@ -17,6 +17,6 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
 )
