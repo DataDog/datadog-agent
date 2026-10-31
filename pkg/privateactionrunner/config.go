@@ -13,6 +13,7 @@ const (
 
 	// Identity / enrollment configuration
 	SelfEnroll             = "private_action_runner.self_enroll"
+	WIFEnrollment          = "private_action_runner.wif_enrollment"
 	APIKeyOnlyEnrollment   = "private_action_runner.api_key_only_enrollment"
 	IdentityFilePath       = "private_action_runner.identity_file_path"
 	IdentityUseK8sSecret   = "private_action_runner.identity_use_k8s_secret"
