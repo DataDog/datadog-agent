@@ -1,0 +1,24 @@
+---
+features:
+  - |
+    On Windows and macOS, the ``network`` check now reports the
+    ``system.net.iface.up``, ``system.net.iface.speed`` and
+    ``system.net.iface.mtu`` gauges for each network interface.
+    ``system.net.iface.speed`` is the negotiated link speed of Ethernet
+    interfaces, in Mbps. It is not reported for other interfaces, such as Wi-Fi,
+    whose link rate is ``system.wlan.txrate``.
+    The gauges are tagged with ``iface``, ``iface_type`` (``ethernet``,
+    ``wifi``, ``cellular``, ``loopback``, ``tunnel``, ``virtual`` or
+    ``other``), and with ``duplex`` and ``vlan_id`` when the interface reports
+    them. The check also adds an
+    ``interfaces`` entry to its inventory metadata with each interface's type,
+    MAC address, MTU, duplex and VLAN ID, its description, permanent MAC
+    address and driver, and on macOS whether it is built in and its vendor and
+    model.
+  - |
+    On macOS, the Go version of the ``network`` check can now be enabled with
+    ``use_networkv2_check: true``. It reports the same metrics as the Python
+    check, plus ``system.net.packets_in.drop`` and ``system.net.packets_out.drop``
+    and the interface gauges above. With ``collect_connection_state``, it also
+    counts the TCP connections in the ``SYN_RCVD``, ``FIN_WAIT_1``,
+    ``FIN_WAIT_2`` and ``CLOSED`` states, which the Python check left out.
