@@ -46,6 +46,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
+		e2eos.RedHat9SELinuxNPM,
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
