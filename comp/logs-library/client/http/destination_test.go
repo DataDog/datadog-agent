@@ -11,6 +11,8 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"expvar"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +21,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -1212,4 +1215,223 @@ func TestCheckConnectivityIncrementsFailureMetric(t *testing.T) {
 	assert.NoError(t, err)
 	assert.GreaterOrEqual(t, len(metric), 1, "expected at least one failure_cause metric increment")
 	assert.Equal(t, metrics.FailureCauseHTTPStatus, metric[0].Tags()["failure_cause"])
+}
+
+func destinationDropped(m *expvar.Map, host string) int64 {
+	if v := m.Get(host); v != nil {
+		return v.(*expvar.Int).Value()
+	}
+	return 0
+}
+
+func TestPendingDelegatedAuthDropsAfterBound(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewDelegatedAuthPendingTestServer(cfg)
+	defer server.Stop()
+
+	prevWait, prevInterval := delegatedAuthMaxWait, credentialWaitInterval
+	delegatedAuthMaxWait = 50 * time.Millisecond
+	credentialWaitInterval = 10 * time.Millisecond
+	t.Cleanup(func() { delegatedAuthMaxWait, credentialWaitInterval = prevWait, prevInterval })
+
+	droppedBefore := destinationDropped(&metrics.DestinationLogsDropped, server.Destination.host)
+	delaDroppedBefore := destinationDropped(&metrics.DestinationDelegatedAuthDropped, server.Destination.host)
+
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{{}}, Encoded: []byte("test log")}
+	output := make(chan *message.Payload, 1)
+	isRetrying := make(chan bool, 1)
+	done := make(chan destinationResult, 1)
+	go func() { done <- server.Destination.sendAndRetry(payload, output, isRetrying) }()
+
+	require.True(t, <-isRetrying, "the destination reports retrying while holding the payload")
+
+	// Past the bound the hold ends as a drop without acking, with the dedicated metric.
+	select {
+	case result := <-done:
+		assert.NoError(t, result.err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the delegated-auth hold did not end after the bound")
+	}
+	select {
+	case <-output:
+		t.Fatal("payload acked after the delegated-auth bound")
+	default:
+	}
+	assert.Equal(t, int64(1), destinationDropped(&metrics.DestinationLogsDropped, server.Destination.host)-droppedBefore)
+	assert.Equal(t, int64(1), destinationDropped(&metrics.DestinationDelegatedAuthDropped, server.Destination.host)-delaDroppedBefore)
+}
+
+func TestPendingDelegatedAuthLatchDropsImmediately(t *testing.T) {
+	for _, retrying := range []bool{false, true} {
+		t.Run(fmt.Sprintf("already_retrying=%t", retrying), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				cfg := configmock.New(t)
+				destCtx := client.NewDestinationsContext()
+				destCtx.Start()
+				defer destCtx.Stop()
+
+				// A pending credential never reaches HTTP; no real server is needed.
+				endpoint := config.NewEndpoint("DELA[some-org-uuid, aws]", "logs_config.additional_endpoints", "pending.example", 0, config.EmptyPathPrefix, false)
+				destination := NewDestination(endpoint, JSONContentType, destCtx, true, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp)
+				if retrying {
+					destination.lastRetryError = client.NewRetryableError(errors.New("server error"))
+				}
+
+				var logs bytes.Buffer
+				logger, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(&logs, log.InfoLvl)
+				require.NoError(t, err)
+				log.SetupLogger(logger, "info")
+				defer log.SetupLogger(log.Default(), "debug")
+
+				output := make(chan *message.Payload, 1)
+				send := func() {
+					payload := &message.Payload{MessageMetas: []*message.MessageMetadata{{}}, Encoded: []byte("test log")}
+					result := destination.sendAndRetry(payload, output, nil)
+					require.NoError(t, result.err)
+					require.Empty(t, output, "a dropped payload must not be acknowledged")
+				}
+				assertLogCounts := func(waits int) {
+					t.Helper()
+					log.Flush()
+					assert.Equal(t, waits, strings.Count(logs.String(), "queuing logs until delegated auth provides an API key"))
+					assert.Equal(t, waits, strings.Count(logs.String(), "dropping logs for this destination until the key arrives"))
+				}
+
+				// The first payload waits the full bound in virtual time.
+				start := time.Now()
+				send()
+				assert.Greater(t, time.Since(start), delegatedAuthMaxWait)
+				assert.LessOrEqual(t, time.Since(start), delegatedAuthMaxWait+credentialWaitInterval)
+				assertLogCounts(1)
+
+				pendingSince := destination.pendingDelegatedAuthSince
+				require.False(t, pendingSince.IsZero())
+				assert.Nil(t, destination.lastRetryError, "the worker must keep feeding this destination")
+
+				// Later drops neither advance time nor start a new logging episode.
+				for range 3 {
+					start = time.Now()
+					send()
+					assert.Equal(t, start, time.Now())
+					assert.Equal(t, pendingSince, destination.pendingDelegatedAuthSince)
+					assert.Nil(t, destination.lastRetryError)
+				}
+				assertLogCounts(1)
+
+				// Once retry state resets after a send, a new wait logs again.
+				destination.updateRetryState(nil, nil)
+				start = time.Now()
+				send()
+				assert.Greater(t, time.Since(start), delegatedAuthMaxWait)
+				assertLogCounts(2)
+			})
+		})
+	}
+}
+
+func TestPendingDelegatedAuthRecoversAfterBound(t *testing.T) {
+	// After the bound fired and dropped a payload, a key that arrives lets the
+	// destination send again instead of dropping forever.
+	cfg := configmock.New(t)
+	server := NewTestServerWithOptions(http.StatusOK, 1, true, nil, cfg)
+	defer server.Stop()
+
+	prevWait, prevInterval := delegatedAuthMaxWait, credentialWaitInterval
+	delegatedAuthMaxWait = 50 * time.Millisecond
+	credentialWaitInterval = 10 * time.Millisecond
+	t.Cleanup(func() { delegatedAuthMaxWait, credentialWaitInterval = prevWait, prevInterval })
+
+	entry := func(apiKey string) []map[string]interface{} {
+		return []map[string]interface{}{{
+			"api_key": apiKey, "host": server.Endpoint.Host, "port": server.Endpoint.Port, "use_ssl": false,
+		}}
+	}
+	cfg.SetInTest("logs_config.force_use_http", true)
+	cfg.SetInTest("logs_config.additional_endpoints", entry("DELA[some-org-uuid, aws]"))
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(cfg, config.NewLogsConfigKeys("logs_config.", cfg), "agent-http-intake.logs.", "", "", "")
+	require.NoError(t, err)
+	require.Len(t, endpoints.Endpoints, 2)
+	pending := endpoints.Endpoints[1]
+	require.True(t, pending.AwaitsDelegatedAuthKey())
+	server.Destination.endpoint = pending
+
+	// First payload drops past the bound.
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
+	done := make(chan destinationResult, 1)
+	go func() { done <- server.Destination.sendAndRetry(payload, make(chan *message.Payload, 1), nil) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first payload never ended its delegated-auth wait")
+	}
+
+	// The write-back delivers the key: the next payload sends instead of dropping.
+	cfg.Set("logs_config.additional_endpoints", entry("resolved-key"), pkgconfigmodel.SourceSecret)
+	payload2 := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("second log")}
+	output2 := make(chan *message.Payload, 1)
+	done2 := make(chan destinationResult, 1)
+	go func() { done2 <- server.Destination.sendAndRetry(payload2, output2, nil) }()
+	select {
+	case sent := <-output2:
+		assert.Same(t, payload2, sent)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the destination did not resume sending after the key arrived")
+	}
+	assert.Equal(t, "resolved-key", server.request.Header.Get("DD-API-KEY"))
+}
+
+func TestPendingDelegatedAuthLatchStartsMidRetryEpisode(t *testing.T) {
+	// A credential that turns pending while the destination is mid-retryable-episode
+	// (lastRetryError set) must still start the latch clock; otherwise the hold is
+	// unbounded again.
+	cfg := configmock.New(t)
+	server := NewDelegatedAuthPendingTestServer(cfg)
+	defer server.Stop()
+
+	prevWait, prevInterval := delegatedAuthMaxWait, credentialWaitInterval
+	delegatedAuthMaxWait = 50 * time.Millisecond
+	credentialWaitInterval = 10 * time.Millisecond
+	t.Cleanup(func() { delegatedAuthMaxWait, credentialWaitInterval = prevWait, prevInterval })
+
+	server.Destination.retryLock.Lock()
+	server.Destination.lastRetryError = client.NewRetryableError(errors.New("server error"))
+	server.Destination.nbErrors = 3 // a leftover send backoff must not slow the credential rechecks
+	server.Destination.retryLock.Unlock()
+
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
+	done := make(chan destinationResult, 1)
+	go func() { done <- server.Destination.sendAndRetry(payload, make(chan *message.Payload, 1), nil) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the delegated-auth hold never ended: the latch did not start mid-retry-episode")
+	}
+
+	// The credential wait reset the send backoff so the recheck cadence is
+	// credentialWaitInterval, not the backoff of the old episode.
+	server.Destination.retryLock.Lock()
+	nbErrors := server.Destination.nbErrors
+	server.Destination.retryLock.Unlock()
+	assert.Zero(t, nbErrors, "entering the delegated-auth wait must clear the leftover send backoff")
+}
+
+func TestDelegatedAuthLatchClearsOnRetryableSend(t *testing.T) {
+	// A retryable send error implies the credential was ready: the pending clock must
+	// reset so a later pending wait gets a fresh bound instead of dropping on a stale one.
+	cfg := configmock.New(t)
+	server := NewDelegatedAuthPendingTestServer(cfg)
+	defer server.Stop()
+
+	server.Destination.retryLock.Lock()
+	server.Destination.pendingDelegatedAuthSince = time.Now().Add(-time.Hour)
+	server.Destination.retryLock.Unlock()
+
+	server.Destination.updateRetryState(client.NewRetryableError(errors.New("server error")), nil)
+
+	server.Destination.retryLock.Lock()
+	since := server.Destination.pendingDelegatedAuthSince
+	seen := server.Destination.pendingDelegatedAuthTimeoutSeen
+	server.Destination.retryLock.Unlock()
+	assert.True(t, since.IsZero(), "a retryable send must clear the pending clock")
+	assert.False(t, seen)
 }
