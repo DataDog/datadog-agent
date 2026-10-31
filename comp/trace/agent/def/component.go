@@ -30,3 +30,9 @@ type Component interface {
 	// GetHTTPHandler returns the HTTP handler for the given endpoint.
 	GetHTTPHandler(endpoint string) http.Handler
 }
+
+// OTLPStatsSender is the SDK stats capability required by DDOT metrics export.
+type OTLPStatsSender interface {
+	// SendOTLPStatsPayload queues OTLP intake stats, dropping and counting payloads when senders are full or stopped.
+	SendOTLPStatsPayload(payload []byte)
+}

@@ -331,6 +331,21 @@ func (s *sender) Push(p *payload) {
 	s.inflight.Inc()
 }
 
+// tryPush drops and accounts for payloads that cannot be queued immediately.
+func (s *sender) tryPush(p *payload) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	s.inflight.Inc()
+	if !s.closed {
+		select {
+		case s.queue <- p:
+			return
+		default:
+		}
+	}
+	s.releasePayload(p, eventTypeDropped, &eventData{bytes: p.body.Len(), uncompressedBytes: p.uncompressedSize, count: 1})
+}
+
 // sendPayload sends the payload p to the destination URL.
 func (s *sender) sendPayload(p *payload) {
 	for attempt := 0; ; attempt++ {

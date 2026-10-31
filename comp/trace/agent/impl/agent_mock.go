@@ -40,7 +40,7 @@ func (c *noopConcentrator) Add(_ stats.Input)     {}
 func (c *noopConcentrator) AddV1(_ stats.InputV1) {}
 
 // NewMock creates a new mock agent component.
-func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
+func NewMock(deps dependencies, _ testing.TB) (traceagent.Component, traceagent.OTLPStatsSender) {
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
 
 	// Several related non-components require a shared context to gracefully stop.
@@ -63,5 +63,5 @@ func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 	ag.TraceWriter = &noopTraceWriter{}
 	ag.Concentrator = &noopConcentrator{}
 
-	return component{}
+	return component{}, component{}
 }
