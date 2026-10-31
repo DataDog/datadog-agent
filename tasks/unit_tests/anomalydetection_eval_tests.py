@@ -10,7 +10,6 @@ from invoke.exceptions import Exit
 from tasks.anomalydetection import (
     _bayesian_evaluation_inputs,
     _load_completed_bayesian_report,
-    _validate_ddeval_scenario_filter,
     eval_bayesian,
     eval_combinations,
     eval_component,
@@ -137,7 +136,6 @@ class TestPipelineResume(unittest.TestCase):
             scenarios="scenario-a",
             lock="",
             eval_backend="local",
-            ddeval_options=None,
         )
 
     def _write_report(self, output_dir, **overrides):
@@ -221,7 +219,15 @@ class TestLocalF1Pipeline(unittest.TestCase):
             prepare_output.assert_not_called()
 
     def test_ddeval_keeps_its_remote_dataset_default(self):
-        self.assertTrue(_validate_ddeval_scenario_filter("ddeval", ""))
+        for task in (eval_bayesian, eval_pipeline):
+            with (
+                self.subTest(task=task.name),
+                patch.dict("sys.modules", {"optuna": Mock()}),
+                patch("tasks.anomalydetection._remote_ablation") as remote,
+            ):
+                task.body(Mock(), eval_backend="ddeval")
+            remote.assert_called_once()
+            self.assertEqual(remote.call_args.kwargs["dataset"], "Golden 25")
         inputs = _bayesian_evaluation_inputs(
             scenarios_dir="/unused",
             sigma=30.0,
@@ -229,7 +235,6 @@ class TestLocalF1Pipeline(unittest.TestCase):
             scenarios="",
             lock="",
             eval_backend="ddeval",
-            ddeval_options=None,
         )
         self.assertEqual(inputs["scenarios"], [])
 
