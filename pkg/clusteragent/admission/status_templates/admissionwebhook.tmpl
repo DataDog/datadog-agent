@@ -6,6 +6,7 @@
   {{ else }}
     Webhooks info
     -------------
+    Webhook running: {{ if .admissionWebhook.Running }}true{{ else }}false{{ end }}
     {{ if .admissionWebhook.ValidatingWebhookError }}
       ValidatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
       Error: {{ .admissionWebhook.ValidatingWebhookError }}
