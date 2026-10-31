@@ -56,6 +56,23 @@ type mockForceFlusher struct {
 func (m *mockForceFlusher) Flush()    { m.flushCount.Add(1) }
 func (m *mockForceFlusher) FlushAll() { m.flushAllCount.Add(1) }
 
+// mockTraceStopper tracks Flush and Stop calls separately; it satisfies both
+// Flusher and TraceStopper. If stopBlock is set, Stop blocks until it is
+// closed.
+type mockTraceStopper struct {
+	flushCount atomic.Int32
+	stopCount  atomic.Int32
+	stopBlock  chan struct{}
+}
+
+func (m *mockTraceStopper) Flush() { m.flushCount.Add(1) }
+func (m *mockTraceStopper) Stop() {
+	m.stopCount.Add(1)
+	if m.stopBlock != nil {
+		<-m.stopBlock
+	}
+}
+
 // mockLogsAgent counts how many times Flush was called and records when each
 // call returned. onFlush, if set, is invoked after each Flush.
 type mockLogsAgent struct {
@@ -149,6 +166,88 @@ func TestHandleRunParsesInstanceID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-abc123", id, "instance ID must be stored on the server for lifecycle metric tags")
+}
+
+// mockMetadataReporter records the IDs passed to ReportMetadata.
+type mockMetadataReporter struct {
+	mu  sync.Mutex
+	ids []string
+}
+
+func (m *mockMetadataReporter) ReportMetadata(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ids = append(m.ids, id)
+}
+
+func (m *mockMetadataReporter) getIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string{}, m.ids...)
+}
+
+func TestHandleRun_MetadataReporter_InvokedWithInstanceID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	srv.SetMetadataReporter(MetadataReporterFunc(func(id string) {
+		assert.Equal(t, id, srv.InstanceID(), "the instance ID must be stored before the report")
+		reporter.ReportMetadata(id)
+	}))
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	assert.Equal(t, []string{"vm-abc123"}, reporter.getIDs())
+}
+
+// TestHandleRun_MetadataReporter_NotInvokedWithoutInstanceID covers bodies
+// without a usable ID, including an invalid body that Unmarshal partially
+// populated before failing.
+func TestHandleRun_MetadataReporter_NotInvokedWithoutInstanceID(t *testing.T) {
+	for _, body := range []string{"", "{}", `{"microvmId":""}`, `{"microvmId":42}`, `{"microvmId":"bad","microvmId":42}`} {
+		t.Run(body, func(t *testing.T) {
+			srv, _, _, _, _, _ := newTestServer()
+			reporter := &mockMetadataReporter{}
+			srv.SetMetadataReporter(reporter)
+
+			rec := httptest.NewRecorder()
+			srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(body)))
+
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Empty(t, reporter.getIDs())
+			assert.Empty(t, srv.InstanceID(), "an invalid body must not store an instance ID")
+		})
+	}
+}
+
+func TestHandleResume_MetadataReporter_InvokedWithStoredID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	srv.SetMetadataReporter(reporter)
+	srv.instanceID.Store("vm-abc123")
+
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Equal(t, []string{"vm-abc123"}, reporter.getIDs())
+}
+
+func TestHandleResume_MetadataReporter_NotInvokedWithoutRun(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	srv.SetMetadataReporter(reporter)
+
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Empty(t, reporter.getIDs(), "resume must not report without an established identity")
+}
+
+func TestHandleRun_NilMetadataReporter_NoPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+		srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+	})
 }
 
 // TestHandleRun_BodyReadError_Returns500 verifies that a body read failure
@@ -361,6 +460,112 @@ func TestHandleTerminate_UsesFlushAllNotFlush(t *testing.T) {
 
 	assert.Equal(t, int32(1), metric.flushAllCount.Load(), "/terminate must call FlushAll")
 	assert.Equal(t, int32(0), metric.flushCount.Load(), "/terminate must not call Flush")
+}
+
+// TestHandleTerminate_StopsTraceAgentInsteadOfFlushing pins that /terminate
+// calls Stop, not Flush, on a trace flusher that supports Stop (see
+// TraceStopper for why).
+func TestHandleTerminate_StopsTraceAgentInsteadOfFlushing(t *testing.T) {
+	trace := &mockTraceStopper{}
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleTerminate(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, int32(1), trace.stopCount.Load(), "/terminate must call Stop")
+	assert.Equal(t, int32(0), trace.flushCount.Load(), "/terminate must not call Flush when Stop is available")
+}
+
+// TestHandleTerminate_BlockedTraceStopReturnsWithinBudget pins that a Stop that
+// outlasts the flush budget (e.g. the trace receiver waiting on an in-flight
+// request) doesn't hold up the /terminate response.
+func TestHandleTerminate_BlockedTraceStopReturnsWithinBudget(t *testing.T) {
+	trace := &mockTraceStopper{stopBlock: make(chan struct{})}
+	defer close(trace.stopBlock)
+	const flushTimeout = 100 * time.Millisecond
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, nil, HookToggles{}, nil)
+
+	rec := httptest.NewRecorder()
+	start := time.Now()
+	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Less(t, time.Since(start), 10*flushTimeout, "/terminate must return within the flush budget")
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, int32(1), trace.stopCount.Load(), "/terminate must call Stop")
+}
+
+// TestHandleTerminate_WithForwarder_StopsTraceAgentAfterUserApp pins that, with
+// hook forwarding, Stop runs only after the user app has answered /terminate,
+// so the trace agent can still receive the spans the app sends while handling
+// it.
+func TestHandleTerminate_WithForwarder_StopsTraceAgentAfterUserApp(t *testing.T) {
+	trace := &mockTraceStopper{}
+	var stopsSeenByUserApp atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		stopsSeenByUserApp.Store(trace.stopCount.Load())
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	srv.enabledHooks.Terminate = true
+
+	srv.handleTerminate(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, int32(0), stopsSeenByUserApp.Load(), "Stop must not run before the user app answers /terminate")
+	assert.Equal(t, int32(1), trace.stopCount.Load(), "/terminate must call Stop")
+	assert.Equal(t, int32(0), trace.flushCount.Load(), "/terminate must not call Flush when Stop is available")
+}
+
+// TestHandleSuspend_WithForwarder_FlushesTraceAgentWithoutStopping pins that
+// the forwarded /suspend path also calls Flush, not Stop.
+func TestHandleSuspend_WithForwarder_FlushesTraceAgentWithoutStopping(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	trace := &mockTraceStopper{}
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	srv.enabledHooks.Suspend = true
+
+	srv.handleSuspend(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, int32(1), trace.flushCount.Load(), "/suspend must call Flush")
+	assert.Equal(t, int32(0), trace.stopCount.Load(), "/suspend must not call Stop")
+}
+
+// TestHandleSuspend_FlushesTraceAgentWithoutStopping pins that /suspend calls
+// Flush, not Stop: the VM can resume and must keep tracing.
+func TestHandleSuspend_FlushesTraceAgentWithoutStopping(t *testing.T) {
+	trace := &mockTraceStopper{}
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleSuspend(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, int32(1), trace.flushCount.Load(), "/suspend must call Flush")
+	assert.Equal(t, int32(0), trace.stopCount.Load(), "/suspend must not call Stop")
+}
+
+// TestHandleTerminate_FlushesTraceFlusherWithoutStop pins that a trace flusher
+// without Stop still gets Flush on /terminate.
+func TestHandleTerminate_FlushesTraceFlusherWithoutStop(t *testing.T) {
+	srv, _, trace, _, _, _ := newTestServer()
+
+	srv.handleTerminate(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, int32(1), trace.count.Load(), "/terminate must fall back to Flush")
 }
 
 // TestEmittedMetricsCarryCurrentTimestamp verifies the lifecycle handlers pass
@@ -1447,7 +1652,7 @@ func TestMirrorResponse_BodyReadError_DoesNotPanic(t *testing.T) {
 func TestDispatchHook_NoForwarder_WithFlushFalse_EmitsMetricReturns200NoFlush(t *testing.T) {
 	srv, metric, trace, logs, emitter, drainer := newTestServer()
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", "/test", noFlush, false, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
+	srv.dispatchHook("test.metric", "/test", noFlush, nil, false, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
 	assert.Equal(t, int32(0), metric.count.Load(), "noFlush must not flush")
@@ -1461,7 +1666,7 @@ func TestDispatchHook_NoForwarder_WithFlushFalse_EmitsMetricReturns200NoFlush(t 
 func TestDispatchHook_NoForwarder_WithFlushTrue_EmitsMetricAndFlushes(t *testing.T) {
 	srv, metric, trace, logs, emitter, drainer := newTestServer()
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", "/test", flushParallel, false, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
+	srv.dispatchHook("test.metric", "/test", flushParallel, srv.flushForSuspend, false, rec, httptest.NewRequest(http.MethodPost, "/test", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
 	assert.Equal(t, int32(1), metric.count.Load(), "flushParallel must flush metric agent")
@@ -1489,7 +1694,7 @@ func TestDispatchHook_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	srv.dispatchHook("test.metric", pathResume, noFlush, true, rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+	srv.dispatchHook("test.metric", pathResume, noFlush, nil, true, rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
 	assert.Equal(t, 418, rec.Code, "must mirror user-app status, not hardcoded 200")
 	assert.Contains(t, emitter.getEmitted(), "test.metric")
 }
@@ -1504,7 +1709,7 @@ func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
-	srv.flushAll(ctx, false)
+	srv.flushForSuspend(ctx)
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must return within flushTimeout even when drainer blocks")
 }
 
@@ -1528,7 +1733,7 @@ func TestFlushAllNilLogsFlusherDoesNotPanic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
-	assert.NotPanics(t, func() { srv.flushAll(ctx, false) })
+	assert.NotPanics(t, func() { srv.flushForSuspend(ctx) })
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must not fall back to the flushTimeout path when logsFlusher is nil")
 	assert.Equal(t, int32(1), metric.count.Load())
 	assert.Equal(t, int32(1), trace.count.Load())
@@ -2000,4 +2205,76 @@ func TestHandleRun_WithForwarder_UpdatesTraceTags(t *testing.T) {
 
 	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called even when forwarder is configured")
 	assert.Equal(t, "vm-fwd789", setter.lastCall()["lambda_microvm_id"])
+}
+
+func TestMetadataReportsSerializedWithInstanceID(t *testing.T) {
+	for _, firstHook := range []string{"run", "resume"} {
+		for _, secondHook := range []string{"run", "resume"} {
+			t.Run(firstHook+"/"+secondHook, func(t *testing.T) {
+				srv, _, _, _, _, _ := newTestServer()
+				srv.instanceID.Store("vm-A")
+				entered, release := make(chan struct{}), make(chan struct{})
+				var releaseOnce sync.Once
+				unblock := func() { releaseOnce.Do(func() { close(release) }) }
+				defer unblock()
+				var calls, active atomic.Int32
+				reporter := &mockMetadataReporter{}
+				srv.SetMetadataReporter(MetadataReporterFunc(func(id string) {
+					assert.EqualValues(t, 1, active.Inc(), "metadata reports must not overlap")
+					defer active.Dec()
+					assert.Equal(t, id, srv.InstanceID())
+					if calls.Inc() == 1 {
+						close(entered)
+						select {
+						case <-release:
+						case <-time.After(5 * time.Second):
+							t.Error("timed out releasing the metadata report")
+						}
+						assert.Equal(t, id, srv.InstanceID(), "another run must not replace the ID during a report")
+					}
+					reporter.ReportMetadata(id)
+				}))
+				invoke := func(hook, id string) {
+					rec := httptest.NewRecorder()
+					if hook == "run" {
+						srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(`{"microvmId":"`+id+`"}`)))
+					} else {
+						srv.handleResume(rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+					}
+					assert.Equal(t, http.StatusOK, rec.Code)
+				}
+				firstDone, secondStarted, secondDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				go func() { defer close(firstDone); invoke(firstHook, "vm-B") }()
+				waitForMetadataReport(t, entered)
+				go func() { defer close(secondDone); close(secondStarted); invoke(secondHook, "vm-C") }()
+				waitForMetadataReport(t, secondStarted)
+				assert.Empty(t, reporter.getIDs(), "the first report is still blocked")
+				unblock()
+				waitForMetadataReport(t, firstDone)
+				waitForMetadataReport(t, secondDone)
+				firstID := "vm-A"
+				if firstHook == "run" {
+					firstID = "vm-B"
+				}
+				lastID := firstID
+				if secondHook == "run" {
+					lastID = "vm-C"
+				}
+				assert.Equal(t, []string{firstID, lastID}, reporter.getIDs())
+				assert.Equal(t, lastID, srv.InstanceID())
+				// A resume after the overlap must not replay an earlier ID.
+				invoke("resume", "")
+				assert.Equal(t, []string{firstID, lastID, lastID}, reporter.getIDs())
+			})
+		}
+	}
+}
+
+func waitForMetadataReport(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the metadata report")
+	}
 }

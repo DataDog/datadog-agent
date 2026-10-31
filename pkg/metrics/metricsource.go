@@ -354,6 +354,7 @@ const (
 	MetricSourceRavendb
 	MetricSourceSglang
 	MetricSourcePanFirewall
+	MetricSourceKaiScheduler
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1185,6 +1186,8 @@ func (ms MetricSource) String() string {
 		return "sglang"
 	case MetricSourcePanFirewall:
 		return "pan_firewall"
+	case MetricSourceKaiScheduler:
+		return "kai_scheduler"
 	default:
 		return "<unknown>"
 	}
@@ -1903,6 +1906,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceSglang
 	case "pan_firewall":
 		return MetricSourcePanFirewall
+	case "kai_scheduler":
+		return MetricSourceKaiScheduler
 	default:
 		return MetricSourceUnknown
 	}

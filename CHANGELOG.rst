@@ -362,6 +362,12 @@ Upgrade Notes
   ``logs_config.batch_max_concurrent_send`` to a lower value (``1`` keeps a single sender
   per pipeline).
 
+- APM : The "v1.0" trace payload conversion, previously opt-in via the ``convert-traces``
+  feature flag, is now enabled by default. Traces now are sent in a string-indexed format to reduce payload size and improve performance.
+  They should not appear differently in the Trace Explorer or Datadog UI.
+  To revert to the previous behavior, add the feature flag ``disable-convert-traces`` to ``apm_config.features``. Note that in the future
+  we will remove this feature flag and make this the default behavior. If you run into any issues with the new format, please let us know by opening a support ticket.
+
 
 .. _Release Notes_7.84.0_New Features:
 

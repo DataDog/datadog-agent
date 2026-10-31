@@ -35,7 +35,8 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: false,
 		metricFilter:         defaultFilter,
@@ -48,7 +49,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	)
 	stopFn := func() {
 		// close is idempotent via Once; wg.Wait() is safe to call multiple times.
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -107,7 +108,8 @@ func TestInternalAgentMetricsAreIngestedAndObserverTelemetryIsDropped(t *testing
 
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		ingestMetricsEnabled: true,
 		metricFilter:         defaultFilter,
 	}
@@ -118,7 +120,7 @@ func TestInternalAgentMetricsAreIngestedAndObserverTelemetryIsDropped(t *testing
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)

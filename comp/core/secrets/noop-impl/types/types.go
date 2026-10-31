@@ -46,3 +46,8 @@ func (r *SecretNoop) RemoveOrigin(_ string) {}
 func (r *SecretNoop) GetPathsAndHandles() ([]string, []string) {
 	return []string{}, []string{}
 }
+
+// GetHashValues returns an empty map for noop
+func (r *SecretNoop) GetHashValues(_ []string) map[string]string {
+	return map[string]string{}
+}

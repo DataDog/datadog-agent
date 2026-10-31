@@ -64,7 +64,7 @@ type observation struct {
 	hasMetric bool
 	log       *logObs
 	// flush, when non-nil, is closed by the dispatch loop once this observation
-	// is reached, signalling that all prior observations have been processed.
+	// is reached, signalling that all prior observations in its queue have been processed.
 	flush chan struct{}
 }
 
@@ -417,7 +417,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 	// Off-by-default fast path: when neither analysis nor recording is active the
 	// live observer noops every handle (see handleFunc below) and installs no log
-	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
+	// tap, so skip building the catalog, engine, storage, 1000-cap channels, and
 	// dispatch goroutine — return the zero-allocation stub instead. The predicate
 	// mirrors the observerRequired/recorderEnabled gates used further down.
 	if !anomalydetectionconfig.ObserverRequired(cfg) {
@@ -497,7 +497,8 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
-		obsCh:                make(chan observation, 1000),
+		metricsCh:            make(chan observation, 1000),
+		logsCh:               make(chan observation, 1000),
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 		metricFilter:         compiledMetricFilter,
@@ -687,7 +688,8 @@ func maxDetectorPoints(detectors []observerdef.Detector) int {
 type observerImpl struct {
 	engine     *engine
 	catalog    *componentCatalog
-	obsCh      chan observation
+	metricsCh  chan observation
+	logsCh     chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	telemetry         *observerTelemetry
@@ -709,7 +711,7 @@ type observerImpl struct {
 	// the testbench's direct-ingest path (IngestLogForReplay, IngestMetricSync).
 	// In production these methods are never called so this mutex is always
 	// uncontended. In the testbench it prevents a data race between the
-	// agent-internal-log observer (which can post to obsCh while run() is
+	// agent-internal-log observer (which can post to logsCh while run() is
 	// processing) and a concurrent testbench ingest call.
 	replayMu sync.Mutex
 }
@@ -718,7 +720,24 @@ type observerImpl struct {
 func (o *observerImpl) run() {
 	// One generator per dispatch goroutine; its scratch space is not thread-safe.
 	keyGenerator := NewSliceKeyGenerator()
-	for obs := range o.obsCh {
+	// Keep one engine writer while independently buffering each telemetry kind.
+	// Nil out closed queues so the other queue can finish draining.
+	metricsCh, logsCh := o.metricsCh, o.logsCh
+	for metricsCh != nil || logsCh != nil {
+		var obs observation
+		var ok bool
+		select {
+		case obs, ok = <-metricsCh:
+			if !ok {
+				metricsCh = nil
+				continue
+			}
+		case obs, ok = <-logsCh:
+			if !ok {
+				logsCh = nil
+				continue
+			}
+		}
 		if obs.flush != nil {
 			close(obs.flush)
 			continue
@@ -985,7 +1004,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter, logFilter: o.logFilter}
+	h := &handle{metricsCh: o.metricsCh, logsCh: o.logsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter, logFilter: o.logFilter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -1016,7 +1035,7 @@ func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, 
 func (o *observerImpl) noopHandle(name string) observerdef.Handle {
 	if o.recorder != nil {
 		return &noopObserveHandle{
-			logHandle: &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, logFilter: o.logFilter},
+			logHandle: &handle{metricsCh: o.metricsCh, logsCh: o.logsCh, source: name, telemetry: o.telemetry, logFilter: o.logFilter},
 		}
 	}
 	return &noopObserveHandle{}
@@ -1095,25 +1114,29 @@ func (o *observerImpl) CatalogEntries() []CatalogEntry {
 	return result
 }
 
-// Flush blocks until all observations currently queued in the dispatch channel
+// Flush blocks until all observations currently queued in both dispatch channels
 // have been processed by the engine. Implements DebugView.
 func (o *observerImpl) Flush() {
 	_ = o.flushCtx(context.Background())
 }
 
 func (o *observerImpl) flushCtx(ctx context.Context) error {
-	done := make(chan struct{})
-	select {
-	case o.obsCh <- observation{flush: done}:
-	case <-ctx.Done():
-		return ctx.Err()
+	done := [2]chan struct{}{make(chan struct{}), make(chan struct{})}
+	for i, ch := range [2]chan observation{o.metricsCh, o.logsCh} {
+		select {
+		case ch <- observation{flush: done[i]}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	for _, ack := range done {
+		select {
+		case <-ack:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
+	return nil
 }
 
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
@@ -1452,7 +1475,8 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 // It rejects metrics using only name, source, and host before enqueueing them;
 // tag-dependent filtering and all other processing happen in the observer.
 type handle struct {
-	ch        chan<- observation
+	metricsCh chan<- observation
+	logsCh    chan<- observation
 	source    string
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
@@ -1506,7 +1530,7 @@ func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, conte
 
 	// Non-blocking send - drop if channel is full.
 	select {
-	case h.ch <- obs:
+	case h.metricsCh <- obs:
 		return false
 	default:
 		h.dropCount.Add(1)
@@ -1593,7 +1617,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 
 	// Non-blocking send - drop if channel is full.
 	select {
-	case h.ch <- obs:
+	case h.logsCh <- obs:
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {

@@ -48,6 +48,11 @@ const (
 // ErrSpecTooLarge is returned when container Spec is too large
 var ErrSpecTooLarge = errors.New("Container spec is too large")
 
+// ErrNotUnpacked reports that neither nydus nor the default snapshotter holds
+// an image unpacked, so the image has no view to mount. Test for it with
+// errors.Is.
+var ErrNotUnpacked = errors.New("image is not unpacked")
+
 // ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
 	RawClient() *containerd.Client
@@ -428,11 +433,13 @@ func unpackedSnapshotter(ctx context.Context, img containerd.Image) (string, err
 		return "nydus", nil
 	}
 	unpacked, err := img.IsUnpacked(ctx, defaults.DefaultSnapshotter)
-	if err != nil {
+	// containerd answers a question about a snapshotter it has not loaded
+	// with an invalid argument error.
+	if err != nil && !errdefs.IsInvalidArgument(err) {
 		return "", fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
 	}
 	if !unpacked {
-		return "", fmt.Errorf("unable to scan image named: %s, image is not unpacked for snapshotter %s", img.Name(), defaults.DefaultSnapshotter)
+		return "", fmt.Errorf("unable to scan image named: %s, %w for snapshotter %s", img.Name(), ErrNotUnpacked, defaults.DefaultSnapshotter)
 	}
 	return defaults.DefaultSnapshotter, nil
 }

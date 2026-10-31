@@ -35,6 +35,7 @@ type InstallAgentParams struct {
 	IntegrationsPersistence  string `installer_arg:"INSTALL_PYTHON_THIRD_PARTY_DEPS"`
 	// Installer parameters for agent config
 	APIKey                  string `installer_arg:"APIKEY"`
+	Environment             string `installer_arg:"DD_ENV"`
 	Tags                    string `installer_arg:"TAGS"`
 	Hostname                string `installer_arg:"HOSTNAME"`
 	CmdPort                 string `installer_arg:"CMD_PORT"`
@@ -98,6 +99,14 @@ func WithAgentUserPassword(password string) InstallAgentOption {
 func WithKeepUserRights(value string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.KeepUserRights = value
+		return nil
+	}
+}
+
+// WithEnvironment specifies the DD_ENV parameter.
+func WithEnvironment(environment string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.Environment = environment
 		return nil
 	}
 }
