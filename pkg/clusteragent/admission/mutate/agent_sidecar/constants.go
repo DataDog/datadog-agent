@@ -27,6 +27,14 @@ const (
 	agentSidecarSkipReasonTokenNotFound  = "token_not_found"
 )
 
+// Annotation keys for per-pod sidecar resource overrides
+const (
+	annotationSidecarCPURequest    = "agent.datadoghq.com/sidecar.cpu.request"
+	annotationSidecarCPULimit      = "agent.datadoghq.com/sidecar.cpu.limit"
+	annotationSidecarMemoryRequest = "agent.datadoghq.com/sidecar.memory.request"
+	annotationSidecarMemoryLimit   = "agent.datadoghq.com/sidecar.memory.limit"
+)
+
 const (
 	agentConfigVolumeName   = "agent-config"
 	agentOptionsVolumeName  = "agent-option"
