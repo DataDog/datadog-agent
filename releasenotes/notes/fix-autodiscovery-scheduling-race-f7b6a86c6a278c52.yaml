@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an Autodiscovery scheduling race that could cause container log collection to stop after configuration updates.
