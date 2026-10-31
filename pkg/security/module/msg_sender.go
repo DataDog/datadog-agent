@@ -127,11 +127,11 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 	stopper.Add(destinationsCtx)
 	stopper.Add(secInfoDestinationsCtx)
 
-	for _, status := range endpoints.GetStatus() {
+	for _, status := range endpoints.GetStatusWithoutAPIKeys() {
 		log.Info(status)
 	}
 
-	for _, status := range secInfoEndpoints.GetStatus() {
+	for _, status := range secInfoEndpoints.GetStatusWithoutAPIKeys() {
 		log.Info(status)
 	}
 

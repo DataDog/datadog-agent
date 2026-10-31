@@ -6,10 +6,13 @@
 package resolver
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -436,13 +439,75 @@ func TestMetricToVectorResolvesSeriesEndpoints(t *testing.T) {
 	assert.Equal(t, mainEndpoint, vec.Resolve(endpoints.EventsEndpoint))
 }
 
-func TestScrubKeys(t *testing.T) {
-	keys := []string{
-		"abcdefghijklmnopqrstuvwxyzkey001",
-		"abcdefghijklmnopqrstuvwxyzkey002",
-		"shortkey",
-	}
-	keys = scrubKeys(keys)
+// levelRecorder records the messages logged at info level and above.
+type levelRecorder struct {
+	log.Component
+	mu   sync.Mutex
+	msgs []string
+}
 
-	assert.Equal(t, []string{"****************************y001", "****************************y002", "******ey"}, keys)
+func newLevelRecorder(t *testing.T) *levelRecorder {
+	return &levelRecorder{Component: logmock.New(t)}
+}
+
+func (r *levelRecorder) record(format string, params ...interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.msgs = append(r.msgs, fmt.Sprintf(format, params...))
+}
+
+func (r *levelRecorder) Infof(format string, params ...interface{}) {
+	r.record(format, params...)
+	r.Component.Infof(format, params...)
+}
+
+func (r *levelRecorder) Warnf(format string, params ...interface{}) error {
+	r.record(format, params...)
+	return r.Component.Warnf(format, params...)
+}
+
+func (r *levelRecorder) Errorf(format string, params ...interface{}) error {
+	r.record(format, params...)
+	return r.Component.Errorf(format, params...)
+}
+
+func (r *levelRecorder) output() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return strings.Join(r.msgs, "\n")
+}
+
+func TestAPIKeyUpdatesLogWithoutKeyCharacters(t *testing.T) {
+	const (
+		oldKey           = "0123456789abcdef0123456789ab0a1b"
+		newKey           = "0123456789abcdef0123456789ab2c3d"
+		oldAdditionalKey = "fedcba9876543210fedcba98765f4e5d"
+		newAdditionalKey = "fedcba9876543210fedcba98767a8b9c"
+	)
+	resolver, err := NewSingleDomainResolver("example.com", []utils.APIKeys{
+		utils.NewAPIKeys("api_key", oldKey),
+		utils.NewAPIKeys("additional_endpoints", oldAdditionalKey),
+	})
+	require.NoError(t, err)
+
+	log := newLevelRecorder(t)
+	config := configmock.New(t)
+	config.SetInTest("api_key", oldKey)
+	config.SetInTest("additional_endpoints", map[string][]string{"example.com": {oldAdditionalKey}})
+	OnUpdateConfig(resolver, log, config)
+
+	config.SetInTest("api_key", newKey)
+	config.SetInTest("additional_endpoints", map[string][]string{"example.com": {newAdditionalKey}})
+	config.SetInTest("additional_endpoints", map[string][]string{"example.com": {newAdditionalKey, oldAdditionalKey}})
+	config.SetInTest("additional_endpoints", map[string][]string{"example.com": {newAdditionalKey}})
+
+	assertKeys(t, []string{newKey, newAdditionalKey}, resolver)
+	out := log.output()
+	assert.Contains(t, out, "rotating API key for 'api_key'")
+	assert.Contains(t, out, "rotating API keys for 'additional_endpoints': 1 removed, 1 added")
+	assert.Contains(t, out, "adding 1 API keys for 'additional_endpoints'")
+	assert.Contains(t, out, "removing 1 API keys for 'additional_endpoints'")
+	for _, key := range []string{oldKey, newKey, oldAdditionalKey, newAdditionalKey} {
+		assert.NotContains(t, out, key[len(key)-4:])
+	}
 }
