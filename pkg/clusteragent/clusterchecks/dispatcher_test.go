@@ -277,22 +277,41 @@ func TestGetNodeWithLessChecks(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	// No node registered -> empty string
-	assert.Equal(t, "", dispatcher.getNodeWithLessChecks("test_check"))
+	assert.Equal(t, "", dispatcher.getNodeWithLessChecks("test_check", nil))
 
 	// 1 config on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("A"), "node1")
 	dispatcher.addConfig(generateIntegration("B"), "node2")
 	dispatcher.addConfig(generateIntegration("C"), "node2")
-	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks("test_check"))
+	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks("test_check", nil))
 
 	// 3 configs on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("D"), "node1")
 	dispatcher.addConfig(generateIntegration("E"), "node1")
-	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks("test_check"))
+	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks("test_check", nil))
 
 	// Add an empty node3
 	dispatcher.processNodeStatus("node3", "10.0.0.3", types.NodeStatus{})
-	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks("test_check"))
+	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks("test_check", nil))
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestGetNodeWithLessChecks_AvoidsNodesRunningSiblings(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	// node1 has the fewest checks, but it is avoided.
+	dispatcher.addConfig(generateIntegration("A"), "node1")
+	dispatcher.addConfig(generateIntegration("B"), "node2")
+	dispatcher.addConfig(generateIntegration("C"), "node2")
+	dispatcher.addConfig(generateIntegration("D"), "node3")
+	dispatcher.addConfig(generateIntegration("E"), "node3")
+	dispatcher.addConfig(generateIntegration("F"), "node3")
+	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks("test_check", map[string]struct{}{"node1": {}}))
+
+	// With every node avoided, the fewest checks wins again.
+	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks("test_check", map[string]struct{}{"node1": {}, "node2": {}, "node3": {}}))
 
 	requireNotLocked(t, dispatcher.store)
 }

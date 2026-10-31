@@ -551,3 +551,73 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 }
+
+func TestRebalanceIsWorthIt_SeparatesColocatedSiblingShards(t *testing.T) {
+	workersPerRunner := map[string]int{"runner1": 4, "runner2": 4, "runner3": 4}
+	shardParents := map[string]string{"shard-0": "ksm", "shard-1": "ksm"}
+
+	// Every runner already runs something and utilization is low and even, so
+	// neither the stddev nor the empty/high-utilization rules call for a move.
+	current := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
+	current.shardParents = shardParents
+	current.addConfig("shard-0", "kubernetes_state_core", 0.03, "runner1", false)
+	current.addConfig("shard-1", "kubernetes_state_core", 0.03, "runner1", false)
+	current.addConfig("other-a", "postgres", 0.03, "runner2", false)
+	current.addConfig("other-b", "postgres", 0.03, "runner3", false)
+
+	proposed := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
+	proposed.shardParents = shardParents
+	proposed.addConfig("shard-0", "kubernetes_state_core", 0.03, "runner1", false)
+	proposed.addConfig("shard-1", "kubernetes_state_core", 0.03, "runner2", false)
+	proposed.addConfig("other-a", "postgres", 0.03, "runner2", false)
+	proposed.addConfig("other-b", "postgres", 0.03, "runner3", false)
+
+	assert.True(t, rebalanceIsWorthIt(current, proposed, 10))
+	assert.False(t, rebalanceIsWorthIt(proposed, current, 10), "a plan that co-locates siblings is not an improvement")
+}
+
+func TestRebalanceUsingUtilization_SeparatesColocatedShards(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
+
+	mockClient := &rebalanceTestClcRunnerClient{testStats: make(map[string]types.CLCRunnersStats)}
+	testDispatcher.clcRunnersClient = mockClient
+	testDispatcher.advancedDispatching.Store(true)
+	testDispatcher.store.active = true
+
+	// Two shards of one config share node1; node2 and node3 each run one other
+	// check. Every check is equally cheap, so utilization alone sees nothing to fix.
+	placement := map[string][]string{
+		"node1": {"shard-0", "shard-1"},
+		"node2": {"other-a"},
+		"node3": {"other-b"},
+	}
+	testDispatcher.store.idToDigest = map[checkid.ID]string{}
+	testDispatcher.store.digestToConfig = map[string]integration.Config{}
+	testDispatcher.store.digestToNode = map[string]string{}
+	for i, node := range []string{"node1", "node2", "node3"} {
+		ip := fmt.Sprintf("10.0.0.%d", i+1)
+		testDispatcher.store.nodes[node] = newNodeStore(node, ip)
+		testDispatcher.store.nodes[node].workers = constants.DefaultNumWorkers
+		stats := types.CLCRunnersStats{}
+		for _, digest := range placement[node] {
+			checkID := "check-" + digest
+			stats[checkID] = types.CLCRunnerStats{AverageExecutionTime: 300, IsClusterCheck: true}
+			testDispatcher.store.idToDigest[checkid.ID(checkID)] = digest
+			testDispatcher.store.digestToConfig[digest] = integration.Config{}
+			testDispatcher.store.digestToNode[digest] = node
+		}
+		testDispatcher.store.nodes[node].clcRunnerStats = stats
+		mockClient.testStats[ip] = stats
+	}
+	testDispatcher.shards.mark("parent", []string{"shard-0", "shard-1"})
+
+	checksMoved := testDispatcher.rebalanceUsingUtilization(false)
+
+	requireNotLocked(t, testDispatcher.store)
+	require.Len(t, checksMoved, 1)
+	assert.Contains(t, []string{"shard-0", "shard-1"}, checksMoved[0].Digest)
+	assert.Equal(t, "node1", checksMoved[0].SourceNodeName)
+	assert.NotEqual(t, testDispatcher.store.digestToNode["shard-0"], testDispatcher.store.digestToNode["shard-1"])
+}

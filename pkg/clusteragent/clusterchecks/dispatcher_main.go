@@ -340,7 +340,7 @@ func (d *dispatcher) reschedule(configs []integration.Config) []string {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
-	target, anyNode := d.getNodeToScheduleCheck(config.Name)
+	target, anyNode := d.getNodeToScheduleCheck(config.Name, config.Digest())
 	if target == "" {
 		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
 		if anyNode {
