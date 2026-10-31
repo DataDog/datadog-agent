@@ -1,0 +1,5 @@
+artifacts/
+*.pb.gz
+*.log
+datadog.yaml
+check_stdout.json
