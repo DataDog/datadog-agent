@@ -60,6 +60,7 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 			"iis-rum": "1",
 			"iis":     "1",
 			"c":       "1",
+			"native":  "1",
 		},
 	}
 	packages := DefaultPackages(env)
@@ -78,6 +79,7 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-iis-rum-package:1",
 		"oci://install.datadoghq.com/apm-library-httpd-package:1",
 		"oci://install.datadoghq.com/apm-library-c-package:1",
+		"oci://install.datadoghq.com/apm-library-native-package:1",
 	}, packages)
 }
 
@@ -102,6 +104,7 @@ func TestPreRegisteredPackagesNotSelectedByDefault(t *testing.T) {
 				assert.NotContains(t, url, "apm-library-iis-rum-package")
 				assert.NotContains(t, url, "apm-library-httpd-package")
 				assert.NotContains(t, url, "apm-library-c-package")
+				assert.NotContains(t, url, "apm-library-native-package")
 			}
 		})
 	}

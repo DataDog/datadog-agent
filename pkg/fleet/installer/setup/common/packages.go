@@ -40,6 +40,8 @@ const (
 	DatadogAPMLibraryHttpdPackage string = "datadog-apm-library-httpd"
 	// DatadogAPMLibraryCPackage is the datadog apm library c package
 	DatadogAPMLibraryCPackage string = "datadog-apm-library-c"
+	// DatadogAPMLibraryNativePackage is the datadog apm library native package
+	DatadogAPMLibraryNativePackage string = "datadog-apm-library-native"
 )
 
 var (
@@ -58,6 +60,7 @@ var (
 		DatadogAPMLibraryIISRumPackage,
 		DatadogAPMLibraryHttpdPackage,
 		DatadogAPMLibraryCPackage,
+		DatadogAPMLibraryNativePackage,
 	}
 
 	// ApmLibraries is the list of apm libraries selectable via the setup
@@ -83,6 +86,7 @@ var (
 		DatadogAPMLibraryIISRumPackage,
 		DatadogAPMLibraryHttpdPackage,
 		DatadogAPMLibraryCPackage,
+		DatadogAPMLibraryNativePackage,
 	}
 )
 
