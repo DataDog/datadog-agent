@@ -110,6 +110,8 @@ deploy_fips_proxy_testing*           @DataDog/agent-devx
 
 # Image build
 docker_build*                        @DataDog/agent-build
+docker_sign_agent7_windows           @DataDog/agent-build
+docker_sign_fakeintake               @DataDog/agent-devx
 
 # Image scan
 scan_*                               @Datadog/agent-delivery
