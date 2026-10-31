@@ -66,6 +66,7 @@ dd_agent_go_test(
         "//comp/core/delegatedauth/mock",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
+        "//pkg/config/model",
         "//pkg/fleet/installer/telemetry",
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
