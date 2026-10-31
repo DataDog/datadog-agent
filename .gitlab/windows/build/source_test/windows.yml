@@ -1,77 +1,33 @@
 ---
-.tests_windows_base:
+# Runs the MSI installer unit tests. These C# suites have no Bazel targets, so they can't run
+# in the Bazel-based tests_windows-x64 job.
+tests_windows_msi_x64:
   stage: source_test
   rules:
     - !reference [.except_light_pipeline]
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
-  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
-  extends:
-    - .windows_docker_default
-    - .bazel:defs:cache:windows
+  needs: ["setup_agent_version"]
+  extends: .windows_docker_default
+  retry: !reference [.retry_only_infra_failure, retry]
+  variables:
+    ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
-    - !reference [.sanitize_goproxy_windows]
-    # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
-    # inside JUNIT_TAR and then later used by datadog-ci
-    - !reference [.docker_pull_winbuildimage_instrumented]
-    - $FAST_TESTS_FLAG=""
-    - If ($FAST_TESTS -eq "true") { $FAST_TESTS_FLAG="--only-impacted-packages" }
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - >
-      .\tools\ci\docker-run-with-bazel-cache.ps1
+      docker run --rm
       -m 24576M
       -v "$(Get-Location):c:\mnt"
-      -e DD_ENV=prod
+      -e CI
       -e GITLAB_CI
-      -e CI_JOB_URL
-      -e CI_JOB_NAME
-      -e CI_JOB_ID
       -e CI_PIPELINE_ID
-      -e CI_PIPELINE_SOURCE
-      -e CI_REPOSITORY_URL
-      -e CI_COMMIT_SHA
       -e CI_PROJECT_NAME
-      -e CI_COMMIT_REF_NAME
       -e AWS_NETWORKING=true
-      -e SIGN_WINDOWS_DD_WCS=true
-      -e WINDOWS_SIGNING_CERT
-      -e WINDOWS_SIGNING_CONFIG
-      -e GOMODCACHE="c:\modcache"
-      -e GOPROXY
-      -e GONOSUMDB
-      -e GOMEMLIMIT=2560MiB
-      -e DD_BAZEL_TEST_JOBS=4
-      -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME_SLUG}.tgz"
       -e PIP_INDEX_URL
-      -e TEST_OUTPUT_FILE="${TEST_OUTPUT_FILE}.json"
-      -e EXTRA_OPTS="${FAST_TESTS_FLAG}"
-      -e TEST_WASHER=true
-      -e GO_TEST_SKIP_FLAKE
-      -e AGENT_API_KEY_ORG2
-      -e S3_PERMANENT_ARTIFACTS_URI
-      -e COVERAGE_CACHE_FLAG
-      -e FLAKY_PATTERNS_CONFIG="\mnt\flaky-patterns-runtime.yaml"
-      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
-      powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-UnitTests.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1 -UploadCoverage 1 -UploadTestResults 1"
+      powershell -C "Set-Location c:\mnt; dda self dep sync -f legacy-build; dda inv -- -e msi.test; exit `$LASTEXITCODE"
     - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
-  variables:
-    TEST_OUTPUT_FILE: "test_output"
-    GIT_DEPTH: 0  # Full history: --only-impacted-packages and coverage cache use merge-base
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - ${TEST_OUTPUT_FILE}_${CI_PIPELINE_ID}.json
-      - ${TEST_OUTPUT_FILE}_${CI_PIPELINE_ID}_unified.json
-      - junit-*.tgz
-    reports:
-      junit: "**/junit-out-*.xml"
-  retry: !reference [.retry_only_infra_failure, retry]
-
-tests_windows-x64:
-  extends: .tests_windows_base
-  #parallel: 10
-  timeout: 1h 20m
   variables:
     ARCH: "x64"
