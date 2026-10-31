@@ -67,7 +67,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if err := c.ncmComp.RegisterDevice(c.checkContext.Device); err != nil {
 		return fmt.Errorf("unable to register device %s: %w", c.checkContext.Device.DeviceID(), err)
 	}
-	c.ncmComp.SetMaxReportInterval(c.checkContext.InventoryReportMaxInterval)
 
 	return nil
 }
