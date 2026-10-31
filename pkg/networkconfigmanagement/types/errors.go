@@ -76,6 +76,11 @@ func WrapErrorf(etype ErrorType, msg string, args ...any) RollbackError {
 	return WrapError(etype, fmt.Errorf(msg, args...))
 }
 
+// ErrCommandNotSupported indicates that a profile does not define the command needed
+// to retrieve a config (e.g. platforms with no separate startup config). It is an
+// expected condition rather than a retrieval failure.
+var ErrCommandNotSupported = errors.New("command not supported by profile")
+
 var RollbackDisabled = WrapErrorf(ErrDisabled, "rollback is disabled")
 
 // InternalError is a shorthand for wrapping an error with ErrInternal

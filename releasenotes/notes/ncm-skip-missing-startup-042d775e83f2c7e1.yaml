@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Network Configuration Management no longer reports a check failure, or
+    increments the ``datadog.ncm.check_failure`` metric, for devices whose
+    profile does not define a command to retrieve the startup config (for
+    example FortiOS). The running config continues to be collected and sent.
