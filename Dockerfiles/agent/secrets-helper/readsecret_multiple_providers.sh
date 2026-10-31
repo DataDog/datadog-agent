@@ -6,4 +6,8 @@ set -e
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
-/opt/datadog-agent/bin/agent/agent secret-helper read --with-provider-prefixes
+if [ "$1" = "--confine-file-secrets" ]; then
+  /opt/datadog-agent/bin/agent/agent secret-helper read --with-provider-prefixes "$@"
+else
+  /opt/datadog-agent/bin/agent/agent secret-helper read --with-provider-prefixes
+fi
