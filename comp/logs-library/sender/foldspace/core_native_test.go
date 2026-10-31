@@ -202,6 +202,20 @@ func TestNativeRefusesZeroDurations(t *testing.T) {
 	}
 }
 
+// TestNativeProtocolBatchCap checks that the cap BuildDestinationConfig holds
+// batch_max_content_size to is the one the library enforces.
+func TestNativeProtocolBatchCap(t *testing.T) {
+	cfg := nativeTestConfig()
+	cfg.MaxPayloadBytes = maxProtocolBatchBytes
+	core, err := NewNativeCore(cfg)
+	require.NoError(t, err)
+	core.Close()
+
+	cfg.MaxPayloadBytes = maxProtocolBatchBytes + 1
+	_, err = NewNativeCore(cfg)
+	require.ErrorContains(t, err, "above the protocol's batch cap")
+}
+
 // sendFirstRecord offers one record to a fresh core built from cfg, opens the
 // stream it dials, acks every batch, and returns the size of each batch in
 // send order once the record is durable.
