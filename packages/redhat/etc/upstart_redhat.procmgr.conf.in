@@ -1,0 +1,88 @@
+description "Datadog Process Manager Daemon"
+
+start on started datadog-agent
+stop on (runlevel [!2345] or stopping datadog-agent)
+
+respawn
+respawn limit 4 25
+normal exit 0
+kill timeout 200
+
+console output
+
+script
+  # Compare the installer file as text. dd-agent can replace it, so do not source it.
+  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+    DATADOG_ENABLED=no
+  fi
+  if [ -r /etc/default/datadog-agent-procmgr ]; then
+    . /etc/default/datadog-agent-procmgr
+  fi
+  if [ "$DATADOG_ENABLED" = "no" ]; then
+    exit 0
+  fi
+  if [ ! -x {install_dir}/embedded/bin/dd-procmgrd ]; then
+    exit 0
+  fi
+  # RHEL 6 Upstart has no setuid stanza. chroot drops uid and execs, so this pid stays the daemon.
+  # --groups is required: coreutils 8.4 otherwise keeps root's supplementary groups.
+  groups=$(/usr/bin/id -G dd-agent) || exit 1
+  groups=$(printf '%s\n' "$groups" | tr ' ' ',')
+  group=$(/usr/bin/id -gn dd-agent) || exit 1
+  exec /usr/sbin/chroot --userspec="dd-agent:$group" --groups="$groups" / /bin/sh -s -- \
+    "{etc_dir}" "{install_dir}" "{install_dir}/embedded/bin/dd-procmgrd" <<'END_LOAD_ENV'
+etc=$1
+install=$2
+daemon=$3
+if [ -r "$etc/environment" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case $line in
+    ""|"#"*|";"*) continue ;;
+    esac
+    case $line in
+    *=*) ;;
+    *) continue ;;
+    esac
+    key=${line%%=*}
+    value=${line#*=}
+    case $key in
+    *[!A-Za-z0-9_]*|"") continue ;;
+    [0-9]*) continue ;;
+    esac
+    case $value in
+    \"*\") value=${value#\"}; value=${value%\"} ;;
+    \'*\') value=${value#\'}; value=${value%\'} ;;
+    esac
+    export "$key=$value"
+  done < "$etc/environment"
+fi
+export DD_LOG_TO_CONSOLE=false
+export DD_PM_CONFIG_DIR="$install/processes.d"
+export DD_CONF_DIR="$etc"
+export DD_PID_DIR="$install"
+export DD_INSTALL_DIR="$install"
+exec "$daemon" >> /var/log/datadog/procmgr-errors.log 2>&1 </dev/null
+exit 1
+END_LOAD_ENV
+  exit 1
+end script
+
+pre-start script
+  # Compare the installer file as text. dd-agent can replace it, so do not source it.
+  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+    DATADOG_ENABLED=no
+  fi
+  if [ -r /etc/default/datadog-agent-procmgr ]; then
+    . /etc/default/datadog-agent-procmgr
+  fi
+  if [ "$DATADOG_ENABLED" = "no" ]; then
+    exit 0
+  fi
+  # dd-agent cannot create this directory under root-owned /var/run.
+  /usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1
+  # Manual rotation of errors log
+  log_file_size=`du -b /var/log/datadog/procmgr-errors.log | cut -f1`
+  if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then
+    mv /var/log/datadog/procmgr-errors.log /var/log/datadog/procmgr-errors.log.1
+  fi
+end script

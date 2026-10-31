@@ -1,0 +1,35 @@
+description "Datadog Process Manager Daemon"
+
+start on started datadog-agent
+stop on (runlevel [!2345] or stopping datadog-agent)
+
+respawn
+respawn limit 4 25
+normal exit 0
+kill timeout 200
+
+console log
+env DD_LOG_TO_CONSOLE=false
+
+# No setuid stanza. Upstart applies it to every job process, including pre-start,
+# so this script stays root long enough to create the socket directory.
+script
+  # Compare the installer file as text. dd-agent can replace it, so do not source it.
+  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+    DATADOG_ENABLED=no
+  fi
+  if [ -r /etc/default/datadog-agent-procmgr ]; then
+    . /etc/default/datadog-agent-procmgr
+  fi
+  if [ "$DATADOG_ENABLED" = "no" ]; then
+    exit 0
+  fi
+  if [ ! -x {install_dir}/embedded/bin/dd-procmgrd ]; then
+    exit 0
+  fi
+  /usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1
+  # No --background: start-stop-daemon execs the child, and Upstart keeps that pid.
+  exec start-stop-daemon --start --chuid dd-agent \
+    --exec {install_dir}/embedded/bin/dd-procmgrd --startas /bin/sh -- \
+    /etc/init.d/datadog-agent-procmgr load-env {etc_dir} {install_dir} {install_dir}/embedded/bin/dd-procmgrd
+end script

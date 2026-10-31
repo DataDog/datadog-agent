@@ -26,6 +26,7 @@ build do
       project.extra_package_file '/etc/init.d/datadog-agent-security'
       project.extra_package_file '/etc/init.d/datadog-agent-data-plane'
       project.extra_package_file '/etc/init.d/datadog-agent-action'
+      project.extra_package_file '/etc/init.d/datadog-agent-procmgr'
     elsif redhat_target? || suse_target?
       command "bazel run #{omnibazel_flags} -- //packages/redhat/etc:install --verbose --destdir=#{destdir}",
         :live_stream => Omnibus.logger.live_stream(:info)
@@ -37,5 +38,6 @@ build do
     project.extra_package_file '/etc/init/datadog-agent-security.conf'
     project.extra_package_file '/etc/init/datadog-agent-data-plane.conf'
     project.extra_package_file '/etc/init/datadog-agent-action.conf'
+    project.extra_package_file '/etc/init/datadog-agent-procmgr.conf'
   end
 end

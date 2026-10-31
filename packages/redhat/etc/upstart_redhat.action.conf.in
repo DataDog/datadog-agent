@@ -10,16 +10,37 @@ normal exit 0
 console output
 
 script
-  # Upstart does not start the process manager required by split mode.
-  export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
-  echo "Starting Datadog Private Action Runner in monolithic mode"
-  # Logging to console from the agent is disabled since the agent already logs using file or
-  # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
-  # to log panic/crashes.
-  #
-  # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
-  # This is the best way to set the user in the absence of setuid.
-  exec su -s /bin/sh -c 'DD_LOG_TO_CONSOLE=false exec "$0" "$@"' dd-agent -- {install_dir}/embedded/bin/privateactionrunner run --cfgpath={etc_dir}/datadog.yaml &>> /var/log/datadog/privateactionrunner-errors.log
+  # start/running is only the procmgr shell. Wait until dd-procmgrd is listening.
+  # Without that socket, fall back to the monolithic runner.
+  procmgr_running=false
+  attempt=0
+  while [ "$attempt" -lt 10 ]; do
+    # 00010000: listening. 0001: stream socket. 01: listener state.
+    if awk '
+      $4 == "00010000" &&
+      $5 == "0001" &&
+      $6 == "01" &&
+      $NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
+        ready = 1
+      }
+      END { exit !ready }
+    ' /proc/net/unix; then
+      procmgr_running=true
+      break
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  if [ "$procmgr_running" = true ]; then
+    echo "Starting Datadog Private Action Runner (split mode from config)"
+    runner_env='DD_LOG_TO_CONSOLE=false'
+  else
+    echo "Starting Datadog Private Action Runner in monolithic mode"
+    # su drops the environment, so this flag has to be inside -c.
+    runner_env='DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false DD_LOG_TO_CONSOLE=false'
+  fi
+  # RHEL6 Upstart has no setuid, so su switches user.
+  exec su -s /bin/sh -c "$runner_env"' exec "$0" "$@"' dd-agent -- {install_dir}/embedded/bin/privateactionrunner run --cfgpath={etc_dir}/datadog.yaml &>> /var/log/datadog/privateactionrunner-errors.log
 end script
 
 pre-start script

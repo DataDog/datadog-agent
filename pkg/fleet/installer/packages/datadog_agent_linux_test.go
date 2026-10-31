@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	installerFile "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -164,5 +165,115 @@ func TestExperimentStartUnits(t *testing.T) {
 	assert.Equal(t,
 		[]string{"datadog-agent-exp.service"},
 		experimentStartUnits(ctx, "datadog-agent-exp.service"),
+	)
+}
+
+func TestSyncProcmgrDefaults(t *testing.T) {
+	require.Equal(t, "/etc/datadog-agent/datadog-agent-procmgr", procmgrDefaultsPath)
+	path := filepath.Join(t.TempDir(), "datadog-agent-procmgr")
+	originalPath := procmgrDefaultsPath
+	originalManager := currentServiceManager
+	originalStop := stopProcmgrService
+	originalChown := chownProcmgrDefaultsFile
+	procmgrDefaultsPath = path
+	chownProcmgrDefaultsFile = func(f *os.File) error {
+		return f.Chown(os.Getuid(), os.Getgid())
+	}
+	t.Cleanup(func() {
+		procmgrDefaultsPath = originalPath
+		currentServiceManager = originalManager
+		stopProcmgrService = originalStop
+		chownProcmgrDefaultsFile = originalChown
+	})
+
+	var stopped []service.Type
+	stopProcmgrService = func(_ HookContext, manager service.Type) error {
+		stopped = append(stopped, manager)
+		return errors.New("not running")
+	}
+	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
+
+	currentServiceManager = func(string) service.Type { return service.SystemdType }
+	t.Setenv(processManagerEnabledEnv, "false")
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	_, err := os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	assert.Empty(t, stopped)
+
+	currentServiceManager = func(string) service.Type { return service.UpstartType }
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	info, err := os.Lstat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, procmgrDefaultsDisabled, string(content))
+	assert.Equal(t, []service.Type{service.UpstartType}, stopped)
+
+	require.NoError(t, os.Remove(path))
+	secretPath := filepath.Join(t.TempDir(), "secret")
+	require.NoError(t, os.WriteFile(secretPath, []byte("secret"), 0644))
+	require.NoError(t, os.Symlink(secretPath, path))
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	info, err = os.Lstat(path)
+	require.NoError(t, err)
+	assert.True(t, info.Mode().IsRegular())
+	content, err = os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, procmgrDefaultsDisabled, string(content))
+	secret, err := os.ReadFile(secretPath)
+	require.NoError(t, err)
+	assert.Equal(t, "secret", string(secret))
+
+	require.NoError(t, os.WriteFile(path, []byte("old contents\n"), 0644))
+	oldFile, err := os.OpenFile(path, os.O_WRONLY, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = oldFile.Close() })
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	_, err = oldFile.WriteAt([]byte("tampered contents\n"), 0)
+	require.NoError(t, err)
+	content, err = os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, procmgrDefaultsDisabled, string(content))
+
+	require.NoError(t, os.WriteFile(path, []byte("DATADOG_ENABLED=no\n# admin\n"), 0644))
+	require.NoError(t, os.Unsetenv(processManagerEnabledEnv))
+	stopped = nil
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	content, err = os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "DATADOG_ENABLED=no\n# admin\n", string(content))
+	assert.Empty(t, stopped)
+
+	t.Setenv(processManagerEnabledEnv, "true")
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	_, err = os.Stat(path)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(path, []byte(procmgrDefaultsDisabled), 0644))
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	_, err = os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	currentServiceManager = func(string) service.Type { return service.SysvinitType }
+	t.Setenv(processManagerEnabledEnv, "FALSE")
+	stopped = nil
+	require.NoError(t, syncProcmgrDefaults(ctx))
+	content, err = os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, procmgrDefaultsDisabled, string(content))
+	assert.Equal(t, []service.Type{service.SysvinitType}, stopped)
+}
+
+// TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists
+// include procmgr ahead of the action service. StopStable reverses the lists.
+func TestSysVAndUpstartServicesStartProcmgr(t *testing.T) {
+	assert.Equal(t,
+		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
+		agentService.UpstartServices,
+	)
+	assert.Equal(t,
+		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
+		agentService.SysvinitServices,
 	)
 }

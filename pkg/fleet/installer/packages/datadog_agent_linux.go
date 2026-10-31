@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -166,10 +167,10 @@ var (
 		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml", "datadog-agent-par-control.yaml"},
 
 		UpstartMainService: "datadog-agent",
-		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
+		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
 
 		SysvinitMainService: "datadog-agent",
-		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
+		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
 	}
 
 	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
@@ -815,9 +816,136 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 	return nil
 }
 
+const (
+	procmgrServiceName       = "datadog-agent-procmgr"
+	procmgrDefaultsDisabled  = "DATADOG_ENABLED=no\n"
+	processManagerEnabledEnv = "DD_PROCESS_MANAGER_ENABLED"
+)
+
+// procmgrDefaultsPath is the file the SysV and Upstart jobs read at boot.
+// They compare its contents and do not source it. The directory is owned by dd-agent.
+// The installer process environment is not present then.
+var procmgrDefaultsPath = "/etc/datadog-agent/datadog-agent-procmgr"
+
+var currentServiceManager = service.GetServiceManagerType
+
+var stopProcmgrService = func(ctx HookContext, manager service.Type) error {
+	switch manager {
+	case service.SysvinitType:
+		return sysvinit.Stop(ctx, procmgrServiceName)
+	case service.UpstartType:
+		return upstart.Stop(ctx, procmgrServiceName)
+	default:
+		return nil
+	}
+}
+
+// chownProcmgrDefaultsFile owns the defaults file as root. The installer runs as root.
+var chownProcmgrDefaultsFile = func(f *os.File) error {
+	return f.Chown(0, 0)
+}
+
+// writeProcmgrDefaultsDisabled replaces path with a new regular root-owned file.
+// Truncating the existing inode would leave old writable descriptors attached to it.
+func writeProcmgrDefaultsDisabled(path string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", dir, err)
+	}
+	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file for %s: %w", path, err)
+	}
+	tempPath := f.Name()
+	removeTemp := true
+	defer func() {
+		_ = f.Close()
+		if removeTemp {
+			_ = os.Remove(tempPath)
+		}
+	}()
+	if _, err := f.Write([]byte(procmgrDefaultsDisabled)); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+	if err := chownProcmgrDefaultsFile(f); err != nil {
+		return fmt.Errorf("failed to chown %s: %w", path, err)
+	}
+	if err := f.Chmod(0644); err != nil {
+		return fmt.Errorf("failed to chmod %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close %s: %w", path, err)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("failed to replace %s: %w", path, err)
+	}
+	removeTemp = false
+	return nil
+}
+
+// installerProcmgrDefaults reports whether path is the regular file this installer wrote.
+// A symlink is left alone.
+func installerProcmgrDefaults(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect %s: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return false, nil
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+	defer f.Close()
+	content, err := io.ReadAll(f)
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+	return string(content) == procmgrDefaultsDisabled, nil
+}
+
+// syncProcmgrDefaults records an explicit process-manager choice for SysV and Upstart.
+// An unset variable leaves a hand-written defaults file alone.
+func syncProcmgrDefaults(ctx HookContext) error {
+	manager := currentServiceManager(ctx.PackagePath)
+	switch manager {
+	case service.SysvinitType, service.UpstartType:
+	default:
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(processManagerEnabledEnv))) {
+	case "false":
+		if err := writeProcmgrDefaultsDisabled(procmgrDefaultsPath); err != nil {
+			return err
+		}
+		if err := stopProcmgrService(ctx, manager); err != nil {
+			log.Warnf("failed to stop %s: %v", procmgrServiceName, err)
+		}
+		return nil
+	case "true":
+		match, err := installerProcmgrDefaults(procmgrDefaultsPath)
+		if err != nil || !match {
+			return err
+		}
+		if err := os.Remove(procmgrDefaultsPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove %s: %w", procmgrDefaultsPath, err)
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
 // EnableStable enables the stable unit
 func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
+		return err
+	}
+	if err := syncProcmgrDefaults(ctx); err != nil {
 		return err
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
@@ -919,13 +1047,14 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 }
 
-// WriteProcesses writes the processes for the given package path
+// WriteProcesses writes the processes for the given package path.
+// SysV and Upstart init scripts start dd-procmgrd, which reads these definitions.
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
 	switch service.GetServiceManagerType(packagePath) {
-	case service.ProcmgrType:
+	case service.ProcmgrType, service.SysvinitType, service.UpstartType:
 		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
 	default:
-		return nil // Only procmgr defines processes
+		return nil // Systemd without procmgr does not define processes
 	}
 }
 
