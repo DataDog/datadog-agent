@@ -94,6 +94,11 @@ var (
 		{Path: "security-agent.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 	}
 
+	// installSignaturePermissions is enforced after the install info is written, which happens after agentConfigPermissions
+	installSignaturePermissions = file.Permissions{
+		{Path: "install.json", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
+	}
+
 	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
@@ -266,6 +271,9 @@ func installFilesystem(ctx HookContext) (err error) {
 	// 6. Handle install info
 	if err = installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
+	}
+	if err := installSignaturePermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+		log.Warnf("failed to set install signature permissions: %v", err)
 	}
 
 	// 7. Remove old installer units if they exist

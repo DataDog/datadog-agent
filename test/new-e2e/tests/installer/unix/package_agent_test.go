@@ -99,7 +99,7 @@ func (s *packageBaseSuite) testInstall() {
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
-	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
+	state.AssertFileExists("/etc/datadog-agent/install.json", 0640, "dd-agent", "dd-agent")
 }
 
 func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
@@ -575,5 +575,5 @@ func (s *packageAgentSuite) TestInstallFips() {
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
-	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
+	state.AssertFileExists("/etc/datadog-agent/install.json", 0640, "dd-agent", "dd-agent")
 }

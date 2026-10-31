@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    On Linux, ``/etc/datadog-agent/install.json`` is now created with mode
+    ``0640``. Agent package installs and upgrades also set its ownership to
+    ``dd-agent:dd-agent`` and its mode to ``0640`` when the file already exists.
