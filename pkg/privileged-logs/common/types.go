@@ -12,8 +12,6 @@ type OpenFileRequest struct {
 	NoFollow bool   `json:"no_follow,omitempty"`
 }
 
-// OpenFileResponse represents the response from the file descriptor transfer
-type OpenFileResponse struct {
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
-}
+// UpgradeProtocol is the protocol the server switches the connection to in
+// order to pass the opened file descriptor.
+const UpgradeProtocol = "dd-privileged-logs"
