@@ -43,10 +43,11 @@ jobs:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
 
+      # Check whether the PR branch already exists on origin.
+      # Relies on the repository being cloned locally by the earlier checkout.
       - name: Fetch branch
         env:
           TARGET_BRANCH: ${{ inputs.branch }}
-        # this step needs the github repository to be already cloned locally
         id: branch_fetch
         run: |
           if git fetch origin "refs/heads/$TARGET_BRANCH"; then
@@ -55,12 +56,32 @@ jobs:
             echo "RESULT=false" >> $GITHUB_OUTPUT
           fi
 
+      # If the PR branch exists on origin, check it out locally so later steps see its state.
       - name: Checkout branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
           ref: ${{ inputs.branch }}
           persist-credentials: false
+
+      # This workflow is dispatched twice per Go-update cycle: once with test image
+      # tags while the buildimages PR is still open, once with final tags after it
+      # merges. Both target the same branch, so the first dispatch creates the
+      # Go-update PR and the second updates it.
+      #
+      # On the second dispatch, the PR branch already has the Go bump committed and
+      # the earlier checkout makes it HEAD. Peter-evans then only force-pushes
+      # commits new since the branch's remote tip
+      # (https://github.com/peter-evans/create-pull-request/blob/59910dc44801a4d984ba473b7c2f20b850f9a584/src/create-or-update-branch.ts#L226),
+      # so the Go bump is dropped and the PR collapses to the single tag-file change.
+      # Resetting HEAD to the dispatch SHA puts us on the base ref instead of the PR
+      # branch. Peter-evans then measures new work against the base ref, so the full
+      # task diff survives.
+      #
+      # Peter-evans force-pushes the PR branch on every dispatch, so direct commits
+      # to it are not preserved regardless of this reset.
+      - name: Reset working tree to base ref
+        run: git reset --hard ${{ github.sha }}
 
       - name: Bazel cache
         uses: ./.github/actions/bazel-cache
