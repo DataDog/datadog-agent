@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The Cluster Agent now places the shard configs produced from one cluster
+    check config, by KSM resource sharding or instance sharding, on different
+    Cluster Check Runners when possible, both when dispatching and when
+    rebalancing. Previously they were placed like unrelated checks and could
+    end up on the same runner.

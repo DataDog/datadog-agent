@@ -44,8 +44,12 @@ func (ns RunnerStatus) utilization() float64 {
 // configsDistribution represents the placement of cluster check configs
 // across the runners of a cluster. Each entry is keyed by config digest.
 type configsDistribution struct {
-	Configs              map[string]*ConfigStatus
-	Runners              map[string]*RunnerStatus
+	Configs map[string]*ConfigStatus
+	Runners map[string]*RunnerStatus
+	// shardParents maps the digest of each shard config to the digest of the
+	// original config it was produced from. Shards of one original config are
+	// kept on different runners when possible.
+	shardParents         map[string]string
 	stickinessEnabled    bool
 	stickinessFactor     float64
 	stickinessUpperLimit float64
@@ -72,16 +76,27 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 	}
 }
 
-// leastBusyRunner returns the runner with the lowest utilization. If there are
-// several options, it gives preference to preferredRunner. If preferredRunner
-// is not among the runners with the lowest utilization, it gives precedence to
-// the runner with the lowest number of configs deployed.
-func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, workersNeeded float64) string {
+// leastBusyRunner returns the runner with the lowest utilization, leaving out
+// the runners in avoid unless every runner is in it. If there are several
+// options, it gives preference to preferredRunner. If preferredRunner is not
+// among the runners with the lowest utilization, it gives precedence to the
+// runner with the lowest number of configs deployed.
+func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, workersNeeded float64, avoid map[string]struct{}) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
+	avoidAll := true
+	for runnerName := range distribution.Runners {
+		if _, avoided := avoid[runnerName]; !avoided {
+			avoidAll = false
+			break
+		}
+	}
 
 	for runnerName, runnerStatus := range distribution.Runners {
+		if _, avoided := avoid[runnerName]; avoided && !avoidAll {
+			continue
+		}
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
@@ -109,7 +124,7 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 // Eligibility is implied by the distribution's runner set: cohort
 // distributions only contain the cohort's eligible runners.
 func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, pinned bool) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner, workersNeeded)
+	leastBusy := distribution.leastBusyRunner(preferredRunner, workersNeeded, distribution.runnersWithSiblings(digest))
 	if leastBusy == "" {
 		return
 	}
@@ -152,6 +167,39 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 
 	// Cumulate Pinned: Pin the entire config if any of its instances are pinned
 	configInfo.Pinned = configInfo.Pinned || pinned
+}
+
+// runnersWithSiblings returns the runners of the distribution that already run
+// another shard of the same original config as digest.
+func (distribution *configsDistribution) runnersWithSiblings(digest string) map[string]struct{} {
+	parent, isShard := distribution.shardParents[digest]
+	if !isShard {
+		return nil
+	}
+	runners := make(map[string]struct{})
+	for otherDigest, configStatus := range distribution.Configs {
+		if otherDigest != digest && distribution.shardParents[otherDigest] == parent {
+			runners[configStatus.Runner] = struct{}{}
+		}
+	}
+	return runners
+}
+
+// numColocatedShards returns how many shard configs share their runner with an
+// earlier-counted shard of the same original config.
+func (distribution *configsDistribution) numColocatedShards() int {
+	type placement struct{ parent, runner string }
+	shardsPerPlacement := make(map[placement]int)
+	for digest, configStatus := range distribution.Configs {
+		if parent, isShard := distribution.shardParents[digest]; isShard {
+			shardsPerPlacement[placement{parent, configStatus.Runner}]++
+		}
+	}
+	colocated := 0
+	for _, count := range shardsPerPlacement {
+		colocated += count - 1
+	}
+	return colocated
 }
 
 func (distribution *configsDistribution) runnerForConfig(digest string) string {
