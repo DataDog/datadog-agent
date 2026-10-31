@@ -13,6 +13,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -31,13 +32,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// use a randomly assigned port
+// use a randomly assigned port on loopback: on macOS another socket can bind
+// [::1]:P over a [::]:P listener and receive the test's connections.
 var tcpTestPort = 0
+
+const tcpTestBindHost = "127.0.0.1"
 
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
+	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort, BindHost: tcpTestBindHost}), 9000)
 	require.NoError(t, err)
 	listener.Start()
 	conn, err := net.Dial("tcp", listener.listener.Addr().String())
@@ -60,7 +64,8 @@ func TestTCPTLSShouldReceiveMessages(t *testing.T) {
 	msgChan := pp.NextPipelineChan()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile: certFile,
 			KeyFile:  keyFile,
@@ -93,7 +98,8 @@ func TestTCPTLSRejectsPlaintextConnection(t *testing.T) {
 	pp := mock.NewMockProvider()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile: certFile,
 			KeyFile:  keyFile,
@@ -294,7 +300,8 @@ func TestTCPTLSRefusesToStartOnBadCert(t *testing.T) {
 	pp := mock.NewMockProvider()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile: "/nonexistent/cert.pem",
 			KeyFile:  "/nonexistent/key.pem",
@@ -335,6 +342,7 @@ func TestTCPMaxConnections(t *testing.T) {
 	pp := mock.NewMockProvider()
 	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{
 		Port:           tcpTestPort,
+		BindHost:       tcpTestBindHost,
 		MaxConnections: 2,
 	}), 9000)
 	require.NoError(t, err)
@@ -371,7 +379,8 @@ func TestTCPDefaultIdleTimeoutForTLS(t *testing.T) {
 
 	pp := mock.NewMockProvider()
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile: certFile,
 			KeyFile:  keyFile,
@@ -390,7 +399,8 @@ func TestTCPTLSHandshakeTimeout(t *testing.T) {
 
 	pp := mock.NewMockProvider()
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile: certFile,
 			KeyFile:  keyFile,
@@ -415,7 +425,7 @@ func TestTCPTLSHandshakeTimeout(t *testing.T) {
 func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 100)
+	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort, BindHost: tcpTestBindHost}), 100)
 	require.NoError(t, err)
 	listener.Start()
 
@@ -445,7 +455,8 @@ func TestTCPTLSNegotiatesCipher(t *testing.T) {
 	msgChan := pp.NextPipelineChan()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile: certFile,
 			KeyFile:  keyFile,
@@ -478,7 +489,7 @@ func TestTCPTLSNegotiatesCipher(t *testing.T) {
 func TestTCPPlaintextHasNoTLSTags(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
+	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort, BindHost: tcpTestBindHost}), 9000)
 	require.NoError(t, err)
 	listener.Start()
 
@@ -505,7 +516,8 @@ func TestTCPMTLSRequiredAcceptsValidClient(t *testing.T) {
 	msgChan := pp.NextPipelineChan()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile:   serverCert,
 			KeyFile:    serverKey,
@@ -543,7 +555,8 @@ func TestTCPMTLSRequiredRejectsNoClientCert(t *testing.T) {
 	pp := mock.NewMockProvider()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile:   serverCert,
 			KeyFile:    serverKey,
@@ -593,7 +606,8 @@ func TestTCPMTLSOptionalAcceptsClientCert(t *testing.T) {
 	msgChan := pp.NextPipelineChan()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile:   serverCert,
 			KeyFile:    serverKey,
@@ -632,7 +646,8 @@ func TestTCPMTLSOptionalAcceptsNoClientCert(t *testing.T) {
 	msgChan := pp.NextPipelineChan()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile:   serverCert,
 			KeyFile:    serverKey,
@@ -664,6 +679,7 @@ func TestTCPAllowedIPsAcceptsMatchingConnection(t *testing.T) {
 	msgChan := pp.NextPipelineChan()
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Port:       tcpTestPort,
+		BindHost:   tcpTestBindHost,
 		AllowedIPs: config.StringSliceField{"127.0.0.0/8", "::1"},
 	})
 	listener, err := NewTCPListener(pp, source, 9000)
@@ -684,6 +700,7 @@ func TestTCPDeniedIPsRejectsMatchingConnection(t *testing.T) {
 	pp := mock.NewMockProvider()
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Port:      tcpTestPort,
+		BindHost:  tcpTestBindHost,
 		DeniedIPs: config.StringSliceField{"127.0.0.0/8", "::1"},
 	})
 	listener, err := NewTCPListener(pp, source, 9000)
@@ -695,16 +712,24 @@ func TestTCPDeniedIPsRejectsMatchingConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	fmt.Fprint(conn, "denied\n")
-	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	buf := make([]byte, 1)
-	_, err = conn.Read(buf)
-	assert.Error(t, err, "connection from denied IP should be closed by server")
+	requireServerClosed(t, conn)
+}
+
+// requireServerClosed fails unless the server closes conn, as opposed to the read timing out.
+func requireServerClosed(t *testing.T, conn net.Conn) {
+	t.Helper()
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) //nolint:errcheck
+	_, err := conn.Read(make([]byte, 1))
+	require.Error(t, err, "server should close the connection")
+	var ne net.Error
+	assert.False(t, errors.As(err, &ne) && ne.Timeout(), "server did not close the connection: %v", err)
 }
 
 func TestTCPDenialInfoAppearsInSourceStatus(t *testing.T) {
 	pp := mock.NewMockProvider()
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Port:      tcpTestPort,
+		BindHost:  tcpTestBindHost,
 		DeniedIPs: config.StringSliceField{"127.0.0.0/8", "::1/128"},
 	})
 	listener, err := NewTCPListener(pp, source, 9000)
@@ -737,6 +762,7 @@ func TestTCPDeniedTakesPrecedenceOverAllow(t *testing.T) {
 	pp := mock.NewMockProvider()
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Port:       tcpTestPort,
+		BindHost:   tcpTestBindHost,
 		AllowedIPs: config.StringSliceField{"127.0.0.0/8", "::1"},
 		DeniedIPs:  config.StringSliceField{"127.0.0.1", "::1"},
 	})
@@ -749,16 +775,14 @@ func TestTCPDeniedTakesPrecedenceOverAllow(t *testing.T) {
 	require.NoError(t, err)
 
 	fmt.Fprint(conn, "should be denied\n")
-	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	buf := make([]byte, 1)
-	_, err = conn.Read(buf)
-	assert.Error(t, err, "connection from denied IP should be closed even if it matches allow list")
+	requireServerClosed(t, conn)
 }
 
 func TestTCPAllowedIPsRejectsNonMatchingConnection(t *testing.T) {
 	pp := mock.NewMockProvider()
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Port:       tcpTestPort,
+		BindHost:   tcpTestBindHost,
 		AllowedIPs: config.StringSliceField{"192.168.1.0/24"},
 	})
 	listener, err := NewTCPListener(pp, source, 9000)
@@ -770,10 +794,7 @@ func TestTCPAllowedIPsRejectsNonMatchingConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	fmt.Fprint(conn, "should be rejected\n")
-	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	buf := make([]byte, 1)
-	_, err = conn.Read(buf)
-	assert.Error(t, err, "connection from non-allowed IP should be rejected")
+	requireServerClosed(t, conn)
 }
 
 func TestTCPMTLSRejectsExpiredClientCert(t *testing.T) {
@@ -784,7 +805,8 @@ func TestTCPMTLSRejectsExpiredClientCert(t *testing.T) {
 	pp := mock.NewMockProvider()
 
 	src := sources.NewLogSource("", &config.LogsConfig{
-		Port: tcpTestPort,
+		Port:     tcpTestPort,
+		BindHost: tcpTestBindHost,
 		TLS: &config.TLSListenerConfig{
 			CertFile:   serverCert,
 			KeyFile:    serverKey,
