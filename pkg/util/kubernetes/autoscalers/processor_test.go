@@ -18,6 +18,7 @@ import (
 
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -69,6 +70,77 @@ func TestParallelLimit(t *testing.T) {
 	cfg.Set("external_metrics_provider.max_parallel_queries", 20, pkgconfigmodel.SourceLocalConfigProcess)
 	p = NewProcessor(nil)
 	assert.Equal(t, 20, p.parallelQueries)
+}
+
+func TestMetricRequestsInflight(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("external_metrics_provider.max_parallel_queries", 2, pkgconfigmodel.SourceLocalConfigProcess)
+	cfg.Set("external_metrics_provider.chunk_size", 1, pkgconfigmodel.SourceLocalConfigProcess)
+
+	queries := []string{"avg:first{*}", "avg:second{*}", "avg:third{*}"}
+	entered := make(chan string, len(queries))
+	release := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+
+	client := datadogclientmock.New(t).Comp
+	client.SetQueryMetricsFunc(func(_, _ int64, query string) ([]datadog.Series, error) {
+		entered <- query
+		<-release
+		if query == queries[0] {
+			return nil, errors.New("request failed")
+		}
+		return nil, nil
+	})
+	p := NewProcessor(client)
+	assert.Equal(t, float64(2), ddRequestsParallelLimit.WithValues(le.JoinLeaderValue).Get())
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+
+	peakSamples := func() (uint64, float64) {
+		families, err := telemetryimpl.GetCompatComponent().Gather(telemetryComponent.StaticMetricFilter("datadog_requests_inflight_peak"))
+		require.NoError(t, err)
+		if len(families) == 0 {
+			return 0, 0
+		}
+		require.Len(t, families, 1)
+		require.Len(t, families[0].Metric, 1)
+		histogram := families[0].Metric[0].GetHistogram()
+		return histogram.GetSampleCount(), histogram.GetSampleSum()
+	}
+	countBefore, sumBefore := peakSamples()
+
+	resultsCh := make(chan map[string]Point, 1)
+	go func() { resultsCh <- p.QueryExternalMetric(queries, time.Minute) }()
+	for range 2 {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for parallel requests")
+		}
+	}
+	assert.Equal(t, float64(2), ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+	select {
+	case <-entered:
+		t.Fatal("request started beyond the configured parallel limit")
+	default:
+	}
+
+	close(release)
+	select {
+	case results := <-resultsCh:
+		assert.Error(t, results[queries[0]].Error)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for requests to finish")
+	}
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+	countAfter, sumAfter := peakSamples()
+	assert.Equal(t, uint64(1), countAfter-countBefore)
+	assert.Equal(t, float64(2), sumAfter-sumBefore)
 }
 
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {

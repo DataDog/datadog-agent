@@ -60,6 +60,7 @@ dd_agent_go_test(
     deps = [
         "//comp/autoscaling/datadogclient/mock",
         "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//pkg/clusteragent/autoscaling/custommetrics",
         "//pkg/config/mock",
         "//pkg/config/model",
