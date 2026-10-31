@@ -31,6 +31,17 @@ struct credentials_t {
     u64 cap_permitted;
 };
 
+struct namespace_ids_t {
+    u32 mnt;
+    u32 net;
+    u32 pid;
+    u32 user;
+    u32 uts;
+    u32 ipc;
+    u32 cgroup;
+    u32 time;
+};
+
 struct pid_cache_t {
     u64 cookie;
     u64 fork_timestamp;
