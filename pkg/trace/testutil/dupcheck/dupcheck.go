@@ -662,13 +662,14 @@ func CheckTracerPayloadV1(in *idx.InternalTracerPayload, out *pb.AgentPayload) [
 // span, resource and scope attributes, keyed like the span meta they are copied
 // to, with the precedence of the conversion: span attributes, then resource
 // attributes for the keys left empty, then scope attributes, written last,
-// over both. Top-level fields
+// over both, plus the attributes of its OTLP span links. Top-level fields
 // don't exist yet. Attributes copied through unchanged are skipped, any
 // attribute that the conversion creates or changes is compared with
 // everything else.
 func CheckOTLPConversion(in ptrace.ResourceSpans, out *pb.TracerPayload) []Finding {
 	resourceAttrs := stringAttributes(in.Resource().Attributes())
 	inMeta := make(map[uint64]map[string]string)
+	inLinks := make(map[uint64][]map[string]string)
 	for i := 0; i < in.ScopeSpans().Len(); i++ {
 		ss := in.ScopeSpans().At(i)
 		// The conversion writes every scope attribute to the meta with
@@ -686,7 +687,11 @@ func CheckOTLPConversion(in ptrace.ResourceSpans, out *pb.TracerPayload) []Findi
 				}
 			}
 			maps.Copy(meta, scopeAttrs)
-			inMeta[binary.BigEndian.Uint64(spanID[:])] = meta
+			id := binary.BigEndian.Uint64(spanID[:])
+			inMeta[id] = meta
+			for k := 0; k < s.Links().Len(); k++ {
+				inLinks[id] = append(inLinks[id], stringAttributes(s.Links().At(k).Attributes()))
+			}
 		}
 	}
 	outPayload := tracerPayloadFields(out)
@@ -701,6 +706,9 @@ func CheckOTLPConversion(in ptrace.ResourceSpans, out *pb.TracerPayload) []Findi
 			var inSpan fieldList
 			if meta, ok := inMeta[s.SpanID]; ok {
 				inSpan.stringMap(spanLevel, "span.meta", meta, true)
+			}
+			for i, attrs := range inLinks[s.SpanID] {
+				inSpan.stringMap(spanLevel, fmt.Sprintf("span.links[%d].attributes", i), attrs, false)
 			}
 			base := spanBase(s.Service, s.Name, s.Type, s.SpanID)
 			findings = append(findings, compareFields(inSpan, spanFields(s), nil, base)...)
