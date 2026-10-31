@@ -34,6 +34,8 @@ The simplest path is to run E2E tests from a [developer environment](../../../tu
 
 You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account. If `dda inv e2e.setup` (below) reports it can't reach that account, you don't have access yet — ask #agent-devx-help for it; the request process is documented internally on Confluence.
 
+Kubernetes tests also need the `agent-dev` role on the `agent-qa` AWS account, to pull images from the ECR pull-through cache (see [Dependencies](dependencies.md)).
+
 For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 
 ### One-time setup
