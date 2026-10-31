@@ -35,6 +35,8 @@ var (
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
 	execTimeout = 30 * time.Second
+	// windowsCollectorFlareProviderTimeout gives each Windows collector provider a budget above execTimeout so a single external command can use its full per-command timeout before the provider deadline cuts it off.
+	windowsCollectorFlareProviderTimeout = execTimeout + 5*time.Second
 )
 
 // commandContextForFlare returns a context for a subprocess bounded by both the provider ctx and perCommandTimeout.
@@ -324,16 +326,23 @@ func getIISData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("iis_application_pools.txt", out.Bytes())
 }
 
-func getWindowsData(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	getTypeperfData(ctx, fb)    //nolint:errcheck
-	getLodctrOutput(ctx, fb)    //nolint:errcheck
-	getCounterStrings(fb)       //nolint:errcheck
-	getWindowsEventLogs(fb)     //nolint:errcheck
-	getServiceStatus(fb)        //nolint:errcheck
-	getDatadogRegistry(ctx, fb) //nolint:errcheck
-	getEventLogConfig(ctx, fb)  //nolint:errcheck
-	getIISData(ctx, fb)         //nolint:errcheck
-	return nil
+// windowsCollectorFlareTimeout reports the per-provider timeout budget for every Windows collector provider.
+func windowsCollectorFlareTimeout(flaretypes.FlareBuilder) time.Duration {
+	return windowsCollectorFlareProviderTimeout
+}
+
+// windowsFlareProviders returns one flare provider per Windows collector. Registering them separately (instead of one provider running them in series) gives each its own timeout budget, so a slow collector can no longer starve the others — the root cause of the flaky missing datadog.reg.
+func windowsFlareProviders() []*flaretypes.FlareFiller {
+	return []*flaretypes.FlareFiller{
+		{Callback: getTypeperfData, Timeout: windowsCollectorFlareTimeout},
+		{Callback: getLodctrOutput, Timeout: windowsCollectorFlareTimeout},
+		{Callback: func(_ context.Context, fb flaretypes.FlareBuilder) error { return getCounterStrings(fb) }, Timeout: windowsCollectorFlareTimeout},
+		{Callback: func(_ context.Context, fb flaretypes.FlareBuilder) error { return getWindowsEventLogs(fb) }, Timeout: windowsCollectorFlareTimeout},
+		{Callback: func(_ context.Context, fb flaretypes.FlareBuilder) error { return getServiceStatus(fb) }, Timeout: windowsCollectorFlareTimeout},
+		{Callback: getDatadogRegistry, Timeout: windowsCollectorFlareTimeout},
+		{Callback: getEventLogConfig, Timeout: windowsCollectorFlareTimeout},
+		{Callback: getIISData, Timeout: windowsCollectorFlareTimeout},
+	}
 }
 
 // getUlimitData is a no-op on Windows, which has no ulimit/rlimit concept.
