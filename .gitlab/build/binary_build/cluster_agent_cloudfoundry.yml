@@ -19,6 +19,11 @@ cluster_agent_cloudfoundry-build_amd64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - echo "DEBUG hostname=$(hostname)"
+    - echo "DEBUG XDG_CACHE_HOME=$XDG_CACHE_HOME"
+    - echo "DEBUG BAZELISK_HOME=$BAZELISK_HOME"
+    - ls -la "$BAZELISK_HOME" || echo "DEBUG BAZELISK_HOME missing"
+    - ls -la "$XDG_CACHE_HOME/bazelisk" || echo "DEBUG XDG_CACHE_HOME/bazelisk missing"
     - dda inv -- check-go-version
     - dda inv -- -e cluster-agent-cloudfoundry.build
     - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
