@@ -11,9 +11,10 @@ import (
 	"errors"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -46,6 +47,7 @@ func (c *Config) Parse(data []byte) error {
 type Check struct {
 	core.CheckBase
 	workloadmetaStore workloadmeta.Component
+	tagger            tagger.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
@@ -85,7 +87,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	c.extendedSet = pkgconfigsetup.Datadog().GetBool("container_lifecycle.extended_set")
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore, c.extendedSet)
+	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore, c.tagger, c.extendedSet)
 
 	return nil
 }
@@ -176,34 +178,48 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
+			observeSubscriptionQueue("cont", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceRuntime)
 		case eventBundle, ok := <-contCreateEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("cont-create", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceAll)
 		case eventBundle, ok := <-contNodeOrchestratorDeleteEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("cont-node-orchestrator-delete", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-podEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("pod", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-taskEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("task", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case <-c.stopCh:
 			return nil
 		}
+	}
+}
+
+// observeSubscriptionQueue records the size of the received bundle and the
+// time it waited in the subscription channel.
+func observeSubscriptionQueue(channel string, bundle workloadmeta.EventBundle) {
+	bundleSize.Observe(float64(len(bundle.Events)), channel)
+	if !bundle.EnqueuedAt.IsZero() {
+		queueLatency.Observe(time.Since(bundle.EnqueuedAt).Seconds(), channel)
 	}
 }
 
@@ -214,11 +230,12 @@ func (c *Check) Cancel() { close(c.stopCh) }
 func (c *Check) Interval() time.Duration { return 0 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) option.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
+			tagger:            tagger,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
 		})

@@ -190,6 +190,14 @@ func (r *reflectorStore) HasSynced() bool {
 	return r.hasSynced
 }
 
+// Bookmark is not implemented: the reflector doesn't call it
+func (r *reflectorStore) Bookmark(_ string) {}
+
+// LastStoreSyncResourceVersion is not implemented: the reflector doesn't call it
+func (r *reflectorStore) LastStoreSyncResourceVersion() string {
+	return ""
+}
+
 // List is not implemented
 func (r *reflectorStore) List() []interface{} {
 	panic("not implemented")
@@ -250,6 +258,11 @@ func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, er
 
 	case workloadmeta.KindKubernetesKueueWorkload:
 		return &workloadmeta.KubernetesKueueWorkload{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesKAIPodGroup:
+		return &workloadmeta.KubernetesKAIPodGroup{
 			EntityID: entityID,
 		}, nil
 	}

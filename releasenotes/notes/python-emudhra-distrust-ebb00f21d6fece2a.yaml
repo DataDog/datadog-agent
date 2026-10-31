@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    The embedded Python interpreter now rejects TLS certificate chains that
+    contain one of the compromised eMudhra intermediate CA keys, whichever
+    trust store the chain anchors in. This backports the CPython fix for
+    CVE-2026-115557. On Windows, Python checks no longer trust these chains
+    through the Windows certificate store.

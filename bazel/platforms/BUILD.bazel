@@ -26,6 +26,14 @@ platform(
 )
 
 platform(
+    name = "linux_armv7",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:armv7",
+    ],
+)
+
+platform(
     name = "macos_arm64",
     constraint_values = [
         "@platforms//os:macos",
@@ -46,6 +54,8 @@ platform(
     constraint_values = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+        "@llvm//constraints/windows/abi:gnu",
+        "@llvm//constraints/windows/crt:msvcrt",
     ],
 )
 
@@ -91,5 +101,7 @@ platform(
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
         ":fips",
+        "@llvm//constraints/windows/abi:gnu",
+        "@llvm//constraints/windows/crt:msvcrt",
     ],
 )

@@ -37,7 +37,7 @@ datadog:
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithInternetAccess(), scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 
@@ -73,7 +73,7 @@ datadog:
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV2TestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithInternetAccess(), scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 
@@ -108,14 +108,14 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
-    traceAgent:
+    agent:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'true'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2SpanAsResNameTestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithInternetAccess(), scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 
@@ -150,7 +150,7 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
-    traceAgent:
+    agent:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
           value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
@@ -158,7 +158,7 @@ agents:
 	t.Parallel()
 	ts := &otlpIngestOpNameV2RemappingTestSuite{}
 	e2e.Run(t, ts, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithInternetAccess(), scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 

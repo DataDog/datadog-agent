@@ -31,6 +31,61 @@ mkdir -vp $LOG_DIR
 chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
 
+# The stable LaunchDaemons the Agent needs, in load order, and the root-owned directory the package
+# ships plain copies of their definitions in. These copies are the very files the installer embeds
+# (pkg/fleet/installer/packages/embedded/tmpl/gen/darwin), so the fallback below installs exactly
+# what `installer postinst` would have. They live under embedded/, which stays root-owned, never
+# under etc/, which belongs to the Agent's account: anything copied into /Library/LaunchDaemons is
+# run by launchd as root.
+FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"
+FALLBACK_JOBS="com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane"
+
+# install_fallback_launchdaemons installs and loads the Agent's stable LaunchDaemons without the
+# installer: copy, chown, chmod, enable, bootstrap, as versions before the installer did. Every job
+# is reloaded, even one already loaded from the shipped definition: it only runs after the installer
+# failed, which may have left a job on its way out of the domain. Every job is attempted even if an
+# earlier one fails; it returns non-zero if any of them is not loaded at the end.
+install_fallback_launchdaemons() {
+    failed=""
+    for label in $FALLBACK_JOBS; do
+        src="$FALLBACK_JOBS_DIR/$label.plist"
+        dst="/Library/LaunchDaemons/$label.plist"
+        if [ ! -f "$src" ] || [ -L "$src" ]; then
+            echo "ERROR: $src is missing; cannot install the $label LaunchDaemon"
+            failed="$failed $label"
+            continue
+        fi
+        echo "# Installing $label as a system-wide LaunchDaemon (fallback)"
+        launchctl bootout "system/$label" 2>/dev/null || true
+        # bootout returns before the job has left the domain, and bootstrapping it before then fails.
+        attempts=0
+        while [ $attempts -lt 30 ] && launchctl print "system/$label" >/dev/null 2>&1; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+        if launchctl print "system/$label" >/dev/null 2>&1; then
+            echo "ERROR: $label is still loaded after bootout; not replacing its definition"
+            failed="$failed $label"
+            continue
+        fi
+        rm -f "$dst"
+        cp -f "$src" "$dst"
+        chown root:wheel "$dst"
+        chmod 644 "$dst"
+        launchctl enable "system/$label" 2>/dev/null || true
+        if ! launchctl bootstrap system "$dst" 2>&1; then
+            echo "ERROR: Failed to bootstrap $label."
+            failed="$failed $label"
+            continue
+        fi
+        launchctl kickstart "system/$label" 2>/dev/null || true
+    done
+    if [ -n "$failed" ]; then
+        echo "ERROR: Could not install these LaunchDaemons:$failed"
+        return 1
+    fi
+}
+
 echo "# State at the beginning"
 echo "## Agent version"
 $INSTALL_DIR/bin/agent/agent version || true
@@ -140,6 +195,7 @@ if [ -f "$INSTALL_ENV_FILE" ]; then
     dd_site=$(grep '^DD_SITE=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_gui_menu=$(grep '^DD_GUI_APP_MENU_ENABLED=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_infra_mode=$(grep '^DD_INFRASTRUCTURE_MODE=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_logs_enabled=$(grep '^DD_LOGS_ENABLED=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_ai_usage_chrome_extension_id=$(grep '^DD_AI_USAGE_CHROME_EXTENSION_ID=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
@@ -166,6 +222,13 @@ if [ -f "$INSTALL_ENV_FILE" ]; then
             # The restored datadog.yaml predates the infrastructure_mode entry
             # (older Agent versions had no example line to replace).
             printf '\ninfrastructure_mode: %s\n' "$dd_infra_mode" >> "$CONF_DIR/datadog.yaml"
+        fi
+    fi
+    if [ "$dd_logs_enabled" = "true" ] || [ "$dd_logs_enabled" = "false" ]; then
+        if grep -Eq '^(# *)?logs_enabled:' "$CONF_DIR/datadog.yaml"; then
+            sed -i '' -E "s/^(# *)?logs_enabled:.*/logs_enabled: $dd_logs_enabled/" "$CONF_DIR/datadog.yaml"
+        else
+            printf '\nlogs_enabled: %s\n' "$dd_logs_enabled" >> "$CONF_DIR/datadog.yaml"
         fi
     fi
     if [ -n "$dd_install_method" ]; then
@@ -261,34 +324,31 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Install agent as system-wide LaunchDaemon
-echo "# Installing agent as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" /Library/LaunchDaemons/com.datadoghq.agent.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.agent.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
-launchctl enable system/com.datadoghq.agent 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.agent.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap agent service."
-fi
-
-# Install system-probe as system-wide LaunchDaemon
-echo "# Installing system-probe as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.sysprobe.plist.example" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-launchctl enable system/com.datadoghq.sysprobe 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.sysprobe.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap system-probe service."
-fi
-
-# Install Agent Data Plane as system-wide LaunchDaemon
-echo "# Installing Agent Data Plane as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.data-plane.plist.example" /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-launchctl enable system/com.datadoghq.data-plane 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.data-plane.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap Agent Data Plane service."
+# Run the postinst, as deb/rpm/msi do. It writes and loads the process manager, agent,
+# system-probe and Agent Data Plane LaunchDaemons from the definitions embedded in the installer.
+# See pkg/fleet/installer/packages/datadog_agent_darwin.go
+#
+# If the installer cannot run, or fails, the Agent's LaunchDaemons are installed the way earlier
+# versions did, from plain copies of the same definitions (install_fallback_launchdaemons), so the
+# Agent always ends up running. If the installer fails on any job, the fallback reloads all four,
+# so the jobs the installer had already started restart a second time; this is harmless.
+#
+# A LaunchDaemon the fallback can't load is reported in the install log but doesn't fail the
+# install. This keeps the behavior of earlier versions, which only printed a warning when a
+# bootstrap failed. Failing here would make macOS installs stricter than they have ever been, and
+# would roll back the binaries this install just laid down, on every Mac it reaches.
+echo "# Installing process manager, agent, system-probe and Agent Data Plane as system-wide LaunchDaemons"
+INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
+if [ -x "$INSTALLER_BIN" ]; then
+    if "$INSTALLER_BIN" postinst datadog-agent dmg 2>&1; then
+        echo "# The installer postinst succeeded"
+    else
+        echo "WARNING: The installer postinst failed; falling back to installing the Agent's LaunchDaemons directly."
+        install_fallback_launchdaemons
+    fi
+else
+    echo "WARNING: $INSTALLER_BIN missing; falling back to installing the Agent's LaunchDaemons directly."
+    install_fallback_launchdaemons
 fi
 
 # Install GUI LaunchAgent for all users (system-wide)

@@ -22,13 +22,16 @@ import (
 const sampleBufferSize = 2
 
 type gpmCollector struct {
-	lib                  ddnvml.SafeNVML
-	device               ddnvml.Device
-	parentPhysicalDevice *ddnvml.PhysicalDevice
-	migInstanceID        int // only for collectors for MIG devices, contains the instance ID of the MIG device
-	samples              [sampleBufferSize]nvml.GpmSample
-	metricsToCollect     map[nvml.GpmMetricId]gpmMetric
-	nextSampleToCollect  int
+	lib                      ddnvml.SafeNVML
+	device                   ddnvml.Device
+	parentPhysicalDevice     *ddnvml.PhysicalDevice
+	migInstanceID            int // only for collectors for MIG devices, contains the instance ID of the MIG device
+	samples                  [sampleBufferSize]nvml.GpmSample
+	metricsToCollect         map[nvml.GpmMetricId]gpmMetric
+	nextSampleToCollect      int
+	emitLegacySMActive       bool
+	emitGrEngineSMActive     bool
+	grEngineSMActivePriority MetricPriority
 }
 
 type gpmMetric struct {
@@ -73,11 +76,11 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 	},
 }
 
-func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
-	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), nil)
+func newGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (c Collector, err error) {
+	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), deps)
 }
 
-func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.GpmMetricId]gpmMetric, _ *CollectorDependencies) (c Collector, err error) {
+func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.GpmMetricId]gpmMetric, deps *CollectorDependencies) (c Collector, err error) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	if isMig && migDevice.Parent == nil {
 		return nil, errors.New("MIG device has no parent physical device")
@@ -91,6 +94,17 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	collector := &gpmCollector{
 		device:           device,
 		metricsToCollect: clonedMetrics,
+	}
+	if deps != nil {
+		collector.emitLegacySMActive = deps.Config.LegacySMActive
+		// GRAPHICS_UTIL is also reported as sm_active because it approximates the percentage of time during
+		// which at least one SM is executing work, unlike SM_UTIL which averages utilization across all SMs.
+		collector.emitGrEngineSMActive = !deps.Config.LegacySMActive
+		// Keep this source below sampling (Medium) and eBPF (MediumLow) by default.
+		collector.grEngineSMActivePriority = Low
+		if deps.Config.PreferGrEngineSMActive {
+			collector.grEngineSMActivePriority = High
+		}
 	}
 
 	if isMig {
@@ -113,6 +127,10 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	for i := 0; i < sampleBufferSize; i++ {
 		sample, err := collector.lib.GpmSampleAlloc()
 		if err != nil {
+			// the driver does not support GPM, retrying cannot help
+			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+				return nil, errUnsupportedDevice
+			}
 			return nil, fmt.Errorf("failed to allocate GPM sample: %w", err)
 		}
 		collector.samples[i] = sample
@@ -120,7 +138,10 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 
 	err = collector.removeUnsupportedMetrics()
 	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+		// The error is a join of per-metric errors, which can mix unsupported metrics with permission
+		// failures; errors.As stops at the first NVML error, so a permission error would be hidden and
+		// the collector marked as unsupported. Permissions can be recovered, so return them instead.
+		if !ddnvml.IsNoPermission(err) && ddnvml.IsAPIUnsupportedOnDevice(err, device) {
 			return nil, errUnsupportedDevice
 		}
 		return nil, fmt.Errorf("failed to remove unsupported metrics: %w", err)
@@ -138,7 +159,6 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 	for i := 0; i < 2; i++ {
 		err := c.collectSample()
 		if err != nil {
-			fmt.Printf("failed to collect GPM sample: %s\n", err)
 			return err
 		}
 	}
@@ -148,11 +168,18 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 		return err
 	}
 
+	permissionDenied := false
 	for i := uint32(0); i < metrics.NumMetrics; i++ {
 		if metrics.Metrics[i].NvmlReturn != uint32(nvml.SUCCESS) {
 			log.Warnf("failed to get GPM metric %d on device %s: %s\n", metrics.Metrics[i].MetricId, c.device.GetDeviceInfo().UUID, nvml.ErrorString(nvml.Return(metrics.Metrics[i].NvmlReturn)))
 			delete(c.metricsToCollect, nvml.GpmMetricId(metrics.Metrics[i].MetricId))
+			permissionDenied = permissionDenied || metrics.Metrics[i].NvmlReturn == uint32(nvml.ERROR_NO_PERMISSION)
 		}
+	}
+
+	// permissions can be recovered, so the collector is not reported as unsupported
+	if len(c.metricsToCollect) == 0 && permissionDenied {
+		return &ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NO_PERMISSION}
 	}
 
 	return nil
@@ -235,15 +262,16 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 	return metricsGet, errors.Join(errs...)
 }
 
-func (c *gpmCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *gpmCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *gpmCollector) Name() CollectorName {
 	return gpm
 }
 
-func (c *gpmCollector) Collect() ([]*Metric, error) {
+func (c *gpmCollector) Collect() ([]Sample, error) {
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -254,7 +282,14 @@ func (c *gpmCollector) Collect() ([]*Metric, error) {
 		return nil, fmt.Errorf("failed to get GPM metrics: %w", err)
 	}
 
-	metrics := make([]Metric, 0, len(c.metricsToCollect))
+	metricCapacity := len(c.metricsToCollect)
+	if c.emitLegacySMActive {
+		metricCapacity++
+	}
+	if c.emitGrEngineSMActive {
+		metricCapacity++
+	}
+	samples := make([]Sample, 0, metricCapacity)
 	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
 		metric := gpmMetrics.Metrics[i]
@@ -269,13 +304,29 @@ func (c *gpmCollector) Collect() ([]*Metric, error) {
 			continue
 		}
 
-		metrics = append(metrics, Metric{
-			Name:     metricData.name,
-			Value:    metric.Value,
-			Type:     metricData.metricType,
-			Priority: High, // All GPM metrics have priority over other collectors
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: High}, // All GPM metrics have priority over other collectors
+			Name:       metricData.name,
+			Value:      metric.Value,
+			Type:       metricData.metricType,
 		})
+		if c.emitLegacySMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_SM_UTIL {
+			samples = append(samples, &Metric{
+				baseSample: baseSample{priority: High},
+				Name:       "sm_active",
+				Value:      metric.Value,
+				Type:       metricData.metricType,
+			})
+		}
+		if c.emitGrEngineSMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
+			samples = append(samples, &Metric{
+				baseSample: baseSample{priority: c.grEngineSMActivePriority},
+				Name:       "sm_active",
+				Value:      metric.Value,
+				Type:       metricData.metricType,
+			})
+		}
 	}
 
-	return metricValuesToPointers(metrics), errors.Join(errs...)
+	return samples, errors.Join(errs...)
 }

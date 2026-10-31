@@ -31,8 +31,13 @@ func (p *ContainerLifecyclePayload) name() string {
 	return ""
 }
 
-// GetTags is not implemented for container lifecycle payloads
+// GetTags returns the dd_tags of the event, when present
 func (p *ContainerLifecyclePayload) GetTags() []string {
+	if container := p.Event.GetContainer(); container != nil {
+		return container.GetDdTags()
+	} else if pod := p.Event.GetPod(); pod != nil {
+		return pod.GetDdTags()
+	}
 	return nil
 }
 
@@ -50,7 +55,10 @@ func ParseContainerLifecyclePayload(payload api.Payload) ([]*ContainerLifecycleP
 
 	msg := agentmodel.EventsPayload{}
 	if err := proto.Unmarshal(inflated, &msg); err != nil {
-		return nil, err
+		// The endpoint can also receive the {} body the Agent posts to check
+		// connectivity. Skip what fails to parse, as ParseContainerImagePayload
+		// does, so the other payloads still parse.
+		return nil, nil
 	}
 
 	events := make([]*ContainerLifecyclePayload, len(msg.Events))

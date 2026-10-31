@@ -32,8 +32,8 @@ all MSI installer tests. It resolves the MSI package from environment
 variables at suite startup (stored in `s.AgentPackage`) and provides
 `s.InstallAgent(host, opts...)` and `s.NewTestClientForHost(host)`.
 Individual test packages embed this (directly or through a further local base)
-and add their own `BeforeTest`/`AfterTest` hooks for snapshots, event log
-capture, crash dumps, and diagnostics.
+and add their own `BeforeTest`/`AfterTest` hooks for permission snapshots,
+event log capture, crash dumps, and diagnostics.
 
 ## Package resolution
 
@@ -122,11 +122,14 @@ Claude Code, the `/run-windows-e2e` skill drives the whole flow interactively.
 
 ## CI configuration
 
-CI jobs for these tests live in two files under `.gitlab/windows/test/`:
+CI jobs for these tests are split by ownership under `.gitlab/windows/test/e2e/`:
 
-**`e2e/windows.yml`** — general Windows e2e jobs (service tests, certificate,
-FIPS compliance, system probe, etc.). Jobs use `EXTRA_PARAMS: --run TestFoo`
-to select a specific test function or suite.
+- **`windows_agent.yml`**: Agent configuration, runtimes, and subcommands
+- **`windows_observability.yml`**: NPM, network path, pipelines, CWS, process,
+  and USM tests
+- **`windows_products.yml`**: service, certificate, FIPS compliance, system
+  probe, and security agent tests
+- **`windows_templates.yml`**: shared Windows E2E templates
 
 **`e2e_install_packages/windows.yml`** — MSI install/upgrade/domain jobs.
 Because each test function provisions its own VM, these jobs use a
@@ -148,8 +151,14 @@ Shared Windows helpers live in `common/`. **Before writing one-off
 PowerShell commands in a test, check `common/` and `common/agent/` for
 an existing helper** — many operations already have Go wrappers.
 
+For long-running processes, use `RemoteHost.Start` and keep its SSH session
+open until test cleanup (see `StartProcdump`). On Windows, `Start-Process`
+inside `RemoteHost.Execute` does not keep children alive after that SSH
+session ends. Close the persistent session before collecting logs or
+removing the process's files.
+
 Key areas: Windows services, registry, ACL/permissions, local users, event
-logs, WER crash dumps, procdump, filesystem snapshots, process management,
+logs and file-deletion auditing, WER crash dumps, procdump, process management,
 network diagnostics, and PowerShell command builder.
 
 Agent-specific helpers (package resolution, MSI install/uninstall, config

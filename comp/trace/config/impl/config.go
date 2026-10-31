@@ -17,9 +17,8 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"strings"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -90,7 +89,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 
-	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
+	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		log.Debugf("OnUpdate: %s", setting)
 		if setting != apiKeyConfigKey {
 			return
@@ -151,15 +150,11 @@ func (c *cfg) SetHandler() http.Handler {
 				value := html.UnescapeString(values[len(values)-1])
 				switch key {
 				case "log_level":
-					lvl := strings.ToLower(value)
-					if lvl == "warning" {
-						lvl = "warn"
-					}
-					if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
+					if err := pkgconfigutils.SetLogLevel(value, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 						httpError(w, http.StatusInternalServerError, err)
 						return
 					}
-					log.Infof("Switched log level to %s", lvl)
+					log.Infof("Switched log level to %s", value)
 				default:
 					log.Infof("Unsupported config change requested (key: %q).", key)
 				}

@@ -298,6 +298,10 @@ type ProcessSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// CapsUsed lists the capabilities that this process effectively made use of
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -353,8 +357,8 @@ type ProcessSerializer struct {
 type TracerSerializer struct {
 	// Captured APM span context for this process.
 	Trace *TraceSerializer `json:"trace,omitempty"`
-	// Metadata from APM tracer instrumentation (for example, schema version, language,
-	// version, or thread-local attribute keys).
+	// Metadata from APM tracer instrumentation (for example, schema version,
+	// language, or version).
 	Metadata *tracermetadata.TracerMetadata `json:"metadata,omitempty"`
 }
 
@@ -571,13 +575,15 @@ type MountEventSerializer struct {
 	// Mount source path
 	MountSourcePath string `json:"source.path,omitempty"`
 	// Mount point path error
-	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
+	MountPointPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 	// Mount is not attached to the VFS tree
 	Detached bool `json:"detached,omitempty"`
-	// Mount is not visible in the VFS tree
+	// Mount is visible in the VFS tree
 	Visible bool `json:"visible,omitempty"`
+	// Per-mount attribute flags expressed as MOUNT_ATTR_* names
+	Flags []string `json:"flags,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -593,6 +599,8 @@ type SecurityProfileContextSerializer struct {
 	EventInProfile bool `json:"event_in_profile"`
 	// State of the event type in this profile
 	EventTypeState string `json:"event_type_state"`
+	// True if the profile had already been persisted to the backend when this event was emitted
+	ProfileAlreadySent bool `json:"profile_already_sent"`
 }
 
 // SyscallSerializer serializes a syscall
@@ -690,6 +698,13 @@ type SetrlimitEventSerializer struct {
 	Max uint64 `json:"rlim_max"`
 	// process context of the setrlimit target
 	Target *ProcessContextSerializer `json:"target,omitempty"`
+}
+
+// UnshareEventSerializer serializes an unshare event
+// easyjson:json
+type UnshareEventSerializer struct {
+	// Namespace flags requested by the unshare call
+	Flags []string `json:"flags,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -857,6 +872,7 @@ type EventSerializer struct {
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
+	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -877,12 +893,18 @@ type CapabilitiesEventSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// Capabilities that the process successfully used since it started running
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 }
 
 func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
 	return &CapabilitiesEventSerializer{
-		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
-		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttempted:           model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:                model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttemptedHostUserNS: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(e, ce)).StringArray(),
+		CapsUsedHostUserNS:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(e, ce)).StringArray(),
 	}
 }
 
@@ -1019,6 +1041,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Source:          model.ProcessSourceToString(ps.Source),
 			CapsAttempted:   model.KernelCapability(ps.CapsAttempted).StringArray(),
 			CapsUsed:        model.KernelCapability(ps.CapsUsed).StringArray(),
+
+			CapsAttemptedHostUserNS: model.KernelCapability(ps.CapsAttemptedHostUserNS).StringArray(),
+			CapsUsedHostUserNS:      model.KernelCapability(ps.CapsUsedHostUserNS).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -1070,9 +1095,11 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Tracer = tracer
 		}
 
-		if len(ps.ContainerContext.ContainerID) != 0 {
+		if ps.ContainerContext.ContainerID != "" || ps.ContainerContext.PodUID != "" {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				PodUID:    ps.ContainerContext.PodUID,
+				ECSTaskID: ps.ContainerContext.ECSTaskID,
 				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
@@ -1309,12 +1336,12 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
-			Path:    e.GetMountRootPath(),
+			Path:    mountPointPath,
 			MountID: createNumPointer(e.Mount.ParentPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.ParentPathKey.Inode),
 		},
 		Root: &FileSerializer{
-			Path:    e.GetMountMountpointPath(),
+			Path:    fh.ResolveMountRootPath(e, &e.Mount),
 			MountID: createNumPointer(e.Mount.RootPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.RootPathKey.Inode),
 		},
@@ -1327,11 +1354,15 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		MountSourcePath: mountSourcePath,
 		Detached:        e.Mount.Detached,
 		Visible:         e.Mount.Visible,
+		Flags:           model.MountFlagsStrings(e.Mount.MountFlags),
 	}
 
-	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
+	// potential errors retrieved from ResolveMountPointPath, ResolveMountRootPath and ResolveMountSourcePath
+	if e.Mount.MountPointPathResolutionError != nil {
+		mountSerializer.MountPointPathResolutionError = e.Mount.MountPointPathResolutionError.Error()
+	}
 	if e.Mount.MountRootPathResolutionError != nil {
-		mountSerializer.MountRootPathResolutionError = e.Mount.MountRootPathResolutionError.Error()
+		mountSerializer.Root.PathResolutionError = e.Mount.MountRootPathResolutionError.Error()
 	}
 	if e.Mount.MountSourcePathResolutionError != nil {
 		mountSerializer.MountSourcePathResolutionError = e.Mount.MountSourcePathResolutionError.Error()
@@ -1460,7 +1491,11 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
+		savedErr := e.Error
 		s := newProcessSerializer(&pce.Process, e)
+		if !first && &pce.Process != pc.Parent {
+			e.Error = savedErr
+		}
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
@@ -1511,32 +1546,35 @@ type TraceSerializer struct {
 }
 
 // newTraceSerializer builds a TraceSerializer from the event's span context,
-// falling back to the first ancestor process that carries tracer data. It
-// returns nil when no span context is available so that the "dd" and "trace"
+// falling back to the closest process in the lineage that carries tracer data.
+// It returns nil when no span context is available so that the "dd" and "trace"
 // JSON keys (both omitempty pointers) are omitted entirely rather than emitted
 // as empty objects.
 func newTraceSerializer(e *model.Event) *TraceSerializer {
-	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
+	// this is the point where the lazily-filled parts of the span context are
+	// actually needed, and thus resolved
+	sc := e.FieldHandlers.ResolveSpanContext(e)
+	if sc.SpanID != 0 && (sc.TraceID.Hi != 0 || sc.TraceID.Lo != 0) {
 		return &TraceSerializer{
-			SpanID:     strconv.FormatUint(e.SpanContext.SpanID, 10),
-			TraceID:    e.SpanContext.TraceID.HexString(),
-			Attributes: e.SpanContext.Attributes,
+			SpanID:     strconv.FormatUint(sc.SpanID, 10),
+			TraceID:    sc.TraceID.HexString(),
+			Attributes: sc.Attributes,
 		}
 	}
 
-	ctx := eval.NewContext(e)
-	it := &model.ProcessAncestorsIterator{Root: e.ProcessContext.Ancestor}
-
-	for ptr := it.Front(ctx); ptr != nil; ptr = it.Next(ctx) {
-		pce := (*model.ProcessCacheEntry)(ptr)
-
-		if pce.Tracer.Trace.SpanID != 0 && (pce.Tracer.Trace.TraceID.Hi != 0 || pce.Tracer.Trace.TraceID.Lo != 0) {
+	for pc := e.ProcessContext; pc != nil; {
+		if pc.Tracer.Trace.SpanID != 0 && (pc.Tracer.Trace.TraceID.Hi != 0 || pc.Tracer.Trace.TraceID.Lo != 0) {
 			return &TraceSerializer{
-				SpanID:     strconv.FormatUint(pce.Tracer.Trace.SpanID, 10),
-				TraceID:    pce.Tracer.Trace.TraceID.HexString(),
-				Attributes: pce.Tracer.Trace.Attributes,
+				SpanID:     strconv.FormatUint(pc.Tracer.Trace.SpanID, 10),
+				TraceID:    pc.Tracer.Trace.TraceID.HexString(),
+				Attributes: pc.Tracer.Trace.Attributes,
 			}
 		}
+
+		if pc.Ancestor == nil {
+			break
+		}
+		pc = &pc.Ancestor.ProcessContext
 	}
 
 	return nil
@@ -1560,11 +1598,12 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:           e.Name,
-		Version:        e.Version,
-		Tags:           tags,
-		EventInProfile: event.IsInProfile(),
-		EventTypeState: e.EventTypeState.String(),
+		Name:               e.Name,
+		Version:            e.Version,
+		Tags:               tags,
+		EventInProfile:     event.IsInProfile(),
+		EventTypeState:     e.EventTypeState.String(),
+		ProfileAlreadySent: e.ProfileAlreadySent,
 	}
 }
 
@@ -1615,6 +1654,12 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 		Current:  e.Setrlimit.RlimCur,
 		Max:      e.Setrlimit.RlimMax,
 		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent, nil),
+	}
+}
+
+func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
+	return &UnshareEventSerializer{
+		Flags: model.CloneFlags(e.Unshare.Flags).StringArray(),
 	}
 }
 
@@ -1678,9 +1723,11 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
-	if !event.ProcessContext.ContainerContext.IsNull() {
+	if event.ProcessContext.ContainerContext.ContainerID != "" || event.ProcessContext.ContainerContext.PodUID != "" {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			PodUID:    event.ProcessContext.ContainerContext.PodUID,
+			ECSTaskID: event.ProcessContext.ContainerContext.ECSTaskID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
@@ -1958,6 +2005,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)
+	case model.UnshareEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Unshare.Retval)
+		s.UnshareEventSerializer = newUnshareEventSerializer(event)
 	}
 
 	return s

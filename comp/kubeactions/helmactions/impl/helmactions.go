@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -26,11 +27,12 @@ import (
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 
-	Log       log.Component
-	Config    config.Component
-	Hostname  hostnameinterface.Component
-	APIClient *apiserver.APIClient
-	Params    helmactions.Params
+	Log         log.Component
+	Config      config.Component
+	Hostname    hostnameinterface.Component
+	APIClient   *apiserver.APIClient
+	Params      helmactions.Params
+	KubeActions kubeactions.Component
 }
 
 // Provides defines the output of the helmactions component.
@@ -45,8 +47,9 @@ type helmactionsImpl struct {
 	params         helmactions.Params
 	watchCtxDone   chan struct{}
 	watchCtxCancel context.CancelFunc
-	store          *ActionStore
-	jobWatcher     *jobWatcher
+	// store might be not needed for helm related actions TODO
+	store      *ActionStore
+	jobWatcher *jobWatcher
 }
 
 // NewComponent creates a new helmactions component.
@@ -79,7 +82,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		clusterName: clusterName,
 		params:      reqs.Params,
 		store:       store,
-		jobWatcher:  newJobWatcher(reqs.APIClient.Cl, store),
+		jobWatcher:  newJobWatcher(reqs.APIClient.Cl, store, reqs.KubeActions),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
@@ -128,6 +131,6 @@ func (h *helmactionsImpl) stop(ctx context.Context) error {
 // OnRollback records a newly-scheduled rollback Job in the store so the watcher
 // can track its progress to completion. Called by the privateactionrunner
 // rollback handler after it successfully creates the Job.
-func (h *helmactionsImpl) OnRollback(in *helmactions.RollbackInputs, job *batchv1.Job) {
-	h.jobWatcher.OnRollback(in, job)
+func (h *helmactionsImpl) OnRollback(in *helmactions.RollbackInputs, meta helmactions.TaskMeta, job *batchv1.Job) {
+	h.jobWatcher.OnRollback(in, meta, job)
 }

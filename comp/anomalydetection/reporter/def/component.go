@@ -7,7 +7,7 @@
 // Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
 package reporter
 
-// team: q-branch
+// team: agent-anomaly-detection
 
 import observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 

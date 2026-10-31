@@ -1,0 +1,8 @@
+version: 1
+allowed_cmdlets:
+  Get-Service:
+    module: Microsoft.PowerShell.Management
+    parameters:
+      # Deliberately permissive: the E2E injection cases prove that even a value
+      # accepted by administrator policy is bound to the cmdlet as data.
+      Name: { pattern: '.*' }

@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Flares now include a ``certificates/tls_roots.txt`` file describing how the agent
+    resolves trusted TLS root certificates on the host: the ``SSL_CERT_FILE`` and
+    ``SSL_CERT_DIR`` environment variables, the status of the system certificate
+    bundle files, and a listing of the system certificate directories. This helps
+    troubleshoot TLS certificate trust issues. Certificate file contents are not
+    included in the flare.

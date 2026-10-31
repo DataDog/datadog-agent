@@ -1,0 +1,52 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+mod stdio;
+
+use anyhow::{Context, Result};
+use log::info;
+use tokio::process::Command;
+
+use crate::handle::ProcessHandle;
+use crate::process::ManagedProcess;
+use crate::spawn::SpawnRequest;
+
+use super::{setup_process_group, spawn_registered, stderr_inheritable, stdout_inheritable};
+use stdio::to_command_stdio;
+
+impl ManagedProcess {
+    pub(crate) fn spawn_child_handle(&mut self) -> Result<ProcessHandle> {
+        let process_name = self.name();
+        info!("[{process_name}] spawn profile: {}", self.profile());
+        // Unix does not switch users, so the child runs as dd-procmgrd.
+        let request = SpawnRequest::from_config(process_name, self.config(), true)?;
+        let mut cmd = request.to_command(stdout_inheritable(), stderr_inheritable());
+        setup_process_group(&mut cmd);
+        let child = spawn_registered(|| cmd.spawn()).with_context(|| {
+            format!(
+                "[{process_name}] failed to spawn: {}",
+                self.config().command
+            )
+        })?;
+        Ok(child.into_process_handle())
+    }
+}
+
+impl SpawnRequest {
+    pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
+        let mut cmd = Command::new(self.command());
+        cmd.args(self.args());
+        cmd.env_clear();
+        for (k, v) in self.env() {
+            cmd.env(k, v);
+        }
+        if let Some(dir) = self.working_dir() {
+            cmd.current_dir(dir);
+        }
+        cmd.stdout(to_command_stdio(self.stdout_setting(), stdout_inheritable));
+        cmd.stderr(to_command_stdio(self.stderr_setting(), stderr_inheritable));
+        cmd
+    }
+}

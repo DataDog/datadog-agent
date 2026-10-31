@@ -14,13 +14,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
@@ -32,12 +38,66 @@ func TestGetComponents(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
+// seriesRecorder records the series the OTLP pipeline sends to the serializer.
+type seriesRecorder struct {
+	*serializermock.MetricSerializer
+	series []*metrics.Serie
+}
+
+func (r *seriesRecorder) SendIterableSeries(s metrics.SerieSource) error {
+	for s.MoveNext() {
+		r.series = append(r.series, s.Current())
+	}
+	return nil
+}
+
+func (r *seriesRecorder) SendSketch(s metrics.SketchesSource) error {
+	for s.MoveNext() {
+	}
+	return nil
+}
+
+func TestGetComponentsAddsExpectedTags(t *testing.T) {
+	cfg := pkgconfigmock.New(t)
+	cfg.SetInTest("hostname", "otlp-testhostname")
+	cfg.SetInTest("collect_gce_tags", false)
+	cfg.SetInTest("tags", []string{"expected:tag"})
+	cfg.SetInTest("expected_tags_duration", "1h")
+
+	rec := &seriesRecorder{MetricSerializer: serializermock.NewMetricSerializer(t)}
+	factories, err := getComponents(rec, nil, taggerfxmock.SetupFakeTagger(t), hostnameimpl.NewHostnameService(), nil)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	f := factories.Exporters[component.MustNewType(serializerexporter.TypeStr)]
+	exp, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(f.Type()), f.CreateDefaultConfig())
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	md := pmetric.NewMetrics()
+	m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	m.SetName("test.gauge")
+	m.SetEmptyGauge().DataPoints().AppendEmpty().SetIntValue(1)
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx)) // drains the sending queue
+
+	var gauge *metrics.Serie
+	for _, s := range rec.series {
+		if s.Name == "test.gauge" {
+			gauge = s
+		}
+	}
+	require.NotNil(t, gauge)
+	assert.Contains(t, gauge.Tags.UnsafeToReadOnlySliceString(), "expected:tag")
+}
+
+func AssertSuccessfulRun(t *testing.T, pcfg PipelineConfig) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	const pipelineTimeout = 10 * time.Second
+	ctx, cancel := context.WithTimeout(t.Context(), pipelineTimeout)
 	defer cancel()
 
 	colDone := make(chan struct{})
@@ -48,15 +108,13 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 
 	assert.Eventually(t, func() bool {
 		return otelcol.StateRunning == p.col.GetState()
-	}, time.Second*2, time.Millisecond*200)
+	}, pipelineTimeout-time.Second, time.Millisecond*200)
 
 	p.Stop()
 	p.Stop()
 	<-colDone
 
-	assert.Eventually(t, func() bool {
-		return otelcol.StateClosed == p.col.GetState()
-	}, time.Second*2, time.Millisecond*200)
+	assert.Equal(t, otelcol.StateClosed, p.col.GetState())
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
@@ -64,7 +122,7 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	pipelineError := p.Run(ctx)
 	assert.ErrorContains(t, pipelineError, expected)
@@ -75,7 +133,21 @@ func TestStartPipeline(t *testing.T) {
 	cfg.SetInTest("hostname", "otlp-testhostname")
 
 	pcfg := getTestPipelineConfig()
-	AssertSucessfulRun(t, pcfg)
+	AssertSuccessfulRun(t, pcfg)
+}
+
+// withEphemeralEndpoints binds every receiver protocol to an OS-assigned port,
+// since fixed ports (including the 4317/4318 defaults) collide with concurrent tests.
+func withEphemeralEndpoints(receiverCfg map[string]interface{}) {
+	protocols := receiverCfg["protocols"].(map[string]interface{})
+	for name, proto := range protocols {
+		settings, _ := proto.(map[string]interface{})
+		if settings == nil {
+			settings = map[string]interface{}{}
+		}
+		settings["endpoint"] = "localhost:0"
+		protocols[name] = settings
+	}
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
@@ -105,7 +177,8 @@ func TestStartPipelineFromConfig(t *testing.T) {
 			pcfg, err := FromAgentConfig(cfg)
 			require.NoError(t, err)
 			if testInstance.err == "" {
-				AssertSucessfulRun(t, pcfg)
+				withEphemeralEndpoints(pcfg.OTLPReceiverConfig)
+				AssertSuccessfulRun(t, pcfg)
 			} else {
 				AssertFailedRun(t, pcfg, testInstance.err)
 			}

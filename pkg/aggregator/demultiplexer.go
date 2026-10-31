@@ -12,11 +12,11 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
@@ -46,8 +46,9 @@ type Demultiplexer interface {
 	SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch)
 
 	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to
-	// the serialization/forwarding parts.
-	ForceFlushToSerializer(start time.Time, waitForSerializer bool)
+	// the serialization/forwarding parts. forceFlushAll additionally includes samples in
+	// the current, not-yet-closed time bucket (otherwise they wait for the next flush).
+	ForceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool)
 	// GetMetricSamplePool returns a shared resource used in the whole DogStatsD
 	// pipeline to re-use metric samples slices: the server is getting a slice
 	// and filling it with samples, the rest of the pipeline process them the
@@ -57,7 +58,7 @@ type Demultiplexer interface {
 
 	// SetSamplersFilterList triggers a reconfiguration of the filterlist
 	// applied in the time samplers.
-	SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher)
+	SetSamplersFilterList(filterList metricname.Matcher, histoFilterList metricname.Matcher)
 
 	// Senders API, mainly used by collectors/checks
 	// --

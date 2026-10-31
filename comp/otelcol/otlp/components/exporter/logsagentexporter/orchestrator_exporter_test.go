@@ -6,13 +6,17 @@
 package logsagentexporter
 
 import (
-	"encoding/json"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
@@ -47,12 +51,13 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-1", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, cache, logger, false)
-		require.Len(t, first.Chunks, 1)
-		assert.Len(t, first.Chunks[0], 1)
+		first := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		require.Len(t, first, 1)
+		require.Len(t, first[0].Chunks, 1)
+		assert.Len(t, first[0].Chunks[0], 1)
 
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false)
-		assert.Empty(t, second.Chunks, "duplicate pull manifest should be skipped")
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		assert.Empty(t, second, "duplicate pull manifest should produce no results")
 	})
 
 	t.Run("updated resourceVersion is not deduplicated", func(t *testing.T) {
@@ -60,73 +65,93 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 		ld1 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v1", false)
 		ld2 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v2", false)
 
-		logsmapping.TranslateK8sObjects(ld1, cache, logger, false)
-		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, false)
-		require.Len(t, second.Chunks, 1)
-		assert.Len(t, second.Chunks[0], 1, "updated resourceVersion should not be skipped")
+		logsmapping.TranslateK8sObjects(ld1, cache, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld2, cache, logger, 0)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1)
+		assert.Len(t, second[0].Chunks[0], 1, "updated resourceVersion should not be skipped")
 	})
 
 	t.Run("watch events bypass deduplication cache", func(t *testing.T) {
 		cache := logsmapping.NewManifestCache()
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-3", "v1", true)
 
-		logsmapping.TranslateK8sObjects(ld, cache, logger, false)
-		second := logsmapping.TranslateK8sObjects(ld, cache, logger, false)
-		require.Len(t, second.Chunks, 1, "watch events should always be forwarded")
+		logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger, 0)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1, "watch events should always be forwarded")
 	})
 
 	t.Run("nil cache disables deduplication", func(t *testing.T) {
 		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-4", "v1", false)
 
-		first := logsmapping.TranslateK8sObjects(ld, nil, logger, false)
-		second := logsmapping.TranslateK8sObjects(ld, nil, logger, false)
-		require.Len(t, first.Chunks, 1)
-		require.Len(t, second.Chunks, 1, "nil cache should not deduplicate")
+		first := logsmapping.TranslateK8sObjects(ld, nil, logger, 0)
+		second := logsmapping.TranslateK8sObjects(ld, nil, logger, 0)
+		require.Len(t, first, 1)
+		require.Len(t, first[0].Chunks, 1)
+		require.Len(t, second, 1)
+		require.Len(t, second[0].Chunks, 1, "nil cache should not deduplicate")
 	})
 }
 
-// TestShouldSkipResourceKind tests that secrets and configmaps are rejected.
-// This is tested indirectly through ToManifest since shouldSkipResourceKind is an internal function.
-func TestShouldSkipResourceKind(t *testing.T) {
-	logRecord := plog.NewLogRecord()
+// TestConsumeK8sObjects_MultiCluster verifies that consumeK8sObjects sends one HTTP request per
+// cluster chunk and stamps each request with the correct X-Dd-Orchestrator-ClusterID header.
+// This catches regressions where all clusters' manifests are sent under one cluster ID.
+func TestConsumeK8sObjects_MultiCluster(t *testing.T) {
+	type requestRecord struct {
+		clusterID string
+	}
+	var mu sync.Mutex
+	var received []requestRecord
 
-	tests := []struct {
-		name        string
-		kind        string
-		expectError bool
-	}{
-		{
-			name:        "secret should be skipped",
-			kind:        "Secret",
-			expectError: true,
-		},
-		{
-			name:        "configmap should be skipped",
-			kind:        "ConfigMap",
-			expectError: true,
-		},
-		{
-			name:        "Pod should not be skipped",
-			kind:        "Pod",
-			expectError: false,
-		},
-		{
-			name:        "Deployment should not be skipped",
-			kind:        "Deployment",
-			expectError: false,
-		},
-		{
-			name:        "Node should not be skipped",
-			kind:        "Node",
-			expectError: false,
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		received = append(received, requestRecord{clusterID: r.Header.Get("X-Dd-Orchestrator-ClusterID")})
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	exporter := &Exporter{
+		set: component.TelemetrySettings{Logger: zap.NewNop()},
+		orchestratorExporter: orchestratorExporter{
+			config: OrchestratorConfig{
+				Enabled:  true,
+				Hostname: stubHostname{"test-host"},
+				Key:      "test-key",
+				Endpoint: srv.URL,
+			},
+			manifestCache: logsmapping.NewManifestCache(),
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	ldA := buildK8sLogs("uid-cluster-A", "cluster-A", "pod-a", "v1", false)
+	ldB := buildK8sLogs("uid-cluster-B", "cluster-B", "pod-b", "v1", false)
+	ldB.ResourceLogs().MoveAndAppendTo(ldA.ResourceLogs())
+
+	require.NoError(t, exporter.consumeK8sObjects(context.Background(), ldA))
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, received, 2, "expected one request per cluster")
+
+	seen := make(map[string]bool, 2)
+	for _, r := range received {
+		seen[r.clusterID] = true
+	}
+	assert.True(t, seen["uid-cluster-A"], "expected request for cluster A")
+	assert.True(t, seen["uid-cluster-B"], "expected request for cluster B")
+}
+
+// TestSensitiveResourceKindsAreCollected verifies that secrets and configmaps are converted to manifests.
+func TestSensitiveResourceKindsAreCollected(t *testing.T) {
+	logRecord := plog.NewLogRecord()
+
+	for _, kind := range []string{"Secret", "ConfigMap", "Pod", "Deployment", "Node"} {
+		t.Run(kind, func(t *testing.T) {
 			bodyJSON := `{
 				"apiVersion": "v1",
-				"kind": "` + tt.kind + `",
+				"kind": "` + kind + `",
 				"metadata": {
 					"uid": "test-uid-123",
 					"resourceVersion": "12345",
@@ -135,13 +160,9 @@ func TestShouldSkipResourceKind(t *testing.T) {
 			}`
 			logRecord.Body().SetStr(bodyJSON)
 
-			_, _, err := logsmapping.ToManifest(logRecord)
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "sensitive data")
-			} else {
-				assert.NoError(t, err)
-			}
+			manifest, _, err := logsmapping.ToManifest(logRecord)
+			require.NoError(t, err)
+			assert.Equal(t, kind, manifest.Kind)
 		})
 	}
 }
@@ -304,7 +325,7 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 			errorContains: "missing uid",
 		},
 		{
-			name: "secret resource (should be skipped)",
+			name: "secret resource",
 			k8sResource: map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "Secret",
@@ -313,11 +334,13 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 					"resourceVersion": "12345",
 				},
 			},
-			expectError:   true,
-			errorContains: "contains sensitive data",
+			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
+				assert.Equal(t, "secret-123", m.Uid)
+				assert.Equal(t, "Secret", m.Kind)
+			},
 		},
 		{
-			name: "configmap resource (should be skipped)",
+			name: "configmap resource",
 			k8sResource: map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "ConfigMap",
@@ -326,8 +349,10 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 					"resourceVersion": "12345",
 				},
 			},
-			expectError:   true,
-			errorContains: "contains sensitive data",
+			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
+				assert.Equal(t, "cm-123", m.Uid)
+				assert.Equal(t, "ConfigMap", m.Kind)
+			},
 		},
 	}
 
@@ -488,33 +513,6 @@ func TestToManifest(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestCreateClusterManifest(t *testing.T) {
-	logger := zap.NewNop()
-	clusterID := "test-cluster-123"
-	nodes := []*agentmodel.Manifest{
-		{
-			Uid:             "node-1",
-			ResourceVersion: "v1",
-			Kind:            "Node",
-		},
-	}
-
-	manifest := logsmapping.CreateClusterManifest(clusterID, nodes, logger)
-
-	require.NotNil(t, manifest)
-	assert.Equal(t, clusterID, manifest.Uid)
-	assert.Equal(t, "Cluster", manifest.Kind)
-	assert.Equal(t, "virtual.datadoghq.com/v1", manifest.ApiVersion)
-	assert.Equal(t, "application/json", manifest.ContentType)
-	assert.Equal(t, "v1", manifest.Version)
-	assert.False(t, manifest.IsTerminated)
-
-	// Verify content is valid JSON
-	var clusterData map[string]interface{}
-	err := json.Unmarshal(manifest.Content, &clusterData)
-	require.NoError(t, err)
 }
 
 func TestToManifestPayload(t *testing.T) {

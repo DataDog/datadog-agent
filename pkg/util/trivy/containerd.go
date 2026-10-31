@@ -89,7 +89,7 @@ func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
 }
 
 // Custom code based on https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go `ContainerdImage`
-func convertContainerdImage(ctx context.Context, client *containerd.Client, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*image, func(), error) {
+func convertContainerdImage(ctx context.Context, client *containerd.Client, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, scanOptions sbom.ScanOptions) (*image, func(), error) {
 	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
 	cleanup := func() {}
 
@@ -110,7 +110,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	return &image{
 		name:    img.Name(),
-		opener:  imageOpener(ctx, ContainerdCollector, ref.String(), f, imageWriter(client, img)),
+		opener:  imageOpener(ctx, ContainerdCollector, ref.String(), f, imageWriter(client, img), imgMeta, scanOptions),
 		inspect: insp,
 		history: history,
 	}, cleanup, nil
@@ -170,8 +170,8 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		portSet[k] = struct{}{}
 	}
 	created := ""
-	if lastHistory.Created != nil {
-		created = lastHistory.Created.Format(time.RFC3339Nano)
+	if imgConfig.Created != nil {
+		created = imgConfig.Created.Format(time.RFC3339Nano)
 	}
 
 	return dimage.InspectResponse{
@@ -213,6 +213,13 @@ type fakeContainerdContainer struct {
 	*image
 }
 
+// ConfigFile returns the config file built from the image config. The direct
+// scan tolerates a history that disagrees with the diff IDs, for which
+// image.ConfigFile exports the whole image.
+func (c *fakeContainerdContainer) ConfigFile() (*v1.ConfigFile, error) {
+	return c.image.inspectConfigFile()
+}
+
 func (c *fakeContainerdContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
 	return c.fakeContainer.LayerByDiffID(hash)
 }
@@ -232,7 +239,22 @@ const defaultExpiration = 1 * time.Minute
 
 // ScanContainerdImageFromSnapshotter scans containerd image directly from the snapshotter
 func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
+	// img.RootFS, images.Manifest and SnapshotService all read from the
+	// content store and snapshotter, which containerd indexes per
+	// namespace. The outer ctx may not yet carry one.
+	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
+
+	manifest, err := images.Manifest(ctx, img.ContentStore(), img.Target(), img.Platform())
+	if err != nil {
+		return nil, fmt.Errorf("unable to read manifest for image %s: %w", imgMeta.ID, err)
+	}
+	// A nydus view shows one RAFS tree for every layer, and taking it
+	// starts nydusd for the image.
+	if isNydusImage(manifest) {
+		return nil, fmt.Errorf("%w: image %s is a nydus image", sbom.ErrScanNotSupported, imgMeta.ID)
+	}
+
+	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img, scanOptions)
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -246,11 +268,6 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		expiration = time.Until(deadline)
 	}
 	imageID := imgMeta.ID
-
-	// img.RootFS, images.Manifest and SnapshotService all read from the
-	// content store and snapshotter, which containerd indexes per
-	// namespace. The outer ctx may not yet carry one.
-	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
 
 	mounts, snapshotter, cleanLease, err := client.MountsWithSnapshotter(ctx, expiration, imgMeta.Namespace, img)
 	if err != nil {
@@ -266,10 +283,6 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	if err != nil {
 		return nil, fmt.Errorf("unable to read diff_ids for image %s: %w", imgMeta.ID, err)
 	}
-	manifest, err := images.Manifest(ctx, img.ContentStore(), img.Target(), img.Platform())
-	if err != nil {
-		return nil, fmt.Errorf("unable to read manifest for image %s: %w", imgMeta.ID, err)
-	}
 	layers, err := buildContainerdLayerPaths(ctx, client.RawClient().SnapshotService(snapshotter), img.Name(), diffIDs, manifest, mounts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to pair layer paths for image %s: %w", imgMeta.ID, err)
@@ -281,6 +294,18 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	}, imgMeta, scanOptions)
 
 	return report, err
+}
+
+// nydusBootstrap marks the layer holding a nydus image's RAFS bootstrap.
+// nydus-snapshotter mounts an image with such a layer as one RAFS tree.
+const nydusBootstrap = "containerd.io/snapshot/nydus-bootstrap"
+
+// isNydusImage reports whether manifest describes a nydus image.
+func isNydusImage(manifest ocispec.Manifest) bool {
+	return slices.ContainsFunc(manifest.Layers, func(l ocispec.Descriptor) bool {
+		_, ok := l.Annotations[nydusBootstrap]
+		return ok
+	})
 }
 
 // verifyLayersInContentStore returns an error when any layer of img is missing
@@ -313,7 +338,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("%w: image %s: %v", sbom.ErrScanNotSupported, imgMeta.ID, err)
 	}
 
-	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
+	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img, scanOptions)
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -321,7 +346,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+	return c.scanImage(ctx, fanalImage, scanOptions)
 }
 
 // ScanContainerdImageFromFilesystem scans containerd image from file-system
@@ -355,7 +380,7 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	report, err := c.ScanFilesystem(ctx, imagePath, scanOptions, false)
+	report, err := c.scanFilesystem(ctx, imagePath, scanOptions, false, imgMeta.Created)
 	if err != nil {
 		return nil, fmt.Errorf("unable to scan image %s, err: %w", imgMeta.ID, err)
 	}

@@ -39,7 +39,7 @@ func (h *DisableTwoFactorHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.DisableTwoFactor(inputs.UserId)
+	_, err = git.Users.DisableTwoFactor(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

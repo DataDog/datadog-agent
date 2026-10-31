@@ -14,6 +14,7 @@ from tasks.github_tasks import (
     check_permissions,
     check_qa_labels,
     extract_test_qa_description,
+    notify_community_pr,
     pr_merge_dd_event_sender,
 )
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL
@@ -704,3 +705,37 @@ class TestGetTeams(unittest.TestCase):
             _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=False),
             ['@datadog/team-a', '@datadog/team-b', '@datadog/team-doc'],
         )
+
+
+class TestNotifyCommunityPR(unittest.TestCase):
+    def notify(self, teams, title=' Fix a typo '):
+        pr = MagicMock(title=title, html_url='https://github.com/DataDog/datadog-agent/pull/1')
+        with (
+            patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock,
+            patch('slack_sdk.WebClient') as web_mock,
+            patch.object(tasks.github_tasks, '_get_teams', return_value=teams),
+            patch.dict(tasks.github_tasks.GITHUB_SLACK_MAP, {'@datadog/team-a': '#team-a'}, clear=True),
+            patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'token'}),
+        ):
+            gh_mock.return_value.get_pr.return_value = pr
+            notify_community_pr(Context(), repo='DataDog/datadog-agent', pr_id=1)
+            gh_mock.return_value.add_pr_label.assert_not_called()
+            return web_mock.return_value.chat_postMessage
+
+    def test_notify_owning_team(self):
+        post = self.notify(teams=['@datadog/team-a'])
+        post.assert_called_once_with(
+            channel='#team-a',
+            text=':pr: *New Community PR*\nFix a typo <https://github.com/DataDog/datadog-agent/pull/1|DataDog/datadog-agent#1>',
+        )
+
+    def test_escape_title(self):
+        post = self.notify(teams=['@datadog/team-a'], title='<!channel> & co')
+        post.assert_called_once_with(
+            channel='#team-a',
+            text=':pr: *New Community PR*\n&lt;!channel&gt; &amp; co <https://github.com/DataDog/datadog-agent/pull/1|DataDog/datadog-agent#1>',
+        )
+
+    def test_skip_unmapped_team(self):
+        post = self.notify(teams=['@datadog/team-b'])
+        post.assert_not_called()

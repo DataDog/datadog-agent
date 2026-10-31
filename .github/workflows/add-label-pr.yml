@@ -2,23 +2,21 @@
 name: "Add labels to PR"
 
 on:
-  pull_request:
+  # Runs with a write token on fork PRs: never check out or run code from the PR.
+  pull_request_target:
     types: [opened, synchronize, reopened]
-    branches:
-      - main
-      - "[0-9]+.[0-9]+.x"
 
 permissions: {}
 
 jobs:
-  assign-team-label:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+  add-labels:
+    if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     steps:
       - name: Get GitHub token
-        uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
@@ -26,28 +24,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           sparse-checkout: |
             .gitlab-ci.yml
             .github/CODEOWNERS
             .github/actions
+            .github/labeler.yml
             .ddqa/config.toml
             tasks
           persist-credentials: false
+      - name: Add the internal or community label
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
+          script: |
+            const label = process.env.HEAD_REPO === `${context.repo.owner}/${context.repo.repo}` ? 'internal' : 'community';
+            if (context.payload.pull_request.labels.some(l => l.name === label)) {
+              return;
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+              labels: [label]
+            });
+      - name: Add component labels
+        uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          repo-token: ${{ steps.octo-sts.outputs.token }}
+          sync-labels: true
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - name: Add the internal label
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          github-token: ${{ steps.octo-sts.outputs.token }}
-          script: |
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ github.event.pull_request.number }},
-              labels: ['internal']
-            });
       - name: Assign team label
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}

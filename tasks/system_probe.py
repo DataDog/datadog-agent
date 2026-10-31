@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import contextlib
 import glob
 import itertools
 import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import string
 import sys
@@ -20,13 +20,13 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.bazel import bazel_build_with_bindir
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -46,8 +46,6 @@ BPF_TAG = "bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
-TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
-E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
     "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
@@ -61,6 +59,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/util/kernel",
     "./pkg/util/kernel/headers/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
@@ -134,7 +133,7 @@ def ninja_define_ebpf_compiler(
         depfile="$out.d",
     )
 
-    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g $out"
+    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g --remove-section=.rel.BTF.ext $out"
     strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
     strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
 
@@ -157,10 +156,9 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """Download and build libpcap as a static library in the agent dev directory.
     The library is not rebuilt if it already exists.
     """
-    embedded_path = get_embedded_path(ctx)
-    assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "embedded", "lib", "libpcap.a")
-    if os.path.exists(target_file):
+    embedded_path = get_embedded_path()
+    target_file = embedded_path / "embedded" / "lib" / "libpcap.a"
+    if target_file.exists():
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
         if version == LIBPCAP_VERSION:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
@@ -171,22 +169,13 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     return
 
 
-def get_libpcap_cgo_flags(ctx, install_path: str = None):
-    """Return a dictionary with the CGO flags needed to link against libpcap.
-    If install_path is provided, then we expect this path to contain libpcap as a shared library.
-    """
-    if install_path is not None:
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
-        }
-    else:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
-        }
+def get_libpcap_cgo_flags():
+    """Return CGO flags for the development tree where build_libpcap installs its output."""
+    embedded_path = get_embedded_path()
+    return {
+        'CGO_CFLAGS': f"-I{embedded_path / 'embedded' / 'include'}",
+        'CGO_LDFLAGS': f"-L{embedded_path / 'embedded' / 'lib'}",
+    }
 
 
 @task
@@ -273,7 +262,7 @@ def build_sysprobe_binary(
 
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx, arch=arch_obj, env=env)
-        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        cgo_flags = get_libpcap_cgo_flags()
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -376,7 +365,8 @@ def test(
         args["dir"] = pdir
         testto = timeout if timeout else get_test_timeout(pdir)
         args["timeout"] = f"-timeout {testto}" if testto else ""
-        cmd = '{sudo}{go} test -mod=readonly -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
+        # we must negate the -s flag, otherwise the test binary will not include required DWARF information
+        cmd = '{sudo}{go} test -ldflags="-s=0" -mod=readonly -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
         res = ctx.run(cmd.format(**args), env=env, warn=True)
         if res.exited is None or res.exited > 0:
             failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
@@ -444,17 +434,6 @@ def get_test_timeout(pkg):
     return None
 
 
-@contextlib.contextmanager
-def chdir(dirname=None):
-    curdir = os.getcwd()
-    try:
-        if dirname is not None:
-            os.chdir(dirname)
-        yield
-    finally:
-        os.chdir(curdir)
-
-
 def go_package_dirs(packages, build_tags):
     """
     Retrieve a list of all packages we want to test
@@ -484,130 +463,6 @@ def go_package_dirs(packages, build_tags):
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
     return [p for p in target_packages if len(p) > 0]
-
-
-BUILD_COMMIT = os.path.join(E2E_ARTIFACT_DIR, "build.commit")
-
-
-def clean_build(ctx):
-    if not os.path.exists(E2E_ARTIFACT_DIR):
-        return True
-
-    if not os.path.exists(BUILD_COMMIT):
-        return True
-
-    # if this build happens on a new commit do it cleanly
-    with open(BUILD_COMMIT) as f:
-        build_commit = f.read().rstrip()
-        curr_commit = get_commit_sha(ctx)
-        if curr_commit != build_commit:
-            return True
-
-    return False
-
-
-def full_pkg_path(name):
-    return os.path.join(os.getcwd(), name[name.index("pkg") :])
-
-
-@task
-def e2e_prepare(ctx, ci=False, packages=""):
-    """
-    Compile test suite for e2e tests
-    """
-    build_tags = [NPM_TAG]
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-
-    target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
-
-    # Clean up previous build
-    if os.path.exists(E2E_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
-        shutil.rmtree(E2E_ARTIFACT_DIR)
-    elif packages != "":
-        packages = [full_pkg_path(name) for name in packages.split(",")]
-        # make sure valid packages were provided.
-        for pkg in packages:
-            if pkg not in target_packages:
-                raise Exit(f"Unknown target packages {pkg} specified")
-
-        target_packages = packages
-
-    if os.path.exists(BUILD_COMMIT):
-        os.remove(BUILD_COMMIT)
-
-    os.makedirs(E2E_ARTIFACT_DIR, exist_ok=True)
-
-    # clean target_packages only
-    for pkg_dir in target_packages:
-        test_dir = pkg_dir.lstrip(os.getcwd())
-        if os.path.exists(os.path.join(E2E_ARTIFACT_DIR, test_dir)):
-            shutil.rmtree(os.path.join(E2E_ARTIFACT_DIR, test_dir))
-
-    # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
-    # These artifacts will be "vendored" inside:
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/testsuite
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/network/netlink/testsuite
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/testsuite
-    # test/new-e2e/tests/sysprobe-functional/artifacts/pkg/ebpf/bytecode/testsuite
-    for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(E2E_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
-        target_bin = "testsuite"
-        if is_windows:
-            target_bin = "testsuite.exe"
-
-        test(
-            ctx,
-            packages=pkg,
-            skip_object_files=(i != 0),
-            bundle_ebpf=False,
-            output_path=os.path.join(target_path, target_bin),
-        )
-
-        # copy ancillary data, if applicable
-        for extra in ["testdata", "build"]:
-            extra_path = os.path.join(pkg, extra)
-            if os.path.isdir(extra_path):
-                shutil.copytree(extra_path, os.path.join(target_path, extra))
-
-        for gobin in [
-            "external_unix_proxy_server",
-            "fmapper",
-            "gotls_client",
-            "gotls_server",
-            "grpc_external_server",
-            "prefetch_file",
-            "fake_server",
-            "sample_service",
-            "standalone_attacher",
-        ]:
-            src_file_path = os.path.join(pkg, f"{gobin}.go")
-            if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
-                binary_path = os.path.join(target_path, gobin)
-                with chdir(pkg):
-                    go_build(
-                        ctx, f"{gobin}.go", build_tags=["test"], ldflags="-extldflags '-static'", bin_path=binary_path
-                    )
-
-        for cbin in TEST_HELPER_CBINS:
-            source = Path(pkg) / "testdata" / f"{cbin}.c"
-            if not is_windows and source.is_file():
-                binary = Path(target_path) / cbin
-                ctx.run(f"clang -static -o {binary} {source}")
-
-    copy_files = [
-        "/opt/datadog-agent/embedded/bin/clang-bpf",
-        "/opt/datadog-agent/embedded/bin/llc-bpf",
-    ]
-
-    files_dir = os.path.join(E2E_ARTIFACT_DIR, "..")
-    for cf in copy_files:
-        if os.path.exists(cf):
-            shutil.copy(cf, files_dir)
-
-    bazel("run", "//internal/tools:install_gotestsum", "--", f"--destdir={files_dir}")
-    go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json", env={"CGO_ENABLED": "0"})
-    ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
 def get_linux_header_dirs(
@@ -968,8 +823,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
 
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
-    "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
-    "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
 _BAZEL_RUNTIME_FLAT_TARGETS = [
@@ -999,19 +854,17 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
 
 _NON_EBPF_TARGETS = frozenset(
     [
-        "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",
+        "//pkg/ebpf/kernelbugs:detect-seccomp-bug",
     ]
 )
 
 
-def _ebpf_strip_targets(targets, strip):
-    """Append .stripped suffix to eBPF targets when strip is requested.
+def _ebpf_strip_targets(targets):
+    """Append .stripped suffix to eBPF targets.
 
     Non-eBPF targets (e.g. cc_binary) are returned unchanged since they
     don't have Bazel-side stripped variants.
     """
-    if not strip:
-        return list(targets)
     return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
 
 
@@ -1022,8 +875,16 @@ def ebpf_bazel_flags(arch: Arch) -> list[str]:
     return []
 
 
-def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
-    """Build all eBPF artifacts via a single ``bazel build``.
+def bazel_build_ebpf(
+    ctx: Context,
+    arch: Arch,
+    build_dir: str,
+    runtime_dir: str,
+    *,
+    verify: bool = False,
+    extra_targets: list[str] | tuple[str, ...] = (),
+) -> str:
+    """Build all eBPF artifacts via a single Bazel invocation.
 
     Builds eBPF .o objects (prebuilt, CO-RE, inplace), runtime flattened .c
     files, and Go integrity hash files, then copies outputs to the
@@ -1037,18 +898,22 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
     else:
         inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
-    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS, strip)
-    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS, strip)
-    inplace = {_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()}
+    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS)
+    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS)
+    inplace = {_ebpf_strip_targets([t])[0]: d for t, d in inplace_targets.items()}
 
     ebpf_targets = prebuilt + core + list(inplace.keys())
-    all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS)
+    all_build_targets = (
+        ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS) + list(extra_targets)
+    )
+    if verify:
+        all_build_targets.append("//pkg/ebpf:verify_generated_files")
 
     extra_flags = ebpf_bazel_flags(arch)
+    subcommand = "test" if verify else "build"
 
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel("build", *extra_flags, *all_build_targets)
-    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    bazel_bin = bazel_build_with_bindir(subcommand, *extra_flags, *all_build_targets)
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
@@ -1131,6 +996,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
             print(f"Warning: expected runtime hash output {src} not found")
 
     print(f"Copied runtime hash files to {go_dest}")
+    return bazel_bin
 
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
@@ -1141,7 +1007,12 @@ _BAZEL_WINDOWS_RESOURCE_COPIES = (
 )
 
 
-def bazel_build_windows_resources(ctx: Context) -> None:
+def bazel_build_windows_resources(
+    ctx: Context,
+    *,
+    verify: bool = False,
+    extra_flags: list[str] | tuple[str, ...] = (),
+) -> None:
     """Build Windows resource files (.syso) via Bazel and copy to the source tree.
 
     Replaces the ninja-based windmc/windres pipeline for system-probe.
@@ -1155,8 +1026,10 @@ def bazel_build_windows_resources(ctx: Context) -> None:
         "//pkg/util/winutil/messagestrings:messagetable",
         "//cmd/system-probe/windows_resources:rsrc",
     ]
-    bazel("build", *targets)
-    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    if verify:
+        targets.append("//pkg/ebpf:verify_generated_files")
+    subcommand = "test" if verify else "build"
+    bazel_bin = bazel_build_with_bindir(subcommand, *extra_flags, *targets)
 
     copies = [(os.path.join(bazel_bin, bazel_rel), dst) for bazel_rel, dst in _BAZEL_WINDOWS_RESOURCE_COPIES]
     for src, dst in copies:
@@ -1164,6 +1037,22 @@ def bazel_build_windows_resources(ctx: Context) -> None:
         shutil.copyfile(src, dst)
 
     print("Copied Windows resource files to source tree")
+
+
+def _rust_install_targets(output_dir: Path | None = None, packages: list[str] | None = None) -> list[tuple[str, Path]]:
+    if is_windows or is_macos:
+        return []
+    targets: list[tuple[str, Path]] = []
+    for source_path in RUST_BINARIES:
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+        install_dest = output_dir / source_path if output_dir else Path(source_path)
+        targets.append((f"//{source_path}:install", install_dest))
+    for source_path, lib_dest in RUST_STATIC_LIBS.items():
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+        targets.append((f"//{source_path}:install_libs", Path(lib_dest)))
+    return targets
 
 
 @task(aliases=["object-files"])
@@ -1182,20 +1071,31 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
-        # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
-        sudo = "" if is_root() else "sudo"
-        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        bazel("run", *arch_flags, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
+        extra_targets = ["@llvm_bpf//:install"]
+        if not arch_obj.is_cross_compiling():
+            extra_targets.extend(t for t, _ in _rust_install_targets())
 
-        # Build eBPF .o files via Bazel
-        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
+        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir, verify=True, extra_targets=extra_targets)
+
+        # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
+        # Keep Bazel unprivileged: its sandbox needs access to the caller's repository cache.
+        # Only the installer needs elevated permissions to write under /opt. Prevent its
+        # Python launcher from creating root-owned bytecode in Bazel's user-owned runfiles.
+        needs_sudo = not is_root()
+        sudo = "sudo" if needs_sudo else ""
+        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
+        with tempfile.NamedTemporaryFile(prefix="llvm-bpf-install-", suffix=".sh", delete=False) as tmp:
+            script = tmp.name
+        try:
+            bazel("run", f"--script_path={script}", *arch_flags, "@llvm_bpf//:install")
+            prefix = "sudo env PYTHONDONTWRITEBYTECODE=1" if needs_sudo else "env"
+            ctx.run(f"{prefix} {shlex.quote(script)} --destdir=/opt/datadog-agent")
+        finally:
+            if os.path.exists(script):
+                os.unlink(script)
 
     if is_windows:
-        bazel_build_windows_resources(ctx)
-
-    # Verify all committed cgo godefs files are up to date.
-    # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel("test", *arch_flags, "//pkg/ebpf:verify_generated_files")
+        bazel_build_windows_resources(ctx, verify=True, extra_flags=arch_flags)
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
@@ -1236,7 +1136,8 @@ def build_object_files(
 
 
 def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
-    if is_windows or is_macos:
+    rust_targets = _rust_install_targets(output_dir=output_dir, packages=packages)
+    if not rust_targets:
         return
 
     platform_map = {
@@ -1248,20 +1149,8 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
-    for source_path in RUST_BINARIES:
-        if packages and not any(source_path.startswith(package) for package in packages):
-            continue
-
-        install_dest = output_dir / source_path if output_dir else Path(source_path)
-        bazel("run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
-
-    # Install Rust static libraries that cgo needs to find at link time. These
-    # always land in the source tree (alongside the Go files) rather than in
-    # `output_dir`, because cgo LDFLAGS reference them via ${SRCDIR}.
-    for source_path, lib_dest in RUST_STATIC_LIBS.items():
-        if packages and not any(source_path.startswith(package) for package in packages):
-            continue
-        bazel("run", *platform_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}")
+    for target, dest in rust_targets:
+        bazel("run", *platform_flags, "--", f"@{target}", f"--destdir={dest}")
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1279,17 +1168,14 @@ def build_cws_object_files(
     import shutil
 
     arch_obj = Arch.from_str(arch)
-    arch_flags = ebpf_bazel_flags(arch_obj)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
-    bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
-    bazel("test", *arch_flags, "//pkg/ebpf:verify_generated_files")
+    extra_targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys()) if with_unit_test else []
+    bazel_bin = bazel_build_ebpf(
+        ctx, arch_obj, str(build_dir), str(runtime_dir), verify=True, extra_targets=extra_targets
+    )
 
     if with_unit_test:
-        targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
-        bazel("build", *arch_flags, *targets)
-        bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
-
         for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
             label_path, name = target.lstrip("/").rsplit(":", 1)
             src = os.path.join(bazel_bin, label_path, f"{name}.o")
@@ -1334,6 +1220,17 @@ def generate_lookup_tables(ctx):
     ]
     for file in lookup_table_generate_files:
         ctx.run(f"go generate {file}")
+
+
+@task
+def generate_gooffsets(ctx):
+    """
+    Generate the Go runtime offsets lookup table used to read Go pprof labels
+    """
+    if is_windows:
+        return
+
+    ctx.run("go generate ./pkg/security/resolvers/process/gooffsets/gooffsets.go")
 
 
 def is_root():

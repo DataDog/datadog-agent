@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/mod/semver"
 	discv1 "k8s.io/api/discovery/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,6 +57,7 @@ type LeaderEngine struct {
 	running bool
 	m       sync.Mutex
 	once    sync.Once
+	runWG   sync.WaitGroup
 
 	subscribers         []chan struct{}
 	HolderIdentity      string
@@ -161,11 +161,6 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	serverVersion, err := common.KubeServerVersion(apiClient.LeaderElectionCl.Discovery(), 10*time.Second)
-	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
-		log.Warn("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
-	}
-
 	le.coreClient = apiClient.LeaderElectionCl.CoreV1()
 	le.coordClient = apiClient.LeaderElectionCl.CoordinationV1()
 	le.discoveryClient = apiClient.LeaderElectionCl.DiscoveryV1()
@@ -196,9 +191,20 @@ func (le *LeaderEngine) init() error {
 func (le *LeaderEngine) StartLeaderElectionRun() {
 	le.once.Do(
 		func() {
-			go le.runLeaderElection()
+			le.runWG.Add(1)
+			go func() {
+				defer le.runWG.Done()
+				le.runLeaderElection()
+			}()
 		},
 	)
+}
+
+// WaitForLeaderElection blocks until the leader election process has stopped.
+// It returns immediately and prevents a future start if leader election was never started.
+func (le *LeaderEngine) WaitForLeaderElection() {
+	le.once.Do(func() {})
+	le.runWG.Wait()
 }
 
 // EnsureLeaderElectionRuns start the Leader election process if not already running,

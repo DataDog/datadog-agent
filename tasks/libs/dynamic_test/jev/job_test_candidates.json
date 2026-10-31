@@ -1,0 +1,1123 @@
+{
+  "new-e2e-adp-preflight-mode": [
+    "TestPreflightModeLinuxSuite"
+  ],
+  "new-e2e-agent-configuration": [
+    "TestApiSuite",
+    "TestConfigRefreshLinuxSuite",
+    "TestGUILinuxSuite",
+    "TestInventoryAgentSuite",
+    "TestLinuxAPIKeyFreshSuite",
+    "TestSGCLinuxRuntimeSuite",
+    "TestSGCMultiBackendLinuxSuite",
+    "TestSecretLinuxRuntimeSuite"
+  ],
+  "new-e2e-agent-configuration-windows": [
+    "TestConfigRefreshWindowsSuite",
+    "TestGUIWindowsSuite",
+    "TestSGCWindowsRuntimeSuite",
+    "TestSecretWindowsRuntimeSuite"
+  ],
+  "new-e2e-agent-health": [
+    "TestAdmissionProbeSuite",
+    "TestDockerPermissionSuite",
+    "TestDogStatsDClientDropsSuite",
+    "TestResilienceSuite"
+  ],
+  "new-e2e-agent-platform-ddot-amazonlinux-a7-arm64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-amazonlinux-a7-x86_64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-centos-a7-x86_64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-debian-a7-arm64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-debian-a7-x86_64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-suse-a7-arm64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-suse-a7-x86_64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-ubuntu-a7-arm64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-ddot-ubuntu-a7-x86_64": [
+    "TestDDOTInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-amazonlinux-a7-arm64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-amazonlinux-a7-x64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-datadog-fips-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-fips-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-fips-datadog-fips-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-debian-a7-arm64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-debian-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-debian-dogstatsd-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-debian-fips-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-docker": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-suse-a7-arm64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-suse-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-suse-dogstatsd-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-suse-fips-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-suse-iot-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-ubuntu-a7-arm64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-ubuntu-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-ubuntu-fips-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64": [
+    "TestInstallScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64: [5, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64: [6, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64: [6, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-centos-x86_64: [5, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-centos-x86_64: [6, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-centos-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-debian-iot-agent-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-debian-x86_64: [5, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-debian-x86_64: [6, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-debian-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-suse-iot-agent-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-suse-x86_64: [6, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-suse-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64: [5, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64: [6, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64: [7, 7]": [
+    "TestUpgradeScript"
+  ],
+  "new-e2e-agent-platform-rpm-centos6-a7-x86_64": [
+    "TestRpmScript"
+  ],
+  "new-e2e-agent-runtimes": [
+    "TestAuthArtifactIPCSecurityLinuxSuite",
+    "TestBaseHostnameSuite",
+    "TestBasicLinuxSuite",
+    "TestCCMModeLinuxConfiguredTagged",
+    "TestCCMModeLinuxDefaultTagged",
+    "TestIPCSecurityLinuxSuite",
+    "TestLinuxMultiProcessingLibSuite",
+    "TestLinuxSharedLibraryCheckSuite",
+    "TestMultiFakeintakeSuite",
+    "TestNoneLinuxSuite",
+    "TestProcmgrSmokeLinuxSuite"
+  ],
+  "new-e2e-agent-runtimes-windows": [
+    "TestAuthArtifactIPCSecurityWindowsSuite",
+    "TestBasicWindowsSuite",
+    "TestEUDMWindowsSuite",
+    "TestIPCSecurityWindowsSuite",
+    "TestPARManagedByProcmgrWindows",
+    "TestProcessAgentManagedByProcmgrWindows",
+    "TestProcmgrSmokeWindowsSuite",
+    "TestSystemProbeManagedByProcmgrWindows",
+    "TestWindowsMultiProcessingLibSuite",
+    "TestWindowsSharedLibraryCheckSuite"
+  ],
+  "new-e2e-agent-subcommands": [
+    "TestADPGuardSuite",
+    "TestLinuxAzureHostnameSuite",
+    "TestLinuxCheckSuite",
+    "TestLinuxConfigCheckSuite",
+    "TestLinuxConfigSuite",
+    "TestLinuxDiagnoseSuite",
+    "TestLinuxDogstatsdReplaySuite",
+    "TestLinuxFlareSuite",
+    "TestLinuxGCPHostnameSuite",
+    "TestLinuxHealthSuite",
+    "TestLinuxHostnameSuite",
+    "TestLinuxRunSuite",
+    "TestLinuxSecretSuite",
+    "TestLinuxStatusSuite",
+    "TestMatchToTemplateHelper"
+  ],
+  "new-e2e-agent-subcommands-windows": [
+    "TestWindowsCheckSuite",
+    "TestWindowsConfigCheckSuite",
+    "TestWindowsConfigSuite",
+    "TestWindowsDiagnoseSuite",
+    "TestWindowsFlareSuite",
+    "TestWindowsHealthSuite",
+    "TestWindowsHostnameSuite",
+    "TestWindowsRunSuite",
+    "TestWindowsSecretSuite",
+    "TestWindowsStatusSuite"
+  ],
+  "new-e2e-agent-telemetry": [
+    "TestAgentTelemetryErrorTrackingSuite",
+    "TestErrorTrackingClusterAgentSuite",
+    "TestErrorTrackingOTelAgentSuite"
+  ],
+  "new-e2e-alp": [
+    "TestIntegrationsLogsSuite",
+    "TestK8sCCAOff",
+    "TestK8sSuite",
+    "TestLinuxVMFileTailingSuite",
+    "TestSyslogTCPListener",
+    "TestSyslogTLSListener",
+    "TestSyslogUDPListener",
+    "TestTCPListener",
+    "TestUDPListener",
+    "TestVMJournaldTailingSuite"
+  ],
+  "new-e2e-alp-windows": [
+    "TestWindowsVMFileTailingSuite"
+  ],
+  "new-e2e-amp": [
+    "TestDogstatsdMetricUnit",
+    "TestDogstatsdMetricUnitV3",
+    "TestExpectedTagsDurationV1Intake",
+    "TestExpectedTagsDurationV2Intake",
+    "TestExpectedTagsDurationV3Intake",
+    "TestJMXFetchNix",
+    "TestJMXFetchNixFIPS",
+    "TestJMXFetchNixMtls",
+    "TestJMXFetchNixMtlsFIPS",
+    "TestMetricFilterList",
+    "TestMetricFilterListPrefix"
+  ],
+  "new-e2e-anomalydetection": [
+    "TestAnomalyDetectionDisabledByDefault",
+    "TestAnomalyDetectionLogsTriggered",
+    "TestAnomalyDetectionMetricsTriggered",
+    "TestAnomalyDetectionScorerHelper",
+    "TestObserverConfigMatrixDryRunOnlyDefaultsOn",
+    "TestObserverConfigMatrixMetricsOffLogsOff",
+    "TestObserverConfigMatrixMetricsOffLogsOn",
+    "TestObserverConfigMatrixMetricsOnLogsOff",
+    "TestSmartSeverityProfilesAdaptiveSampling"
+  ],
+  "new-e2e-apm: [--run TestDockerFakeintakeSuiteTCP]": [
+    "TestDockerFakeintakeSuiteTCP"
+  ],
+  "new-e2e-apm: [--run TestDockerFakeintakeSuiteUDS]": [
+    "TestDockerFakeintakeSuiteUDS"
+  ],
+  "new-e2e-apm: [--run TestVMFakeintakeSuiteTCP]": [
+    "TestVMFakeintakeSuiteTCP"
+  ],
+  "new-e2e-apm: [--run TestVMFakeintakeSuiteUDS]": [
+    "TestVMFakeintakeSuiteUDS"
+  ],
+  "new-e2e-base": [
+    "TestAgentBaselineSuite"
+  ],
+  "new-e2e-containers-ecs": [
+    "TestECSSuite"
+  ],
+  "new-e2e-containers-eks": [
+    "TestEKSSuite"
+  ],
+  "new-e2e-containers-k8s-latest": [
+    "TestKindSuite"
+  ],
+  "new-e2e-containers-openshift": [
+    "TestOpenShiftVMSuite"
+  ],
+  "new-e2e-containers: [--run \"TestK8S(CEL|Legacy)FilteringSuite\"]": [
+    "TestK8SCELFilteringSuite",
+    "TestK8SLegacyFilteringSuite"
+  ],
+  "new-e2e-containers: [--run TestDockerSuite]": [
+    "TestDockerSuite"
+  ],
+  "new-e2e-containers: [--run TestKindSuite -c ddinfra:kubernetesVersion=1.19]": [
+    "TestKindSuite"
+  ],
+  "new-e2e-containers: [--run TestKindSuite -c ddinfra:kubernetesVersion=1.22]": [
+    "TestKindSuite"
+  ],
+  "new-e2e-containers: [--run TestKindSuite -c ddinfra:kubernetesVersion=1.27]": [
+    "TestKindSuite"
+  ],
+  "new-e2e-containers: [--run TestKindSuite -c ddinfra:kubernetesVersion=1.29]": [
+    "TestKindSuite"
+  ],
+  "new-e2e-containers: [--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20-04]": [
+    "TestKindSuite"
+  ],
+  "new-e2e-containers: [--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04]": [
+    "TestKindSuite"
+  ],
+  "new-e2e-containers: [--skip \"Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite\"]": [
+    "TestAssertTags",
+    "TestClusterAgentBinarySuite"
+  ],
+  "new-e2e-cspm: [--run TestCSPM]": [
+    "TestCSPM"
+  ],
+  "new-e2e-cspm: [--run TestContainerizedHostBenchmarksAlmaLinux9]": [
+    "TestContainerizedHostBenchmarksAlmaLinux9"
+  ],
+  "new-e2e-cspm: [--run TestContainerizedHostBenchmarksAmazonLinux2023]": [
+    "TestContainerizedHostBenchmarksAmazonLinux2023"
+  ],
+  "new-e2e-cspm: [--run TestContainerizedHostBenchmarksRHEL10]": [
+    "TestContainerizedHostBenchmarksRHEL10"
+  ],
+  "new-e2e-cspm: [--run TestContainerizedHostBenchmarksRHEL9]": [
+    "TestContainerizedHostBenchmarksRHEL9"
+  ],
+  "new-e2e-cspm: [--run TestContainerizedHostBenchmarksUbuntu2404]": [
+    "TestContainerizedHostBenchmarksUbuntu2404"
+  ],
+  "new-e2e-cspm: [--run TestDockerHostCSPM]": [
+    "TestDockerHostCSPM"
+  ],
+  "new-e2e-cspm: [--run TestHostBenchmarksAlmaLinux9]": [
+    "TestHostBenchmarksAlmaLinux9"
+  ],
+  "new-e2e-cspm: [--run TestHostBenchmarksAmazonLinux2023]": [
+    "TestHostBenchmarksAmazonLinux2023"
+  ],
+  "new-e2e-cspm: [--run TestHostBenchmarksRHEL10]": [
+    "TestHostBenchmarksRHEL10"
+  ],
+  "new-e2e-cspm: [--run TestHostBenchmarksRHEL8]": [
+    "TestHostBenchmarksRHEL8"
+  ],
+  "new-e2e-cspm: [--run TestHostBenchmarksRHEL9]": [
+    "TestHostBenchmarksRHEL9"
+  ],
+  "new-e2e-cspm: [--run TestHostBenchmarksUbuntu2404]": [
+    "TestHostBenchmarksUbuntu2404"
+  ],
+  "new-e2e-cws-windows": [
+    "TestAgentWindowsSuite"
+  ],
+  "new-e2e-cws: [--run TestAgentSuiteEC2]": [
+    "TestAgentSuiteEC2"
+  ],
+  "new-e2e-cws: [--run TestAgentSuiteGCP]": [
+    "TestAgentSuiteGCP"
+  ],
+  "new-e2e-cws: [--run TestECSFargate]": [
+    "TestECSFargate"
+  ],
+  "new-e2e-cws: [--run TestKindSuite]": [
+    "TestKindSuite"
+  ],
+  "new-e2e-data-security": [
+    "TestDataSecurityPostgresScan",
+    "TestPostgresScanFixtures"
+  ],
+  "new-e2e-ddi": [
+    "TestDDI"
+  ],
+  "new-e2e-discovery": [
+    "TestConfigDiscoverySuite",
+    "TestConfigFilesDiscoveryDockerSuite",
+    "TestDockerTestSuite",
+    "TestK8sTestSuite",
+    "TestLinuxTestSuite",
+    "TestProcessAutodiscoverySuite"
+  ],
+  "new-e2e-fips-compliance-test: [--run \"TestFIPSCiphersClusterAgentSuite$\"]": [
+    "TestFIPSCiphersClusterAgentSuite"
+  ],
+  "new-e2e-fips-compliance-test: [--run \"TestFIPSCiphersLinuxSuite$\"]": [
+    "TestFIPSCiphersLinuxSuite"
+  ],
+  "new-e2e-fips-compliance-test: [--run \"TestLinuxFIPSComplianceSuite$\"]": [
+    "TestLinuxFIPSComplianceSuite"
+  ],
+  "new-e2e-fleet-config: [linux, --run \"TestFleetConfig$\"]": [
+    "TestFleetConfig"
+  ],
+  "new-e2e-fleet-config: [windows, --run \"TestFleetConfig$\" --skip \"TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$\"]": [
+    "TestFleetConfig"
+  ],
+  "new-e2e-fleet-config: [windows, --run \"TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$\"]": [
+    "TestFleetConfig"
+  ],
+  "new-e2e-fleet-extensions: [linux, --run \"TestFleetExtensions$\"]": [
+    "TestFleetExtensions"
+  ],
+  "new-e2e-fleet-extensions: [windows, --run \"TestFleetExtensions$\" --skip \"TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$\"]": [
+    "TestFleetExtensions"
+  ],
+  "new-e2e-fleet-extensions: [windows, --run \"TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$\"]": [
+    "TestFleetExtensions"
+  ],
+  "new-e2e-fleet-upgrade: [linux, --run \"TestFleetUpgrade$|TestFleetIntegrationPreservation$\"]": [
+    "TestFleetIntegrationPreservation",
+    "TestFleetUpgrade"
+  ],
+  "new-e2e-fleet-upgrade: [windows, --run \"TestFleetUpgrade$\" --skip \"TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$\"]": [
+    "TestFleetUpgrade"
+  ],
+  "new-e2e-fleet-upgrade: [windows, --run \"TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$\"]": [
+    "TestFleetUpgrade"
+  ],
+  "new-e2e-gpu: [--run TestGPUHostSuiteUbuntu1804Driver430]": [
+    "TestGPUHostSuiteUbuntu1804Driver430"
+  ],
+  "new-e2e-gpu: [--run TestGPUHostSuiteUbuntu1804Driver510]": [
+    "TestGPUHostSuiteUbuntu1804Driver510"
+  ],
+  "new-e2e-gpu: [--run TestGPUHostSuiteUbuntu2204]": [
+    "TestGPUHostSuiteUbuntu2204"
+  ],
+  "new-e2e-ha-agent": [
+    "TestHaAgentSuite"
+  ],
+  "new-e2e-ha-agent-failover": [
+    "TestHAAgentFailoverSuite"
+  ],
+  "new-e2e-installer-ansible: [--run \"TestPackageAgentFapolicyd\"]": [
+    "TestPackageAgentFapolicyd"
+  ],
+  "new-e2e-installer-ansible: [--run \"TestPackages/agent_\"]": [
+    "TestPackages"
+  ],
+  "new-e2e-installer-ansible: [--run \"TestPackages/apm_inject_\"]": [
+    "TestPackages"
+  ],
+  "new-e2e-installer-ansible: [--run \"TestPackages/upgrade_scenario_\"]": [
+    "TestPackages"
+  ],
+  "new-e2e-installer-script": [
+    "TestScripts"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAPMInjectInstall/TestInstallUninstallAPMInjectPackage$\"]": [
+    "TestAPMInjectInstalls"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestApplicationMonitoringGlobalRead$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestApplicationMonitoringGlobalReadAfterRollback$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestConfigAltDir$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestConfigCustomUser$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestConfigCustomUserAndAltDir$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestConfigUpgradeFailure$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestConfigUpgradeNewAgents$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestConfigUpgradeSuccessful$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$\"]": [
+    "TestAgentConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentInstalls$/TestSetupScriptInstallInfo$\"]": [
+    "TestAgentInstalls"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentKeepRightsFleetUpgrade$/TestKeepRightsExplicitArgWinsOnFleetUpgrade$\"]": [
+    "TestAgentKeepRightsFleetUpgrade"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentKeepRightsFleetUpgrade$/TestKeepRightsSurvivesFleetUpgrade$\"]": [
+    "TestAgentKeepRightsFleetUpgrade"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsAPMInject/TestEnableDisable$\"]": [
+    "TestAgentMSIInstallsAPMInject"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsAPMInject/TestInstallFromMSI$\"]": [
+    "TestAgentMSIInstallsAPMInject"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithIIS$\"]": [
+    "TestAgentMSIInstallsAPMInject"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithJava$\"]": [
+    "TestAgentMSIInstallsAPMInject"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestDisableEnableScript$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestEnableSSIOnReinstall$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestInstallFromMSI$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestMSIPurge$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentMSIInstallsDotnetLibrary/TestUpgradeWithMSI$\"]": [
+    "TestAgentMSIInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentScriptInstallsAPMInject/TestInstallFromScript$\"]": [
+    "TestAgentScriptInstallsAPMInject"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentScriptInstallsDotnetLibrary/TestInstallFromScript$\"]": [
+    "TestAgentScriptInstallsDotnetLibrary"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestDowngradeAgentPackage$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestDowngradeWithMissingInstallSource$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestExperimentCurrentVersionFails$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestStopExperiment$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestStopWithoutExperiment$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeAgentPackage$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeAgentPackageFromExeWithAltDir$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeAgentPackageMSIBootstrap$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeAgentPackageOCIBootstrap$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeMSI$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeWithAgentUser$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeWithHostNameChange$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgrades$/TestUpgradeWithLocalSystemUser$\"]": [
+    "TestAgentUpgrades"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$\"]": [
+    "TestAgentUpgradesFromGA"
+  ],
+  "new-e2e-installer-windows: [--run \"TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$\"]": [
+    "TestAgentUpgradesFromGA"
+  ],
+  "new-e2e-installer-windows: [--run \"TestDotnetLibraryInstalls$\"]": [
+    "TestDotnetLibraryInstalls"
+  ],
+  "new-e2e-installer-windows: [--run \"TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$\"]": [
+    "TestDotnetLibraryInstallsWithoutIIS"
+  ],
+  "new-e2e-installer-windows: [--run \"TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$\"]": [
+    "TestDotnetLibraryInstallsWithoutIIS"
+  ],
+  "new-e2e-installer-windows: [--run \"TestExtensionPersistence$/TestExtensionPersistThroughMSIUpgrade$\"]": [
+    "TestExtensionPersistence"
+  ],
+  "new-e2e-installer-windows: [--run \"TestExtensionPersistence$/TestExtensionRemovedOnUninstall$\"]": [
+    "TestExtensionPersistence"
+  ],
+  "new-e2e-installer-windows: [--run \"TestExtensionPersistence$/TestExtensionRestoredOnMSIRollback$\"]": [
+    "TestExtensionPersistence"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInjectorStats/TestQueryStatsAfterInjection$\"]": [
+    "TestInjectorStats"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInjectorStats/TestQueryStatsViaSystemProbe$\"]": [
+    "TestInjectorStats"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExe$/TestConfigValuesNotOverwrittenByDefaults$\"]": [
+    "TestInstallExe"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExe$/TestInstallAgentFails$\"]": [
+    "TestInstallExe"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExe$/TestInstallAgentPackage$\"]": [
+    "TestInstallExe"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExe$/TestInstallAgentPackageInstallOnly$\"]": [
+    "TestInstallExe"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExe$/TestInstallUpgradeReinstallLifecycle$\"]": [
+    "TestInstallExe"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExe$/TestReinstallAfterMSIUninstall$\"]": [
+    "TestInstallExe"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExeWithAgentUser$/TestInstallExeChangesAgentUser$\"]": [
+    "TestInstallExeWithAgentUser"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExeWithAgentUser$/TestInstallExeWithAgentUser\"]": [
+    "TestInstallExeWithAgentUser"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExeWithAgentUserOnDC$\"]": [
+    "TestInstallExeWithAgentUserOnDC"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$\"]": [
+    "TestInstallExeWithProxy"
+  ],
+  "new-e2e-installer-windows: [--run \"TestInstaller$\"]": [
+    "TestInstaller"
+  ],
+  "new-e2e-installer-windows: [--run \"TestSystemProbeConfig/TestInstallScriptStartsSystemProbe$\"]": [
+    "TestSystemProbeConfig"
+  ],
+  "new-e2e-installer-windows: [--run \"TestSystemProbeConfig/TestStandaloneInstallDoesNotStartSystemProbe$\"]": [
+    "TestSystemProbeConfig"
+  ],
+  "new-e2e-installer: [--run \"TestPackageAgentFapolicyd\"]": [
+    "TestPackageAgentFapolicyd"
+  ],
+  "new-e2e-installer: [--run \"TestPackages/agent_\"]": [
+    "TestPackages"
+  ],
+  "new-e2e-installer: [--run \"TestPackages/apm_inject_\"]": [
+    "TestPackages"
+  ],
+  "new-e2e-installer: [--run \"TestPackages/ddot_\"]": [
+    "TestPackages"
+  ],
+  "new-e2e-installer: [--run \"TestPackages/upgrade_scenario_\"]": [
+    "TestPackages"
+  ],
+  "new-e2e-language-detection": [
+    "TestLanguageDetectionSuite"
+  ],
+  "new-e2e-ndm-netflow": [
+    "TestNetflowSuite"
+  ],
+  "new-e2e-ndm-snmp": [
+    "TestAutoDiscoverySuite",
+    "TestSnmpVMSuite"
+  ],
+  "new-e2e-netpath": [
+    "TestBasicHostTrafficDynamicPathSuite",
+    "TestEUDMHostTrafficDynamicPathSuite",
+    "TestFakeTracerouteSuite",
+    "TestHostTrafficDynamicPathSuite",
+    "TestLinuxNetworkPathIntegrationSuite",
+    "TestLinuxRemoteConfigSuite",
+    "TestNetflowDynamicPathDisabledSuite",
+    "TestNetflowDynamicPathSuite"
+  ],
+  "new-e2e-netpath-windows": [
+    "TestWindowsNetworkPathIntegrationSuite",
+    "TestWindowsRemoteConfigSuite"
+  ],
+  "new-e2e-npm": [
+    "TestCiliumLBConntracker"
+  ],
+  "new-e2e-npm-docker": [
+    "TestECSVMSuite"
+  ],
+  "new-e2e-npm-eks": [
+    "TestEKSVMSuite"
+  ],
+  "new-e2e-npm-packages": [
+    "TestEC2VMDirectSuite",
+    "TestEC2VMSELinuxSuite",
+    "TestEC2VMSuite"
+  ],
+  "new-e2e-npm-packages-windows": [
+    "TestEC2VMWKitDirectSuite",
+    "TestEC2VMWKitSuite"
+  ],
+  "new-e2e-orchestrator": [
+    "TestKindSuite"
+  ],
+  "new-e2e-orchestrator-ecs": [
+    "TestECSSuite"
+  ],
+  "new-e2e-otel": [
+    "TestDDOTFargateSuite",
+    "TestDogtelStandalone",
+    "TestDogtelStandaloneCoexistWithCoreAgent",
+    "TestDogtelStandaloneGateway",
+    "TestOTLPIngest",
+    "TestOTLPIngestDocker",
+    "TestOTLPIngestDockerV3",
+    "TestOTLPIngestLogsTagsAsDDTags",
+    "TestOTLPIngestMetricsAttributesAsTags",
+    "TestOTLPIngestOpNameV2Override",
+    "TestOTLPIngestOpNameV2SpanRecvrV1",
+    "TestOTLPIngestOpNameV2SpanRecvrV2",
+    "TestOTLPIngestOpV2OverrideRemapping",
+    "TestOTLPIngestSampling",
+    "TestOTLPIngestSpanReceiverV2",
+    "TestOTelAgentComplete",
+    "TestOTelAgentDogtelSecretsStandalone",
+    "TestOTelAgentGateway",
+    "TestOTelAgentHeadBasedSampling",
+    "TestOTelAgentHostmetricsReceiver",
+    "TestOTelAgentIA",
+    "TestOTelAgentLoadBalancing",
+    "TestOTelAgentLogsTagsAsDDTags",
+    "TestOTelAgentMetricsAttributesAsTags",
+    "TestOTelAgentMinimal",
+    "TestOTelAgentSampling",
+    "TestOTelAgentSpanDerivedPrimaryTags",
+    "TestOTelAgentSpanReceiverV2",
+    "TestOTelAgentV3Series",
+    "TestOTelAgentWithNoDDExporter"
+  ],
+  "new-e2e-otel-eks": [
+    "TestOTelAgentIAEKS",
+    "TestOTelAgentIAUSTEKS"
+  ],
+  "new-e2e-package-signing-debian-a7-x86_64": [
+    "TestPackageSigningComponent"
+  ],
+  "new-e2e-package-signing-suse-a7-x86_64": [
+    "TestPackageSigningComponent"
+  ],
+  "new-e2e-platform-integrations-upgrade7-persisting-integrations-amazonlinux-x64": [
+    "TestPersistingIntegrations"
+  ],
+  "new-e2e-platform-integrations-upgrade7-persisting-integrations-centos-x86_64": [
+    "TestPersistingIntegrations"
+  ],
+  "new-e2e-platform-integrations-upgrade7-persisting-integrations-debian-x86_64": [
+    "TestPersistingIntegrations"
+  ],
+  "new-e2e-platform-integrations-upgrade7-persisting-integrations-ubuntu-x86_64": [
+    "TestPersistingIntegrations"
+  ],
+  "new-e2e-privateactionrunner": [
+    "TestDockerPARSplitSuite",
+    "TestLinuxPARSplitSuite",
+    "TestLinuxPrivateActionRunnerEnabledSuite",
+    "TestLinuxPrivateActionRunnerExecutorSuite",
+    "TestLinuxPrivateActionRunnerSuite",
+    "TestPARRshellK8sSuite",
+    "TestPARSplitRshellK8sSuite"
+  ],
+  "new-e2e-privateactionrunner-windows": [
+    "TestWindowsPARSplitLifecycleSuite"
+  ],
+  "new-e2e-process": [
+    "TestAssertManualProcessCheckWithServiceDiscovery",
+    "TestDockerTestSuite",
+    "TestK8sTestSuite",
+    "TestLinuxTestSuite",
+    "TestUnmarshalManualProcessCheck",
+    "TestUnmarshalManualProcessCheckWithoutServiceDiscovery"
+  ],
+  "new-e2e-process-ecs": [
+    "TestECSEC2TestSuite",
+    "TestECSFargateTestSuite"
+  ],
+  "new-e2e-remote-config": [
+    "TestRcTracerSuite",
+    "TestSslConfigSuite"
+  ],
+  "new-e2e-sbom: [--run \"TestSBOMDockerHostSuite\"]": [
+    "TestSBOMDockerHostSuite"
+  ],
+  "new-e2e-sbom: [--run \"TestSBOMKindSuite\"]": [
+    "TestSBOMKindSuite"
+  ],
+  "new-e2e-sbom: [--run \"TestSBOMKubeadmCrioSuite\"]": [
+    "TestSBOMKubeadmCrioSuite"
+  ],
+  "new-e2e-sbom: [--run \"TestSBOMKubeadmSuite\"]": [
+    "TestSBOMKubeadmSuite"
+  ],
+  "new-e2e-sbom: [--run \"TestSBOMPackageInUseKubeadmSuite\"]": [
+    "TestSBOMPackageInUseKubeadmSuite"
+  ],
+  "new-e2e-ssi-eks": [
+    "TestSSISuite"
+  ],
+  "new-e2e-ssi-gke": [
+    "TestSSISuite"
+  ],
+  "new-e2e-ssi-gke-autopilot": [
+    "TestSSISuite"
+  ],
+  "new-e2e-ssi-gradual-rollout": [
+    "TestSSIGradualRolloutSuite"
+  ],
+  "new-e2e-ssi-kind": [
+    "TestSSISuite"
+  ],
+  "new-e2e-ssi-openshift": [
+    "TestSSISuite"
+  ],
+  "new-e2e-usm": [
+    "TestPythonRemoteTagsDirectLinuxSuite",
+    "TestPythonRemoteTagsLinuxSuite"
+  ],
+  "new-e2e-windows-agent-a7-x86_64-fips: [--run \"TestAgentDoesNotInstallOverFIPSAgent$\"]": [
+    "TestAgentDoesNotInstallOverFIPSAgent"
+  ],
+  "new-e2e-windows-agent-a7-x86_64-fips: [--run \"TestFIPSAgent$\"]": [
+    "TestFIPSAgent"
+  ],
+  "new-e2e-windows-agent-a7-x86_64-fips: [--run \"TestFIPSAgentAltDir$\"]": [
+    "TestFIPSAgentAltDir"
+  ],
+  "new-e2e-windows-agent-a7-x86_64-fips: [--run \"TestFIPSAgentDoesNotInstallOverAgent$\"]": [
+    "TestFIPSAgentDoesNotInstallOverAgent"
+  ],
+  "new-e2e-windows-agent-domain-tests-a7-x86_64": [
+    "TestInstallsOnDomainController"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestAgentUser/LocalSystem]": [
+    "TestAgentUser",
+    "TestAgentUserKeepRights"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestAgentUser/SYSTEM]": [
+    "TestAgentUser",
+    "TestAgentUserKeepRights"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestAgentUser/dotslash_user]": [
+    "TestAgentUser",
+    "TestAgentUserKeepRights"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestAgentUser/hostname_user]": [
+    "TestAgentUser",
+    "TestAgentUserKeepRights"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestAgentUser/user_only]": [
+    "TestAgentUser",
+    "TestAgentUserKeepRights"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestAgentUserKeepRights]": [
+    "TestAgentUserKeepRights"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestAutologgerEnabledWhenLogonDurationEnabled]": [
+    "TestAutologgerEnabledWhenLogonDurationEnabled"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestDisablePersistingIntegrations]": [
+    "TestDisablePersistingIntegrations"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallAltDirAndCorruptForUninstall]": [
+    "TestInstallAltDirAndCorruptForUninstall"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallAltDir]": [
+    "TestInstallAltDir"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallExistingAltDir]": [
+    "TestInstallExistingAltDir"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallFail]": [
+    "TestInstallFail"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallOpts]": [
+    "TestInstallOpts"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallRollbackPreservesAutologger]": [
+    "TestInstallRollbackPreservesAutologger"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallRollbackRemovesAutologger]": [
+    "TestInstallRollbackRemovesAutologger"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallWithAutologger]": [
+    "TestInstallWithAutologger"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallWithInstallOnlyFlag]": [
+    "TestInstallWithInstallOnlyFlag"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallWithLanmanServerDisabled]": [
+    "TestInstallWithLanmanServerDisabled"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstallWithUntrustedConfigRoot]": [
+    "TestInstallWithUntrustedConfigRoot"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestInstall]": [
+    "TestInstall"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestIntegrationFolderPermissions]": [
+    "TestIntegrationFolderPermissions"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestIntegrationRollback]": [
+    "TestIntegrationRollback"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestNPMInstallWithAddLocal]": [
+    "TestNPMInstallWithAddLocal"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestNPMUpgradeFromBeta]": [
+    "TestNPMUpgradeFromBeta"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestNPMUpgradeNPMToNPM]": [
+    "TestNPMUpgradeNPMToNPM"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestNPMUpgradeToNPM]": [
+    "TestNPMUpgradeToNPM"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestPersistingIntegrationsDuringUninstall]": [
+    "TestPersistingIntegrationsDuringUninstall"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestPersistingIntegrations]": [
+    "TestPersistingIntegrations"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestProcmgrLocalSystem]": [
+    "TestProcmgrLocalSystem"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestRepair]": [
+    "TestRepair"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestSubServicesOpts/all-subservices]": [
+    "TestSubServicesOpts"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestSubServicesOpts/no-subservices]": [
+    "TestSubServicesOpts"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestUpgradeChangeUser]": [
+    "TestUpgradeChangeUser"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestUpgradeFromLatest]": [
+    "TestUpgradeFromLatest"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestUpgradeFromV5]": [
+    "TestUpgradeFromV5"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestUpgradeFromV6]": [
+    "TestUpgradeFromV6"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestUpgradeRollbackWithoutCWS]": [
+    "TestUpgradeRollbackWithoutCWS"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestUpgradeRollback]": [
+    "TestUpgradeRollback"
+  ],
+  "new-e2e-windows-agent-msi-windows-server-a7-x86_64: [TestUpgrade]": [
+    "TestUpgrade"
+  ],
+  "new-e2e-windows-agent-rodc-tests-a7-x86_64": [
+    "TestInstallsOnReadOnlyDomainController"
+  ],
+  "new-e2e-windows-ddot-package-a7-x86_64: [--run \"TestDDOTExtensionMSIUpgrade$/TestUpgradePreservesDDOTExtension$\"]": [
+    "TestDDOTExtensionMSIUpgrade"
+  ],
+  "new-e2e-windows-ddot-package-a7-x86_64: [--run \"TestDDOTExtensionViaInstallScript$/TestInstallAndPurgeDDOTExtension$\"]": [
+    "TestDDOTExtensionViaInstallScript"
+  ],
+  "new-e2e-windows-ddot-package-a7-x86_64: [--run \"TestDDOTExtensionViaMSI$/TestInstallAndUninstallDDOTExtension$\"]": [
+    "TestDDOTExtensionViaMSI"
+  ],
+  "new-e2e-windows-ddot-package-a7-x86_64: [--run \"TestDDOTExtensionViaMSI$/TestUpgradeEnablesDDOTExtension$\"]": [
+    "TestDDOTExtensionViaMSI"
+  ],
+  "new-e2e-windows-ddot-package-a7-x86_64: [--run \"TestDDOTExtensionViaSubcommand$/TestInstallDDOTSubcommand$\"]": [
+    "TestDDOTExtensionViaSubcommand"
+  ],
+  "new-e2e-windows-eudm-package-a7-x86_64: [--run \"TestEUDMExtensionViaMSI$/TestInstallAndUninstallEUDMExtension$\"]": [
+    "TestEUDMExtensionViaMSI"
+  ],
+  "new-e2e-windows-eudm-package-a7-x86_64: [--run \"TestEUDMExtensionViaMSI$/TestInstallWithoutEUDMSkipsExtension$\"]": [
+    "TestEUDMExtensionViaMSI"
+  ],
+  "new-e2e-windows-eudm-package-a7-x86_64: [--run \"TestEUDMExtensionViaMSI$/TestUpgradeEnablesEUDMExtension$\"]": [
+    "TestEUDMExtensionViaMSI"
+  ],
+  "new-e2e-windows-fips-compliance-test: [--run \"TestFIPSCiphersWindowsSuite$\"]": [
+    "TestFIPSCiphersWindowsSuite"
+  ],
+  "new-e2e-windows-fips-compliance-test: [--run \"TestWindowsVM$\"]": [
+    "TestWindowsVM"
+  ],
+  "new-e2e-windows-powershell-check": [
+    "TestPowerShellCheckWindows"
+  ],
+  "new-e2e-windows-service-test: [--run TestDriverVerifierOnServiceBehaviorAgentCommand]": [
+    "TestDriverVerifierOnServiceBehaviorAgentCommand"
+  ],
+  "new-e2e-windows-service-test: [--run TestDriverVerifierOnServiceBehaviorPowerShell]": [
+    "TestDriverVerifierOnServiceBehaviorPowerShell"
+  ],
+  "new-e2e-windows-service-test: [--run TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller]": [
+    "TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller"
+  ],
+  "new-e2e-windows-service-test: [--run TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent]": [
+    "TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent"
+  ],
+  "new-e2e-windows-service-test: [--run TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe]": [
+    "TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe"
+  ],
+  "new-e2e-windows-service-test: [--run TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent]": [
+    "TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent"
+  ],
+  "new-e2e-windows-service-test: [--run TestServiceBehaviorAgentCommand]": [
+    "TestServiceBehaviorAgentCommand"
+  ],
+  "new-e2e-windows-service-test: [--run TestServiceBehaviorInstallerWithRemoteConfig]": [
+    "TestServiceBehaviorInstallerWithRemoteConfig"
+  ],
+  "new-e2e-windows-service-test: [--run TestServiceBehaviorPowerShell]": [
+    "TestServiceBehaviorPowerShell"
+  ],
+  "new-e2e-windows-service-test: [--run TestServiceBehaviorWhenDisabledInstaller]": [
+    "TestServiceBehaviorWhenDisabledInstaller"
+  ],
+  "new-e2e-windows-service-test: [--run TestServiceBehaviorWhenDisabledProcessAgent]": [
+    "TestServiceBehaviorWhenDisabledProcessAgent"
+  ],
+  "new-e2e-windows-service-test: [--run TestServiceBehaviorWhenDisabledSystemProbe]": [
+    "TestServiceBehaviorWhenDisabledSystemProbe"
+  ],
+  "new-e2e-windows-service-test: [--run TestServiceBehaviorWhenDisabledTraceAgent]": [
+    "TestServiceBehaviorWhenDisabledTraceAgent"
+  ],
+  "new-e2e-windows-systemprobe: [--run TestUSMAutoTaggingSuite]": [
+    "TestUSMAutoTaggingSuite"
+  ],
+  "new-e2e-windows-systemprobe: [--run TestVMSuite]": [
+    "TestVMSuite"
+  ],
+  "new-e2e-windows-usm: [--run \"TestWindowsUSMSuite|TestWindowsUSMDirectSuite\"]": [
+    "TestWindowsUSMDirectSuite",
+    "TestWindowsUSMSuite"
+  ]
+}

@@ -53,7 +53,7 @@ func TestGetNodeAnnotations(t *testing.T) {
 	// we need to do this because the default behavior for /annotations/node/{node}
 	// applies a filter based on this config
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("kubernetes_node_annotations_as_host_aliases", "annotation1")
+	mockConfig.SetInTest("kubernetes_node_annotations_as_host_aliases", []string{"annotation1"})
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		getNodeAnnotations(w, r, mockStore)
@@ -501,4 +501,41 @@ func TestGetNodeInfo_SpanCreation(t *testing.T) {
 	assert.Equal(t, testNode, span.Tag("node_name"))
 	// No node entity in the store, so the cache lookup fails and the span captures the error
 	assert.NotNil(t, span.Tag("error.message"))
+}
+
+func TestGetNodeStatus(t *testing.T) {
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockStore.Set(&workloadmeta.KubernetesNode{
+		EntityID:      workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesNode, ID: "drained"},
+		EntityMeta:    workloadmeta.EntityMeta{Labels: map[string]string{"example.com/drain": "true"}},
+		Conditions:    []workloadmeta.KubernetesNodeCondition{{Type: "Ready", Status: "True"}, {Type: "Maintenance", Status: "True"}},
+		Unschedulable: true,
+	})
+	mockStore.Set(&workloadmeta.KubernetesNode{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesNode, ID: "bare"},
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /info/node/{nodeName}/status", func(w http.ResponseWriter, r *http.Request) { getNodeStatus(w, r, mockStore) })
+	get := func(node string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", "/info/node/"+node+"/status", nil))
+		return rec
+	}
+
+	// Conditions and the cordon state only.
+	rec := get("drained")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"conditions": [{"type": "Ready", "status": "True"}, {"type": "Maintenance", "status": "True"}], "unschedulable": true}`, rec.Body.String())
+
+	// An empty list, never null.
+	rec = get("bare")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"conditions": [], "unschedulable": false}`, rec.Body.String())
+
+	// A node unknown to workloadmeta is an error, not an empty node.
+	assert.Equal(t, http.StatusInternalServerError, get("missing").Code)
 }

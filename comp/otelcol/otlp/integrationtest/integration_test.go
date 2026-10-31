@@ -1,11 +1,11 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Include zlib && zstd tags so the config-driven metrics compressor
-// resolves to real compresor. Without them the selector links its noop
+// Include the zlib tag so the config-driven metrics compressor
+// resolves to a real compressor. Without it the selector links its noop
 // variant and metrics ship uncompressed ("identity") instead of zstd.
 // TODO(OASIS-79): fix data race then remove !race
-//go:build otlp && zlib && zstd && test && !race
+//go:build otlp && zlib && test && !race && !aix
 
 package integrationtest
 
@@ -222,6 +222,8 @@ func TestIntegration(t *testing.T) {
 	)
 	defer server.Close()
 	t.Setenv("SERVER_URL", server.URL)
+	// TestSpan0 is a sampled trace root: both the trace-agent and the datadog connector must ignore it.
+	t.Setenv("DD_APM_IGNORE_RESOURCES", "^TestSpan0$")
 
 	// 2. Start in-process collector
 	params := &subcommands.GlobalParams{
@@ -235,7 +237,7 @@ func TestIntegration(t *testing.T) {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
-	waitForReadiness()
+	waitForReadiness(t)
 
 	// 3. Validate that pid file was created
 	_, err = os.Stat(pidfilePath)
@@ -248,9 +250,14 @@ func TestIntegration(t *testing.T) {
 	var spans []*pb.Span
 	var stats []*pb.ClientGroupedStats
 
-	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter
-	for len(spans) < 5 || len(stats) < 10 {
+	// 4 sampled spans + APM stats on 9 spans are sent to datadog exporter (TestSpan0 is ignored).
+	// Bail out rather than block forever: without a deadline a missing payload
+	// turns a test failure into a CI job timeout.
+	deadline := time.After(3 * time.Minute)
+	for len(spans) < 4 || len(stats) < 9 {
 		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for payloads: got %d/4 spans and %d/9 stats", len(spans), len(stats))
 		case tracesBytes := <-tracesRec.ReqChan:
 			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
 			zr := getZstdReader(tracesBytes)
@@ -264,6 +271,9 @@ func TestIntegration(t *testing.T) {
 			for _, tps := range traces.TracerPayloads {
 				for _, chunks := range tps.Chunks {
 					spans = append(spans, chunks.Spans...)
+					for _, span := range chunks.Spans {
+						assert.NotEqual(t, "TestSpan0", span.Resource)
+					}
 				}
 			}
 
@@ -276,6 +286,7 @@ func TestIntegration(t *testing.T) {
 					stats = append(stats, csbs.Stats...)
 					for _, stat := range csbs.Stats {
 						assert.True(t, strings.HasPrefix(stat.Resource, "TestSpan"))
+						assert.NotEqual(t, "TestSpan0", stat.Resource)
 						assert.Equal(t, uint64(1), stat.Hits)
 						assert.Equal(t, uint64(1), stat.TopLevelHits)
 						assert.Equal(t, "client", stat.SpanKind)
@@ -287,8 +298,8 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// Verify we don't receive more than the expected numbers
-	assert.Len(t, spans, 5)
-	assert.Len(t, stats, 10)
+	assert.Len(t, spans, 4)
+	assert.Len(t, stats, 9)
 
 	// Validate metrics ship zstd on the wire too. The datadog/connector turns the
 	// received spans into metrics that flow through the serializer's config-driven
@@ -310,20 +321,25 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, app.Stop(stopCtx))
 }
 
-func waitForReadiness() {
+func waitForReadiness(t *testing.T) {
+	// Cap both the per-attempt backoff and the total wait: the exponential
+	// backoff alone reaches 34 minutes by attempt 11, which burns a CI runner
+	// instead of failing the test.
+	deadline := time.Now().Add(2 * time.Minute)
 	for i := 0; ; i++ {
 		resp, err := http.Get("http://localhost:13133") // default addr of the OTel collector health check extension
-		defer func() {
-			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
-			}
-		}()
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
 		if err == nil && resp.StatusCode == 200 {
 			return
 		}
 		log.Print("health check failed, retrying ", i, err, resp)
-		t := time.Duration(math.Pow(2, float64(i)))
-		time.Sleep(t * time.Second)
+		if time.Now().After(deadline) {
+			t.Fatalf("collector never became ready: %v", err)
+		}
+		backoff := time.Duration(math.Min(math.Pow(2, float64(i)), 10)) * time.Second
+		time.Sleep(backoff)
 	}
 }
 

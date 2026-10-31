@@ -16,8 +16,32 @@ import (
 )
 
 type statsdFilterListUpdate struct {
-	FilteredMetrics filteredMetrics `json:"blocked_metrics"`
-	FilteredTags    filteredTags    `json:"tag_filterlist"`
+	FilteredMetrics        filteredMetrics        `json:"blocked_metrics"`
+	FilteredMetricPrefixes filteredMetricPrefixes `json:"metric_filterlist_prefix"`
+	FilteredTags           filteredTags           `json:"tag_filterlist"`
+}
+
+type filteredMetricPrefixes struct {
+	ByPrefix byPrefix `json:"by_prefix"`
+}
+
+type byPrefix struct {
+	Values []prefixEntry `json:"values"`
+}
+
+// RC encodes exceptions as objects, unlike local YAML.
+type prefixEntry struct {
+	Prefix       string             `json:"prefix"`
+	ExceptPrefix []exceptPrefixName `json:"except_prefix"`
+	ExceptExact  []exceptExactName  `json:"except_exact"`
+}
+
+type exceptPrefixName struct {
+	Prefix string `json:"prefix"`
+}
+
+type exceptExactName struct {
+	Name string `json:"name"`
 }
 
 type filteredTags struct {
@@ -51,19 +75,19 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	fl.log.Debugf("onFilterListUpdateCallback received updates: %d", len(updates))
 
 	// special case: we received a response from RC, but RC didn't have any
-	// configuration for this agent, let's restore the local config and return
+	// configuration for this agent, so clear the RC layer and restore from config.
 	if len(updates) == 0 {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
+		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.restoreMetricFilterListFromLocalConfig()
-		fl.restoreTagFilterListFromLocalConfig()
+		fl.restoreMetricFilterListFromConfig()
+		fl.restoreTagFilterListFromConfig()
 		return
 	}
 
 	var metricFilterListUpdates []filteredMetrics
+	var metricPrefixListUpdates []filteredMetricPrefixes
 	var tagFilterListUpdates []filteredTags
 
 	// unmarshal all the configurations received from
@@ -85,40 +109,42 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 			State: state.ApplyStateAcknowledged,
 		})
 
-		// this one has no metric in its list, strange but
-		// not an error
+		// Empty configs are unusual, but valid.
 		if len(config.FilteredMetrics.ByName.Metrics) == 0 &&
+			len(config.FilteredMetricPrefixes.ByPrefix.Values) == 0 &&
 			len(config.FilteredTags.ByName.Metrics) == 0 {
 
 			fl.log.Debug("received a filterlist configuration with no metrics")
 			continue
 		}
 		metricFilterListUpdates = append(metricFilterListUpdates, config.FilteredMetrics)
+		metricPrefixListUpdates = append(metricPrefixListUpdates, config.FilteredMetricPrefixes)
 		tagFilterListUpdates = append(tagFilterListUpdates, config.FilteredTags)
 	}
 
+	// Exact and prefix-rule lists are separate RC fields; resolve them independently.
 	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
+	// RC metric names are exact; per-entry prefixes use metric_filterlist_prefix.
+	metricNames = normalizeMetricNames(metricNames, false, fl.log)
 
 	if len(metricNames) > 0 {
 		// update the runtime config to be consistent
 		// in `agent config` calls.
 		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-		if len(fl.localFilterListConfig.metricNames) > 0 {
-			fl.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
-			fl.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
-		}
-
-		// apply this new blocklist to all the running workers
-		fl.SetMetricFilterList(metricNames, false)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
-
-		fl.restoreMetricFilterListFromLocalConfig()
 	}
+
+	prefixEntries := fl.buildMetricPrefixListConfig(metricPrefixListUpdates)
+	if len(prefixEntries) > 0 {
+		fl.config.Set("metric_filterlist_prefix", prefixEntries, model.SourceRC)
+	} else {
+		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
+	}
+
+	fl.restoreMetricFilterListFromConfig()
 
 	tags, tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
 
@@ -133,14 +159,12 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 			MetricTags: tags,
 		})
 	} else {
-		// special case: if the metric names list is empty, fallback to local
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.restoreTagFilterListFromLocalConfig()
+		fl.restoreTagFilterListFromConfig()
 	}
 }
 
-// buildMetricFilterListConfig builds the metrics to be used for the metric filterlist,
-// Metric names are deduped.
+// buildMetricFilterListConfig builds exact-name metric_filterlist entries.
 func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []string {
 	metrics := make(map[string]struct{})
 	for _, update := range metricFilterListUpdates {
@@ -150,6 +174,25 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 	}
 	metricNames := slices.Collect(maps.Keys(metrics))
 	return metricNames
+}
+
+// buildMetricPrefixListConfig converts RC prefix rules into the local YAML shape.
+// Duplicate prefixes are preserved; prefix exceptions are applied globally.
+func (*FilterList) buildMetricPrefixListConfig(metricPrefixListUpdates []filteredMetricPrefixes) []MetricPrefixListEntry {
+	var prefixEntries []MetricPrefixListEntry
+	for _, update := range metricPrefixListUpdates {
+		for _, v := range update.ByPrefix.Values {
+			entry := MetricPrefixListEntry{Prefix: v.Prefix}
+			for _, exceptPrefix := range v.ExceptPrefix {
+				entry.ExceptPrefix = append(entry.ExceptPrefix, exceptPrefix.Prefix)
+			}
+			for _, exceptExact := range v.ExceptExact {
+				entry.ExceptExact = append(entry.ExceptExact, exceptExact.Name)
+			}
+			prefixEntries = append(prefixEntries, entry)
+		}
+	}
+	return prefixEntries
 }
 
 // buildConfig builds the configuration to use.

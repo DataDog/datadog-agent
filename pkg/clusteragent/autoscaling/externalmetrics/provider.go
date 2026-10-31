@@ -12,11 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 	"time"
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
@@ -33,6 +35,9 @@ import (
 
 const (
 	autogenExpirationPeriodHours int64 = 3
+
+	noSeriesFoundErrorFragment  = "no serie was found for this query in API Response"
+	onlyNullValuesErrorFragment = "only null values found in API response"
 )
 
 type datadogMetricProvider struct {
@@ -50,7 +55,7 @@ var (
 )
 
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
-func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component) (provider.ExternalMetricsProvider, error) {
+func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component, hpaGVR schema.GroupVersionResource) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
 		return nil, errors.New("Impossible to create DatadogMetricProvider without valid APIClient")
 	}
@@ -109,8 +114,9 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 		autogenExpirationPeriodHours,
 		autogenNamespace,
 		autoscalerAutogenLabelSelector,
-		apiCl.Cl,
+		hpaGVR,
 		apiCl.InformerFactory,
+		apiCl.DynamicInformerFactory,
 		wpaInformer,
 		le.IsLeader,
 		&provider.store,
@@ -140,14 +146,35 @@ func (p *datadogMetricProvider) GetExternalMetric(_ context.Context, namespace s
 	startTime := time.Now()
 	res, err := p.getExternalMetric(namespace, metricSelector, info, startTime)
 	if err != nil {
-		convErr := apierr.NewInternalError(err)
-		if convErr != nil {
-			err = convErr
+		if isNoDataError(err) {
+			err = apierr.NewGenericServerResponse(http.StatusUnprocessableEntity, http.MethodGet, schema.GroupResource{}, "", err.Error(), 0, false)
+		} else {
+			convErr := apierr.NewInternalError(err)
+			if convErr != nil {
+				err = convErr
+			}
 		}
 	}
 
 	setQueryTelemtry("get", startTime, err)
 	return res, err
+}
+
+func isNoDataError(err error) bool {
+	var queryErr *queryError
+	if errors.As(err, &queryErr) {
+		return isNoDataReason(queryErr.reason)
+	}
+
+	// DatadogMetric errors are persisted as condition messages, which do not
+	// preserve their concrete error type when the internal store is rebuilt.
+	return strings.Contains(err.Error(), noSeriesFoundErrorFragment) ||
+		strings.Contains(err.Error(), onlyNullValuesErrorFragment)
+}
+
+func isNoDataReason(reason string) bool {
+	return strings.HasPrefix(reason, noSeriesFoundErrorFragment) ||
+		strings.HasPrefix(reason, onlyNullValuesErrorFragment)
 }
 
 func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo, time time.Time) (*external_metrics.ExternalMetricValueList, error) {

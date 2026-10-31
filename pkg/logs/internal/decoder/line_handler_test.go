@@ -103,6 +103,23 @@ func TestTrimSingleLine(t *testing.T) {
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 }
 
+func TestMultiLineHandlerPreservesSafeCheckpointLength(t *testing.T) {
+	outputFn, outputChan := lineHandlerChans()
+	h := NewMultiLineHandler(outputFn, regexp.MustCompile(`^\d+\.`), time.Hour, 100, false, status.NewInfoRegistry(), "multi_line")
+
+	first := getDummyMessage("1. first")
+	first.SetRawDataLenForCheckpoint(0)
+	h.process(first)
+
+	continuation := getDummyMessage("continuation")
+	continuation.SetRawDataLenForCheckpoint(91)
+	h.process(continuation)
+	h.flush()
+
+	output := <-outputChan
+	assert.Equal(t, 91, output.RawDataLenForCheckpoint())
+}
+
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()

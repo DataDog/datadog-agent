@@ -52,9 +52,10 @@ def agent_package(
         url_safe=True,
         include_pipeline_id=True,
     )
+    installer_name = "datadog-fips-installer" if flavor == AgentFlavor.fips.name else "datadog-installer"
     shutil.copy2(
         os.path.join(OPT_SOURCE_DIR, "datadog-installer\\datadog-installer.exe"),
-        os.path.join(OUTPUT_PATH, f"datadog-installer-{agent_version}-1-x86_64.exe"),
+        os.path.join(OUTPUT_PATH, f"{installer_name}-{agent_version}-1-x86_64.exe"),
     )
 
     # Build the symbol-server layout from the PDBs. Runs here, in the Windows

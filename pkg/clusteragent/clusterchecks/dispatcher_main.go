@@ -10,7 +10,6 @@ package clusterchecks
 import (
 	"context"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -30,6 +31,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// clusterAgentOnlyChecks monitor their own process, so they are never dispatched.
+var clusterAgentOnlyChecks = map[string]struct{}{
+	"agentprofiling": {},
+}
+
+// toSet builds a lookup set from a config-provided string slice, returning
+// nil for an empty slice instead of allocating an empty map.
+func toSet(items []string) map[string]struct{} {
+	if len(items) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		set[item] = struct{}{}
+	}
+	return set
+}
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
@@ -42,15 +61,66 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
-	ksmSharding                      *ksmShardingManager
-	ksmShardingMutex                 sync.Mutex          // Protects ksmShardedConfigs
-	ksmShardedConfigs                map[string][]string // Maps original config digest -> shard digests, protected by ksmShardingMutex
+	shardingStrategies               []shardingStrategy
+	shards                           *shardTracker
+	// checkGroup maps each check claimed by a runner group to
+	// that group; runnerGroups is the set of declared groups.
+	checkGroup   map[string]string
+	runnerGroups map[string]struct{}
+}
+
+// runnerGroup is an entry of cluster_checks.runner_groups.
+type runnerGroup struct {
+	Name   string   `mapstructure:"name"`
+	Checks []string `mapstructure:"checks"`
+}
+
+// loadRunnerGroups reads cluster_checks.runner_groups. An invalid setting
+// disables runner groups.
+func loadRunnerGroups(cfg model.Reader) (checkGroup map[string]string, runnerGroups map[string]struct{}) {
+	var groups []runnerGroup
+	if err := structure.UnmarshalKey(cfg, "cluster_checks.runner_groups", &groups, structure.ErrorUnused); err != nil {
+		log.Errorf("Ignoring invalid cluster_checks.runner_groups: %v", err)
+		return nil, nil
+	}
+	return parseRunnerGroups(groups)
+}
+
+// parseRunnerGroups maps each claimed check to its runner group. A check
+// claimed by several groups stays with the first one listed.
+func parseRunnerGroups(groups []runnerGroup) (checkGroup map[string]string, runnerGroups map[string]struct{}) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+
+	checkGroup = make(map[string]string)
+	runnerGroups = make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		if group.Name == "" {
+			log.Errorf("Ignoring cluster_checks.runner_groups entry without a name")
+			continue
+		}
+		if _, dup := runnerGroups[group.Name]; dup {
+			log.Errorf("Ignoring duplicate cluster_checks.runner_groups entry %q", group.Name)
+			continue
+		}
+		runnerGroups[group.Name] = struct{}{}
+		for _, check := range group.Checks {
+			if owner, claimed := checkGroup[check]; claimed {
+				log.Errorf("Check %q is claimed by cluster checks runner groups %q and %q: keeping %q", check, owner, group.Name, owner)
+				continue
+			}
+			checkGroup[check] = group.Name
+		}
+	}
+	log.Infof("Cluster checks runner groups: %+v", groups)
+	return checkGroup, runnerGroups
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
 	d := &dispatcher{
-		store:             newClusterStore(),
-		ksmShardedConfigs: make(map[string][]string),
+		store:  newClusterStore(),
+		shards: newShardTracker(),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
 	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")
@@ -89,28 +159,31 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
 	}
 
-	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
-	// This option will almost always be empty
-	if len(excludedChecks) > 0 {
-		d.excludedChecks = make(map[string]struct{}, len(excludedChecks))
-		for _, checkName := range excludedChecks {
-			d.excludedChecks[checkName] = struct{}{}
-		}
-	}
+	d.checkGroup, d.runnerGroups = loadRunnerGroups(pkgconfigsetup.Datadog())
 
-	excludedChecksFromDispatching := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks_from_dispatching")
-	// This option will almost always be empty
-	if len(excludedChecksFromDispatching) > 0 {
-		d.excludedChecksFromDispatching = make(map[string]struct{}, len(excludedChecksFromDispatching))
-		for _, checkName := range excludedChecksFromDispatching {
-			d.excludedChecksFromDispatching[checkName] = struct{}{}
-		}
+	// These options will almost always be empty
+	d.excludedChecks = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks"))
+	d.excludedChecksFromDispatching = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks_from_dispatching"))
+
+	ksmShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.ksm_sharding_enabled")
+	if ksmShardingEnabled {
+		// KSM sharding configuration notes:
+		// - Namespace labels/annotations as tags require GLOBAL config (kubernetes_resources_labels_as_tags)
+		// - Check-specific labels_as_tags in KSM config is NOT supported with sharding
+		// - Sharding also breaks check-specific label_joins across different resource types
+		log.Info("KSM resource sharding enabled. For namespace labels/annotations as tags, check-specific config (labels_as_tags in KSM config) is not supported with sharding - use global kubernetes_resources_labels_as_tags instead.")
 	}
+	ksmSharding := newKSMShardingManager(ksmShardingEnabled)
+
+	instanceShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.instance_sharding_enabled")
+	excludedInstanceShardingChecks := toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.instance_sharding_exclude_checks"))
+	instanceSharding := newInstanceShardingManager(instanceShardingEnabled, excludedInstanceShardingChecks)
+
+	d.shardingStrategies = []shardingStrategy{ksmSharding, instanceSharding}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
-		d.ksmSharding = newKSMShardingManager(false)
 		return d
 	}
 
@@ -120,25 +193,6 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	} else {
 		d.advancedDispatching.Store(true)
 	}
-
-	// Initialize KSM sharding (requires advanced dispatching)
-	// Advanced dispatching is required for KSM sharding because it ensures shards are distributed across runners
-	ksmShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.ksm_sharding_enabled")
-	if ksmShardingEnabled {
-		// Validate advanced dispatching is actually enabled
-		if !d.advancedDispatching.Load() {
-			log.Warn("KSM resource sharding requires advanced dispatching (cluster_checks.advanced_dispatching_enabled=true). Disabling KSM sharding.")
-			ksmShardingEnabled = false
-		} else {
-			// KSM sharding configuration notes:
-			// - Namespace labels/annotations as tags require GLOBAL config (kubernetes_resources_labels_as_tags)
-			// - Check-specific labels_as_tags in KSM config is NOT supported with sharding
-			// - Sharding also breaks check-specific label_joins across different resource types
-			log.Info("KSM resource sharding enabled. For namespace labels/annotations as tags, check-specific config (labels_as_tags in KSM config) is not supported with sharding - use global kubernetes_resources_labels_as_tags instead.")
-		}
-	}
-
-	d.ksmSharding = newKSMShardingManager(ksmShardingEnabled)
 
 	return d
 }
@@ -180,6 +234,12 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 
+		if _, found := clusterAgentOnlyChecks[c.Name]; found {
+			log.Warnf("Not dispatching %s: it can only run on the Cluster Agent, remove cluster_check: true from its configuration", c.Name)
+			excludedConfigs++
+			continue
+		}
+
 		if c.HasFilter(workloadfilter.MetricsFilter) || c.HasFilter(workloadfilter.GlobalFilter) {
 			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
 			continue
@@ -197,9 +257,10 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			continue
 		}
 
-		// Try to handle KSM sharding
-		if d.scheduleKSMCheck(c) {
-			// KSM check was sharded and scheduled, skip normal scheduling
+		if shards, handled := d.prepareShardSchedule(c); handled {
+			for _, patched := range shards {
+				d.add(patched)
+			}
 			continue
 		}
 
@@ -233,9 +294,8 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 
-		// Check if this is a sharded KSM check and remove all shards
-		if d.unscheduleKSMCheck(c) {
-			continue // Sharded configs were removed, skip normal unscheduling
+		if _, found := clusterAgentOnlyChecks[c.Name]; found {
+			continue
 		}
 
 		if c.NodeName != "" {
@@ -248,13 +308,21 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 			d.removeEndpointConfig(patched, c.NodeName)
 			continue
 		}
+
+		if digests, handled := d.prepareShardUnschedule(c); handled {
+			for _, digest := range digests {
+				d.removeConfig(digest)
+			}
+			continue
+		}
+
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
 			failedConfigs++
 			continue
 		}
-		d.remove(patched)
+		d.removeConfig(patched.Digest())
 	}
 }
 
@@ -272,10 +340,12 @@ func (d *dispatcher) reschedule(configs []integration.Config) []string {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
-	target := d.getNodeToScheduleCheck()
+	target, anyNode := d.getNodeToScheduleCheck(config.Name)
 	if target == "" {
-		// If no node is found, store it in the danglingConfigs map for retrying later.
-		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		if anyNode {
+			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+		}
 	} else {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}
@@ -283,20 +353,11 @@ func (d *dispatcher) add(config integration.Config) bool {
 	return d.addConfig(config, target)
 }
 
-// remove deletes a given configuration
-func (d *dispatcher) remove(config integration.Config) {
-	digest := config.Digest()
-	log.Debugf("Removing configuration %s:%s", config.Name, digest)
-	d.removeConfig(digest)
-}
-
 // reset empties the store and resets all states
 func (d *dispatcher) reset() {
 	// clean up shards because if this pod becomes a leader again
 	// it should reschedule the check
-	d.ksmShardingMutex.Lock()
-	d.ksmShardedConfigs = make(map[string][]string)
-	d.ksmShardingMutex.Unlock()
+	d.shards.reset()
 
 	d.store.Lock()
 	defer d.store.Unlock()

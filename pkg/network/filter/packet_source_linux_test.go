@@ -42,8 +42,8 @@ func (m *mockPacketReader) GetPacketInfoBuffer() *AFPacketInfo {
 func mockCaptureInfo(ancillaryData []interface{}) gopacket.CaptureInfo {
 	return gopacket.CaptureInfo{
 		Timestamp:      time.Now(),
-		CaptureLength:  0,
-		Length:         0,
+		CaptureLength:  128,
+		Length:         1500,
 		InterfaceIndex: 0,
 		AncillaryData:  ancillaryData,
 	}
@@ -72,6 +72,8 @@ func expectAncillaryPktType(t *testing.T, ancillaryData []interface{}, pktType u
 		pktInfo := info.(*AFPacketInfo)
 		// use assert so that we close the exit channel on failure
 		assert.Equal(t, pktType, pktInfo.PktType)
+		assert.Equal(t, 1500, pktInfo.OriginalLength())
+		assert.Equal(t, 128, pktInfo.CapturedLength())
 
 		return nil
 	})
@@ -115,4 +117,32 @@ func TestVisitingVLANPacketIncoming(t *testing.T) {
 			Type: unix.PACKET_HOST,
 		},
 	}, unix.PACKET_HOST)
+}
+
+func TestVisitingCorruptedPacketSkipped(t *testing.T) {
+	packets := make(chan mockPacketCapture, 2)
+	packets <- mockPacketCapture{
+		data: nil,
+		ci:   mockCaptureInfo(nil),
+		err:  afpacket.ErrCorruptedPacket,
+	}
+	packets <- mockPacketCapture{
+		data: []byte{},
+		ci:   mockCaptureInfo(nil),
+		err:  nil,
+	}
+	close(packets)
+
+	p := mockPacketReader{
+		packets: packets,
+	}
+
+	visited := false
+
+	err := visitPackets(&p, func(_ []byte, _ PacketInfo, _ time.Time) error {
+		visited = true
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, visited, "the packet following the corrupted one should have been visited")
 }

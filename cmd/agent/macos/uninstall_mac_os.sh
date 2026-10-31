@@ -6,8 +6,9 @@
 
 # Datadog Agent uninstall script for macOS.
 # Paired with install_mac_os.sh (Agent 7.79.0+). Removes the system-wide
-# components installed by the DMG: LaunchDaemons (agent, sysprobe, data-plane),
-# GUI LaunchAgent, /Applications app, /opt/datadog-agent tree, and symlinks.
+# components installed by the DMG: LaunchDaemons (procmgr, agent, sysprobe,
+# data-plane), GUI LaunchAgent, /Applications app, /opt/datadog-agent tree, and
+# symlinks.
 set -eu
 
 if [ -t 1 ]; then
@@ -48,7 +49,22 @@ trap on_error ERR
 
 printf "${BLUE}* Uninstalling Datadog Agent, you might be asked for your sudo password...\n${NC}"
 
+# Hand the teardown to the installed version first, as the .dmg preinstall script does on upgrade:
+# only it knows the LaunchDaemons it installed. Each job's bootout is bounded at 30 seconds.
+# See preRemoveDatadogAgent in pkg/fleet/installer/packages/datadog_agent_darwin.go
+installer_bin=/opt/datadog-agent/embedded/bin/installer
+if $sudo_cmd test -x "$installer_bin" && $sudo_cmd "$installer_bin" is-prerm-supported >/dev/null 2>&1; then
+    printf "${BLUE}\n    - Running the installed version's pre-remove...\n${NC}"
+    if ! $sudo_cmd "$installer_bin" prerm datadog-agent dmg; then
+        printf "${RED}    The installed version's pre-remove failed; continuing.\n${NC}"
+    fi
+fi
+
+# The jobs this script knows the Agent has run. They are booted out whether or not the installed
+# version's pre-remove ran: versions before the installer have none, and one that failed may have
+# left jobs behind. A job already gone is a no-op.
 printf "${BLUE}\n    - Stopping system services...\n${NC}"
+$sudo_cmd launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
@@ -65,6 +81,7 @@ $sudo_cmd pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null |
 $sudo_cmd pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
 
 printf "${BLUE}\n    - Removing launchd plists...\n${NC}"
+$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist

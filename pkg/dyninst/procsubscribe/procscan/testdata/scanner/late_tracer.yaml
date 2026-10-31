@@ -82,7 +82,7 @@ state:
 command: !advance-time {to: 350}
 ---
 command: !scan {}
-new: [{pid: 1001, start_time: 50}]
+new: [{pid: 1001, start_time: 50, attempts: 5}]
 state:
   current_time: 350
   live: [{pid: 1001, start_time: 50}]

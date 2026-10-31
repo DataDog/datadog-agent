@@ -10,27 +10,25 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 	"testing"
-	"text/template"
 	"time"
 
-	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -51,12 +49,28 @@ import (
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // team: agent-apm
 
+// Environment variables used by fakeAgentBin in TestConfigHostname/external to
+// make the test binary act as a fake `agent hostname` command. They do not use
+// the DD_ prefix so the config loader does not report them as unknown settings.
+const (
+	hostnameHelperEnv         = "TRACE_CONFIG_TEST_HOSTNAME_HELPER"
+	hostnameHelperResponseEnv = "TRACE_CONFIG_TEST_HOSTNAME_RESPONSE"
+	hostnameHelperExitEnv     = "TRACE_CONFIG_TEST_HOSTNAME_EXIT"
+)
+
 func TestMain(m *testing.M) {
+	// When re-executed by fakeAgentBin as `<test binary> hostname`, print the
+	// requested hostname and exit before running any test.
+	if os.Getenv(hostnameHelperEnv) == "1" && len(os.Args) == 2 && os.Args[1] == "hostname" {
+		fmt.Println(os.Getenv(hostnameHelperResponseEnv))
+		code, _ := strconv.Atoi(os.Getenv(hostnameHelperExitEnv))
+		os.Exit(code)
+	}
+
 	// Tests run in containerized CI runners where isOSHostnameUsable returns false.
 	// Default to true so all tests can fall back to os.Hostname() as expected.
 	// TestAcquireHostnameFallbackContainerized overrides this to false explicitly.
@@ -279,14 +293,11 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
-//go:embed testdata/stringcode.go.tmpl
-var stringCodeBody string
-
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -329,7 +340,7 @@ func TestConfigHostname(t *testing.T) {
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -378,66 +389,54 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
-			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
-		}
-		// makeProgram creates a new binary file which returns the given response and exits to the OS
-		// given the specified code, returning the path of the program.
-		makeProgram := func(t *testing.T, response string, code int) string {
-			if loc := os.Getenv("HOSTNAME_HELPER"); loc != "" {
-				t.Setenv("DD_TEST_HOSTNAME_RESPONSE", response)
-				t.Setenv("DD_TEST_HOSTNAME_EXIT", strconv.Itoa(code))
-				src, err := runfiles.Rlocation(loc)
-				if err != nil {
-					t.Fatal(err)
-				}
-				// Copy out of runfiles: Windows file junctions cannot be exec'd, and
-				// callers os.Remove the returned path.
-				dst := filepath.Join(t.TempDir(), filepath.Base(src))
-				data, err := os.ReadFile(src)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(dst, data, 0700); err != nil {
-					t.Fatal(err)
-				}
-				return dst
-			}
-			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
-			if err != nil {
-				t.Fatal(err)
-			}
-			tmpl, err := template.New("program").Parse(stringCodeBody)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := tmpl.Execute(f, struct {
-				Response string
-				ExitCode int
-			}{response, code}); err != nil {
-				t.Fatal(err)
-			}
-			stat, err := f.Stat()
-			if err != nil {
-				t.Fatal(err)
-			}
-			srcpath := filepath.Join(os.TempDir(), stat.Name())
-			binpath := strings.TrimSuffix(srcpath, ".go")
-			if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
-				t.Fatal(err)
-			}
-			os.Remove(srcpath)
-			return binpath
+		// fakeAgentBin returns the path of an executable that, when run as
+		// `<path> hostname`, prints the given response and exits with the given
+		// code. It is the test binary itself; see TestMain.
+		fakeAgentBin := func(t *testing.T, response string, code int) string {
+			t.Setenv(hostnameHelperEnv, "1")
+			t.Setenv(hostnameHelperResponseEnv, response)
+			t.Setenv(hostnameHelperExitEnv, strconv.Itoa(code))
+			// With the test build tag, pkg/util/log's init sets up a debug logger
+			// on stdout, so package inits that log (e.g. pkg/util/defaultpaths on
+			// Windows) would end up in the child's output. Silence it.
+			t.Setenv("DD_LOG_LEVEL", "off")
+			exe, err := os.Executable()
+			require.NoError(t, err)
+			return exe
 		}
 
 		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
-		t.Run("good", func(t *testing.T) {
-			bin := makeProgram(t, "host.name", 0)
-			defer os.Remove(bin)
+		// The non-eudm subtests below build the config with a hostname set, so that
+		// building it does not wait on a gRPC call to the core agent (2s timeout).
+		// They then call acquireHostnameFallback directly, which overwrites the
+		// hostname.
 
-			config := buildConfigComponent(t, false)
+		t.Run("eudm", func(t *testing.T) {
+			for _, tc := range []struct {
+				name, response, want string
+			}{
+				{"valid core hostname", "device-serial", "device-serial"},
+				{"empty core hostname disallowed", "", "fallback.host"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					coreConfig := configcomp.NewMock(t)
+					coreConfig.SetInTest("infrastructure_mode", "end_user_device")
+					bin := fakeAgentBin(t, tc.response, 0)
+					cfg := traceconfig.New()
+					cfg.DDAgentBin = bin
+					cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+					require.NoError(t, acquireHostnameFallback(cfg))
+					require.Equal(t, tc.want, cfg.Hostname)
+				})
+			}
+		})
+
+		t.Run("good", func(t *testing.T) {
+			bin := fakeAgentBin(t, "host.name", 0)
+
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -448,10 +447,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -461,10 +459,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 
 			cfg := config.Object()
 			require.NotNil(t, cfg)
@@ -476,12 +473,10 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed+containerized", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 0)
 
-			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
-			// then override to false so only acquireHostnameFallback sees it.
-			cfg := buildConfigComponent(t, false).Object()
+			// Only acquireHostnameFallback should see osHostnameUsableFunc=false.
+			cfg := buildConfigComponent(t, true).Object()
 			require.NotNil(t, cfg)
 
 			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
@@ -495,10 +490,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("fallback1", func(t *testing.T) {
-			bin := makeProgram(t, "", 1)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "", 1)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -508,10 +502,9 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("fallback2", func(t *testing.T) {
-			bin := makeProgram(t, "some text", 1)
-			defer os.Remove(bin)
+			bin := fakeAgentBin(t, "some text", 1)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -543,6 +536,219 @@ func TestSite(t *testing.T) {
 	}
 }
 
+func TestProfilingURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://intake.profile.datadoghq.com./api/v2/profile",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://intake.profile.datadoghq.eu./api/v2/profile",
+		},
+		{
+			name: "FQDN conversion disabled",
+			settings: map[string]interface{}{
+				"site":                         "datadoghq.eu",
+				"convert_dd_site_fqdn.enabled": false,
+			},
+			expected: "https://intake.profile.datadoghq.eu/api/v2/profile",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://intake.profile.example.com/api/v2/profile",
+		},
+		{
+			name: "explicit profiling URL",
+			settings: map[string]interface{}{
+				"site":                        "datadoghq.eu",
+				"apm_config.profiling_dd_url": "https://profiles.example.com/custom/path",
+			},
+			expected: "https://profiles.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.ProfilingProxy.DDURL)
+		})
+	}
+}
+
+func TestDebuggerURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://http-intake.logs.datadoghq.com./api/v2/logs",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://http-intake.logs.datadoghq.eu./api/v2/logs",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://http-intake.logs.example.com/api/v2/logs",
+		},
+		{
+			name: "explicit debugger URL",
+			settings: map[string]interface{}{
+				"site":                       "datadoghq.eu",
+				"apm_config.debugger_dd_url": "https://debugger.example.com/custom/path",
+			},
+			expected: "https://debugger.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerProxy.DDURL)
+		})
+	}
+}
+
+func TestDebuggerIntakeURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://debugger-intake.datadoghq.com./api/v2/debugger",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://debugger-intake.datadoghq.eu./api/v2/debugger",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://debugger-intake.example.com/api/v2/debugger",
+		},
+		{
+			name: "explicit debugger diagnostics URL",
+			settings: map[string]interface{}{
+				"site":                                   "datadoghq.eu",
+				"apm_config.debugger_diagnostics_dd_url": "https://debugger-diag.example.com/custom/path",
+			},
+			expected: "https://debugger-diag.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerIntakeProxy.DDURL)
+		})
+	}
+}
+
+func TestSymDBURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://debugger-intake.datadoghq.com./api/v2/debugger",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://debugger-intake.datadoghq.eu./api/v2/debugger",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://debugger-intake.example.com/api/v2/debugger",
+		},
+		{
+			name: "explicit symdb URL",
+			settings: map[string]interface{}{
+				"site":                    "datadoghq.eu",
+				"apm_config.symdb_dd_url": "https://symdb.example.com/custom/path",
+			},
+			expected: "https://symdb.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.SymDBProxy.DDURL)
+		})
+	}
+}
+
+func TestOpenLineageURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://data-obs-intake.datadoghq.com./api/v1/lineage",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://data-obs-intake.datadoghq.eu./api/v1/lineage",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://data-obs-intake.example.com/api/v1/lineage",
+		},
+		{
+			name: "explicit openlineage URL",
+			settings: map[string]interface{}{
+				"site":                   "datadoghq.eu",
+				"ol_proxy_config.dd_url": "https://ol.example.com/custom/path",
+			},
+			expected: "https://ol.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.OpenLineageProxy.DDURL)
+		})
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	config := buildConfigComponent(t, true)
 	cfg := config.Object()
@@ -555,6 +761,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, "localhost", cfg.StatsdHost)
 	assert.Equal(t, 8125, cfg.StatsdPort)
+	assert.Equal(t, 8192, cfg.StatsdBufferSize)
 	assert.Equal(t, true, cfg.StatsdEnabled)
 
 	assert.Equal(t, true, cfg.Enabled)
@@ -652,6 +859,9 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
 	}, cfg.Endpoints)
+	// apm_config.traces_send_to_main_endpoint defaults to true: the writers use every endpoint.
+	assert.False(t, cfg.SkipMainEndpoint)
+	assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
 
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}, {K: "bad-key", V: "bad-value"}}, cfg.RejectTags)
@@ -985,6 +1195,17 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 4321, cfg.StatsdPort)
+	})
+
+	env = "DD_DOGSTATSD_BUFFER_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "16384")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 16384, cfg.StatsdBufferSize)
 	})
 
 	env = "DD_APM_NON_LOCAL_TRAFFIC"
@@ -1869,6 +2090,26 @@ func TestLoadEnv(t *testing.T) {
 		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
 	})
 
+	env = "DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		// full.yaml configures additional_endpoints, so skipping the main endpoint is valid.
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.False(t, coreConfig.GetBool("apm_config.traces_send_to_main_endpoint"))
+		assert.True(t, cfg.SkipMainEndpoint)
+		// The main endpoint stays in Endpoints so APIKey() is unchanged for the proxies,
+		// but the trace/stats writers no longer see it.
+		assert.Equal(t, "api_key_test", cfg.APIKey())
+		assert.Len(t, cfg.WriterEndpoints(), len(cfg.Endpoints)-1)
+		for _, e := range cfg.WriterEndpoints() {
+			assert.NotEqual(t, "https://datadog.unittests", e.Host)
+		}
+	})
+
 	env = "DD_APM_MODE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "edge")
@@ -2346,6 +2587,43 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
+func TestSetConfigHandlerLogLevel(t *testing.T) {
+	config := buildConfigComponent(t, true)
+
+	handler := config.SetHandler().ServeHTTP
+	ipcComp := ipcmock.New(t)
+
+	// the handler writes to the global config; restore it afterwards
+	original := pkgconfigsetup.Datadog().GetString("log_level")
+	t.Cleanup(func() { pkgconfigsetup.Datadog().Set("log_level", original, configmodel.SourceAgentRuntime) })
+
+	tests := []struct {
+		name   string
+		value  string
+		status int
+	}{
+		{"plain level", "debug", http.StatusOK},
+		{"uppercase level", "DEBUG", http.StatusOK},
+		{"deprecated warning spelling", "warning", http.StatusOK},
+		{"per-package spec", "error,github.com/DataDog/datadog-agent/pkg/trace/...=debug", http.StatusOK},
+		{"invalid level", "verbose", http.StatusInternalServerError},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := httptest.NewRecorder()
+			req := httptest.NewRequest("POST", "/config/set?log_level="+url.QueryEscape(tc.value), nil)
+			req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
+			handler(resp, req)
+
+			assert.Equal(t, tc.status, resp.Code)
+			if tc.status == http.StatusOK {
+				assert.Equal(t, tc.value, pkgconfigsetup.Datadog().GetString("log_level"), "the value must be stored as given")
+			}
+		})
+	}
+}
+
 func buildConfigComponent(t *testing.T, setHostnameInConfig bool) Component {
 	t.Helper()
 
@@ -2724,6 +3002,126 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			cfg := buildConfigComponentFromOverrides(t, true, tt.settings).Object()
 			require.NotNil(t, cfg)
 			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
+		})
+	}
+}
+
+func TestTracesSendToMainEndpoint(t *testing.T) {
+	t.Run("default-true", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{}).Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.SkipMainEndpoint)
+		assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
+	})
+
+	t.Run("false-with-additional-endpoints", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"apm_config.traces_send_to_main_endpoint": false,
+			"apm_config.additional_endpoints":         map[string][]string{"https://additional.example.com": {"additional-key"}},
+		}).Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.SkipMainEndpoint)
+		require.Len(t, cfg.WriterEndpoints(), 1)
+		assert.Equal(t, "https://additional.example.com", cfg.WriterEndpoints()[0].Host)
+		assert.Equal(t, "additional-key", cfg.WriterEndpoints()[0].APIKey)
+		// The main endpoint (and its API key) is kept for APIKey() consumers.
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.NotEqual(t, "additional-key", cfg.APIKey())
+	})
+
+	t.Run("false-without-additional-endpoints-fails-validation", func(t *testing.T) {
+		// Fail closed: the configuration is rejected instead of leaving the
+		// trace and stats writers with no destination.
+		coreConfig := configcomp.NewMock(t)
+		cfg := traceconfig.New()
+		cfg.DDAgentBin = "/bin/true"
+		cfg.Hostname = "testhostname"
+		cfg.SkipMainEndpoint = true
+		cfg.Endpoints = []*traceconfig.Endpoint{{Host: "https://main.example.com", APIKey: "main-key"}}
+		assert.ErrorIs(t, validate(cfg, coreConfig), traceconfig.ErrNoWriterEndpoint)
+
+		// A Multi-Region Failover endpoint alone is not a destination either.
+		cfg.Endpoints = append(cfg.Endpoints, &traceconfig.Endpoint{Host: "https://mrf.example.com", APIKey: "mrf-key", IsMRF: true})
+		assert.ErrorIs(t, validate(cfg, coreConfig), traceconfig.ErrNoWriterEndpoint)
+
+		cfg.Endpoints = append(cfg.Endpoints, &traceconfig.Endpoint{Host: "https://additional.example.com", APIKey: "additional-key"})
+		assert.NoError(t, validate(cfg, coreConfig))
+
+		// With the main endpoint enabled the same single-endpoint config is valid.
+		cfg.SkipMainEndpoint = false
+		cfg.Endpoints = cfg.Endpoints[:1]
+		assert.NoError(t, validate(cfg, coreConfig))
+	})
+}
+
+// TestAcquireHostnameCoreAgentUnreachable checks that acquireHostname returns an
+// error when the core agent cannot be reached on the IPC port. The gRPC dial
+// blocks until its 2s timeout, so the TestConfigHostname subtests avoid this path.
+func TestAcquireHostnameCoreAgentUnreachable(t *testing.T) {
+	// Hold a free port and close every connection to it, so that the dial never
+	// reaches a core agent, whether one runs on the host or not.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	port := l.Addr().(*net.TCPAddr).Port
+
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.SetInTest("cmd_host", "127.0.0.1")
+	coreConfig.SetInTest("cmd_port", port)
+	cfg := buildComponent(t, true, coreConfig).Object()
+
+	require.Error(t, acquireHostname(cfg))
+}
+
+func TestDebugServerHostFollowsCmdHost(t *testing.T) {
+	t.Run("ipv6", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"cmd_host": "::1",
+		}).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "::1", cfg.DebugServerHost)
+		assert.Equal(t, "[::1]:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
+	})
+
+	t.Run("default", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, nil).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "127.0.0.1", cfg.DebugServerHost)
+		assert.Equal(t, "127.0.0.1:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
+	})
+}
+
+func TestAcquireHostnameFallbackEUDM(t *testing.T) {
+	cfg := configcomp.NewMock(t)
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
+	oldFallback, oldUsable := fallbackHostnameFunc, osHostnameUsableFunc
+	t.Cleanup(func() { fallbackHostnameFunc, osHostnameUsableFunc = oldFallback, oldUsable })
+	for _, usable := range []bool{true, false} {
+		t.Run(strconv.FormatBool(usable), func(t *testing.T) {
+			osHostnameUsableFunc = func(context.Context) bool { return usable }
+			fallbackHostnameFunc = func() (string, error) {
+				require.True(t, usable, "must not use OS hostname when the environment disallows it")
+				return "os-hostname", nil
+			}
+			c := traceconfig.New()
+			c.DDAgentBin = "/not/exist"
+			err := acquireHostnameFallback(c)
+			if usable {
+				require.NoError(t, err)
+				require.Equal(t, "os-hostname", c.Hostname)
+			} else {
+				require.Error(t, err)
+				require.Empty(t, c.Hostname)
+			}
 		})
 	}
 }

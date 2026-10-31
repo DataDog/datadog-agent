@@ -127,9 +127,21 @@ def setup(
                 # they are intentionally left unset here.
                 "go.buildTags": local_build_tags,
                 "go.testTags": local_build_tags,
-                "go.lintTool": "golangci-lint",
+                "go.lintTool": "bazelisk",
                 "go.lintOnSave": "package",
                 "go.lintFlags": [
+                    "run",
+                    "//internal/tools:golangci-lint",
+                    "--",
+                    # add vscode-go default args, see:
+                    # https://github.com/golang/vscode-go/blob/master/extension/src/diagnostics/goLint.ts#L122-L163
+                    "run",
+                    "--issues-exit-code=0",
+                    "--output.text.print-issued-lines=false",
+                    "--show-stats=false",
+                    "--output.text.path=stdout",
+                    "--path-mode=abs",
+                    # then our own
                     "--build-tags",
                     local_build_tags,
                 ],

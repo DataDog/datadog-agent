@@ -12,8 +12,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
@@ -65,7 +65,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		return nil
 	}
 
-	level, err := pkglog.GetLogLevel()
+	level, err := pkglog.GetLogLevelSpec()
 	if err != nil {
 		log.Errorf("couldn't get the default log level: %s", err)
 		return nil
@@ -79,14 +79,14 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		errorsSampler:   errorsSampler,
 		agentConfig:     conf,
 		configState: &state.AgentConfigState{
-			FallbackLogLevel: level.String(),
+			FallbackLogLevel: level,
 		},
 		configHTTPClient: &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: conf.IPCTLSClientConfig,
 			},
 		},
-		configSetEndpointFormatString: "https://127.0.0.1:" + strconv.Itoa(conf.DebugServerPort) + "/config/set?log_level=%s",
+		configSetEndpointFormatString: "https://" + conf.DebugServerAddr() + "/config/set?log_level=%s",
 	}
 }
 
@@ -169,10 +169,10 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 
 	if len(mergedConfig.LogLevel) > 0 {
 		// Get the current log level
-		var newFallback pkglog.LogLevel
-		newFallback, err = pkglog.GetLogLevel()
+		var newFallback string
+		newFallback, err = pkglog.GetLogLevelSpec()
 		if err == nil {
-			h.configState.FallbackLogLevel = newFallback.String()
+			h.configState.FallbackLogLevel = newFallback
 			var resp *http.Response
 			var req *http.Request
 			req, err = h.buildLogLevelRequest(mergedConfig.LogLevel)
@@ -187,9 +187,9 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			}
 		}
 	} else {
-		var currentLogLevel pkglog.LogLevel
-		currentLogLevel, err = pkglog.GetLogLevel()
-		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
+		var currentLogLevel string
+		currentLogLevel, err = pkglog.GetLogLevelSpec()
+		if err == nil && currentLogLevel == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
 			var resp *http.Response
 			var req *http.Request
@@ -222,7 +222,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 }
 
 func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, newLevel), nil)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, url.QueryEscape(newLevel)), nil)
 	if err != nil {
 		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
 		return nil, err
@@ -321,9 +321,12 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 			pkglog.Errorf("semantic-core RC: failed to load embedded registry while reverting: %v", err)
 			return
 		}
-		if !semantics.RegistryEqual(embedded, semantics.DefaultRegistry()) {
+		live := semantics.DefaultRegistry()
+		if semantics.RegistryEqual(embedded, live) {
+			pkglog.Debug("semantic-core RC: embedded content already matches the live registry; nothing was swapped and the live registry source is unchanged")
+		} else {
 			semantics.UpdateRegistry(embedded)
-			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry content_hash=%s", embedded.ContentHash())
+			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry: content_hash=%s, version=%s, source=%s", embedded.ContentHash(), embedded.Version(), embedded.Source())
 		}
 		return
 	}
@@ -355,15 +358,15 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 	}
 
 	if chosen != nil {
-		if semantics.RegistryEqual(chosen, semantics.DefaultRegistry()) {
-			// Same registry content_hash as the one already live: skip the swap.
-			// Downstream consumers detect registry replacement themselves by
-			// comparing the live registry's content_hash against their own cached
-			// state, so we don't need to notify them explicitly.
-			pkglog.Debugf("semantic-core RC payload %s matches the live registry content_hash; no-op", chosenPath)
+		live := semantics.DefaultRegistry()
+		if semantics.RegistryEqual(chosen, live) {
+			pkglog.Debugf("semantic-core RC payload %s carries the same content as the live registry; it was accepted but not swapped, and the live registry source is unchanged", chosenPath)
 		} else {
+			// Downstream consumers invalidate derived state by comparing against
+			// the live registry's fingerprint rather than by being notified of a
+			// registry replacement.
 			semantics.UpdateRegistry(chosen)
-			pkglog.Infof("semantic-core registry updated via RC: content_hash=%s, cfgPath=%s", chosen.ContentHash(), chosenPath)
+			pkglog.Infof("semantic-core registry updated via RC: content_hash=%s, version=%s, source=%s, cfgPath=%s", chosen.ContentHash(), chosen.Version(), chosen.Source(), chosenPath)
 		}
 	}
 

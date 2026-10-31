@@ -94,37 +94,6 @@ class TestBypassOnlyAppliesToPRs(unittest.TestCase):
     These tests document the expected behavior at the integration level.
     """
 
-    def test_main_branch_detection_logic(self):
-        """
-        Document: On main branch, ancestor == current_commit, so is_on_main_branch = True.
-
-        When is_on_main_branch is True, the bypass loop in parse_and_trigger_gates
-        is skipped entirely, meaning all failures remain blocking regardless of delta.
-        """
-        # This test documents the detection logic:
-        # ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
-        # is_on_main_branch = ancestor == current_commit
-        # On main, merge-base of HEAD and origin/main is HEAD itself
-
-        # Simulate: on main branch, ancestor equals current commit
-        ancestor = "abc123"
-        current_commit = "abc123"
-        is_on_main_branch = ancestor == current_commit
-        self.assertTrue(is_on_main_branch)
-
-    def test_pr_branch_detection_logic(self):
-        """
-        Document: On PR branches, ancestor != current_commit, so is_on_main_branch = False.
-
-        When is_on_main_branch is False, the bypass loop runs and failures with
-        delta <= 2KiB threshold can be marked non-blocking.
-        """
-        # Simulate: on PR branch, ancestor is different from current commit
-        ancestor = "abc123"  # Common ancestor with main
-        current_commit = "def456"  # PR's HEAD
-        is_on_main_branch = ancestor == current_commit
-        self.assertFalse(is_on_main_branch)
-
     def test_bypass_logic_skipped_on_main_conceptually(self):
         """
         Document: The bypass logic should NOT run on main branch.

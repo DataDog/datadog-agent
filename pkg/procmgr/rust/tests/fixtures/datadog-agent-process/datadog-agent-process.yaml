@@ -1,0 +1,6 @@
+description: Datadog Process Agent
+command: {{python}}
+args:
+  - --cfgpath
+  - {{config_dir}}/datadog.yaml
+auto_start: false

@@ -106,6 +106,8 @@ func (s *dummyService) GetImageName() string {
 func TestResolve(t *testing.T) {
 	// Prepare envvars for test
 	t.Setenv("test_envvar_key", "test_value")
+	t.Setenv("DD_CLUSTER_AGENT_AUTH_TOKEN", "test_token")
+	t.Setenv("DD_ENV", "test_env")
 	os.Unsetenv("test_envvar_not_set")
 
 	testCases := []struct {
@@ -132,7 +134,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -151,7 +153,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.2\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.2\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -170,7 +172,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.5\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.5\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -189,7 +191,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.3\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.3\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -208,7 +210,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.4\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.4\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -243,7 +245,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("port: 3\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("port: 3\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -262,7 +264,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("port: 1\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("port: 1\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -281,7 +283,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("port: 2\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("port: 2\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -381,7 +383,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_value\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -427,7 +429,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_value\n")},
 				ServiceID:     "a5901276aed1",
 			},
 			configSettings: map[string]interface{}{
@@ -466,7 +468,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_value\n")},
 				ServiceID:     "a5901276aed1",
 			},
 			configSettings: map[string]interface{}{
@@ -488,7 +490,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_value\n")},
 				ServiceID:     "a5901276aed1",
 			},
 			configSettings: map[string]interface{}{}, // env allowlist is not defined
@@ -525,7 +527,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_value\n")},
 				ServiceID:     "a5901276aed1",
 			},
 			configSettings: map[string]interface{}{
@@ -549,6 +551,94 @@ func TestResolve(t *testing.T) {
 			configSettings: map[string]interface{}{
 				"ad_disable_env_var_resolution": true,
 				"ad_allowed_env_vars":           []string{"some_env"}, // Same env as in the template
+			},
+		},
+		{
+			testName: "agent setting env var is disallowed by default",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_CLUSTER_AGENT_AUTH_TOKEN%%")},
+			},
+			errorString: "envvar DD_CLUSTER_AGENT_AUTH_TOKEN is not allowed in check configs, skipping service a5901276aed1",
+		},
+		{
+			testName: "agent setting env var is disallowed by default (logs check)",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("test: %%env_dd_api_key%%"),
+			},
+			errorString: "envvar dd_api_key is not allowed in check configs, skipping service a5901276aed1",
+		},
+		{
+			testName: "agent setting env var allowed by default",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_ENV%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_env\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "agent setting env var in the allow list",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_CLUSTER_AGENT_AUTH_TOKEN%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_token\n")},
+				ServiceID:     "a5901276aed1",
+			},
+			configSettings: map[string]interface{}{
+				"ad_allowed_env_vars": []string{"DD_CLUSTER_AGENT_AUTH_TOKEN"},
+			},
+		},
+		{
+			testName: "agent env var allow list is ignored when the env var allow list is set",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_CLUSTER_AGENT_AUTH_TOKEN%%")},
+			},
+			errorString: "envvar DD_CLUSTER_AGENT_AUTH_TOKEN is not allowed in check configs, skipping service a5901276aed1",
+			configSettings: map[string]interface{}{
+				"ad_allowed_env_vars":       []string{"test_envvar_key"},
+				"ad_allowed_agent_env_vars": []string{"DD_CLUSTER_AGENT_AUTH_TOKEN"},
 			},
 		},
 		//// envvars (logs check)
@@ -618,7 +708,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: imhere\n")},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: imhere\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -639,7 +729,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("pid: 1337\ntags:\n- foo\n")},
+				Instances:     []integration.Data{integration.Data("pid: 1337\ntags:\n    - foo\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -672,7 +762,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "device",
 				ADIdentifiers: []string{"snmp"},
-				Instances:     []integration.Data{integration.Data("authKey: secret\ntags:\n- foo:bar\nuser: admin\n")},
+				Instances:     []integration.Data{integration.Data("authKey: secret\ntags:\n    - foo:bar\nuser: admin\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -695,7 +785,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "postgres",
 				ADIdentifiers: []string{"_dbm_aws_aurora"},
-				Instances:     []integration.Data{integration.Data("dbclusteridentifier: my-cluster\nhost: my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com\nmanaged_authentication_enabled: true\nport: 5432\nregion: us-west-2\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("dbclusteridentifier: my-cluster\nhost: my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com\nmanaged_authentication_enabled: true\nport: 5432\nregion: us-west-2\ntags:\n    - foo:bar\n")},
 				ServiceID:     "dummy",
 			},
 		},
@@ -715,7 +805,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "ksm",
 				ADIdentifiers: []string{"kube-state-metrics"},
-				Instances:     []integration.Data{integration.Data("host: 10.3.2.1\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 10.3.2.1\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -754,7 +844,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n    - foo:bar\n")},
 				ServiceID:     "a5901276aed1",
 				PodNamespace:  "default",
 			},
@@ -775,7 +865,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host_ipv4: 192.168.0.1\nhost_ipv6: fd::1\ntags:\n- foo:bar\nurl_ipv4: http://192.168.0.1:3/data\nurl_ipv6: http://[fd::1]:3/data\n")},
+				Instances:     []integration.Data{integration.Data("host_ipv4: 192.168.0.1\nhost_ipv6: fd::1\ntags:\n    - foo:bar\nurl_ipv4: http://192.168.0.1:3/data\nurl_ipv6: http://[fd::1]:3/data\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -797,8 +887,8 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
-				LogsConfig:    integration.Data("logs:\n- log_processing_rules:\n  - name: numbers\n    pattern: ^[0-9]+$\n    type: include_at_match\n  type: docker\n"),
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n    - foo:bar\n")},
+				LogsConfig:    integration.Data("logs:\n    - log_processing_rules:\n        - name: numbers\n          pattern: ^[0-9]+$\n          type: include_at_match\n      type: docker\n"),
 				ServiceID:     "a5901276aed1",
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      names.File,
@@ -821,7 +911,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n    - foo:bar\n")},
 				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
 				ServiceID:     "a5901276aed1",
 				Provider:      names.Container,
@@ -844,7 +934,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n    - foo:bar\n")},
 				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
 				ServiceID:     "a5901276aed1",
 				Provider:      names.Kubernetes,
@@ -865,7 +955,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n    - foo:bar\n    - statictag:TEST\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -884,7 +974,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\nzemptykey: null\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n    - foo:bar\n    - statictag:TEST\nzemptykey: null\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},
@@ -903,7 +993,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- password:\"complex%%password\"\n")},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n    - foo:bar\n    - password:\"complex%%password\"\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},

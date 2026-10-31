@@ -3,6 +3,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "INSTALLER_TAGS")
 
+package(default_package_metadata = ["//:package_metadata"])
+
 go_library(
     name = "installer_lib",
     srcs = ["main.go"],
@@ -20,19 +22,23 @@ go_library(
 
 dd_agent_go_binary(
     name = "installer",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/installer/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
-    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
-    cgo = select({
-        "//packages/agent:fips_flavor": True,
-        "@platforms//os:windows": True,
-        "//conditions:default": False,
-    }),
     embed = [":installer_lib"],
+    gc_linkopts = select({
+        "@platforms//os:linux": [
+            "-X",
+            "github.com/DataDog/datadog-agent/pkg/util/defaultpaths.runPath=/opt/datadog-packages/run",
+        ],
+        "//conditions:default": [],
+    }),
     gotags = INSTALLER_TAGS,
+    pure = select({
+        "@platforms//os:linux": "on",
+        "//conditions:default": "auto",
+    }),
     visibility = ["//visibility:public"],
 )
 

@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -48,6 +47,11 @@ const (
 
 // ErrSpecTooLarge is returned when container Spec is too large
 var ErrSpecTooLarge = errors.New("Container spec is too large")
+
+// ErrNotUnpacked reports that neither nydus nor the default snapshotter holds
+// an image unpacked, so the image has no view to mount. Test for it with
+// errors.Is.
+var ErrNotUnpacked = errors.New("image is not unpacked")
 
 // ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
@@ -177,11 +181,24 @@ func (c *ContainerdUtil) connect() error {
 	if err != nil {
 		return err
 	}
+
+	// containerd.New does not dial, it only builds a lazy gRPC client, so this
+	// is the first call that actually reaches the daemon. If it fails we have to
+	// close the client ourselves: callers discard the ContainerdUtil when the
+	// initial connection fails and never get a chance to. An unclosed
+	// ClientConn is kept alive forever by the callback serializers that its
+	// idle mode re-arms, so every orphan is a permanent leak.
 	ver, err := c.Metadata()
-	if err == nil {
-		log.Infof("Connected to containerd - Version %s/%s", ver.Version, ver.Revision)
+	if err != nil {
+		if errClose := c.cl.Close(); errClose != nil {
+			log.Warnf("Could not close the containerd client after a failed connection attempt: %v", errClose)
+		}
+		c.cl = nil
+		return err
 	}
-	return err
+
+	log.Infof("Connected to containerd - Version %s/%s", ver.Version, ver.Revision)
+	return nil
 }
 
 // GetEvents interfaces with the containerd api to get the event service.
@@ -397,23 +414,45 @@ func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, n
 	return mounts, cleanup, err
 }
 
+// cleanupTimeout bounds the calls that release a view snapshot and its lease.
+const cleanupTimeout = 30 * time.Second
+
+// cleanupContext keeps ctx's values, the containerd namespace among them, and
+// replaces ctx's cancellation with a deadline of its own. Releasing a view
+// snapshot takes two RPCs, and the caller is usually cancelling by then, which
+// would fail both and leave the snapshot holding what it materialised.
+func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+}
+
+// unpackedSnapshotter returns the snapshotter holding img unpacked. It asks
+// nydus first and then the default snapshotter, since a node running nydus
+// can hold an image in either.
+func unpackedSnapshotter(ctx context.Context, img containerd.Image) (string, error) {
+	if unpacked, err := img.IsUnpacked(ctx, "nydus"); err == nil && unpacked {
+		return "nydus", nil
+	}
+	unpacked, err := img.IsUnpacked(ctx, defaults.DefaultSnapshotter)
+	// containerd answers a question about a snapshotter it has not loaded
+	// with an invalid argument error.
+	if err != nil && !errdefs.IsInvalidArgument(err) {
+		return "", fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
+	}
+	if !unpacked {
+		return "", fmt.Errorf("unable to scan image named: %s, %w for snapshotter %s", img.Name(), ErrNotUnpacked, defaults.DefaultSnapshotter)
+	}
+	return defaults.DefaultSnapshotter, nil
+}
+
 // MountsWithSnapshotter is like Mounts but also returns the snapshotter name
 // backing the mounts, so callers that need to talk to the same SnapshotService
 // (e.g. to verify the snapshot's parent chain) don't have to re-probe.
 func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error) {
-	snapshotter := "nydus"
 	ctx = namespaces.WithNamespace(ctx, namespace)
 
-	// Checking if image is already unpacked
-	imgUnpacked, err := img.IsUnpacked(ctx, snapshotter)
+	snapshotter, err := unpackedSnapshotter(ctx, img)
 	if err != nil {
-		snapshotter = defaults.DefaultSnapshotter
-		if imgUnpacked, err = img.IsUnpacked(ctx, snapshotter); err != nil {
-			return nil, "", nil, fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
-		}
-	}
-	if !imgUnpacked {
-		return nil, "", nil, fmt.Errorf("unable to scan image named: %s, image is not unpacked for snapshotter %s", img.Name(), snapshotter)
+		return nil, "", nil, err
 	}
 
 	// Getting image id
@@ -438,9 +477,11 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 	// Getting top layer image id
 	diffIDs, err := img.RootFS(ctx)
 	if err != nil {
-		if err := done(ctx); err != nil {
+		releaseCtx, cancel := cleanupContext(ctx)
+		if err := done(releaseCtx); err != nil {
 			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
 		}
+		cancel()
 		return nil, "", nil, fmt.Errorf("unable to get layers digests for image: %s, err: %w", imageID, err)
 	}
 	chainID := identity.ChainID(diffIDs).String()
@@ -448,9 +489,11 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 	s := c.cl.SnapshotService(snapshotter)
 	mounts, err := s.View(ctx, imageID, chainID)
 	if err != nil && !errdefs.IsAlreadyExists(err) {
-		if err := done(ctx); err != nil {
+		releaseCtx, cancel := cleanupContext(ctx)
+		if err := done(releaseCtx); err != nil {
 			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
 		}
+		cancel()
 		return nil, "", nil, fmt.Errorf("unable to build snapshot for image: %s, err: %w", imageID, err)
 	}
 	cleanSnapshot := func(ctx context.Context) error {
@@ -459,12 +502,14 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 
 	// Nothing returned
 	if len(mounts) == 0 {
-		if err := cleanSnapshot(ctx); err != nil {
+		releaseCtx, cancel := cleanupContext(ctx)
+		if err := cleanSnapshot(releaseCtx); err != nil {
 			log.Warnf("Unable to clean snapshot with id: %s, err: %v", imageID, err)
 		}
-		if err := done(ctx); err != nil {
+		if err := done(releaseCtx); err != nil {
 			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
 		}
+		cancel()
 		return nil, "", nil, fmt.Errorf("No snapshots returned for image: %s", imageID)
 	}
 
@@ -472,16 +517,12 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 		for i := range mounts {
 			mounts[i].Source = image.SanitizeHostPath(mounts[i].Source)
 
-			var errs []error
 			for j, opt := range mounts[i].Options {
 				for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
 					if trimmedOpt, ok := strings.CutPrefix(opt, prefix); ok {
 						dirs := strings.Split(trimmedOpt, ":")
 						for n, dir := range dirs {
 							dirs[n] = image.SanitizeHostPath(dir)
-							if _, err := os.Stat(dirs[n]); err != nil {
-								errs = append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
-							}
 						}
 						mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
 					}
@@ -489,15 +530,12 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 
 				log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
 			}
-
-			if len(errs) > 0 {
-				log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errors.Join(errs...))
-			}
 		}
 	}
 
 	return mounts, snapshotter, func(ctx context.Context) error {
-		ctx = namespaces.WithNamespace(ctx, namespace)
+		ctx, cancel := cleanupContext(namespaces.WithNamespace(ctx, namespace))
+		defer cancel()
 		if err := cleanSnapshot(ctx); err != nil {
 			log.Warnf("Unable to clean snapshot with id: %s, err: %v", imageID, err)
 		}

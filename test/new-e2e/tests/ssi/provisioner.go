@@ -6,6 +6,7 @@
 package ssi
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -131,12 +132,39 @@ func kindLocalProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 	if opts.AgentDependentWorkloadAppFunc != nil {
 		localOpts = append(localOpts, provlocal.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
 	}
+	for _, image := range localAgentImagesFromStackParams() {
+		localOpts = append(localOpts, provlocal.WithKindLoadImage(image))
+	}
 	return provlocal.Provisioner(localOpts...)
+}
+
+func localAgentImagesFromStackParams() []string {
+	raw, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackParameters, "")
+	if err != nil || raw == "" {
+		return nil
+	}
+	var params map[string]string
+	if err := json.Unmarshal([]byte(raw), &params); err != nil {
+		return nil
+	}
+
+	var images []string
+	for _, key := range []string{
+		"ddagent:" + config.DDAgentFullImagePathParamName,
+		"ddagent:" + config.DDClusterAgentFullImagePathParamName,
+	} {
+		if image := params[key]; image != "" {
+			images = append(images, image)
+		}
+	}
+	return images
 }
 
 // kindProvisioner returns an AWS Kind VM provisioner
 func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	runOpts := []kindvm.RunOption{
+		// TODO: Mirror Kubernetes component and workload images internally.
+		kindvm.WithInternetAccess(),
 		kindvm.WithFakeintakeOptions(fakeintake.WithMemory(4096)),
 	}
 	if len(opts.AgentOptions) > 0 {
@@ -155,8 +183,8 @@ func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envi
 func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var runOpts []scenarioeks.RunOption
 
-	// Add a Linux node group by default.
-	runOpts = append(runOpts, scenarioeks.WithEKSOptions(scenarioeks.WithLinuxNodeGroup()))
+	// SSI requires public injector, Operator and CSI images; retain internet access until mirrored.
+	runOpts = append(runOpts, scenarioeks.WithEKSOptions(scenarioeks.WithLinuxNodeGroup(), scenarioeks.WithInternetAccess()))
 
 	if len(opts.AgentOptions) > 0 {
 		runOpts = append(runOpts, scenarioeks.WithAgentOptions(opts.AgentOptions...))

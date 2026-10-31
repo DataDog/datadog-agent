@@ -87,6 +87,20 @@ func WithVMOptions(opts ...ec2.VMOption) RunOption {
 	return func(p *RunParams) error { p.vmOptions = append(p.vmOptions, opts...); return nil }
 }
 
+// WithoutInternetAccess opts the kubeadm VM out of internet access: the account's default
+// security groups are replaced with the ones configured to block internet access (see
+// ec2.WithoutInternetAccess). The Kubernetes test provisioner applies this by default;
+// direct scenario callers must opt in.
+func WithoutInternetAccess() RunOption {
+	return WithVMOptions(ec2.WithoutInternetAccess())
+}
+
+// WithInternetAccess explicitly opts the kubeadm VM into internet access, overriding a
+// WithoutInternetAccess option set earlier in the options list.
+func WithInternetAccess() RunOption {
+	return WithVMOptions(ec2.WithInternetAccess())
+}
+
 // WithAgentOptions sets agent options.
 func WithAgentOptions(opts ...kubernetesagentparams.Option) RunOption {
 	return func(p *RunParams) error { p.agentOptions = append(p.agentOptions, opts...); return nil }

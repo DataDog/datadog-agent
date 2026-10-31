@@ -41,8 +41,14 @@ processors:
               value: 7.0.0-test
 receivers:
     profiling:
+        filter_min_process_age: 0s
+        reporter_interval: 1m0s
+        send_error_frames: false
         symbol_uploader:
             enabled: true
+            report:
+                interval: 300
+                max_paths_per_report: 100
             symbol_endpoints:
                 - api_key: eu_key_1
                   site: datadoghq.eu

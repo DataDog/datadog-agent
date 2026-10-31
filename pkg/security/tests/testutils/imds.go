@@ -36,6 +36,17 @@ const (
 	IMDSTestServerCIDR = IMDSTestServerIP + "/32"
 	// IMDSTestServerPort is the IMDS server port used by the IMDS tests
 	IMDSTestServerPort = 8080
+
+	// EKSPodIdentityCredentialsURL is the URL served by the EKS Pod Identity Agent
+	EKSPodIdentityCredentialsURL = "/v1/credentials"
+	// EKSPodIdentityTestServerIP is the EKS Pod Identity Agent IP used by the tests
+	EKSPodIdentityTestServerIP = "169.254.170.23"
+	// EKSPodIdentityTestServerCIDR is the EKS Pod Identity Agent CIDR used by the tests
+	EKSPodIdentityTestServerCIDR = EKSPodIdentityTestServerIP + "/32"
+	// EKSPodIdentityTestServerPort is the EKS Pod Identity Agent port used by the tests
+	EKSPodIdentityTestServerPort = 8081
+	// EKSPodIdentityAccountIDTestValue is the AccountId returned by the fake Pod Identity Agent
+	EKSPodIdentityAccountIDTestValue = "123456789012"
 )
 
 // CreateIMDSServer creates a fake IMDS server
@@ -70,6 +81,42 @@ func CreateIMDSServer(addr string) *http.Server {
 		}
 
 		// Write JSON response
+		w.Write(response)
+	})
+
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Printf("HTTP server error: %v", err)
+		}
+	}()
+
+	return server
+}
+
+// CreateEKSPodIdentityServer creates a fake EKS Pod Identity Agent
+func CreateEKSPodIdentityServer(addr string) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc(EKSPodIdentityCredentialsURL, func(w http.ResponseWriter, _ *http.Request) {
+		data := map[string]interface{}{
+			"AccessKeyId":     AWSSecurityCredentialsAccessKeyIDTestValue,
+			"SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			"Token":           "FQoDYXdzEL3EXAMPLETOKEN",
+			"AccountId":       EKSPodIdentityAccountIDTestValue,
+			"Expiration":      AWSSecurityCredentialsExpirationTestValue,
+		}
+
+		response, err := json.Marshal(data)
+		if err != nil {
+			http.Error(w, "couldn't marshal data", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
 		w.Write(response)
 	})
 

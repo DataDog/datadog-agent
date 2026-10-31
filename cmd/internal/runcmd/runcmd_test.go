@@ -26,6 +26,23 @@ func TestRun_success(t *testing.T) {
 	require.Equal(t, 0, Run(cmd))
 }
 
+type testExitCodeError int
+
+func (e testExitCodeError) Error() string { return "command failed" }
+
+func (e testExitCodeError) ExitCode() int { return int(e) }
+
+func TestRun_propagatesExitCode(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "exit-code",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return testExitCodeError(7)
+		},
+	}
+	cmd.SetArgs([]string{"exit-code"})
+	require.Equal(t, 7, Run(cmd))
+}
+
 func TestRun_fail(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "bad",

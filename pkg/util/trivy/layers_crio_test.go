@@ -8,9 +8,17 @@
 package trivy
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/util/crio"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	imgspecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,4 +97,75 @@ func TestBuildCRIOLayerPaths(t *testing.T) {
 		_, err := buildCRIOLayerPaths(imgMeta, lowerDirs[:1], manifestDigests)
 		require.ErrorIs(t, err, errLayerCountMismatch)
 	})
+}
+
+func TestFakeCRIOContainerConfigFile(t *testing.T) {
+	created := time.Date(2026, time.June, 2, 5, 4, 37, 326772648, time.UTC)
+	layerCreated := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+
+	// One history entry for two diff_ids: what the collector produces from a
+	// config with fewer history entries than layers.
+	imgMeta := &workloadmeta.ContainerImageMetadata{
+		Architecture: "amd64",
+		OS:           "linux",
+		Created:      created,
+		Layers: []workloadmeta.ContainerImageLayer{
+			{
+				DiffID:  "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+				History: &imgspecs.History{CreatedBy: "step one", Created: &layerCreated},
+			},
+			{
+				DiffID: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+			},
+		},
+	}
+	ctr := &fakeCRIOContainer{fakeContainer: newFakeContainer([]ftypes.LayerPath{
+		{DiffID: "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		{DiffID: "sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+	}, imgMeta)}
+
+	configFile, err := ctr.ConfigFile()
+	require.NoError(t, err)
+
+	assert.Equal(t, created, configFile.Created.Time)
+	require.Len(t, configFile.History, 2)
+	assert.Equal(t, "step one", configFile.History[0].CreatedBy)
+	assert.Equal(t, layerCreated, configFile.History[0].Created.Time)
+	assert.Equal(t, v1.History{}, configFile.History[1])
+}
+
+// layerDirs is a crio.Client that answers GetCRIOImageLayers alone.
+type layerDirs struct {
+	crio.Client
+	dirs []string
+}
+
+func (c layerDirs) GetCRIOImageLayers(*workloadmeta.ContainerImageMetadata) ([]string, error) {
+	return c.dirs, nil
+}
+
+// TestScanCRIOImageUnreadableLayer checks that the scan of an image whose top
+// layer directory is missing fails, where it reported the base layer alone.
+func TestScanCRIOImageUnreadableLayer(t *testing.T) {
+	base := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(base, "etc"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(base, "etc", "os-release"), []byte("ID=alpine\nVERSION_ID=3.20.0\n"), 0o644))
+	top := filepath.Join(t.TempDir(), "missing")
+
+	imgMeta := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+		},
+		Layers: []workloadmeta.ContainerImageLayer{
+			{DiffID: "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+			{DiffID: "sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+		},
+	}
+	// GetCRIOImageLayers lists the layers top first.
+	client := layerDirs{dirs: []string{top, base}}
+
+	_, err := NewCollectorForCLI().ScanCRIOImageFromOverlayFS(t.Context(), imgMeta, client, sbom.ScanOptions{Analyzers: []string{OSAnalyzers}})
+	assert.ErrorIs(t, err, ErrLayerUnreadable)
+	assert.ErrorContains(t, err, top)
 }

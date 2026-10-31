@@ -10,6 +10,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.system_probe import copy_ebpf_and_related_files
@@ -17,6 +18,8 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
+
+BAZEL_TARGET = "//cmd/process-agent:process-agent"
 
 
 @task
@@ -29,12 +32,25 @@ def build(
     flavor=AgentFlavor.base.name,
     rebuild=False,
     go_mod="readonly",
+    enable_bazel=False,
 ):
     """
     Build the process agent
     """
 
     flavor = AgentFlavor[flavor]
+
+    if enable_bazel:
+        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+        if install_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
+
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        return
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -133,8 +149,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
 
 @task
-def gen_mocks(ctx):
+def gen_mocks(_):
     """
     Generate mocks
     """
-    ctx.run("mockery")
+    bazel("run", "//internal/tools:mockery")

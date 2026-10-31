@@ -54,9 +54,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	ctx := context.TODO()
-
-	store, _ := newStore(ctx, wlm, wlm.GetConfig(), client)
+	store, _ := newStore(wlm, wlm.GetConfig(), client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -92,6 +90,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later
 	bundle.Ch = nil
+	bundle.EnqueuedAt = time.Time{}
 	actual := bundle
 	assert.Equal(t, expected, actual)
 	close(stopStore)
@@ -123,7 +122,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// Create a fake metadata client to mock API calls.
 	_, err = metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
-	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
+	store, _ := newMetadataStore(wlm, wlm.GetConfig(), metadataclient, gvr)
 
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
@@ -160,6 +159,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later
 	bundle.Ch = nil
+	bundle.EnqueuedAt = time.Time{}
 	actual := bundle
 	assert.Equal(t, expected, actual)
 	close(stopStore)

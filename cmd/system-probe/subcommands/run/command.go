@@ -38,6 +38,7 @@ import (
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -54,8 +55,10 @@ import (
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	nooptaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -98,6 +101,10 @@ type spLiteExecCmd struct {
 	Env  []string
 }
 
+// These are supplied for testability.
+type spliteExecFunc func(string, []string, []string) error
+type spliteExecutableFunc func() (string, error)
+
 // configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
 const configPrefix = "system_probe_config."
 
@@ -114,6 +121,12 @@ const configSyncTimeout = 10 * time.Second
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	return commands(globalParams, spliteExecFunc(syscall.Exec), spliteExecutableFunc(os.Executable))
+}
+
+// commands allows tests to intercept the system-probe-lite handoff while
+// exercising the same Fx options as the production command.
+func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executableFn spliteExecutableFunc) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -122,19 +135,29 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			coreAgentIPC := coreAgentIPCEnabled(globalParams.ConfFilePath, globalParams.FleetPoliciesDirPath)
 			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
+				fx.Supply(execFn),
+				fx.Supply(executableFn),
+				fx.Invoke(tryExecSPLite),
 				fx.Supply(config.NewAgentParams(
 					globalParams.DatadogConfFilePath(),
 					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 				)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
-				fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
-				configstreamconsumerfx.Module(),
-				getSharedFxOption(),
+				getSharedFxOption(coreAgentIPC),
+			}
+			// The config component takes the consumer as an optional dependency, so it can
+			// simply be left out when there is no core agent to stream the config from.
+			if coreAgentIPC {
+				opts = append(opts,
+					fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
+					configstreamconsumerfx.Module(),
+				)
 			}
 			return fxutil.OneShot(run, opts...)
 		},
@@ -144,8 +167,30 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{runCmd}
 }
 
-func getSharedFxOption() fx.Option {
+// tryExecSPLite checks for a system-probe-lite handoff while Fx is
+// building the application, to do it as early as possible. It runs before
+// fxutil.OneShot starts lifecycle hooks for the full system-probe graph. Using
+// the graph's config components means an active config stream applies its
+// initial snapshot before this decision, and config loading errors still abort
+// startup normally. Resolving pid.Component writes and validates the PID file
+// that system-probe-lite will remove on exit.
+func tryExecSPLite(sysConfig sysprobeconfig.Component, _ pid.Component, pidParams pidimpl.Params, logger log.Component, executableFn spliteExecutableFunc, execFn spliteExecFunc) {
+	if cmd := maybeSPLite(sysConfig, pidParams.PIDfilePath, logger, executableFn); cmd != nil {
+		logger.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+		logger.Flush()
+		if err := execFn(cmd.Path, cmd.Args, cmd.Env); err != nil {
+			logger.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		}
+	}
+}
+
+// getSharedFxOption returns the fx options shared by every way of running system-probe.
+// When coreAgentIPC is false, system-probe runs isolated from the core agent by design
+// (e.g. inside a microVM), so every component that would talk to it is replaced by a
+// local or no-op implementation, or left out.
+func getSharedFxOption(coreAgentIPC bool) fx.Option {
 	return fx.Options(
+		coreAgentFxOptions(coreAgentIPC),
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile())),
 		config.Module(),
 		delegatedauthnoopfx.Module(),
@@ -165,13 +210,10 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobefx.Module(),
-		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
-		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 		autoexitfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
@@ -198,12 +240,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-		remotehostnameimpl.Module(
-			remotehostnameimpl.WithMaxAttempts(10),
-			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
-		),
-		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
-		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
@@ -211,6 +247,36 @@ func getSharedFxOption() fx.Option {
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		rdnsquerierfx.Module(),
 		npcollectorfx.Module(),
+	)
+}
+
+// coreAgentFxOptions returns the components that depend on reaching the core agent.
+func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
+	if !coreAgentIPC {
+		return fx.Options(
+			nooptaggerfx.Module(),
+			workloadfilterfx.Module(),
+			hostnameimpl.Module(),
+			// Remote Configuration is served by the core agent: turn it off so that
+			// neither the RC client nor the CWS RC policy provider try to reach it.
+			// A decorator, unlike an invoke, applies before any component sees the
+			// config, whatever the order fx builds them in.
+			fx.Decorate(func(cfg config.Component) config.Component {
+				cfg.Set("remote_configuration.enabled", false, model.SourceAgentRuntime)
+				return cfg
+			}),
+		)
+	}
+	return fx.Options(
+		wmcatalog.GetCatalog(),
+		remoteWorkloadfilterfx.Module(),
+		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+		remotehostnameimpl.Module(
+			remotehostnameimpl.WithMaxAttempts(10),
+			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
+		),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		remoteagentfx.Module(),
 	)
 }
 
@@ -223,17 +289,8 @@ func run(
 	_ autoexit.Component,
 	settings settings.Component,
 	_ ipc.Component,
-	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
-	if cmd := maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log); cmd != nil {
-		deps.Log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
-		deps.Log.Flush()
-		if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
-			deps.Log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
-		}
-	}
-
 	defer stopSystemProbe()
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {

@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
@@ -159,12 +159,17 @@ func readInfrastructureModeFromConfig() string {
 	return config.InfrastructureMode
 }
 
+// agentConfigPath returns the installed datadog.yaml path. Tests replace it to avoid reading the machine's config.
+//
+//nolint:unused // Used in platform-specific files
+var agentConfigPath = func() string { return filepath.Join(paths.AgentConfigDir, "datadog.yaml") }
+
 // loadDatadogAgentConfig reads and parses the subset of the installed datadog.yaml that the
 // installer cares about. It returns ok=false (best effort) if the file cannot be read or parsed.
 //
 //nolint:unused // Used in platform-specific files
 func loadDatadogAgentConfig() (datadogAgentConfig, bool) {
-	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+	configPath := agentConfigPath()
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Debugf("could not read agent config at %s: %v", configPath, err)

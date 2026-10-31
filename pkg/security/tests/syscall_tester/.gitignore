@@ -1,5 +1,10 @@
 go/ebpf_probe.o
 bin/syscall_go_tester
+bin/span_go_tester
 bin/syscall_tester
 bin/syscall_x86_tester
 bin/syscall_tester.d
+bin/otel_tls_*
+bin/libotel_tls_*
+bin/otel_nodejs_*
+bin/libotel_nodejs_*

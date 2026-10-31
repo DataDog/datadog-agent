@@ -12,11 +12,9 @@ import (
 	"fmt"
 	"slices"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,14 +36,7 @@ type PRMCache struct {
 }
 
 // NewPRMCache creates a PRM cache that talks to system-probe.
-func NewPRMCache() *PRMCache {
-	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
-	client := sysprobeclient.GetCheckClient(
-		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		sysprobeclient.WithCheckTimeout(timeout),
-		sysprobeclient.WithStartupCheckTimeout(timeout),
-	)
-
+func NewPRMCache(client *sysprobeclient.CheckClient) *PRMCache {
 	return &PRMCache{
 		client:    client,
 		responses: map[prmCacheKey]prmCacheEntry{},
@@ -69,7 +60,7 @@ func (c *PRMCache) Refresh() error {
 		return nil
 	}
 
-	responses, err := sysprobeclient.Post[[]model.PRMResponse](c.client, "/prm-metrics", c.requests, sysconfig.GPUMonitoringModule)
+	responses, err := sysprobeclient.Post[[]model.PRMResponse](c.client, "/prm-metrics", c.requests, sysconfigtypes.GPUMonitoringModule)
 	if err != nil {
 		c.responses = map[prmCacheKey]prmCacheEntry{}
 		if sysprobeclient.IgnoreStartupError(err) == nil {

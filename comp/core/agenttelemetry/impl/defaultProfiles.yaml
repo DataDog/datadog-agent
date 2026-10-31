@@ -1,4 +1,21 @@
 profiles:
+- name: par-phone-home
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: par_phone_home.state
+        preserve_tags:
+          - state
+          - reason
+      - name: par_phone_home.transitions
+        preserve_tags:
+          - state
+          - reason
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: checks
   metric:
     exclude:
@@ -19,6 +36,15 @@ profiles:
         preserve_tags:
           - check_name
           - state
+      - name: checks.metadata_message_oversized
+        preserve_tags:
+          - check_name
+          - kind
+          - truncated
+      - name: checks.metadata_message_oversized_bytes
+        preserve_tags:
+          - check_name
+          - kind
       - name: pymem.inuse
       - name: health_platform.issues_detected
         preserve_tags:
@@ -36,9 +62,21 @@ profiles:
       - name: dogstatsd.udp_packets_bytes
       - name: dogstatsd.uds_packets_bytes
       - name: dogstatsd_client.bytes_sent
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped_queue
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped_writer
+        preserve_tags:
+          - client
+          - client_transport
       - name: logs.bytes_missed
       - name: logs.bytes_sent
         aggregate_total: true
@@ -70,16 +108,21 @@ profiles:
         preserve_tags:
           - truncated
           - line_type
-      - name: logs.auto_multi_line_default_total_lines
-      - name: logs.auto_multi_line_default_would_combine
-      - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
-      - name: point.sent
+      - name: points.sent
         preserve_tags:
           - domain
-      - name: point.dropped
+      - name: points.dropped
         preserve_tags:
           - domain
+      # Metadata payloads over the serializer size limits are dropped before
+      # reaching the forwarder, so they are invisible from intake.
+      - name: serializer.metadata_payload_dropped
+        preserve_tags:
+          - reason
+      - name: serializer.metadata_payload_dropped_bytes
+        preserve_tags:
+          - compressed
       - name: transactions.input_count
         preserve_tags:
           - domain
@@ -107,6 +150,37 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+# Intake routing (comp/intakerouting) serves every telemetry type, so it is not part of logs-and-metrics.
+- name: intake-routing
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: intake_routing.queries
+        preserve_tags:
+          - status
+      - name: intake_routing.preflights
+        preserve_tags:
+          - status
+      - name: intake_routing.switches
+        preserve_tags:
+          - telemetry_type
+          - direction
+      - name: intake_routing.rejected_answers
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.skipped_endpoints
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.active_overrides
+        preserve_tags:
+          - telemetry_type
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: agent-performance
   metric:
     exclude:
@@ -116,23 +190,29 @@ profiles:
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.container_terminated
         preserve_tags:
           - kind
           - pod_name
+          - container_name
           - reason
+          - exit_code
       - name: agent_performance.memory_usage
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.memory_limit
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.cpu_usage
         preserve_tags:
           - kind
           - pod_name
+          - container_name
   schedule:
     start_after: 30
     iterations: 0
@@ -354,9 +434,16 @@ profiles:
     metrics:
       - name: runtime.procmgr_daemon_reachable
       - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_daemon_service_state
+        preserve_tags:
+          - state
       - name: runtime.procmgr_process_running
         preserve_tags:
           - process
+      - name: runtime.procmgr_process_state
+        preserve_tags:
+          - process
+          - state
       - name: runtime.agent_service_installed
         preserve_tags:
           - service
@@ -367,6 +454,10 @@ profiles:
         preserve_tags:
           - service
           - mode
+      - name: runtime.agent_service_running
+        preserve_tags:
+          - service
+          - supervisor
   schedule:
     start_after: 30
     iterations: 0
@@ -385,9 +476,49 @@ profiles:
 - name: gpu
   metric:
     exclude:
-      zero_metric: true
+      # Zero values are meaningful here (e.g. 0% container mapping failures on a healthy host).
+      zero_metric: false
+      # Collectors that are disabled by configuration or not supported by the device are
+      # expected outcomes, only creation errors and successes are useful. This applies to
+      # every metric in the profile with a status tag.
+      tags:
+        - status:unsupported
+        - status:disabled
     metrics:
       - name: gpu.device_total
+      - name: amd_gpu.device_total
+      # GPU telemetry uses nested subsystems (e.g. "gpu__collectors"), and only the first
+      # "__" of the Prometheus name is normalized, so the second one must be kept here.
+      - name: gpu.collectors__created
+        preserve_tags:
+          - status
+          - collector
+          - gpu_device
+          - gpu_architecture
+          - gpu_driver_version
+          - gpu_slicing_mode
+          - gpu_virtualization_mode
+      - name: gpu.collectors__collection_runs
+        preserve_tags:
+          - collector
+          - gpu_device
+          - gpu_architecture
+          - gpu_driver_version
+          - gpu_slicing_mode
+          - gpu_virtualization_mode
+      - name: gpu.collectors__collection_errors
+        preserve_tags:
+          - collector
+          - gpu_device
+          - gpu_architecture
+          - gpu_driver_version
+          - gpu_slicing_mode
+          - gpu_virtualization_mode
+      - name: gpu.container_gpu_mapping_failure_pct
+      # Registered in system-probe
+      - name: gpu.driver_events__parse_failures
+        preserve_tags:
+          - reason
   schedule:
     start_after: 60
     iterations: 0
@@ -446,6 +577,7 @@ profiles:
         preserve_tags:
           - section
           - status
+      - name: metadata_streaming.history_resyncs
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind
@@ -477,27 +609,92 @@ profiles:
       zero_metric: true
     metrics:
       - name: injector.processes_added_to_injection_tracker
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_removed_from_injection_tracker
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_subsystem
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_container
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_protected
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_system
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_excluded
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_attempts
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_attempt_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_max_time_us
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_successes
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_caching_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.import_directory_restoration_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_memory_allocation_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_injection_context_allocated
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_injection_context_cleanedup
+        preserve_tags:
+          - ddinjector_version
       - name: injector.crashes_during_injection
+        preserve_tags:
+          - ddinjector_version
       - name: injector.crashes_post_injection
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_crash_boots_detected
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_driver_self_disabled
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_stability_timer_fired
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_automatically_added_to_skip_list
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_default
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_custom
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_crash_recovery
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_signature_policy
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_signature_policy_unknown
+        preserve_tags:
+          - ddinjector_version
+      - name: injector.processes_skipped_short_name
+        preserve_tags:
+          - ddinjector_version
   schedule:
     start_after: 30
     iterations: 0
@@ -566,11 +763,18 @@ profiles:
       - name: data_plane.preflight_mode_result
         preserve_tags:
           - result
-      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/capture.go` for the fixed set
-      # of values that we except to have for the `finding` tag.
+      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/report_test.go` for the fixed set
+      # of values that we expect to have for the `finding` tag.
+      #
+      # `source_file` and `source_line` are the Agent Data Plane source location that logged the problem, and are
+      # only populated for the `errors_in_log` and `warnings_in_log` findings; every other finding carries them
+      # empty. They are bounded on the producing side: the values come from ADP's `file!()`/`line!()` rather than
+      # from any log message, and the number of distinct locations reported per finding is capped.
       - name: data_plane.preflight_mode_finding
         preserve_tags:
           - finding
+          - source_file
+          - source_line
       - name: data_plane.preflight_mode_duration_seconds
   schedule:
     # Preflight mode runs once at startup, for at least minPreflightModeDuration (90s, see
@@ -583,5 +787,67 @@ profiles:
     # nothing — the counters are delta-converted, so the increment ships on whichever flush first
     # observes it and later flushes send zero, which zero_metric drops.
     start_after: 120 # 2 minutes
+    iterations: 0
+    period: 900
+# Support troubleshooting bundle, gated behind a remote flag.
+- name: troubleshooting
+  remote_flag: troubleshooting_coat_bundle
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      # Delivery failures: why the data never reached the intake. error_type
+      # separates DNS from TLS from timeout without pulling a flare.
+      - name: transactions.errors
+        preserve_tags:
+          - domain
+          - endpoint
+          - error_type
+      - name: transactions.dropped
+        preserve_tags:
+          - domain
+          - endpoint
+      - name: transactions.retry_queue_size
+        preserve_tags:
+          - domain
+      - name: transactions.connection_events
+        preserve_tags:
+          - connection_event_type
+      # Aggregator: loss upstream of the forwarder. Read against the
+      # already-collected points.sent, aggregator.processed tells whether the
+      # loss happened before or after the forwarder. "shard" is aggregated away.
+      - name: aggregator.flush
+        preserve_tags:
+          - data_type
+          - state
+      - name: aggregator.processed
+        preserve_tags:
+          - data_type
+      # DogStatsD intake: errors. Only the bytes counters are
+      # collected by default today. "origin" and "listener_id" are unbounded
+      # and deliberately aggregated away.
+      - name: dogstatsd.processed
+        preserve_tags:
+          - message_type
+          - state
+      - name: dogstatsd.udp_packets
+        preserve_tags:
+          - state
+      - name: dogstatsd.uds_packets
+        preserve_tags:
+          - transport
+          - state
+      - name: dogstatsd.uds_origin_detection_error
+        preserve_tags:
+          - transport
+      # Inputs: checks that run but warn or submit nothing.
+      - name: checks.warnings
+        preserve_tags:
+          - check_name
+      - name: checks.metrics_samples
+        preserve_tags:
+          - check_name
+  schedule:
+    start_after: 30
     iterations: 0
     period: 900

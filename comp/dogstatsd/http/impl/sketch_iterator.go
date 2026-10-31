@@ -10,8 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // sketchData holds one sketch point's reader-provided columns and summary.
@@ -50,7 +50,7 @@ type sketchIterator struct {
 	buffer dogstatsdSketchSeries
 }
 
-func newSketchIterator(payload *pb.Payload, origin origin, hostname string, filterList utilstrings.Matcher) (*sketchIterator, error) {
+func newSketchIterator(payload *pb.Payload, origin origin, hostname string, filterList metricname.Matcher) (*sketchIterator, error) {
 	it := &sketchIterator{
 		iteratorCommon: iteratorCommon{
 			reader:     reader.NewMetricDataReader(payload.MetricData),

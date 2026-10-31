@@ -95,6 +95,16 @@ if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
     gui_app_menu_enabled=true
 fi
 
+logs_enabled=
+case "$DD_LOGS_ENABLED" in
+    true|false) logs_enabled="$DD_LOGS_ENABLED" ;;
+    "") ;;
+    *)
+        printf "${RED}DD_LOGS_ENABLED must be true or false.${NC}\n"
+        exit 1
+        ;;
+esac
+
 # Optional: Chrome extension ID for AI usage native messaging host (postinst writes NativeMessagingHosts manifest).
 ai_usage_chrome_extension_id=
 if [ -n "$DD_AI_USAGE_CHROME_EXTENSION_ID" ]; then
@@ -236,6 +246,7 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
     [ -n "$ai_usage_chrome_extension_id" ] && echo "DD_AI_USAGE_CHROME_EXTENSION_ID=$ai_usage_chrome_extension_id"
     [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
+    [ -n "$logs_enabled" ] && echo "DD_LOGS_ENABLED=$logs_enabled"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null
@@ -275,7 +286,21 @@ $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobro
 printf "${BLUE}\n    - Unpacking and copying files (this usually takes about a minute) ...\n${NC}"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
-$sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
+# hdiutil detach can transiently fail with "Resource busy" while a background
+# process (e.g. Spotlight/Quick Look indexing the just-installed volume) still
+# holds a handle open. Retry with a short backoff before falling back to
+# -force, instead of failing the whole install on a transient eject error.
+detach_succeeded=false
+for _ in 1 2 3 4 5; do
+    if $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1; then
+        detach_succeeded=true
+        break
+    fi
+    sleep 2
+done
+if [ "$detach_succeeded" != true ]; then
+    $sudo_cmd hdiutil detach "/Volumes/datadog_agent" -force >/dev/null
+fi
 
 if $sudo_cmd launchctl print system/com.datadoghq.agent 2>/dev/null | grep -q "pid ="; then
     printf "${GREEN}

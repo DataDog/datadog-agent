@@ -40,8 +40,9 @@ func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collect
 	return c, nil
 }
 
-func (c *fieldsCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *fieldsCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *fieldsCollector) removeUnsupportedMetrics() {
@@ -49,7 +50,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	if err != nil {
 		// If the entire field values API is unsupported, remove all metrics
 		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
-			log.Debugf("GPU fields collector removing all field metrics for device %s because GetFieldValues is unsupported", c.DeviceUUID())
+			log.Debugf("GPU fields collector removing all field metrics for device %s because GetFieldValues is unsupported", c.Device().GetDeviceInfo().UUID)
 			c.fieldMetrics = nil
 		}
 		// Otherwise, do nothing and keep all metrics
@@ -65,7 +66,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 			if fieldValueIdx == -1 {
 				log.Warnf("Unexpected field ID %d returned for device %s (scope_id=%d): return value is %s",
 					val.FieldId,
-					c.DeviceUUID(),
+					c.Device().GetDeviceInfo().UUID,
 					val.ScopeId,
 					nvml.ErrorString(nvml.Return(val.NvmlReturn)),
 				)
@@ -79,7 +80,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 
 			log.Debugf("GPU fields collector removing unsupported metric %s for device %s (field_id=%d scope_id=%d)",
 				fieldMetric.name,
-				c.DeviceUUID(),
+				c.Device().GetDeviceInfo().UUID,
 				fieldMetric.fieldValueID,
 				fieldMetric.scopeID,
 			)
@@ -104,14 +105,14 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 	return fields, nil
 }
 
-// Collect collects all the metrics from the given NVML device.
-func (c *fieldsCollector) Collect() ([]*Metric, error) {
+// Collect collects all samples from the given NVML device.
+func (c *fieldsCollector) Collect() ([]Sample, error) {
 	fields, err := c.getFieldValues()
 	if err != nil {
 		return nil, err
 	}
 
-	metrics := make([]Metric, 0, len(c.fieldMetrics))
+	samples := make([]Sample, 0, len(c.fieldMetrics))
 	var errs []error
 	for i, val := range fields {
 		name := c.fieldMetrics[i].name
@@ -125,16 +126,16 @@ func (c *fieldsCollector) Collect() ([]*Metric, error) {
 			errs = append(errs, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
-		metrics = append(metrics, Metric{
+		samples = append(samples, &Metric{
+			baseSample:          baseSample{priority: c.fieldMetrics[i].priority},
 			Name:                name,
 			Value:               value,
 			Type:                c.fieldMetrics[i].metricType,
-			Priority:            c.fieldMetrics[i].priority,
 			RateCalculationMode: c.fieldMetrics[i].rateCalculationMode,
 		})
 	}
 
-	return metricValuesToPointers(metrics), errors.Join(errs...)
+	return samples, errors.Join(errs...)
 }
 
 // Name returns the name of the collector.
@@ -146,7 +147,7 @@ func (c *fieldsCollector) Name() CollectorName {
 // FieldValues API, and associates a name for that metric.
 // When multiple field IDs can emit the same metric name, priority determines
 // which one is preferred: higher priority wins. Duplicate resolution is handled
-// by RemoveDuplicateMetrics at collection time.
+// by RemoveDuplicateSamples at collection time.
 type fieldValueMetric struct {
 	name         string
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
@@ -164,7 +165,7 @@ type fieldValueMetric struct {
 
 // allFieldMetrics lists all candidate field-value metrics. When multiple entries
 // share the same metric name, they are alternatives for the same logical metric;
-// the highest-priority one is selected by RemoveDuplicateMetrics at collection time.
+// the highest-priority one is selected by RemoveDuplicateSamples at collection time.
 //
 // Low (default) = legacy fields (pre-NVLink5), MediumLow = newer per-link fields
 // introduced with NVLink5/Blackwell (field IDs 164+). The newer fields use

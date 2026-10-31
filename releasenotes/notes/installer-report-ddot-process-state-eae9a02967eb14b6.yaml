@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    The fleet installer daemon now reports the DDOT (OpenTelemetry Collector) process state
+    as part of the agent state sent to Datadog, so DDOT version and configuration updates
+    can be monitored. The state is read from the process manager when it supervises DDOT,
+    and from systemd or the Windows service manager otherwise. It is also visible in the
+    output of ``datadog-installer status``.

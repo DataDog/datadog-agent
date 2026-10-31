@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // TestNotableEventsModuleEnablement verifies macOS configuration controls module startup.
@@ -32,7 +33,7 @@ func TestNotableEventsModuleEnablement(t *testing.T) {
 
 			cfg, err := New("/doesnotexist", "")
 			require.NoError(t, err)
-			assert.Equal(t, test.enabled, cfg.ModuleIsEnabled(NotableEventsModule))
+			assert.Equal(t, test.enabled, cfg.ModuleIsEnabled(types.NotableEventsModule))
 		})
 	}
 }

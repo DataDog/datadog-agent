@@ -1,0 +1,8 @@
+command: {{python}}
+args:
+  - {{script}}
+restart: on-failure
+condition_config_any:
+  - path: {{root}}/datadog.yaml
+    keys:
+      - process_config.process_collection.enabled

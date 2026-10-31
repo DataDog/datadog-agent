@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Linux FIPS Agent upgrades failing to report their state or start a
+    subsequent upgrade after removing the previous package-manager installation.

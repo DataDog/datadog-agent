@@ -40,6 +40,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -58,6 +59,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -94,20 +96,17 @@ const (
 )
 
 func httpSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
 func httpsSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return usmconfig.TLSSupported(tracertestutil.Config())
 }
 
 func classificationSupported(config *config.Config) bool {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		return fentry.ClassificationSupported(config)
+	}
 	return kprobe.ClassificationSupported(config)
 }
 
@@ -139,7 +138,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModesForConnectionTracer(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
@@ -188,7 +187,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -518,9 +517,6 @@ func (s *USMSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if ebpftest.GetBuildMode() == ebpftest.Fentry {
-				t.Skip("protocol classification not supported for fentry tracer")
-			}
 			t.Cleanup(func() { tr.RemoveClient(clientID) })
 			t.Cleanup(func() { _ = tr.Pause() })
 
@@ -706,7 +702,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableNodeJSMonitoring = true
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -1988,12 +1984,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				resp, err := client.Post("http://"+ctx.targetAddress, "application/json", bytes.NewReader([]byte("test")))
@@ -2044,12 +2039,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
@@ -2392,12 +2386,11 @@ func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
 	t.Cleanup(srvDoneFn)
 
 	client := &nethttp.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-				return net.Dial(network, addr)
-			},
-		},
+		Transport: func() *nethttp.Transport {
+			protocols := new(nethttp.Protocols)
+			protocols.SetUnencryptedHTTP2(true)
+			return &nethttp.Transport{Protocols: protocols}
+		}(),
 	}
 
 	testHTTPLikeSketches(t, tr, client, httpURL, true)
@@ -2655,7 +2648,7 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.RedisTrackResources = true
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 	require.NoError(t, tr.RegisterClient(clientID))

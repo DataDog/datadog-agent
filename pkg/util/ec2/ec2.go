@@ -163,7 +163,13 @@ var instanceTypeFetcher = cachedfetch.Fetcher{
 }
 
 // GetInstanceType returns the AWS instance type as reported by EC2 IMDS.
+// On ECS Fargate there is no EC2 IMDS endpoint, so this returns an empty
+// string without querying IMDS (avoids recurring connect errors / INFO noise).
 func GetInstanceType(ctx context.Context) (string, error) {
+	if env.IsFeaturePresent(env.ECSFargate) {
+		log.Debugf("Skipping EC2 instance type lookup: no IMDS on ECS Fargate")
+		return "", nil
+	}
 	return instanceTypeFetcher.FetchString(ctx)
 }
 

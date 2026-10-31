@@ -109,6 +109,12 @@ namespace Datadog.CustomActions
                 env["DD_LOG_LEVEL"] = _logLevel;
             }
 
+            var agentEnvironment = _session.Property("DD_ENV");
+            if (!string.IsNullOrEmpty(agentEnvironment))
+            {
+                env["DD_ENV"] = agentEnvironment;
+            }
+
             var appKey = _session.Property("DD_APP_KEY");
             if (!string.IsNullOrEmpty(appKey))
             {
@@ -125,6 +131,12 @@ namespace Datadog.CustomActions
             if (!string.IsNullOrEmpty(parActionsAllowlist))
             {
                 env["DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"] = parActionsAllowlist;
+            }
+
+            var parSplitEnabled = _session.Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED");
+            if (!string.IsNullOrEmpty(parSplitEnabled))
+            {
+                env["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"] = parSplitEnabled;
             }
 
             return env;

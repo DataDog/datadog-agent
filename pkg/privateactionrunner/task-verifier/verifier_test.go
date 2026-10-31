@@ -6,16 +6,73 @@
 package taskverifier
 
 import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
+
+type staticKeysManager struct {
+	keys  map[string]types.DecodedKey
+	proof *types.DirectorKeyProof
+}
+
+func (m *staticKeysManager) Start(context.Context) {}
+func (m *staticKeysManager) GetKey(id string) (types.DecodedKey, *types.DirectorKeyProof) {
+	return m.keys[id], m.proof
+}
+func (m *staticKeysManager) WaitForReady() {}
+
+func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	pbTask := &privateactionspb.PrivateActionTask{
+		OrgId:          42,
+		TaskId:         "task-id",
+		Inputs:         &structpb.Struct{},
+		ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-id"},
+		ExpirationTime: timestamppb.New(time.Now().Add(time.Minute)),
+	}
+	data, err := proto.Marshal(pbTask)
+	require.NoError(t, err)
+	digest := sha256.Sum256(data)
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
+		Data: data, HashType: privateactionspb.HashType_SHA256,
+		Signatures: []*privateactionspb.Signature{{
+			KeyId: "key-id", KeyType: privateactionspb.KeyType_ED25519,
+			Signature: ed25519.Sign(private, digest[:]),
+		}},
+	}}
+	directorProof := &types.DirectorKeyProof{TargetPath: "datadog/42/AP_RUNNER_KEYS/key-id/config"}
+	verifier := &signedEnvelopeTaskVerifier{
+		keysManager: &staticKeysManager{keys: map[string]types.DecodedKey{
+			"key-id": &types.ED25519Key{KeyType: types.KeyTypeED25519, Key: public},
+		}, proof: directorProof},
+		config: &config.Config{OrgId: 42, RunnerId: "runner-id"},
+	}
+
+	got, err := verifier.UnwrapTask(task)
+
+	require.NoError(t, err)
+	require.NotNil(t, got.Data.Attributes.VerificationKey)
+	assert.Equal(t, "key-id", got.Data.Attributes.VerificationKey.ID)
+	assert.Equal(t, types.KeyTypeED25519, got.Data.Attributes.VerificationKey.KeyType)
+	assert.Contains(t, got.Data.Attributes.VerificationKey.PEM, "BEGIN PUBLIC KEY")
+	assert.Equal(t, directorProof, got.Data.Attributes.VerificationKey.DirectorProof)
+}
 
 func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 	task := &privateactionspb.PrivateActionTask{
@@ -51,46 +108,11 @@ func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
 	assert.Nil(t, got.Data.Attributes.SystemInputs)
 }
 
-func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
-	inputs, err := structpb.NewStruct(map[string]interface{}{"command": "cat /tmp/file"})
-	require.NoError(t, err)
-	pbTask := &privateactionspb.PrivateActionTask{
-		ActionName: "runCommand",
-		BundleId:   "com.datadoghq.remoteaction.rshell",
-		TaskId:     "task-id",
-		Inputs:     inputs,
-		SystemInputs: &privateactionspb.SystemInputs{
-			Input: &privateactionspb.SystemInputs_RemoteAction{
-				RemoteAction: &privateactionspb.RemoteAction{
-					AllowedCommands: []string{"rshell:cat"},
-					AllowedPaths:    []string{"/tmp:ro"},
-					SystemServices: map[string]*structpb.ListValue{
-						"nginx.service": {
-							Values: []*structpb.Value{structpb.NewStringValue("read")},
-						},
-					},
-				},
-			},
-		},
-	}
-	signedTaskData, err := proto.Marshal(pbTask)
-	require.NoError(t, err)
-
+func TestTaskVerifierRejectsUnsignedTask(t *testing.T) {
 	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
-			Data: signedTaskData,
-		},
-	}
+	task.Data.Attributes = &types.Attributes{}
 
-	got, err := (&noOpTaskVerifier{}).UnwrapTask(task)
+	_, err := NewTaskVerifier(nil, &config.Config{}).UnwrapTask(task)
 
-	require.NoError(t, err)
-	assert.Equal(t, "task-id", got.Data.ID)
-	remoteAction := got.Data.Attributes.SystemInputs.GetRemoteAction()
-	require.NotNil(t, remoteAction)
-	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
-	assert.Equal(t, []string{"/tmp:ro"}, remoteAction.AllowedPaths)
-	require.Contains(t, remoteAction.SystemServices, "nginx.service")
-	assert.Equal(t, []interface{}{"read"}, remoteAction.SystemServices["nginx.service"].AsSlice())
+	require.ErrorContains(t, err, "task is missing signed envelope")
 }

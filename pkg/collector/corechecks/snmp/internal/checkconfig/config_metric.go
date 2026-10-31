@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
+var backrefRe = regexp.MustCompile(`\\(\d+)`)
+
 // BuildMetricTagsFromValue returns tags based on MetricTagConfig and a value
 func BuildMetricTagsFromValue(metricTag *profiledefinition.MetricTagConfig, value string) []string {
 	var tags []string
@@ -60,8 +62,7 @@ func RegexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate 
 // normalizeRegexReplaceValue normalize regex value to keep compatibility with Python
 // Converts \1 into $1, \2 into $2, etc
 func normalizeRegexReplaceValue(val string) string {
-	re := regexp.MustCompile(`\\(\d+)`)
-	return re.ReplaceAllString(val, "$$$1")
+	return backrefRe.ReplaceAllString(val, "$$$1")
 }
 
 // GetMappedValue retrieves mapped value from a given mapping.

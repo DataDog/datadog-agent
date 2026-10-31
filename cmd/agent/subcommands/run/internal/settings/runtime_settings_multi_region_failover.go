@@ -44,7 +44,8 @@ func (h *MultiRegionFailoverRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (h *MultiRegionFailoverRuntimeSetting) Get(config config.Component) (interface{}, error) {
-	if h.value == "multi_region_failover.metric_allowlist" {
+	switch h.value {
+	case "multi_region_failover.metric_allowlist", "multi_region_failover.logs_service_allowlist":
 		return config.GetStringSlice(h.value), nil
 	}
 
@@ -60,7 +61,7 @@ func (h *MultiRegionFailoverRuntimeSetting) Set(config config.Component, v inter
 	case bool:
 		newValue, err = getBool(v)
 	case []string, nil:
-		// nil means "value not set" - for allowlist, this means every metric is allowed.
+		// nil means "value not set" - for an allowlist, this means nothing is filtered.
 		newValue, err = getStringSlice(v)
 	default:
 		return fmt.Errorf("%v: bad parameter value provided: %v", h.value, v)

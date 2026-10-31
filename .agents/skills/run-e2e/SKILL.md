@@ -34,10 +34,14 @@ Anchor a supplied test name (`--run '^TestFlareSuite$'`), or `TestFlare` also se
 ## Step 2 — Decide where it runs
 
 ```bash
+test -n "$WORKSPACE_NAME" && echo IN_WORKSPACE
 test -f /.started && echo IN_DEVENV || echo ON_HOST
 ```
 
-The dev env entrypoint creates `/.started`. `ON_HOST` → step 3A, `IN_DEVENV` → step 3B, `--host` → 3C.
+The dev env entrypoint creates `/.started`. `IN_WORKSPACE` → 3C — a workspace already provides
+the environment the dev env would build, so run directly on it without one. `ON_HOST` → step 3A,
+`IN_DEVENV` → step 3B, `--host` → 3C. `devenv_e2e.py up` also refuses to run when
+`WORKSPACE_NAME` is set (exit 7), so this cannot slip through to 3A.
 
 ## Step 3A — On the host (the usual case)
 
@@ -60,11 +64,12 @@ machine the remedy belongs on.
 | Exit | Meaning | What to do |
 |---|---|---|
 | 0 | Ready | Step 4, using the printed `run_prefix` |
-| 2 | Host has no usable `~/.test_infra_config.yaml` | Read `references/setup.md`, offer `dda inv -- e2e.setup` **on the host**, retry |
+| 2 | Host has no usable `~/.test_infra_config.yaml` | Read `references/setup.md`, run `dda inv -- e2e.setup --team=<github-team>` **on the host** (ask the user for their team first; never the interactive form), retry |
 | 3 | The container would not hold this working tree | Follow the printed remedy; `references/devenv.md` per case. Offer `--host` if the checkout cannot be used |
 | 4 | The container cannot authenticate to AWS | Run the printed `aws-vault login` **inside the env**, then retry |
 | 5 | Already inside a dev env | Step 2 misread the marker; go to 3B |
 | 6 | Env is in `error`, so its stacks cannot be checked | Do not remove it for them; relay the message, which says when recreating is safe |
+| 7 | `WORKSPACE_NAME` is set: this is a workspace, not a host that needs a dev env | Step 3C — run directly on the workspace |
 | other | No dedicated remedy | Relay the message; `references/troubleshooting.md` |
 
 Azure and GCP targets are not handled — only AWS credentials reach the container. Use `--host`.
@@ -118,6 +123,14 @@ dda env dev run -t linux-container --id e2e-run -- env <env_args...> \
 Start it with `run_in_background: true`; these outlast a foreground Bash call. The first run in a fresh
 env is much the slowest — the test binary compiles from a cold cache before any infrastructure is
 touched, so several minutes of silence is normal.
+
+**Report once a minute while it runs.** Poll the background output about every minute and post a
+one-line status update: which phase it is in (compiling · provisioning · running tests · tearing down)
+and the last meaningful output line. Long silent stretches are inherent to the run — the user cannot
+see your terminal, so from their side an agent that goes quiet for 10 minutes looks exactly like a
+hung one. Silence from the tool is normal; silence from you is not. If the phase has not changed,
+say so and note the elapsed time (`still provisioning, ~6m in, no new output`) rather than skipping
+the update.
 
 ## Step 6 — Report
 

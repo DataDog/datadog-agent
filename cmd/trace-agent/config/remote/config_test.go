@@ -46,7 +46,7 @@ func TestConfigEndpoint(t *testing.T) {
 		},
 		{
 			name:    "valid",
-			reqBody: `{"client":{"id":"test_client"}}`,
+			reqBody: `{"client":{"id":"test_client","is_tracer":true}}`,
 
 			enabled:            true,
 			valid:              true,
@@ -78,6 +78,40 @@ func TestConfigEndpoint(t *testing.T) {
 			assert.Nil(err)
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
 			assert.Equal(tc.response, string(body))
+		})
+	}
+}
+
+func TestConfigEndpointRejectsNonTracers(t *testing.T) {
+	tcs := []struct {
+		name    string
+		reqBody string
+	}{
+		{name: "null request", reqBody: `null`},
+		{name: "missing client", reqBody: `{}`},
+		{name: "null client", reqBody: `{"client":null}`},
+		{name: "missing client type", reqBody: `{"client":{"id":"test_client"}}`},
+		{name: "is_tracer false", reqBody: `{"client":{"id":"test_client","is_tracer":false}}`},
+		{name: "tracer metadata without is_tracer", reqBody: `{"client":{"id":"test_client","client_tracer":{"service":"test"}}}`},
+		{name: "agent", reqBody: `{"client":{"id":"test_client","is_agent":true,"client_agent":{}}}`},
+		{name: "updater", reqBody: `{"client":{"id":"test_client","is_updater":true,"client_updater":{}}}`},
+		{name: "agent and updater", reqBody: `{"client":{"id":"test_client","is_agent":true,"is_updater":true,"client_agent":{},"client_updater":{}}}`},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			grpc := &agentGRPCConfigFetcher{}
+			grpc.Test(t)
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			handler := ConfigHandler(rcv, grpc, &config.AgentConfig{}, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+			req := httptest.NewRequest(http.MethodPost, "/v0.7/config", strings.NewReader(tc.reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Equal(t, "client.is_tracer must be true for tracer config requests\n", rec.Body.String())
+			grpc.AssertNotCalled(t, "ClientGetConfigs", mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -119,12 +153,6 @@ func TestUpstreamRequest(t *testing.T) {
 				},
 			},
 			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","container_tags":["baz:qux"]}}}`,
-		},
-		{
-			name:                    "no tracer",
-			tracerReq:               `{"client":{"id":"test_client"}}`,
-			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
-			cfg:                     &config.AgentConfig{},
 		},
 		{
 			name:                    "tracer service and env are normalized",
@@ -223,6 +251,56 @@ func TestEmptyResponse(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(204, r.StatusCode)
 	r.Body.Close()
+}
+
+// errReader is an io.Reader that returns err on every Read call after
+// optionally yielding the given initial bytes.
+type errReader struct {
+	done bool
+	err  error
+}
+
+func (e *errReader) Read(_ []byte) (int, error) {
+	if e.done {
+		return 0, e.err
+	}
+	e.done = true
+	return 0, e.err
+}
+
+// writeHeaderCountingRecorder wraps httptest.ResponseRecorder to count
+// WriteHeader calls, allowing tests to detect superfluous WriteHeader
+// invocations (the root cause of the bug being fixed).
+type writeHeaderCountingRecorder struct {
+	*httptest.ResponseRecorder
+	writeHeaderCount int
+}
+
+func (r *writeHeaderCountingRecorder) WriteHeader(code int) {
+	r.writeHeaderCount++
+	r.ResponseRecorder.WriteHeader(code)
+}
+
+func TestBodyReadError(t *testing.T) {
+	assert := assert.New(t)
+	grpc := agentGRPCConfigFetcher{}
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	// ClientGetConfigs must never be called when the body read fails.
+	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil).Maybe()
+
+	handler := ConfigHandler(rcv, &grpc, &config.AgentConfig{}, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	req, _ := http.NewRequest("POST", "/v0.7/config", &errReader{err: io.ErrUnexpectedEOF})
+	req.Header.Set("Content-Type", "application/msgpack")
+	rec := &writeHeaderCountingRecorder{ResponseRecorder: httptest.NewRecorder()}
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(http.StatusBadRequest, rec.Code)
+	assert.Contains(rec.Body.String(), io.ErrUnexpectedEOF.Error())
+	assert.Equal(1, rec.writeHeaderCount, "WriteHeader should be called exactly once, not multiple times")
+	grpc.AssertNotCalled(t, "ClientGetConfigs")
 }
 
 type agentGRPCConfigFetcher struct {

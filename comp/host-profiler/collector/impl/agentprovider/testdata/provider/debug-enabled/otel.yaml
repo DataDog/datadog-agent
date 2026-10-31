@@ -35,11 +35,18 @@ processors:
               value: 7.0.0-test
 receivers:
     profiling:
+        filter_min_process_age: 0s
+        reporter_interval: 2m0s
+        send_error_frames: false
         symbol_uploader:
             enabled: true
+            report:
+                interval: 300
+                max_paths_per_report: 100
             symbol_endpoints:
                 - api_key: test_api_key_123
                   site: datadoghq.com
+        verbose_mode: true
     prometheus:
         config:
             scrape_configs:

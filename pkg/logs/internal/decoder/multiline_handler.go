@@ -24,21 +24,22 @@ const linesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_line_lin
 // MultiLineHandler makes sure that multiple lines from a same content
 // are properly put together.
 type MultiLineHandler struct {
-	outputFn          func(*message.Message)
-	newContentRe      *regexp.Regexp
-	buffer            *bytes.Buffer
-	flushTimeout      time.Duration
-	flushTimer        *time.Timer
-	lineLimit         int
-	shouldTruncate    bool
-	isBufferTruncated bool
-	linesLen          int
-	msg               *message.Message
-	countInfo         *status.CountInfo
-	linesCombinedInfo *status.CountInfo
-	telemetryEnabled  bool
-	linesCombined     int
-	multiLineTagValue string
+	outputFn           func(*message.Message)
+	newContentRe       *regexp.Regexp
+	buffer             *bytes.Buffer
+	flushTimeout       time.Duration
+	flushTimer         *time.Timer
+	lineLimit          int
+	shouldTruncate     bool
+	isBufferTruncated  bool
+	linesLen           int
+	checkpointLinesLen int
+	msg                *message.Message
+	countInfo          *status.CountInfo
+	linesCombinedInfo  *status.CountInfo
+	telemetryEnabled   bool
+	linesCombined      int
+	multiLineTagValue  string
 	// patternMatchedOnce tracks whether the multiline pattern has ever matched.
 	// Before the first match, lines are sent individually to prevent misconfigured
 	// patterns (that never match) from joining all lines into a single message.
@@ -118,6 +119,7 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 	// track the raw data length so that the agent tails
 	// from the right place at restart
 	h.linesLen += msg.RawDataLen
+	h.checkpointLinesLen += msg.RawDataLenForCheckpoint()
 	h.msg = msg
 	h.linesCombined++
 
@@ -163,6 +165,7 @@ func (h *MultiLineHandler) sendBuffer() {
 	defer func() {
 		h.buffer.Reset()
 		h.linesLen = 0
+		h.checkpointLinesLen = 0
 		h.linesCombined = 0
 		h.shouldTruncate = false
 		h.isBufferTruncated = false
@@ -185,6 +188,7 @@ func (h *MultiLineHandler) sendBuffer() {
 		msg := h.msg
 		msg.SetContent(content)
 		msg.RawDataLen = h.linesLen
+		msg.SetRawDataLenForCheckpoint(h.checkpointLinesLen)
 		msg.ParsingExtra.IsTruncated = h.isBufferTruncated
 
 		tlmTags := []string{"false", "single_line"}

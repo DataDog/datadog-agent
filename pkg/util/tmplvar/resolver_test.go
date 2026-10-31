@@ -8,9 +8,11 @@ package tmplvar
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,6 +174,18 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 			expected: `{"port":8080, "port_0":6379, "port_metrics":9400}`,
 		},
 		{
+			name: "negative port index resolution",
+			svc: &mockResolvable{
+				ports: []workloadmeta.ContainerPort{
+					{Port: 6379, Name: "redis"},
+					{Port: 9400, Name: "metrics"},
+					{Port: 8080, Name: "http"},
+				},
+			},
+			input:    `{"last": "%%port_-1%%", "second_to_last": "%%port_-2%%", "wrapped": "%%port_-4%%"}`,
+			expected: `{"last":8080, "second_to_last":9400, "wrapped":8080}`,
+		},
+		{
 			name: "host with specific network",
 			svc: &mockResolvable{
 				serviceID: "test-service",
@@ -227,6 +241,48 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 				require.NoError(t, err)
 				assert.JSONEq(t, tt.expected, string(resolved))
 			}
+		})
+	}
+}
+
+func TestGetPort(t *testing.T) {
+	svc := &mockResolvable{
+		serviceID: "test-service",
+		ports: []workloadmeta.ContainerPort{
+			{Port: 6379, Name: "redis"},
+			{Port: 9400, Name: "metrics"},
+			{Port: 8080, Name: "http"},
+		},
+	}
+
+	tests := []struct {
+		tplVar      string
+		expected    string
+		expectedErr bool
+	}{
+		{tplVar: "", expected: "8080"},
+		{tplVar: "0", expected: "6379"},
+		{tplVar: "2", expected: "8080"},
+		{tplVar: "metrics", expected: "9400"},
+		{tplVar: "unknown", expectedErr: true},
+		{tplVar: "3", expectedErr: true},
+		// Negative indexes are Python-like and wrap around the port list.
+		{tplVar: "-1", expected: "8080"},
+		{tplVar: "-2", expected: "9400"},
+		{tplVar: "-3", expected: "6379"},
+		{tplVar: "-4", expected: "8080"},
+		{tplVar: "-7", expected: "8080"},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%%%%port_%s%%%%", tt.tplVar), func(t *testing.T) {
+			port, err := GetPort(tt.tplVar, svc)
+			if tt.expectedErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, port)
 		})
 	}
 }
@@ -314,4 +370,46 @@ func TestGetFallbackHost(t *testing.T) {
 	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bar": "172.17.0.2"})
 	assert.Equal(t, "", ip)
 	assert.NotNil(t, err)
+}
+
+func TestAllowEnvVarAgentEnvVars(t *testing.T) {
+	cases := []struct {
+		desc                string
+		allowedAgentEnvVars []string
+		allowed             map[string]bool
+	}{
+		{
+			desc: "default",
+			allowed: map[string]bool{
+				"DD_ENV":          true,
+				"dd_cluster_name": true,
+				"DD_API_KEY":      false,
+				"DB_PASSWORD":     true,
+			},
+		},
+		{
+			desc:                "custom list replaces the default",
+			allowedAgentEnvVars: []string{"dd_api_key"},
+			allowed: map[string]bool{
+				"DD_API_KEY":  true,
+				"DD_ENV":      false,
+				"DB_PASSWORD": true,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			cfg := configmock.New(t)
+			if tc.allowedAgentEnvVars != nil {
+				cfg.SetInTest("ad_allowed_agent_env_vars", tc.allowedAgentEnvVars)
+			}
+			blockedAgentEnvVars = sync.OnceValue(computeBlockedAgentEnvVars)
+			t.Cleanup(func() { blockedAgentEnvVars = sync.OnceValue(computeBlockedAgentEnvVars) })
+
+			for envVar, allowed := range tc.allowed {
+				assert.Equal(t, allowed, allowEnvVar(envVar), envVar)
+			}
+		})
+	}
 }

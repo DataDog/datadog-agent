@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 package orchestrator
 
@@ -12,29 +12,32 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"go.uber.org/atomic"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/metadata/metadatainformer"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -165,6 +168,10 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	extraTags = append(extraTags, checkConfigExtraTags...)
 	extraTags = append(extraTags, taggerExtraTags...)
 
+	// On a Cluster Check Runner the dispatched check configuration can already
+	// carry the mark, so append it only when it is absent.
+	extraTags = taggerutils.AppendUniqueTags(extraTags, o.tagger.GetInfraTags()...)
+
 	o.orchestratorConfig = orchcfg.NewDefaultOrchestratorConfig(extraTags)
 
 	err = o.orchestratorConfig.Load()
@@ -213,6 +220,8 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
+	o.refreshInfraTags()
+
 	if ok, err := o.IsLeader(); !ok {
 		// Disable terminated resource bundle if not leader so we don't buffer terminated resources by informer DeleteFunc
 		o.collectorBundle.GetTerminatedResourceBundle().Disable()
@@ -221,6 +230,8 @@ func (o *OrchestratorCheck) Run() error {
 
 	// Enable terminated resource bundle to start buffering terminated resources
 	o.collectorBundle.EnableTerminatedResourceBundle()
+
+	o.collectorBundle.RefreshDiscovery()
 
 	// Initialize collectors
 	o.collectorBundle.Initialize()
@@ -237,6 +248,34 @@ func (o *OrchestratorCheck) Run() error {
 	return nil
 }
 
+// refreshInfraTags adds the infrastructure mode tags to the payload tags when
+// they were not available at Configure time. On a Cluster Check Runner they come
+// from the Cluster Agent's tagger stream, which can connect after the check is
+// configured.
+//
+// Other goroutines read the tags in two places: the manifest buffer, which only
+// runs inside a collector bundle run and so never overlaps this call, and the
+// terminated resource flush that Cancel triggers, which the bundle lock covers.
+func (o *OrchestratorCheck) refreshInfraTags() {
+	infraTags := o.tagger.GetInfraTags()
+	missing := slices.ContainsFunc(infraTags, func(tag string) bool {
+		return !slices.Contains(o.orchestratorConfig.ExtraTags, tag)
+	})
+	if !missing {
+		return
+	}
+
+	update := func() {
+		o.orchestratorConfig.ExtraTags = taggerutils.AppendUniqueTags(o.orchestratorConfig.ExtraTags, infraTags...)
+	}
+	if o.collectorBundle != nil {
+		o.collectorBundle.GetTerminatedResourceBundle().withLock(update)
+	} else {
+		update()
+	}
+	log.Infoc(fmt.Sprintf("Adding infrastructure mode tags %v to orchestrator payloads", infraTags), orchestrator.ExtraLogContext...)
+}
+
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
 	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
@@ -251,14 +290,8 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 	unassignedPodsTweakListOptions := func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
-
-	// Only collect pods that are in a terminated state: Succeeded, Failed, or Pending.
-	terminatedPodsTweakListOptions := func(options *metav1.ListOptions) {
-		options.FieldSelector = fields.AndSelectors(
-			fields.OneTermNotEqualSelector("status.phase", "Pending"),
-			fields.OneTermNotEqualSelector("status.phase", "Running"),
-			fields.OneTermNotEqualSelector("status.phase", "Unknown"),
-		).String()
+	helmReleasesTweakListOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = k8s.HelmReleaseLabelSelector
 	}
 
 	of := &collectors.OrchestratorInformerFactory{
@@ -267,8 +300,18 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
-		TerminatedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(terminatedPodsTweakListOptions)),
 	}
+	of.HelmReleaseConfigMapInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(helmReleasesTweakListOptions))
+	of.SecretMetadataInformerFactory = metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval)
+
+	// When enabled, Helm release ConfigMaps are reported by the Helm release collector, with their data.
+	var configMapTweakListOptions metadatainformer.TweakListOptionsFunc
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.helm_releases.configmaps.enabled") {
+		configMapTweakListOptions = func(options *metav1.ListOptions) {
+			options.LabelSelector = k8s.NonHelmReleaseLabelSelector
+		}
+	}
+	of.ConfigMapMetadataInformerFactory = metadatainformer.NewFilteredSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval, metav1.NamespaceAll, configMapTweakListOptions)
 
 	return of
 }

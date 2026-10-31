@@ -35,7 +35,7 @@ var (
 `)
 
 	testSimpleConfResolved = `secret_backend_arguments:
-- password1
+    - password1
 `
 
 	testSimpleConfOrigin = handleToContext{
@@ -56,10 +56,10 @@ instances:
 `)
 
 	testConfResolved = `instances:
-- password: password1
-  user: test
-- password: password2
-  user: test2
+    - password: password1
+      user: test
+    - password: password2
+      user: test2
 `
 
 	testConfOrigin = handleToContext{
@@ -84,9 +84,9 @@ instances:
 `)
 
 	testConfSliceResolved = `additional_endpoints:
-  http://example.com:
-  - password1
-  - data
+    http://example.com:
+        - password1
+        - data
 `
 
 	testConfSliceOrigin = handleToContext{
@@ -108,12 +108,12 @@ more_endpoints:
 `)
 
 	testMultiUsageConfResolved = `instances:
-- password: password1
-  user: test
+    - password: password1
+      user: test
 more_endpoints:
-  http://example.com:
-  - password1
-  - data
+    http://example.com:
+        - password1
+        - data
 `
 
 	testConfDash = []byte(`---
@@ -123,7 +123,7 @@ keys_with_dash_string_value:
 `)
 
 	testConfResolvedDash = `keys_with_dash_string_value:
-  foo: '-'
+    foo: '-'
 some_encoded_password: password1
 `
 	testConfDashOrigin = handleToContext{
@@ -140,7 +140,7 @@ some_encoded_password: ENC[pass1]
 `)
 
 	testConfResolvedMultiline = `some_encoded_password: |
-  password1
+    password1
 `
 	testConfMultilineOrigin = handleToContext{
 		"pass1": []secretContext{
@@ -158,8 +158,8 @@ some:
 `)
 
 	testConfNestedResolved = `some:
-  encoded:
-    data: password1
+    encoded:
+        data: password1
 `
 	testConfNestedOrigin = handleToContext{
 		"pass1": []secretContext{
@@ -178,9 +178,9 @@ some:
 `)
 
 	testConfSiblingResolved = `some:
-  encoded:
-  - data: password1
-    sibling: text
+    encoded:
+        - data: password1
+          sibling: text
 `
 
 	testConfSiblingOrigin = handleToContext{
@@ -370,6 +370,65 @@ func TestResolvePartialFailure(t *testing.T) {
 	assert.Contains(t, resolved, "password1", "resolved handle should be substituted")
 	assert.Contains(t, resolved, "ENC[unknown_handle]", "unresolved handle should remain as ENC[]")
 	assert.NotEmpty(t, resolver.unresolvedSecrets)
+}
+
+func TestRefreshRetriesUnresolvedIntegrationSecret(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	requests := 0
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		requests++
+		if requests == 1 {
+			return []byte(`{}`), nil
+		}
+		return []byte(`{"retry_handle":{"value":"recovered"}}`), nil
+	}
+
+	type change struct {
+		oldValue string
+		newValue string
+	}
+	var changes []change
+	resolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, newValue any) {
+		if origin == "integration-config" {
+			changes = append(changes, change{oldValue: oldValue.(string), newValue: newValue.(string)})
+		}
+	})
+
+	config := []byte("password: ENC[retry_handle]\n")
+	resolved, err := resolver.Resolve(config, "integration-config", "", "", false)
+	require.Error(t, err)
+	assert.Contains(t, string(resolved), "ENC[retry_handle]")
+	require.Contains(t, resolver.origin, "retry_handle")
+
+	output, err := resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.Equal(t, 2, requests)
+	assert.Contains(t, output, "'retry_handle'")
+	assert.Equal(t, []change{{oldValue: "", newValue: "recovered"}}, changes)
+}
+
+func TestRefreshSkipsUnresolvedSecretAfterOriginRemoval(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	requests := 0
+	resolver.commandHookFunc = func(string) ([]byte, error) {
+		requests++
+		return []byte(`{}`), nil
+	}
+
+	_, err := resolver.Resolve([]byte("password: ENC[removed_handle]\n"), "removed-config", "", "", false)
+	require.Error(t, err)
+	require.Contains(t, resolver.origin, "removed_handle")
+
+	resolver.RemoveOrigin("removed-config")
+	_, err = resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.Equal(t, 1, requests, "removed configs must not be retried")
 }
 
 // TestResolveMultiSecretBackendsNamed verifies that ENC[FILE;pass1] is routed to the
@@ -1354,10 +1413,10 @@ func TestSecretFiltering(t *testing.T) {
 				ScopeIntegrationToNamespace: true,
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - value2
-  - ENC[k8s_secret@default/sec1/key1]
+    - some_obj:
+        - value1
+        - value2
+        - ENC[k8s_secret@default/sec1/key1]
 `,
 		},
 		{
@@ -1366,10 +1425,10 @@ func TestSecretFiltering(t *testing.T) {
 				AllowedNamespace: []string{"namespace1", "namespace2"},
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - value2
-  - ENC[k8s_secret@default/sec1/key1]
+    - some_obj:
+        - value1
+        - value2
+        - ENC[k8s_secret@default/sec1/key1]
 `,
 		},
 		{
@@ -1381,10 +1440,10 @@ func TestSecretFiltering(t *testing.T) {
 				},
 			},
 			expectedConf: `instances:
-- some_obj:
-  - value1
-  - ENC[k8s_secret@namespace1/sec1/key1]
-  - value3
+    - some_obj:
+        - value1
+        - ENC[k8s_secret@namespace1/sec1/key1]
+        - value3
 `,
 		},
 	}
@@ -1416,10 +1475,10 @@ func TestSecretFiltering(t *testing.T) {
 			// This test verify that any secrets from non-container sources can still be resolved. Non-container
 			// configuration are datadog.yaml, system-probe.yaml, integrations from files, ...
 			expectedConf := `instances:
-- some_obj:
-  - value1
-  - value2
-  - value3
+    - some_obj:
+        - value1
+        - value2
+        - value3
 `
 			resolvedConf, err = resolver.Resolve(testSecretFiltering, "datadog.yaml", "", "", true)
 			assert.NoError(t, err)
@@ -1595,4 +1654,118 @@ func TestShouldResolvedSecretMultiBackendNamespace(t *testing.T) {
 		assert.True(t, resolver.shouldResolvedSecret("prodk8s;k8s_secret@namespace1/secret/key", "origin", "img", "namespace1"))
 		assert.False(t, resolver.shouldResolvedSecret("prodk8s;k8s_secret@namespace1/secret/key", "origin", "img", "namespace2"))
 	})
+}
+
+func TestGetPathsAndHandles(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.scrubHookFunc = func([]string) {}
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		res := map[string]string{}
+		for _, h := range handles {
+			res[h] = h + "_value"
+		}
+		return res, nil
+	}
+
+	paths, handles := resolver.GetPathsAndHandles()
+	assert.Empty(t, paths)
+	assert.Empty(t, handles)
+
+	conf := []byte(`
+api_key: ENC[my_key]
+snmp_traps:
+  enabled: true
+  community_strings:
+  - ENC[secret_0]
+  - ENC[secret_1]
+  - ENC[secret_2]
+  - ENC[secret_3]
+  - ENC[secret_4]
+  - ENC[secret_5]
+  - ENC[secret_6]
+  - ENC[secret_7]
+  - ENC[secret_8]
+  - ENC[secret_9]
+  - ENC[secret_10]
+  - ENC[my_key]
+`)
+	_, err := resolver.Resolve(conf, "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Equal(t, []string{
+		"api_key",
+		"snmp_traps.community_strings.0",
+		"snmp_traps.community_strings.1",
+		"snmp_traps.community_strings.2",
+		"snmp_traps.community_strings.3",
+		"snmp_traps.community_strings.4",
+		"snmp_traps.community_strings.5",
+		"snmp_traps.community_strings.6",
+		"snmp_traps.community_strings.7",
+		"snmp_traps.community_strings.8",
+		"snmp_traps.community_strings.9",
+		"snmp_traps.community_strings.10",
+		"snmp_traps.community_strings.11",
+	}, paths)
+	assert.Equal(t, []string{
+		"my_key",
+		"secret_0",
+		"secret_1",
+		"secret_2",
+		"secret_3",
+		"secret_4",
+		"secret_5",
+		"secret_6",
+		"secret_7",
+		"secret_8",
+		"secret_9",
+		"secret_10",
+		"my_key",
+	}, handles)
+
+	// paths from origins other than datadog.yaml are prefixed with the origin, and listed after datadog.yaml
+	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), "postgres.yaml", "", "", false)
+	require.NoError(t, err)
+	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), "apache.yaml", "", "", false)
+	require.NoError(t, err)
+
+	paths, handles = resolver.GetPathsAndHandles()
+	require.Len(t, paths, 15)
+	assert.Equal(t, "api_key", paths[0])
+	assert.Equal(t, []string{"apache.yaml:token", "postgres.yaml:instances.0.password"}, paths[13:])
+	assert.Equal(t, []string{"other_token", "db_pass"}, handles[13:])
+
+	// removing the origin removes its paths and handles
+	resolver.RemoveOrigin("datadog.yaml")
+	resolver.RemoveOrigin("postgres.yaml")
+	resolver.RemoveOrigin("apache.yaml")
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Empty(t, paths)
+	assert.Empty(t, handles)
+}
+
+func TestGetHashValues(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.scrubHookFunc = func([]string) {}
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		res := map[string]string{}
+		for _, h := range handles {
+			res[h] = h + "_value"
+		}
+		return res, nil
+	}
+
+	assert.Empty(t, resolver.GetHashValues([]string{"my_key"}))
+
+	_, err := resolver.Resolve([]byte("api_key: ENC[my_key]\ntoken: ENC[my_token]\n"), "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+
+	// sha256("my_key_value") and sha256("my_token_value"); unknown handles are omitted
+	assert.Equal(t, map[string]string{
+		"my_key":   "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
+		"my_token": "bacafcb4c9e997043341bc9bd26d9b17c80bf4c00e4c964b7808ea488fe06c9d",
+	}, resolver.GetHashValues([]string{"my_key", "my_token", "unknown"}))
 }

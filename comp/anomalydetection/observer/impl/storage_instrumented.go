@@ -13,6 +13,7 @@ import (
 	"sort"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // readDigest captures the cumulative hash of all storage reads during a single
@@ -91,13 +92,13 @@ func (c *callHasher) mixInt64(v int64)     { c.mixUint64(uint64(v)) }
 func (c *callHasher) mixFloat64(v float64) { c.mixUint64(math.Float64bits(v)) }
 func (c *callHasher) sum() uint64          { return c.h.Sum64() }
 
-func (c *callHasher) mixSeriesIdentity(namespace, name string, tags []string) {
+func (c *callHasher) mixSeriesIdentity(namespace, name string, tags tagset.CompositeTags) {
 	c.mixString(namespace)
 	c.mixString(name)
-	c.mixInt64(int64(len(tags)))
-	for _, tag := range tags {
+	c.mixInt64(int64(tags.Len()))
+	tags.ForEach(func(tag string) {
 		c.mixString(tag)
-	}
+	})
 }
 
 func (c *callHasher) mixSeries(series *observerdef.Series) int {
@@ -146,7 +147,7 @@ func (s *instrumentedStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observer
 	return s.inner.GetSeriesMeta(ref)
 }
 
-func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
+func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) (observerdef.MetricContext, bool) {
 	return s.inner.GetContext(ref)
 }
 
@@ -230,17 +231,6 @@ func (s *instrumentedStorage) ForEachPoint(ref observerdef.SeriesRef, start, end
 	}
 	s.callHashes = append(s.callHashes, ch.sum())
 	return found
-}
-
-func (s *instrumentedStorage) PointCount(ref observerdef.SeriesRef) int {
-	s.readCount++
-	result := s.inner.PointCount(ref)
-
-	ch := newCallHasher()
-	ch.mixString("PointCount")
-	ch.mixInt64(int64(result))
-	s.callHashes = append(s.callHashes, ch.sum())
-	return result
 }
 
 func (s *instrumentedStorage) PointCountUpTo(ref observerdef.SeriesRef, endTime int64) int {

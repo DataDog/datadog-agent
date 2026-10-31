@@ -10,8 +10,12 @@ go_library(
 
 dd_agent_go_test(
     name = "metric-filterlist_test",
-    srcs = ["metric_filterlist_nix_test.go"],
+    srcs = [
+        "metric_filterlist_nix_test.go",
+        "metric_filterlist_prefix_nix_test.go",
+    ],
     embed = [":metric-filterlist"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

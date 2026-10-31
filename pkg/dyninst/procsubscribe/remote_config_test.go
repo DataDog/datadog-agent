@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -50,6 +52,7 @@ const (
 var (
 	md1 = tracermetadata.TracerMetadata{
 		RuntimeID:      runtimeID1,
+		TracerLanguage: "go",
 		ServiceName:    "svc",
 		ServiceEnv:     "prod",
 		ServiceVersion: "1.0.0",
@@ -371,6 +374,110 @@ func TestRetrackAfterNewStream(t *testing.T) {
 		{PID: pid2},
 	}, removal.Removals)
 	subscriber.Close()
+}
+
+func TestDiscoveryMetrics(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	statsdClient := &recordingStatsdClient{}
+	scanner := &stubScanner{
+		results: []scanResult{
+			{
+				added: []procscan.DiscoveredProcess{
+					{
+						PID:            uint32(pid1),
+						StartTime:      mockClock.Now().Add(-90 * time.Second),
+						Attempts:       3,
+						TracerMetadata: md1,
+						Executable:     process.Executable{Path: "/exe1"},
+					},
+				},
+			},
+		},
+	}
+
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithStatsd(statsdClient),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Subscribe(func(process.ProcessesUpdate) {})
+	subscriber.Start()
+
+	s := <-streams
+	trackReq, err := s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+	tags := []string{"language:go"}
+	require.Equal(t, []distributionCall{
+		{
+			name:  "datadog.dynamic_instrumentation.process_discovery_scan_attempts",
+			value: 3,
+			tags:  tags,
+		},
+		{
+			name:  "datadog.dynamic_instrumentation.process_discovery_latency_seconds",
+			value: 90,
+			tags:  tags,
+		},
+	}, statsdClient.distributionCalls())
+
+	// Reconnecting re-tracks every process, but does not report their
+	// discovery again.
+	s.errCh <- errors.New("boom")
+	s = <-streams
+	trackReq, err = s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+	require.Len(t, statsdClient.distributionCalls(), 2)
+}
+
+func TestDiscoveryMetricsWithoutStartTime(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	statsdClient := &recordingStatsdClient{}
+	scanner := &stubScanner{
+		results: []scanResult{
+			{
+				added: []procscan.DiscoveredProcess{
+					{
+						PID:            uint32(pid1),
+						Attempts:       3,
+						TracerMetadata: md1,
+						Executable:     process.Executable{Path: "/exe1"},
+					},
+				},
+			},
+		},
+	}
+
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithStatsd(statsdClient),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Subscribe(func(process.ProcessesUpdate) {})
+	subscriber.Start()
+
+	s := <-streams
+	trackReq, err := s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+	require.Equal(t, []distributionCall{
+		{
+			name:  "datadog.dynamic_instrumentation.process_discovery_scan_attempts",
+			value: 3,
+			tags:  []string{"language:go"},
+		},
+	}, statsdClient.distributionCalls())
 }
 
 func TestRemoteConfigSymDBUpdates(t *testing.T) {
@@ -832,6 +939,35 @@ func (s *stubScanner) Scan() ([]procscan.DiscoveredProcess, []procscan.ProcessID
 }
 
 func (s *stubScanner) LiveProcesses() []procscan.ProcessID { return nil }
+
+type distributionCall struct {
+	name  string
+	value float64
+	tags  []string
+}
+
+type recordingStatsdClient struct {
+	ddgostatsd.NoOpClient
+	mu            sync.Mutex
+	distributions []distributionCall
+}
+
+func (c *recordingStatsdClient) Distribution(
+	name string, value float64, tags []string, _ float64,
+) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.distributions = append(
+		c.distributions, distributionCall{name: name, value: value, tags: tags},
+	)
+	return nil
+}
+
+func (c *recordingStatsdClient) distributionCalls() []distributionCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.distributions)
+}
 
 type fakeAgentSecureServer struct {
 	pbgo.UnimplementedAgentSecureServer

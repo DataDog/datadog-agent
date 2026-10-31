@@ -27,6 +27,7 @@
 #include "rmdir.h"
 #include "selinux.h"
 #include "setattr.h"
+#include "span_fill.h"
 #include "setsockopt.h"
 #include "setxattr.h"
 #include "signal.h"

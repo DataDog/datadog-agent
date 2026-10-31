@@ -162,6 +162,32 @@ Local:
            /32 link BROADCAST
 `
 
+	multipleIPsNetFibTrieFileContent := `
+Main:
+  +-- 0.0.0.0/0 3 0 5
+     |-- 0.0.0.0
+        /0 universe UNICAST
+     +-- 172.31.0.0/16 2 0 2
+        |-- 172.31.40.12
+           /32 host LOCAL
+        |-- 172.31.255.255
+           /32 link BROADCAST
+     +-- 169.254.172.0/22 2 0 2
+        |-- 169.254.172.3
+           /32 host LOCAL
+        |-- 169.254.175.255
+           /32 link BROADCAST
+     +-- 10.0.0.0/24 2 0 2
+        |-- 10.0.0.7
+           /32 host LOCAL
+     +-- 192.168.1.0/24 2 0 2
+        |-- 192.168.1.20
+           /32 host LOCAL
+     +-- 127.0.0.0/8 2 0 2
+        |-- 127.0.0.1
+           /32 host LOCAL
+`
+
 	tests := []struct {
 		name                      string
 		pid                       int
@@ -182,6 +208,13 @@ Local:
 			filterFunc:                func(ip string) bool { return ip != "127.0.0.1" },
 			expectedIPs:               []string{"10.4.0.216"},
 		},
+		{
+			name:                      "multiple IPs are sorted",
+			pid:                       456,
+			procNetFibTrieFileContent: multipleIPsNetFibTrieFileContent,
+			filterFunc:                func(ip string) bool { return ip != "127.0.0.1" },
+			expectedIPs:               []string{"10.0.0.7", "169.254.172.3", "172.31.40.12", "192.168.1.20"},
+		},
 	}
 
 	for _, test := range tests {
@@ -190,10 +223,12 @@ Local:
 			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(test.pid), "net", "fib_trie"), test.procNetFibTrieFileContent)
 			assert.NoError(t, err)
 
-			resultIPs, err := ParseProcessIPs(dummyProcDir.RootPath, test.pid, test.filterFunc)
+			for range 10 {
+				resultIPs, err := ParseProcessIPs(dummyProcDir.RootPath, test.pid, test.filterFunc)
 
-			assert.NoError(t, err)
-			assert.ElementsMatch(t, test.expectedIPs, resultIPs)
+				assert.NoError(t, err)
+				assert.Equal(t, test.expectedIPs, resultIPs)
+			}
 		})
 	}
 }

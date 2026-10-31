@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1746,11 +1748,17 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 	collector.initK8sResourcesMetaAsTags(
 		map[string]map[string]string{
+			"pods": {
+				"team": "team",
+			},
 			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
 				"team": "workload_team",
 			},
 		},
 		map[string]map[string]string{
+			"pods": {
+				"workload-owner": "workload_owner",
+			},
 			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
 				"owner": "workload_owner",
 			},
@@ -1774,6 +1782,13 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 			},
 			QueueName:        "batch",
 			ClusterQueueName: "cluster-batch",
+			PodTemplateLabels: map[string]string{
+				"team":       "ccm-allocation",
+				"spark-role": "driver",
+			},
+			PodTemplateAnnotations: map[string]string{
+				"workload-owner": "gpu-monitoring",
+			},
 			PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 				{Name: "main", Flavors: map[string]string{"cpu": "default", "nvidia.com/gpu": "a100"}},
 				{Name: "sidecar", Flavors: map[string]string{"cpu": "default"}},
@@ -1801,6 +1816,8 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				"kueue_local_queue:batch",
 				"kueue_resource_flavor:a100",
 				"kueue_resource_flavor:default",
+				"team:ccm-allocation",
+				"workload_owner:gpu-monitoring",
 				"workload_owner:team-a",
 				"workload_team:ml",
 			},
@@ -1915,6 +1932,12 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 				},
 				QueueName:        "batch",
 				ClusterQueueName: "cluster-batch",
+				PodTemplateLabels: map[string]string{
+					"team": "ccm-allocation",
+				},
+				PodTemplateAnnotations: map[string]string{
+					"workload-owner": "gpu-monitoring",
+				},
 				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 					{Name: "other", Flavors: map[string]string{"nvidia.com/gpu": "h100"}},
@@ -1949,6 +1972,12 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 
 			cfg := configmock.New(t)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector.initK8sResourcesMetaAsTags(
+				map[string]map[string]string{
+					"pods": {"team": "team"},
+				},
+				nil,
+			)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
@@ -1986,7 +2015,9 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 					"kueue_cluster_queue:cluster-batch",
 					"kueue_local_queue:batch",
 					"kueue_resource_flavor:a100",
+					"team:ccm-allocation",
 				})
+				assert.NotContains(t, tagInfo.LowCardTags, "workload-owner:gpu-monitoring")
 				assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
 					"kueue_workload:job-sample",
 				})
@@ -2364,6 +2395,536 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 		return
 	}
 	t.Fatal("container tag info not found")
+}
+
+func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
+	const (
+		namespace    = "team-a"
+		podGroupName = "pg-train"
+		containerID  = "container-id"
+	)
+	podTaggerID := types.NewEntityID(types.KubernetesPodUID, "pod-uid")
+	containerTaggerID := types.NewEntityID(types.ContainerID, containerID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"podgroups.scheduling.run.ai": {"team": "kai_team"}}`)
+	collectorCh := make(chan []*types.TagInfo, 10)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, &fakeProcessor{collectorCh})
+
+	process := func(ev workloadmeta.Event) map[types.EntityID]*types.TagInfo {
+		collector.processEvents(workloadmeta.EventBundle{Events: []workloadmeta.Event{ev}, Ch: make(chan struct{})})
+		tagInfos := make(map[types.EntityID]*types.TagInfo)
+		for len(collectorCh) > 0 {
+			for _, tagInfo := range <-collectorCh {
+				tagInfos[tagInfo.EntityID] = tagInfo
+			}
+		}
+		return tagInfos
+	}
+	setPodGroup := func(podGroupNamespace, queue string) map[types.EntityID]*types.TagInfo {
+		podGroup := &workloadmeta.KubernetesKAIPodGroup{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesKAIPodGroup,
+				ID:   workloadmeta.GenerateKAIPodGroupEntityID(podGroupNamespace, podGroupName),
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      podGroupName,
+				Namespace: podGroupNamespace,
+				Labels:    map[string]string{"team": "ml"},
+			},
+			QueueName: queue,
+		}
+		store.Set(podGroup)
+		return process(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: podGroup})
+	}
+	assertKAITags := func(tagInfos map[types.EntityID]*types.TagInfo, expected []string) {
+		t.Helper()
+		for _, entityID := range []types.EntityID{podTaggerID, containerTaggerID} {
+			require.Contains(t, tagInfos, entityID)
+			var kaiTags []string
+			for _, tag := range append(tagInfos[entityID].LowCardTags, tagInfos[entityID].OrchestratorCardTags...) {
+				if strings.HasPrefix(tag, "kube_scheduler") || strings.HasPrefix(tag, "kai_") {
+					kaiTags = append(kaiTags, tag)
+				}
+			}
+			assert.ElementsMatch(t, expected, kaiTags, "tags of %s", entityID)
+		}
+	}
+	podLabelTags := []string{"kube_scheduler:kai", "kube_scheduler_queue:label-queue", "kai_queue:label-queue"}
+	podGroupTags := func(queue string) []string {
+		return []string{
+			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
+			"kube_scheduler_workload:" + podGroupName, "kai_workload:" + podGroupName, "kai_team:ml",
+		}
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podTaggerID.GetID()},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pod",
+			Namespace:   namespace,
+			Labels:      map[string]string{kubernetes.KAIQueueLabelKey: "label-queue"},
+			Annotations: map[string]string{kubernetes.KAIPodGroupAnnotationKey: podGroupName},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "main"}},
+	}
+	store.Set(&workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}})
+	store.Set(pod)
+	podEvent := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}
+
+	// The pod arrives before its PodGroup.
+	assertKAITags(process(podEvent), podLabelTags)
+
+	// A PodGroup with the same name in another namespace is not the pod's.
+	assert.Empty(t, setPodGroup("team-b", "other-queue"))
+
+	assertKAITags(setPodGroup(namespace, "queue-a"), podGroupTags("queue-a"))
+	assertKAITags(setPodGroup(namespace, "queue-b"), podGroupTags("queue-b"))
+
+	// The pod arrives after its PodGroup.
+	assertKAITags(process(podEvent), podGroupTags("queue-b"))
+
+	podGroup, err := store.GetKubernetesKAIPodGroup(workloadmeta.GenerateKAIPodGroupEntityID(namespace, podGroupName))
+	require.NoError(t, err)
+	store.Unset(podGroup)
+	assertKAITags(process(workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: podGroup}), podLabelTags)
+}
+
+func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		componentType string
+		subType       string
+		wantComponent string
+	}{
+		{name: "deployment only"},
+		{name: "frontend", componentType: "frontend", wantComponent: "frontend"},
+		{name: "decode", componentType: "decode", wantComponent: "decode"},
+		{name: "prefill", componentType: "prefill", wantComponent: "prefill"},
+		{name: "worker", componentType: "worker", wantComponent: "worker"},
+		{name: "planner", componentType: "planner", wantComponent: "planner"},
+		{name: "decode subtype", componentType: "worker", subType: "decode", wantComponent: "decode"},
+		{name: "prefill subtype", componentType: "worker", subType: "prefill", wantComponent: "prefill"},
+		{name: "subtype only", subType: "decode", wantComponent: "decode"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "dynamo-worker-container"
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+			})
+
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			labels := map[string]string{kubernetes.DynamoGraphDeploymentNameLabelKey: "my-model"}
+			if tt.componentType != "" {
+				labels[kubernetes.DynamoComponentTypeLabelKey] = tt.componentType
+			}
+			if tt.subType != "" {
+				labels[kubernetes.DynamoSubComponentTypeLabelKey] = tt.subType
+			}
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "dynamo-worker-pod",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "dynamo-worker",
+						Namespace: "inference",
+						Labels:    labels,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{ID: containerID, Name: "worker"},
+					},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			for _, tagInfo := range tagInfos {
+				assert.Contains(t, tagInfo.LowCardTags, "dynamo_graph_deployment:my-model")
+				assert.NotContains(t, tagInfo.HighCardTags, "dynamo_graph_deployment:my-model")
+				assert.Contains(t, tagInfo.LowCardTags, "inference_workload:my-model")
+				assert.NotContains(t, tagInfo.HighCardTags, "inference_workload:my-model")
+				var components []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload_component:") {
+						components = append(components, tag)
+					}
+				}
+				if tt.wantComponent == "" {
+					assert.Empty(t, components)
+				} else {
+					assert.Equal(t, []string{"inference_workload_component:" + tt.wantComponent}, components)
+				}
+				for _, tag := range tagInfo.HighCardTags {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
+	}
+}
+
+func TestKubeAIInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		owners       []workloadmeta.KubernetesPodOwner
+		labels       map[string]string
+		wantWorkload string
+	}{
+		{
+			name: "KubeAI Model owner without labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "owner name takes priority over labels",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			labels: map[string]string{
+				"kubeai.org/model":                  "other-model",
+				"model":                             "legacy-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
+				kubernetes.KubeAppComponentLabelKey: "server",
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "KubeAI Model among other owners",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "ReplicaSet", Group: "apps", Name: "model-1234"},
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
+				{Kind: "Model", Group: "kubeai.org", Name: "my-model"},
+			},
+			wantWorkload: "my-model",
+		},
+		{
+			name: "Model from another API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Model", Group: "other.example.com", Name: "other-model"},
+			},
+		},
+		{
+			name:   "Model without API group",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Name: "other-model"}},
+		},
+		{
+			name: "other kind in KubeAI API group",
+			owners: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Other", Group: "kubeai.org", Name: "other-model"},
+			},
+		},
+		{
+			name:   "empty Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org"}},
+		},
+		{
+			name:   "blank Model owner name",
+			owners: []workloadmeta.KubernetesPodOwner{{Kind: "Model", Group: "kubeai.org", Name: " "}},
+		},
+		{
+			name: "labels without Model owner",
+			labels: map[string]string{
+				"kubeai.org/model":                  "my-model",
+				"model":                             "my-model",
+				kubernetes.KubeAppManagedByLabelKey: "kubeai",
+			},
+		},
+		{name: "no owners or labels"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "kubeai-server-container"
+			const podID = "kubeai-model-pod"
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podID},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "model-my-model", Namespace: "inference", Labels: tt.labels,
+					},
+					Owners:     tt.owners,
+					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "server"}},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			assert.Equal(t, types.NewEntityID(types.KubernetesPodUID, podID), tagInfos[0].EntityID)
+			assert.Equal(t, types.NewEntityID(types.ContainerID, containerID), tagInfos[1].EntityID)
+			for _, tagInfo := range tagInfos {
+				var inferenceTags []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+						inferenceTags = append(inferenceTags, tag)
+					}
+				}
+				var expected []string
+				if tt.wantWorkload != "" {
+					expected = []string{"inference_workload:" + tt.wantWorkload, "inference_workload_component:inference"}
+				}
+				assert.ElementsMatch(t, expected, inferenceTags)
+				for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
+	}
+}
+
+func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		partOf          string
+		workload        string
+		component       string
+		dynamoWorkload  string
+		dynamoComponent string
+		wantWorkload    string
+		wantComponent   string
+	}{
+		{name: "aggregated", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-workload", wantWorkload: "my-model", wantComponent: "llminferenceservice-workload"},
+		{name: "prefill", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-workload-prefill", wantWorkload: "my-model", wantComponent: "llminferenceservice-workload-prefill"},
+		{name: "router", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-router", wantWorkload: "my-model", wantComponent: "llminferenceservice-router"},
+		{name: "scheduler", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-router-scheduler", wantWorkload: "my-model", wantComponent: "llminferenceservice-router-scheduler"},
+		{name: "missing component", partOf: "llminferenceservice", workload: "my-model", wantWorkload: "my-model"},
+		{name: "missing name", partOf: "llminferenceservice", component: "llminferenceservice-workload", wantComponent: "llminferenceservice-workload"},
+		{name: "missing part-of", workload: "other-app", component: "llminferenceservice-workload"},
+		{name: "other application", partOf: "other-app", workload: "my-model", component: "llminferenceservice-workload"},
+		{name: "no labels"},
+		{name: "Dynamo labels take priority", partOf: "llminferenceservice", workload: "kserve-model", component: "llminferenceservice-workload", dynamoWorkload: "dynamo-model", dynamoComponent: "decode", wantWorkload: "dynamo-model", wantComponent: "decode"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "kserve-worker-container"
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+			})
+
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			labels := map[string]string{
+				kubernetes.KubeAppPartOfLabelKey:             tt.partOf,
+				kubernetes.KubeAppNameLabelKey:               tt.workload,
+				kubernetes.KubeAppComponentLabelKey:          tt.component,
+				kubernetes.DynamoGraphDeploymentNameLabelKey: tt.dynamoWorkload,
+				kubernetes.DynamoComponentTypeLabelKey:       tt.dynamoComponent,
+			}
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "kserve-worker-pod",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "kserve-worker",
+						Namespace: "inference",
+						Labels:    labels,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{ID: containerID, Name: "worker"},
+					},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			assert.Equal(t, types.NewEntityID(types.KubernetesPodUID, "kserve-worker-pod"), tagInfos[0].EntityID)
+			assert.Equal(t, types.NewEntityID(types.ContainerID, containerID), tagInfos[1].EntityID)
+			for _, tagInfo := range tagInfos {
+				var inferenceTags []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+						inferenceTags = append(inferenceTags, tag)
+					}
+				}
+				var expected []string
+				if tt.wantWorkload != "" {
+					expected = append(expected, "inference_workload:"+tt.wantWorkload)
+				}
+				if tt.wantComponent != "" {
+					expected = append(expected, "inference_workload_component:"+tt.wantComponent)
+				}
+				assert.ElementsMatch(t, expected, inferenceTags)
+				for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
+	}
+}
+
+func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cluster       string
+		serve         string
+		nodeType      string
+		group         string
+		image         string
+		wantWorkload  string
+		wantComponent string
+	}{
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated", wantComponent: "aggregated"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated", wantComponent: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated", wantComponent: "prefill"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "custom group", cluster: "serve", serve: "true", nodeType: "worker", group: "gpu-workers", wantWorkload: "serve", wantComponent: "gpu-workers"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no group", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no node type", cluster: "serve", serve: "true", group: "decode", wantWorkload: "serve"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "batch", cluster: "batch", nodeType: "worker", group: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head excluded from traffic", cluster: "serve", serve: "false", nodeType: "head", wantWorkload: "serve", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no cluster", serve: "true", nodeType: "worker", group: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "unrelated pod"},
+		{name: "generic Ray Serve", image: "rayproject/ray:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", group: "decode"},
+		{name: "Ray ML", image: "rayproject/ray-ml:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "custom registry", image: "example.com/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom namespace", image: "docker.io/example/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom Ray LLM image", image: "rayproject/ray-llm-custom:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "private Ray LLM service", image: "example.com/team/llm/apps/ray-llm-service:vllm-stable-nydus@sha256:0123456789abcdef", cluster: "nlq-mixed-nqlnx", serve: "true", nodeType: "worker", group: "a10", wantWorkload: "nlq-mixed", wantComponent: "a10"},
+		{name: "vLLM image", image: "vllm/vllm-openai:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom vLLM image", image: "example.com/team/custom-vllm-server:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "LLM registry only", image: "ray-llm.example.com/team/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM namespace only", image: "example.com/vllm/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM tag only", image: "example.com/team/ray:vllm-stable-nydus", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "generic LLM image", image: "example.com/team/llm-training:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "vLLM without Serve", image: "vllm/vllm-openai:latest", cluster: "batch", nodeType: "worker"},
+		{name: "missing image", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "explicit Docker Hub", image: "docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "Docker Hub index", image: "index.docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "Docker Hub registry", image: "registry-1.docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "digest", image: "rayproject/ray-llm@sha256:0123456789abcdef", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "ray-container"
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+			var image workloadmeta.ContainerImage
+			if tt.image != "" {
+				var err error
+				image, err = workloadmeta.NewContainerImage("", tt.image)
+				require.NoError(t, err)
+			}
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			pod := &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "ray-pod"},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "ray-pod", Namespace: "ray",
+					Labels: map[string]string{
+						kubernetes.RayClusterLabelKey:   tt.cluster,
+						kubernetes.RayServeLabelKey:     tt.serve,
+						kubernetes.RayNodeTypeLabelKey:  tt.nodeType,
+						kubernetes.RayNodeGroupLabelKey: tt.group,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "ray-worker", Image: image}},
+			}
+			check := func(wantWorkload, wantComponent string) {
+				tagInfos := collector.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: true})
+				require.Len(t, tagInfos, 2)
+				for _, tagInfo := range tagInfos {
+					var inferenceTags []string
+					for _, tag := range tagInfo.LowCardTags {
+						if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+							inferenceTags = append(inferenceTags, tag)
+						}
+					}
+					var expected []string
+					if wantWorkload != "" {
+						expected = append(expected, "inference_workload:"+wantWorkload)
+					}
+					if wantComponent != "" {
+						expected = append(expected, "inference_workload_component:"+wantComponent)
+					}
+					assert.ElementsMatch(t, expected, inferenceTags)
+					for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+						assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+					}
+				}
+			}
+			if tt.serve == "" {
+				delete(pod.Labels, kubernetes.RayServeLabelKey)
+			}
+			check(tt.wantWorkload, tt.wantComponent)
+			// Changes to traffic readiness must not change workload identity.
+			if tt.serve != "" {
+				pod.Labels[kubernetes.RayServeLabelKey] = "false"
+				check(tt.wantWorkload, tt.wantComponent)
+				pod.Labels[kubernetes.RayServeLabelKey] = "true"
+				check(tt.wantWorkload, tt.wantComponent)
+			}
+			// A change to a generic Ray image must remove the inference tags.
+			pod.Containers[0].Image = workloadmeta.ContainerImage{Name: "rayproject/ray"}
+			check("", "")
+			pod.Containers[0].Image = image
+			// Removing RayService identity must remove the inference tags.
+			delete(pod.Labels, kubernetes.RayServeLabelKey)
+			check("", "")
+		})
+	}
+}
+
+func TestRayLLMContainerIdentification(t *testing.T) {
+	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{}))
+	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{
+		Containers: []workloadmeta.OrchestratorContainer{
+			{Name: "ray-worker", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
+			{Name: "sidecar", Image: workloadmeta.ContainerImage{Name: "vllm/vllm-openai"}},
+		},
+	}))
+	for _, name := range []string{"ray-head", "ray-worker", "llm", "custom-ray"} {
+		assert.True(t, isRayLLMPod(&workloadmeta.KubernetesPod{
+			Containers: []workloadmeta.OrchestratorContainer{
+				{Name: name, Image: workloadmeta.ContainerImage{Name: "rayproject/ray-llm"}},
+				{Name: "autoscaler", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
+			},
+		}))
+	}
 }
 
 func TestHandleKubeCRD(t *testing.T) {
@@ -2909,12 +3470,16 @@ func TestHandleContainer(t *testing.T) {
 	taggerEntityID := types.NewEntityID(types.ContainerID, entityID.ID)
 
 	tests := []struct {
-		name         string
-		staticTags   map[string][]string
-		labelsAsTags map[string]string
-		envAsTags    map[string]string
-		container    workloadmeta.Container
-		expected     []*types.TagInfo
+		name                   string
+		staticTags             map[string][]string
+		labelsAsTags           map[string]string
+		envAsTags              map[string]string
+		imageAnnotationsAsTags map[string]string
+		// images seeds workloadmeta so the forward path (handleContainer
+		// looking up its image to inherit annotation tags) can be exercised.
+		images    []*workloadmeta.ContainerImageMetadata
+		container workloadmeta.Container
+		expected  []*types.TagInfo
 	}{
 		{
 			name: "fully formed container",
@@ -3508,15 +4073,84 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Forward path: a container inherits its image's OCI annotation
+			// tags (mapped via container_image_annotations_as_tags) so they
+			// land on container.* metrics.
+			name: "container inherits image annotation tags",
+			imageAnnotationsAsTags: map[string]string{
+				"containerd.io/snapshot/nydus-builder-version": "nydus_builder_version",
+			},
+			images: []*workloadmeta.ContainerImageMetadata{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   "sha256:imageconfigdigest",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Annotations: map[string]string{
+							"containerd.io/snapshot/nydus-builder-version": "v2.3.7",
+						},
+					},
+				},
+			},
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				Image: workloadmeta.ContainerImage{
+					ID: "sha256:imageconfigdigest",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"image_id:sha256:imageconfigdigest",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"nydus_builder_version:v2.3.7",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+			var store workloadmetamock.Mock
+			if len(tt.images) > 0 {
+				store = fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() config.Component { return cfg }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				))
+				for _, image := range tt.images {
+					store.Set(image)
+				}
+			}
+
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 
-			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
+			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags, tt.imageAnnotationsAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -3743,6 +4377,223 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 	}
 }
 
+// TestHandleContainer_ImageAnnotationTags_IsComplete verifies that the image
+// annotation TagInfo appended to a container (published under
+// containerImageSource) carries the same effective, parent-aware completeness
+// as the base container TagInfo. Without this, the later-processed image
+// TagInfo could overwrite the entity's completeness in the tag store with true
+// before the pod/task tags have arrived. It covers both the forward path
+// (handleContainer, image already in the store) and the re-apply path
+// (handleContainerImage, image metadata arriving after the container).
+func TestHandleContainer_ImageAnnotationTags_IsComplete(t *testing.T) {
+	const (
+		imageID       = "sha256:imageconfigdigest"
+		annotationKey = "com.datadoghq.test.imageformat"
+		podID         = "test-pod"
+		taskARN       = "test-task-arn"
+	)
+
+	imageAnnotationsAsTags := map[string]string{annotationKey: "image_format"}
+
+	image := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   imageID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Annotations: map[string]string{annotationKey: "nydus-demo"},
+		},
+	}
+
+	kubeContainer := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "test-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "agent"},
+		Image:      workloadmeta.ContainerImage{ID: imageID},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+	}
+
+	ecsContainer := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "test-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "agent"},
+		Image:      workloadmeta.ContainerImage{ID: imageID},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "test-pod", Namespace: "default"},
+	}
+
+	ecsTask := &workloadmeta.ECSTask{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
+		},
+		EntityMeta:  workloadmeta.EntityMeta{Name: "test-task"},
+		ClusterName: "test-cluster",
+	}
+
+	tests := []struct {
+		name                string
+		features            []env.Feature
+		container           workloadmeta.Container
+		pod                 *workloadmeta.KubernetesPod
+		ecsTask             *workloadmeta.ECSTask
+		parentIsComplete    bool
+		containerIsComplete bool
+		reapply             bool // exercise the handleContainerImage re-apply path
+		expectedIsComplete  bool
+	}{
+		{
+			name:                "no orchestrator: follows container completeness",
+			container:           kubeContainer,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "kubernetes: container complete but pod incomplete -> incomplete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: both complete -> complete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    true,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "ECS EC2: container complete but task incomplete -> incomplete",
+			features:            []env.Feature{env.ECSEC2},
+			container:           ecsContainer,
+			ecsTask:             ecsTask,
+			parentIsComplete:    false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "re-apply path, kubernetes: container complete but pod incomplete -> incomplete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    false,
+			containerIsComplete: true,
+			reapply:             true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "re-apply path, kubernetes: both complete -> complete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    true,
+			containerIsComplete: true,
+			reapply:             true,
+			expectedIsComplete:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if len(test.features) > 0 {
+				env.SetFeatures(t, test.features...)
+			}
+
+			cfg := configmock.New(t)
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			wmeta.Set(image)
+			wmeta.Set(&test.container)
+
+			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil)
+			collector.initContainerMetaAsTags(nil, nil, imageAnnotationsAsTags)
+
+			// Register the parent's completeness in the collector.
+			switch test.container.Owner.Kind {
+			case workloadmeta.KindKubernetesPod:
+				if test.pod != nil {
+					wmeta.Set(test.pod)
+					collector.handleKubePod(workloadmeta.Event{
+						Type:       workloadmeta.EventTypeSet,
+						Entity:     test.pod,
+						IsComplete: test.parentIsComplete,
+					})
+				}
+			case workloadmeta.KindECSTask:
+				if test.ecsTask != nil {
+					wmeta.Set(test.ecsTask)
+					collector.handleECSTask(workloadmeta.Event{
+						Type:       workloadmeta.EventTypeSet,
+						Entity:     test.ecsTask,
+						IsComplete: test.parentIsComplete,
+					})
+				}
+			}
+
+			var actual []*types.TagInfo
+			if test.reapply {
+				// First tag the container (records its raw completeness), then
+				// deliver the image event that re-applies annotation tags.
+				collector.handleContainer(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     &test.container,
+					IsComplete: test.containerIsComplete,
+				})
+				actual = collector.handleContainerImage(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     image,
+					IsComplete: true,
+				})
+			} else {
+				actual = collector.handleContainer(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     &test.container,
+					IsComplete: test.containerIsComplete,
+				})
+			}
+
+			// Locate the image annotation TagInfo: published under
+			// containerImageSource and scoped to the container entity.
+			containerEntityID := types.NewEntityID(types.ContainerID, test.container.EntityID.ID)
+			var imageTagInfo *types.TagInfo
+			for _, ti := range actual {
+				if ti.Source == containerImageSource && ti.EntityID == containerEntityID {
+					imageTagInfo = ti
+					break
+				}
+			}
+
+			require.NotNil(t, imageTagInfo, "expected an image annotation TagInfo for the container")
+			assert.Contains(t, imageTagInfo.LowCardTags, "image_format:nydus-demo")
+			assert.Equal(t, test.expectedIsComplete, imageTagInfo.IsComplete)
+		})
+	}
+}
+
 func TestHandleContainerImage(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainerImageMetadata,
@@ -3752,9 +4603,14 @@ func TestHandleContainerImage(t *testing.T) {
 	taggerEntityID := types.NewEntityID(types.ContainerImageMetadata, entityID.ID)
 
 	tests := []struct {
-		name     string
-		image    workloadmeta.ContainerImageMetadata
-		expected []*types.TagInfo
+		name         string
+		configValues map[string]interface{}
+		image        workloadmeta.ContainerImageMetadata
+		// containers are stored in workloadmeta so the reverse path
+		// (handleContainerImage re-tagging containers using the image) can be
+		// exercised.
+		containers []*workloadmeta.Container
+		expected   []*types.TagInfo
 	}{
 		{
 			name: "basic",
@@ -3848,12 +4704,101 @@ func TestHandleContainerImage(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Image OCI annotations are turned into tags when they match the
+			// container_image_annotations_as_tags mapping. Annotations that are
+			// not in the mapping are ignored.
+			name: "annotations as tags",
+			configValues: map[string]interface{}{
+				"container_image_annotations_as_tags": map[string]string{
+					"containerd.io/snapshot/nydus-builder-version": "nydus_builder_version",
+					"target": "+image_target",
+				},
+			},
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Annotations: map[string]string{
+						"containerd.io/snapshot/nydus-builder-version": "v2.3.7",
+						"target":                          "staging",
+						"org.opencontainers.image.source": "https://github.com/DataDog/images",
+					},
+				},
+				RepoTags: []string{
+					"datadog/agent:main-nydus",
+				},
+				OS:           "linux",
+				OSVersion:    "1",
+				Architecture: "amd64",
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container-using-nydus-image",
+					},
+					Image: workloadmeta.ContainerImage{
+						ID: entityID.ID,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerImageSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"image_target:staging",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"architecture:amd64",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_tag:main-nydus",
+						"nydus_builder_version:v2.3.7",
+						"os_name:linux",
+						"os_version:1",
+						"short_image:agent",
+					},
+					StandardTags: []string{},
+				},
+				{
+					// Reverse path: the container using this image inherits the
+					// annotation tags under containerImageSource.
+					Source:   containerImageSource,
+					EntityID: types.NewEntityID(types.ContainerID, "container-using-nydus-image"),
+					HighCardTags: []string{
+						"image_target:staging",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"nydus_builder_version:v2.3.7",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+			for k, v := range tt.configValues {
+				cfg.SetInTest(k, v)
+			}
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&tt.image)
+			for _, container := range tt.containers {
+				store.Set(container)
+			}
+
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -3865,6 +4810,41 @@ func TestHandleContainerImage(t *testing.T) {
 	}
 }
 
+func TestExtractGPUMIGProfileTag(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		deviceType workloadmeta.GPUDeviceType
+		profile    string
+		want       string
+	}{
+		{name: "plain", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.35gb", want: "1g.35gb"},
+		{name: "media extension", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+me", want: "1g.24gb_me"},
+		// Must stay distinct from "+me": the two are different profiles on the
+		// same card.
+		{name: "media engines excluded", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb-me", want: "1g.24gb-me"},
+		{name: "all media engines", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+me.all", want: "1g.24gb_me.all"},
+		{name: "graphics", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+gfx", want: "1g.24gb_gfx"},
+		{name: "case normalization", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1G.35GB+ME", want: "1g.35gb_me"},
+		{name: "MIG instance with unresolved profile", deviceType: workloadmeta.GPUDeviceTypeMIG, want: "unknown"},
+		// Physical cards, MIG parents included, still carry the tag so a
+		// group-by never has an untagged bucket.
+		{name: "physical device", deviceType: workloadmeta.GPUDeviceTypePhysical, want: "none"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tagList := taglist.NewTagList()
+			ExtractGPUTags(&workloadmeta.GPU{DeviceType: tt.deviceType, MIGProfile: tt.profile}, tagList)
+			low, _, _, _ := tagList.Compute()
+			var profileTags []string
+			for _, tag := range low {
+				if strings.HasPrefix(tag, tags.GPUMIGProfile+":") {
+					profileTags = append(profileTags, tag)
+				}
+			}
+			require.Equal(t, []string{tags.GPUMIGProfile + ":" + tt.want}, profileTags)
+		})
+	}
+}
+
 func TestHandleGPU(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindGPU,
@@ -3872,6 +4852,7 @@ func TestHandleGPU(t *testing.T) {
 	}
 
 	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+	numaNode := 0
 
 	tests := []struct {
 		name     string
@@ -3891,6 +4872,13 @@ func TestHandleGPU(t *testing.T) {
 				PCIBusID:          "0000:00:1e.0",
 				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
 				FabricCliqueID:    7,
+				ChassisSerial:     "1821825880999",
+				SlotNumber:        20,
+				TrayIndex:         10,
+				ModuleID:          2,
+				BoardSerial:       "1650825051135",
+				NUMANode:          &numaNode,
+				FabricGUID:        "0x8505c454f59170d4",
 				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
@@ -3905,12 +4893,21 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_nvlink_version:3.0",
 						"gpu_nvlink_capable:true",
 						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
 						"gpu_fabric_clique_id:7",
+						"gpu_chassis_serial:1821825880999",
+						"gpu_slot_number:20",
+						"gpu_tray_index:10",
+						"gpu_module_id:2",
+						"gpu_board_serial:1650825051135",
+						"gpu_numa_node:0",
+						"gpu_fabric_guid:0x8505c454f59170d4",
 					},
 					StandardTags: []string{},
 				},
@@ -3944,6 +4941,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_nvlink_version:not_nvlink_capable",
@@ -3968,6 +4967,7 @@ func TestHandleGPU(t *testing.T) {
 				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				MIGProfile:         "3g.20gb",
 				ParentGPUUUID:      "GPU-1234",
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
@@ -3984,8 +4984,10 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_architecture:ampere",
 						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
 						"gpu_driver_version:525.60.13",
+						"gpu_mig_profile:3g.20gb",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
+						"gpu_sharing_mode:none",
 						"gpu_type:a100",
 						"gpu_uuid:mig-432",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4032,6 +5034,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig-parent",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4039,6 +5043,39 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_nvlink_capable:false",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "shared by KAI fractions",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor:        "nvidia",
+				Device:        "tesla-t4",
+				NVLinkVersion: "not_nvlink_capable",
+				SharingMode:   workloadmeta.GPUSharingModeKAIFraction,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla-t4",
+						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:kai_fraction",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 					},
 					StandardTags: []string{},
 				},
@@ -4134,6 +5171,46 @@ func TestHandleDelete(t *testing.T) {
 
 	assertTagInfoListEqual(t, expected, actual)
 	assert.Empty(t, collector.children)
+}
+
+// When container image annotations as tags is enabled, deleting a container
+// must also expire the tags published for it under containerImageSource,
+// otherwise image annotation tags would leak until the next image event.
+func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
+	const containerID = "foobarquux"
+
+	containerEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainer,
+		ID:   containerID,
+	}
+	container := &workloadmeta.Container{
+		EntityID: containerEntityID,
+	}
+	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("container_image_annotations_as_tags", map[string]string{"foo": "bar"})
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+
+	expected := []*types.TagInfo{
+		{
+			Source:       containerSource,
+			EntityID:     containerTaggerEntityID,
+			DeleteEntity: true,
+		},
+		{
+			Source:       containerImageSource,
+			EntityID:     containerTaggerEntityID,
+			DeleteEntity: true,
+		},
+	}
+
+	actual := collector.handleDelete(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: container,
+	})
+
+	assertTagInfoListEqual(t, expected, actual)
 }
 
 func TestHandleDeleteKubernetesNode(t *testing.T) {
@@ -4291,6 +5368,217 @@ func (p *fakeProcessor) ProcessTagInfo(tagInfos []*types.TagInfo) {
 	p.ch <- tagInfos
 }
 
+func TestHandleContainerPromotesProcessTags(t *testing.T) {
+	const containerID = "container-id"
+
+	tests := []struct {
+		name              string
+		gpuTracingEnabled bool
+		processTags       []string
+		expected          []string
+	}{
+		{
+			name:              "processes agree",
+			gpuTracingEnabled: true,
+			processTags: []string{
+				"training_run_id:run-1,training_group_id:group-1",
+				"training_run_id:run-1,training_group_id:group-1",
+			},
+			expected: []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "gpu tracing disabled",
+			gpuTracingEnabled: false,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1"},
+		},
+		{
+			name:              "conflicting values block only that tag",
+			gpuTracingEnabled: true,
+			processTags: []string{
+				"training_run_id:run-1,training_group_id:group-1",
+				"training_run_id:run-2,training_group_id:group-1",
+			},
+			expected: []string{"training_group_id:group-1"},
+		},
+		{
+			name:              "process without tags does not block promotion",
+			gpuTracingEnabled: true,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1", ""},
+			expected:          []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "process with only unrelated tags does not block promotion",
+			gpuTracingEnabled: true,
+			processTags:       []string{"training_run_id:run-1,training_group_id:group-1", "foo:bar"},
+			expected:          []string{"training_run_id:run-1", "training_group_id:group-1"},
+		},
+		{
+			name:              "tags outside the allowlist are not promoted",
+			gpuTracingEnabled: true,
+			processTags:       []string{"foo:bar"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := newProcessTagPromotionStore(t)
+			for i, processTags := range test.processTags {
+				store.Set(newProcessWithTags(int32(i+1), containerID, processTags))
+			}
+			store.Set(newProcessWithTags(100, "other-container", "training_run_id:other"))
+
+			cfg := configmock.New(t)
+			cfg.SetInTest("gpu.tracing.enabled", test.gpuTracingEnabled)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleContainer(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+				},
+			})
+
+			require.Len(t, actual, 1)
+			assert.ElementsMatch(t, test.expected, actual[0].LowCardTags)
+		})
+	}
+}
+
+func TestProcessEventsRetagsProcessContainer(t *testing.T) {
+	const containerID = "container-id"
+
+	store := newProcessTagPromotionStore(t)
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	})
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("gpu.tracing.enabled", true)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collectorCh := make(chan []*types.TagInfo, 10)
+	collector.tagProcessor = &fakeProcessor{collectorCh}
+
+	process := newProcessWithTags(1, containerID, "training_run_id:run-1")
+	store.Set(process)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: process}},
+		Ch:     make(chan struct{}),
+	})
+	assert.Contains(t, containerLowCardTags(t, <-collectorCh, containerID), "training_run_id:run-1")
+
+	store.Unset(process)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: process}},
+		Ch:     make(chan struct{}),
+	})
+	assert.NotContains(t, containerLowCardTags(t, <-collectorCh, containerID), "training_run_id:run-1")
+}
+
+func TestProcessEventsRetagsOnlyAffectedContainers(t *testing.T) {
+	const (
+		containerID      = "container-id"
+		otherContainerID = "other-container-id"
+	)
+
+	tests := []struct {
+		name             string
+		process          *workloadmeta.Process
+		expectedRetagged []string
+	}{
+		{
+			name:             "process with promotable tags",
+			process:          newProcessWithTags(1, containerID, "training_run_id:run-1"),
+			expectedRetagged: []string{containerID},
+		},
+		{
+			name:    "process without promotable tags",
+			process: newProcessWithTags(1, containerID, "foo:bar"),
+		},
+		{
+			name:             "process in another container",
+			process:          newProcessWithTags(1, otherContainerID, "training_run_id:run-1"),
+			expectedRetagged: []string{otherContainerID},
+		},
+		{
+			name:    "process in a container missing from the store",
+			process: newProcessWithTags(1, "missing-container-id", "training_run_id:run-1"),
+		},
+		{
+			name:    "process outside a container",
+			process: newProcessWithTags(1, "", "training_run_id:run-1"),
+		},
+	}
+
+	for _, test := range tests {
+		for eventName, eventType := range map[string]workloadmeta.EventType{"set": workloadmeta.EventTypeSet, "unset": workloadmeta.EventTypeUnset} {
+			t.Run(test.name+"/"+eventName, func(t *testing.T) {
+				store := newProcessTagPromotionStore(t)
+				for _, id := range []string{containerID, otherContainerID} {
+					store.Set(&workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+					})
+				}
+
+				cfg := configmock.New(t)
+				cfg.SetInTest("gpu.tracing.enabled", true)
+				collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+				collectorCh := make(chan []*types.TagInfo, 1)
+				collector.tagProcessor = &fakeProcessor{collectorCh}
+
+				collector.processEvents(workloadmeta.EventBundle{
+					Events: []workloadmeta.Event{{Type: eventType, Entity: test.process}},
+					Ch:     make(chan struct{}),
+				})
+				close(collectorCh)
+
+				var retagged []string
+				for tagInfos := range collectorCh {
+					for _, tagInfo := range tagInfos {
+						if tagInfo.Source == containerSource {
+							retagged = append(retagged, tagInfo.EntityID.GetID())
+						}
+					}
+				}
+				assert.ElementsMatch(t, test.expectedRetagged, retagged)
+			})
+		}
+	}
+}
+
+func newProcessTagPromotionStore(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
+func newProcessWithTags(pid int32, containerID string, processTags string) *workloadmeta.Process {
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.Itoa(int(pid))},
+		Pid:      pid,
+	}
+	if containerID != "" {
+		process.Owner = &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}
+	}
+	if processTags != "" {
+		process.Service = &workloadmeta.Service{
+			TracerMetadata: []tracermetadata.TracerMetadata{{ProcessTags: processTags}},
+		}
+	}
+	return process
+}
+
+func containerLowCardTags(t *testing.T, tagInfos []*types.TagInfo, containerID string) []string {
+	for _, tagInfo := range tagInfos {
+		if tagInfo.Source == containerSource && tagInfo.EntityID == types.NewEntityID(types.ContainerID, containerID) {
+			return tagInfo.LowCardTags
+		}
+	}
+	t.Fatalf("no tag info for container %s", containerID)
+	return nil
+}
+
 func TestHandlePodWithDeletedContainer(t *testing.T) {
 	// This test checks that we get events to delete a container that no longer
 	// exists even if it belonged to a pod that still exists.
@@ -4425,16 +5713,86 @@ func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
 	assert.True(t, actualStaticSourceEvent.IsComplete)
 }
 
-// findStaticSourceEvent returns the staticSource TagInfo out of a batch, failing the test if absent.
-func findStaticSourceEvent(t *testing.T, tagInfos []*types.TagInfo) *types.TagInfo {
+// nextStaticSourceEvent returns the next staticSource TagInfo published to the
+// channel, failing the test if none arrives. It skips batches carrying other
+// sources, because the collector publishes more than static tags.
+func nextStaticSourceEvent(t *testing.T, collectorCh <-chan []*types.TagInfo) *types.TagInfo {
 	t.Helper()
-	for _, event := range tagInfos {
-		if event.Source == staticSource {
-			return event
+	for {
+		select {
+		case tagInfos := <-collectorCh:
+			for _, event := range tagInfos {
+				if event.Source == staticSource {
+					return event
+				}
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("no staticSource event found")
+			return nil
 		}
 	}
-	t.Fatal("no staticSource event found")
-	return nil
+}
+
+// The mark lives on its own entity so that it cannot be picked up by GlobalTags
+// or EnrichTags, which reach metric samples.
+func TestInfraTagInfo(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		expected []string
+	}{
+		{"cloud_cost_only is marked", "cloud_cost_only", []string{"infra_mode:cloud_cost_only"}},
+		{"end_user_device is marked", "end_user_device", []string{"infra_mode:end_user_device"}},
+		{"full is not marked", "full", nil},
+		{"unset is not marked", "", nil},
+		{"an unknown mode is not marked", "cloud_cost", nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("infrastructure_mode", tc.mode)
+
+			tagInfo := InfraTagInfo(mockConfig)
+
+			assert.Equal(t, types.GetInfraTagsEntityID(), tagInfo.EntityID)
+			assert.NotEqual(t, types.GetGlobalEntityID(), tagInfo.EntityID)
+			assert.True(t, tagInfo.IsComplete)
+			if tc.expected == nil {
+				// An unmarked mode still publishes the entity, so the Tagger can
+				// tell a resolved mode carrying no mark from one not yet seen.
+				assert.Empty(t, tagInfo.LowCardTags)
+			} else {
+				assert.Equal(t, tc.expected, tagInfo.LowCardTags)
+			}
+			assert.Empty(t, tagInfo.OrchestratorCardTags)
+			assert.Empty(t, tagInfo.HighCardTags)
+			assert.Empty(t, tagInfo.StandardTags)
+		})
+	}
+}
+
+// The collector publishes the mark at construction, so it is in the store before
+// any check is configured and before the stream goroutine starts.
+func TestNewWorkloadMetaCollectorPublishesInfraTags(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("infrastructure_mode", "cloud_cost_only")
+	collectorCh := make(chan []*types.TagInfo, 10)
+
+	NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
+
+	var infraTagsEvent *types.TagInfo
+	for len(collectorCh) > 0 {
+		for _, event := range <-collectorCh {
+			if event.Source == infraTagsSource {
+				infraTagsEvent = event
+			}
+		}
+	}
+
+	require.NotNil(t, infraTagsEvent, "no infraTagsSource event found")
+	assert.Equal(t, types.GetInfraTagsEntityID(), infraTagsEvent.EntityID)
+	assert.Equal(t, []string{"infra_mode:cloud_cost_only"}, infraTagsEvent.LowCardTags)
 }
 
 func hasOrchClusterIDTag(tagInfo *types.TagInfo, value string) bool {
@@ -4456,7 +5814,6 @@ func TestRefreshGlobalTags(t *testing.T) {
 	clusterIDCacheKey := cache.BuildAgentKey("orchestratorClusterID")
 	cache.Cache.Delete(clusterIDCacheKey)
 	t.Cleanup(func() { cache.Cache.Delete(clusterIDCacheKey) })
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "")
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("tags", []string{"some:tag"})
@@ -4464,16 +5821,15 @@ func TestRefreshGlobalTags(t *testing.T) {
 
 	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
 
-	firstTagInfos := <-collectorCh
-	firstEvent := findStaticSourceEvent(t, firstTagInfos)
+	firstEvent := nextStaticSourceEvent(t, collectorCh)
 	assert.False(t, hasOrchClusterIDTag(firstEvent, "87654321-4321-4321-4321-210987654321"))
 	assert.Contains(t, firstEvent.LowCardTags, "some:tag")
 
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "87654321-4321-4321-4321-210987654321")
+	// The Cluster Agent gets the cluster ID from Kubernetes, which is not available here.
+	cache.Cache.Set(clusterIDCacheKey, "87654321-4321-4321-4321-210987654321", cache.NoExpiration)
 	collector.collectStaticGlobalTags(context.Background(), mockConfig)
 
-	secondTagInfos := <-collectorCh
-	secondEvent := findStaticSourceEvent(t, secondTagInfos)
+	secondEvent := nextStaticSourceEvent(t, collectorCh)
 	assert.True(t, hasOrchClusterIDTag(secondEvent, "87654321-4321-4321-4321-210987654321"))
 	assert.Contains(t, secondEvent.LowCardTags, "some:tag", "previously collected static tags must not be lost on refresh")
 }
@@ -4713,6 +6069,7 @@ func TestHandleProcess(t *testing.T) {
 		DriverVersion:      gpuDriverVersion,
 		VirtualizationMode: gpuVirtMode,
 		PCIBusID:           "0000:00:1e.0",
+		SharingMode:        workloadmeta.GPUSharingModeKAIFraction,
 	})
 
 	cfg := configmock.New(t)
@@ -5047,6 +6404,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"gpu_pci_bus_id:0000:00:1e.0",
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_sharing_mode:kai_fraction",
+					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
@@ -5091,6 +6450,8 @@ func TestHandleProcess(t *testing.T) {
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_sharing_mode:kai_fraction",
+					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
@@ -5158,6 +6519,30 @@ func TestHandleProcess(t *testing.T) {
 				require.Len(t, result, 1)
 				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
 			}
+		})
+	}
+}
+
+func TestRayClusterWorkloadName(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		want string
+	}{
+		{name: "nlq-mixed-nqlnx", want: "nlq-mixed"},
+		{name: "nlq-mixed-24567", want: "nlq-mixed"},
+		{name: "nlq-mixed-nqlnx-bcdfg", want: "nlq-mixed-nqlnx"},
+		{name: "nlq-mixed", want: "nlq-mixed"},
+		{name: "nlq-mixed-abcde", want: "nlq-mixed-abcde"},
+		{name: "nlq-mixed-12345", want: "nlq-mixed-12345"},
+		{name: "nlq-mixed-bcdf", want: "nlq-mixed-bcdf"},
+		{name: "nlq-mixed-bcdfgh", want: "nlq-mixed-bcdfgh"},
+		{name: "nlq-mixed-", want: "nlq-mixed-"},
+		{name: "-bcdfg", want: "-bcdfg"},
+		{name: "bcdfg", want: "bcdfg"},
+		{name: "", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, rayClusterWorkloadName(tt.name))
 		})
 	}
 }

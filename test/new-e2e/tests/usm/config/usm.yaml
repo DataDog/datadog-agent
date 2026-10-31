@@ -1,4 +1,6 @@
 log_level: debug
+network_config:
+  direct_send: false
 service_monitoring_config:
   enabled: true
   enable_http_monitoring: true

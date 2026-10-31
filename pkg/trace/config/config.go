@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -30,6 +31,12 @@ const ServiceName = "datadog-trace-agent"
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
+
+// ErrNoWriterEndpoint is returned when apm_config.traces_send_to_main_endpoint is false
+// but no other (non-failover) endpoint is configured, which would leave the
+// trace and stats writers with nowhere to send data. The configuration is
+// rejected instead of silently dropping traces and stats.
+var ErrNoWriterEndpoint = errors.New("apm_config.traces_send_to_main_endpoint is false but no apm_config.additional_endpoints entry is configured: refusing to run with no destination for traces and stats")
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
 type Endpoint struct {
@@ -161,16 +168,21 @@ func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
 	return obfuscationMode(c, c.HasFeature("sqllexer"))
 }
 
+// EffectiveSQLConfig returns the obfuscate.SQLConfig actually used by the agent's obfuscator.
+func (c *AgentConfig) EffectiveSQLConfig() obfuscate.SQLConfig {
+	return obfuscate.SQLConfig{
+		TableNames:       c.HasFeature("table_names"),
+		ReplaceDigits:    c.HasFeature("quantize_sql_tables") || c.HasFeature("replace_sql_digits"),
+		KeepSQLAlias:     c.HasFeature("keep_sql_alias"),
+		DollarQuotedFunc: c.HasFeature("dollar_quoted_func"),
+		ObfuscationMode:  c.EffectiveSQLObfuscationMode(),
+	}
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
-		SQL: obfuscate.SQLConfig{
-			TableNames:       conf.HasFeature("table_names"),
-			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
-			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
-			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
-		},
+		SQL:                  conf.EffectiveSQLConfig(),
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
 		Mongo:                o.Mongo,
@@ -385,6 +397,16 @@ type AgentConfig struct {
 	// configuration file, if present.
 	Endpoints []*Endpoint
 
+	// SkipMainEndpoint makes the trace and stats writers skip the main endpoint
+	// (Endpoints[0], derived from api_key and apm_config.apm_dd_url) and send
+	// only to the endpoints configured through apm_config.additional_endpoints
+	// (plus the Multi-Region Failover endpoint when failover is active). It is
+	// set when apm_config.traces_send_to_main_endpoint is false. Endpoints itself is
+	// left untouched so that APIKey() and the proxies that rely on the main
+	// endpoint's key (EVP, debugger, symdb, profiling main, ...) keep working.
+	// It is the traces/stats sibling of ProfilingProxy.MainEndpointMode.
+	SkipMainEndpoint bool
+
 	// Concentrator
 	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
 	ExtraAggregators       []string      // DEPRECATED
@@ -462,6 +484,9 @@ type AgentConfig struct {
 	StatsdPort     int
 	StatsdPipeName string // for Windows Pipes
 	StatsdSocket   string // for UDS Sockets
+	// StatsdBufferSize is dogstatsd_buffer_size, the largest datagram
+	// DogStatsD reads. The DogStatsD proxy packs lines up to this size.
+	StatsdBufferSize int
 
 	// logging
 	LogFilePath string
@@ -586,6 +611,10 @@ type AgentConfig struct {
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 
+	// DebugServerHost is the loopback address the debug server binds.
+	// Empty and "localhost" use 127.0.0.1, so the default cmd_host does not dial ::1.
+	DebugServerHost string
+
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
@@ -636,6 +665,16 @@ type AgentConfig struct {
 	// APIKeyIsFromSecretFn reports whether an API key value was resolved from a
 	// secret handle (and can therefore be changed by a refresh).
 	APIKeyIsFromSecretFn func(apiKey string) bool `json:"-"`
+}
+
+// DebugServerAddr returns the host:port the debug server binds and that in-process clients dial.
+// "localhost" is rewritten to 127.0.0.1. Dialing the name also tries ::1, which stalls when that address drops SYNs.
+func (c *AgentConfig) DebugServerAddr() string {
+	host := c.DebugServerHost
+	if host == "" || host == "localhost" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, strconv.Itoa(c.DebugServerPort))
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -703,9 +742,10 @@ func New() *AgentConfig {
 		APIKeyRefreshThrottleInterval: 0,
 		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
-		StatsdHost:    "localhost",
-		StatsdPort:    8125,
-		StatsdEnabled: true,
+		StatsdHost:       "localhost",
+		StatsdPort:       8125,
+		StatsdBufferSize: 8192,
+		StatsdEnabled:    true,
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
@@ -793,6 +833,28 @@ func (c *AgentConfig) UpdateAPIKey(val string) {
 	c.Endpoints[0].APIKey = val
 }
 
+// WriterEndpoints returns the endpoints the trace and stats writers send
+// payloads to: Endpoints, minus the main endpoint (Endpoints[0]) when
+// SkipMainEndpoint is set. Configuration validation guarantees that at least
+// one non-failover endpoint remains when the main endpoint is skipped.
+func (c *AgentConfig) WriterEndpoints() []*Endpoint {
+	if !c.SkipMainEndpoint || len(c.Endpoints) == 0 {
+		return c.Endpoints
+	}
+	return c.Endpoints[1:]
+}
+
+// HasWriterDestination reports whether at least one non-failover endpoint
+// would receive traces and stats, taking SkipMainEndpoint into account.
+func (c *AgentConfig) HasWriterDestination() bool {
+	for _, e := range c.WriterEndpoints() {
+		if e != nil && !e.IsMRF && e.Host != "" && e.APIKey != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
@@ -817,7 +879,6 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
-			DualStack: true,
 		}).DialContext,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       30 * time.Second,

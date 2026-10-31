@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator && test
+//go:build kubeapiserver && test
 
 package config
 
@@ -261,7 +261,7 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
-	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", []string{"token", "consul"})
 
 	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
@@ -284,7 +284,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
-	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", []string{"token", "consul"})
 
 	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()

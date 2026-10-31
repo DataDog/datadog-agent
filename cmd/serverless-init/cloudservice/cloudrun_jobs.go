@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -55,11 +57,13 @@ type CloudRunJobs struct {
 	jobSpan    *pb.Span
 	traceAgent TraceAgent
 	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+
+	gcpMetadata gcpMetadataCache
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
-	tags := metadataHelperFunc(GetDefaultConfig(), CloudRunJob)
+	tags := c.gcpMetadata.tags(CloudRunJob)
 	tags["origin"] = CloudRunJobsOrigin
 	tags["_dd.origin"] = CloudRunJobsOrigin
 
@@ -90,8 +94,18 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 		tags[cloudRunJobTagPrefix+taskCountTag] = taskCountVal
 	}
 
-	tags[cloudRunJobTagPrefix+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
+	if id := cloudRunJobCCRID(tags[projectID], tags[location], jobNameVal); id != "" {
+		tags[cloudRunJobTagPrefix+resourceNameTag] = id
+	}
 	return tags
+}
+
+// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID.
+func cloudRunJobCCRID(project, region, job string) string {
+	if project == "" || region == "" || job == "" {
+		return ""
+	}
+	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
 }
 
 func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
@@ -131,6 +145,11 @@ func (c *CloudRunJobs) GetOrigin() string {
 // GetSource returns the metrics source
 func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceGoogleCloudRunEnhanced
+}
+
+// Run uses the default run behaviour for CloudRunJobs.
+func (c *CloudRunJobs) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
 }
 
 // Init records the start time for CloudRunJobs and initializes the job span

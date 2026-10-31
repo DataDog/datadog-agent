@@ -10,7 +10,6 @@ go_library(
         "//comp/collector/collector/def",
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
-        "//comp/core/config",
         "//comp/core/diagnose/def",
         "//comp/core/log/def",
         "//comp/core/tagger/def",

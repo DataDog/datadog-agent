@@ -1,0 +1,88 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && bpf
+
+// Package ebpf holds ebpf related files
+package ebpf
+
+import (
+	"io"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddmodifiers "github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+)
+
+// Manager is a wrapper type for pkg/ebpf/manager.Manager used when the bpf build tag is set
+type Manager struct {
+	*ddebpf.Manager
+	tailCallGroups *tailCallGroupsModifier
+}
+
+// Get returns the ebpf-manager instance
+func (m *Manager) Get() *manager.Manager {
+	return m.Manager.Manager
+}
+
+// InitWithOptions wraps the call to corresponding ebpf-manager method
+func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
+	return m.Manager.InitWithOptions(bytecode, &opts)
+}
+
+// TailCallSpecEditor returns the function to apply to the spec of a clone of the provided program, attached to the
+// provided function, so that it can tail call into its targets. It returns nil if no change is required.
+func (m *Manager) TailCallSpecEditor(funcName string, attachTo string) (func(*ebpf.ProgramSpec), error) {
+	return m.tailCallGroups.specEditor(funcName, attachTo)
+}
+
+// AddNameMappings registers the eBPF programs and maps of the manager, including the copies of the program arrays and
+// of the tail call targets, in the eBPF telemetry
+func (m *Manager) AddNameMappings(module string) {
+	ddebpf.AddNameMappings(m.Get(), module)
+	m.tailCallGroups.addNameMappings(module)
+}
+
+// NewDefaultOptions returns a new instance of the default runtime security manager options
+func NewDefaultOptions() manager.Options {
+	return manager.Options{
+		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time
+		DefaultKProbeMaxActive: 512,
+
+		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
+
+		RemoveRlimit: true,
+	}
+}
+
+// NewRuntimeSecurityManager returns a new instance of the runtime security module manager
+func NewRuntimeSecurityManager(supportsRingBuffers bool, supportsTaskStorage bool) ManagerInterface {
+	manager := &manager.Manager{
+		Maps: probes.AllMaps(),
+	}
+	if supportsRingBuffers {
+		manager.RingBuffers = probes.AllRingBuffers()
+	} else {
+		manager.PerfMaps = probes.AllPerfMaps()
+	}
+	var modifiers []ddebpf.Modifier
+	if !supportsTaskStorage {
+		modifiers = append(modifiers, ddmodifiers.NewHelperCallRemover(asm.FnTaskStorageGet, asm.FnTaskStorageDelete, asm.FnGetCurrentTaskBtf))
+	}
+	modifiers = append(modifiers, newSyscallAliasesModifier())
+	// must be the last modifier, so that the tail call targets it copies include the changes of the other modifiers
+	tailCallGroups := newTailCallGroupsModifier(probes.GetOnDemandFuncNames()...)
+	modifiers = append(modifiers, tailCallGroups)
+
+	return &Manager{
+		Manager:        ddebpf.NewManagerWithDefault(manager, "cws", modifiers...),
+		tailCallGroups: tailCallGroups,
+	}
+}

@@ -9,6 +9,7 @@ package uprobes
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"maps"
@@ -54,8 +55,12 @@ var (
 	ErrInternalDDogProcessRejected = errors.New("internal datadog process rejected")
 	// ErrNoMatchingRule is returned when no rule matches the shared library path.
 	ErrNoMatchingRule = errors.New("no matching rule")
+
+	errProcessDoesNotExist = errors.New("process does not exist")
 	// regex that defines internal DataDog processes
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|host-profiler|system-probe|agent)")
+
+	zeroByte = []byte{'0'}
 )
 
 // AttachTarget defines the target to which we should attach the probes, libraries or executables
@@ -897,6 +902,12 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	ua.telemetry.binaryInspectionNs.Observe(float64(time.Since(inspectStart).Nanoseconds()))
 	if err != nil {
+		// Distinguish errors between "process does not exist anymore" and "file is not found"
+		// by checking if the process root directory exists.
+		processRoot := ua.config.ProcRoot + "/" + strconv.FormatUint(uint64(fpath.PID), 10)
+		if _, statErr := os.Stat(processRoot); statErr != nil {
+			return errProcessDoesNotExist
+		}
 		return utils.NewUnknownAttachmentError(fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err))
 	}
 
@@ -924,6 +935,16 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		for _, selector := range rule.ProbesSelector {
 			err = ua.attachProbeSelector(selector, fpath, uid, rule, result.SymbolMap)
 			if err != nil {
+				if errors.Is(err, syscall.EINVAL) {
+					// Distinguish errors between "process does not exist anymore" and "file is not found"
+					// by checking if the process root directory exists.
+					processRoot := ua.config.ProcRoot + "/" + strconv.FormatUint(uint64(fpath.PID), 10)
+					if _, statErr := os.Stat(processRoot); statErr != nil {
+						attachErrors = errors.Join(attachErrors, err)
+						continue
+					}
+				}
+
 				// At this point we have done enough validation so that the
 				// probe attachment should work, if it doesn't it's an issue we
 				// don't expect and we want to know about it.
@@ -1090,16 +1111,21 @@ func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
 	}
 	defer mapsFile.Close()
 
-	scanner := bufio.NewScanner(bufio.NewReader(mapsFile))
+	scanner := bufio.NewScanner(mapsFile)
+	scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
 	libs := make(map[string]struct{})
 	for scanner.Scan() {
-		line := scanner.Text()
-		cols := strings.Fields(line)
+		cols := bytes.Fields(scanner.Bytes())
 		// ensuring we have exactly 6 elements (skip '(deleted)' entries) in the line, and the 4th element (inode) is
 		// not zero (indicates it is a path, and not an anonymous path).
-		if len(cols) == 6 && cols[4] != "0" {
-			libs[cols[5]] = struct{}{}
+		if len(cols) == 6 && !bytes.Equal(cols[4], zeroByte) {
+			if _, ok := libs[string(cols[5])]; !ok {
+				libs[string(cols[5])] = struct{}{}
+			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan maps file at %s: %w", mapsPath, err)
 	}
 
 	return slices.Collect(maps.Keys(libs)), nil

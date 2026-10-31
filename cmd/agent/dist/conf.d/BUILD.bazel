@@ -2,7 +2,7 @@
 
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
 load("//cmd/agent/dist:core_checks.bzl", "AGENT_CORECHECKS", "IOT_AGENT_CORECHECKS", "MACOS_CORECHECKS", "WINDOWS_CORECHECKS")
-load("//packages/agent:defs.bzl", "CONF_DIR_SELECTOR")
+load("//packages/rules:agent_path.bzl", "conf_dir")
 
 pkg_files(
     name = "base_checks_files",
@@ -15,9 +15,9 @@ pkg_files(
 )
 
 pkg_files(
-    name = "adp_openmetrics_compat_files",
+    name = "openmetrics_example_files",
     srcs = [
-        "openmetrics.d/adp_compat.yaml.example",
+        "openmetrics.d/agent_stats.yaml.example",
     ],
     attributes = pkg_attributes(mode = "0644"),
     strip_prefix = strip_prefix.from_pkg(),
@@ -68,10 +68,9 @@ pkg_files(
 pkg_filegroup(
     name = "all_files",
     srcs = select({
-        "//packages/agent:iot_flavor": [":iot_checks_files"],
         "//conditions:default": [
-            ":adp_openmetrics_compat_files",
             ":base_checks_files",
+            ":openmetrics_example_files",
         ],
     }) + select({
         "@platforms//os:macos": [
@@ -81,9 +80,16 @@ pkg_filegroup(
         "@platforms//os:windows": [":windows_checks_files"],
         "//conditions:default": [],
     }),
-    prefix = select(CONF_DIR_SELECTOR),
+    prefix = conf_dir(),
     visibility = [
         "//cmd/agent/dist:__pkg__",
         "//packages/agent:__subpackages__",
     ],
+)
+
+pkg_filegroup(
+    name = "iot_files",
+    srcs = [":iot_checks_files"],
+    prefix = conf_dir(),
+    visibility = ["//packages:__subpackages__"],
 )

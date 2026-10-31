@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"fmt"
+	"html"
 	"io"
 	"sort"
 	"strconv"
@@ -21,17 +22,69 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// FileInfo is a slim, profile-local subset of model.FileEvent.
+type FileInfo struct {
+	model.FileFields
+
+	PathnameStr string
+	BasenameStr string
+	Filesystem  string
+
+	PkgName       string
+	PkgVersion    string
+	PkgEpoch      int
+	PkgRelease    string
+	PkgSrcVersion string
+	PkgSrcEpoch   int
+	PkgSrcRelease string
+
+	HashState model.HashState
+	Hashes    []string
+}
+
+// newFileInfo builds the slim FileInfo from a model.FileEvent, keeping only the fields
+// serialized into the profile or read back while building/rendering the tree.
+func newFileInfo(fe *model.FileEvent) *FileInfo {
+	if fe == nil {
+		return nil
+	}
+	fi := &FileInfo{
+		FileFields:    fe.FileFields,
+		PathnameStr:   fe.PathnameStr,
+		BasenameStr:   fe.BasenameStr,
+		Filesystem:    stringInterner.Deduplicate(fe.Filesystem),
+		PkgName:       stringInterner.Deduplicate(fe.PkgName),
+		PkgVersion:    stringInterner.Deduplicate(fe.PkgVersion),
+		PkgEpoch:      fe.PkgEpoch,
+		PkgRelease:    stringInterner.Deduplicate(fe.PkgRelease),
+		PkgSrcVersion: stringInterner.Deduplicate(fe.PkgSrcVersion),
+		PkgSrcEpoch:   fe.PkgSrcEpoch,
+		PkgSrcRelease: stringInterner.Deduplicate(fe.PkgSrcRelease),
+		HashState:     fe.HashState,
+		Hashes:        fe.Hashes,
+	}
+	fi.User = stringInterner.Deduplicate(fi.User)
+	fi.Group = stringInterner.Deduplicate(fi.Group)
+	return fi
+}
+
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *FileInfo
 	GenerationType NodeGenerationType
 	Open           *OpenNode
 
 	Children map[string]*FileNode
+
+	// pattern is the lazily compiled matcher of a pattern node's Name.
+	pattern *compiledPattern
+	// signature caches structureSignature(Name).
+	signature     string
+	childrenIndex *childIndex
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -43,22 +96,27 @@ type OpenNode struct {
 
 // size approximates this node's own heap footprint
 func (fn *FileNode) size() int64 {
+	return fn.sizeWithoutChildren() + stringMapBytes(fn.Children)
+}
+
+// sizeWithoutChildren is size minus the children map, which costs a walk of
+// its keys.
+func (fn *FileNode) sizeWithoutChildren() int64 {
 	s := int64(unsafe.Sizeof(*fn))
 	s += seenBytes(fn.NodeBase)
 	s += int64(len(fn.Name))
 	if fn.File != nil {
-		s += fileEventStringsBytes(fn.File)
+		s += fileInfoStringsBytes(fn.File)
 	}
 	if fn.Open != nil {
 		s += int64(unsafe.Sizeof(*fn.Open))
 	}
 	s += sliceBackingBytes(cap(fn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
-	s += stringMapBytes(fn.Children)
 	return s
 }
 
 // NewFileNode returns a new FileActivityNode instance
-func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTagID uint64, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
+func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, isPattern bool, imageTagID uint64, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
 	// call resolver. Safeguard: the process context might be empty if from a snapshot.
 	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
 		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
@@ -67,16 +125,14 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
-		IsPattern:      strings.Contains(name, "*"),
-		Children:       make(map[string]*FileNode),
+		IsPattern:      isPattern,
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
 		fan.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
+		fan.File = newFileInfo(fileEvent)
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}
@@ -115,8 +171,8 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 		out += "<TR>"
 		out += "<TD>open</TD>"
 		out += "<TD>" + strconv.Itoa(len(fn.File.Hashes)) + " hash(es)</TD>"
-		out += "<TD ALIGN=\"LEFT\">" + prefix + "/" + fn.Name + "</TD>"
-		out += "<TD>" + pkg + "</TD>"
+		out += "<TD ALIGN=\"LEFT\">" + html.EscapeString(prefix+"/"+fn.Name) + "</TD>"
+		out += "<TD>" + html.EscapeString(pkg) + "</TD>"
 		out += "</TR>"
 	}
 	return out
@@ -163,25 +219,41 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. Returns whether a new entry was added and
 // the NodeBase of the leaf FileNode reached or created.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, rawRemainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
 	currentFn := fn
 	currentPath := remainingPath
+	currentRawPath := rawRemainingPath
 	newEntry := false
 
 	for {
 		parent, nextParentIndex := ExtractFirstParent(currentPath)
 		if nextParentIndex == 0 {
 			if !dryRun {
+				sizeBefore := currentFn.sizeWithoutChildren()
 				currentFn.enrichFromEvent(event)
+				if stats != nil {
+					stats.SizeBytes += currentFn.sizeWithoutChildren() - sizeBefore
+				}
 			}
 			break
 		}
+		rawParent, nextRawParentIndex := ExtractFirstParent(currentRawPath)
 
-		child, ok := currentFn.Children[parent]
+		lastComponent := len(currentPath) <= nextParentIndex+1
+		child, ok := findChildWithPatternFallback(currentFn.Children, &currentFn.childrenIndex, parent, lastComponent && !fileEvent.IsDir(), stats)
 		if ok {
+			if child.IsPattern && child.Name != parent && stats != nil {
+				stats.FilePatternLookupHits++
+			}
+			reducedPath = withPatternComponent(reducedPath, currentPath, parent, child.Name)
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
+			currentRawPath = currentRawPath[nextRawParentIndex:]
+			seenBefore := seenBytes(currentFn.NodeBase)
 			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
+			if stats != nil {
+				stats.SizeBytes += seenBytes(currentFn.NodeBase) - seenBefore
+			}
 			continue
 		}
 
@@ -189,19 +261,21 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if dryRun {
 			break
 		}
-		if len(currentPath) <= nextParentIndex+1 {
-			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
-			currentFn.Children[parent] = leafNode
+		if currentFn.Children == nil {
+			currentFn.Children = make(map[string]*FileNode)
+		}
+		isPattern := reducedComponentIsPattern(parent, rawParent)
+		if lastComponent {
+			leafNode := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, reducedPath, resolvers)
 			stats.FileNodes++
-			stats.SizeBytes += leafNode.size()
-			currentFn = leafNode
+			currentFn = insertChildAndMerge(currentFn.Children, &currentFn.childrenIndex, parent, leafNode, stats)
 			break
 		}
-		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
-		currentFn.Children[parent] = newChild
-		stats.SizeBytes += newChild.size()
-		currentFn = newChild
+		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, "", resolvers)
+		currentFn = insertChildAndMerge(currentFn.Children, &currentFn.childrenIndex, parent, newChild, stats)
+		reducedPath = withPatternComponent(reducedPath, currentPath, parent, currentFn.Name)
 		currentPath = currentPath[nextParentIndex:]
+		currentRawPath = currentRawPath[nextRawParentIndex:]
 	}
 	return newEntry, &currentFn.NodeBase
 }
@@ -214,19 +288,21 @@ func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {
 }
 
 func (fn *FileNode) evictImageTag(imageTagID uint64) (bool, int64) {
-	if !fn.HasImageTag(imageTagID) {
-		return false, 0
-	}
-	if fn.EvictImageTag(imageTagID) {
-		return true, fileSubtreeSizeBytes(fn)
-	}
+	fn.EvictImageTag(imageTagID)
+	// Directory placeholders can have no tags of their own, or different tags
+	// from their children. Always visit children before deciding to prune a node.
 	var removed int64
 	for filename, child := range fn.Children {
 		shouldRemove, childRemoved := child.evictImageTag(imageTagID)
 		if shouldRemove {
+			removed += stringMapEntryBytes(fn.Children, filename)
 			delete(fn.Children, filename)
+			fn.childrenIndex.reset()
 		}
 		removed += childRemoved
+	}
+	if fn.SeenIsEmpty() && len(fn.Children) == 0 {
+		return true, removed + fn.size()
 	}
 	return false, removed
 }

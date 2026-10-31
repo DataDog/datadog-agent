@@ -124,7 +124,7 @@ func protocolClassificationTailCalls() []manager.TailCallRoute {
 
 // initFentryTracer sets up and initializes the fentry tracer
 func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) (func(), error) {
-	isClassificationSupported := classificationSupported(config)
+	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
@@ -203,6 +203,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 			o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
+	o.ExcludedMaps = append(o.ExcludedMaps, "pending_tcp_retransmit_skb")
 
 	for funcName := range enabledProbes {
 		pid := manager.ProbeIdentificationPair{

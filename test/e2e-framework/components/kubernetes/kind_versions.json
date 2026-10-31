@@ -1,7 +1,7 @@
 {
   "1.37": {
     "kind_version": "v0.32.0",
-    "node_image_version": "v1.37.0-rc.1@sha256:adc3f1a9ef8b768d311c0592f727c30e274a870c8f0f7713e949558d0275f8f1"
+    "node_image_version": "v1.37.2@sha256:edb002ec217b92d889e45d1a18db51b107e6bb0d3829206854a765b14d6c69d8"
   },
   "1.36": {
     "kind_version": "v0.32.0",

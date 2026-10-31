@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
@@ -40,11 +42,28 @@ func (f *fakeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
 type fakeCredentialResolver struct {
 	credential *privateconnection.PrivateCredentials
 	err        error
-	gotConn    *privateactionspb.ConnectionInfo
+	gotTask    *types.Task
 }
 
-func (f *fakeCredentialResolver) ResolveConnectionInfoToCredential(_ context.Context, conn *privateactionspb.ConnectionInfo, _ *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
-	f.gotConn = conn
+type fakeBundle struct {
+	action types.Action
+}
+
+func (b *fakeBundle) GetAction(string) types.Action {
+	return b.action
+}
+
+type recordingAction struct {
+	called bool
+}
+
+func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.PrivateCredentials) (interface{}, error) {
+	a.called = true
+	return "executed", nil
+}
+
+func (f *fakeCredentialResolver) ResolveCredentials(_ context.Context, task *types.Task) (*privateconnection.PrivateCredentials, error) {
+	f.gotTask = task
 	return f.credential, f.err
 }
 
@@ -52,10 +71,14 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	dequeuedTask := newWorkflowTask("wrapper-task", "wrapper-bundle", "wrapper-action", "job-id")
 	dequeuedTask.Data.Attributes.TraceId = 123
 	dequeuedTask.Data.Attributes.SpanId = 456
+	envelope := &privateactionspb.RemoteConfigSignatureEnvelope{Data: []byte("signed")}
+	dequeuedTask.Data.Attributes.SignedEnvelope = envelope
 
 	connectionInfo := &privateactionspb.ConnectionInfo{RunnerId: "runner-id"}
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
 	unwrappedTask.Data.Attributes.ConnectionInfo = connectionInfo
+	dequeuedTask.Data.Attributes.Inputs = map[string]interface{}{"url": "https://unsigned.example.com"}
+	unwrappedTask.Data.Attributes.Inputs = map[string]interface{}{"url": "https://signed.example.com"}
 	credential := &privateconnection.PrivateCredentials{
 		Type: privateconnection.TokenAuthType,
 		Tokens: []privateconnection.PrivateCredentialsToken{
@@ -65,6 +88,8 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	verifier := &fakeTaskVerifier{unwrappedTask: unwrappedTask}
 	credentialResolver := &fakeCredentialResolver{credential: credential}
 	executor := &WorkflowTaskExecutor{
+		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
 		taskVerifier: verifier,
 		resolver:     credentialResolver,
 	}
@@ -75,12 +100,13 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	require.NotNil(t, got)
 	assert.Nil(t, failureTask)
 	assert.Same(t, dequeuedTask, verifier.gotTask)
-	assert.Same(t, connectionInfo, credentialResolver.gotConn)
+	assert.Same(t, unwrappedTask, credentialResolver.gotTask)
 	assert.Same(t, unwrappedTask, got.Task)
 	assert.Same(t, credential, got.Credential)
 	assert.Equal(t, "job-id", got.Task.Data.Attributes.JobId)
 	assert.Equal(t, uint64(123), got.Task.Data.Attributes.TraceId)
 	assert.Equal(t, uint64(456), got.Task.Data.Attributes.SpanId)
+	assert.Same(t, envelope, got.Task.Data.Attributes.SignedEnvelope)
 }
 
 func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails(t *testing.T) {
@@ -98,7 +124,7 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails
 	require.ErrorIs(t, err, verifyErr)
 	assert.Nil(t, got)
 	assert.Same(t, dequeuedTask, failureTask)
-	assert.Nil(t, credentialResolver.gotConn)
+	assert.Nil(t, credentialResolver.gotTask)
 }
 
 func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolutionFails(t *testing.T) {
@@ -109,6 +135,8 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
 	verifier := &fakeTaskVerifier{unwrappedTask: unwrappedTask}
 	executor := &WorkflowTaskExecutor{
+		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
 		taskVerifier: verifier,
 		resolver:     &fakeCredentialResolver{err: resolveErr},
 	}
@@ -121,6 +149,35 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 	assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
 	assert.Equal(t, uint64(123), failureTask.Data.Attributes.TraceId)
 	assert.Equal(t, uint64(456), failureTask.Data.Attributes.SpanId)
+}
+
+func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
+	const (
+		bundleID   = "com.datadoghq.authoredscripts"
+		actionName = "echo"
+	)
+	action := &recordingAction{}
+	executor := &WorkflowTaskExecutor{
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+			bundleID: &fakeBundle{action: action},
+		}},
+		config: &config.Config{
+			ActionsAllowlist: map[string]sets.Set[string]{},
+			MetricsClient:    &statsd.NoOpClient{},
+		},
+	}
+	task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
+	prepared := &PreparedWorkflowTask{Task: task}
+
+	_, err := executor.RunTask(context.Background(), prepared)
+	require.ErrorContains(t, err, "not allowlisted")
+	assert.False(t, action.called)
+
+	executor.config.ActionsAllowlist[bundleID] = sets.New(actionName)
+	output, err := executor.RunTask(context.Background(), prepared)
+	require.NoError(t, err)
+	assert.Equal(t, "executed", output)
+	assert.True(t, action.called)
 }
 
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
@@ -203,4 +260,37 @@ func newWorkflowTask(taskID, bundleID, actionName, jobID string) *types.Task {
 		JobId:    jobID,
 	}
 	return task
+}
+
+func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		bundle    types.Bundle
+		allowed   bool
+		wantError string
+	}{
+		{name: "unknown bundle", allowed: true, wantError: "could not find bundle"},
+		{name: "unknown action", bundle: &fakeBundle{}, allowed: true, wantError: "could not find action"},
+		{name: "disabled action", bundle: &fakeBundle{action: &recordingAction{}}, wantError: "not allowlisted"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			credentialResolver := &fakeCredentialResolver{}
+			unwrapped := newWorkflowTask("signed-task", "com.datadoghq.mongodb", "find", "")
+			executor := &WorkflowTaskExecutor{
+				registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"com.datadoghq.mongodb": test.bundle}},
+				config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"com.datadoghq.http": sets.New("sendRequest")}},
+				taskVerifier: &fakeTaskVerifier{unwrappedTask: unwrapped},
+				resolver:     credentialResolver,
+			}
+			if test.allowed {
+				executor.config.ActionsAllowlist["com.datadoghq.mongodb"] = sets.New("find")
+			}
+			prepared, failureTask, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper", "com.datadoghq.http", "sendRequest", "job-id"))
+			require.ErrorContains(t, err, test.wantError)
+			assert.Nil(t, prepared)
+			assert.Same(t, unwrapped, failureTask)
+			assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
+			assert.Nil(t, credentialResolver.gotTask)
+		})
+	}
 }

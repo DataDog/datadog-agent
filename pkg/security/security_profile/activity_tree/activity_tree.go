@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -23,10 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
+
+const stringInternerSize = 4096
+
+var stringInterner = utils.NewLRUStringInterner(stringInternerSize)
 
 // NodeDroppedReason is used to list the reasons to drop a node
 type NodeDroppedReason byte
@@ -35,6 +41,7 @@ const (
 	eventTypeReason NodeDroppedReason = iota
 	invalidRootNodeReason
 	bindFamilyReason
+	connectFamilyReason
 	brokenEventReason
 
 	minNodeDroppedReason   = eventTypeReason
@@ -50,6 +57,8 @@ func (reason NodeDroppedReason) String() string {
 		return "invalid_root_node"
 	case bindFamilyReason:
 		return "bind_family"
+	case connectFamilyReason:
+		return "connect_family"
 	case brokenEventReason:
 		return "broken_event"
 	default:
@@ -67,6 +76,8 @@ func (reason NodeDroppedReason) Tag() string {
 		return "reason:invalid_root_node"
 	case bindFamilyReason:
 		return "reason:bind_family"
+	case connectFamilyReason:
+		return "reason:connect_family"
 	case brokenEventReason:
 		return "reason:broken_event"
 	default:
@@ -81,6 +92,8 @@ var (
 	ErrNotValidRootNode = errors.New("root node not valid")
 	// ErrInvalidBindFamily is returned when a bind event uses an unsupported address family
 	ErrInvalidBindFamily = errors.New("invalid bind address family")
+	// ErrInvalidConnectFamily is returned when a connect event uses an unsupported address family
+	ErrInvalidConnectFamily = errors.New("invalid connect address family")
 	// ErrIMDSMissingCredentials is returned when an IMDS response event has no access key ID
 	ErrIMDSMissingCredentials = errors.New("IMDS response without credentials")
 	// ErrIMDSMissingURL is returned when an IMDS request event has no URL
@@ -182,6 +195,12 @@ type ActivityTree struct {
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
 
+	Mounts     []*MountNode
+	mountIndex map[mountNodeKey]*MountNode
+
+	baseMountNSByCgroup     map[uint64]uint32
+	seededMountNamespaceIDs map[uint64]map[uint32]mountNamespaceSeedState
+
 	imageTagIDs []imageTagEntry
 }
 
@@ -200,13 +219,16 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
 
 	return &ActivityTree{
-		treeType:            treeType,
-		validator:           validator,
-		pathsReducer:        pathsReducer,
-		Stats:               NewActivityTreeNodeStats(),
-		CookieToProcessNode: cache,
-		SyscallsMask:        make(map[int]int),
-		DNSNames:            utils.NewStringKeys(nil),
+		treeType:                treeType,
+		validator:               validator,
+		pathsReducer:            pathsReducer,
+		Stats:                   NewActivityTreeNodeStats(),
+		CookieToProcessNode:     cache,
+		SyscallsMask:            make(map[int]int),
+		DNSNames:                utils.NewStringKeys(nil),
+		baseMountNSByCgroup:     make(map[uint64]uint32),
+		seededMountNamespaceIDs: make(map[uint64]map[uint32]mountNamespaceSeedState),
+		mountIndex:              make(map[mountNodeKey]*MountNode),
 	}
 }
 
@@ -229,7 +251,9 @@ func (at *ActivityTree) removeImageTag(imageTag string) uint64 {
 	for i, entry := range at.imageTagIDs {
 		if entry.inUse && entry.tag == imageTag {
 			at.imageTagIDs[i].inUse = false
-			return uint64(i + 1)
+			id := uint64(i + 1)
+			delete(at.seededMountNamespaceIDs, id)
+			return id
 		}
 	}
 	return 0
@@ -329,6 +353,10 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		at.Stats.DNSNodes += int64(len(node.DNSNames))
 		at.Stats.SocketNodes += int64(len(node.Sockets))
 
+		for _, sock := range node.Sockets {
+			at.Stats.ConnectNodes += int64(len(sock.Connect))
+		}
+
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
 		}
@@ -365,19 +393,6 @@ func (at *ActivityTree) Debug(w io.Writer) {
 	}
 }
 
-// ScrubProcessArgsEnvs scrubs and retains process args and envs
-func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	// iterate through all the process nodes
-	openList := make([]*ProcessNode, len(at.ProcessNodes))
-	copy(openList, at.ProcessNodes)
-
-	for len(openList) != 0 {
-		current := openList[len(openList)-1]
-		current.scrubAndReleaseArgsEnvs(resolver)
-		openList = append(openList[:len(openList)-1], current.Children...)
-	}
-}
-
 // DifferentiateArgs enables the args differentiation feature
 func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
@@ -404,6 +419,7 @@ func IsExpectedFilterError(err error) bool {
 		errors.As(err, &pathResolutionNotCriticalErr) ||
 		errors.Is(err, ErrNotValidRootNode) ||
 		errors.Is(err, ErrInvalidBindFamily) ||
+		errors.Is(err, ErrInvalidConnectFamily) ||
 		errors.Is(err, ErrIMDSMissingCredentials) ||
 		errors.Is(err, ErrIMDSMissingURL)
 }
@@ -463,6 +479,14 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Inc()
 			}
 			return false, fmt.Errorf("%w: %s", ErrInvalidBindFamily, model.AddressFamily(event.Bind.AddrFamily))
+		}
+	case model.ConnectEventType:
+		// ignore non IPv4 / IPv6 connect events for now
+		if event.Connect.AddrFamily != unix.AF_INET && event.Connect.AddrFamily != unix.AF_INET6 {
+			if !dryRun {
+				at.Stats.counts[model.ConnectEventType].droppedCount[connectFamilyReason].Inc()
+			}
+			return false, fmt.Errorf("%w: %s", ErrInvalidConnectFamily, model.AddressFamily(event.Connect.AddrFamily))
 		}
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
@@ -552,12 +576,17 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	case model.BindEventType:
 		newEntry, eventNodeBase := node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
 		return newEntry, node, eventNodeBase, nil
+	case model.ConnectEventType:
+		newEntry, eventNodeBase := node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
+		return newEntry, node, eventNodeBase, nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), node, nil, nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
 	case model.CapabilitiesEventType:
 		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun), node, nil, nil
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
+		return at.insertMountEvent(event, imageTagID, generationType, resolvers, dryRun), node, nil, nil
 	case model.ExitEventType:
 		node.Process.ExitTime = event.Timestamp
 	}
@@ -569,22 +598,60 @@ func isContainerRuntimePrefix(basename string) bool {
 	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
 }
 
+func IsContainerRuntime(entry *model.ProcessContext) bool {
+	if entry == nil {
+		return false
+	}
+	if isContainerRuntimePrefix(entry.FileEvent.BasenameStr) {
+		return true
+	}
+	if entry.FileEvent.IsFileless() {
+		if ancestor := GetNextAncestorBinaryOrArgv0(entry); ancestor != nil && isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr) {
+			return true
+		}
+	}
+	return false
+}
+
+// FindRootProcess returns the outermost valid workload process in the entry's
+// ancestor chain (skipping container runtime processes via isValidRootNode),
+// or nil if there is none.
+//
+// The walk stops at the workload boundary: ancestors outside the entry's
+// container (e.g. the host container runtime) are not eligible as the root.
+// Without this, an ancestry like systemd -> containerd -> containerd-shim ->
+// app could select the host containerd and pin its host mount namespace.
+func FindRootProcess(entry *model.ProcessContext) *model.ProcessContext {
+	containerID := entry.ContainerContext.ContainerID
+
+	var branch []*model.ProcessContext
+	for cur := entry; cur != nil; {
+		if cur.ContainerContext.ContainerID != containerID {
+			break
+		}
+		branch = append(branch, cur)
+		if cur.Ancestor == nil || cur.Ancestor.FileEvent.Inode == 0 {
+			break
+		}
+		cur = &cur.Ancestor.ProcessContext
+	}
+
+	for i := len(branch) - 1; i >= 0; i-- {
+		if isValidRootNode(branch[i]) {
+			return branch[i]
+		}
+	}
+	return nil
+}
+
 // isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
 func isValidRootNode(entry *model.ProcessContext) bool {
 	// an ancestor is required
-	ancestor := GetNextAncestorBinaryOrArgv0(entry)
-	if ancestor == nil {
+	if GetNextAncestorBinaryOrArgv0(entry) == nil {
 		return false
 	}
 
-	if entry.FileEvent.IsFileless() {
-		// a fileless node is a valid root node only if not having runc as parent
-		// ex: runc -> exec(fileless) -> init.sh; exec(fileless) is not a valid root node
-		return !(isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr) || isContainerRuntimePrefix(entry.FileEvent.BasenameStr))
-	}
-
-	// container runtime prefixes are not valid root nodes
-	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
+	return !IsContainerRuntime(entry)
 }
 
 // GetNextAncestorBinaryOrArgv0 returns the first ancestor with a different binary, or a different argv0 in the case of busybox processes
@@ -986,10 +1053,11 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	return res
 }
 
-// Snapshot uses procfs to snapshot the nodes of the tree
-func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
+// Snapshot uses procfs to snapshot the nodes of the tree. The container ID is a
+// workload-level property shared by every node, threaded in from the owning profile.
+func (at *ActivityTree) Snapshot(newEvent func() *model.Event, containerID containerutils.ContainerID) {
 	for _, pn := range at.ProcessNodes {
-		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer)
+		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer, containerID)
 	}
 }
 
@@ -1004,10 +1072,12 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
 		rootNode.TagAllNodes(imageTagID, timestamp)
 	}
+	// every node may have grown a seen slot; the walk costs the same as tagging
+	at.recomputeSizeBytes()
 }
 
 // recomputeSizeBytes walks the full tree and resets Stats.SizeBytes to the accurate current value.
-// Called only from ComputeActivityTreeStats to periodically correct any accumulated drift.
+// Called from ComputeActivityTreeStats and TagAllNodes to correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
 	var total int64
 	openList := make([]*ProcessNode, len(at.ProcessNodes))
@@ -1017,6 +1087,9 @@ func (at *ActivityTree) recomputeSizeBytes() {
 		openList = openList[:len(openList)-1]
 		total += pn.size() + processNodeOwnActivitySize(pn)
 		openList = append(openList, pn.Children...)
+	}
+	for _, mn := range at.Mounts {
+		total += mn.size()
 	}
 	at.Stats.SizeBytes = total
 }
@@ -1073,6 +1146,49 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 	return total
 }
 
+// FinalizePatterns runs a merge pass on every FileNode map in the tree
+// using MinGroupSize as the threshold, then folds covered patterns. No-op
+// when path-pattern merging is disabled on the tree. Idempotent.
+func (at *ActivityTree) FinalizePatterns() {
+	if at == nil {
+		return
+	}
+	cfg := at.Stats.PathPatternConfig()
+	if !cfg.Enabled {
+		return
+	}
+	for _, pn := range at.ProcessNodes {
+		at.finalizePatternsOnProcess(pn, cfg.MinGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize int) {
+	if pn == nil {
+		return
+	}
+	mergeChildren(pn.Files, minGroupSize, at.Stats)
+	foldCoveredPatterns(pn.Files, at.Stats)
+	pn.filesIndex.reset()
+	for _, fn := range pn.Files {
+		at.finalizePatternsOnFile(fn, minGroupSize)
+	}
+	for _, child := range pn.Children {
+		at.finalizePatternsOnProcess(child, minGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
+	if fn == nil || len(fn.Children) == 0 {
+		return
+	}
+	mergeChildren(fn.Children, minGroupSize, at.Stats)
+	foldCoveredPatterns(fn.Children, at.Stats)
+	fn.childrenIndex.reset()
+	for _, child := range fn.Children {
+		at.finalizePatternsOnFile(child, minGroupSize)
+	}
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
@@ -1096,6 +1212,18 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		removedBytes += nodeRemoved
 	}
 	at.ProcessNodes = newProcessNodes
+
+	newMounts := at.Mounts[:0]
+	for _, mn := range at.Mounts {
+		if mn.EvictImageTag(imageTagID) {
+			removedBytes += mn.size()
+			delete(at.mountIndex, mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags, inBaseNamespace: mn.InBaseNamespace})
+			continue
+		}
+		newMounts = append(newMounts, mn)
+	}
+	at.Mounts = newMounts
+
 	at.removeImageTag(imageTag)
 	at.Stats.SizeBytes -= removedBytes
 }
@@ -1107,14 +1235,17 @@ func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(proce
 	cb(processNode)
 }
 
-func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+// visitFileNode calls cb on every leaf with the IsPattern flags of its path.
+// cb must not retain isPattern, its backing array is reused.
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, isPattern []bool, cb func(fileNode *FileNode, isPattern []bool)) {
+	isPattern = append(isPattern, fileNode.IsPattern)
 	if len(fileNode.Children) == 0 {
-		cb(fileNode)
+		cb(fileNode, isPattern)
 		return
 	}
 
 	for _, file := range fileNode.Children {
-		at.visitFileNode(file, cb)
+		at.visitFileNode(file, isPattern, cb)
 	}
 }
 
@@ -1135,13 +1266,11 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 		var fimPaths []string
 		if fimEnabled {
 			for _, file := range processNode.Files {
-				at.visitFileNode(file, func(fileNode *FileNode) {
-					path, ok := modifiedPaths[fileNode.File.PathnameStr]
-					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
-						path = modifiedPaths[fileNode.File.PathnameStr]
+				at.visitFileNode(file, nil, func(fileNode *FileNode, isPattern []bool) {
+					if fileNode.File == nil {
+						return
 					}
-					if len(path) > 0 {
+					if path := rulePathFromProfilePath(fileNode.File.PathnameStr, isPattern); len(path) > 0 {
 						fimPaths = append(fimPaths, path)
 					}
 				})
@@ -1191,6 +1320,40 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 	return syscalls
 }
 
+// SyscallsByImageTagID returns the sorted, deduplicated syscall numbers observed
+// under each image tag ID.
+func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
+	sets := make(map[uint64]map[uint32]struct{})
+
+	at.visit(func(processNode *ProcessNode) {
+		for _, syscallNode := range processNode.Syscalls {
+			if syscallNode.Syscall < 0 || uint64(syscallNode.Syscall) > math.MaxUint32 {
+				continue
+			}
+			syscall := uint32(syscallNode.Syscall)
+			syscallNode.EachSeen(func(imageTagID uint64, _, _ int64) {
+				set, ok := sets[imageTagID]
+				if !ok {
+					set = make(map[uint32]struct{})
+					sets[imageTagID] = set
+				}
+				set[syscall] = struct{}{}
+			})
+		}
+	})
+
+	out := make(map[uint64][]uint32, len(sets))
+	for imageTagID, set := range sets {
+		syscalls := make([]uint32, 0, len(set))
+		for syscall := range set {
+			syscalls = append(syscalls, syscall)
+		}
+		slices.Sort(syscalls)
+		out[imageTagID] = syscalls
+	}
+	return out
+}
+
 // ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath
 type ImageProcessKey struct {
 	ImageName string
@@ -1200,13 +1363,17 @@ type ImageProcessKey struct {
 
 // EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
 // and returns the total number of nodes evicted
-func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string) int {
 	totalEvicted := 0
 
-	// Resolve once here so every node uses the same ID without querying the registry repeatedly.
-	// If the tag is not registered (e.g. no events have been seen for it), ID is 0 and the
-	// process-cache protection path is a no-op — consistent with nodes having no entry for that tag.
-	profileImageTagID := at.GetImageTagID(profileImageTag)
+	// A profile is shared by all the tags of an image: the process cache is looked up with the tag of each
+	// seen entry of a node, so map the IDs back to their tags once for the whole tree.
+	imageTags := make(map[uint64]string, len(at.imageTagIDs))
+	for i, entry := range at.imageTagIDs {
+		if entry.inUse {
+			imageTags[uint64(i)+1] = entry.tag
+		}
+	}
 
 	// Iterate through all process nodes and evict unused nodes
 	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
@@ -1215,7 +1382,7 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			continue
 		}
 
-		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		at.Stats.SizeBytes -= removedBytes
 

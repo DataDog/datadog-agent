@@ -96,8 +96,9 @@ type testProvider string
 
 func (t testProvider) Source(context.Context) (source.Source, error) {
 	return source.Source{
-		Kind:       source.HostnameKind,
-		Identifier: string(t),
+		Kind:             source.HostnameKind,
+		Identifier:       string(t), //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		SourceIdentifier: source.SourceIdentifier{Primary: string(t)},
 	}, nil
 }
 
@@ -2222,6 +2223,93 @@ func TestLegacyBucketsTags(t *testing.T) {
 	assert.ElementsMatch(t, seriesTwo[0].tags, []string{"lower_bound:-inf", "upper_bound:1.0"})
 }
 
+// aliasWatchingConsumer retains dimensions.Tags() for the two histogram methods, the only
+// ones handed a Dimensions built straight from the per-scope tag slice; everywhere else
+// WithAttributeMap has allocated a fresh one.
+type aliasWatchingConsumer struct {
+	mockTimeSeriesConsumer
+	histTags map[string][]string
+}
+
+func (c *aliasWatchingConsumer) ConsumeExplicitBoundHistogram(_ context.Context, dimensions *Dimensions, _ pmetric.HistogramDataPointSlice) {
+	if c.histTags == nil {
+		c.histTags = map[string][]string{}
+	}
+	c.histTags[dimensions.Name()] = dimensions.Tags()
+}
+
+func (c *aliasWatchingConsumer) ConsumeExponentialHistogram(_ context.Context, dimensions *Dimensions, _ pmetric.ExponentialHistogramDataPointSlice) {
+	if c.histTags == nil {
+		c.histTags = map[string][]string{}
+	}
+	c.histTags[dimensions.Name()] = dimensions.Tags()
+}
+
+// TestScopeTagsDoNotAliasAcrossScopes: the tag slice each scope hands the Consumer must have
+// its own backing array. TagsFromAttributes leaves spare capacity, so appending the scope
+// tags into it would make every scope of a resource share one array and the last scope's
+// tags overwrite the earlier ones'. Only observable through the minimal translator's
+// histogram callbacks, which forward the per-scope Dimensions untouched; elsewhere
+// WithAttributeMap masks it. Fixed in both translators to keep the invariant at the source.
+func TestScopeTagsDoNotAliasAcrossScopes(t *testing.T) {
+	const (
+		scopeOne = "scope.one"
+		scopeTwo = "scope.two"
+	)
+
+	// One attribute that maps to a tag, plus several that don't -- those leave the
+	// spare capacity behind.
+	buildMetrics := func() pmetric.Metrics {
+		md := pmetric.NewMetrics()
+		rm := md.ResourceMetrics().AppendEmpty()
+		attrs := rm.Resource().Attributes()
+		attrs.PutStr("service.name", "svc")
+		for i := 0; i < 4; i++ {
+			attrs.PutStr(fmt.Sprintf("unmapped.attribute.%d", i), "value")
+		}
+		for _, scopeName := range []string{scopeOne, scopeTwo} {
+			sm := rm.ScopeMetrics().AppendEmpty()
+			sm.Scope().SetName(scopeName)
+			sm.Scope().SetVersion("v1")
+			met := sm.Metrics().AppendEmpty()
+			met.SetName("metric." + scopeName)
+			met.SetEmptyHistogram()
+			met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+			dp := met.Histogram().DataPoints().AppendEmpty()
+			dp.SetTimestamp(seconds(0))
+			dp.BucketCounts().FromRaw([]uint64{1, 1})
+			dp.ExplicitBounds().FromRaw([]float64{0})
+			dp.SetCount(2)
+		}
+		return md
+	}
+
+	set := componenttest.NewNopTelemetrySettings()
+	set.Logger = zap.NewNop()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+
+	tr, err := NewMinimalTranslator(zap.NewNop(), attributesTranslator,
+		WithFallbackSourceProvider(testProvider(fallbackHostname)),
+		WithInstrumentationScopeMetadataAsTags(),
+	)
+	require.NoError(t, err)
+
+	// The consumer retains dimensions.Tags(), so anything the second scope wrote over the
+	// first scope's tags is visible after MapMetrics returns.
+	consumer := &aliasWatchingConsumer{}
+	_, err = tr.MapMetrics(context.Background(), buildMetrics(), consumer, nil)
+	require.NoError(t, err)
+	require.Len(t, consumer.histTags, 2)
+
+	assert.ElementsMatch(t, []string{
+		"service:svc", "instrumentation_scope:" + scopeOne, "instrumentation_scope_version:v1",
+	}, consumer.histTags["metric."+scopeOne])
+	assert.ElementsMatch(t, []string{
+		"service:svc", "instrumentation_scope:" + scopeTwo, "instrumentation_scope_version:v1",
+	}, consumer.histTags["metric."+scopeTwo])
+}
+
 // TestMalformedHistogramNoPanic verifies that histograms violating the OTel
 // invariant (counts == bounds+1) are rejected without panicking, covering both
 // the counts > bounds+1 case (which would panic in getBounds) and the
@@ -2707,4 +2795,89 @@ func TestInferInterval(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+// expoHistDataPoint builds a delta exponential histogram data point with the
+// given scale and one populated half.
+func expoHistDataPoint(scale int32, negative bool, offset int32, counts []uint64, zeroCount uint64) pmetric.ExponentialHistogramDataPoint {
+	dp := pmetric.NewExponentialHistogramDataPoint()
+	dp.SetScale(scale)
+	dp.SetZeroCount(zeroCount)
+
+	buckets := dp.Positive()
+	if negative {
+		buckets = dp.Negative()
+	}
+	buckets.SetOffset(offset)
+
+	total := zeroCount
+	for _, c := range counts {
+		buckets.BucketCounts().Append(c)
+		total += c
+	}
+	dp.SetCount(total)
+	return dp
+}
+
+// expoHistMetrics wraps a data point into a delta exponential histogram metric.
+func expoHistMetrics(dp pmetric.ExponentialHistogramDataPoint) pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	m.SetName("expohist.bounds")
+	eh := m.SetEmptyExponentialHistogram()
+	eh.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp.CopyTo(eh.DataPoints().AppendEmpty())
+	return md
+}
+
+// TestMapExponentialHistogramOutOfRangeBounds is the end-to-end guard for
+// https://github.com/DataDog/datadog-agent/issues/55140: a data point whose
+// bucket boundaries are not representable used to take the collector down from
+// inside an exporter-queue goroutine. It must now be dropped, and the mapper
+// must keep going.
+func TestMapExponentialHistogramOutOfRangeBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		scale        int32
+		offset       int32
+		expectSketch bool
+	}{
+		{name: "minimum scale", scale: -10, offset: 0},
+		{name: "offset pushes the boundary out of range", scale: -5, offset: 31},
+		{name: "same at an in-spec scale", scale: 0, offset: 1023},
+		{name: "representable", scale: 0, offset: 0, expectSketch: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := newTranslator(t, zap.NewNop())
+			consumer := &mockFullConsumer{}
+			md := expoHistMetrics(expoHistDataPoint(tc.scale, false, tc.offset, []uint64{1, 1, 1}, 0))
+
+			require.NotPanics(t, func() {
+				_, err := tr.MapMetrics(context.Background(), md, consumer, nil)
+				require.NoError(t, err)
+			})
+
+			if tc.expectSketch {
+				assert.Len(t, consumer.sketches, 1)
+			} else {
+				assert.Empty(t, consumer.sketches)
+			}
+		})
+	}
+}
+
+// TestMapExponentialHistogramZeroCountOnlyAtMinimumScale asserts that a data
+// point with no populated bucket is still emitted at a scale whose gamma
+// overflows: no boundary is evaluated, so there is nothing unrepresentable
+// about it.
+func TestMapExponentialHistogramZeroCountOnlyAtMinimumScale(t *testing.T) {
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	md := expoHistMetrics(expoHistDataPoint(-10, false, 0, nil, 5))
+
+	_, err := tr.MapMetrics(context.Background(), md, consumer, nil)
+	require.NoError(t, err)
+
+	require.Len(t, consumer.sketches, 1)
+	assert.Equal(t, int64(5), consumer.sketches[0].basic.Cnt)
 }

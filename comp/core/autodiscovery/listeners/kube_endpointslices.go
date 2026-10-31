@@ -405,7 +405,7 @@ func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStor
 		return eps
 	}
 
-	filterableEndpoint := workloadfilter.CreateKubeEndpoint(serviceName, namespace, slice.GetAnnotations())
+	filterableEndpoint := workloadfilter.CreateKubeEndpoint(serviceName, namespace, slice.GetAnnotations(), slice.GetLabels())
 	metricsExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
 	globalExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 

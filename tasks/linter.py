@@ -33,6 +33,14 @@ from tasks.libs.common.git import (
     get_staged_files,
 )
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.linter.e2e_internet_access import (
+    REGISTRY_PATH,
+    REPO_ROOT,
+    Registry,
+    normalize_paths,
+    scan,
+    select_scope,
+)
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
     PREPUSH_GITLABCI_SUBLINTERS,
@@ -95,14 +103,14 @@ def go(
     Args:
         timeout: Number of minutes after which the linter should time out.
         headless_mode: Allows you to output the result in a single json file.
-        debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
+        debug: prints the go version to help debugging lint discrepancies between versions.
 
     Example invokation:
         $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         $ dda inv linter.go --module=.
     """
 
-    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
+    check_tools_version(ctx, ['go'], debug=debug)
 
     # Compute the tags golangci-lint will run with once, and hand them to package
     # discovery too: a modified package whose files are all excluded by them has
@@ -884,7 +892,7 @@ def docs_links(ctx):
     # Double quoted because `cmd` passes a single quote through to Git, which then matches nothing.
     # In a pathspec `*` spans directories, so this reaches every nested page.
     result = ctx.run(
-        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "docs/public/*.md"',
+        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "doc/*.md"',
         warn=True,
         hide=True,
     )
@@ -939,4 +947,21 @@ def filenames(ctx):
             failure = True
 
     if failure:
+        raise Exit(code=1)
+
+
+@task(iterable=["path"])
+def e2e_internet_access(_, path=None):
+    """Checks that every WithInternetAccess() usage in E2E code is listed in test/new-e2e/internet-access.yaml.
+
+    Args:
+        path: File or directory to check (repeatable). Runs a full scan when omitted or when the registry is included.
+    """
+    scope = select_scope(normalize_paths(path or [], REPO_ROOT))
+    registry = Registry.parse((REPO_ROOT / REGISTRY_PATH).read_text())
+    errors = registry.errors + registry.check(scan(REPO_ROOT, scope), scope)
+    print(registry.summary())
+    if errors:
+        for error in errors:
+            print(color_message(error, Color.RED), file=sys.stderr)
         raise Exit(code=1)

@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"context"
+	"slices"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -90,7 +91,7 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier
+			host = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 
@@ -106,13 +107,18 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 			ilm := ilms.At(j)
 			metricsArray := ilm.Metrics()
 
+			// slices.Concat, not append: attributeTags is shared by every scope and has
+			// spare capacity, so appending would make the scopes share one array. Consumers
+			// may retain Dimensions.Tags(), so each scope needs its own. The unmodified case
+			// stays shared, but Clip drops the spare capacity so a later append copies
+			// instead of writing into the array the other scopes are reading.
 			var additionalTags []string
 			if t.cfg.InstrumentationScopeMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
+				additionalTags = slices.Concat(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope()))
 			} else if t.cfg.InstrumentationLibraryMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
+				additionalTags = slices.Concat(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope()))
 			} else {
-				additionalTags = attributeTags
+				additionalTags = slices.Clip(attributeTags)
 			}
 
 			scopeName := ilm.Scope().Name()
@@ -151,9 +157,23 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeHost(host)
 				}
 			case source.AWSECSFargateKind:
-				if c, ok := consumer.(TagsConsumer); ok {
-					c.ConsumeTag(src.Tag())
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("fargate", []string{src.Tag()})
 				}
+			case source.AzureContainerAppsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.AzureAppServiceKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.AzureFunctionsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurefunctions", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.GCPCloudRunKind, source.GCPCloudFunctionsKind:
+				consumeGCPServerlessSource(consumer, src)
 			}
 		}
 	}

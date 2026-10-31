@@ -123,9 +123,17 @@ func extractAllocatedResources(container *podresourcesv1.ContainerResources) []C
 	}
 	for _, dynamicResource := range container.GetDynamicResources() {
 		for _, claimResource := range dynamicResource.GetClaimResources() {
+			// Left nil when the claim pins no CDI devices, so a resource
+			// without them stays equal to one built before this field existed.
+			var cdiDevices []string
+			for _, cdi := range claimResource.GetCdiDevices() {
+				cdiDevices = append(cdiDevices, cdi.GetName())
+			}
 			resources = append(resources, ContainerAllocatedResource{
-				Name: claimResource.GetDriverName(),
-				ID:   claimResource.GetDeviceName(),
+				Name:       claimResource.GetDriverName(),
+				ID:         claimResource.GetDeviceName(),
+				PoolName:   claimResource.GetPoolName(),
+				CdiDevices: cdiDevices,
 			})
 		}
 	}

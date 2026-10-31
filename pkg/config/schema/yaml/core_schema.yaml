@@ -62,6 +62,13 @@ properties:
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
       The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+    enum:
+    - basic
+    - full
+    - end_user_device
+    - cloud_cost_only
+    - none
+    - null
   dd_url:
     node_type: setting
     type: string
@@ -78,6 +85,7 @@ properties:
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
     tags:
     - template_section:Common
+    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
   proxy:
     node_type: section
     type: object
@@ -187,6 +195,23 @@ properties:
     example: /var/lib/cloud/data/instance-id
     tags:
     - template_section:Common
+  hostname_use_serial:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Append the device serial number to the automatically detected hostname in
+      end_user_device infrastructure mode on macOS and Windows. macOS uses the
+      LocalHostName as its device-name source regardless of this setting. Explicit
+      hostname and hostname_file settings take precedence. Cloud provider hostnames,
+      hostname_fqdn, and EC2 instance-ID selection can still replace the device name,
+      including its serial-number suffix when enabled.
+      Restart the Agent after changing this setting;
+      changing the hostname changes the device identity in Datadog.
+    tags:
+    - template_section:Common
+    - platform_only:darwin,windows
   hostname_fqdn:
     node_type: setting
     type: boolean
@@ -312,6 +337,7 @@ properties:
       On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
       On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
       This setting is ignored on Linux and does not enable or disable the systemd unit.
+      On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
     tags:
     - template_section:Common
     properties:
@@ -323,9 +349,11 @@ properties:
         description: |-
           When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
           On Linux, the process manager daemon is started by systemd; this option is ignored.
+          On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
         comment: |-
           Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
           On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+          On macOS, dd-procmgrd always runs (com.datadoghq.procmgr). This setting is not yet supported there.
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -365,7 +393,6 @@ properties:
       (one per container instead of one per host). This may impact your custom metrics billing.
     tags:
     - template_section:Common
-    - full-agent-only:true
     comment: |-
       The cardinality of tags to send for checks.
       Choices are: low, orchestrator, high.
@@ -385,7 +412,6 @@ properties:
       (one per container instead of one per host). This may impact your custom metrics billing.
     tags:
     - template_section:Common
-    - full-agent-only:true
     comment: |-
       The cardinality of tags to send for dogstatsd.
       Choices are: low, orchestrator, high.
@@ -517,6 +543,39 @@ properties:
                 - true: v3 for every destination except Observability Pipelines Worker.
                 - datadog_only: v3 only when the destination URL is a Datadog endpoint.
                 - false: v2 everywhere.
+      distributions:
+        node_type: section
+        type: object
+        visibility: public
+        description: Controls the use of the v3 metrics intake for distribution
+          metrics.
+        tags:
+        - template_section:Common
+        properties:
+          enabled:
+            node_type: setting
+            type: string
+            default: datadog_only
+            visibility: public
+            description: |-
+              Global default for the distribution metrics intake version. Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
+          endpoints:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+            visibility: public
+            description: |-
+              Per-URL override map for distribution metrics intake version. The URL
+              must match exactly what was configured under `dd_url` or `additional_endpoints`.
+              Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
   forwarder_retry_queue_payloads_max_size:
     node_type: setting
     type: integer
@@ -573,6 +632,103 @@ properties:
       each request can be sent before waiting for the response.
     tags:
     - template_section:Common
+  forwarder_concurrency_policy:
+    node_type: setting
+    type: string
+    default: static
+    description: |-
+      How the forwarder limits the number of concurrent requests to each domain.
+      Possible values are "static" or "dynamic".
+
+      With "static", each worker can have up to 'forwarder_max_concurrent_requests'
+      requests in flight.
+
+      With "dynamic", all workers of a domain share one limit that is scaled at
+      runtime. The limit starts at 'forwarder.dynamic_concurrency.initial_limit'
+      and grows, up to 'forwarder.dynamic_concurrency.max_concurrent_requests',
+      while the forwarder is fully occupied, meaning it cannot keep up with the
+      payload arrival rate.
+      It shrinks when the backend pushes back (HTTP 408/429/503 or timeouts) or
+      when the forwarder is rarely fully occupied.
+  forwarder:
+    node_type: section
+    type: object
+    description: Forwarder configuration.
+    properties:
+      dynamic_concurrency:
+        node_type: section
+        type: object
+        description: |-
+          Settings used by the forwarder when 'forwarder_concurrency_policy' is
+          set to "dynamic".
+        properties:
+          num_workers:
+            node_type: setting
+            type: integer
+            default: 1
+            description: The number of workers used by the forwarder.
+          max_concurrent_requests:
+            node_type: setting
+            type: integer
+            default: 10
+            description: |-
+              The maximum number of concurrent requests to each domain, shared by
+              all workers. The forwarder scales the limit at runtime up to this value.
+          initial_limit:
+            node_type: setting
+            type: integer
+            default: 1
+            description: |-
+              The concurrency limit the forwarder starts with, and resets to when
+              it restarts. Must be between 1 and 'max_concurrent_requests'.
+          eval_interval:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How often the forwarder evaluates whether to raise or lower the limit.
+              Set it to at least the interval at which payloads arrive, so that a
+              single batch does not look like a sustained backlog.
+          increase_threshold:
+            node_type: setting
+            type: number
+            default: 0.8
+            description: |-
+              Increase the limit if the forwarder is fully occupied for at least
+              this fraction (between 0 and 1) of an evaluation interval.
+          decrease_threshold:
+            node_type: setting
+            type: number
+            default: 0.2
+            description: |-
+              Decrease the limit if the forwarder is fully occupied for less than
+              this fraction (between 0 and 'increase_threshold') of an evaluation
+              interval. Set to 0 to disable.
+          increase_step:
+            node_type: setting
+            type: integer
+            default: 1
+            description: How much the limit is raised by after each saturated evaluation
+              interval.
+          min_decrease_interval:
+            node_type: setting
+            type: string
+            default: 1s
+            format: duration
+            description: |-
+              The minimum time between two decreases of the limit. The limit is
+              halved when the backend pushes back; pushback received within this
+              interval of the previous decrease is ignored, so a burst of errors
+              halves the limit only once.
+          increase_cooldown:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How long after a decrease the forwarder waits before raising the
+              limit again.
   forwarder_storage_max_size_in_bytes:
     node_type: setting
     type: integer
@@ -597,7 +753,6 @@ properties:
       is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
       whichever is lower.
     tags:
-    - golang_type:float64
     - template_section:Common
     comment: Do not store transactions on disk when the disk usage exceeds 80% of
       the disk capacity. Use 80% as some applications do not behave well when the
@@ -641,7 +796,7 @@ properties:
     - template_section:Common
   forwarder_backoff_base:
     node_type: setting
-    type: integer
+    type: number
     default: 2
     visibility: public
     description: |-
@@ -650,9 +805,10 @@ properties:
       higher rate of exponential growth.
     tags:
     - template_section:Common
+    - golang_type:float64
   forwarder_backoff_max:
     node_type: setting
-    type: integer
+    type: number
     default: 64
     visibility: public
     description: |-
@@ -661,6 +817,7 @@ properties:
       higher maximum backoff time.
     tags:
     - template_section:Common
+    - golang_type:float64
   cloud_provider_metadata:
     node_type: setting
     type: array
@@ -864,6 +1021,14 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: value in milliseconds
+  gce_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      GCE or not.
   collect_gpu_tags:
     node_type: setting
     type: boolean
@@ -912,6 +1077,14 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
+  azure_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      Azure or not.
   scrubber:
     node_type: section
     type: object
@@ -1130,6 +1303,7 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                description: Flag to use the v3 API for the metrics series payload.
       logs:
         node_type: section
         type: object
@@ -1242,6 +1416,8 @@ properties:
     - template_section:Agent
     - full-agent-only:true
     comment: Go_expvar server port
+    minimum: 1
+    maximum: 65535
   cmd_port:
     node_type: setting
     type: integer
@@ -1250,6 +1426,8 @@ properties:
     description: The port on which the IPC api listens.
     tags:
     - template_section:Agent
+    minimum: 1
+    maximum: 65535
   GUI_port:
     node_type: setting
     type: integer
@@ -1308,6 +1486,8 @@ properties:
     tags:
     - golang_type:int64
     - template_section:Agent
+    minimum: 1
+    maximum: 1000
   enable_metadata_collection:
     node_type: setting
     type: boolean
@@ -1492,7 +1672,8 @@ properties:
     default: 0
     visibility: public
     description: |-
-      `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed. A 0 value means the feature is disabled.
+      `secret_refresh_interval` is the interval (in seconds) at which eligible Agent and integration secrets are refreshed.
+      This also retries integration secrets that could not be resolved initially. A 0 value means the feature is disabled.
       For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
     tags:
     - template_section:Agent
@@ -1703,7 +1884,7 @@ properties:
     description: Network Path configuration
     tags:
     - full-agent-only:true
-    - platform_only:windows,linux
+    - platform_only:windows,linux,darwin
     - template_section:CoreAgent
     properties:
       connections_monitoring:
@@ -1723,14 +1904,33 @@ properties:
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
             example: 'true'
-          baseline_tests_enabled:
+          basic_tests_enabled:
             node_type: setting
             type: boolean
-            default: false
-            description: Enables baseline Network Path Dynamic Tests for a representative subset of
+            default: true
+            description: Enables basic Network Path Dynamic Tests for a representative subset of
               eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
-              system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
-              when both options are enabled.
+              system-probe traceroute. Set to false to opt out. Standard connection-monitoring
+              Dynamic Tests take precedence when both options are enabled.
+          eudm_basic_tests_enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            visibility: public
+            description: Enables basic Network Path Dynamic Tests for end-user devices. In
+              end_user_device infrastructure mode, the Agent tests up to 20 eligible paths
+              after the first five minutes and in each subsequent hour. Set to false to
+              disable these tests. This setting has no effect in other infrastructure modes.
+          eudm_basic_candidate_limit:
+            node_type: setting
+            type: integer
+            default: 80
+            minimum: 20
+            maximum: 512
+            visibility: public
+            description: Maximum number of eligible paths considered when selecting the 20
+              basic Network Path Dynamic Tests on an end-user device. Must be between 20
+              and 512. This setting has no effect in other infrastructure modes.
       collector:
         node_type: section
         type: object
@@ -1785,6 +1985,7 @@ properties:
             node_type: setting
             type: array
             default: []
+            env_parser: json
             items:
               additionalProperties:
                 type: string
@@ -1824,6 +2025,13 @@ properties:
 
                 # Include specific domain
                 # - match_domain: 'api.datadoghq.com'
+                #   type: include
+
+                # To select dynamic paths only from chosen domains, exclude all domains first,
+                # then add includes. The last matching filter wins.
+                # - match_domain: '*'
+                #   type: exclude
+                # - match_domain: 'api.example.com'
                 #   type: include
           traceroute_queries:
             node_type: setting
@@ -1953,8 +2161,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -1993,20 +2199,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -2043,47 +2243,25 @@ properties:
             node_type: setting
             type: boolean
             default: false
-  synthetics:
+  network_pcap:
     node_type: section
-    title: 'Synthetics Configuration          '
+    title: Network Pcap Configuration
     type: object
-    visibility: public
-    description: Enter specific configuration for Synthetics tests.
+    description: Settings for the Private Action Runner's remote packet
+      capture action.
     tags:
-    - template_section:CoreAgent
     - full-agent-only:true
+    - platform_only:linux
     properties:
-      collector:
-        node_type: section
-        type: object
-        visibility: public
-        description: Configuration related to run Synthetics tests.
-        tags:
-        - template_section:CoreAgent
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-            visibility: public
-            description: '[Preview] Enables Synthetics tests.'
-          workers:
-            node_type: setting
-            type: integer
-            default: 4
-            visibility: public
-            description: The `workers` refers to the number of concurrent workers
-              available for synthetics tests execution.
-          flush_interval:
-            node_type: setting
-            type: string
-            default: 10s
-            visibility: public
-            description: The `flush_interval` refers to the synthetics run interval
-              for tests execution.
       forwarder:
         node_type: section
         type: object
+        description: Endpoints packet captures are uploaded to, read like the
+          event platform forwarders' endpoint settings. logs_dd_url (host:port)
+          or dd_url override the default "cnm-intake.<site>" host, and
+          additional_endpoints adds more. Uploads are neither batched nor
+          compressed per these settings, so the batch_* and compression keys
+          have no effect.
         properties:
           additional_endpoints:
             node_type: setting
@@ -2107,8 +2285,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -2147,20 +2323,145 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
+          sender_recovery_interval:
+            node_type: setting
+            type: integer
+            default: 2
+          sender_recovery_reset:
+            node_type: setting
+            type: boolean
+            default: false
+          use_compression:
+            node_type: setting
+            type: boolean
+            default: true
+          use_v2_api:
+            node_type: setting
+            type: boolean
+            default: true
+          zstd_compression_level:
+            node_type: setting
+            type: integer
+            default: 1
+  synthetics:
+    node_type: section
+    title: 'Synthetics Configuration          '
+    type: object
+    visibility: public
+    description: Enter specific configuration for Synthetics tests.
+    tags:
+    - template_section:CoreAgent
+    - full-agent-only:true
+    properties:
+      collector:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configuration related to run Synthetics tests.
+        tags:
+        - template_section:CoreAgent
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: '[Preview] Enables Synthetics tests.'
+          workers:
+            node_type: setting
+            type: integer
+            default: 4
+            visibility: public
+            description: The `workers` refers to the number of concurrent workers
+              available for synthetics tests execution.
+            minimum: 1
+          flush_interval:
+            node_type: setting
+            type: string
+            default: 10s
+            visibility: public
+            description: The `flush_interval` refers to the synthetics run interval
+              for tests execution.
+      forwarder:
+        node_type: section
+        type: object
+        properties:
+          additional_endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          batch_max_concurrent_send:
+            node_type: setting
+            type: integer
+            default: 0
+          batch_max_content_size:
+            node_type: setting
+            type: integer
+            default: 5000000
+          batch_max_size:
+            node_type: setting
+            type: integer
+            default: 1000
+          batch_wait:
+            node_type: setting
+            type: number
+            default: 5
+          compression_kind:
+            node_type: setting
+            type: string
+            default: zstd
+          compression_level:
+            node_type: setting
+            type: integer
+            default: 6
+          connection_reset_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          dev_mode_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
             tags:
-            - golang_type:float64
+            - no-env
+          input_chan_size:
+            node_type: setting
+            type: integer
+            default: 100
+          logs_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          logs_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+          sender_backoff_base:
+            node_type: setting
+            type: number
+            default: 1
+          sender_backoff_factor:
+            node_type: setting
+            type: number
+            default: 2
+          sender_backoff_max:
+            node_type: setting
+            type: number
+            default: 120
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -2205,6 +2506,8 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: 'Notice: 0 means UDP port closed'
+    minimum: 1
+    maximum: 65535
   dogstatsd_require_listener:
     node_type: setting
     type: boolean
@@ -2364,6 +2667,8 @@ properties:
     description: The port for the go_expvar server.
     tags:
     - template_section:Dogstatsd
+    minimum: 1
+    maximum: 65535
   dogstatsd_so_rcvbuf:
     node_type: setting
     type: integer
@@ -2499,6 +2804,45 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: How many workers are used by the no-aggregation pipeline.
+  dogstatsd_client_drop_detection:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        description: Enables Agent Health detection of DogStatsD client-reported
+          payload drops.
+      dropped_ratio_threshold:
+        node_type: setting
+        type: number
+        default: 0.01
+        description: DogStatsD UDS client payload-byte drop ratio above which a
+          telemetry window is unhealthy. Values range from 0 to 1; 0.01 represents
+          1 percent.
+        tags:
+        - golang_type:float64
+      unhealthy_confirmation_window:
+        node_type: setting
+        type: string
+        default: 1m0s
+        format: duration
+        description: Amount of continuously unhealthy DogStatsD UDS client telemetry
+          required before reporting a dropped-payload Agent Health issue, to ignore
+          transient bad flushes.
+        tags:
+        - golang_type:duration
+      recovery_confirmation_window:
+        node_type: setting
+        type: string
+        default: 30m0s
+        format: duration
+        description: Amount of continuously healthy DogStatsD UDS client telemetry
+          required before resolving a dropped-payload Agent Health issue, to prevent
+          intermittent drops from repeatedly resolving and reopening the issue.
+        tags:
+        - golang_type:duration
   metric_lookback:
     node_type: section
     type: object
@@ -2612,8 +2956,6 @@ properties:
               The monitor computes a window range as the maximum retained point value minus the minimum
               retained point value in each completed evaluation window, or in each configured tag partition.
               Egress forwards retained ranges after that window range is greater than this epsilon.
-            tags:
-            - golang_type:float64
           partition_tags:
             node_type: setting
             type: array
@@ -2771,7 +3113,6 @@ properties:
       to containers with a total memory limit greater than ~250mb. If
       jmx_use_container_support is disabled this option has no effect.
     tags:
-    - golang_type:float64
     - template_section:CoreAgent
     - full-agent-only:true
   jmx_log_file:
@@ -2956,6 +3297,8 @@ properties:
       Set to 0 to not limit the number of files to create.
     tags:
     - template_section:Logging
+    minimum: 0
+    maximum: 1000
   log_to_syslog:
     node_type: setting
     type: boolean
@@ -3038,6 +3381,13 @@ properties:
       WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
     tags:
     - template_section:CoreAgent
+  autoconf_config_files_num_workers:
+    node_type: setting
+    type: integer
+    default: 1
+    description: |-
+      Number of goroutines used to read and parse integration configuration files
+      concurrently when scanning a configuration directory. This value must be >= 1.
   config_providers:
     node_type: setting
     type: array
@@ -3300,12 +3650,38 @@ properties:
       The list of environment variables that are allowed to be resolved in check
       configurations.
       If the list is not set or is empty, the default behavior applies: all envs
-      are allowed.
+      are allowed except the ones bound to Agent settings (see
+      `ad_allowed_agent_env_vars`).
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
         - <ENV_VAR_1>
         - <ENV_VAR_2>
+    tags:
+    - template_section:CoreAgent
+  ad_allowed_agent_env_vars:
+    node_type: setting
+    type: array
+    default:
+    - DD_CLUSTER_NAME
+    - DD_ENV
+    items:
+      type: string
+    visibility: public
+    description: |-
+      The list of environment variables bound to Agent settings that are allowed
+      to be resolved in check configurations. Other environment variables bound
+      to Agent settings are not resolved because some of them hold Agent
+      credentials, like `DD_API_KEY`.
+      Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
+      `DD_ENV` if you still need them.
+      This list only applies when `ad_allowed_env_vars` is not set or is empty,
+      and `ad_disable_env_var_resolution` is set to false.
+    example: |2-
+
+        - DD_CLUSTER_NAME
+        - DD_ENV
+        - <ENV_VAR_1>
     tags:
     - template_section:CoreAgent
   ad_disable_env_var_resolution:
@@ -3376,7 +3752,6 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:DockerTagging
-    - full-agent-only:true
   docker_env_as_tags:
     node_type: setting
     type: object
@@ -3394,7 +3769,6 @@ properties:
         <ENVVAR_NAME>: <TAG_KEY>
     tags:
     - template_section:DockerTagging
-    - full-agent-only:true
   kubernetes_pod_labels_as_tags:
     node_type: setting
     title: Kubernetes tag extraction
@@ -3414,7 +3788,6 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
-    - full-agent-only:true
   kubernetes_pod_annotations_as_tags:
     node_type: setting
     type: object
@@ -3433,7 +3806,6 @@ properties:
         <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
-    - full-agent-only:true
   kubernetes_namespace_labels_as_tags:
     node_type: setting
     type: object
@@ -3452,7 +3824,6 @@ properties:
         <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
-    - full-agent-only:true
   container_env_as_tags:
     node_type: setting
     type: object
@@ -3483,6 +3854,25 @@ properties:
 
         <LABEL_NAME>: <TAG_KEY>
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+    tags:
+    - template_section:KubernetesTagging
+  container_image_annotations_as_tags:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      type: string
+    visibility: public
+    description: |-
+      The Agent can extract container image OCI annotation values and set them as tags associated to a <TAG_KEY>.
+      These tags are attached to container image entities (appearing on the Container Images page) and are also
+      applied to the containers using the image, so they show up on container.* metrics.
+      If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
+      runtimes: Containerd, CRI-O).
+    example: |2-
+
+        <ANNOTATION_NAME>: <TAG_KEY>
+        <HIGH_CARDINALITY_ANNOTATION_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
   ecs_agent_container_name:
@@ -3521,7 +3911,6 @@ properties:
       ECS Agent for tasks scheduled with the EC2 launch type.
     tags:
     - template_section:ECS
-    - full-agent-only:true
   ecs_resource_tags_replace_colon:
     node_type: setting
     type: boolean
@@ -3943,7 +4332,6 @@ properties:
         beta.kubernetes.io/os: os
     tags:
     - template_section:KubeApiServer
-    - full-agent-only:true
   kubernetes_node_annotations_as_tags:
     node_type: setting
     type: object
@@ -3961,7 +4349,6 @@ properties:
         cluster.k8s.io/machine: machine
     tags:
     - template_section:KubeApiServer
-    - full-agent-only:true
   kubernetes_node_annotations_as_host_aliases:
     node_type: setting
     type: array
@@ -4345,7 +4732,6 @@ properties:
     description: This section configures High Availability Agent feature.
     tags:
     - template_section:CoreAgent
-    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -4518,6 +4904,30 @@ properties:
             description: |-
               Set to false to disable metrics support in the OTLP ingest endpoint.
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
+          infra_attributes:
+            node_type: section
+            type: object
+            visibility: public
+            description: Controls how the infraattributes processor promotes custom
+              tagger-derived tags onto OTLP metrics ingested by the Agent. Known
+              infrastructure attributes are attached regardless of this section.
+            tags:
+            - template_section:CoreAgent
+            properties:
+              as_tags:
+                node_type: setting
+                type: boolean
+                default: false
+                visibility: public
+                description: |-
+                  Controls whether the Infra-Attribute-Processor promotes custom tags (for example, from
+                  kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they survive the metrics translator's
+                  allowlist and are emitted as metric tags. Without it, custom tags that are not known Datadog
+                  or OpenTelemetry conventions are dropped.
+                comment: |-
+                  as_tags controls whether the infraattributes processor promotes custom tags
+                  (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they survive the metrics
+                  translator's allowlist and become metric tags.
           resource_attributes_as_tags:
             node_type: setting
             type: boolean
@@ -4746,8 +5156,6 @@ properties:
                   Percentage of traces to ingest (0 100]. Invalid values (<= 0 || > 100) are disconsidered and the default is used.
                   If incoming spans have a sampling.priority set by the user, it will be followed and the sampling percentage will
                   be overridden.
-                tags:
-                - golang_type:float64
           infra_attributes:
             node_type: section
             type: object
@@ -4905,6 +5313,13 @@ properties:
       items:
         type: string
       type: array
+  agent_checks_metadata_message_truncation_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: |-
+      Truncates check error and warning messages in the agent_checks metadata payload to 4096 bytes.
+      Safeguard to disable the truncation in case it causes a regression; to be removed in a future version.
   agent_ipc:
     node_type: section
     type: object
@@ -4991,8 +5406,6 @@ properties:
             node_type: setting
             type: number
             default: 0.014
-            tags:
-            - golang_type:float64
           dry_run:
             node_type: section
             type: object
@@ -5005,20 +5418,14 @@ properties:
             node_type: setting
             type: number
             default: 0.4
-            tags:
-            - golang_type:float64
           low_threshold:
             node_type: setting
             type: number
             default: 0.15
-            tags:
-            - golang_type:float64
           margin_pct:
             node_type: setting
             type: number
             default: 0.2
-            tags:
-            - golang_type:float64
           output:
             node_type: section
             type: object
@@ -5054,8 +5461,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           window:
             node_type: setting
             type: string
@@ -5158,14 +5563,15 @@ properties:
             node_type: section
             type: object
             properties:
-              enabled:
+              max_patterns:
                 node_type: setting
-                type: boolean
-                default: true
-          rrcf:
-            node_type: section
-            type: object
-            properties:
+                type: integer
+                default: 3000
+                description: >-
+                  Maximum number of log patterns tracked across all tag groups,
+                  including patterns that have not emitted metrics yet. At capacity,
+                  the least recently seen pattern is evicted. Non-positive values
+                  use the default. Existing per-group safeguards also apply.
               enabled:
                 node_type: setting
                 type: boolean
@@ -5246,21 +5652,15 @@ properties:
                 node_type: setting
                 type: number
                 default: -1
-                tags:
-                - golang_type:float64
                 comment: unlimited
               max_rate_low_priority:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
               max_rate_medium_priority:
                 node_type: setting
                 type: number
                 default: 100
-                tags:
-                - golang_type:float64
               min_severity:
                 node_type: setting
                 type: string
@@ -5291,21 +5691,15 @@ properties:
                 node_type: setting
                 type: number
                 default: -1
-                tags:
-                - golang_type:float64
                 comment: unlimited
               max_rate_low_priority:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
               max_rate_medium_priority:
                 node_type: setting
                 type: number
                 default: 100
-                tags:
-                - golang_type:float64
               min_severity:
                 node_type: setting
                 type: string
@@ -5322,21 +5716,15 @@ properties:
                 node_type: setting
                 type: number
                 default: -1
-                tags:
-                - golang_type:float64
                 comment: unlimited
               max_rate_low_priority:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
               max_rate_medium_priority:
                 node_type: setting
                 type: number
                 default: 100
-                tags:
-                - golang_type:float64
               min_severity:
                 node_type: setting
                 type: string
@@ -5384,6 +5772,14 @@ properties:
         node_type: section
         type: object
         properties:
+          allowed_types:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: Allowed metric types for anomaly detection. When empty, all metric
+              types are allowed.
           enabled:
             node_type: setting
             type: boolean
@@ -5408,12 +5804,18 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Parquet recording of raw ingested signals for offline analysis
-              and replay.
+            comment: Recording of raw ingested signals for offline analysis
+              when a writer backend is registered.
+          only:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: With an active recorder, record observations without
+              feeding them into anomaly detection analysis.
           flush_interval:
             node_type: setting
-            type: integer
-            default: 60
+            type: string
+            default: 60s
           output_dir:
             node_type: setting
             type: string
@@ -5461,8 +5863,6 @@ properties:
             node_type: setting
             type: number
             default: 0.5
-            tags:
-            - golang_type:float64
           inactive_series_check_interval:
             node_type: setting
             type: string
@@ -5509,6 +5909,25 @@ properties:
             type: boolean
             default: false
             comment: Appsec Proxy Config Injection (Experimental)
+          gke:
+            node_type: section
+            type: object
+            properties:
+              gateway_classes:
+                node_type: setting
+                type: array
+                default:
+                - gke-l7-global-external-managed
+                - gke-l7-regional-external-managed
+                items:
+                  type: string
+                comment: |-
+                  The default is the set of external-managed single-cluster GatewayClasses Datadog
+                  has tested, not the full set GKE supports: gke-l7-rilb also supports
+                  GCPTrafficExtension callouts, whereas classic gke-l7-gxlb does not.
+                  Multi-cluster classes (names ending in -mc) are always skipped, even when added
+                  here, because they require a net.gke.io ServiceImport backendRef which this
+                  reconciler does not emit. Override via this key to widen the tested set.
           processor:
             node_type: section
             type: object
@@ -5590,6 +6009,63 @@ properties:
                 node_type: setting
                 type: string
                 default: 1m
+      endpoint:
+        node_type: section
+        type: object
+        properties:
+          api_key:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. API key for the organization serving the autoscaling
+              configuration endpoint. Only read when autoscaling.endpoint.url is set.
+          config_root:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Trusted root metadata for the config repository of the
+              autoscaling configuration endpoint, overriding the root embedded for
+              its site. Needed when the target backend signs with its own keys.
+              Equivalent to remote_configuration.config_root for the default
+              endpoint.
+          director_root:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Trusted root metadata for the director repository of the
+              autoscaling configuration endpoint, overriding the root embedded for
+              its site. Equivalent to remote_configuration.director_root for the
+              default endpoint.
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Remote configuration key for the autoscaling configuration
+              endpoint, for backends using the legacy per-organization key instead
+              of an API key alone. Equivalent to remote_configuration.key for the
+              default endpoint.
+          site:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Datadog site of the autoscaling configuration endpoint,
+              which selects the trusted roots to use. Empty means derive it from
+              autoscaling.endpoint.url, which is correct for every endpoint we
+              target; set it only to pin a different site's roots.
+          url:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Datadog endpoint the autoscaling product reads its
+              configuration from, instead of the Cluster Agent default remote
+              configuration endpoint. Empty means use the default. Reserved for
+              Datadog staging clusters; not supported for customer use.
       failover:
         node_type: section
         type: object
@@ -5706,8 +6182,6 @@ properties:
     node_type: setting
     type: number
     default: 0.95
-    tags:
-    - golang_type:float64
   check_runner_utilization_warning_cooldown:
     node_type: setting
     type: string
@@ -5796,6 +6270,16 @@ properties:
     default: ''
     tags:
     - full-agent-only:true
+  clc_runner_group:
+    node_type: setting
+    type: string
+    default: ''
+    tags:
+    - full-agent-only:true
+    comment: Cluster checks runner group of this runner, advertised to the Cluster
+      Agent. The runner only receives the checks its group claims in the Cluster
+      Agent's cluster_checks.runner_groups. When empty, it is a general worker and
+      receives the checks no group claims.
   clc_runner_port:
     node_type: setting
     type: integer
@@ -5951,8 +6435,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -5991,20 +6473,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6157,8 +6633,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6197,20 +6671,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6341,7 +6809,7 @@ properties:
           healthy host into a finding.
 
           The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
-          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          -- see test/regression/container/quality_gates/quality_gate_* -- rather than for tuning on real hosts, where the only
           knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
@@ -6379,8 +6847,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-    tags:
-    - full-agent-only:true
   data_security:
     node_type: section
     type: object
@@ -6390,8 +6856,16 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Data Security: single enablement flag gating both the autodiscovery provider
-          and the sds-result event platform pipeline.
+          Data Security: when true, the Agent can run Data Security scans scheduled from Datadog
+          and send their results back as `sds-result` events. Requires `shared_library_check.enabled`
+          to also be true.
+        description: Flag to enable or disable Data Security.
+      enforce_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Data Security: when true, scans are enforced to use SSL, with no fallback to plaintext.
   data_streams:
     node_type: section
     type: object
@@ -6422,8 +6896,6 @@ properties:
             node_type: setting
             type: number
             default: 0.1
-            tags:
-            - golang_type:float64
             comment: 100ms for low-latency forwarding
           compression_kind:
             node_type: setting
@@ -6463,20 +6935,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6527,8 +6993,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6567,20 +7031,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6701,8 +7159,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6741,20 +7197,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6801,8 +7251,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6841,20 +7289,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6903,6 +7345,11 @@ properties:
         node_type: setting
         type: integer
         default: 60
+      startup_timeout_secs:
+        node_type: setting
+        type: integer
+        default: 60
+        comment: Bounds provider detection and the initial credential exchange during config loading. Set to 0 to disable the deadline.
   disable_unsafe_yaml:
     node_type: setting
     type: boolean
@@ -6928,8 +7375,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-    tags:
-    - full-agent-only:true
   dogstatsd_capture_depth:
     node_type: setting
     type: integer
@@ -6968,6 +7413,34 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      max_concurrent_requests:
+        node_type: setting
+        type: integer
+        default: 8
+        comment: |-
+          Maximum number of requests the dogstatsd http server handles at once,
+          across every endpoint. Requests arriving with no slot free are
+          rejected immediately with 503 and are expected to be retried by the
+          client. Set to 0 to disable the limit.
+      max_payload_size:
+        node_type: setting
+        type: integer
+        default: 262144
+        comment: |-
+          Maximum size, in bytes, of a request body the dogstatsd http server
+          will buffer. Defaults to 256KiB. Set to 0 to disable the limit.
+        tags:
+        - golang_type:int64
+      read_timeout:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        comment: |-
+          Maximum time the dogstatsd http server will spend reading a request,
+          headers and body together. Set to 0 to disable the limit.
+        tags:
+        - golang_type:duration
       listen_address:
         node_type: setting
         type: string
@@ -7014,14 +7487,10 @@ properties:
         node_type: setting
         type: number
         default: 0.8
-        tags:
-        - golang_type:float64
       low_soft_limit:
         node_type: setting
         type: number
         default: 0.7
-        tags:
-        - golang_type:float64
       memory_ballast:
         node_type: setting
         type: integer
@@ -7044,8 +7513,6 @@ properties:
             node_type: setting
             type: number
             default: 0.01
-            tags:
-            - golang_type:float64
       soft_limit_freeos_check:
         node_type: section
         type: object
@@ -7054,20 +7521,14 @@ properties:
             node_type: setting
             type: number
             default: 1.5
-            tags:
-            - golang_type:float64
           max:
             node_type: setting
             type: number
             default: 0.1
-            tags:
-            - golang_type:float64
           min:
             node_type: setting
             type: number
             default: 0.01
-            tags:
-            - golang_type:float64
   dogstatsd_origin_optout_enabled:
     node_type: setting
     type: boolean
@@ -7222,6 +7683,7 @@ properties:
         type: boolean
         default: true
         comment: 'Serializer: allow user to blacklist any kind of payload to be sent'
+        description: Flag to enable or disable events payloads.
       json_to_v1_intake:
         node_type: setting
         type: boolean
@@ -7230,14 +7692,17 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable series payloads.
       service_checks:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable service checks payloads.
       sketches:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable sketches payloads.
   enabled_rfc1123_compliant_cluster_name_tag:
     node_type: setting
     type: boolean
@@ -7288,8 +7753,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -7328,20 +7791,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -7426,6 +7883,49 @@ properties:
         node_type: setting
         type: integer
         default: 0
+  experimental:
+    node_type: section
+    type: object
+    properties:
+      metrics_endpoint_routing:
+        node_type: section
+        type: object
+        properties:
+          metric_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name allowlists.
+              Keys must exactly match the resolved primary URL (including any trailing dot)
+              or a key in additional_endpoints. Unknown endpoints are rejected. A metric is sent
+              if its normalized name matches this list or metric_prefix_allowlist for
+              the endpoint. Applies to series and sketches. Requires use_v2_api.series
+              to be enabled. Endpoints absent from both
+              maps keep ordinary delivery. An endpoint with two empty lists receives
+              no metrics. Policies are independent of Multi-Region Failover and require
+              a restart to change. Experimental settings may change without compatibility.
+          metric_prefix_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name prefix allowlists, combined with metric_allowlist.
+              Keys follow the same endpoint validation and restart requirements.
+              Prefixes are case-sensitive literal strings, not wildcards or regular
+              expressions. An empty string prefix allows every valid metric name.
+              An empty list allows no names. Incoming names are normalized for matching.
+              Configured entries and transmitted names are unchanged.
   expected_tags_duration:
     node_type: setting
     type: string
@@ -7433,7 +7933,9 @@ properties:
     format: duration
     tags:
     - golang_type:duration
-    comment: Duration during which the host tags will be submitted with metrics.
+    comment: |-
+      Duration during which host tags are submitted with metrics.
+      The ``infra_mode`` host tag is never copied onto metrics this way.
   external_metrics:
     node_type: section
     type: object
@@ -7527,19 +8029,22 @@ properties:
     comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
-    type: integer
+    type: number
     default: 2
+    tags:
+      - golang_type:float64
   forwarder_connection_reset_interval:
     node_type: setting
     type: integer
     default: 0
     comment: in seconds, 0 means disabled
+    minimum: 0
+    description: Interval in seconds after which forwarder connections to Datadog are
+      reset. 0 disables the reset.
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
     type: number
     default: 0.5
-    tags:
-    - golang_type:float64
   forwarder_recovery_interval:
     node_type: setting
     type: integer
@@ -7598,8 +8103,6 @@ properties:
         node_type: setting
         type: number
         default: 5
-        tags:
-        - golang_type:float64
       compression_kind:
         node_type: setting
         type: string
@@ -7638,20 +8141,14 @@ properties:
         node_type: setting
         type: number
         default: 1
-        tags:
-        - golang_type:float64
       sender_backoff_factor:
         node_type: setting
         type: number
         default: 2
-        tags:
-        - golang_type:float64
       sender_backoff_max:
         node_type: setting
         type: number
         default: 120
-        tags:
-        - golang_type:float64
       sender_recovery_interval:
         node_type: setting
         type: integer
@@ -7715,12 +8212,14 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      persist_remotely_on_kubernetes:
+        node_type: setting
+        type: boolean
+        default: false
   heroku_dyno:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
     comment: overridden in Heroku buildpack
   hostname_drift_initial_delay:
     node_type: setting
@@ -7754,12 +8253,40 @@ properties:
     node_type: section
     type: object
     properties:
+      reporter_interval:
+        node_type: setting
+        type: string
+        default: 60s
+        format: duration
+        description: |-
+          Interval between profile reports. Must be at least 60 seconds.
       additional_http_headers:
         node_type: setting
         type: object
         default: {}
         additionalProperties:
           type: string
+      include_env_vars:
+        node_type: setting
+        type: string
+        default: ''
+        description: |-
+          Comma-separated names of additional environment variables to collect from profiled processes.
+          These variables are collected in addition to the default service, environment, and version metadata.
+          Only include variables whose values are safe to send with profiles; do not include secrets.
+      send_error_frames:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |
+          Includes unwind error frames in profiles for troubleshooting.
+      filter_min_process_age:
+        node_type: setting
+        type: string
+        default: 0s
+        format: duration
+        description: |
+          Skips profiling processes younger than this duration, to filter out short-lived processes. 0 disables the filter.
       ddprofiling:
         node_type: section
         type: object
@@ -7780,10 +8307,20 @@ properties:
         node_type: section
         type: object
         properties:
-          verbosity:
+          exporter:
+            node_type: section
+            type: object
+            properties:
+              verbosity:
+                node_type: setting
+                type: string
+                default: ''
+          ebpf_logs:
             node_type: setting
-            type: string
-            default: ''
+            type: boolean
+            default: false
+            description: |-
+              Enables verbose eBPF profiler logging for troubleshooting.
       health_metrics:
         node_type: section
         type: object
@@ -7808,6 +8345,42 @@ properties:
         node_type: setting
         type: string
         default: ${log_path}/host-profiler.log
+      symbol_uploader:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            description: |-
+              Uploads debug symbols to Datadog for native and Go symbolization.
+              Disabling uploads can leave profiles with unresolved frames.
+          options:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+          report:
+            node_type: section
+            type: object
+            properties:
+              interval:
+                node_type: setting
+                type: integer
+                default: 300
+                minimum: 1
+                maximum: 86400
+                description: How often, in seconds, the host profiler flushes a
+                  batched symbol upload report.
+              max_paths_per_report:
+                node_type: setting
+                type: integer
+                default: 100
+                minimum: 1
+                maximum: 100000
+                description: Maximum number of sampled binary paths kept per symbol
+                  upload report, per log level.
     tags:
     - full-agent-only:true
   hpa_configmap_name:
@@ -7913,6 +8486,34 @@ properties:
         default: false
     tags:
     - full-agent-only:true
+  intake_routing:
+    node_type: section
+    type: object
+    description: Ask the Datadog backend which intake host to send telemetry to, for endpoints
+      that point at an official Datadog intake.
+    comment: Owned by comp/intakerouting. Undocumented until the backend contract is final.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Enables intake routing. Only the core logs agent uses it for now.
+      startup_grace_period:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        description: How long a sender waits at startup for the first routing decision before
+          starting on its configured endpoint. Clamped to [0s, 30s].
+      refresh_interval:
+        node_type: setting
+        type: string
+        default: 6h0m0s
+        format: duration
+        description: How often routing decisions are refreshed. Jittered by 10 percent, with a
+          minimum of 1m.
+    tags:
+    - full-agent-only:true
   integration:
     node_type: section
     type: object
@@ -7973,18 +8574,6 @@ properties:
               Infrastructure basic mode section [UNDOCUMENTED]
               Note: All checks starting with "custom_" are always allowed.
               integration.basic.allowed: default allowed checks (internal, should not need user configuration)
-      cloud_cost_only:
-        node_type: section
-        type: object
-        properties:
-          tagged:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-            comment: 'integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only
-              (empty means all checks)'
       enabled:
         node_type: setting
         type: boolean
@@ -8098,21 +8687,15 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
   inventories_first_run_delay:
     node_type: setting
     type: integer
     default: 60
-    tags:
-    - full-agent-only:true
     comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: |-
       when updating the default here also update pkg/metadata/inventories/README.md
       0 == default interval from inventories
@@ -8120,15 +8703,11 @@ properties:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
     comment: overridden in IoT Agent main
   ipc_address:
     node_type: setting
@@ -8216,8 +8795,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -8256,20 +8833,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -8290,6 +8861,33 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      private_action_runner:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Gates the Private Action Runner delivery path for Kubernetes Actions: when
+              true, the com.datadoghq.kubernetes.kubeactions actions are added to the
+              runner's allowlist. Only effective when kubeactions.enabled is true. The
+              runner itself is enabled by private_action_runner.enabled. Set to false to
+              receive actions only through Remote Configuration.
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Gates the remote-config delivery path for Kubernetes Actions (K8S_ACTIONS
+              product subscription and config retriever). Only effective when
+              kubeactions.enabled is true. Set to false to receive actions only through
+              the Private Action Runner.
   kubelet_collector_pull_interval:
     node_type: setting
     type: integer
@@ -8368,8 +8966,6 @@ properties:
     default: {}
     additionalProperties:
       type: string
-    tags:
-    - full-agent-only:true
   kubernetes_node_label_as_cluster_name:
     node_type: setting
     type: string
@@ -8380,14 +8976,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
   kubernetes_resources_annotations_as_tags:
     node_type: setting
     type: string
     default: '{}'
-    tags:
-    - full-agent-only:true
     comment: |-
       kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
       it maps group resources to annotations as tags maps
@@ -8401,8 +8993,6 @@ properties:
     node_type: setting
     type: string
     default: '{}'
-    tags:
-    - full-agent-only:true
     comment: |-
       kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
       it maps group resources to labels as tags maps
@@ -8505,32 +9095,56 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  metadata_skip_secrets:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      When true, the inventory agent payload does not include the `enc_info` section (paths, handles and hashes
+      of the secrets used in the configuration).
   metric_filterlist:
     node_type: setting
     type: array
     default: []
+    renamed_from:
+      statsd_metric_blocklist: "7.86.0"
     items:
       type: string
-    tags:
-    - full-agent-only:true
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
+    renamed_from:
+      statsd_metric_blocklist_match_prefix: "7.86.0"
+  metric_filterlist_prefix:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json
+    items:
+      type: object
+    comment: |-
+      Drops every metric name starting with one of the given prefixes, in addition to
+      metric_filterlist. Every entry is always a prefix -- no trailing `*` is needed or
+      recognized here, unlike the per-entry `*` metric_filterlist once supported. An empty
+      prefix ("") matches every metric name.
+
+      Each entry is an object with a `prefix` field and two optional exception fields,
+      `except_exact` (a list of exact metric names to keep) and `except_prefix` (a list of
+      prefixes to keep). Exceptions apply across all entries in this list: a metric excepted
+      by one entry is kept even if another prefix entry also matches it. Exact or prefix
+      matches from metric_filterlist still drop the metric.
+
+      A prefix does not need to end on a segment boundary: `sys` matches both `system.cpu` and
+      `sys.cpu`.
   metric_tag_filterlist:
     node_type: setting
     type: array
     default: []
-    tags:
-    - full-agent-only:true
   metric_tag_filterlist_adp_only:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
     comment: |-
       When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
       Set to false to apply tag stripping regardless of whether ADP is running.
@@ -8716,7 +9330,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           sleep_interval:
             node_type: setting
             type: string
@@ -8762,7 +9376,7 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
     tags:
     - full-agent-only:true
   remote_policies:
@@ -8818,8 +9432,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -8858,20 +9470,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -8905,6 +9511,8 @@ properties:
   security_agent:
     node_type: section
     type: object
+    visibility: public
+    description: Settings specific to the security Agent process.
     properties:
       cmd_port:
         node_type: setting
@@ -9012,12 +9620,38 @@ properties:
             node_type: setting
             type: string
             default: ''
+      log_level:
+        node_type: setting
+        type: string
+        default: ''
+        env_vars:
+        - DD_SECURITY_AGENT_LOG_LEVEL
+        visibility: public
+        description: |-
+          Overrides the global `log_level` for the security Agent only.
+          Leave empty to use the global `log_level`.
       log_file:
         node_type: setting
         type: string
         default: ${log_path}/security-agent.log
     tags:
     - full-agent-only:true
+  system_probe:
+    node_type: section
+    type: object
+    visibility: public
+    description: system-probe settings the core Agent owns and streams to system-probe.
+    properties:
+      log_level:
+        node_type: setting
+        type: string
+        default: ''
+        env_vars:
+        - DD_SYSTEM_PROBE_LOG_LEVEL
+        visibility: public
+        description: |-
+          Overrides the global `log_level` for system-probe only.
+          Leave empty to use the global `log_level`.
   serializer_compressor_kind:
     node_type: setting
     type: string
@@ -9050,8 +9684,6 @@ properties:
             node_type: setting
             type: number
             default: 0
-            tags:
-            - golang_type:float64
           shadow_sites:
             node_type: setting
             type: array
@@ -9059,6 +9691,18 @@ properties:
             - datadoghq.com
             items:
               type: string
+          max_compressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_uncompressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_points_per_payload:
+            node_type: setting
+            type: integer
+            default: 0
   serializer_max_payload_size:
     node_type: setting
     type: integer
@@ -9097,6 +9741,24 @@ properties:
         default: false
         tags:
         - no-env
+      metadata_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SERVERLESS_INIT_METADATA_ENABLED
+      metadata_wrapped_command_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |
+          Include the wrapped workload command in serverless-init metadata when metadata collection is enabled.
+          The command is omitted by default. Collection may transmit secrets in command-line arguments.
+          Redaction is best effort and incomplete: it does not cover all argument names, formats,
+          positional values, or embedded scripts. Enable only after verifying that your workload
+          command contains no sensitive information.
+        env_vars:
+        - DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED
       logs_enabled:
         node_type: setting
         type: boolean
@@ -9149,8 +9811,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -9189,20 +9849,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -9231,6 +9885,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        description: Flag to enable or disable shared library checks.
       library_folder_path:
         node_type: setting
         type: string
@@ -9273,8 +9928,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -9313,20 +9966,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -9355,20 +10002,6 @@ properties:
         node_type: setting
         type: integer
         default: 60
-  statsd_metric_blocklist:
-    node_type: setting
-    type: array
-    default: []
-    items:
-      type: string
-    tags:
-    - full-agent-only:true
-  statsd_metric_blocklist_match_prefix:
-    node_type: setting
-    type: boolean
-    default: false
-    tags:
-    - full-agent-only:true
   statsd_metric_namespace_blacklist:
     node_type: setting
     type: array
@@ -9496,6 +10129,8 @@ properties:
     comment: |-
       If true, then new version of disk v2 check will be used.
       Otherwise, the python version of disk check will be used.
+    description: Flag to enable or disable the Go core disk check. When disabled, the
+      Python disk check is used instead.
   use_improved_cgroup_parser:
     node_type: setting
     type: boolean
@@ -9514,6 +10149,8 @@ properties:
       the darwin and bsd network check has not been ported from python
       If true, then new version of network v2 check will be used.
       Otherwise, the python version of network check will be used.
+    description: Flag to enable or disable the Go core network check. When disabled, the
+      Python network check is used instead.
   use_v2_api:
     node_type: section
     type: object

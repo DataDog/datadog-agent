@@ -27,6 +27,7 @@ import (
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -71,17 +72,17 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	pdata := flaretypes.ProfileData{}
 
 	type pprofGetter func(path string) ([]byte, error)
-	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
+	tcpGet := func(host, portConfig string, onHTTPS bool) pprofGetter {
 		endpoint := url.URL{
 			Scheme: "http",
-			Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(p.cfg.GetInt(portConfig))),
+			Host:   net.JoinHostPort(host, strconv.Itoa(p.cfg.GetInt(portConfig))),
 			Path:   "/debug/pprof",
 		}
 		if onHTTPS {
 			endpoint.Scheme = "https"
 		}
 		return func(path string) ([]byte, error) {
-			return p.ipcClient.Get(endpoint.String()+path, ipchttp.WithLeaveConnectionOpen)
+			return p.ipcClient.Get(endpoint.String()+path, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken)
 		}
 	}
 
@@ -133,20 +134,20 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 
 	agentCollectors := map[string]agentProfileCollector{}
 	if p.coreAgentEnabled() {
-		agentCollectors["core"] = serviceProfileCollector(tcpGet("expvar_port", false), seconds)
+		agentCollectors["core"] = serviceProfileCollector(tcpGet("127.0.0.1", "expvar_port", false), seconds)
 	}
 
 	if p.securityAgentEnabled() {
-		agentCollectors["security-agent"] = serviceProfileCollector(tcpGet("security_agent.expvar_port", false), seconds)
+		agentCollectors["security-agent"] = serviceProfileCollector(tcpGet("127.0.0.1", "security_agent.expvar_port", false), seconds)
 	}
 
 	if p.processAgentEnabled() {
-		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port", false), seconds)
+		agentCollectors["process"] = serviceProfileCollector(tcpGet("127.0.0.1", "process_config.expvar_port", false), seconds)
 	}
 
 	if p.apmEnabled() {
 		traceCpusec := p.apmTraceSeconds(seconds)
-		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port", true), traceCpusec)
+		agentCollectors["trace"] = serviceProfileCollector(tcpGet(pkgconfighelper.APMDebugHost(p.cfg), "apm_config.debug.port", true), traceCpusec)
 	}
 
 	if p.sysProbeEnabled() {
@@ -181,7 +182,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	var errs []error
 	for name, callback := range agentCollectors {
 		if err := callback(name); err != nil {
-			errs = append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
+			errs = append(errs, fmt.Errorf("error collecting %s agent profile: %w", name, err))
 		}
 	}
 
@@ -223,7 +224,7 @@ func (p profiler) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error
 	// goroutines, and gracefully produces no file when the agent is unreachable
 	// (e.g. local flare mode) instead of capturing the CLI's own goroutines.
 	pprofURL := "http://127.0.0.1:" + strconv.Itoa(p.cfg.GetInt("expvar_port")) + "/debug/pprof/goroutine?debug=2"
-	if data, err := p.ipcClient.Get(pprofURL, ipchttp.WithLeaveConnectionOpen); err == nil {
+	if data, err := p.ipcClient.Get(pprofURL, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken); err == nil {
 		fb.AddFile("go-routine-dump.log", data) //nolint:errcheck
 	}
 

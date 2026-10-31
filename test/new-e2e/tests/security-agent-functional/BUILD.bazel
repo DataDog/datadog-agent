@@ -1,8 +1,10 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//test/new-e2e:tests/windows_testsuites.bzl", "install_windows_testsuites")
 
 dd_agent_go_test(
     name = "security-agent-functional_test",
     srcs = ["security_agent_test.go"],
+    tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",
@@ -14,4 +16,13 @@ dd_agent_go_test(
         "//test/new-e2e/tests/windows/common/agent",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+install_windows_testsuites(
+    name = "install_windows_testsuites",
+    files = {
+        "//pkg/security/probe:probe_test_functionaltests": "etw/testsuite.exe",
+        "//pkg/security/tests:tests_test_bpf_functionaltests": "testsuite.exe",
+    },
+    tags = ["manual"],
 )

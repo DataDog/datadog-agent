@@ -27,6 +27,19 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
+// CleanupForTest removes the process-wide readiness registration after a test.
+func (r *Readiness) CleanupForTest(t testing.TB) {
+	t.Helper()
+	r.timer.Stop()
+	require.NoError(t, r.handle.Deregister())
+}
+
+// AssertReadinessForTest verifies that a check uses the startup readiness object.
+func (c *Check) AssertReadinessForTest(t testing.TB, readiness *Readiness) {
+	t.Helper()
+	require.Same(t, readiness, c.readiness)
+}
+
 // WithGPUConfigEnabled enables the GPU check configuration for testing
 // and registers a cleanup to disable it after the test completes.
 func WithGPUConfigEnabled(t testing.TB) {
@@ -115,7 +128,7 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, specs *gpuspec.Specs, confi
 			assert.Zero(t, status.Unknown, "metric %s unknown in %d cases", metricName, status.Unknown)
 			assert.Zero(t, status.Unsupported, "metric %s unsupported in %d cases", metricName, status.Unsupported)
 			assert.Zero(t, status.WrongType, "metric %s wrong type in %d cases", metricName, status.WrongType)
-			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases", metricName, status.InvalidValue)
+			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases (samples: %v)", metricName, status.InvalidValue, status.InvalidValueSamples)
 
 			for tag, tagResult := range status.TagResults {
 				assert.Zero(t, tagResult.Missing, "metric %s: tag %s missing in %d cases", metricName, tag, tagResult.Missing)

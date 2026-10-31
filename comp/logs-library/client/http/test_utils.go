@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-
-	"golang.org/x/net/http2"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -97,6 +95,21 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 	}
 }
 
+// NewDelegatedAuthPendingTestServer creates a reliable test destination that is still waiting for
+// a delegated-auth credential.
+func NewDelegatedAuthPendingTestServer(cfg pkgconfigmodel.Reader) *TestServer {
+	s := NewTestServerWithOptions(http.StatusOK, 1, true, nil, cfg)
+	s.Destination.endpoint = config.NewEndpoint(
+		"DELA[some-org-uuid, aws]",
+		"logs_config.additional_endpoints",
+		s.Endpoint.Host,
+		s.Endpoint.Port,
+		config.EmptyPathPrefix,
+		false,
+	)
+	return s
+}
+
 // NewTestHTTPSServer creates a new test server that can support HTTP/2
 func NewTestHTTPSServer(forceHTTP1 bool) *httptest.Server {
 	// Create an HTTP/2 test server
@@ -105,15 +118,8 @@ func NewTestHTTPSServer(forceHTTP1 bool) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	// Configure the server to support HTTP/2
-	if !forceHTTP1 {
-		err := http2.ConfigureServer(testServer.Config, &http2.Server{})
-		if err != nil {
-			panic(err)
-		}
-		testServer.TLS = testServer.Config.TLSConfig
-	}
-	// Start the server with TLS
+	// Enable HTTP/2 support unless HTTP/1 is forced
+	testServer.EnableHTTP2 = !forceHTTP1
 	testServer.StartTLS()
 
 	return testServer

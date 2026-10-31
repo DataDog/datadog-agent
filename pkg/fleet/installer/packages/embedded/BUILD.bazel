@@ -11,7 +11,6 @@ exports_files(
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
 
-# keep
 service_srcs = glob([
     "tmpl/gen/pm/processes.d/*.yaml",
     "tmpl/gen/windows/*.yaml",
@@ -19,18 +18,42 @@ service_srcs = glob([
     "tmpl/gen/pm/oci/*.service",
     "tmpl/gen/sd/debrpm/*.service",
     "tmpl/gen/sd/oci/*.service",
+    "tmpl/gen/r/d/*.service",
+    "tmpl/gen/r/d/*.socket",
+    "tmpl/gen/r/o/*.service",
+    "tmpl/gen/r/o/*.socket",
 ])
 
 # Selected by GetSystemdUnit/GetProcmgrUnit on hosts without ambient capability support. These must
 # be embedded in the production library, not just in tmpl_test, or the shipped binary cannot read
 # them.
-# keep
 nocap_service_srcs = glob([
     "tmpl/gen/pm/debrpm-nc/*.service",
     "tmpl/gen/pm/oci-nc/*.service",
     "tmpl/gen/sd/debrpm-nc/*.service",
     "tmpl/gen/sd/oci-nc/*.service",
+    "tmpl/gen/r/dn/*.service",
+    "tmpl/gen/r/dn/*.socket",
+    "tmpl/gen/r/on/*.service",
+    "tmpl/gen/r/on/*.socket",
 ])
+
+# The launchd job definitions for macOS, read by GetLaunchdJob.
+# keep
+launchd_job_srcs = glob(["tmpl/gen/darwin/*.plist"])
+
+# The stable definitions of the Agent's own LaunchDaemons, also shipped as plain files: the .dmg
+# postinstall script installs them directly when the installer cannot.
+filegroup(
+    name = "launchd_fallback_jobs",
+    srcs = [
+        "tmpl/gen/darwin/com.datadoghq.agent.plist",
+        "tmpl/gen/darwin/com.datadoghq.data-plane.plist",
+        "tmpl/gen/darwin/com.datadoghq.procmgr.plist",
+        "tmpl/gen/darwin/com.datadoghq.sysprobe.plist",
+    ],
+    visibility = ["//packages/macos/app:__pkg__"],
+)
 
 go_library(
     name = "embedded",
@@ -40,19 +63,26 @@ go_library(
         "scripts/dd-cleanup",
         "scripts/dd-container-install",
         "scripts/dd-host-install",
-    ] + service_srcs + nocap_service_srcs,
+    ] + service_srcs + nocap_service_srcs + launchd_job_srcs,
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
     visibility = ["//visibility:public"],
 )
 
-# keep
 go_library(
     name = "tmpl_lib",
     srcs = ["tmpl/main.go"],
     embedsrcs = [
+        "tmpl/com.datadoghq.agent.plist.tmpl",
+        "tmpl/com.datadoghq.data-plane.plist.tmpl",
+        "tmpl/com.datadoghq.procmgr.plist.tmpl",
+        "tmpl/com.datadoghq.sysprobe.plist.tmpl",
+        "tmpl/datadog-agent-par-control.yaml.tmpl",
+        "tmpl/datadog-agent-par-control-windows.yaml.tmpl",
         "tmpl/datadog-agent-action-executor.yaml.tmpl",
         "tmpl/datadog-agent-action-executor-windows.yaml.tmpl",
         "tmpl/datadog-agent-action.service.tmpl",
+        "tmpl/datadog-agent-rshell-privileged.service.tmpl",
+        "tmpl/datadog-agent-rshell-privileged.socket.tmpl",
         "tmpl/datadog-agent-action-windows.yaml.tmpl",
         "tmpl/datadog-agent-data-plane.service.tmpl",
         "tmpl/datadog-agent-data-plane-windows.yaml.tmpl",
@@ -61,10 +91,14 @@ go_library(
         "tmpl/datadog-agent-ddot-windows.yaml.tmpl",
         "tmpl/datadog-agent-installer.service.tmpl",
         "tmpl/datadog-agent-process.service.tmpl",
+        "tmpl/datadog-agent-process-windows.yaml.tmpl",
         "tmpl/datadog-agent-procmgr.service.tmpl",
         "tmpl/datadog-agent-security.service.tmpl",
+        "tmpl/datadog-agent-security-windows.yaml.tmpl",
         "tmpl/datadog-agent-sysprobe.service.tmpl",
+        "tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
         "tmpl/datadog-agent-trace.service.tmpl",
+        "tmpl/datadog-agent-trace-windows.yaml.tmpl",
         "tmpl/datadog-agent.service.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded/tmpl",
@@ -82,7 +116,6 @@ go_test(
     name = "tmpl_test",
     srcs = ["tmpl/main_test.go"],
     embed = [":tmpl_lib"],
-    # keep
     embedsrcs = glob(["tmpl/**"]),
     tags = ["dd_agent_go_test"],
     deps = [

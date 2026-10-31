@@ -11,8 +11,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
+
+	"go.yaml.in/yaml/v3"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
@@ -55,12 +61,20 @@ var datadogAgentPackage = hooks{
 const (
 	agentSymlink     = "/usr/bin/datadog-agent"
 	installerSymlink = "/usr/bin/datadog-installer"
+
+	privilegedRshellBinaryRelPath  = "embedded/bin/rshell"
+	privilegedRshellPolicyDir      = "/etc/datadog-agent-rshell"
+	privilegedRshellMinLandlockABI = 3
+	privilegedRshellSocketStable   = "datadog-agent-rshell-privileged.socket"
+	privilegedRshellSocketExp      = "datadog-agent-rshell-privileged-exp.socket"
+	privilegedRshellEnabledEnv     = "DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_PRIVILEGED_ENABLED"
 )
 
 var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: privilegedRshellPolicyDir, Mode: 0755, Owner: "root", Group: "root"},
 		{Path: "/etc/datadog-agent/managed", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/var/log/datadog", Mode: 0750, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
@@ -89,6 +103,15 @@ var (
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
 
+	// privilegedRshellPackagePermissions protects the directories below the
+	// package root that contain the privileged helper. The package root keeps
+	// the ownership established by agentPackagePermissions.
+	privilegedRshellPackagePermissions = file.Permissions{
+		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
+		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
+		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
+	}
+
 	// integrationRestorePermissions re-applies dd-agent ownership to embedded/lib after
 	// RestoreCustomIntegrations runs pip as root. pip inherits the installer's root UID so
 	// newly-installed integration files land as root:root; this targeted chown fixes that
@@ -99,6 +122,11 @@ var (
 		Owner:     "dd-agent",
 		Group:     "dd-agent",
 		Recursive: true,
+	}
+
+	logsRegistryPermissions = file.Permissions{
+		{Path: "run", Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "run/registry.json", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
 	}
 
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
@@ -128,14 +156,14 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-rshell-privileged.service", privilegedRshellSocketStable, "datadog-agent-ddot.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-rshell-privileged-exp.service", privilegedRshellSocketExp, "datadog-agent-ddot-exp.service"},
 
 		ProcmgrMainUnitStable: "datadog-agent.service",
 		ProcmgrMainUnitExp:    "datadog-agent-exp.service",
-		ProcmgrUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-procmgr.service"},
-		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-procmgr-exp.service"},
-		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml"},
+		ProcmgrUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-rshell-privileged.service", privilegedRshellSocketStable, "datadog-agent-procmgr.service"},
+		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-rshell-privileged-exp.service", privilegedRshellSocketExp, "datadog-agent-procmgr-exp.service"},
+		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml", "datadog-agent-par-control.yaml"},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
@@ -169,6 +197,21 @@ func fixRestoredIntegrationOwnership(ctx HookContext) error {
 	return integrationRestorePermissions.Ensure(ctx, filepath.Join(ctx.PackagePath, "embedded/lib"))
 }
 
+func ensurePrivilegedRshellPermissions(ctx HookContext) error {
+	binaryPath := filepath.Join(ctx.PackagePath, privilegedRshellBinaryRelPath)
+	info, err := os.Lstat(binaryPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to inspect privileged rshell helper: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("privileged rshell helper is not a regular file: %s", binaryPath)
+	}
+	return privilegedRshellPackagePermissions.Ensure(ctx, ctx.PackagePath)
+}
+
 // installFilesystem sets up the filesystem for the agent installation
 func installFilesystem(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_filesystem")
@@ -192,6 +235,12 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 	if err = agentPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
+	}
+	if err = ensurePrivilegedRshellPermissions(ctx); err != nil {
+		return fmt.Errorf("failed to protect privileged rshell helper: %w", err)
+	}
+	if err := file.EnsureConfigFromExample("/etc/datadog-agent", "private-action-runner/script-config.yaml"); err != nil {
+		log.Warnf("failed to initialize PAR script config: %v", err)
 	}
 	if err = agentConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
@@ -347,6 +396,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
+	if err := restoreLogsRegistry(ctx); err != nil {
+		log.Warnf("failed to restore logs registry: %s", err)
+	}
 	agentVersion := getCurrentAgentVersion()
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, false); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
@@ -425,6 +477,9 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		if err := saveODBCConfig(ctx.PackagePath); err != nil {
 			log.Warnf("failed to save ODBC config: %s", err)
 		}
+		if err := saveLogsRegistry(ctx.PackagePath); err != nil {
+			log.Warnf("failed to save logs registry: %s", err)
+		}
 	}
 	return nil
 }
@@ -444,6 +499,9 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := saveODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to save ODBC config: %s", err)
+	}
+	if err := saveLogsRegistry(ctx.PackagePath); err != nil {
+		log.Warnf("failed to save logs registry: %s", err)
 	}
 	return nil
 }
@@ -469,6 +527,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
+	}
+	if err := restoreLogsRegistry(ctx); err != nil {
+		log.Warnf("failed to restore logs registry: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
@@ -632,6 +693,110 @@ type datadogAgentService struct {
 	SysvinitServices    []string
 }
 
+var getLandlockABIVersion = func() (int, error) {
+	version, _, errno := syscall.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET, 0, 0, unix.LANDLOCK_CREATE_RULESET_VERSION)
+	if errno != 0 {
+		return 0, errno
+	}
+	return int(version), nil
+}
+
+// privilegedRshellSupported reports whether this package and host can run the
+// privileged rshell helper. Checking the kernel capability directly accounts
+// for vendor backports and kernels built without Landlock more accurately than
+// comparing distro or kernel release strings.
+func privilegedRshellSupported(packagePath string) bool {
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+		return false
+	}
+	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
+	info, err := os.Stat(binaryPath)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	version, err := getLandlockABIVersion()
+	return err == nil && version >= privilegedRshellMinLandlockABI
+}
+
+type privilegedRshellConfig struct {
+	PrivateActionRunner struct {
+		RestrictedShell struct {
+			Privileged struct {
+				Enabled bool `yaml:"enabled"`
+			} `yaml:"privileged"`
+		} `yaml:"restricted_shell"`
+	} `yaml:"private_action_runner"`
+}
+
+var privilegedRshellConfigDir = func(ctx HookContext) string {
+	if ctx.Hook == "postStartExperiment" || ctx.Hook == "postStartConfigExperiment" {
+		return "/etc/datadog-agent-exp"
+	}
+	return "/etc/datadog-agent"
+}
+
+// privilegedRshellEnabled reports whether the effective Agent configuration
+// explicitly opts in to the privileged helper. It intentionally fails closed:
+// package hooks must not install or activate a root-capable service when the
+// configuration is absent or invalid.
+func privilegedRshellEnabled(ctx HookContext) bool {
+	if value, ok := os.LookupEnv(privilegedRshellEnabledEnv); ok {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Warnf("invalid %s value %q: %v", privilegedRshellEnabledEnv, value, err)
+			return false
+		}
+		return enabled
+	}
+
+	configDir := privilegedRshellConfigDir(ctx)
+	configFiles := []string{
+		filepath.Join(configDir, "datadog.yaml"),
+		filepath.Join(configDir, "managed", agentPackage, "stable", "datadog.yaml"),
+	}
+	var config privilegedRshellConfig
+	for _, configFile := range configFiles {
+		contents, err := os.ReadFile(configFile)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			log.Warnf("failed to read Agent config %s while checking privileged rshell opt-in: %v", configFile, err)
+			return false
+		}
+		if err := yaml.Unmarshal(contents, &config); err != nil {
+			log.Warnf("failed to parse Agent config %s while checking privileged rshell opt-in: %v", configFile, err)
+			return false
+		}
+	}
+	return config.PrivateActionRunner.RestrictedShell.Privileged.Enabled
+}
+
+func privilegedRshellUsable(ctx HookContext) bool {
+	return privilegedRshellEnabled(ctx) && privilegedRshellSupported(ctx.PackagePath)
+}
+
+func withoutPrivilegedRshellUnits(units []string) []string {
+	return slices.DeleteFunc(slices.Clone(units), func(unit string) bool {
+		return strings.HasPrefix(unit, "datadog-agent-rshell-privileged")
+	})
+}
+
+func installableUnits(ctx HookContext, units []string) []string {
+	if privilegedRshellUsable(ctx) {
+		return units
+	}
+	return withoutPrivilegedRshellUnits(units)
+}
+
+func experimentStartUnits(ctx HookContext, mainUnit string) []string {
+	units := []string{mainUnit}
+	if privilegedRshellUsable(ctx) {
+		units = append(units, privilegedRshellSocketExp)
+	}
+	return units
+}
+
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType, service.ProcmgrType:
@@ -657,9 +822,21 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return systemd.EnableUnit(ctx, s.SystemdMainUnitStable)
+		if err := systemd.EnableUnit(ctx, s.SystemdMainUnitStable); err != nil {
+			return err
+		}
+		if privilegedRshellUsable(ctx) {
+			return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
+		}
+		return nil
 	case service.ProcmgrType:
-		return systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable)
+		if err := systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
+			return err
+		}
+		if privilegedRshellUsable(ctx) {
+			return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
+		}
+		return nil
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
 	case service.SysvinitType:
@@ -703,9 +880,13 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
+		if err := systemd.RestartUnit(ctx, s.SystemdMainUnitStable); err != nil {
+			return err
+		}
 	case service.ProcmgrType:
-		return systemd.RestartUnit(ctx, s.ProcmgrMainUnitStable)
+		if err := systemd.RestartUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
+			return err
+		}
 	case service.UpstartType:
 		return upstart.Restart(ctx, s.UpstartMainService)
 	case service.SysvinitType:
@@ -713,6 +894,10 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	default:
 		return errors.New("unsupported service manager")
 	}
+	if privilegedRshellUsable(ctx) {
+		return systemd.StartUnit(ctx, privilegedRshellSocketStable)
+	}
+	return nil
 }
 
 // StopStable stops the stable units
@@ -751,9 +936,9 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsStable...)
+		return writeEmbeddedSystemdUnitsAndReload(ctx, installableUnits(ctx, s.SystemdUnitsStable)...)
 	case service.ProcmgrType:
-		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsStable...)
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsStable)...)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -785,9 +970,11 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
+		units := experimentStartUnits(ctx, s.SystemdMainUnitExp)
+		return systemd.StartUnit(ctx, units[0], units[1:]...)
 	case service.ProcmgrType:
-		return systemd.StartUnit(ctx, s.ProcmgrMainUnitExp)
+		units := experimentStartUnits(ctx, s.ProcmgrMainUnitExp)
+		return systemd.StartUnit(ctx, units[0], units[1:]...)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -821,9 +1008,9 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsExp...)
+		return writeEmbeddedSystemdUnitsAndReload(ctx, installableUnits(ctx, s.SystemdUnitsExp)...)
 	case service.ProcmgrType:
-		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsExp...)
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsExp)...)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -1045,5 +1232,45 @@ func restoreODBCConfig(packagePath string) error {
 		}
 		_ = os.Remove(src)
 	}
+	return nil
+}
+
+func saveLogsRegistry(packagePath string) error {
+	src := filepath.Join(packagePath, "run", "registry.json")
+	dst := filepath.Join(paths.RootTmpDir, "registry.json")
+	data, err := os.ReadFile(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s: %w", src, err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", dst, err)
+	}
+	return nil
+}
+
+func restoreLogsRegistry(ctx HookContext) error {
+	src := filepath.Join(paths.RootTmpDir, "registry.json")
+	dstDir := filepath.Join(ctx.PackagePath, "run")
+	dst := filepath.Join(dstDir, "registry.json")
+	data, err := os.ReadFile(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s: %w", src, err)
+	}
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dstDir, err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", dst, err)
+	}
+	if err := logsRegistryPermissions.Ensure(ctx, ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", dst, err)
+	}
+	_ = os.Remove(src)
 	return nil
 }

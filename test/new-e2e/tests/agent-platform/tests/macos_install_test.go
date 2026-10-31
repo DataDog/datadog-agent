@@ -12,9 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agentmacos "github.com/DataDog/datadog-agent/cmd/agent/macos"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
@@ -127,6 +126,7 @@ func (m *macosInstallSuite) SetupSuite() {
 // logs rather than fails on error.
 func removePreInstalledAgent(t *testing.T, client *common.MacOSTestClient) {
 	cmd := `
+sudo launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
@@ -138,6 +138,7 @@ done
 sudo pkill -f 'Datadog Agent.app' 2>/dev/null || true
 sudo pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null || true
 sudo pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
+sudo rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
@@ -158,9 +159,7 @@ sudo rm -rf /private/var/root/datadog-install
 // macosWaitForHealthyAgent polls until the agent is healthy. Safe in t.Cleanup: CollectT
 // recovers failures internally, unlike MustExecuteOn(m.T(), ...).
 func (m *macosInstallSuite) macosWaitForHealthyAgent(client *common.MacOSTestClient) {
-	m.EventuallyWithT(func(c *assert.CollectT) {
-		client.MustExecuteOn(c, macosAgentStatusCmd)
-	}, 20*time.Second, 1*time.Second)
+	waitForHealthyMacosAgent(m.T(), client, 20*time.Second)
 }
 
 // macosRestartDaemon kickstarts restartTarget; logs rather than aborts on failure so later
@@ -325,6 +324,28 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002 ! -path '/opt/datadog-agent/run/ipc' ! -path '/opt/datadog-agent/run/ipc/*'")
 	assert.NoError(m.T(), err)
 	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
+}
+
+// TestLaunchDaemonsInstalledByInstaller checks that the .dmg postinstall script had the installer
+// write and load the Agent's stable LaunchDaemons, from the same definitions the package ships as a
+// fallback, and that nothing else was loaded.
+func (m *macosInstallSuite) TestLaunchDaemonsInstalledByInstaller() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	macosLogDiagnosticsOnFailure(m.T(), macosTestClient)
+
+	_, err := macosTestClient.Execute("sudo test -x " + macosInstallerBinary)
+	require.NoError(m.T(), err, "the installer binary is not shipped in the package")
+
+	assertMacosInstallerPostinstSucceeded(m.T(), macosTestClient)
+	assertMacosStableLaunchDaemons(m.T(), macosTestClient)
+
+	// The plist examples the LaunchDaemons used to be copied from are no longer shipped.
+	examples, err := macosTestClient.Execute("ls /opt/datadog-agent/etc/ | grep -E 'com\\.datadoghq\\.(agent|sysprobe|data-plane|procmgr)\\.plist\\.example' || true")
+	require.NoError(m.T(), err)
+	assert.Empty(m.T(), strings.TrimSpace(examples))
+
+	// The installer is only used to install the Agent's LaunchDaemons: it does not run as a daemon.
+	assertNoMacosUnexpectedLaunchDaemons(m.T(), macosTestClient)
 }
 
 func (m *macosInstallSuite) TestAgentStatusAndConfig() {
@@ -622,16 +643,14 @@ EOF`, macosAPMSentinelService))
 			return
 		}
 
+		// The convert-traces feature is enabled by default, so the agent
+		// serializes tracer payloads in the v1 string-indexed idx format
+		// (AgentPayload.IdxTracerPayloads) and leaves the legacy
+		// TracerPayloads field empty.
 		var found bool
 		for _, payload := range payloads {
-			for _, tracerPayload := range payload.TracerPayloads {
-				for _, chunk := range tracerPayload.Chunks {
-					for _, span := range chunk.Spans {
-						if span.Service == macosAPMSentinelService {
-							found = true
-						}
-					}
-				}
+			if client.IdxPayloadHasService(payload, macosAPMSentinelService) {
+				found = true
 			}
 		}
 		assert.True(c, found, "%s trace should be collected in trace payloads", macosAPMSentinelService)
@@ -749,23 +768,26 @@ func (m *macosInstallSuite) TestAgentRestart() {
 func (m *macosInstallSuite) TestZZUninstallAgent() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 
-	_, thisFile, _, _ := runtime.Caller(0)
-	localScriptPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..", "cmd", "agent", "macos", "uninstall_mac_os.sh")
 	const remoteScriptPath = "/tmp/uninstall_mac_os.sh"
 
-	m.Env().RemoteHost.CopyFile(localScriptPath, remoteScriptPath)
+	m.Env().RemoteHost.CopyFileFromFS(agentmacos.Scripts, agentmacos.UninstallScriptPath, remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), "chmod +x "+remoteScriptPath)
-	macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
+	uninstallOutput := macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
+	assert.Contains(m.T(), uninstallOutput, "Running the installed version's pre-remove",
+		"the uninstall script should hand the teardown to the installed installer")
+	assert.NotContains(m.T(), uninstallOutput, "pre-remove failed")
 
-	for _, service := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"} {
-		_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
-		assert.Error(m.T(), err, "service %s should no longer be registered with launchd", service)
+	// `launchctl bootout` returns as soon as it has requested the unload; launchd removes the
+	// job from its job table asynchronously, so a `launchctl print` run immediately afterwards
+	// can still report the service as registered. Poll instead of asserting on the first try.
+	for _, service := range macosStableLaunchDaemons {
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
+			assert.Error(c, err, "service %s should no longer be registered with launchd", service)
+		}, 10*time.Second, 500*time.Millisecond)
 	}
 
 	removedPaths := []string{
-		"/Library/LaunchDaemons/com.datadoghq.agent.plist",
-		"/Library/LaunchDaemons/com.datadoghq.sysprobe.plist",
-		"/Library/LaunchDaemons/com.datadoghq.data-plane.plist",
 		"/Library/LaunchAgents/com.datadoghq.gui.plist",
 		"/Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist",
 		"/Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist",
@@ -774,6 +796,9 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 		"/usr/local/bin/datadog-agent",
 		"/var/log/datadog",
 		"/private/var/root/datadog-install",
+	}
+	for _, label := range macosStableLaunchDaemons {
+		removedPaths = append(removedPaths, macosLaunchDaemonPath(label))
 	}
 	for _, path := range removedPaths {
 		_, err := macosTestClient.Execute(fmt.Sprintf("sudo test -e %q", path))

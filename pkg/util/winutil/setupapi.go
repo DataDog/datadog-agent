@@ -18,6 +18,7 @@ var (
 
 	procSetupDiEnumDeviceInterfaces     = modSetupapi.NewProc("SetupDiEnumDeviceInterfaces")
 	procSetupDiGetDeviceInterfaceDetail = modSetupapi.NewProc("SetupDiGetDeviceInterfaceDetailW")
+	procSetupDiGetDeviceProperty        = modSetupapi.NewProc("SetupDiGetDevicePropertyW")
 )
 
 // SP_DEVICE_INTERFACE_DATA defines a device interface in a device information set.
@@ -39,6 +40,20 @@ type SP_DEVICE_INTERFACE_DATA struct {
 type SP_DEVICE_INTERFACE_DETAIL_DATA struct {
 	CbSize     uint32
 	DevicePath [1]uint16
+}
+
+// SP_DEVINFO_DATA identifies a device information element in a device information set.
+type SP_DEVINFO_DATA struct {
+	CbSize    uint32
+	ClassGuid windows.GUID
+	DevInst   uint32
+	Reserved  uintptr
+}
+
+// DEVPROPKEY identifies a device property.
+type DEVPROPKEY struct {
+	FmtID windows.GUID
+	PID   uint32
 }
 
 //revive:enable:var-naming
@@ -63,12 +78,38 @@ func SetupDiEnumDeviceInterfaces(deviceInfoSet windows.DevInfo, interfaceClassGU
 // SetupDiGetDeviceInterfaceDetail returns details about a device interface.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
-func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.DevInfo, deviceInterfaceData *SP_DEVICE_INTERFACE_DATA, deviceInterfaceDetailData *SP_DEVICE_INTERFACE_DETAIL_DATA, deviceInterfaceDetailDataSize uint32, requiredSize *uint32) error {
+func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.DevInfo, deviceInterfaceData *SP_DEVICE_INTERFACE_DATA, deviceInterfaceDetailData *SP_DEVICE_INTERFACE_DETAIL_DATA, deviceInterfaceDetailDataSize uint32, requiredSize *uint32, deviceInfoData *SP_DEVINFO_DATA) error {
+	var deviceInfoDataPtr uintptr
+	if deviceInfoData != nil {
+		deviceInfoDataPtr = uintptr(unsafe.Pointer(deviceInfoData))
+	}
 	r0, _, e1 := procSetupDiGetDeviceInterfaceDetail.Call(
 		uintptr(deviceInfoSet),
 		uintptr(unsafe.Pointer(deviceInterfaceData)),
 		uintptr(unsafe.Pointer(deviceInterfaceDetailData)),
 		uintptr(deviceInterfaceDetailDataSize),
+		uintptr(unsafe.Pointer(requiredSize)),
+		deviceInfoDataPtr,
+	)
+	if r0 == 0 {
+		return e1
+	}
+	return nil
+}
+
+// SetupDiGetDeviceProperty retrieves a device instance property.
+func SetupDiGetDeviceProperty(deviceInfoSet windows.DevInfo, deviceInfoData *SP_DEVINFO_DATA, propertyKey *DEVPROPKEY, propertyType *uint32, propertyBuffer *byte, propertyBufferSize uint32, requiredSize *uint32) error {
+	var propertyBufferPtr uintptr
+	if propertyBuffer != nil {
+		propertyBufferPtr = uintptr(unsafe.Pointer(propertyBuffer))
+	}
+	r0, _, e1 := procSetupDiGetDeviceProperty.Call(
+		uintptr(deviceInfoSet),
+		uintptr(unsafe.Pointer(deviceInfoData)),
+		uintptr(unsafe.Pointer(propertyKey)),
+		uintptr(unsafe.Pointer(propertyType)),
+		propertyBufferPtr,
+		uintptr(propertyBufferSize),
 		uintptr(unsafe.Pointer(requiredSize)),
 		0,
 	)

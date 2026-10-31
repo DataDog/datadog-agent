@@ -1,48 +1,30 @@
 """Evaluation helpers for anomaly detection dev tasks.
 
-Contains non-@task symbols: constants, S3 helpers, StepLogger, combo helpers,
+Contains non-@task symbols: constants, StepLogger, combo helpers,
 Optuna config builders, aggregation helpers, and summary printers used by the
 @task entry points in tasks/anomalydetection.py.
-
-Note: SCENARIOS and SCENARIO_EPISODE_NAMES are loaded from
-q_branch/gensim-eval-scenarios.json at import time. That file is not
-committed to this repo — it is expected to be present in developer environments
-where the q_branch/ directory has been checked out separately, or produced by
-dda inv anomalydetection.download-scenarios.
 """
 
 import json
 import os
 import random
-import shlex
 import shutil
-import tempfile
-import zipfile
 
 from tasks.libs.common.color import Color, color_message
 
 # --- Constants ---
 
-_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "q_branch", "gensim-eval-scenarios.json")
+# Keep in sync with anomalydetection-scorer/score.go. Used to invalidate local
+# Bayesian report reuse when the scoring contract changes.
+F1_SCORING_VERSION = "high-severity-onset-recovery-v2"
 
-try:
-    with open(_MANIFEST_PATH) as _f:
-        _EVAL_MANIFEST = json.load(_f)
-    SCENARIO_EPISODE_NAMES = {entry["scenario"]: entry["episode"] for entry in _EVAL_MANIFEST}
-    SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
-except (OSError, json.JSONDecodeError, KeyError):
-    # Manifest not present in this environment; eval tasks will require --scenarios.
-    SCENARIO_EPISODE_NAMES = {}
-    SCENARIOS = []
-
-S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
 # Components included in ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
-DETECTORS = ["bocpd", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
+DETECTORS = ["bocpd", "holt_residual", "scanmw", "scanwelch", "tukey_biweight"]
 
 # The testbench applies these shorter warmups for interactive and headless
 # evaluation. Eval-generated configs name every detector, so carry the profile
@@ -56,8 +38,8 @@ TESTBENCH_WARMUP_PARAMS = {
 ABLATION_CORRELATORS = ["anomaly_scorer"]
 SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
-# Correlators always represented in generated configs. time_cluster defaults on
-# in the testbench, so scorer-only trials must explicitly disable it.
+# Correlators always represented in generated configs. Explicitly disable
+# time_cluster so F1 trials only produce the scorer's severity episodes.
 CONFIGURED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
@@ -72,7 +54,6 @@ EXTRACTORS = [
 # reference configurations regardless of the random seed.
 ANCHOR_COMBOS = [
     {"detectors": ["bocpd"], "correlators": ["anomaly_scorer"]},
-    {"detectors": ["bocpd", "rrcf"], "correlators": ["anomaly_scorer"]},
 ]
 
 
@@ -134,121 +115,6 @@ class StepLogger:
         return StepLogger(total, label, depth=self.depth + 1, parent=self)
 
 
-# --- S3 parquet helpers ---
-
-
-def _resolve_zip_from_runs_jsonl(ctx, name):
-    """Resolve the latest zip key for a scenario from runs.jsonl in S3."""
-    episode_name = SCENARIO_EPISODE_NAMES.get(name)
-    if not episode_name:
-        return None
-
-    with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False, mode="w") as tmp:
-        tmp_path = tmp.name
-
-    try:
-        result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
-            warn=True,
-        )
-        if result is None or result.failed:
-            return None
-
-        with open(tmp_path) as f:
-            lines = []
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    lines.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue  # skip malformed records
-
-        # Find the latest successful entry matching this episode.
-        # parquet_count < 50 indicates a failed or truncated run. Known failures are 0 or 2.
-        # Post trace-removal, legitimate recordings on short scenarios produce ~60-90 parquets.
-        matches = [
-            entry for entry in lines if entry.get("episode") == episode_name and entry.get("parquet_count", 0) >= 50
-        ]
-        if not matches:
-            return None
-
-        # Walk newest-first, return the first zip that actually exists in S3.
-        for entry in reversed(matches):
-            zip_key = entry.get("zip")
-            if not zip_key:
-                continue
-            check = ctx.run(
-                f"aws-vault exec {AWS_PROFILE} -- aws s3api head-object --bucket {S3_BUCKET} --key {shlex.quote(zip_key)}",
-                warn=True,
-                hide=True,
-            )
-            if check is None or check.failed:
-                print(color_message(f"  '{zip_key}' not found in S3, trying previous run...", Color.BLUE))
-                continue
-            print(
-                color_message(
-                    f"Resolved '{name}' from runs.jsonl: {zip_key} "
-                    f"(image: {entry.get('image', '?')}, {entry.get('timestamp', '?')})",
-                    Color.BLUE,
-                )
-            )
-            return zip_key
-        return None
-    except (OSError, json.JSONDecodeError):
-        return None
-    finally:
-        os.unlink(tmp_path)
-
-
-def _ensure_parquets(ctx, name, parquet_dir):
-    """Download and extract parquet files from S3 via runs.jsonl."""
-    zip_key = _resolve_zip_from_runs_jsonl(ctx, name)
-    if not zip_key:
-        print(
-            color_message(
-                f"No recording found for '{name}' in runs.jsonl. Run a gensim-eks episode to produce one.",
-                Color.RED,
-            )
-        )
-        return
-
-    print(color_message(f"Downloading {zip_key} from S3...", Color.BLUE))
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
-            warn=True,
-        )
-        if result is None or result.failed:
-            print(color_message(f"Failed to download {zip_key} from S3", Color.RED))
-            return
-
-        scenario_dir = os.path.dirname(parquet_dir)
-        os.makedirs(parquet_dir, exist_ok=True)
-        try:
-            with zipfile.ZipFile(tmp_path) as zf:
-                for member in zf.namelist():
-                    if member.startswith("tmp/gensim-archive/parquet/") and not member.endswith("/"):
-                        filename = os.path.basename(member)
-                        with zf.open(member) as src, open(os.path.join(parquet_dir, filename), "wb") as dst:
-                            dst.write(src.read())
-                    elif member.startswith("tmp/gensim-archive/results/") and member.endswith(".json"):
-                        with zf.open(member) as src, open(os.path.join(scenario_dir, "episode.json"), "wb") as dst:
-                            dst.write(src.read())
-        except (zipfile.BadZipFile, OSError) as e:
-            print(color_message(f"Failed to extract {zip_key}: {e}", Color.RED))
-            shutil.rmtree(parquet_dir, ignore_errors=True)
-            return
-
-        print(color_message(f"Extracted parquet files to {parquet_dir}", Color.GREEN))
-    finally:
-        os.unlink(tmp_path)
-
-
 # --- Summary printers ---
 
 
@@ -261,7 +127,7 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
     print(color_message("  Observer Eval Summary", Color.GREEN))
     print(color_message(f"{'=' * 60}\n", Color.GREEN))
 
-    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Warmup (ign)':>12}  {'Post-onset (ign)':>17}"
+    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Recovery FPs':>12}  {'Warmup (ign)':>12}  {'Incident (ign)':>14}  {'Recovery (ign)':>14}"
     print(header)
     print("-" * len(header))
 
@@ -273,7 +139,8 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
         timed_out_suffix = "  [TIMEOUT]" if r.get("timed_out") else ""
         print(
             f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
-            f"  {alpha_str:>7}  {r['num_predictions']:>10}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>18}"
+            f"  {alpha_str:>7}  {r['num_predictions']:>10}  {r['num_baseline_fps']:>12}  {r.get('num_recovery_fps', 0):>12}"
+            f"  {r['num_filtered_warmup']:>12}  {r['num_filtered_cascading']:>14}  {r.get('num_filtered_recovery', 0):>14}"
             f"{timed_out_suffix}"
         )
         duration = r.get("baseline_duration_seconds", 0)
@@ -458,10 +325,9 @@ def _component_base_config(name: str, enabled: bool) -> dict:
     # detector warmups. Sampled values below can intentionally override these.
     cfg.update(TESTBENCH_WARMUP_PARAMS.get(name, {}))
     if enabled and name == "anomaly_scorer":
-        # The scorer only contributes to Gaussian F1 when it emits Medium- or
-        # High-severity episodes as anomaly_periods. Keep cooldown at zero so
+        # F1 measures high-severity episode starts. Keep cooldown at zero so
         # those periods end on actual scorer de-escalation, not a delivery delay.
-        cfg.update({"correlation_events": True, "cooldown_secs": 0})
+        cfg.update({"correlation_events": True, "correlation_event_threshold": "high", "cooldown_secs": 0})
     return cfg
 
 
@@ -494,9 +360,9 @@ def _sample_component_params(trial, component: str) -> dict:
     """Sample Optuna hyperparameters for a named component that supports parseJSON."""
 
     def sample_anomaly_scorer() -> dict:
-        # A correlation episode begins at the selected Medium or High threshold.
+        # The evaluation contract fixes episode emission at High severity.
         # Keep Low below High so the scorer's three-level state machine remains
-        # well-formed while allowing Optuna to choose the emission boundary.
+        # well-formed while allowing Optuna to tune the numeric thresholds.
         low_threshold = trial.suggest_float("anomaly_scorer.low_threshold", 0.01, 0.2, log=True)
         high_threshold_gap = trial.suggest_float("anomaly_scorer.high_threshold_gap", 0.01, 0.3, log=True)
         high_threshold = min(0.45, low_threshold + high_threshold_gap)
@@ -508,9 +374,7 @@ def _sample_component_params(trial, component: str) -> dict:
         margin_pct = hysteresis_fraction * max_margin / high_threshold
         return {
             "correlation_events": True,
-            "correlation_event_threshold": trial.suggest_categorical(
-                "anomaly_scorer.correlation_event_threshold", ["medium", "high"]
-            ),
+            "correlation_event_threshold": "high",
             "cooldown_secs": 0,
             "alpha": trial.suggest_float("anomaly_scorer.alpha", 0.005, 0.08, log=True),
             "saturation_k": trial.suggest_float("anomaly_scorer.saturation_k", 2.0, 12.0),
@@ -554,12 +418,6 @@ def _sample_component_params(trial, component: str) -> dict:
             # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
         },
         "holt_residual": sample_holt_residual,
-        "rrcf": lambda: {
-            # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
-            # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
-            "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
-            "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
-        },
         "tukey_biweight": sample_tukey_biweight,
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),

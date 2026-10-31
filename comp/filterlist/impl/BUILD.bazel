@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "filterlist.go",
         "noop_filterlist.go",
+        "prefixlist.go",
         "rc.go",
         "tagfilterlist.go",
     ],
@@ -20,8 +21,8 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/structure",
         "//pkg/metrics",
+        "//pkg/metrics/metricname",
         "//pkg/remoteconfig/state",
-        "//pkg/util/strings",
         "@com_github_twmb_murmur3//:murmur3",
     ],
 )
@@ -39,6 +40,7 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/fx-noop",
+        "//pkg/config/model",
         "//pkg/config/structure",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",

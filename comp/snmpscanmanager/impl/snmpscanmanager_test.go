@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewComponent(t *testing.T) {
@@ -196,6 +197,7 @@ func TestRequestScan(t *testing.T) {
 					DeviceIP:   "192.168.0.2",
 					ScanStatus: failedScan,
 					Failures:   -1,
+					Error:      "some error",
 				},
 				"10.0.0.1": {
 					DeviceIP:   "10.0.0.1",
@@ -205,6 +207,7 @@ func TestRequestScan(t *testing.T) {
 					DeviceIP:   "10.0.0.2",
 					ScanStatus: failedScan,
 					Failures:   1,
+					Error:      "some error",
 				},
 			},
 		},
@@ -357,6 +360,7 @@ func TestProcessScanRequest(t *testing.T) {
 					DeviceIP:   "127.0.0.1",
 					ScanStatus: failedScan,
 					Failures:   -1,
+					Error:      "some error",
 				},
 			},
 			expectedCacheContent: []deviceScan{
@@ -364,6 +368,7 @@ func TestProcessScanRequest(t *testing.T) {
 					DeviceIP:   "127.0.0.1",
 					ScanStatus: failedScan,
 					Failures:   -1,
+					Error:      "some error",
 				},
 			},
 			expectedScanTasks: []*scanTask{},
@@ -441,6 +446,7 @@ func TestProcessScanRequest(t *testing.T) {
 					DeviceIP:   "127.0.0.1",
 					ScanStatus: failedScan,
 					Failures:   1,
+					Error:      "some error",
 				},
 			},
 			expectedCacheContent: []deviceScan{
@@ -448,6 +454,7 @@ func TestProcessScanRequest(t *testing.T) {
 					DeviceIP:   "127.0.0.1",
 					ScanStatus: failedScan,
 					Failures:   1,
+					Error:      "some error",
 				},
 			},
 			expectedScanTasks: []*scanTask{
@@ -495,6 +502,7 @@ func TestProcessScanRequest(t *testing.T) {
 					DeviceIP:   "127.0.0.1",
 					ScanStatus: failedScan,
 					Failures:   -1,
+					Error:      "some error",
 				},
 			},
 			expectedCacheContent: []deviceScan{
@@ -502,6 +510,7 @@ func TestProcessScanRequest(t *testing.T) {
 					DeviceIP:   "127.0.0.1",
 					ScanStatus: failedScan,
 					Failures:   -1,
+					Error:      "some error",
 				},
 			},
 			expectedScanTasks: []*scanTask{},
@@ -611,6 +620,48 @@ func TestProcessScanRequest(t *testing.T) {
 			mockConfigProvider.AssertExpectations(t)
 		})
 	}
+}
+
+func TestScanErrorCacheLifecycle(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("run_path", t.TempDir())
+
+	scanManager := &snmpScanManagerImpl{
+		log:           logmock.New(t),
+		deviceScans:   make(deviceScansByIP),
+		scanScheduler: newScanScheduler(),
+	}
+	req := snmpscanmanager.ScanRequest{DeviceIP: "127.0.0.1"}
+
+	for i, message := range []string{"connection refused", "request timed out"} {
+		scanManager.onDeviceScanFailure(req, errors.New(message), true)
+		expected := deviceScan{
+			DeviceIP:   req.DeviceIP,
+			ScanStatus: failedScan,
+			Failures:   i + 1,
+			Error:      message,
+		}
+		assertDeviceScans(t, deviceScansByIP{req.DeviceIP: expected}, scanManager)
+		assertCacheContent(t, []deviceScan{expected}, cacheKey)
+
+		reloaded := &snmpScanManagerImpl{
+			log:             logmock.New(t),
+			deviceScans:     make(deviceScansByIP),
+			allRequestedIPs: make(ipSet),
+			scanScheduler:   newScanScheduler(),
+		}
+		reloaded.loadCache()
+		assertDeviceScans(t, deviceScansByIP{req.DeviceIP: expected}, reloaded)
+	}
+
+	scanManager.onDeviceScanSuccess(req)
+	expected := deviceScan{DeviceIP: req.DeviceIP, ScanStatus: successScan}
+	assertDeviceScans(t, deviceScansByIP{req.DeviceIP: expected}, scanManager)
+	assertCacheContent(t, []deviceScan{expected}, cacheKey)
+
+	cacheContent, err := persistentcache.Read(cacheKey)
+	require.NoError(t, err)
+	assert.NotContains(t, cacheContent, `"error"`)
 }
 
 func TestCacheIsLoaded(t *testing.T) {

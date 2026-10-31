@@ -533,15 +533,3 @@ func TestInitContainerIsSidecar(t *testing.T) {
 		})
 	}
 }
-
-func TestIsLanguageSupported(t *testing.T) {
-	supportedLangs := []string{"java", "js", "python", "dotnet", "ruby", "php", "c"}
-	for _, lang := range supportedLangs {
-		assert.True(t, libraryinjection.IsLanguageSupported(lang), "expected %s to be supported", lang)
-	}
-
-	unsupportedLangs := []string{"cobol", "fortran", "go", "rust", ""}
-	for _, lang := range unsupportedLangs {
-		assert.False(t, libraryinjection.IsLanguageSupported(lang), "expected %s to be unsupported", lang)
-	}
-}

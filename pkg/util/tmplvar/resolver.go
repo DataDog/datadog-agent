@@ -17,13 +17,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 type Resolvable interface {
@@ -432,7 +433,12 @@ func GetPort(tplVar string, res Resolvable) (string, error) {
 		}
 		return "", fmt.Errorf("port %s not found, skipping container %s", tplVar, res.GetServiceID())
 	}
-	if len(ports) <= idx {
+	if idx < 0 {
+		// Negative indexes are Python-like: -1 is the last port, -2 the second
+		// to last, etc. They wrap around so that indexes beyond the number of
+		// ports still resolve, e.g. -4 with 3 ports resolves to the last one.
+		idx = ((idx % len(ports)) + len(ports)) % len(ports)
+	} else if len(ports) <= idx {
 		return "", fmt.Errorf("index given for the port template var is too big, skipping container %s", res.GetServiceID())
 	}
 	return strconv.Itoa(ports[idx].Port), nil
@@ -509,14 +515,31 @@ func allowEnvVar(envVar string) bool {
 	}
 
 	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
-
-	// If the option is not set or is empty, the default behavior applies: all
-	// envs are allowed.
-	if len(allowedEnvs) == 0 {
-		return true
+	if len(allowedEnvs) > 0 {
+		return slices.ContainsFunc(allowedEnvs, func(env string) bool {
+			return strings.EqualFold(env, envVar)
+		})
 	}
 
-	return slices.ContainsFunc(allowedEnvs, func(env string) bool {
-		return strings.EqualFold(env, envVar)
-	})
+	// If the option is not set or is empty, the default behavior applies: all
+	// envs are allowed except the ones bound to agent settings, which can hold
+	// credentials that configs from untrusted sources (e.g. pod annotations)
+	// must not be able to read.
+	_, blocked := blockedAgentEnvVars()[strings.ToUpper(envVar)]
+	return !blocked
+}
+
+var blockedAgentEnvVars = sync.OnceValue(computeBlockedAgentEnvVars)
+
+func computeBlockedAgentEnvVars() map[string]struct{} {
+	cfg := pkgconfigsetup.Datadog()
+	envVars := cfg.GetEnvVars()
+	set := make(map[string]struct{}, len(envVars))
+	for _, envVar := range envVars {
+		set[strings.ToUpper(envVar)] = struct{}{}
+	}
+	for _, envVar := range cfg.GetStringSlice("ad_allowed_agent_env_vars") {
+		delete(set, strings.ToUpper(envVar))
+	}
+	return set
 }

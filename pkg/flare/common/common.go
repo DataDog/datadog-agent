@@ -12,14 +12,17 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -123,9 +126,11 @@ func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder) error {
 		}
 	}
 
-	apmDebugPort := pkgconfigsetup.Datadog().GetInt("apm_config.debug.port")
+	cfg := pkgconfigsetup.Datadog()
+	apmDebugPort := cfg.GetInt("apm_config.debug.port")
 	f := filepath.Join("expvar", "trace-agent")
-	resp, err := http.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", apmDebugPort))
+	addr := net.JoinHostPort(pkgconfighelper.APMDebugHost(cfg), strconv.Itoa(apmDebugPort))
+	resp, err := http.Get("https://" + addr + "/debug/vars")
 	if err != nil {
 		return fb.AddFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
 	}

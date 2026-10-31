@@ -10,9 +10,12 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
@@ -26,6 +29,16 @@ var (
 // GetName shouldn't be used on DCA. For DCA please refer to DCAGetName.
 func GetName(ctx context.Context) (string, error) {
 	if !env.IsFeaturePresent(env.Kubernetes) {
+		return "", nil
+	}
+
+	if helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
+		return "", nil
+	}
+
+	// Neither can an agent configured without kubelet access reach the
+	// kubelet, which the node name below comes from.
+	if ddot.KubeletDisabled(pkgconfigsetup.Datadog()) {
 		return "", nil
 	}
 

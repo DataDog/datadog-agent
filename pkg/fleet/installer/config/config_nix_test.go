@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDirectories_GetState(t *testing.T) {
@@ -253,4 +254,32 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertConfigV3(t, stableDirPath) // Make sure it changed
 
 	assertDeploymentID(t, dirs, "experiment-789", "")
+}
+
+// filepath.Match's '*' matches any run of non-Separator characters, and Separator
+// is '\\' on Windows while these paths are normalised to forward slashes. So on
+// Windows '*' already spans '/' and the patterns admit nested paths regardless of
+// this entry — these assertions only hold where '/' is the separator.
+func TestOperationApply_NestedPathsStayDisallowed(t *testing.T) {
+	for _, filePath := range []string{
+		"/conf.d/mycheck.d/credentials/creds.yaml",
+		"/conf.d/snmp.d/profiles/my-profile.yaml",
+		"/conf.d/snmp.d/credentials/nested/creds.yaml",
+	} {
+		t.Run(filePath, func(t *testing.T) {
+			root, err := os.OpenRoot(t.TempDir())
+			require.NoError(t, err)
+			defer root.Close()
+
+			op := &FileOperation{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          filePath,
+				Patch:             []byte(`{"foo": "bar"}`),
+			}
+
+			err = op.apply(context.Background(), root)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "not allowed")
+		})
+	}
 }

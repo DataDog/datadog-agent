@@ -11,9 +11,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/flare/types",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/log",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

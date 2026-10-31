@@ -9,6 +9,7 @@ package windows
 import (
 	_ "embed"
 	"fmt"
+	"io/fs"
 	"path"
 	"strings"
 
@@ -29,7 +30,7 @@ type IISSiteDefinition struct {
 	BindingPort string // port to bind to, of the form '*:8081'
 	SiteDir     string // directory to create for the site
 	// can be empty for default.
-	AssetsDir    string // directory to copy for assets
+	AssetsDir    fs.FS // directory to copy for assets
 	Applications []IISApplicationDefinition
 }
 
@@ -76,9 +77,9 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 			return err
 		}
 
-		if s.AssetsDir != "" {
+		if s.AssetsDir != nil {
 			// copy the assets
-			if err := host.CopyFolder(s.AssetsDir, tgtpath); err != nil {
+			if err := host.CopyFolderFromFS(s.AssetsDir, ".", tgtpath); err != nil {
 				return err
 			}
 
@@ -107,9 +108,9 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 			if err != nil {
 				return err
 			}
-			if s.AssetsDir != "" {
+			if s.AssetsDir != nil {
 				// copy the assets
-				if err := host.CopyFolder(s.AssetsDir, physpath); err != nil {
+				if err := host.CopyFolderFromFS(s.AssetsDir, ".", physpath); err != nil {
 					return err
 				}
 			}

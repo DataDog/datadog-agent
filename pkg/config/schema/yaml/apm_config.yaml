@@ -42,6 +42,8 @@ properties:
     description: |-
       The port that the trace receiver should listen on.
       Set to 0 to disable the HTTP receiver.
+    minimum: 0
+    maximum: 65535
   receiver_socket:
     node_type: setting
     type: string
@@ -79,6 +81,7 @@ properties:
       Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
       therefore the proxy must be able to handle TCP connections.
     example: <ENDPOINT>:<PORT>
+    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
   max_traces_per_second:
     node_type: setting
     type: number
@@ -95,9 +98,9 @@ properties:
       As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
       disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
       value sufficiently high for your traffic pattern.
-    tags:
-    - golang_type:float64
     comment: deprecated
+    minimum: 0
+    maximum: 1000000000
   target_traces_per_second:
     node_type: setting
     type: number
@@ -111,8 +114,6 @@ properties:
       As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
       disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
       value sufficiently high for your traffic pattern.
-    tags:
-    - golang_type:float64
   errors_per_second:
     node_type: setting
     type: number
@@ -124,8 +125,6 @@ properties:
       The target error trace chunks to receive per second. The TPS is spread
       to catch all combinations of service, name, resource, http.status, and error.type.
       Set to 0 to disable the errors sampler.
-    tags:
-    - golang_type:float64
   max_events_per_second:
     node_type: setting
     type: number
@@ -139,12 +138,10 @@ properties:
       caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
       ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
       Maximum number of APM events per second to sample.
-    tags:
-    - golang_type:float64
   max_memory:
     node_type: setting
     type: number
-    default: 5e+08
+    default: 500000000.0
     env_vars:
     - DD_APM_MAX_MEMORY
     visibility: public
@@ -154,8 +151,6 @@ properties:
       Note: The Agent process is killed if it uses more than 150% of `max_memory`.
       Set the `max_memory` parameter to `0` to disable the memory limitation.
     example: '500000000.0'
-    tags:
-    - golang_type:float64
   max_cpu_percent:
     node_type: setting
     type: number
@@ -167,8 +162,6 @@ properties:
       The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
       incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
       Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
-    tags:
-    - golang_type:float64
   obfuscation:
     node_type: section
     type: object
@@ -730,6 +723,16 @@ properties:
       all entries must be surrounded by double quotes and separated by commas.
     example: '["(GET|POST) /healthcheck"]'
     env_parser: csv_comma_separated
+  log_level:
+    node_type: setting
+    type: string
+    default: ''
+    env_vars:
+    - DD_APM_LOG_LEVEL
+    visibility: public
+    description: |-
+      Overrides the global `log_level` for the trace Agent only.
+      Leave empty to use the global `log_level`.
   log_file:
     node_type: setting
     type: string
@@ -863,6 +866,33 @@ properties:
     tags:
     - template_section:TraceAgent
     properties:
+      apm_basic:
+        node_type: section
+        type: object
+        description: |-
+          Configure APM Basic, which injects dd-trace-c into opted-in workloads to report RED metrics
+          without sending traces. Workloads opt in with the admission.datadoghq.com/apm-basic.enabled label.
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_APM_INSTRUMENTATION_APM_BASIC_ENABLED
+            description: Set to true to inject dd-trace-c into workloads opted into APM Basic.
+          tracer_versions:
+            node_type: setting
+            type: object
+            default:
+              c: '0'
+            env_vars:
+            - DD_APM_INSTRUMENTATION_APM_BASIC_TRACER_VERSIONS
+            additionalProperties:
+              type: string
+            env_parser: json
+            description: |-
+              Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+              Defaults to the latest major version 0 of the C tracer.
       enabled:
         node_type: setting
         type: boolean
@@ -905,21 +935,6 @@ properties:
 
             - ns2
             - system-ns
-      csi_driver_detection_enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        env_vars:
-        - DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED
-        comment: |-
-          Temporary feature flag controlling whether the auto-instrumentation
-          library injection auto provider switches to the CSI provider when the
-          Datadog CSI driver is detected in the cluster (via workloadmeta). When
-          false, the auto provider always falls back to the init-container
-          provider.
-
-          TODO(apm-auto-instrumentation): once CSI auto-detection has been
-          validated in production, remove this flag and the associated wiring in.
       injection_mode:
         node_type: setting
         type: string
@@ -1000,8 +1015,6 @@ properties:
         - DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE
         visibility: public
         description: Samples this percentage (0-100) of traffic
-        tags:
-        - golang_type:float64
       hash_seed:
         node_type: setting
         type: integer
@@ -1096,6 +1109,9 @@ properties:
     default: 0
     env_vars:
     - DD_APM_CONNECTION_RESET_INTERVAL
+    minimum: 0
+    description: Interval in seconds after which the trace agent connection to Datadog
+      is reset. 0 disables the reset.
   dd_agent_bin:
     node_type: setting
     type: string
@@ -1191,8 +1207,9 @@ properties:
     node_type: setting
     type: number
     default: 0
-    tags:
-    - golang_type:float64
+    minimum: 0
+    maximum: 100
+    description: Additional sampling rate multiplier for trace collection.
   install_id:
     node_type: setting
     type: string
@@ -1251,8 +1268,6 @@ properties:
     default: 100
     env_vars:
     - DD_APM_MAX_REMOTE_TPS
-    tags:
-    - golang_type:float64
   max_sender_retries:
     node_type: setting
     type: integer
@@ -1419,6 +1434,26 @@ properties:
         node_type: setting
         type: integer
         default: 0
+  traces_send_to_main_endpoint:
+    node_type: setting
+    type: boolean
+    default: true
+    env_vars:
+    - DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT
+    visibility: public
+    description: |-
+      For internal use. We expect to remove this setting in a future version.
+
+      When false, the trace-agent trace and stats writers skip the main endpoint
+      (api_key + apm_config.apm_dd_url) and send only to apm_config.additional_endpoints.
+      The main endpoint's API key is still used by the other trace-agent proxies.
+      The configuration is rejected if no additional endpoint would remain. This is
+      the traces/stats counterpart of apm_config.profiling_send_to_main_endpoint.
+    comment: "For internal use. We expect to remove this setting in a future version.\n\
+      When false, the trace-agent trace and stats writers skip the main endpoint\n\
+      (api_key + apm_config.apm_dd_url) and send only to apm_config.additional_endpoints.\n\
+      The main endpoint's API key is still used by the other trace-agent proxies.\n\
+      The configuration is rejected if no additional endpoint would remain."
   watchdog_check_delay:
     node_type: setting
     type: integer

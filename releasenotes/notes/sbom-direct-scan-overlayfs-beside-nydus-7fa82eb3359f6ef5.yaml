@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fall back to the default snapshotter in the overlayfs direct scan when
+    nydus runs on the node but the image was unpacked by overlayfs. The scan
+    asked nydus alone and failed every hour, reporting the image as not
+    unpacked.

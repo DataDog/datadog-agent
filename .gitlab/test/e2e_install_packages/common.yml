@@ -35,28 +35,24 @@
   variables:
     TARGETS: ./tests/agent-platform/tests
     TEAM: agent-delivery
-    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS --run TestUpgradeScript
+    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS --run TestUpgradeScript --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
     GIT_DEPTH: 1  # Overrides .new_e2e_template: this job does not pass --impacted
+    DYNAMIC_TESTS_FLAG: "" # Overrides .new_e2e_template: --impacted needs a deeper clone than GIT_DEPTH above provides
   parallel:
     matrix:
       - START_MAJOR_VERSION: [5, 6, 7]
         END_MAJOR_VERSION: [7]
-  script:
-    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token ) || exit $?; export DATADOG_AGENT_API_KEY
-    - dda inv -- -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION --test-washer
 
 .new-e2e_script_upgrade_persisting_integrations:
   stage: e2e_install_packages
   variables:
     TARGETS: ./tests/agent-platform/tests
     TEAM: agent-delivery
-    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS --run TestPersistingIntegrations
+    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS --run TestPersistingIntegrations --src-agent-version 7
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
     GIT_DEPTH: 1  # Overrides .new_e2e_template: this job does not pass --impacted
-  script:
-    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY
-    - dda inv -- -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version 7 --test-washer
+    DYNAMIC_TESTS_FLAG: "" # Overrides .new_e2e_template: --impacted needs a deeper clone than GIT_DEPTH above provides
 
 .new-e2e_rpm:
   stage: e2e_install_packages
@@ -66,6 +62,73 @@
     EXTRA_PARAMS: --osdescriptors $E2E_DESCRIPTORS --run TestRpmScript
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
     GIT_DEPTH: 1  # Overrides .new_e2e_template: this job does not pass --impacted
+    DYNAMIC_TESTS_FLAG: "" # Overrides .new_e2e_template: --impacted needs a deeper clone than GIT_DEPTH above provides
+
+new-e2e-agent-platform-install-script-docker:
+  extends:
+    - .new_e2e_template
+    - .new_e2e_template_needs_deb_x64
+    - .new-e2e_agent_a7
+    - .new-e2e_install_script
+  rules: !reference [.on_install_script_tests]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+  variables:
+    E2E_DESCRIPTORS: "docker/x86_64/none"
+    E2E_BRANCH_DESCRIPTORS: "docker/x86_64/none"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "docker/x86_64/none"
+    FLAVOR: "datadog-agent"
+
+qa_installer_script_main:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  stage: e2e_install_packages
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.only_main] # Disable non-main branch. Must be first.
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - new-e2e-installer-script
+    - installer-install-scripts
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY
-    - dda inv -- -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --test-washer
+    - for file in $(find "$OMNIBUS_PACKAGE_DIR" -name "install*.sh"); do
+        sed -i '/^#!\/bin\/bash$/a export DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com' "$file";
+      done
+    - sed -i '/^#!\/bin\/bash$/a export DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com' "$OMNIBUS_PACKAGE_DIR/install.sh"
+    - sed -i '/export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version"/a DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT="$version"' "$OMNIBUS_PACKAGE_DIR/install.sh"
+    - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/scripts/"
+
+new-e2e-agent-platform-install-script-macos-x64:
+  extends:
+    - .new_e2e_template
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    # dda self feature prints the flag value as a capitalized Python bool ("True"/"False").
+    - export E2E_MACOS_POOL_ENABLED=$(dda self feature ci-datadog-agent-e2e-macos-pools --default true)
+  script:
+    - |
+      if [ "$NOT_NIGHTLY" = "true" ] && [ "$E2E_MACOS_POOL_ENABLED" != "True" ]; then
+        echo "⚠️  Skipping macOS e2e install job: NOT_NIGHTLY is set and E2E_MACOS_POOL_ENABLED is not True (value: '$E2E_MACOS_POOL_ENABLED')"
+        exit 0
+      fi
+    - !reference [.new_e2e_template, script]
+  stage: e2e_install_packages
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_dmg_testing-a7_x64
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH # Temporary execution + allow failure for main branch, to stress test the system. NOT_NIGHTLY is used to skip all the main run if we need to disable with the feature flag. It would not handle the load
+      allow_failure: true
+      variables:
+        NOT_NIGHTLY: true
+    - !reference [.manual]
+  retry: !reference [.retry_only_infra_failure, retry]
+  variables:
+    TARGETS: ./tests/agent-platform/tests
+    EXTRA_PARAMS: --run TestMacosInstallScript
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"

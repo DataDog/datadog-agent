@@ -30,6 +30,7 @@ go_test(
     deps = [
         "//comp/core/tagger/impl-noop",
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/serverless/metrics",
         "//pkg/serverless/metrics/metricstest",
         "//pkg/serverless/trace",

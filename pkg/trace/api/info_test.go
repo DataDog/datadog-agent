@@ -228,6 +228,7 @@ func TestInfoHandler(t *testing.T) {
 	}
 	obfCfg := &config.ObfuscationConfig{
 		ES:                   jsonObfCfg,
+		OpenSearch:           jsonObfCfg,
 		Mongo:                jsonObfCfg,
 		SQLExecPlan:          jsonObfCfg,
 		SQLExecPlanNormalize: jsonObfCfg,
@@ -239,6 +240,11 @@ func TestInfoHandler(t *testing.T) {
 		Redis:             obfuscate.RedisConfig{Enabled: true},
 		Valkey:            obfuscate.ValkeyConfig{Enabled: true},
 		Memcached:         obfuscate.MemcachedConfig{Enabled: false},
+		CreditCards: obfuscate.CreditCardsConfig{
+			Enabled:    true,
+			Luhn:       true,
+			KeepValues: []string{"safe"},
+		},
 	}
 	conf := &config.AgentConfig{
 		ContainerTags: func(cid string) ([]string, error) {
@@ -309,7 +315,13 @@ func TestInfoHandler(t *testing.T) {
 				},
 			},
 		},
-		Features: map[string]struct{}{"feature_flag": {}},
+		Features: map[string]struct{}{
+			"feature_flag":        {},
+			"quantize_sql_tables": {},
+			"keep_sql_alias":      {},
+			"dollar_quoted_func":  {},
+			"sqllexer":            {},
+		},
 	}
 
 	expectedKeys := map[string]any{
@@ -353,6 +365,7 @@ func TestInfoHandler(t *testing.T) {
 				"sql_exec_plan":           nil,
 				"sql_exec_plan_normalize": nil,
 				"sql_obfuscation_mode":    nil,
+				"tag_replace_rules":       nil,
 				"http": map[string]any{
 					"remove_query_string": nil,
 					"remove_path_digits":  nil,
@@ -361,6 +374,37 @@ func TestInfoHandler(t *testing.T) {
 				"redis":               nil,
 				"valkey":              nil,
 				"memcached":           nil,
+				"credit_cards": map[string]any{
+					"enabled":     nil,
+					"luhn":        nil,
+					"keep_values": nil,
+				},
+				"sql": map[string]any{
+					"replace_digits":                   nil,
+					"keep_sql_alias":                   nil,
+					"dollar_quoted_func":               nil,
+					"keep_null":                        nil,
+					"keep_boolean":                     nil,
+					"keep_positional_parameter":        nil,
+					"keep_trailing_semicolon":          nil,
+					"keep_identifier_quotation":        nil,
+					"replace_bind_parameter":           nil,
+					"remove_space_between_parentheses": nil,
+					"keep_json_path":                   nil,
+					"obfuscation_mode":                 nil,
+				},
+				"elasticsearch": map[string]any{
+					"enabled":   nil,
+					"keep_keys": nil,
+				},
+				"opensearch": map[string]any{
+					"enabled":   nil,
+					"keep_keys": nil,
+				},
+				"mongodb": map[string]any{
+					"enabled":   nil,
+					"keep_keys": nil,
+				},
 			},
 		},
 	}
@@ -374,6 +418,30 @@ func TestInfoHandler(t *testing.T) {
 	var m map[string]any
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
+	obfuscation := m["config"].(map[string]any)["obfuscation"].(map[string]any)
+	assert.Equal(t, []any{map[string]any{"name": "a", "pattern": "*", "repl": "b"}}, obfuscation["tag_replace_rules"])
+	assert.Equal(t, map[string]any{
+		"remove_query_string": true,
+		"remove_path_digits":  true,
+	}, obfuscation["http"])
+	assert.Equal(t, map[string]any{"enabled": true, "luhn": true, "keep_values": []any{"safe"}}, obfuscation["credit_cards"])
+	assert.Equal(t, map[string]any{
+		"replace_digits":                   true,
+		"keep_sql_alias":                   true,
+		"dollar_quoted_func":               true,
+		"keep_null":                        false,
+		"keep_boolean":                     false,
+		"keep_positional_parameter":        false,
+		"keep_trailing_semicolon":          false,
+		"keep_identifier_quotation":        false,
+		"replace_bind_parameter":           false,
+		"remove_space_between_parentheses": false,
+		"keep_json_path":                   false,
+		"obfuscation_mode":                 "obfuscate_only",
+	}, obfuscation["sql"])
+	for _, key := range []string{"elasticsearch", "opensearch", "mongodb"} {
+		assert.Equal(t, map[string]any{"enabled": true, "keep_keys": []any{"a", "b", "c"}}, obfuscation[key])
+	}
 	expectedContainerHash := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join([]string{"kube_cluster_name:clusterA", "kube_namespace:namespace1"}, ","))))
 	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))
 }
@@ -392,6 +460,8 @@ func TestInfoHandler_OPMAbsent(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
 	_, hasOPM := m["org_prop_marker"]
 	assert.False(t, hasOPM, "org_prop_marker must be absent from /info when OPM is not set")
+	obfuscation := m["config"].(map[string]any)["obfuscation"].(map[string]any)
+	assert.Nil(t, obfuscation["tag_replace_rules"])
 }
 
 func TestInfoHandler_OPMPresent(t *testing.T) {
@@ -593,4 +663,67 @@ func TestInfoHandler_CachedResponseBytes(t *testing.T) {
 
 	assert.Equal(t, string(updatedBytes), rec.Body.String(), "handler response body must match cached bytes")
 	assert.Equal(t, strconv.Itoa(len(updatedBytes)), rec.Header().Get("Content-Length"))
+}
+
+// TestInfoHandler_CustomObfuscationConfig ensures that when a custom obfuscation
+// config that affects the way stats are obfuscated is passed,
+// the obfuscation_version is set to 2 as a hacky way to force disable client-side stats obfuscation.
+//
+// see https://docs.google.com/document/d/1i-CQfkF-5B_8vLYepIJ6A16aRISH-Px7XIBSq0HKMaY/edit?tab=t.0 solution 2.
+func TestInfoHandler_CustomObfuscationConfig(t *testing.T) {
+	for _, tt := range []struct {
+		name                   string
+		obfuscationConfig      *config.ObfuscationConfig
+		features               map[string]struct{}
+		sqlObfuscationMode     string
+		wantObfuscationVersion int
+	}{
+		{
+			name:                   "Default obfuscation config has obfuscation_version = 1 (current obfuscate.Version)",
+			obfuscationConfig:      nil,
+			wantObfuscationVersion: obfuscate.Version,
+		},
+		{
+			name:                   "Custom obfuscation config that changes the effective SQL obfuscation mode has obfuscation_version = 2",
+			sqlObfuscationMode:     string(obfuscate.ObfuscateOnly),
+			wantObfuscationVersion: 2,
+		},
+		{
+			name: "Custom obfuscation config that doesn't affect stats has obfuscation_version = 1 (current obfuscate.Version)",
+			obfuscationConfig: &config.ObfuscationConfig{
+				HTTP: obfuscate.HTTPConfig{
+					RemoveQueryString: true,
+					RemovePathDigits:  true,
+				},
+				RemoveStackTraces: true,
+				Memcached:         obfuscate.MemcachedConfig{Enabled: false},
+			},
+			wantObfuscationVersion: obfuscate.Version,
+		},
+		{
+			name:                   "Table name collection has obfuscation_version = 1 (current obfuscate.Version)",
+			features:               map[string]struct{}{"table_names": {}},
+			wantObfuscationVersion: obfuscate.Version,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.New()
+			conf.Obfuscation = tt.obfuscationConfig
+			if tt.features != nil {
+				conf.Features = tt.features
+			}
+			conf.SQLObfuscationMode = tt.sqlObfuscationMode
+			rcv := newTestReceiverFromConfig(conf)
+			_, h := rcv.makeInfoHandler()
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest("GET", "/info", nil)
+			req.Header.Add("Datadog-Container-ID", "id1")
+			h.ServeHTTP(rec, req)
+			var m map[string]any
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
+
+			actual := int(m["obfuscation_version"].(float64))
+			assert.Equal(t, tt.wantObfuscationVersion, actual, "Unexpected obfuscation version")
+		})
+	}
 }

@@ -53,7 +53,8 @@ The `tools/bazel` wrapper auto-selects the Buildbarn remote cache on local
 builds. Behavior is controlled by `DD_BAZEL_REMOTE_CACHE`:
 
 - `auto` (default): enable only when the frontend is reachable and a token
-  source exists (the Vault CLI on the host, or an injected `BUILDBARN_ID_TOKEN`).
+  source exists (the Vault CLI on the host, an existing Vault session in a
+  container, or an injected `BUILDBARN_ID_TOKEN`).
   Off-network contributors get a local build with no extra prompts.
 - `on`: always enable; a failing credential helper aborts the build.
 - `off`: never enable (disk cache stays active). Equivalent to passing
@@ -67,10 +68,20 @@ command line always wins over auto-selection.
 
 #### Remote cache in containers
 
-Inside a container the credential helper cannot run an interactive Vault login
-(it needs a browser), so auto-selection stays off until a token is injected via
-the `BUILDBARN_ID_TOKEN` environment variable. Log in to Vault on the host (if
-you have not already), mint the token there, and pass it in:
+Inside a container the credential helper may not reach a browser for an
+interactive Vault login, so auto-selection requires either a Vault session
+that can read `identity/oidc/token/buildbarn` or an injected
+`BUILDBARN_ID_TOKEN`.
+
+In a Datadog workspace (itself a container), log in once over a plain SSH
+session; the browser opens on your laptop and the session lasts ~12h:
+
+```sh
+ddtool auth login --datacenter us1.ddbuild.io
+```
+
+Elsewhere, log in to Vault on the host (if you have not already), mint the
+token there, and pass it in:
 
 ```sh
 export VAULT_ADDR=https://vault.us1.ddbuild.io
@@ -86,4 +97,8 @@ Running Bazel once on the host also performs the Vault OIDC login via the
 credential helper, after which the `vault read` above succeeds without an extra
 login step.
 
-The OIDC token TTL is ~1h; re-mint it for long-lived shells.
+The Buildbarn OIDC token TTL is ~6h; re-mint it for long-lived shells.
+
+`dda inv kmt.*` tasks do this automatically for the KMT compiler container: when the
+host would use the remote cache, they mint a token right before each build and
+forward it to that `docker exec`.

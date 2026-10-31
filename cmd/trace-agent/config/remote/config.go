@@ -57,14 +57,20 @@ func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.A
 		defer putBuffer(buf)
 		_, err := io.Copy(buf, req.Body)
 		if err != nil {
+			statusCode = http.StatusBadRequest
 			http.Error(w, err.Error(), http.StatusBadRequest)
-
+			return
 		}
 		var configsRequest pbgo.ClientGetConfigsRequest
 		err = json.Unmarshal(buf.Bytes(), &configsRequest)
 		if err != nil {
 			statusCode = http.StatusBadRequest
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !configsRequest.GetClient().GetIsTracer() {
+			statusCode = http.StatusBadRequest
+			http.Error(w, "client.is_tracer must be true for tracer config requests", statusCode)
 			return
 		}
 		if configsRequest.GetClient().GetClientTracer() != nil {

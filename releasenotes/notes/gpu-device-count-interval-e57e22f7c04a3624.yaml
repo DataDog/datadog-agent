@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    gpu: Constant metrics (``gpu.device.total``, ``gpu.memory.limit``,
+    ``gpu.core.limit``, and ``gpu.memory.bar1.total``) are reported on the cadence
+    set by the new ``gpu.static_metrics_reporting_interval`` (15 seconds by default) to
+    ensure accuracy when using weighted sums.

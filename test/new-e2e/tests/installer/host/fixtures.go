@@ -45,13 +45,14 @@ func (h *Host) uploadFixtures() {
 	require.NoError(h.t(), err)
 }
 
-// StartExamplePythonApp starts an example Python app
-func (h *Host) StartExamplePythonApp() {
+// StartExamplePythonApp starts an example Python app with the selected interpreter.
+func (h *Host) StartExamplePythonApp(pythonExecutable string) {
 	h.WaitForTraceAgentSocketReady()
 	env := map[string]string{
-		"DD_SERVICE": "example-python-app",
-		"DD_ENV":     "e2e-installer",
-		"DD_VERSION": "1.0",
+		"DD_SERVICE":        "example-python-app",
+		"DD_ENV":            "e2e-installer",
+		"DD_VERSION":        "1.0",
+		"PYTHON_EXECUTABLE": pythonExecutable,
 	}
 	h.remote.MustExecute(`sudo -E /opt/fixtures/run_http_server.sh`, client.WithEnvVariables(env))
 }

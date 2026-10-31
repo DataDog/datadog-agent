@@ -6,8 +6,10 @@ go_library(
     srcs = [
         "capacity_monitor.go",
         "metrics.go",
+        "missed_bytes.go",
         "pipeline_monitor.go",
         "rolling_history.go",
+        "test_utils.go",
         "utilization_monitor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/metrics",
@@ -23,8 +25,10 @@ go_library(
 dd_agent_go_test(
     name = "metrics_test",
     srcs = [
+        "atomic_align_test.go",
         "capacity_monitor_test.go",
         "metrics_test.go",
+        "missed_bytes_test.go",
         "pipeline_monitor_test.go",
         "rolling_history_test.go",
         "utilization_monitor_test.go",
@@ -34,5 +38,6 @@ dd_agent_go_test(
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

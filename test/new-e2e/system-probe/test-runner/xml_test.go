@@ -10,6 +10,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -24,6 +25,26 @@ const xmldoc = `<?xml version="1.0" encoding="UTF-8"?>
 		</testcase>
 		<testcase classname="pkg/collector/corechecks/ebpf/probe/ebpfcheck" name="TestMinMapSize" time="0.000000">
 			<skipped message="=== RUN   TestMinMapSize&#xA;    version_linux.go:17: skipping test; it requires kernel version 5.5.0 or later, running on: 4.14.255&#xA;--- SKIP: TestMinMapSize (0.00s)&#xA;"></skipped>
+		</testcase>
+	</testsuite>
+</testsuites>`
+
+const retriedXMLDoc = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="6" failures="4" errors="0" time="0.016097">
+	<testsuite tests="6" failures="4" time="0.002000" name="flakydemo" timestamp="2026-09-19T10:18:42Z">
+		<testcase classname="flakydemo" name="TestFlaky" time="0.000000">
+			<failure message="Failed" type="">first attempt failed</failure>
+		</testcase>
+		<testcase classname="flakydemo" name="TestFlaky" time="0.000000"></testcase>
+		<testcase classname="flakydemo" name="TestAlwaysPass" time="0.000000"></testcase>
+		<testcase classname="flakydemo" name="TestAlwaysFail" time="0.000000">
+			<failure message="Failed" type="">attempt 1</failure>
+		</testcase>
+		<testcase classname="flakydemo" name="TestAlwaysFail" time="0.000000">
+			<failure message="Failed" type="">re-run 1</failure>
+		</testcase>
+		<testcase classname="flakydemo" name="TestAlwaysFail" time="0.000000">
+			<failure message="Failed" type="">re-run 2</failure>
 		</testcase>
 	</testsuite>
 </testsuites>`
@@ -77,6 +98,38 @@ func TestAddProperties(t *testing.T) {
 	for _, s := range suites.Suites {
 		if len(s.Properties) < 4 {
 			t.Fatalf("expected at least 4 properties, got %d", len(s.Properties))
+		}
+	}
+}
+
+func TestMarkRetriedTestCases(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "report.xml")
+	if err := os.WriteFile(path, []byte(retriedXMLDoc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := markRetriedTestCases(path); err != nil {
+		t.Fatal(err)
+	}
+
+	var suites JUnitTestSuites
+	if err := openAndDecode(path, &suites); err != nil {
+		t.Fatal(err)
+	}
+
+	// Expected agent_was_retried values, in the order each named test's attempts appear above:
+	// every attempt is retried except the deciding, last one.
+	want := map[string][]string{
+		"TestFlaky":      {"true", "false"},
+		"TestAlwaysPass": {"false"},
+		"TestAlwaysFail": {"true", "true", "false"},
+	}
+	seen := map[string]int{}
+	for _, tc := range suites.Suites[0].TestCases {
+		i := seen[tc.Name]
+		seen[tc.Name] = i + 1
+		if got, want := tc.WasRetried, want[tc.Name][i]; got != want {
+			t.Errorf("testcase %s attempt %d: got was_retried=%q, want %q", tc.Name, i, got, want)
 		}
 	}
 }

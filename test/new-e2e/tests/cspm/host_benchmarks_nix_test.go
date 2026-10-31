@@ -67,54 +67,50 @@ type distro struct {
 	minRules    int
 	bands       map[string]band
 	onlyProbes  []string // nil = all applicable probes; else restrict to these names
-	latestAMI   bool     // resolve the AMI by search rather than a pinned one (AlmaLinux)
 }
 
 // Bands bracket the observed host and container distributions with a ~7 point margin
-// (10 for AlmaLinux, whose latest AMI drifts), tight enough to catch a real distribution
-// regression while tolerating the small host/container delta and a benchmark content
-// update. Actuals are logged. They are the distribution gate; per-rule coverage comes
-// from TestCrossCheck and the probes, since the golden snapshot only reports.
+// (10 for AlmaLinux, tuned back when its AMI was resolved by live search and could
+// drift; now pinned via platforms.json, so this margin could likely be tightened
+// once re-harvested against the pinned AMI), tight enough to catch a real
+// distribution regression while tolerating the small host/container delta and a
+// benchmark content update. Actuals are logged. They are the distribution gate;
+// per-rule coverage comes from TestCrossCheck and the probes, since the golden
+// snapshot only reports.
 var rhel10Bands = map[string]band{
-	"passed":  {0.44, 0.60},
-	"failed":  {0.30, 0.45},
-	"skipped": {0.04, 0.18},
+	"passed":  {0.50, 0.65},
+	"failed":  {0.22, 0.37},
+	"skipped": {0.06, 0.20},
 }
 
 var ubuntu2404Bands = map[string]band{
-	"passed":  {0.48, 0.63},
-	"failed":  {0.19, 0.35},
-	"skipped": {0.09, 0.23},
+	"passed":  {0.54, 0.69},
+	"failed":  {0.18, 0.34},
+	"skipped": {0.06, 0.20},
 }
 
-// almalinux9 resolves the latest AMI rather than a pinned one, so its distribution can
-// drift with OS updates. Its band is wider (~10 points) and its golden stays informational.
 var almalinux9Bands = map[string]band{
-	"passed":  {0.38, 0.58},
-	"failed":  {0.29, 0.49},
-	"skipped": {0.02, 0.23},
+	"passed":  {0.50, 0.70},
+	"failed":  {0.18, 0.38},
+	"skipped": {0.02, 0.22},
 }
 
-// al2023 skips most rules because ssg-al2023 gates them on a missing kernel-core package
-// at the pinned policy version, so the skip fraction is large and set by the content, not
-// the host. These bands track that content-limited distribution. See distroAmazonLinux2023
-// for the root cause and the follow-up (re-harvest when the fix ships).
 var al2023Bands = map[string]band{
-	"passed":  {0.17, 0.32},
-	"failed":  {0.00, 0.10},
-	"skipped": {0.65, 0.80},
+	"passed":  {0.53, 0.67},
+	"failed":  {0.26, 0.40},
+	"skipped": {0.00, 0.14},
 }
 
 var rhel8Bands = map[string]band{
-	"passed":  {0.46, 0.60},
-	"failed":  {0.27, 0.41},
-	"skipped": {0.05, 0.20},
+	"passed":  {0.49, 0.63},
+	"failed":  {0.23, 0.37},
+	"skipped": {0.06, 0.21},
 }
 
 var rhel9Bands = map[string]band{
-	"passed":  {0.44, 0.59},
-	"failed":  {0.29, 0.44},
-	"skipped": {0.05, 0.20},
+	"passed":  {0.54, 0.68},
+	"failed":  {0.20, 0.34},
+	"skipped": {0.05, 0.19},
 }
 
 var distroRHEL10 = distro{
@@ -131,7 +127,7 @@ var distroUbuntu2404 = distro{
 	os:   os.Ubuntu2404,
 	// The container VM needs Docker pre-baked: ec2docker no longer runtime-installs it
 	// for Ubuntu, and the plain 24.04 AMI lacks it. The -e2e AMI is still Ubuntu 24.04.
-	containerOS: &os.Ubuntu2404E2E,
+	containerOS: &os.Ubuntu2404,
 	frameworkID: "cis-ubuntu2404",
 	family:      debian,
 	minRules:    320,
@@ -143,18 +139,12 @@ var distroAmazonLinux2023 = distro{
 	os:          os.AmazonLinux2023,
 	frameworkID: "cis-al2023",
 	family:      rhel,
-	minRules:    200,
+	minRules:    240,
 	bands:       al2023Bands,
-	// At the pinned SECURITY_AGENT_POLICIES_VERSION, ssg-al2023's system_with_kernel
-	// platform gates most rules on the kernel-core package. AL2023 ships kernel, not
-	// kernel-core, so those rules are not applicable and skip regardless of host state.
-	// The ComplianceAsCode fix (system_with_kernel matching AL2023's kernel package) is
-	// not yet in a released version (latest is ComplianceAsCode v0.1.81). Until a release
-	// with it is pulled into the pinned policy, exercise only the package probe (the
-	// others would land on skipped rules and fail the must-evaluate check) and keep the
-	// wide al2023Bands. Once it lands, drop onlyProbes for the full probe set, restore
-	// normal bands, re-harvest the golden baseline, and raise minRules.
-	onlyProbes: []string{"package"},
+	// Amazon Linux 2023 ships without cronie, which the file and service probes act on.
+	// Its kernel module rules and partition_for_tmp already pass on the stock image, so
+	// the kernel_module and partition probes have no failing state to set up there.
+	onlyProbes: []string{"package", "sshd", "accounts", "sysctl"},
 }
 
 var distroAlmaLinux9 = distro{
@@ -164,7 +154,6 @@ var distroAlmaLinux9 = distro{
 	family:      rhel,
 	minRules:    230,
 	bands:       almalinux9Bands,
-	latestAMI:   true,
 }
 
 var distroRHEL8 = distro{
@@ -361,11 +350,7 @@ type hostBenchmarksSuite struct {
 
 func testHostBenchmarks(t *testing.T, d distro) {
 	t.Parallel()
-	instanceOpts := []ec2.VMOption{ec2.WithOS(d.os)}
-	if d.latestAMI {
-		instanceOpts = append(instanceOpts, ec2.WithLatestAMI())
-	}
-	instanceOpts = append(instanceOpts, ec2.WithInternetAccess())
+	instanceOpts := []ec2.VMOption{ec2.WithOS(d.os), ec2.WithInternetAccess()}
 	e2e.Run(t, &hostBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-host-"+d.name),
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
@@ -416,6 +401,15 @@ func (s *hostBenchmarksSuite) TestProbes() {
 // provisioner redirects compliance_config.endpoints, so --report findings land
 // at /api/v2/compliance.
 func (s *hostBenchmarksSuite) TestReporting() {
+	// The CCRID the agent is expected to report for this host. IMDSv2 tokens are
+	// accepted whether or not the instance still allows IMDSv1, so this reads the
+	// instance ID independently of the agent's own IMDS handling.
+	instanceID := strings.TrimSpace(s.runHost(
+		`curl -s -H "X-aws-ec2-metadata-token: $(curl -s -X PUT http://169.254.169.254/latest/api/token ` +
+			`-H 'X-aws-ec2-metadata-token-ttl-seconds: 60')" http://169.254.169.254/latest/meta-data/instance-id`))
+	require.NotEmpty(s.T(), instanceID, "could not read the instance ID from IMDS")
+	wantCCRIDSuffix := ":instance/" + instanceID
+
 	s.runHost(fmt.Sprintf("sudo %s compliance check --report 2>/dev/null", securityAgent))
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		findings, err := s.Env().FakeIntake.Client().GetComplianceFindings()
@@ -424,6 +418,14 @@ func (s *hostBenchmarksSuite) TestReporting() {
 		for _, f := range findings {
 			if f.FrameworkID == s.distro.frameworkID {
 				reported = true
+				// The reporting path stamps the host CCRID resolved once at
+				// startup — here the CLI one, since the findings come from
+				// `compliance check --report`. A mismatch means the startup
+				// resolution broke, not that the payload was mangled.
+				assert.Truef(c,
+					strings.HasPrefix(f.CCRID, "arn:aws:ec2:") && strings.HasSuffix(f.CCRID, wantCCRIDSuffix),
+					"finding %s reached fakeintake with ccrid %q, want the EC2 ARN of instance %s",
+					f.RuleID, f.CCRID, instanceID)
 				break
 			}
 		}

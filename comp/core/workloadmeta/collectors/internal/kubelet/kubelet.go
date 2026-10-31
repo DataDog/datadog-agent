@@ -15,9 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nodefilter"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -39,10 +41,17 @@ type dependencies struct {
 
 type collector struct {
 	id                         string
+	isCLCRunner                bool
 	catalog                    workloadmeta.AgentType
 	store                      workloadmeta.Component
 	collectEphemeralContainers bool
 	pullInterval               time.Duration
+
+	// nodefilterEnabled reports whether the configuration selects the
+	// nodefilter collector, in which case this collector steps aside for it:
+	// otel-agent running in DDOT standalone mode uses this collector unless
+	// opted in to nodefilter.
+	nodefilterEnabled func() bool
 
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
@@ -57,9 +66,11 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                         collectorID,
+			isCLCRunner:                helper.IsCLCRunner(deps.Config),
 			catalog:                    workloadmeta.NodeAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 			pullInterval:               time.Duration(deps.Config.GetInt("kubelet_collector_pull_interval")) * time.Second,
+			nodefilterEnabled:          func() bool { return nodefilter.Enabled(deps.Config) },
 		},
 	}, nil
 }
@@ -76,6 +87,14 @@ func (c *collector) GetPullInterval() time.Duration {
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
+	}
+
+	if c.isCLCRunner {
+		return errors.NewDisabled(componentName, "Agent is a Cluster Checks Runner and has no reachable local Kubelet")
+	}
+
+	if c.nodefilterEnabled() {
+		return errors.NewDisabled(componentName, "Agent is running otel-agent in DDOT standalone mode, where the nodefilter collector applies")
 	}
 
 	c.store = store

@@ -1,11 +1,12 @@
 ---
 .cluster_agent-build_common:
+  extends: .bazel:defs:cache:progressive
   stage: binary_build
   timeout: 30m
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:

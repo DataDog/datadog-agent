@@ -81,7 +81,7 @@ func TestFailingInjectionConfig(t *testing.T) {
 
 			checkedNamespaces := map[string]bool{}
 			for ns := range tt.expectedNamespaces {
-				checkedNamespaces[ns] = nsFilter.IsNamespaceEligible(ns)
+				checkedNamespaces[ns] = nsFilter.namespaceEligible(ns)
 			}
 
 			require.Equal(t, tt.expectedNamespaces, checkedNamespaces)

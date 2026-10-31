@@ -204,18 +204,8 @@ def get_bazel_python_home(rtloader_lib):
     return None
 
 
-def get_embedded_path(ctx):
-    base = os.path.dirname(os.path.abspath(__file__))
-    task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
-    git_repo_root = get_root()
-    gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
-
-    for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
-        test_embedded_path = os.path.join(root_candidate, "dev")
-        if os.path.exists(test_embedded_path):
-            return test_embedded_path
-
-    return None
+def get_embedded_path():
+    return get_repo_root() / "dev"
 
 
 def get_repo_root():
@@ -328,9 +318,7 @@ def get_build_flags(
         env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-        if embedded_path is None:
-            raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
+        embedded_path = get_embedded_path()
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
     if not python_home_3:
@@ -526,13 +514,6 @@ def get_go_version():
     return check_output(['go', 'version']).decode('utf-8').strip()
 
 
-def get_root():
-    """
-    Get the root of the Go project
-    """
-    return check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
-
-
 @contextmanager
 def timed(name="", quiet=False):
     """Context manager that prints how long it took"""
@@ -582,12 +563,16 @@ def environ(env):
             os.environ.pop(key, None)
         else:
             os.environ[key] = value
-    yield
-    for var in env:
-        if var in original_environ:
-            os.environ[var] = original_environ[var]
-        else:
-            os.environ.pop(var)
+    try:
+        yield
+    finally:
+        # Restore even if the body raised, so an exception doesn't leak a deleted/overridden
+        # var into the rest of the process (e.g. a later nested `environ()` call).
+        for var in env:
+            if var in original_environ:
+                os.environ[var] = original_environ[var]
+            else:
+                os.environ.pop(var, None)
 
 
 def is_pr_context(branch, pr_id, test_name):

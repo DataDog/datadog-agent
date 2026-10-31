@@ -24,9 +24,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
@@ -42,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sigdanger"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -65,6 +68,7 @@ type dependencies struct {
 	Context               context.Context
 	Params                *Params
 	TelemetryCollector    telemetry.TelemetryCollector
+	Telemetry             coretelemetry.Component
 	Statsd                statsd.Component
 	Tagger                tagger.Component
 	Compressor            compression.Component
@@ -102,15 +106,16 @@ func (c component) GetHTTPHandler(endpoint string) http.Handler {
 type component struct {
 	*pkgagent.Agent
 
-	cancel             context.CancelFunc
-	ctx                context.Context
-	config             traceconfigdef.Component
-	secrets            secrets.Component
-	params             *Params
-	tagger             tagger.Component
-	telemetryCollector telemetry.TelemetryCollector
-	ipc                ipc.Component
-	wg                 *sync.WaitGroup
+	cancel                     context.CancelFunc
+	ctx                        context.Context
+	config                     traceconfigdef.Component
+	secrets                    secrets.Component
+	params                     *Params
+	tagger                     tagger.Component
+	telemetryCollector         telemetry.TelemetryCollector
+	ipc                        ipc.Component
+	telemetryMiddlewareFactory observability.TelemetryMiddlewareFactory
+	wg                         *sync.WaitGroup
 }
 
 // NewAgent creates a new Agent component.
@@ -126,15 +131,16 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
-		cancel:             cancel,
-		ctx:                ctx,
-		config:             deps.Config,
-		secrets:            deps.Secrets,
-		params:             deps.Params,
-		telemetryCollector: deps.TelemetryCollector,
-		tagger:             deps.Tagger,
-		ipc:                deps.IPC,
-		wg:                 &sync.WaitGroup{},
+		cancel:                     cancel,
+		ctx:                        ctx,
+		config:                     deps.Config,
+		secrets:                    deps.Secrets,
+		params:                     deps.Params,
+		telemetryCollector:         deps.TelemetryCollector,
+		tagger:                     deps.Tagger,
+		ipc:                        deps.IPC,
+		telemetryMiddlewareFactory: newTelemetryMiddlewareFactory(deps),
+		wg:                         &sync.WaitGroup{},
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
 	if err != nil {
@@ -163,6 +169,9 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		deps.Compressor,
 	)
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
+	if m, ok := deps.TracerPayloadModifier.(pkgagent.TracerPayloadModifierV1); ok {
+		c.Agent.TracerPayloadModifierV1 = m
+	}
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
 
@@ -302,6 +311,9 @@ func stop(ag component) error {
 // handleSignal closes a channel to exit cleanly from routines
 func handleSignal(shutdowner fx.Shutdowner, statsd ddgostatsd.ClientInterface) {
 	defer watchdog.LogOnPanic(statsd)
+
+	// Handle SIGDANGER (AIX paging space low); no-op on other platforms.
+	sigdanger.Init()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)

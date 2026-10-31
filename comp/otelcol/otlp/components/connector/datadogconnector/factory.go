@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
+	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.opentelemetry.io/collector/component"
@@ -22,16 +23,32 @@ type factory struct {
 	tagger       types.TaggerClient
 	concentrator *stats.Concentrator
 	hostname     option.Option[string]
+	// agentIgnoreResources is the trace-agent's apm_config.ignore_resources
+	agentIgnoreResources []string
 }
 
 // SourceProviderFunc is a function that returns the source of the host.
 type SourceProviderFunc func(context.Context) (string, error)
 
+// FactoryOption configures the datadog connector factory.
+type FactoryOption func(*factory)
+
+// WithAgentIgnoreResources excludes from APM stats the traces whose root resource matches one of the
+// trace-agent's apm_config.ignore_resources, as the trace-agent excludes them from traces.
+func WithAgentIgnoreResources(ignoreResources []string) FactoryOption {
+	return func(f *factory) {
+		f.agentIgnoreResources = ignoreResources
+	}
+}
+
 // NewConnectorFactory creates a factory for datadog connector for use in OTel agent
-func NewConnectorFactory(componentType component.Type, metricsStability, traceStability component.StabilityLevel, tagger types.TaggerClient, hostGetter SourceProviderFunc, concentrator *stats.Concentrator) connector.Factory {
+func NewConnectorFactory(componentType component.Type, metricsStability, traceStability component.StabilityLevel, tagger types.TaggerClient, hostGetter SourceProviderFunc, concentrator *stats.Concentrator, opts ...FactoryOption) connector.Factory {
 	f := &factory{
 		tagger:       tagger,
 		concentrator: concentrator,
+	}
+	for _, opt := range opts {
+		opt(f)
 	}
 
 	if hostGetter != nil {
@@ -53,7 +70,6 @@ func createDefaultConfig() component.Config {
 		Traces: datadogconfig.TracesConnectorConfig{
 			TracesConfig: datadogconfig.TracesConfig{
 				IgnoreResources:        []string{},
-				PeerServiceAggregation: true,
 				PeerTagsAggregation:    true,
 				ComputeStatsBySpanKind: true,
 			},
@@ -71,11 +87,14 @@ func (f *factory) createTracesToMetricsConnector(_ context.Context, params conne
 	if err != nil {
 		return nil, err
 	}
-	c, err = newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.concentrator, f.tagger, f.hostname)
+	conn, err := newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.concentrator, f.tagger, f.hostname)
 	if err != nil {
 		return nil, err
 	}
-	return c, nil
+	if len(f.agentIgnoreResources) > 0 {
+		conn.rootFilter = filters.NewBlacklister(f.agentIgnoreResources)
+	}
+	return conn, nil
 }
 
 func createTracesToTracesConnector(_ context.Context, params connector.Settings, _ component.Config, nextConsumer consumer.Traces) (connector.Traces, error) {

@@ -37,7 +37,9 @@ The agent ships on Linux, Windows, and macOS. Platform-specific code paths (via
 `runtime.GOOS`, build tags, OS-specific file paths) are a frequent source of
 bugs — typically the "other" platform is untested. The same applies to
 packaging: Windows MSI and Linux deb/rpm have independent logic that can
-silently diverge.
+silently diverge. Verifying the other platform is cheap — see "Typechecking code
+for another platform" in `AGENTS.md` — so ask for it rather than assuming CI
+will catch it.
 
 ### Concurrency and component lifecycle
 The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
@@ -68,9 +70,20 @@ errors that are then immediately dereferenced.
 
 ### Testing: avoid time-dependent tests
 Flag tests that sleep (`time.Sleep`, ticker-based waits) to wait for background
-work. These are a primary source of flakes and slow CI. The correct pattern is
-to inject a `clock.Mock` from `github.com/benbjohnson/clock` and advance time
-deterministically with `clk.Add(...)`.
+work. These are a primary source of flakes and slow CI. Two patterns fix this:
+
+- **`testing/synctest`** (stdlib), preferred for new tests — timers inside a
+  `synctest.Test` bubble fire on virtual time, so the code under test keeps
+  calling `time.Now`/`time.NewTicker` directly.
+- **`clock.Mock`** from `github.com/benbjohnson/clock`, advanced with
+  `clk.Add(...)` — for tests that must step time explicitly while goroutines
+  run, and to match files that already use it.
+
+Flag a new `clock.Clock` parameter or field whose only purpose is testability
+when `synctest` would cover the test. Flag a `synctest` test that waits on a
+real mutex, socket or subprocess: those are not durably blocking, so they stall
+virtual time and need a fake instead. The mechanics of both patterns are in
+`docs/public/guidelines/languages/go.md` § Testing → Time.
 
 ### Logging: log level misuse
 Flag log statements that use the wrong level:

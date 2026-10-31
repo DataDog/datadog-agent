@@ -184,6 +184,9 @@ func (r *Reader) init() error {
 			return err
 		}
 	} else {
+		if len(cgroupMounts) == 0 {
+			return fmt.Errorf("%w: detected mount points: %v", ErrNoCgroupMount, cgroupMounts)
+		}
 		return fmt.Errorf("unable to detect cgroup version from detected mount points: %v", cgroupMounts)
 	}
 

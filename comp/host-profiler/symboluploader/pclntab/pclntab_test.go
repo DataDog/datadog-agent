@@ -9,12 +9,14 @@ package pclntab_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
@@ -22,6 +24,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbolcopier"
+)
+
+const (
+	envBazelGoBinary   = "PCLNTAB_TEST_GO_BINARY"
+	envBazelGoRoot     = "PCLNTAB_TEST_GO_ROOT"
+	envBazelHelloworld = "PCLNTAB_TEST_HELLOWORLD"
 )
 
 func getGoToolChain(goMinorVersion int) string {
@@ -76,6 +84,50 @@ func getLinkexternalStr(linkexternal bool) string {
 		return ".linkexternal"
 	}
 	return ""
+}
+
+func resolveRunfile(t *testing.T, loc string) string {
+	t.Helper()
+	path, err := runfiles.Rlocation(loc)
+	require.NoErrorf(t, err, "resolving runfile %q", loc)
+	return path
+}
+
+func goBuildConfig(t *testing.T, tmpDir string) (goBinary string, testDataDir string, extraEnv []string) {
+	t.Helper()
+
+	goBinary = "go"
+	testDataDir = "../testdata"
+
+	if loc := os.Getenv(envBazelGoBinary); loc != "" {
+		goBinary = resolveRunfile(t, loc)
+
+		rootLoc := os.Getenv(envBazelGoRoot)
+		require.NotEmpty(t, rootLoc, "%s must be set when %s is set", envBazelGoRoot, envBazelGoBinary)
+		goRoot := filepath.Dir(resolveRunfile(t, rootLoc))
+
+		// Keep the Go command's caches inside the test temp directory to minimize side-effects.
+		// This is still non-hermetic: GOTOOLCHAIN may download historical Go
+		// toolchains at test runtime. The caches are shared between subtests so
+		// each toolchain only needs to be downloaded once per test run.
+		goCacheDir := filepath.Join(tmpDir, "go-cache")
+		goPathDir := filepath.Join(tmpDir, "gopath")
+		require.NoError(t, os.MkdirAll(goCacheDir, 0o755))
+		require.NoError(t, os.MkdirAll(goPathDir, 0o755))
+
+		extraEnv = append(extraEnv,
+			"GOROOT="+goRoot,
+			"GOCACHE="+goCacheDir,
+			"GOPATH="+goPathDir,
+			"GOMODCACHE="+filepath.Join(goPathDir, "pkg", "mod"),
+		)
+	}
+
+	if loc := os.Getenv(envBazelHelloworld); loc != "" {
+		testDataDir = filepath.Dir(resolveRunfile(t, loc))
+	}
+
+	return goBinary, testDataDir, extraEnv
 }
 
 func checkGoPCLnTab(t *testing.T, ef *pfelf.File, goPCLnTabInfoRef *pclntab.GoPCLnTabInfo) {
@@ -144,10 +196,9 @@ func checkGoPCLnTabExtraction(t *testing.T, exe string, goMinorVersion int) {
 func TestGoPCLnTabExtraction(t *testing.T) {
 	t.Parallel()
 	pclntab.DisableRecoverFromPanic()
-	testDataDir := "../testdata"
-	srcFile := "helloworld.go"
-
 	tmpDir := t.TempDir()
+	goBinary, testDataDir, goEnv := goBuildConfig(t, tmpDir)
+	srcFile := "helloworld.go"
 	goMinorVersions := []int{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}
 	for _, goMinorVersion := range goMinorVersions {
 		for _, pie := range []bool{false, true} {
@@ -182,10 +233,11 @@ func TestGoPCLnTabExtraction(t *testing.T) {
 						if len(ldflags) > 0 {
 							buildArgs = append(buildArgs, "-ldflags="+strings.Join(ldflags, " "))
 						}
-						cmd := exec.CommandContext(t.Context(), "go", buildArgs...) // #nosec G204
+						cmd := exec.CommandContext(t.Context(), goBinary, buildArgs...) // #nosec G204
 						cmd.Args = append(cmd.Args, srcFile)
 						cmd.Dir = testDataDir
-						cmd.Env = append(cmd.Environ(), getGoToolChain(goMinorVersion), "GOWORK=off")
+						cmd.Env = append(cmd.Environ(), goEnv...)
+						cmd.Env = append(cmd.Env, getGoToolChain(goMinorVersion), "GOWORK=off")
 						out, err := cmd.CombinedOutput()
 						require.NoError(t, err, "failed to build test binary with `%v`: %s\n%s", cmd.String(), err, out)
 

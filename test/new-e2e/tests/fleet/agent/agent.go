@@ -132,6 +132,14 @@ func (a *Agent) IntegrationShow(name string) (string, error) {
 	return a.runCommand("integration", "show", name)
 }
 
+// A remote agent waits indefinitely for the core agent's config stream rather than failing, so a
+// scenario that keeps the core agent down holds the whole unit set unready until systemd has torn
+// the conflicting -exp units down. That teardown outlasts a ten-second wait on the slower distros.
+const (
+	agentReadyInterval = 1 * time.Second
+	agentReadyTries    = 120
+)
+
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	var baseCommand string
@@ -147,7 +155,7 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	_, err := backoff.Retry(a.t().Context(), func() (struct{}, error) {
 		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
 		return struct{}{}, err
-	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
+	}, backoff.WithMaxTries(agentReadyTries), backoff.WithBackOff(backoff.NewConstantBackOff(agentReadyInterval)))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}
@@ -379,8 +387,7 @@ type Status struct {
 				Name       string `json:"Name"`
 			} `json:"Sketches"`
 		} `json:"FlushCount"`
-		HostnameUpdate int `json:"HostnameUpdate"`
-		MetricTags     struct {
+		MetricTags struct {
 			Series struct {
 				Above100 int `json:"Above100"`
 				Above90  int `json:"Above90"`

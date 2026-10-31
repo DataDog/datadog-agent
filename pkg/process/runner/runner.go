@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -106,7 +105,7 @@ func NewRunner(
 	sysProbeCfg := &checks.SysProbeConfig{}
 	if sysCfg != nil && sysCfg.Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, processModuleEnabled := sysCfg.EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := sysCfg.EnabledModules[sysconfigtypes.ProcessModule]
 		sysProbeCfg.ProcessModuleEnabled = processModuleEnabled
 		sysProbeCfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
 		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress
@@ -170,7 +169,7 @@ func (l *CheckRunner) runCheck(c checks.Check) {
 
 	msg := &types.Payload{
 		CheckName: c.Name(),
-		Message:   result.Payloads(),
+		Messages:  result.Payloads(),
 	}
 	l.Submitter.Submit(start, c.Name(), msg)
 
@@ -197,7 +196,7 @@ func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOp
 
 	msg := &types.Payload{
 		CheckName: c.Name(),
-		Message:   result.Payloads(),
+		Messages:  result.Payloads(),
 	}
 	l.Submitter.Submit(start, c.Name(), msg)
 	if options.RunStandard {
@@ -211,11 +210,11 @@ func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOp
 
 	rtName := checks.RTName(c.Name())
 	msg = &types.Payload{
-		Message: result.RealtimePayloads(),
+		Messages: result.RealtimePayloads(),
 	}
 	l.Submitter.Submit(start, rtName, msg)
 	if options.RunRealtime {
-		checks.StoreCheckOutput(rtName, msg.Message)
+		checks.StoreCheckOutput(rtName, msg.Messages)
 	}
 }
 
@@ -256,24 +255,7 @@ const (
 //nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Run() error {
 	realTimeAllowed := !l.config.GetBool("process_config.disable_realtime_checks")
-
-	checkNamesLength := len(l.enabledChecks)
-	if realTimeAllowed {
-		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
-		// as well as the original check name
-		checkNamesLength = checkNamesLength * 2
-	}
-
-	checkNames := make([]string, 0, checkNamesLength)
-	for _, check := range l.enabledChecks {
-		checkNames = append(checkNames, check.Name())
-
-		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
-		// process_rt doesn't show up in the enabled checks
-		if check.Name() == checks.ProcessCheckName && realTimeAllowed {
-			checkNames = append(checkNames, checks.RTProcessCheckName)
-		}
-	}
+	checkNames := enabledCheckNames(l.enabledChecks, realTimeAllowed)
 	status.UpdateEnabledChecks(checkNames)
 
 	runnerName := "process-agent"
@@ -303,6 +285,31 @@ func (l *CheckRunner) Run() error {
 	}
 
 	return nil
+}
+
+// statusNamesProvider lets a check override the names published in Agent status.
+// The runner continues to use Check.Name as the check's operational identity for
+// execution, intervals, and payload submission.
+type statusNamesProvider interface {
+	StatusNames() []string
+}
+
+func enabledCheckNames(enabledChecks []checks.Check, realTimeAllowed bool) []string {
+	checkNames := make([]string, 0, len(enabledChecks)*2)
+	for _, check := range enabledChecks {
+		statusNames := []string{check.Name()}
+		if provider, ok := check.(statusNamesProvider); ok {
+			statusNames = provider.StatusNames()
+		}
+
+		for _, statusName := range statusNames {
+			checkNames = append(checkNames, statusName)
+			if statusName == checks.ProcessCheckName && realTimeAllowed {
+				checkNames = append(checkNames, checks.RTProcessCheckName)
+			}
+		}
+	}
+	return checkNames
 }
 
 func (l *CheckRunner) listenForRTUpdates() {

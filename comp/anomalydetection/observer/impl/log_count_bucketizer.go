@@ -7,9 +7,10 @@ package observerimpl
 
 import (
 	"sort"
-	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 )
 
 // LogCountBucketConfig controls materialization of fixed-width log count
-// buckets. It applies only to .count metrics emitted by log extractors.
+// buckets. It applies only to count metrics emitted by log extractors.
 type LogCountBucketConfig struct {
 	Enabled          bool
 	BucketSeconds    int64
@@ -43,11 +44,14 @@ type logCountBucketInterval struct {
 }
 
 type logCountBucketSeries struct {
-	namespace string
-	name      string
-	tags      []string
-	context   *observerdef.MetricContext
-	anchor    int64
+	namespace  string
+	name       string
+	host       string
+	tags       tagset.CompositeTags
+	seriesKey  uint64
+	context    observerdef.MetricContext
+	hasContext bool
+	anchor     int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
 	// not advance it, so storage can evict genuinely idle series first.
 	lastObserved int64
@@ -83,20 +87,21 @@ func newMaterializedLogCountBucketizer(config LogCountBucketConfig) *materialize
 	}
 }
 
-func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
-	return strings.HasSuffix(name, ".count")
+func (b *materializedLogCountBucketizer) handlesMetric(metric observerdef.MetricOutput) bool {
+	return metric.MetricType == pkgmetrics.CountType
 }
 
-// observe adds one extractor output to its pending bucket. False means the late
-// observation cannot be incorporated without rewriting or re-anchoring history.
+// observe adds one extractor output to its pending bucket. False means
+// the late observation cannot be incorporated without rewriting or re-anchoring history.
 func (b *materializedLogCountBucketizer) observe(
 	namespace string,
 	metric observerdef.MetricOutput,
+	host string,
 	timestamp int64,
-	tags []string,
+	tags tagset.CompositeTags,
+	seriesKey uint64,
 ) bool {
-	key := seriesKeyHash(namespace, metric.Name, tags)
-	state := b.series[key]
+	state := b.series[seriesKey]
 	if state == nil && timestamp <= b.flushedThrough {
 		return false
 	}
@@ -113,18 +118,22 @@ func (b *materializedLogCountBucketizer) observe(
 		state = &logCountBucketSeries{
 			namespace:    namespace,
 			name:         metric.Name,
-			tags:         append([]string(nil), tags...),
+			host:         host,
+			tags:         tags,
+			seriesKey:    seriesKey,
 			context:      metric.Context,
+			hasContext:   metric.HasContext,
 			anchor:       timestamp,
 			lastObserved: timestamp,
 			storageRef:   -1,
 			values:       make(map[int64]float64),
 		}
-		b.series[key] = state
+		b.series[seriesKey] = state
 	} else {
 		state.lastObserved = max(state.lastObserved, timestamp)
-		if metric.Context != nil {
+		if metric.HasContext {
 			state.context = metric.Context
+			state.hasContext = true
 		}
 	}
 
@@ -143,24 +152,34 @@ func (b *materializedLogCountBucketizer) observe(
 	return true
 }
 
-// flush writes every completed bucket through upTo into shared storage.
-func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo int64) {
+// flush writes every completed bucket through upTo into shared storage and
+// returns any series evicted while admitting newly materialized series.
+func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo int64) []observerdef.SeriesRef {
 	if upTo <= b.flushedThrough {
-		return
+		return nil
 	}
+	var capacityEvictedRefs []observerdef.SeriesRef
 	for key, state := range b.series {
 		remaining := state.intervals[:0]
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.Add(
+				result := storage.AddWithKeyAndHostComposite(
 					state.namespace,
 					state.name,
+					state.host,
 					state.values[nextEnd],
 					nextEnd,
 					state.tags,
+					state.seriesKey,
+					pkgmetrics.CountType,
 				)
-				if state.context != nil && result.Ref >= 0 {
+				// Delete evicted schedules before the map iterator can visit them.
+				// Otherwise a synthetic zero can resurrect a series and evict
+				// the real observations that were just admitted.
+				b.removeSeriesByRefs(result.CapacityEvictedRefs)
+				capacityEvictedRefs = append(capacityEvictedRefs, result.CapacityEvictedRefs...)
+				if state.hasContext && result.Ref >= 0 {
 					storage.SetContext(result.Ref, state.context)
 				}
 				if result.Ref >= 0 {
@@ -183,6 +202,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		}
 	}
 	b.flushedThrough = upTo
+	return capacityEvictedRefs
 }
 
 func (b *materializedLogCountBucketizer) removeMetricName(namespace, name string) {

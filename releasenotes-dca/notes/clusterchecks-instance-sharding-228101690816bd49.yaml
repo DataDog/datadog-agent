@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Added opt-in instance-level sharding for cluster checks. When
+    ``cluster_checks.instance_sharding_enabled`` is set to ``true``, a cluster
+    check config that defines multiple instances (for example, a single file
+    monitoring 100 databases) is split into one config per instance, so
+    instances are spread and rebalanced across cluster-check runners instead
+    of always landing on a single runner. Specific checks can be excluded
+    from this behavior with ``cluster_checks.instance_sharding_exclude_checks``.

@@ -6,18 +6,19 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	statusutils "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +43,7 @@ type Processor struct {
 	inputChan                 chan *message.Message
 	outputChan                chan *message.Message // strategy input
 	processingRules           []*config.ProcessingRule
+	tagFilters                *tagfilter.Filters
 	encoder                   Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
@@ -49,6 +51,7 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
+	configChanMu              sync.Mutex // serializes the failover config updates sent on configChan
 	failoverConfig            failoverConfig
 
 	// Telemetry
@@ -59,7 +62,7 @@ type Processor struct {
 
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
-	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
 	p := &Processor{
@@ -67,6 +70,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
 		processingRules:           processingRules,
+		tagFilters:                tagFilters,
 		encoder:                   encoder,
 		configChan:                make(chan failoverConfig, 1),
 		done:                      make(chan struct{}),
@@ -89,7 +93,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
-func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
+func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
 	// Only update if the changed setting affects failover configuration
 	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
 	if slices.Contains(MRFConfigFields, setting) {
@@ -97,11 +101,19 @@ func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmode
 	}
 }
 
-// updateFailoverConfig sends the updated config to the processor to update
+// updateFailoverConfig sends the updated config to the processor to update.
+//
+// Config notifications run synchronously in the goroutine that changed the setting (such as the
+// remote config client), and keep reaching processors stopped by a pipeline restart, so this must
+// never block: an update the run loop has not consumed yet is replaced by the latest one.
 func (p *Processor) updateFailoverConfig() {
 	if p.config == nil {
 		return
 	}
+
+	// Read the config under the lock so that the last update sent is built from the latest config.
+	p.configChanMu.Lock()
+	defer p.configChanMu.Unlock()
 
 	conf := failoverConfig{
 		isFailoverActive: p.config.GetBool(configMRFFailoverLogs),
@@ -118,6 +130,12 @@ func (p *Processor) updateFailoverConfig() {
 		conf.failoverServiceAllowlist = serviceAllowlist
 	}
 
+	// Only this function sends on configChan, under the lock: once a pending update is dropped,
+	// the send cannot block.
+	select {
+	case <-p.configChan:
+	default:
+	}
 	p.configChan <- conf
 }
 
@@ -201,6 +219,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 		msg.SetRendered(rendered)
 
+		p.resolveTagFilter(msg)
+
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
@@ -218,6 +238,67 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
+}
+
+// ResolveSourceTagFilter compiles and caches a source's effective filter. It is
+// idempotent and safe for concurrent calls.
+func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) {
+	// LogSources.SubscribeAll replays every source it holds, including ones AddSource
+	// appended before rejecting for a nil Config.
+	if src == nil || src.Config == nil {
+		return
+	}
+	if _, resolved := src.TagFilter(); resolved {
+		return
+	}
+
+	var sourceFilters *tagfilter.Filters
+	var report tagfilter.Report
+	if !src.Config.TagFilters.IsEmpty() {
+		sourceFilters, report = src.Config.TagFilters.Compile()
+	}
+
+	// Avoid storing a non-nil interface containing a nil *Scoped.
+	var resolved sources.TagFilter
+	if scoped := tagfilter.NewScoped(global, sourceFilters); scoped != nil {
+		resolved = scoped
+	}
+
+	if !src.SetTagFilterIfUnset(resolved) {
+		return
+	}
+
+	// A malformed pattern degrades to filtering less, never blocks the source
+	// from tailing; record it so it's visible on the source's status block.
+	for _, rejected := range report.Rejected {
+		src.Messages.AddMessage("tag_filters:rejected:"+rejected.Pattern, rejected.Reason)
+	}
+	for _, warning := range report.Warnings {
+		log.Warnf("tag_filters for source %q: %s", src.Name, warning)
+		src.Messages.AddMessage("tag_filters:warning:"+warning, warning)
+	}
+
+	globalPatterns := global.Patterns()
+	sourcePatterns := sourceFilters.Patterns()
+	if !globalPatterns.IsEmpty() || !sourcePatterns.IsEmpty() {
+		src.RegisterInfo(statusutils.NewTagFilterInfo(
+			globalPatterns.Include, globalPatterns.Exclude,
+			sourcePatterns.Include, sourcePatterns.Exclude))
+	}
+
+}
+
+// resolveTagFilter resolves the filter if the eager subscriber has not already.
+func (p *Processor) resolveTagFilter(msg *message.Message) {
+	if msg.Origin == nil || msg.Origin.LogSource == nil {
+		return
+	}
+	src := msg.Origin.LogSource
+
+	if _, resolved := src.TagFilter(); resolved {
+		return
+	}
+	ResolveSourceTagFilter(p.tagFilters, src)
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF
@@ -243,6 +324,12 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
+	return applyProcessingRules(msg, p.processingRules)
+}
+
+// applyProcessingRules applies processingRules and the rules of the message source to msg, in place,
+// and returns false when a rule filters the message out.
+func applyProcessingRules(msg *message.Message, processingRules []*config.ProcessingRule) bool {
 	var content = msg.GetContent()
 
 	// Use the internal scrubbing implementation of the Agent
@@ -252,7 +339,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
-	rules := append(p.processingRules, extraRules...)
+	rules := append(processingRules, extraRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -268,12 +355,10 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
+			var matched bool
+			content, matched = config.ApplyMaskSequence(content, rule)
+			if matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
 			}
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
@@ -297,27 +382,20 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	return true // we want to send this message
 }
 
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
-		return true
-	}
-
-	return bytes.Contains(content, []byte(prefix))
-}
-
 // GetHostname returns the hostname to applied the given log message
 func (p *Processor) GetHostname(msg *message.Message) string {
+	return hostnameFor(msg, p.hostname)
+}
+
+func hostnameFor(msg *message.Message, hostname hostnameinterface.Component) string {
 	if msg.Hostname != "" {
 		return msg.Hostname
 	}
 
-	if p.hostname == nil {
+	if hostname == nil {
 		return "unknown"
 	}
-	hname, err := p.hostname.Get(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		// this scenario is not likely to happen since
 		// the agent cannot start without a hostname

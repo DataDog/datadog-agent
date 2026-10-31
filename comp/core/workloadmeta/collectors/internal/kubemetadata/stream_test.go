@@ -9,6 +9,7 @@ package kubemetadata
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,9 +18,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	taggercollectors "github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -926,6 +930,135 @@ func TestStreamingProvider_handleDCAStreamUpdate_FlavorReenrichesJoinedPod(t *te
 	assert.Empty(t, unrelated.KubeServices)
 }
 
+// Reproduces a bug where the tagger computes the pod's tags while the Kueue
+// Workload is not yet in workloadmeta, so the Workload-derived tags are never
+// added to the pod and its containers.
+func TestStreamingProvider_KueueWorkloadTagsAfterWorkloadArrivesLate(t *testing.T) {
+	const (
+		podUID       = "pod-uid"
+		containerID  = "container-id"
+		namespace    = "default"
+		workloadName = "job-sample"
+		workloadUID  = "workload-uid"
+	)
+
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+		wmeta:     wmetaMock,
+	}
+
+	// Start the tagger. It listens to workloadmeta and we record the tags it
+	// generates for each entity.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tags := &recordingTagProcessor{latest: make(map[taggertypes.EntityID]*taggertypes.TagInfo)}
+	go taggercollectors.NewWorkloadMetaCollector(ctx, configmock.New(t), wmetaMock, tags).Run(ctx)
+
+	// The container runtime reports the pod's container to workloadmeta. We
+	// wait until the tagger tags it, so we know the tagger is listening.
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceRuntime,
+		Entity: &workloadmeta.Container{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			EntityMeta: workloadmeta.EntityMeta{Name: "main"},
+			Owner:      &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+		},
+	}})
+	require.Eventually(t, func() bool { return tags.get(containerEntityID) != nil }, 5*time.Second, 10*time.Millisecond)
+
+	// The Cluster Agent sends its first full state, which includes the Kueue
+	// Workload. The stream client stores it, but does not send it to
+	// workloadmeta yet.
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KueueWorkloads: []*pb.KueueWorkload{{
+			Namespace:    namespace,
+			Name:         workloadName,
+			Uid:          workloadUID,
+			Queue:        "lq",
+			ClusterQueue: "cq",
+			PodSetAssignments: []*pb.KueuePodSetAssignment{
+				{Name: "main", Flavors: map[string]string{"cpu": "default-flavor"}},
+			},
+			Type: pb.KubeMetadataEventType_SET,
+		}},
+	})
+
+	// The kubelet reports the pod to workloadmeta. The tagger tags it without
+	// the Workload tags, because the Workload is not in workloadmeta yet.
+	kubeletPod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pod",
+			Namespace:   namespace,
+			Annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: workloadName},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "main"}},
+		Ready:      true,
+	}
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: kubeletPod,
+	}})
+
+	// At node-agent startup, run() can handle these two things in either order. We use
+	// the order that breaks tagging:
+	//  1. It handles the pod from the kubelet and sends it to workloadmeta. The
+	//     tagger tags it again, still without the Workload tags.
+	//  2. It handles the Cluster Agent update. It sends the Workload to
+	//     workloadmeta, then sends the pod again. This pod is the same as the
+	//     one from step 1.
+	seenPods := make(map[string]string)
+	provider.handleWmetaPodEvents(makePodBundle(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: kubeletPod,
+	}), seenPods)
+	provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), seenPods)
+
+	// Workloadmeta has the Workload now.
+	_, err := wmetaMock.GetKubernetesKueueWorkload(workloadmeta.GenerateKueueWorkloadEntityID(namespace, workloadName))
+	require.NoError(t, err, "Workload should be in workloadmeta after the DCA update")
+
+	// The pod and its container should have the Workload tags now.
+	for _, entityID := range []taggertypes.EntityID{
+		taggertypes.NewEntityID(taggertypes.KubernetesPodUID, podUID),
+		containerEntityID,
+	} {
+		tagInfo := tags.get(entityID)
+		require.NotNil(t, tagInfo, "no tags for %s", entityID)
+		assert.Contains(t, tagInfo.OrchestratorCardTags, "kueue_workload_uid:"+workloadUID, "tags for %s", entityID)
+		assert.Contains(t, tagInfo.OrchestratorCardTags, "kueue_workload:"+workloadName, "tags for %s", entityID)
+	}
+}
+
+// recordingTagProcessor keeps the latest TagInfo per entity, as the tagger
+// store would for a single source.
+type recordingTagProcessor struct {
+	mu     sync.Mutex
+	latest map[taggertypes.EntityID]*taggertypes.TagInfo
+}
+
+func (p *recordingTagProcessor) ProcessTagInfo(tagInfos []*taggertypes.TagInfo) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, tagInfo := range tagInfos {
+		p.latest[tagInfo.EntityID] = tagInfo
+	}
+}
+
+func (p *recordingTagProcessor) get(entityID taggertypes.EntityID) *taggertypes.TagInfo {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.latest[entityID]
+}
+
 func TestStreamingProvider_podAffectedByKueueUpdate(t *testing.T) {
 	provider := &streamingProvider{
 		dcaStream: newDCAStreamClient("node-a", nil),
@@ -1281,7 +1414,13 @@ func TestDCAStreamClient_ApplyResponse_KueueWorkloads(t *testing.T) {
 				Name:         "job-a",
 				Queue:        "batch",
 				ClusterQueue: "cluster-batch",
-				Type:         pb.KubeMetadataEventType_SET,
+				PodTemplateLabels: map[string]string{
+					"team": "ccm-allocation",
+				},
+				PodTemplateAnnotations: map[string]string{
+					"workload-owner": "gpu-monitoring",
+				},
+				Type: pb.KubeMetadataEventType_SET,
 			},
 		},
 	})
@@ -1290,6 +1429,8 @@ func TestDCAStreamClient_ApplyResponse_KueueWorkloads(t *testing.T) {
 	assert.Contains(t, update.updatedKueueWorkloads, "default/job-a")
 	require.Contains(t, sc.kueueWorkloads, "default/job-a")
 	assert.Equal(t, "batch", sc.kueueWorkloads["default/job-a"].QueueName)
+	assert.Equal(t, map[string]string{"team": "ccm-allocation"}, sc.kueueWorkloads["default/job-a"].PodTemplateLabels)
+	assert.Equal(t, map[string]string{"workload-owner": "gpu-monitoring"}, sc.kueueWorkloads["default/job-a"].PodTemplateAnnotations)
 
 	// Incremental SET of a new workload adds to the cache.
 	sc.applyResponse(&pb.KubeMetadataStreamResponse{
@@ -1341,6 +1482,76 @@ func TestDCAStreamClient_ApplyResponse_IncrementalWorkloadBeforeFullStateIgnored
 	assert.Empty(t, sc.kueueWorkloads)
 	update := sc.drainPendingUpdate()
 	assert.Empty(t, update.updatedKueueWorkloads)
+}
+
+func TestStreamingProvider_KAIPodGroups(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+		wmeta:     wmetaMock,
+	}
+	applyAndHandle := func(resp *pb.KubeMetadataStreamResponse) {
+		provider.dcaStream.applyResponse(resp)
+		provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), map[string]string{})
+	}
+
+	applyAndHandle(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KaiPodGroups: []*pb.KAIPodGroup{
+			{
+				Namespace:   "team-a",
+				Name:        "pg",
+				Queue:       "queue-a",
+				Uid:         "uid-a",
+				Labels:      map[string]string{"team": "a"},
+				Annotations: map[string]string{"owner": "a"},
+				Type:        pb.KubeMetadataEventType_SET,
+			},
+			{Namespace: "team-b", Name: "pg", Type: pb.KubeMetadataEventType_SET},
+			{Namespace: "team-b", Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+
+	podGroupA, err := wmetaMock.GetKubernetesKAIPodGroup("team-a/pg")
+	require.NoError(t, err)
+	assert.Equal(t, &workloadmeta.KubernetesKAIPodGroup{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKAIPodGroup, ID: "team-a/pg"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pg",
+			Namespace:   "team-a",
+			UID:         "uid-a",
+			Labels:      map[string]string{"team": "a"},
+			Annotations: map[string]string{"owner": "a"},
+		},
+		QueueName: "queue-a",
+	}, podGroupA)
+	podGroupB, err := wmetaMock.GetKubernetesKAIPodGroup("team-b/pg")
+	require.NoError(t, err)
+	assert.Empty(t, podGroupB.QueueName)
+	assert.Len(t, wmetaMock.DumpStructured().Entities[string(workloadmeta.KindKubernetesKAIPodGroup)], 2)
+
+	applyAndHandle(&pb.KubeMetadataStreamResponse{
+		KaiPodGroups: []*pb.KAIPodGroup{{Namespace: "team-a", Name: "pg", Queue: "queue-c", Type: pb.KubeMetadataEventType_SET}},
+	})
+	podGroupA, err = wmetaMock.GetKubernetesKAIPodGroup("team-a/pg")
+	require.NoError(t, err)
+	assert.Equal(t, "queue-c", podGroupA.QueueName)
+
+	applyAndHandle(&pb.KubeMetadataStreamResponse{
+		KaiPodGroups: []*pb.KAIPodGroup{{Namespace: "team-a", Name: "pg", Type: pb.KubeMetadataEventType_UNSET}},
+	})
+	_, err = wmetaMock.GetKubernetesKAIPodGroup("team-a/pg")
+	assert.Error(t, err)
+	_, err = wmetaMock.GetKubernetesKAIPodGroup("team-b/pg")
+	assert.NoError(t, err)
+
+	// A full state without a PodGroup removes it.
+	applyAndHandle(&pb.KubeMetadataStreamResponse{IsFullState: true})
+	_, err = wmetaMock.GetKubernetesKAIPodGroup("team-b/pg")
+	assert.Error(t, err)
 }
 
 func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueQueue) {

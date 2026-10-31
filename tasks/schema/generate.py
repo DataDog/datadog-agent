@@ -3,6 +3,7 @@ Schema generation tasks
 """
 
 import os
+import shutil
 import sys
 import tempfile
 
@@ -11,15 +12,33 @@ from invoke import task
 from invoke.context import Context
 
 from tasks.libs.build.bazel import bazel
-from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
+from tasks.schema.codegen_init_settings import run_codegen, run_constants_codegen, run_core_constant_codegen
 from tasks.schema.merge_schema import resolve_schema
 from tasks.schema.produce_byproduct import produce_byproduct
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 COMPRESS_DIR = os.path.join("pkg", "config", "schema")
 SETUP_INIT_DIR = os.path.join("pkg", "config", "setup")
+# In-repo copy of the generatedsettings module. go.work and every replace directive point here, and its generated
+# *.go files are gitignored, so in-repo builds always use code matching the current schema.
+GENERATED_SETTINGS_DIR = os.path.join(SETUP_INIT_DIR, "generatedsettings_local")
+# Committed snapshot of the generatedsettings module: the one external consumers download at a released tag.
+GENERATED_SETTINGS_SNAPSHOT_DIR = os.path.join(SETUP_INIT_DIR, "generatedsettings")
+# Files codegen used to write straight into SETUP_INIT_DIR. They were gitignored, so they linger in existing
+# checkouts, where they no longer compile.
+_LEGACY_SETUP_GENERATED_FILES = ("all_settings.go", "generated.go", "system_probe_settings.go")
+_GENERATED_FILE_MARKER = "// NOTE! This is a generated file, do not modify it."
 CORE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "core_schema.yaml")
 SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.yaml")
+
+# Schema entry points published as pure JSON Schema, keyed by the name of the
+# config file each one validates: the generated files are named after that
+# config file (datadog.json, system-probe.json) since that is what external
+# consumers (e.g. SchemaStore) match against.
+JSON_SCHEMA_ENTRY_POINTS = {
+    "datadog": CORE_SCHEMA_MAIN_FILE,
+    "system-probe": SYSTEM_PROBE_SCHEMA_MAIN_FILE,
+}
 
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
@@ -112,22 +131,30 @@ def produce_embedded(ctx, input_path, output_path):
 
 
 @task
-def produce_jsonschema(ctx, input_path, output_path):
+def produce_jsonschema(ctx, output_dir):
     """
-    Produce the pure JSON Schema byproduct from a (merged) schema.
+    Produce the pure JSON Schema byproducts for every Agent config file.
+
+    The schema entry points are known (core -> datadog.yaml, system-probe ->
+    system-probe.yaml), so the task only needs an output directory: it writes
+    one <config-file-name>.json per entry point into it.
 
     Strips every Agent-specific extension so the result is 100% compatible with
     https://json-schema.org/ and validates with any conforming library. Output
     is JSON, for external consumers (e.g. SchemaStore).
     """
-    produce_byproduct("json_schema", input_path, output_path)
+    os.makedirs(output_dir, exist_ok=True)
+    for config_name, top_schema in JSON_SCHEMA_ENTRY_POINTS.items():
+        out_path = os.path.join(output_dir, f"{config_name}.json")
+        produce_byproduct("json_schema", top_schema, out_path)
+        print(f"wrote {out_path}")
 
 
 def schema_codegen(ctx):
     """
     Code generator for config schema.
 
-    Writes the generated files straight into SETUP_INIT_DIR.
+    Writes the generated settings into GENERATED_SETTINGS_DIR and the constants into SETUP_INIT_DIR/constants.
     """
 
     # Some test run tasks command with a 'unittest.mock.MagicMock' instead of a Context
@@ -137,18 +164,56 @@ def schema_codegen(ctx):
     core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
     system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
 
-    run_codegen(core_schema, SETUP_INIT_DIR)
-    run_codegen(system_probe_schema, SETUP_INIT_DIR, sysprobe=True)
-    run_constant_codegen(core_schema, system_probe_schema, SETUP_INIT_DIR)
+    _remove_legacy_setup_files()
+    _generate_settings(core_schema, system_probe_schema, GENERATED_SETTINGS_DIR)
+    run_constants_codegen(core_schema, system_probe_schema, os.path.join(SETUP_INIT_DIR, "constants"))
+
+
+def _remove_legacy_setup_files(setup_dir=SETUP_INIT_DIR):
+    """Remove the settings files codegen used to write into pkg/config/setup, leaving any hand-written file alone."""
+    for name in _LEGACY_SETUP_GENERATED_FILES:
+        path = os.path.join(setup_dir, name)
+        try:
+            with open(path) as f:
+                generated = _GENERATED_FILE_MARKER in f.read(1024)
+        except FileNotFoundError:
+            continue
+        if generated:
+            print(f"Removing {path}, now generated into {GENERATED_SETTINGS_DIR}")
+            os.remove(path)
+
+
+def _generate_settings(core_schema, system_probe_schema, output_dir):
+    run_codegen(core_schema, output_dir)
+    run_codegen(system_probe_schema, output_dir, sysprobe=True)
+    run_core_constant_codegen(core_schema, output_dir)
 
 
 @task
 def codegen(ctx):
     """
-    Generate the pkg/config/setup Go files that register the settings from the schema.
+    Generate the Go files that register the settings from the schema.
 
-    The generated files are written directly into pkg/config/setup.
+    The settings are written into pkg/config/setup/generatedsettings_local, the copy in-repo builds use.
     """
     # Some test panic if a @task is called from a 'unittest.mock.MagicMock' which is done often.
     # Codegen call schema_codegen where we check for MagicMock
     return schema_codegen(ctx)
+
+
+@task
+def codegen_snapshot(_):
+    """
+    Refresh the committed pkg/config/setup/generatedsettings snapshot from the current schema.
+
+    External consumers of pkg/config/setup build against this snapshot, at the version their go.mod requires.
+    In-repo builds never use it, so it only changes when this task runs: run it when a schema change must reach
+    external consumers (e.g. the OTel Collector). doc.go, go.mod and go.sum are copied from the in-repo copy,
+    whose go.mod and go.sum `dda inv tidy` keeps up to date.
+    """
+    core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
+    system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
+
+    _generate_settings(core_schema, system_probe_schema, GENERATED_SETTINGS_SNAPSHOT_DIR)
+    for name in ("doc.go", "go.mod", "go.sum"):
+        shutil.copyfile(os.path.join(GENERATED_SETTINGS_DIR, name), os.path.join(GENERATED_SETTINGS_SNAPSHOT_DIR, name))

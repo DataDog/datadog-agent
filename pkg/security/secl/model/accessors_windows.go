@@ -580,12 +580,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.container.ecs_task_id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.ContainerContext.ECSTaskID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.Exec.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -784,12 +806,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.container.ecs_task_id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.ContainerContext.ECSTaskID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exit.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.Exit.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1090,6 +1134,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.container.ecs_task_id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerContext.ECSTaskID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.ContainerContext.ECSTaskID
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -1109,6 +1180,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
 					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.container.pod_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerContext.PodUID
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.ContainerContext.PodUID
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -1507,12 +1605,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.container.ecs_task_id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.ContainerContext.ECSTaskID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1651,6 +1771,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.container.ecs_task_id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.BaseEvent.ProcessContext.Parent.ContainerContext.ECSTaskID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1660,6 +1794,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return string(ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.container.pod_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.BaseEvent.ProcessContext.Parent.ContainerContext.PodUID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2350,7 +2498,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.timestamp",
 		"exec.cmdline",
 		"exec.container.created_at",
+		"exec.container.ecs_task_id",
 		"exec.container.id",
+		"exec.container.pod_uid",
 		"exec.container.tags",
 		"exec.created_at",
 		"exec.envp",
@@ -2368,7 +2518,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cmdline",
 		"exit.code",
 		"exit.container.created_at",
+		"exit.container.ecs_task_id",
 		"exit.container.id",
+		"exit.container.pod_uid",
 		"exit.container.tags",
 		"exit.created_at",
 		"exit.envp",
@@ -2392,7 +2544,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"open_key.registry.key_path.length",
 		"process.ancestors.cmdline",
 		"process.ancestors.container.created_at",
+		"process.ancestors.container.ecs_task_id",
 		"process.ancestors.container.id",
+		"process.ancestors.container.pod_uid",
 		"process.ancestors.container.tags",
 		"process.ancestors.created_at",
 		"process.ancestors.envp",
@@ -2409,7 +2563,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.user_sid",
 		"process.cmdline",
 		"process.container.created_at",
+		"process.container.ecs_task_id",
 		"process.container.id",
+		"process.container.pod_uid",
 		"process.container.tags",
 		"process.created_at",
 		"process.envp",
@@ -2421,7 +2577,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.file.path.length",
 		"process.parent.cmdline",
 		"process.parent.container.created_at",
+		"process.parent.container.ecs_task_id",
 		"process.parent.container.id",
+		"process.parent.container.pod_uid",
 		"process.parent.container.tags",
 		"process.parent.created_at",
 		"process.parent.envp",
@@ -2581,7 +2739,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", false, nil
 	case "exec.container.created_at":
 		return "exec", reflect.Int, "int", false, nil
+	case "exec.container.ecs_task_id":
+		return "exec", reflect.String, "string", false, nil
 	case "exec.container.id":
+		return "exec", reflect.String, "string", false, nil
+	case "exec.container.pod_uid":
 		return "exec", reflect.String, "string", false, nil
 	case "exec.container.tags":
 		return "exec", reflect.String, "string", true, nil
@@ -2617,7 +2779,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.container.created_at":
 		return "exit", reflect.Int, "int", false, nil
+	case "exit.container.ecs_task_id":
+		return "exit", reflect.String, "string", false, nil
 	case "exit.container.id":
+		return "exit", reflect.String, "string", false, nil
+	case "exit.container.pod_uid":
 		return "exit", reflect.String, "string", false, nil
 	case "exit.container.tags":
 		return "exit", reflect.String, "string", true, nil
@@ -2665,7 +2831,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", false, nil
 	case "process.ancestors.container.created_at":
 		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.container.ecs_task_id":
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.container.id":
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.container.pod_uid":
 		return "", reflect.String, "string", false, nil
 	case "process.ancestors.container.tags":
 		return "", reflect.String, "string", true, nil
@@ -2699,7 +2869,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", false, nil
 	case "process.container.created_at":
 		return "", reflect.Int, "int", false, nil
+	case "process.container.ecs_task_id":
+		return "", reflect.String, "string", false, nil
 	case "process.container.id":
+		return "", reflect.String, "string", false, nil
+	case "process.container.pod_uid":
 		return "", reflect.String, "string", false, nil
 	case "process.container.tags":
 		return "", reflect.String, "string", true, nil
@@ -2723,7 +2897,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", false, nil
 	case "process.parent.container.created_at":
 		return "", reflect.Int, "int", false, nil
+	case "process.parent.container.ecs_task_id":
+		return "", reflect.String, "string", false, nil
 	case "process.parent.container.id":
+		return "", reflect.String, "string", false, nil
+	case "process.parent.container.pod_uid":
 		return "", reflect.String, "string", false, nil
 	case "process.parent.container.tags":
 		return "", reflect.String, "string", true, nil
@@ -2932,6 +3110,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.cmdline", &ev.Exec.Process.CmdLine, value)
 	case "exec.container.created_at":
 		return ev.setUint64FieldValue("exec.container.created_at", &ev.Exec.Process.ContainerContext.CreatedAt, value)
+	case "exec.container.ecs_task_id":
+		return ev.setStringFieldValue("exec.container.ecs_task_id", &ev.Exec.Process.ContainerContext.ECSTaskID, value)
 	case "exec.container.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -2939,6 +3119,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exec.container.pod_uid":
+		return ev.setStringFieldValue("exec.container.pod_uid", &ev.Exec.Process.ContainerContext.PodUID, value)
 	case "exec.container.tags":
 		return ev.setStringArrayFieldValue("exec.container.tags", &ev.Exec.Process.ContainerContext.Tags, value)
 	case "exec.created_at":
@@ -2973,6 +3155,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exit.code", &ev.Exit.Code, value)
 	case "exit.container.created_at":
 		return ev.setUint64FieldValue("exit.container.created_at", &ev.Exit.Process.ContainerContext.CreatedAt, value)
+	case "exit.container.ecs_task_id":
+		return ev.setStringFieldValue("exit.container.ecs_task_id", &ev.Exit.Process.ContainerContext.ECSTaskID, value)
 	case "exit.container.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -2980,6 +3164,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exit.container.pod_uid":
+		return ev.setStringFieldValue("exit.container.pod_uid", &ev.Exit.Process.ContainerContext.PodUID, value)
 	case "exit.container.tags":
 		return ev.setStringArrayFieldValue("exit.container.tags", &ev.Exit.Process.ContainerContext.Tags, value)
 	case "exit.created_at":
@@ -3026,6 +3212,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.cmdline", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine, value)
 	case "process.ancestors.container.created_at":
 		return ev.setUint64FieldValue("process.ancestors.container.created_at", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.CreatedAt, value)
+	case "process.ancestors.container.ecs_task_id":
+		return ev.setStringFieldValue("process.ancestors.container.ecs_task_id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.ECSTaskID, value)
 	case "process.ancestors.container.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -3033,6 +3221,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.ancestors.container.pod_uid":
+		return ev.setStringFieldValue("process.ancestors.container.pod_uid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.PodUID, value)
 	case "process.ancestors.container.tags":
 		return ev.setStringArrayFieldValue("process.ancestors.container.tags", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.ancestors.created_at":
@@ -3065,6 +3255,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.cmdline", &ev.BaseEvent.ProcessContext.Process.CmdLine, value)
 	case "process.container.created_at":
 		return ev.setUint64FieldValue("process.container.created_at", &ev.BaseEvent.ProcessContext.Process.ContainerContext.CreatedAt, value)
+	case "process.container.ecs_task_id":
+		return ev.setStringFieldValue("process.container.ecs_task_id", &ev.BaseEvent.ProcessContext.Process.ContainerContext.ECSTaskID, value)
 	case "process.container.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -3072,6 +3264,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.container.pod_uid":
+		return ev.setStringFieldValue("process.container.pod_uid", &ev.BaseEvent.ProcessContext.Process.ContainerContext.PodUID, value)
 	case "process.container.tags":
 		return ev.setStringArrayFieldValue("process.container.tags", &ev.BaseEvent.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.created_at":
@@ -3094,6 +3288,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.parent.cmdline", &ev.BaseEvent.ProcessContext.Parent.CmdLine, value)
 	case "process.parent.container.created_at":
 		return ev.setUint64FieldValue("process.parent.container.created_at", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.CreatedAt, value)
+	case "process.parent.container.ecs_task_id":
+		return ev.setStringFieldValue("process.parent.container.ecs_task_id", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.ECSTaskID, value)
 	case "process.parent.container.id":
 		rv, ok := value.(string)
 		if !ok {
@@ -3101,6 +3297,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.parent.container.pod_uid":
+		return ev.setStringFieldValue("process.parent.container.pod_uid", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.PodUID, value)
 	case "process.parent.container.tags":
 		return ev.setStringArrayFieldValue("process.parent.container.tags", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.Tags, value)
 	case "process.parent.created_at":

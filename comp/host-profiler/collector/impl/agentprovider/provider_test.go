@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
@@ -37,7 +38,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol/otelcoltest"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
@@ -323,6 +324,149 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 	symbolUploader := profiling["symbol_uploader"].(map[string]interface{})
 	symbolEndpoints := symbolUploader["symbol_endpoints"].([]interface{})
 	require.Len(t, symbolEndpoints, 4, "should have 4 symbol endpoints (2 EU + 1 US3 + 1 main)")
+}
+
+func TestProviderDisablesHealthMetricsWhenInfrastructureModeIsNone(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+infrastructure_mode: none
+hostprofiler:
+  health_metrics:
+    enabled: true
+`)
+
+	agent := newConfigManager(cfg)
+	require.False(t, agent.hostProfilerConfig.HealthMetrics.Enabled)
+
+	generated := buildConfig(agent, testCollectorParams{})
+	_, hasMetricsPipeline := confmaputils.Get[map[string]any](generated, "service::pipelines::metrics")
+	require.False(t, hasMetricsPipeline)
+	level, hasMetricsLevel := confmaputils.Get[string](generated, "service::telemetry::metrics::level")
+	require.True(t, hasMetricsLevel)
+	require.Equal(t, "none", level)
+}
+
+func TestProviderIncludeEnvVars(t *testing.T) {
+	const extraEnvVar = "CUSTOM_ENV_VAR"
+	tests := []struct {
+		name     string
+		settings string
+		envValue string
+		want     string
+	}{
+		{name: "default"},
+		{
+			name:     "empty",
+			settings: "hostprofiler:\n  include_env_vars: ''\n",
+		},
+		{
+			name:     "yaml",
+			settings: "hostprofiler:\n  include_env_vars: " + extraEnvVar + "\n",
+			want:     extraEnvVar,
+		},
+		{
+			name:     "multiple",
+			settings: "hostprofiler:\n  include_env_vars: " + extraEnvVar + ",ANOTHER_ENV_VAR\n",
+			want:     extraEnvVar + ",ANOTHER_ENV_VAR",
+		},
+		{
+			name:     "env",
+			envValue: extraEnvVar,
+			want:     extraEnvVar,
+		},
+		{
+			name:     "env-overrides-yaml",
+			settings: "hostprofiler:\n  include_env_vars: ANOTHER_ENV_VAR\n",
+			envValue: extraEnvVar,
+			want:     extraEnvVar,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv("DD_HOSTPROFILER_INCLUDE_ENV_VARS", tt.envValue)
+			}
+			cfg := config.NewMockFromYAML(t, "api_key: test-key\nsite: datadoghq.com\n"+tt.settings)
+			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
+
+			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
+			require.NoError(t, err)
+			actual, err := retrieved.AsConf()
+			require.NoError(t, err)
+
+			value, exists := confmaputils.Get[string](actual.ToStringMap(), "receivers::profiling::include_env_vars")
+			require.Equal(t, tt.want != "", exists)
+			require.Equal(t, tt.want, value)
+			require.NoError(t, validateOTelConfig(t, actual))
+		})
+	}
+}
+
+func TestProviderEBPFLogsFromEnv(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DEBUG_EBPF_LOGS", "true")
+	cfg := config.NewMockFromYAML(t, "api_key: test-key\nhostprofiler:\n  debug:\n    ebpf_logs: false")
+	generated := buildConfig(newConfigManager(cfg), testCollectorParams{})
+	verbose, _ := confmaputils.Get[bool](generated, "receivers::profiling::verbose_mode")
+	require.True(t, verbose)
+	require.NoError(t, validateOTelConfig(t, confmap.NewFromStringMap(generated)))
+}
+
+func TestProviderInvalidReporterInterval(t *testing.T) {
+	for _, interval := range []string{"59s", "invalid"} {
+		t.Run(interval, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, "api_key: test-key\nhostprofiler:\n  reporter_interval: "+interval)
+			generated := confmap.NewFromStringMap(buildConfig(newConfigManager(cfg), testCollectorParams{}))
+			require.ErrorContains(t, validateOTelConfig(t, generated), "reporter_interval")
+		})
+	}
+}
+
+func TestProviderSymbolUploaderOptions(t *testing.T) {
+	for _, source := range []string{"yaml", "env"} {
+		t.Run(source, func(t *testing.T) {
+			if source == "env" {
+				t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_OPTIONS", `{
+  "enabled": true,
+  "upload_dynamic_symbols": true,
+  "upload_gopclntab": false,
+  "use_http2": true,
+  "symbol_query_interval": "0s",
+  "dry_run": true,
+  "disable_debug_section_compression": true
+}`)
+				t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_ENABLED", "false")
+			}
+			cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+hostprofiler:
+  symbol_uploader:
+    options:
+      enabled: false
+      upload_dynamic_symbols: true
+      upload_gopclntab: false
+      use_http2: true
+      symbol_query_interval: 0s
+      dry_run: false
+      disable_debug_section_compression: true
+`)
+			generated := confmap.NewFromStringMap(buildConfig(newConfigManager(cfg), testCollectorParams{}))
+			require.NoError(t, validateOTelConfig(t, generated))
+
+			profiling, err := generated.Sub("receivers::profiling")
+			require.NoError(t, err)
+			receiverConfig := receiver.NewFactory(version.BundledProfilerName).CreateDefaultConfig().(receiver.Config)
+			require.NoError(t, profiling.Unmarshal(&receiverConfig))
+			uploader := receiverConfig.SymbolUploader
+			require.False(t, uploader.Enabled)
+			require.True(t, uploader.UploadDynamicSymbols)
+			require.False(t, uploader.UploadGoPCLnTab)
+			require.True(t, uploader.UseHTTP2)
+			require.Zero(t, uploader.SymbolQueryInterval)
+			require.Equal(t, source == "env", uploader.DryRun)
+			require.True(t, uploader.DisableDebugSectionCompression)
+		})
+	}
 }
 
 func TestProviderMethods(t *testing.T) {
