@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "common",
@@ -8,6 +9,24 @@ go_library(
     deps = [
         "//cmd/cluster-agent/admission",
         "//pkg/clusteragent/admission/metrics",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = ["common_test.go"],
+    embed = [":common"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_client_go//dynamic",
     ],
 )

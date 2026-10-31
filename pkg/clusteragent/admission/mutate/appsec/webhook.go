@@ -150,6 +150,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 		switch request.Operation {
 		case admissionregistrationv1.Create:
 			return common.MutationResponse(mutatecommon.Mutate(
+				request.Context,
 				request.Object,
 				request.Namespace,
 				w.Name(),
