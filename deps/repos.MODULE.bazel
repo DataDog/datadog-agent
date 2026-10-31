@@ -290,20 +290,6 @@ http_archive(
 )
 
 http_archive(
-    name = "libxml2",
-    files = {
-        "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
-        "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
-        "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
-    },
-    sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821",
-    strip_prefix = "libxml2-2.15.4",
-    urls = [
-        "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
-    ],
-)
-
-http_archive(
     name = "libxslt",
     files = {
         "config-linux-x86_64.h": "//deps:libxslt/config-linux-x86_64.h",
