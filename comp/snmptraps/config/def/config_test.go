@@ -177,7 +177,7 @@ func TestFullConfig(t *testing.T) {
 	for _, usmConfigTest := range usmConfigTests {
 		// Compare the security params after initializing the security keys (happens in the add to table)
 		expected, _ := table.Get(usmConfigTest.identifier)
-		actual, _ := params.TrapSecurityParametersTable.Get(usmConfigTest.identifier)
+		actual, _ := params.GetTrapSecurityParametersTable().Get(usmConfigTest.identifier)
 		assert.ElementsMatch(t, expected, actual)
 	}
 }
