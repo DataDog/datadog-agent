@@ -7,6 +7,7 @@
 package sender
 
 import (
+	"context"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -25,6 +26,7 @@ type batchStrategy struct {
 	inputChan      chan *message.Message
 	outputChan     chan *message.Payload
 	flushChan      chan struct{}
+	flushRequests  chan chan struct{} // see Flush
 	serverlessMeta ServerlessMeta
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName   string
@@ -77,6 +79,7 @@ func newBatchStrategyWithClock(
 		inputChan:       inputChan,
 		outputChan:      outputChan,
 		flushChan:       flushChan,
+		flushRequests:   make(chan chan struct{}),
 		serverlessMeta:  serverlessMeta,
 		batchWait:       batchWait,
 		compression:     compression,
@@ -116,20 +119,64 @@ func (s *batchStrategy) Start() {
 					return
 				}
 
-				if m.IsMRFAllow {
-					s.getBatch(mrfBatch).processMessage(m, s.outputChan)
-				} else {
-					s.getBatch(mainBatch).processMessage(m, s.outputChan)
-				}
+				s.processMessage(m)
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushAllBatches("timer")
 			case <-s.flushChan:
 				// flush payloads on demand, used for infrequently running serverless functions
 				s.flushAllBatches("flush")
+			case done := <-s.flushRequests:
+				// Include messages already queued, since select may pick this case before them,
+				// then signal Flush that the payloads have been handed to the sender.
+				s.drainInput()
+				s.flushAllBatches("flush")
+				close(done)
 			}
 		}
 	}()
+}
+
+// Flush flushes the buffered messages, including those already queued on the input channel,
+// and returns once the resulting payloads have been handed to the output channel or ctx is done.
+// Unlike a send on flushChan, a caller waiting for in-flight sends after Flush returns also
+// waits for these payloads.
+func (s *batchStrategy) Flush(ctx context.Context) {
+	done := make(chan struct{})
+	select {
+	case s.flushRequests <- done:
+	case <-ctx.Done():
+		return
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+}
+
+// processMessage adds the message to the multi-region failover batch if it may be sent to the failover
+// destination, or to the main batch otherwise.
+func (s *batchStrategy) processMessage(m *message.Message) {
+	if m.IsMRFAllow {
+		s.getBatch(mrfBatch).processMessage(m, s.outputChan)
+	} else {
+		s.getBatch(mainBatch).processMessage(m, s.outputChan)
+	}
+}
+
+// drainInput processes the messages already queued on inputChan without waiting for more.
+func (s *batchStrategy) drainInput() {
+	for {
+		select {
+		case m, isOpen := <-s.inputChan:
+			if !isOpen {
+				return
+			}
+			s.processMessage(m)
+		default:
+			return
+		}
+	}
 }
 
 func (s *batchStrategy) getBatch(key string) *batch {
