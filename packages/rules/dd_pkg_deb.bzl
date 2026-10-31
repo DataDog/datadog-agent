@@ -1,26 +1,52 @@
 """dd__pkg_deb - wrapper for pkg_deb adding agent specific defaults."""
 
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
 # We need to peek at the actual rule instead of the wrapper because you
 # can't put a macro on a legacy macro.
 # buildifier: disable=bzl-visibility
 load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
+load("//bazel/rules:compression.bzl", "get_compression_level")
+load("//bazel/rules:xz_compress.bzl", "xz_compress")
 load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
 # kwargs is mandatory for macros, even if you don't use it.
 # buildifier: disable=unused-variable
-def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, data, depends, description, homepage, license, maintainer, out, package_file_name, postinst, postrm, preinst, prerm, priority, product_name, recommends, section, version, **kwargs):
+def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, description, homepage, license, maintainer, out, package_file_name, postinst, postrm, preinst, prerm, priority, product_name, recommends, section, srcs, version, **kwargs):
     variables_name = "%s_vars_" % name
     package_name_variables(
         name = variables_name,
         product_name = product_name,
     )
 
+    data_tar = "%s_data_tar" % name
+    pkg_tar(
+        name = data_tar,
+        srcs = srcs,
+        out = "%s_data.tar" % name,
+        owner = "0.0",
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
+    )
+
+    data = "%s_data" % name
+    xz_compress(
+        name = data,
+        src = ":" + data_tar,
+        out = "%s_data.tar.xz" % name,
+        # TODO: account for pipeline injected compression level.
+        # https://datadoghq.atlassian.net/browse/ABLD-364
+        level = get_compression_level(),
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
+    )
+
     sums_out = "%s_md5sums_out_" % name
     size_out = "%s_installed_size_out_" % name
     tar_md5sums(
         name = "%s_md5sums_" % name,
-        src = data,
+        src = ":" + data_tar,
         installed_size = size_out,
         md5sums = sums_out,
     )
@@ -29,7 +55,7 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, data, depends, d
         name = name,
         architecture = architecture or "{arch_deb}",
         conflicts = conflicts,
-        data = data,
+        data = ":" + data,
         depends = depends,
         description = description,
         homepage = homepage or "http://www.datadoghq.com",
@@ -57,6 +83,7 @@ dd_pkg_deb = macro(
     inherit_attrs = pkg_deb_impl,
     implementation = _dd_pkg_deb_impl,
     attrs = {
+        "data": None,
         "installed_size": None,
         "installed_size_file": None,
         "md5sums": None,
@@ -64,6 +91,10 @@ dd_pkg_deb = macro(
         "package_variables": None,
         "product_name": attr.string(
             doc = "Unflavored product name. The flavor is added to it to form the package name.",
+            mandatory = True,
+        ),
+        "srcs": attr.label_list(
+            doc = "Files to install, compressed with xz into the package's data archive.",
             mandatory = True,
         ),
     },

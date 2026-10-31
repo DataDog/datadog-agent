@@ -50,7 +50,6 @@ target (`pkg_filegroup` or `pkg_files`). Top-level package targets aggregate the
 //packages/agent/linux:everything         ← components + transitive_deps
 //packages/agent/linux:license_files      ← gathered via package_licenses aspect
 //packages/agent/linux:whole_distro       ← everything + licenses + build-time items
-//packages/agent/linux:whole_distro_tar   ← XZ-compressed tar of whole_distro
 //packages/agent/linux:debian             ← .deb artifact
 //packages/agent/linux:rpm                ← .rpm artifact
 ```
@@ -188,9 +187,8 @@ package_licenses(name = "license_files", src = ":everything")
 
 ```python
 pkg_filegroup(name = "whole_distro", srcs = [":everything", ":license_files"])
-pkg_tar(name = "whole_distro_tar", srcs = [":whole_distro"], ...)
-pkg_deb(name = "debian", data = ":whole_distro_tar", ...)
-pkg_rpm(name = "rpm", srcs = [":whole_distro"], ...)
+dd_pkg_deb(name = "debian", srcs = [":whole_distro"], ...)
+dd_pkg_rpm(name = "rpm", srcs = [":whole_distro"], ...)
 ```
 
 ### Step 10 — Add a `pkg_install` bridge for the omnibus transition period
