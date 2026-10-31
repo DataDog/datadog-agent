@@ -51,6 +51,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "executor_config_test.go",
+        "executor_readiness_test.go",
         "executor_telemetry_test.go",
         "executor_telemetry_unix_test.go",
         "privateactionrunner_test.go",
@@ -70,6 +71,7 @@ dd_agent_go_test(
         "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/opms/testing",
         "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/task-verifier",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
         "//pkg/remoteconfig/state",
