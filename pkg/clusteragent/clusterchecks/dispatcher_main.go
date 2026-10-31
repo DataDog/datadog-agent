@@ -179,7 +179,9 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	excludedInstanceShardingChecks := toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.instance_sharding_exclude_checks"))
 	instanceSharding := newInstanceShardingManager(instanceShardingEnabled, excludedInstanceShardingChecks)
 
-	d.shardingStrategies = []shardingStrategy{ksmSharding, instanceSharding}
+	kafkaConsumerSharding := newKafkaConsumerShardingManager(pkgconfigsetup.Datadog().GetBool("cluster_checks.kafka_consumer_sharding_enabled"))
+
+	d.shardingStrategies = []shardingStrategy{ksmSharding, kafkaConsumerSharding, instanceSharding}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
