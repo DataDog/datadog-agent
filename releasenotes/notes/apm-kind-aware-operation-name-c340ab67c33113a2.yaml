@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    APM: Avoid semantic attribute lookups for operation-name families that cannot
+    apply to the span kind when converting OpenTelemetry spans.
