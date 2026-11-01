@@ -847,3 +847,40 @@ func TestStatsCopy(t *testing.T) {
 	assert.Equal(t, stats.LastFlush, statsCopy.LastFlush)
 	assert.Equal(t, stats.Name, statsCopy.Name)
 }
+
+func TestCommitPeriodicCheckMetrics(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		enabled  bool
+		expected []string
+	}{
+		{name: "enabled", enabled: true, expected: []string{"first.check", "second.check"}},
+		{name: "disabled", enabled: false, expected: nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("check_sampler_periodic_flush", tc.enabled)
+
+			agg := NewBufferedAggregator(&MockSerializerIterableSerie{}, nil, nil, taggerfxmock.SetupFakeTagger(t), "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+			for id, name := range map[checkid.ID]string{"first:check:1": "first.check", "second:check:1": "second.check"} {
+				agg.handleRegisterSampler(id)
+				agg.handleSenderSample(senderMetricSample{id, &metrics.MetricSample{
+					Name:       name,
+					Value:      1,
+					Mtype:      metrics.GaugeType,
+					SampleRate: 1,
+					Timestamp:  timeNowNano(),
+				}, false})
+			}
+
+			agg.commitPeriodicCheckMetrics()
+			series, _ := agg.GetSeriesAndSketches(time.Now())
+
+			var names []string
+			for _, s := range series {
+				names = append(names, s.Name)
+			}
+			assert.ElementsMatch(t, tc.expected, names)
+		})
+	}
+}

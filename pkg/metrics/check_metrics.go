@@ -116,6 +116,24 @@ func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]
 	return cm.metrics.Flush(timestamp)
 }
 
+// FlushPeriodic flushes only the metrics that can be flushed before the check run is
+// committed (see Metric.isDecomposable), and returns the context keys of all such metrics.
+func (cm *CheckMetrics) FlushPeriodic(timestamp float64) ([]*Serie, map[ckey.ContextKey]error, []ckey.ContextKey) {
+	var series []*Serie
+	var keys []ckey.ContextKey
+	errors := make(map[ckey.ContextKey]error)
+
+	for contextKey, metric := range cm.metrics {
+		if !metric.isDecomposable() {
+			continue
+		}
+		series = flushToSeries(contextKey, metric, timestamp, series, errors)
+		keys = append(keys, contextKey)
+	}
+
+	return series, errors, keys
+}
+
 // RemoveExpired removes stateful metrics that have expired before the given timestamp.
 func (cm *CheckMetrics) RemoveExpired(timestamp float64) {
 	removed := 0.0

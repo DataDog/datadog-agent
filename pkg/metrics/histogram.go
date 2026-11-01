@@ -316,3 +316,9 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 func (h *Histogram) isStateful() bool {
 	return false
 }
+
+// Percentiles, averages and maximums of the parts of a window can't be combined into
+// those of the whole window.
+func (h *Histogram) isDecomposable() bool {
+	return false
+}

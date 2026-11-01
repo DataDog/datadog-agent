@@ -62,6 +62,11 @@ type Metric interface {
 	// isStateful() indicates that metric preserves information between flushes, which is
 	// required for correct operation (e.g. monotonic count keeps previous value).
 	isStateful() bool
+	// isDecomposable() indicates that metric can be flushed at arbitrary points within its
+	// aggregation window: the values flushed for parts of the window combine into the
+	// value a single flush over the whole window would produce. For example, a count
+	// flushed as 3 and then 2 adds up to the 5 a single flush would report.
+	isDecomposable() bool
 }
 
 // NoSerieError is the error returned by a metric when not enough samples have been

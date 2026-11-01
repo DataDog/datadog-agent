@@ -36,3 +36,8 @@ func (g *Gauge) flush(timestamp float64) ([]*Serie, error) {
 func (g *Gauge) isStateful() bool {
 	return false
 }
+
+// The last value flushed for the parts of a window is the last value of the window.
+func (g *Gauge) isDecomposable() bool {
+	return true
+}

@@ -958,3 +958,197 @@ func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
 func TestSketchSeriesSourcePreserved(t *testing.T) {
 	testWithTagsStore(t, testSketchSeriesSourcePreserved)
 }
+
+func newPeriodicCheckSampler(store *tags.Store) *CheckSampler {
+	checkSampler := newCheckSampler(1, true, true, 1*time.Hour, true, store, checkid.ID("hello:world:1234"), nooptagger.NewComponent())
+	checkSampler.periodicFlush = true
+	return checkSampler
+}
+
+func periodicSample(name string, mtype metrics.MetricType, value, timestamp float64) *metrics.MetricSample {
+	return &metrics.MetricSample{
+		Name:       name,
+		Value:      value,
+		Mtype:      mtype,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  timestamp,
+	}
+}
+
+func seriesByName(series metrics.Series) map[string]*metrics.Serie {
+	byName := make(map[string]*metrics.Serie, len(series))
+	for _, s := range series {
+		byName[s.Name] = s
+	}
+	return byName
+}
+
+func testCheckSamplerPeriodicGauge(t *testing.T, store *tags.Store) {
+	checkSampler := newPeriodicCheckSampler(store)
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	checkSampler.addSample(periodicSample("my.gauge", metrics.GaugeType, 1, 100.2), tagmatcher)
+	checkSampler.commitPeriodic(100.5, &matcher)
+	series, _ := checkSampler.flush()
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, "my.gauge", series[0].Name)
+		assert.Equal(t, []metrics.Point{{Ts: 100.5, Value: 1}}, series[0].Points)
+	}
+	assert.Equal(t, 0, checkSampler.contextResolver.length())
+
+	checkSampler.addSample(periodicSample("my.gauge", metrics.GaugeType, 2, 120), tagmatcher)
+	assert.Equal(t, 1, checkSampler.contextResolver.length())
+	checkSampler.commit(130, &matcher)
+	series, _ = checkSampler.flush()
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, "my.gauge", series[0].Name)
+		assert.Equal(t, []metrics.Point{{Ts: 130, Value: 2}}, series[0].Points)
+	}
+}
+
+func TestCheckSamplerPeriodicGauge(t *testing.T) {
+	testWithTagsStore(t, testCheckSamplerPeriodicGauge)
+}
+
+func testCheckSamplerPeriodicMonotonicCount(t *testing.T, store *tags.Store) {
+	checkSampler := newPeriodicCheckSampler(store)
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	checkSampler.addSample(periodicSample("my.counter", metrics.MonotonicCountType, 10, 100), tagmatcher)
+	checkSampler.commitPeriodic(110, &matcher)
+	series, _ := checkSampler.flush()
+	assert.Empty(t, series)
+	assert.Equal(t, 0, checkSampler.contextResolver.length())
+
+	checkSampler.addSample(periodicSample("my.counter", metrics.MonotonicCountType, 15, 120), tagmatcher)
+	checkSampler.commit(130, &matcher)
+	series, _ = checkSampler.flush()
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, "my.counter", series[0].Name)
+		assert.Equal(t, []metrics.Point{{Ts: 130, Value: 5}}, series[0].Points)
+	}
+}
+
+func TestCheckSamplerPeriodicMonotonicCount(t *testing.T) {
+	testWithTagsStore(t, testCheckSamplerPeriodicMonotonicCount)
+}
+
+func testCheckSamplerPeriodicKeepsRunScopedMetrics(t *testing.T, store *tags.Store) {
+	checkSampler := newPeriodicCheckSampler(store)
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	checkSampler.addSample(periodicSample("my.histogram", metrics.HistogramType, 1, 100), tagmatcher)
+	checkSampler.commitPeriodic(110, &matcher)
+	series, _ := checkSampler.flush()
+	assert.Empty(t, series)
+	assert.Equal(t, 1, checkSampler.contextResolver.length())
+
+	checkSampler.addSample(periodicSample("my.histogram", metrics.HistogramType, 3, 120), tagmatcher)
+	checkSampler.commit(130, &matcher)
+	series, _ = checkSampler.flush()
+	byName := seriesByName(series)
+	if assert.Contains(t, byName, "my.histogram.count") {
+		assert.Equal(t, []metrics.Point{{Ts: 130, Value: 2}}, byName["my.histogram.count"].Points)
+	}
+	if assert.Contains(t, byName, "my.histogram.max") {
+		assert.Equal(t, []metrics.Point{{Ts: 130, Value: 3}}, byName["my.histogram.max"].Points)
+	}
+}
+
+func TestCheckSamplerPeriodicKeepsRunScopedMetrics(t *testing.T) {
+	testWithTagsStore(t, testCheckSamplerPeriodicKeepsRunScopedMetrics)
+}
+
+func TestCheckSamplerPeriodicTimestampCollision(t *testing.T) {
+	checkSampler := newPeriodicCheckSampler(tags.NewStore(true, "test"))
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	checkSampler.addSample(periodicSample("my.gauge", metrics.GaugeType, 1, 200.1), tagmatcher)
+	checkSampler.addSample(periodicSample("my.histogram", metrics.HistogramType, 1, 200.1), tagmatcher)
+	checkSampler.commitPeriodic(200.3, &matcher)
+	series, _ := checkSampler.flush()
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, 200.3, series[0].Points[0].Ts)
+	}
+
+	checkSampler.addSample(periodicSample("my.gauge", metrics.GaugeType, 2, 200.5), tagmatcher)
+	checkSampler.commit(200.8, &matcher)
+	series, _ = checkSampler.flush()
+	assert.NotEmpty(t, series)
+	for _, s := range series {
+		assert.Equal(t, 201.0, s.Points[0].Ts, s.Name)
+	}
+}
+
+func TestCheckSamplerPeriodicNoBumpWithoutSeries(t *testing.T) {
+	checkSampler := newPeriodicCheckSampler(tags.NewStore(true, "test"))
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	checkSampler.commitPeriodic(300.1, &matcher)
+	checkSampler.addSample(periodicSample("my.gauge", metrics.GaugeType, 1, 300.2), tagmatcher)
+	checkSampler.commit(300.6, &matcher)
+	series, _ := checkSampler.flush()
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, 300.6, series[0].Points[0].Ts)
+	}
+}
+
+func TestCheckSamplerPeriodicKeepsSharedContexts(t *testing.T) {
+	checkSampler := newPeriodicCheckSampler(tags.NewStore(true, "test"))
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	distribution := periodicSample("my.shared", metrics.DistributionType, 1, 400)
+	checkSampler.addSample(distribution, tagmatcher)
+	checkSampler.addSample(periodicSample("my.shared", metrics.GaugeType, 1, 400), tagmatcher)
+	bucket := &metrics.HistogramBucket{
+		Name:       "my.bucket",
+		Value:      4,
+		LowerBound: 10,
+		UpperBound: 20,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  400,
+		Monotonic:  true,
+	}
+	checkSampler.addBucket(bucket, tagmatcher)
+	checkSampler.addSample(periodicSample("my.bucket", metrics.GaugeType, 1, 400), tagmatcher)
+
+	checkSampler.commitPeriodic(400.5, &matcher)
+	series, _ := checkSampler.flush()
+	assert.Len(t, series, 2)
+
+	_, ok := checkSampler.contextResolver.get(generateContextKey(distribution))
+	assert.True(t, ok, "context with a pending sketch must be kept")
+	_, ok = checkSampler.contextResolver.get(generateContextKey(periodicSample("my.bucket", metrics.GaugeType, 1, 400)))
+	assert.True(t, ok, "context with a bucket baseline must be kept")
+
+	checkSampler.commit(401, &matcher)
+	_, sketches := checkSampler.flush()
+	if assert.Len(t, sketches, 1) {
+		assert.Equal(t, "my.shared", sketches[0].Name)
+	}
+}
+
+func TestCheckSamplerPeriodicDisabled(t *testing.T) {
+	checkSampler := newPeriodicCheckSampler(tags.NewStore(true, "test"))
+	checkSampler.periodicFlush = false
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	checkSampler.addSample(periodicSample("my.gauge", metrics.GaugeType, 1, 500.1), tagmatcher)
+	checkSampler.commit(500.3, &matcher)
+	checkSampler.addSample(periodicSample("my.gauge", metrics.GaugeType, 2, 500.4), tagmatcher)
+	checkSampler.commit(500.6, &matcher)
+	series, _ := checkSampler.flush()
+	if assert.Len(t, series, 2) {
+		assert.Equal(t, 500.3, series[0].Points[0].Ts)
+		assert.Equal(t, 500.6, series[1].Points[0].Ts)
+	}
+	assert.Equal(t, 1, checkSampler.contextResolver.length())
+}

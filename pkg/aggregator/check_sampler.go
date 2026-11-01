@@ -43,6 +43,11 @@ type CheckSampler struct {
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
 	observerHandle         observer.Handle
+	// periodicFlush enables committing metrics that don't depend on a check run window
+	// on every flush, without waiting for the check run to end.
+	periodicFlush bool
+	// lastCommitSecond is the last second that series were committed at.
+	lastCommitSecond int64
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -214,8 +219,11 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
-
 	series, errors := cs.metrics.Flush(timestamp)
+	cs.appendSeries(series, errors, filterList)
+}
+
+func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.ContextKey]error, filterList *metricname.Matcher) {
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
@@ -272,8 +280,23 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 	}
 }
 
+// commitTimestamp returns the timestamp for the series of a new commit. With periodic
+// flush enabled, a check run commit can follow a periodic one within the same second,
+// so the timestamp is moved past the last committed second to keep series points unique.
+func (cs *CheckSampler) commitTimestamp(now float64) float64 {
+	if cs.periodicFlush && int64(now) <= cs.lastCommitSecond {
+		return float64(cs.lastCommitSecond + 1)
+	}
+	return now
+}
+
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
-	cs.commitSeries(timestamp, filterList)
+	seriesTimestamp := cs.commitTimestamp(timestamp)
+	committed := len(cs.series)
+	cs.commitSeries(seriesTimestamp, filterList)
+	if len(cs.series) > committed {
+		cs.lastCommitSecond = int64(seriesTimestamp)
+	}
 	cs.commitSketches(timestamp, filterList)
 
 	cs.metrics.RemoveExpired(timestamp)
@@ -287,6 +310,56 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
+}
+
+// commitPeriodic commits the metrics that don't depend on a check run window (see
+// metrics.Metric.isDecomposable) and releases their contexts. Unlike commit, it doesn't
+// mark the end of a check run, so it leaves sketches and context expiry alone.
+func (cs *CheckSampler) commitPeriodic(timestamp float64, filterList *metricname.Matcher) {
+	seriesTimestamp := cs.commitTimestamp(timestamp)
+	series, errors, keys := cs.metrics.FlushPeriodic(seriesTimestamp)
+	committed := len(cs.series)
+	cs.appendSeries(series, errors, filterList)
+	if len(cs.series) > committed {
+		cs.lastCommitSecond = int64(seriesTimestamp)
+	}
+	cs.releaseContexts(keys, timestamp)
+}
+
+// releaseContexts drops the contexts of flushed metrics. A new sample recreates the
+// context under the same key, and stateful metrics keep their state through Expire.
+func (cs *CheckSampler) releaseContexts(keys []ckey.ContextKey, timestamp float64) {
+	var pendingSketches map[ckey.ContextKey]struct{}
+	if len(cs.sketchMap) > 0 {
+		pendingSketches = make(map[ckey.ContextKey]struct{})
+		for _, byCtx := range cs.sketchMap {
+			for key := range byCtx {
+				pendingSketches[key] = struct{}{}
+			}
+		}
+	}
+
+	released := keys[:0]
+	for _, key := range keys {
+		// Already released and not sampled since: expiring it again would push back
+		// the removal deadline of a stateful metric.
+		if _, ok := cs.contextResolver.get(key); !ok {
+			continue
+		}
+		if _, ok := pendingSketches[key]; ok {
+			continue
+		}
+		if _, ok := cs.lastBucketValue[key]; ok {
+			continue
+		}
+		if _, ok := cs.lastBucketValueByBound[key]; ok {
+			continue
+		}
+		cs.contextResolver.resolver.remove(key)
+		released = append(released, key)
+	}
+
+	cs.metrics.Expire(released, timestamp)
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {

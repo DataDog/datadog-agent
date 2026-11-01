@@ -310,6 +310,9 @@ type BufferedAggregator struct {
 	// observerHandle is set at startup and copied into newly created CheckSamplers.
 	observerHandle observer.Handle
 
+	// checkPeriodicFlush is copied into newly created CheckSamplers.
+	checkPeriodicFlush bool
+
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan metricname.Matcher
 	flushFilterList metricname.Matcher
@@ -385,6 +388,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		globalTags:                  tagger.GlobalTags,
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
+		checkPeriodicFlush:          pkgconfigsetup.Datadog().GetBool("check_sampler_periodic_flush"),
 
 		filterListChan:    make(chan metricname.Matcher),
 		flushFilterList:   filterList.GetMetricFilterList(),
@@ -801,6 +805,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushMutex.Lock()
 	defer agg.flushMutex.Unlock()
+	agg.commitPeriodicCheckMetrics()
 	agg.flushSeriesAndSketches(trigger)
 	// notify the triggerer that we're done flushing the series and sketches
 	if trigger.blockChan != nil {
@@ -810,6 +815,22 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushEvents(trigger.time, trigger.waitForSerializer)
 	agg.flushOrchestratorManifests(trigger.time, trigger.waitForSerializer)
 	agg.updateChecksTelemetry()
+}
+
+// commitPeriodicCheckMetrics commits the check metrics that don't depend on a check run
+// window, so that long check runs don't have to hold all their metrics until they finish.
+func (agg *BufferedAggregator) commitPeriodicCheckMetrics() {
+	if !agg.checkPeriodicFlush {
+		return
+	}
+
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	now := timeNowNano()
+	for _, checkSampler := range agg.checkSamplers {
+		checkSampler.commitPeriodic(now, &agg.flushFilterList)
+	}
 }
 
 // Stop stops the aggregator, blocking until the run() goroutine exits.
@@ -1055,5 +1076,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)
 	}
+	cs.periodicFlush = agg.checkPeriodicFlush
 	agg.checkSamplers[id] = cs
 }
