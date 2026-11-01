@@ -416,11 +416,12 @@ func getOTelOperationNameV2[A semantics.Accessor](span ptrace.Span, accessor A) 
 		return operationName
 	}
 
-	isClient := span.Kind() == ptrace.SpanKindClient
-	isServer := span.Kind() == ptrace.SpanKindServer
+	kind := span.Kind()
+	isClient := kind == ptrace.SpanKindClient
+	isServer := kind == ptrace.SpanKindServer
 
 	// HTTP
-	if method := lookupString(accessor, semantics.ConceptHTTPMethod, false); method != "" {
+	if (isClient || isServer) && lookupString(accessor, semantics.ConceptHTTPMethod, false) != "" {
 		if isServer {
 			return "http.server.request"
 		}
@@ -430,52 +431,51 @@ func getOTelOperationNameV2[A semantics.Accessor](span ptrace.Span, accessor A) 
 	}
 
 	// Database
-	if v := lookupString(accessor, semantics.ConceptDBSystem, true); v != "" && isClient {
-		return v + ".query"
+	if isClient {
+		if v := lookupString(accessor, semantics.ConceptDBSystem, true); v != "" {
+			return v + ".query"
+		}
 	}
 
 	// Messaging
-	system := lookupString(accessor, semantics.ConceptMessagingSystem, true)
-	op := lookupString(accessor, semantics.ConceptMessagingOperation, true)
-	if system != "" && op != "" {
-		switch span.Kind() {
-		case ptrace.SpanKindClient, ptrace.SpanKindServer, ptrace.SpanKindConsumer, ptrace.SpanKindProducer:
-			return system + "." + op
+	if isClient || isServer || kind == ptrace.SpanKindConsumer || kind == ptrace.SpanKindProducer {
+		if system := lookupString(accessor, semantics.ConceptMessagingSystem, true); system != "" {
+			if op := lookupString(accessor, semantics.ConceptMessagingOperation, true); op != "" {
+				return system + "." + op
+			}
 		}
 	}
 
 	// RPC & AWS
-	rpcValue := lookupString(accessor, semantics.ConceptRPCSystem, true)
-	isRPC := rpcValue != ""
-	isAws := isRPC && (rpcValue == "aws-api")
-	// AWS client
-	if isAws && isClient {
-		if service := lookupString(accessor, semantics.ConceptRPCService, true); service != "" {
-			return "aws." + service + ".request"
+	if isClient || isServer {
+		if rpcValue := lookupString(accessor, semantics.ConceptRPCSystem, true); rpcValue != "" {
+			if isClient {
+				if rpcValue == "aws-api" {
+					if service := lookupString(accessor, semantics.ConceptRPCService, true); service != "" {
+						return "aws." + service + ".request"
+					}
+					return "aws.client.request"
+				}
+				return rpcValue + ".client.request"
+			}
+			return rpcValue + ".server.request"
 		}
-		return "aws.client.request"
-	}
-
-	// RPC client
-	if isRPC && isClient {
-		return rpcValue + ".client.request"
-	}
-	// RPC server
-	if isRPC && isServer {
-		return rpcValue + ".server.request"
 	}
 
 	// FAAS client
-	provider := lookupString(accessor, semantics.ConceptFaaSInvokedProvider, true)
-	invokedName := lookupString(accessor, semantics.ConceptFaaSInvokedName, true)
-	if provider != "" && invokedName != "" && isClient {
-		return provider + "." + invokedName + ".invoke"
+	if isClient {
+		if provider := lookupString(accessor, semantics.ConceptFaaSInvokedProvider, true); provider != "" {
+			if invokedName := lookupString(accessor, semantics.ConceptFaaSInvokedName, true); invokedName != "" {
+				return provider + "." + invokedName + ".invoke"
+			}
+		}
 	}
 
 	// FAAS server
-	trigger := lookupString(accessor, semantics.ConceptFaaSTrigger, true)
-	if trigger != "" && isServer {
-		return trigger + ".invoke"
+	if isServer {
+		if trigger := lookupString(accessor, semantics.ConceptFaaSTrigger, true); trigger != "" {
+			return trigger + ".invoke"
+		}
 	}
 
 	// GraphQL
@@ -484,21 +484,22 @@ func getOTelOperationNameV2[A semantics.Accessor](span ptrace.Span, accessor A) 
 	}
 
 	// If nothing matches, check for generic http server/client
-	protocol := lookupString(accessor, semantics.ConceptNetworkProtocolName, true)
-	if isServer {
-		if protocol != "" {
-			return protocol + ".server.request"
+	if isServer || isClient {
+		protocol := lookupString(accessor, semantics.ConceptNetworkProtocolName, true)
+		if isServer {
+			if protocol != "" {
+				return protocol + ".server.request"
+			}
+			return "server.request"
 		}
-		return "server.request"
-	} else if isClient {
 		if protocol != "" {
 			return protocol + ".client.request"
 		}
 		return "client.request"
 	}
 
-	if span.Kind() != ptrace.SpanKindUnspecified {
-		return span.Kind().String()
+	if kind != ptrace.SpanKindUnspecified {
+		return kind.String()
 	}
 	return ptrace.SpanKindInternal.String()
 }
