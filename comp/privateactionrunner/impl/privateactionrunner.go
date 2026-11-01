@@ -107,10 +107,11 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	executorServer  *executor.Server
-	encryptionStore *encryptioncontext.Store
-	executorDone    chan struct{}
-	shutdowner      compdef.Shutdowner
+	executorServer    *executor.Server
+	encryptionStore   *encryptioncontext.Store
+	executorDone      chan struct{}
+	executorReadyDone chan struct{}
+	shutdowner        compdef.Shutdowner
 
 	telemetry   *telemetry.Telemetry
 	keysManager taskverifier.KeysManager
@@ -400,12 +401,21 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 	go p.encryptionStore.Start()
 	keysManager.Start(runCtx)
+	p.startExecutorReadiness(runCtx, keysManager)
+	return runCtx, cfg, nil
+}
+
+func (p *PrivateActionRunner) startExecutorReadiness(ctx context.Context, keysManager taskverifier.KeysManager) {
+	p.executorReadyDone = make(chan struct{})
+	server := p.executorServer
 	go func() {
-		keysManager.WaitForReady()
-		p.executorServer.SetReady(true)
+		defer close(p.executorReadyDone)
+		if err := keysManager.WaitForReady(ctx); err != nil || ctx.Err() != nil {
+			return
+		}
+		server.SetReady(true)
 		p.logger.Info("Private action runner executor ready to accept actions")
 	}()
-	return runCtx, cfg, nil
 }
 
 func (p *PrivateActionRunner) getKeysManager() taskverifier.KeysManager {
@@ -433,6 +443,8 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 	defer cancelWaitCtx()
 	if err := p.waitForStartup(waitCtx); err != nil {
 		p.logger.Warn("PAR executor startup did not complete in time, forcing cleanup")
+	} else if p.executorReadyDone != nil {
+		<-p.executorReadyDone
 	}
 
 	if p.executorDone != nil {

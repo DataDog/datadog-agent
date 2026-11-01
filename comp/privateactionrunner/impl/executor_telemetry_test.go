@@ -195,8 +195,8 @@ func (telemetryTestRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bo
 
 type telemetryTestKeysManager struct{}
 
-func (telemetryTestKeysManager) Start(context.Context) {}
-func (telemetryTestKeysManager) WaitForReady()         {}
+func (telemetryTestKeysManager) Start(context.Context)                  {}
+func (telemetryTestKeysManager) WaitForReady(ctx context.Context) error { return ctx.Err() }
 func (telemetryTestKeysManager) GetKey(string) (types.DecodedKey, *types.DirectorKeyProof) {
 	return nil, nil
 }

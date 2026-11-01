@@ -33,7 +33,7 @@ func (m *staticKeysManager) Start(context.Context) {}
 func (m *staticKeysManager) GetKey(id string) (types.DecodedKey, *types.DirectorKeyProof) {
 	return m.keys[id], m.proof
 }
-func (m *staticKeysManager) WaitForReady() {}
+func (m *staticKeysManager) WaitForReady(ctx context.Context) error { return ctx.Err() }
 
 func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	public, private, err := ed25519.GenerateKey(rand.Reader)

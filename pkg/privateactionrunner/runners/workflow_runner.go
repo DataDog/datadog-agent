@@ -38,6 +38,7 @@ type WorkflowRunner struct {
 	encryptionStore *encryptioncontext.Store
 	sem             chan struct{}
 	shutdownChannel chan struct{}
+	cancelReady     context.CancelFunc
 	wg              sync.WaitGroup
 	started         bool
 }
@@ -83,10 +84,16 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 	n.started = true
 	startTime := time.Now()
 	go n.encryptionStore.Start()
-	n.keysManager.Start(ctx)
+	readyCtx, cancelReady := context.WithCancel(context.WithoutCancel(ctx))
+	n.cancelReady = cancelReady
+	n.keysManager.Start(readyCtx)
+	n.wg.Add(1)
 	go func() {
+		defer n.wg.Done()
 		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
-		n.keysManager.WaitForReady()
+		if err := n.keysManager.WaitForReady(readyCtx); err != nil || readyCtx.Err() != nil {
+			return
+		}
 		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
 		n.run(ctx)
 	}()
@@ -97,6 +104,9 @@ func (n *WorkflowRunner) Stop(ctx context.Context) error {
 	log.FromContext(ctx).Info("Stopping Workflow runner")
 
 	close(n.shutdownChannel)
+	if n.cancelReady != nil {
+		n.cancelReady()
+	}
 	done := make(chan struct{})
 	go func() {
 		n.wg.Wait()
@@ -121,8 +131,6 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 	pollCtx, cancelPoll := context.WithCancel(taskCtx)
 	defer cancelPoll()
 	logger := log.FromContext(pollCtx)
-	n.wg.Add(1)
-	defer n.wg.Done()
 
 	logger.Info("Starting loop")
 

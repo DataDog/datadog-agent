@@ -27,6 +27,7 @@ dd_agent_go_test(
     name = "task-verifier_test",
     srcs = [
         "keys_manager_test.go",
+        "readiness_test.go",
         "verifier_test.go",
     ],
     embed = [":task-verifier"],

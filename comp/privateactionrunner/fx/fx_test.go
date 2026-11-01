@@ -26,7 +26,7 @@ func TestNewKeysManagerProvidesRCListener(t *testing.T) {
 	require.True(t, found)
 
 	callback(nil, func(string, state.ApplyStatus) {})
-	provides.Manager.WaitForReady()
+	require.NoError(t, provides.Manager.WaitForReady(t.Context()))
 }
 
 func TestNewKeysManagerDoesNotRegisterWhenPARIsDisabled(t *testing.T) {
