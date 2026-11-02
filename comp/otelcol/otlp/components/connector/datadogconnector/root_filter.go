@@ -28,24 +28,23 @@ import (
 
 // rootFilter holds the trace-agent's rules that drop a whole trace based on its root span.
 type rootFilter struct {
+	// conf is the trace-agent's configuration. The root span is converted with it, rather than with the connector's
+	// configuration, so that it gets the resource name and tags the trace-agent matches: apm_config.features and the
+	// exporter's span name settings change them.
+	conf *config.AgentConfig
 	// ignoreResources is the trace-agent's apm_config.ignore_resources, or nil when unset.
 	ignoreResources *filters.Blacklister
-	// requireTags, rejectTags, requireTagsRegex and rejectTagsRegex are the trace-agent's apm_config.filter_tags
-	// and apm_config.filter_tags_regex.
-	requireTags, rejectTags           []*config.Tag
-	requireTagsRegex, rejectTagsRegex []*config.TagRegex
 }
 
-// newRootFilter returns the root filter of the given rules, or nil when there are none.
-func newRootFilter(ignoreResources []string, requireTags, rejectTags []*config.Tag, requireTagsRegex, rejectTagsRegex []*config.TagRegex) *rootFilter {
-	f := &rootFilter{
-		requireTags:      requireTags,
-		rejectTags:       rejectTags,
-		requireTagsRegex: requireTagsRegex,
-		rejectTagsRegex:  rejectTagsRegex,
+// newRootFilter returns the root filter of the rules of the trace-agent's configuration conf, or nil when there are
+// none.
+func newRootFilter(conf *config.AgentConfig) *rootFilter {
+	if conf == nil {
+		return nil
 	}
-	if len(ignoreResources) > 0 {
-		f.ignoreResources = filters.NewBlacklister(ignoreResources)
+	f := &rootFilter{conf: conf}
+	if len(conf.Ignore["resource"]) > 0 {
+		f.ignoreResources = filters.NewBlacklister(conf.Ignore["resource"])
 	}
 	if f.ignoreResources == nil && !f.hasTagRules() {
 		return nil
@@ -53,8 +52,9 @@ func newRootFilter(ignoreResources []string, requireTags, rejectTags []*config.T
 	return f
 }
 
+// hasTagRules reports whether the trace-agent has apm_config.filter_tags or apm_config.filter_tags_regex rules.
 func (f *rootFilter) hasTagRules() bool {
-	return len(f.requireTags) > 0 || len(f.rejectTags) > 0 || len(f.requireTagsRegex) > 0 || len(f.rejectTagsRegex) > 0
+	return len(f.conf.RequireTags) > 0 || len(f.conf.RejectTags) > 0 || len(f.conf.RequireTagsRegex) > 0 || len(f.conf.RejectTagsRegex) > 0
 }
 
 // resourceTrace identifies the spans of a trace within one resource, which the trace-agent processes as a chunk.
@@ -71,8 +71,8 @@ type scopedSpan struct {
 
 // ignoredRootsFilter returns a span filter that excludes from stats the traces whose root rootFilter denies, like
 // the trace-agent does, or nil when no trace is ignored.
-func ignoredRootsFilter(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *rootFilter) func(pcommon.Resource, ptrace.Span) bool {
-	ignored := ignoredTraces(traces, conf, rootFilter)
+func ignoredRootsFilter(traces ptrace.Traces, rootFilter *rootFilter) func(pcommon.Resource, ptrace.Span) bool {
+	ignored := ignoredTraces(traces, rootFilter)
 	if len(ignored) == 0 {
 		return nil
 	}
@@ -85,7 +85,7 @@ func ignoredRootsFilter(traces ptrace.Traces, conf *config.AgentConfig, rootFilt
 // ignoredTraces returns the resource traces with a root that rootFilter denies. It builds the chunks of the
 // trace-agent's OTLP receiver, one per trace and resource, and picks their root with traceutil.GetRoot; the root
 // is matched on its resource name and tags, computed as in the trace-agent's OTLP span conversion.
-func ignoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *rootFilter) map[resourceTrace]struct{} {
+func ignoredTraces(traces ptrace.Traces, rootFilter *rootFilter) map[resourceTrace]struct{} {
 	var ignored map[resourceTrace]struct{}
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
 		rspans := traces.ResourceSpans().At(i)
@@ -104,15 +104,15 @@ func ignoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *r
 		var tagsResource *pcommon.Resource
 		for traceID, chunk := range chunks {
 			root := otelSpans[traceutil.GetRoot(chunk)]
-			if rootFilter.allowsResource(conf, root.span, rspans.Resource()) {
+			if rootFilter.allowsResource(root.span, rspans.Resource()) {
 				if !rootFilter.hasTagRules() {
 					continue
 				}
 				if tagsResource == nil {
-					res := spanConversionResource(conf, rspans.Resource())
+					res := spanConversionResource(rootFilter.conf, rspans.Resource())
 					tagsResource = &res
 				}
-				if rootFilter.allowsTags(rootTags(conf, root, *tagsResource)) {
+				if rootFilter.allowsTags(rootTags(rootFilter.conf, root, *tagsResource)) {
 					continue
 				}
 			}
@@ -126,17 +126,17 @@ func ignoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *r
 }
 
 // allowsResource reports whether the resource name of root passes apm_config.ignore_resources.
-func (f *rootFilter) allowsResource(conf *config.AgentConfig, root ptrace.Span, res pcommon.Resource) bool {
+func (f *rootFilter) allowsResource(root ptrace.Span, res pcommon.Resource) bool {
 	if f.ignoreResources == nil {
 		return true
 	}
-	allowed, _ := f.ignoreResources.AllowsString(resourceName(conf, root, res))
+	allowed, _ := f.ignoreResources.AllowsString(resourceName(f.conf, root, res))
 	return allowed
 }
 
 // allowsTags reports whether root passes apm_config.filter_tags and apm_config.filter_tags_regex.
 func (f *rootFilter) allowsTags(root *pb.Span) bool {
-	return !filters.FilteredByTags(root, f.requireTags, f.rejectTags, f.requireTagsRegex, f.rejectTagsRegex)
+	return !filters.FilteredByTags(root, f.conf.RequireTags, f.conf.RejectTags, f.conf.RequireTagsRegex, f.conf.RejectTagsRegex)
 }
 
 // resourceName returns the resource name of span, as transform.OtelSpanToDDSpan computes it.
@@ -158,13 +158,16 @@ func spanConversionResource(conf *config.AgentConfig, res pcommon.Resource) pcom
 	return res
 }
 
-// rootTags returns root converted as the trace-agent's OTLP receiver does, with its env tag normalized as the
-// trace-agent's normalizer does before applying apm_config.filter_tags. The normalizer's removal of an invalid
-// http.status_code is not reproduced; peer.service and _dd.base_service are already normalized by the conversion.
+// rootTags returns root converted as the trace-agent's OTLP receiver does, with the tag changes that the
+// trace-agent's normalizer makes before applying apm_config.filter_tags: env is normalized, and an invalid
+// http.status_code is removed. peer.service and _dd.base_service are already normalized by the conversion.
 func rootTags(conf *config.AgentConfig, root scopedSpan, res pcommon.Resource) *pb.Span {
 	ddspan := transform.OtelSpanToDDSpan(root.span, res, root.scope, conf)
 	if env := semantics.LookupString(semantics.DefaultRegistry(), semantics.NewDDSpanAccessor(ddspan.Meta, ddspan.Metrics), semantics.ConceptDDEnv); env != "" {
 		ddspan.Meta["env"] = normalizeutil.NormalizeTagValue(env)
+	}
+	if sc, ok := ddspan.Meta["http.status_code"]; ok && !normalizeutil.IsValidStatusCode(sc) {
+		delete(ddspan.Meta, "http.status_code")
 	}
 	return ddspan
 }

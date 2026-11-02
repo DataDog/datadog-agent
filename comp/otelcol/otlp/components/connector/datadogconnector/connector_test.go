@@ -1018,7 +1018,9 @@ func TestAgentIgnoreResources(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentIgnoreResources(tt.agentIgnore))
+			agentConf := config.New()
+			agentConf.Ignore["resource"] = tt.agentIgnore
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentConfig(agentConf))
 			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
 			cfg.Traces.IgnoreResources = tt.connectorIgnore
 			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
@@ -1075,7 +1077,9 @@ func TestAgentFilterTags(t *testing.T) {
 			})
 			// container tags are moved out of a copy of the resource, the input resource must stay as is
 			traces.ResourceSpans().At(0).Resource().Attributes().PutStr("datadog.container.tag.team", "payments")
-			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentFilterTags(nil, tt.rejectTags, nil, tt.rejectTagsRegex))
+			agentConf := config.New()
+			agentConf.RejectTags, agentConf.RejectTagsRegex = tt.rejectTags, tt.rejectTagsRegex
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentConfig(agentConf))
 			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
 			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
 			require.NoError(t, err)

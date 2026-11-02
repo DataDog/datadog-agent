@@ -23,12 +23,8 @@ type factory struct {
 	tagger       types.TaggerClient
 	concentrator *stats.Concentrator
 	hostname     option.Option[string]
-	// agentIgnoreResources is the trace-agent's apm_config.ignore_resources
-	agentIgnoreResources []string
-	// agentRequireTags, agentRejectTags, agentRequireTagsRegex and agentRejectTagsRegex are the trace-agent's
-	// apm_config.filter_tags and apm_config.filter_tags_regex
-	agentRequireTags, agentRejectTags           []*config.Tag
-	agentRequireTagsRegex, agentRejectTagsRegex []*config.TagRegex
+	// agentConfig is the configuration of the trace-agent behind the datadog exporter
+	agentConfig *config.AgentConfig
 }
 
 // SourceProviderFunc is a function that returns the source of the host.
@@ -37,22 +33,12 @@ type SourceProviderFunc func(context.Context) (string, error)
 // FactoryOption configures the datadog connector factory.
 type FactoryOption func(*factory)
 
-// WithAgentIgnoreResources excludes from APM stats the traces whose root resource matches one of the
-// trace-agent's apm_config.ignore_resources, as the trace-agent excludes them from traces.
-func WithAgentIgnoreResources(ignoreResources []string) FactoryOption {
+// WithAgentConfig excludes from APM stats the traces whose root span the trace-agent behind the datadog exporter
+// drops: its root resource matches apm_config.ignore_resources, or it fails apm_config.filter_tags or
+// apm_config.filter_tags_regex. conf is the trace-agent's configuration; it is only read.
+func WithAgentConfig(conf *config.AgentConfig) FactoryOption {
 	return func(f *factory) {
-		f.agentIgnoreResources = ignoreResources
-	}
-}
-
-// WithAgentFilterTags excludes from APM stats the traces whose root span fails the trace-agent's
-// apm_config.filter_tags and apm_config.filter_tags_regex, as the trace-agent excludes them from traces.
-func WithAgentFilterTags(requireTags, rejectTags []*config.Tag, requireTagsRegex, rejectTagsRegex []*config.TagRegex) FactoryOption {
-	return func(f *factory) {
-		f.agentRequireTags = requireTags
-		f.agentRejectTags = rejectTags
-		f.agentRequireTagsRegex = requireTagsRegex
-		f.agentRejectTagsRegex = rejectTagsRegex
+		f.agentConfig = conf
 	}
 }
 
@@ -106,7 +92,7 @@ func (f *factory) createTracesToMetricsConnector(_ context.Context, params conne
 	if err != nil {
 		return nil, err
 	}
-	conn.rootFilter = newRootFilter(f.agentIgnoreResources, f.agentRequireTags, f.agentRejectTags, f.agentRequireTagsRegex, f.agentRejectTagsRegex)
+	conn.rootFilter = newRootFilter(f.agentConfig)
 	return conn, nil
 }
 

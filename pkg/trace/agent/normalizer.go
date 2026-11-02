@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -132,7 +131,7 @@ func (a *Agent) validateAndFixType(ts *info.TagStats, spanType string) string {
 
 // validateAndFixHTTPStatusCode handles HTTP status code validation for both pb.Span and idx.InternalSpan
 func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (string, bool) {
-	if !isValidStatusCode(sc) {
+	if !normalizeutil.IsValidStatusCode(sc) {
 		ts.SpansMalformed.InvalidHTTPStatusCode.Inc()
 		log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s", sc)
 		return "", false
@@ -462,11 +461,4 @@ func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
 	if b.Resource == "" {
 		b.Resource = b.Name
 	}
-}
-
-func isValidStatusCode(sc string) bool {
-	if code, err := strconv.ParseUint(sc, 10, 64); err == nil {
-		return 100 <= code && code < 600
-	}
-	return false
 }

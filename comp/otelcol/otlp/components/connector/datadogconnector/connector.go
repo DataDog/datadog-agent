@@ -208,7 +208,7 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// rootFilter applies apm_config.ignore_resources, apm_config.filter_tags and apm_config.filter_tags_regex as the
 	// trace-agent behind the datadog exporter does
 	if c.rootFilter != nil {
-		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator, ignoredRootsFilter(traces, c.tcfg, c.rootFilter))
+		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator, ignoredRootsFilter(traces, c.rootFilter))
 	} else {
 		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator)
 	}
