@@ -76,6 +76,7 @@ type WorkloadMetaCollector struct {
 
 	collectEC2ResourceTags            bool
 	collectPersistentVolumeClaimsTags bool
+	promoteProcessTags                bool
 
 	// entityCompleteness tracks raw per-entity completeness from workloadmeta
 	// events. This is the completeness of the entity itself, without
@@ -252,6 +253,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
+		promoteProcessTags:                cfg.GetBool("gpu.tracing.enabled"),
 		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
 		refreshCh:                         make(chan refreshRequest),
 	}

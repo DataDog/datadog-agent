@@ -186,9 +186,9 @@ type workloadProfileAnomaly struct {
 var sentinelCounter atomic.Uint64
 
 // runUntilSentinel runs action, then executes a sentinel command in the container and returns once the sentinel
-// exec event has been dispatched. Events are dispatched in order and the workload profile manager processes each
-// event, and sends the anomaly it triggers, before the event reaches the probe event handlers: once the sentinel
-// is seen, every event of the action and every anomaly it triggered has already been delivered.
+// exec event reaches the probe event handlers. Events are dispatched sequentially, so once the sentinel is seen,
+// every event of the action (along with its workload profile processing and any anomaly it triggered) has already
+// been processed.
 // onProbeEvent, if not nil, is called for each dispatched event until the sentinel.
 func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, action func() error, onProbeEvent func(event *model.Event)) {
 	t.Helper()
@@ -448,6 +448,27 @@ func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) b
 	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
 		return node.Process.Argv0 == argv0 && hasFile(node.Files)
 	})) > 0
+}
+
+// profileDirChildren returns the file nodes below the directory dir, in the first process node of the profile that
+// holds files in it
+func profileDirChildren(p *profile.Profile, dir string) map[string]*activity_tree.FileNode {
+	components := strings.Split(strings.Trim(dir, "/"), "/")
+	for _, node := range walkProfileProcesses(p, func(*activity_tree.ProcessNode) bool { return true }) {
+		children := node.Files
+		for _, component := range components {
+			file, ok := children[component]
+			if !ok {
+				children = nil
+				break
+			}
+			children = file.Children
+		}
+		if len(children) > 0 {
+			return children
+		}
+	}
+	return nil
 }
 
 // profileSyscallSeenTimes returns the seen timestamps of a syscall node, for the image tag, under the process node of argv0

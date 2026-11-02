@@ -8,7 +8,6 @@ package processor
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/agent-payload/v5/pb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -33,15 +32,7 @@ func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
 		return errors.New("message passed to encoder isn't rendered")
 	}
 
-	ts := msg.ServerlessExtra.Timestamp
-	if ts.IsZero() {
-		ts = time.Now().UTC()
-		if msg.ParsingExtra.Timestamp != "" && p.useContainerTimestamp {
-			if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
-				ts = logTime
-			}
-		}
-	}
+	ts := msg.LogTimestamp(p.useContainerTimestamp)
 
 	log := &pb.Log{
 		Message:   toValidUtf8(msg.GetContent()),

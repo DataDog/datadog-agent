@@ -17,6 +17,7 @@ from tasks.static_quality_gates.experimental_gates import (
     DockerImageInfo,
     DockerLayerInfo,
     FileInfo,
+    FileUtilities,
     InPlaceArtifactReport,
     InPlaceDockerMeasurer,
     InPlacePackageMeasurer,
@@ -72,6 +73,26 @@ class TestFileInfo(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             FileInfo(relative_path="opt/bin/python3", size_bytes=9, is_symlink=True, symlink_target=None)
         self.assertIn("symlink_target must be provided when is_symlink is True", str(cm.exception))
+
+
+class TestWalkFiles(unittest.TestCase):
+    def test_directories_are_only_listed_on_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = os.path.realpath(tmp)
+            os.makedirs(os.path.join(root, 'opt/agent/empty'))
+            os.chmod(os.path.join(root, 'opt/agent/empty'), 0o750)
+            os.symlink('agent', os.path.join(root, 'opt/stable'))
+            open(os.path.join(root, 'opt/agent/file'), 'w').close()
+            default = {info.relative_path for info in FileUtilities.walk_files(root, False)}
+            entries = {
+                info.relative_path: info for info in FileUtilities.walk_files(root, False, include_directories=True)
+            }
+        self.assertEqual(default, {'opt/agent/file'})
+        self.assertEqual(set(entries), {'opt', 'opt/agent', 'opt/agent/empty', 'opt/agent/file', 'opt/stable'})
+        self.assertEqual(entries['opt/agent/empty'].chmod, 0o750)
+        self.assertFalse(entries['opt/agent/empty'].is_symlink)
+        self.assertTrue(entries['opt/stable'].is_symlink)
+        self.assertEqual(entries['opt/stable'].symlink_target, 'opt/agent')
 
 
 class TestInPlaceArtifactReport(unittest.TestCase):

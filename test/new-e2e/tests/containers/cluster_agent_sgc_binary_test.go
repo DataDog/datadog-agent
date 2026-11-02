@@ -26,6 +26,8 @@ type clusterAgentBinarySuite struct {
 func TestClusterAgentBinarySuite(t *testing.T) {
 	e2e.Run(t, &clusterAgentBinarySuite{}, e2e.WithProvisioner(provkind.Provisioner(
 		provkind.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkind.WithInternetAccess(),
 			scenkind.WithoutFakeIntake(),
 			scenkind.WithAgentOptions(kubernetesagentparams.WithNamespace("datadog")),
 		),

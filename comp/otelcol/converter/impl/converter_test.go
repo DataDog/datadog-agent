@@ -559,6 +559,48 @@ func TestConvert(t *testing.T) {
 			expectedResult: "cumulativetodelta/no-processors-section/config-result.yaml",
 			agentConfig:    "cumulativetodelta/no-processors-section/acfg.yaml",
 		},
+		// DaemonSet in the DaemonSet+Gateway setup (OTAGENT-1179).
+		{
+			name:           "cumulativetodelta/daemonset",
+			provided:       "cumulativetodelta/daemonset/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/daemonset-exporters",
+			provided:       "cumulativetodelta/daemonset-exporters/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-exporters/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-exporters/acfg.yaml",
+		},
+		{
+			// No-op expected: the provided config doubles as the expected result.
+			name:           "cumulativetodelta/daemonset-flag-off",
+			provided:       "cumulativetodelta/daemonset-flag-off/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-flag-off/config.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-flag-off/acfg.yaml",
+		},
+		{
+			// No-op expected: the provided config doubles as the expected result.
+			name:           "cumulativetodelta/daemonset-no-feature",
+			provided:       "cumulativetodelta/daemonset-no-feature/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-no-feature/config.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-no-feature/acfg.yaml",
+		},
+		{
+			name:           "cumulativetodelta/daemonset-mixed",
+			provided:       "cumulativetodelta/daemonset-mixed/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-mixed/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-mixed/acfg.yaml",
+		},
+		{
+			// Interaction of the datadog and Gateway rules: a mixed pipeline, a
+			// datadog-only pipeline and a Gateway-only pipeline each get the
+			// processor exactly once, defined a single time under processors.
+			name:           "cumulativetodelta/daemonset-with-datadog",
+			provided:       "cumulativetodelta/daemonset-with-datadog/config.yaml",
+			expectedResult: "cumulativetodelta/daemonset-with-datadog/config-result.yaml",
+			agentConfig:    "cumulativetodelta/daemonset-with-datadog/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {
@@ -711,18 +753,49 @@ func TestCumulativeToDeltaMixedExporterWarning(t *testing.T) {
 		name        string
 		provided    string
 		agentConfig string
+		substr      string
 		wantWarning bool
 	}{
 		{
 			name:        "mixed-exporter metrics pipeline warns and skips injection",
 			provided:    "cumulativetodelta/mixed-exporters/config.yaml",
 			agentConfig: "cumulativetodelta/mixed-exporters/acfg.yaml",
+			substr:      "non-Datadog exporter",
 			wantWarning: true,
 		},
 		{
 			name:        "datadog-only metrics pipeline injects without warning",
 			provided:    "cumulativetodelta/injected/config.yaml",
 			agentConfig: "cumulativetodelta/injected/acfg.yaml",
+			substr:      "non-Datadog exporter",
+			wantWarning: false,
+		},
+		{
+			name:        "gateway daemonset: mixed metrics pipeline warns and injects",
+			provided:    "cumulativetodelta/daemonset-mixed/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset-mixed/acfg.yaml",
+			substr:      "non-Gateway exporter",
+			wantWarning: true,
+		},
+		{
+			name:        "gateway daemonset: otlphttp-only metrics pipeline injects without warning",
+			provided:    "cumulativetodelta/daemonset/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset/acfg.yaml",
+			substr:      "non-Gateway exporter",
+			wantWarning: false,
+		},
+		{
+			name:        "gateway daemonset with datadog: mixed pipeline warns for the datadog rule",
+			provided:    "cumulativetodelta/daemonset-with-datadog/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset-with-datadog/acfg.yaml",
+			substr:      "non-Datadog exporter",
+			wantWarning: true,
+		},
+		{
+			name:        "gateway daemonset with datadog: mixed pipeline already has the processor, so the Gateway rule never warns",
+			provided:    "cumulativetodelta/daemonset-with-datadog/config.yaml",
+			agentConfig: "cumulativetodelta/daemonset-with-datadog/acfg.yaml",
+			substr:      "non-Gateway exporter",
 			wantWarning: false,
 		},
 	}
@@ -748,7 +821,7 @@ func TestCumulativeToDeltaMixedExporterWarning(t *testing.T) {
 
 			conv.Convert(context.Background(), conf)
 
-			warnings := filterLogsBySubstring(logs, "non-Datadog exporter")
+			warnings := filterLogsBySubstring(logs, tc.substr)
 			if tc.wantWarning {
 				assert.NotEmpty(t, warnings, "expected a mixed-exporter warning log")
 				assert.Contains(t, warnings[0].Message, "cumulativetodelta")
