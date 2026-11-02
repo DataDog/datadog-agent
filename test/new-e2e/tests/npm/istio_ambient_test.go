@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
 // istioAmbientHelmValues turns on netns container attribution in system-probe
@@ -363,20 +363,38 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInAppPodsAreAttributedToTheApp() {
 		s.Run(tc.app, func() {
 			pod := s.pod(tc.namespace, tc.app)
 			appID := pod.containers[tc.container]
+			s.Require().NoError(s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+			// payloads from before attribution starts (a netns read awaiting its retry, workloadmeta still
+			// syncing) are ignored: only those collected after the first iteration that sees a moved socket count
+			var since time.Time
 			s.EventuallyWithT(func(c *assert.CollectT) {
-				var moved, kept int
+				var moved, kept, selfRemote int
 				owners := map[string]int{} // every connection from the pod, by its process's container
-				for _, conn := range s.connectionsFrom(c, pod.ip) {
+				conns, latest := s.connectionsFrom(c, pod.ip, since)
+				for _, conn := range conns {
 					owners[containerName(conn.pidContainer, pod, ztunnel)]++
-					if ztunnel[conn.container] {
+					// only the tunnel leg moves; ztunnel's other legs in the pod duplicate the app's sockets
+					if ztunnel[conn.container] && conn.onTunnel() {
 						kept++
 					}
 					if ztunnel[conn.pidContainer] && conn.container == appID {
 						moved++
 					}
+					// a reattributed leg must not make the app look like it's talking to itself
+					if conn.pidContainer == appID && conn.raddrContainer == appID && conn.raddrIP != pod.ip {
+						selfRemote++
+					}
 				}
-				assert.Zerof(c, kept, "%d connections from %s still attributed to ztunnel", kept, tc.app)
+				if since.IsZero() {
+					if moved > 0 {
+						since = latest
+					}
+					assert.Fail(c, "waiting for payloads collected after attribution started", "connections by owning container: %v", owners)
+					return
+				}
+				assert.Zerof(c, kept, "%d tunnel connections from %s still attributed to ztunnel", kept, tc.app)
 				assert.Positivef(c, moved, "no ztunnel connection from %s was attributed to %s; connections by owning container: %v", tc.app, tc.container, owners)
+				assert.Zerof(c, selfRemote, "%d of %s's connections resolve their remote end to %s itself", selfRemote, tc.app, tc.app)
 			}, 4*time.Minute, 10*time.Second)
 		})
 	}
@@ -390,7 +408,8 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInMultiAppPodsStayOnZtunnel() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		var kept int
 		moved := map[string]int{} // reattributed connections by the container they were moved to
-		for _, conn := range s.connectionsFrom(c, pod.ip) {
+		conns, _ := s.connectionsFrom(c, pod.ip, time.Time{})
+		for _, conn := range conns {
 			if !ztunnel[conn.pidContainer] {
 				continue
 			}
@@ -418,7 +437,8 @@ func (s *istioAmbientSuite) TestZtunnelOwnTrafficStaysOnZtunnel() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		var own int
 		for ip := range ips {
-			for _, conn := range s.connectionsFrom(c, ip) {
+			conns, _ := s.connectionsFrom(c, ip, time.Time{})
+			for _, conn := range conns {
 				if !ztunnel[conn.pidContainer] {
 					continue
 				}
@@ -431,28 +451,51 @@ func (s *istioAmbientSuite) TestZtunnelOwnTrafficStaysOnZtunnel() {
 }
 
 type ambientConn struct {
-	container    string // Laddr.ContainerId
-	pidContainer string // ContainerForPid[Pid]: the owning process's container
-	raddr        string
+	container      string // Laddr.ContainerId
+	pidContainer   string // ContainerForPid[Pid]: the owning process's container
+	raddr          string
+	raddrIP        string
+	raddrContainer string // Raddr.ContainerId
+	lport, rport   int32
 }
 
-func (s *istioAmbientSuite) connectionsFrom(c *assert.CollectT, ip string) []ambientConn {
+// hboneTunnelPort is Istio ambient's HBONE port, the only leg system-probe reattributes by default
+const hboneTunnelPort = 15008
+
+func (c ambientConn) onTunnel() bool {
+	return c.lport == hboneTunnelPort || c.rport == hboneTunnelPort
+}
+
+// connectionsFrom returns the connections with laddr ip in payloads the fakeintake collected after since,
+// and the latest collection time among all payloads, in the fakeintake's clock
+func (s *istioAmbientSuite) connectionsFrom(c *assert.CollectT, ip string, since time.Time) ([]ambientConn, time.Time) {
 	cnx, err := s.Env().FakeIntake.Client().GetConnections()
 	if !assert.NoError(c, err, "error getting connections") {
-		return nil
+		return nil, since
 	}
 	var conns []ambientConn
-	cnx.ForeachConnection(func(conn *agentmodel.Connection, cc *agentmodel.CollectorConnections, _ string) {
-		if conn.Laddr == nil || conn.Laddr.Ip != ip {
+	latest := since
+	cnx.ForeachHostnameConnections(func(payload *aggregator.Connections, _ string) {
+		collected := payload.GetCollectedTime()
+		if collected.After(latest) {
+			latest = collected
+		}
+		if !collected.After(since) {
 			return
 		}
-		ac := ambientConn{container: conn.Laddr.ContainerId, pidContainer: cc.ContainerForPid[conn.Pid]}
-		if conn.Raddr != nil {
-			ac.raddr = fmt.Sprintf("%s:%d", conn.Raddr.Ip, conn.Raddr.Port)
+		for _, conn := range payload.Connections {
+			if conn.Laddr == nil || conn.Laddr.Ip != ip {
+				continue
+			}
+			ac := ambientConn{container: conn.Laddr.ContainerId, pidContainer: payload.ContainerForPid[conn.Pid], lport: conn.Laddr.Port}
+			if conn.Raddr != nil {
+				ac.raddr = fmt.Sprintf("%s:%d", conn.Raddr.Ip, conn.Raddr.Port)
+				ac.raddrIP, ac.raddrContainer, ac.rport = conn.Raddr.Ip, conn.Raddr.ContainerId, conn.Raddr.Port
+			}
+			conns = append(conns, ac)
 		}
-		conns = append(conns, ac)
 	})
-	return conns
+	return conns, latest
 }
 
 type ambientPod struct {

@@ -9,12 +9,16 @@
 features:
   - |
     CNM: Add ``network_config.enable_netns_container_attribution`` (disabled by default).
-    When enabled, a connection whose socket was created by an allowlisted proxy inside another
-    pod's network namespace, such as Istio ambient's ``ztunnel``, is attributed to the container
-    that owns that namespace instead of the proxy. The allowlist is set with
-    ``network_config.netns_container_attribution_owner_images`` and defaults to ``ztunnel``.
-    Helper containers whose traffic, if any, belongs to the pod's application are ignored when
-    choosing the target, set with
-    ``network_config.netns_container_attribution_ignored_containers`` (default ``vault-agent``,
-    ``vault-agent-init``, and ``cloud-sql-proxy``). ``cloud-sql-proxy``'s database connections
-    are attributed to the application container, since it proxies them for that application.
+    When enabled, a socket that an allowlisted proxy, such as Istio ambient's ``ztunnel``,
+    creates inside another pod's network namespace is attributed to the container that owns
+    that namespace instead of the proxy. Only sockets on the mesh tunnel's ports are moved,
+    set with ``network_config.netns_container_attribution_ports`` (default ``15008``, Istio's
+    HBONE port); the proxy's other legs inside the pod duplicate the application's own sockets
+    and stay on the proxy. Owners are matched by image short name, set with
+    ``network_config.netns_container_attribution_owner_images`` (default ``ztunnel``).
+    Helper containers are matched by Kubernetes container name and don't count as the target,
+    set with ``network_config.netns_container_attribution_ignored_containers`` (default
+    ``vault-agent``, ``vault-agent-init``, and ``cloud-sql-proxy``); their own sockets keep
+    their container. A socket is moved only when exactly one eligible running container is in
+    the namespace, so pods with several application containers stay on the proxy. The feature
+    requires process event monitoring; without it, system-probe logs a warning and does nothing.
