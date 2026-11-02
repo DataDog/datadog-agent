@@ -98,6 +98,7 @@ func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 		"kube_pod_deletion_timestamp":                     podTerminatingTransformer,
 		"kube_pod_start_time":                             podStartTimeTransformer,
 		"kube_pod_status_phase":                           podPhaseTransformer,
+		"kube_pod_status_ready":                           podReadyTransformer,
 		"kube_pod_container_status_waiting_reason":        containerWaitingReasonTransformer,
 		"kube_pod_container_status_terminated_reason":     containerTerminatedReasonTransformer,
 		"kube_pod_container_extended_resource_requests":   containerResourceRequestsTransformer,
@@ -271,6 +272,23 @@ func podCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric,
 // deletion timestamp is set. kube_pod_deletion_timestamp is absent otherwise.
 func podTerminatingTransformer(s sender.Sender, _ string, _ ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	s.Gauge(ksmMetricPrefix+"pod.terminating", 1, hostname, tags)
+}
+
+// podReadyTransformer keeps emitting kubernetes_state.pod.ready as-is (one series per
+// condition) and additionally emits a sparse value-1 kubernetes_state.pod.unready gauge
+// while the pod's Ready condition is not True (false or unknown).
+// kube_pod_status_ready has exactly one sample per pod with condition="true", so
+// matching it with a 0 value emits at most one unready sample per pod.
+func podReadyTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	s.Gauge(ksmMetricPrefix+"pod.ready", metric.Val, hostname, tags)
+
+	if metric.Labels["condition"] != "true" || metric.Val != 0 {
+		return
+	}
+	// The condition tag is meaningless on a sparse "unready" gauge. lo.Filter returns a
+	// new slice, so the tags submitted above are not modified.
+	unreadyTags := lo.Filter(tags, func(tag string, _ int) bool { return !strings.HasPrefix(tag, "condition:") })
+	s.Gauge(ksmMetricPrefix+"pod.unready", 1, hostname, unreadyTags)
 }
 
 // podStartTimeTransformer generates the pod uptime metric based on the start time timestamp

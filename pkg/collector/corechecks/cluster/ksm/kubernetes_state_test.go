@@ -2415,6 +2415,83 @@ func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T)
 	}
 }
 
+// TestProcessMetrics_PodReady guards the dispatch of kube_pod_status_ready: it is handled by
+// a transformer (transformers take precedence over the name mapper), which must keep
+// emitting every kubernetes_state.pod.ready series and add the sparse pod.unready gauge
+// only while the Ready condition is not True.
+func TestProcessMetrics_PodReady(t *testing.T) {
+	podReadyFamily := func(trueVal, falseVal, unknownVal float64) map[string][]ksmstore.DDMetricsFam {
+		sample := func(condition string, val float64) ksmstore.DDMetric {
+			return ksmstore.DDMetric{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "condition": condition},
+				Val:    val,
+			}
+		}
+		return map[string][]ksmstore.DDMetricsFam{
+			"kube_pod_status_ready": {{
+				Name:        "kube_pod_status_ready",
+				ListMetrics: []ksmstore.DDMetric{sample("true", trueVal), sample("false", falseVal), sample("unknown", unknownVal)},
+			}},
+		}
+	}
+	podTags := func(condition string) []string {
+		return []string{"kube_namespace:default", "pod_name:p1", "uid:u1", "condition:" + condition}
+	}
+	unreadyTags := []string{"kube_namespace:default", "pod_name:p1", "uid:u1"}
+
+	tests := []struct {
+		name     string
+		metrics  map[string][]ksmstore.DDMetricsFam
+		expected []metricsExpected
+	}{
+		{
+			name:    "ready pod",
+			metrics: podReadyFamily(1, 0, 0),
+			expected: []metricsExpected{
+				{name: "kubernetes_state.pod.ready", val: 1, tags: podTags("true")},
+				{name: "kubernetes_state.pod.ready", val: 0, tags: podTags("false")},
+				{name: "kubernetes_state.pod.ready", val: 0, tags: podTags("unknown")},
+			},
+		},
+		{
+			name:    "unready pod",
+			metrics: podReadyFamily(0, 1, 0),
+			expected: []metricsExpected{
+				{name: "kubernetes_state.pod.ready", val: 0, tags: podTags("true")},
+				{name: "kubernetes_state.pod.ready", val: 1, tags: podTags("false")},
+				{name: "kubernetes_state.pod.ready", val: 0, tags: podTags("unknown")},
+				{name: "kubernetes_state.pod.unready", val: 1, tags: unreadyTags},
+			},
+		},
+		{
+			name:    "pod with unknown readiness",
+			metrics: podReadyFamily(0, 0, 1),
+			expected: []metricsExpected{
+				{name: "kubernetes_state.pod.ready", val: 0, tags: podTags("true")},
+				{name: "kubernetes_state.pod.ready", val: 0, tags: podTags("false")},
+				{name: "kubernetes_state.pod.ready", val: 1, tags: podTags("unknown")},
+				{name: "kubernetes_state.pod.unready", val: 1, tags: unreadyTags},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{LabelsMapper: defaultLabelsMapper()}, fakeTagger, nil)
+			s := mocksender.NewMockSender(t, k.ID())
+			s.SetupAcceptAll()
+
+			k.processMetrics(s, tt.metrics, newLabelJoiner(nil), time.Now())
+
+			for _, expected := range tt.expected {
+				s.AssertMetric(t, "Gauge", expected.name, expected.val, expected.hostname, expected.tags)
+			}
+			s.AssertNumberOfCalls(t, "Gauge", len(tt.expected))
+		})
+	}
+}
+
 // TestDiscoverCustomResources_ClusterAggregatesOnly guards the wiring that makes
 // cluster_aggregates_only build ONLY the extended pod store: discoverCustomResources
 // must return exactly the extended pods GVR key (not the plain "pods" collector, and

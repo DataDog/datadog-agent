@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add the ``kubernetes_state.pod.unready`` gauge to the Kubernetes State
+    Core check. The metric reports a value of 1 for each pod while its
+    ``Ready`` condition is not ``True``.

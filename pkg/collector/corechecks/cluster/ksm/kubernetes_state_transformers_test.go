@@ -2016,6 +2016,41 @@ func Test_podTerminatingTransformer(t *testing.T) {
 	s.AssertNumberOfCalls(t, "Gauge", 1)
 }
 
+func Test_podReadyTransformer(t *testing.T) {
+	tests := []struct {
+		name           string
+		condition      string
+		val            float64
+		expectedUnread bool
+	}{
+		{name: "ready condition true active", condition: "true", val: 1},
+		{name: "ready condition true inactive means unready", condition: "true", val: 0, expectedUnread: true},
+		{name: "ready condition false active", condition: "false", val: 1},
+		{name: "ready condition false inactive", condition: "false", val: 0},
+		{name: "ready condition unknown active", condition: "unknown", val: 1},
+		{name: "ready condition unknown inactive", condition: "unknown", val: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := mocksender.NewMockSender(t, "ksm")
+			s.SetupAcceptAll()
+			tags := []string{"pod_name:test-pod", "kube_namespace:test-namespace", "condition:" + tt.condition}
+			metric := ksmstore.DDMetric{Val: tt.val, Labels: map[string]string{"condition": tt.condition}}
+
+			podReadyTransformer(s, "kube_pod_status_ready", metric, "foo", tags, time.Time{})
+
+			s.AssertMetric(t, "Gauge", "kubernetes_state.pod.ready", tt.val, "foo", tags)
+			if !tt.expectedUnread {
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+				return
+			}
+			s.AssertMetric(t, "Gauge", "kubernetes_state.pod.unready", 1, "foo", []string{"pod_name:test-pod", "kube_namespace:test-namespace"})
+			s.AssertNumberOfCalls(t, "Gauge", 2)
+		})
+	}
+}
+
 func Test_containerSpecResourceRequestsTransformer(t *testing.T) {
 	tests := []struct {
 		name     string
