@@ -9,7 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
-	"github.com/DataDog/datadog-agent/pkg/trace/filters"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.opentelemetry.io/collector/component"
@@ -25,6 +25,10 @@ type factory struct {
 	hostname     option.Option[string]
 	// agentIgnoreResources is the trace-agent's apm_config.ignore_resources
 	agentIgnoreResources []string
+	// agentRequireTags, agentRejectTags, agentRequireTagsRegex and agentRejectTagsRegex are the trace-agent's
+	// apm_config.filter_tags and apm_config.filter_tags_regex
+	agentRequireTags, agentRejectTags           []*config.Tag
+	agentRequireTagsRegex, agentRejectTagsRegex []*config.TagRegex
 }
 
 // SourceProviderFunc is a function that returns the source of the host.
@@ -38,6 +42,17 @@ type FactoryOption func(*factory)
 func WithAgentIgnoreResources(ignoreResources []string) FactoryOption {
 	return func(f *factory) {
 		f.agentIgnoreResources = ignoreResources
+	}
+}
+
+// WithAgentFilterTags excludes from APM stats the traces whose root span fails the trace-agent's
+// apm_config.filter_tags and apm_config.filter_tags_regex, as the trace-agent excludes them from traces.
+func WithAgentFilterTags(requireTags, rejectTags []*config.Tag, requireTagsRegex, rejectTagsRegex []*config.TagRegex) FactoryOption {
+	return func(f *factory) {
+		f.agentRequireTags = requireTags
+		f.agentRejectTags = rejectTags
+		f.agentRequireTagsRegex = requireTagsRegex
+		f.agentRejectTagsRegex = rejectTagsRegex
 	}
 }
 
@@ -91,9 +106,7 @@ func (f *factory) createTracesToMetricsConnector(_ context.Context, params conne
 	if err != nil {
 		return nil, err
 	}
-	if len(f.agentIgnoreResources) > 0 {
-		conn.rootFilter = filters.NewBlacklister(f.agentIgnoreResources)
-	}
+	conn.rootFilter = newRootFilter(f.agentIgnoreResources, f.agentRequireTags, f.agentRejectTags, f.agentRequireTagsRegex, f.agentRejectTagsRegex)
 	return conn, nil
 }
 

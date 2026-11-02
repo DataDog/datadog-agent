@@ -4,6 +4,7 @@
 package datadogconnector
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 )
 
 type testSpan struct {
@@ -64,7 +64,7 @@ func newTestRootFilterConf(t *testing.T) *config.AgentConfig {
 }
 
 func TestIgnoredTraces(t *testing.T) {
-	rootFilter := filters.NewBlacklister([]string{"(GET|POST) /health"})
+	rootFilter := newRootFilter([]string{"(GET|POST) /health"}, nil, nil, nil, nil)
 	for _, tt := range []struct {
 		name        string
 		traces      ptrace.Traces
@@ -141,7 +141,7 @@ func TestIgnoredTraces(t *testing.T) {
 
 func TestIgnoredRootsFilter(t *testing.T) {
 	conf := newTestRootFilterConf(t)
-	rootFilter := filters.NewBlacklister([]string{"(GET|POST) /health"})
+	rootFilter := newRootFilter([]string{"(GET|POST) /health"}, nil, nil, nil, nil)
 
 	t.Run("nothing ignored returns no filter", func(t *testing.T) {
 		traces := newTestTraces([]testSpan{{1, 1, 0, ptrace.SpanKindServer, usersAttrs}})
@@ -163,12 +163,146 @@ func TestIgnoredRootsFilter(t *testing.T) {
 		kept := map[pcommon.SpanID]bool{}
 		for i := 0; i < traces.ResourceSpans().Len(); i++ {
 			rspans := traces.ResourceSpans().At(i)
-			forEachSpan(rspans, func(span ptrace.Span) {
+			forEachSpan(rspans, func(span ptrace.Span, _ pcommon.InstrumentationScope) {
 				kept[span.SpanID()] = spanFilter(rspans.Resource(), span)
 			})
 		}
 		assert.Equal(t, map[pcommon.SpanID]bool{{7: 1}: false, {7: 2}: false, {7: 3}: true, {7: 4}: true}, kept)
 	})
+}
+
+func TestIgnoredTracesByTags(t *testing.T) {
+	withAttrs := func(base map[string]string, extra map[string]string) map[string]string {
+		attrs := map[string]string{}
+		for k, v := range base {
+			attrs[k] = v
+		}
+		for k, v := range extra {
+			attrs[k] = v
+		}
+		return attrs
+	}
+	healthcheckRoot := withAttrs(healthcheckAttrs, map[string]string{"http.useragent": "kube-probe/1.30"})
+
+	for _, tt := range []struct {
+		name             string
+		traces           ptrace.Traces
+		resourceAttrs    map[string]string
+		requireTags      []*config.Tag
+		rejectTags       []*config.Tag
+		requireTagsRegex []*config.TagRegex
+		rejectTagsRegex  []*config.TagRegex
+		wantIgnored      []indexedTrace
+	}{
+		{
+			name: "rejected root tag ignores its trace only",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckRoot},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			rejectTags:  []*config.Tag{{K: "http.useragent", V: "kube-probe/1.30"}},
+			wantIgnored: []indexedTrace{{0, 1}},
+		},
+		{
+			name: "rejected key without value matches any value",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckRoot},
+			}),
+			rejectTags:  []*config.Tag{{K: "http.useragent"}},
+			wantIgnored: []indexedTrace{{0, 1}},
+		},
+		{
+			name: "rejected tag on a child does not ignore its trace",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, usersAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, healthcheckRoot},
+			}),
+			rejectTags: []*config.Tag{{K: "http.useragent"}},
+		},
+		{
+			name: "rejected regex root tag ignores its trace",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckRoot},
+				{2, 2, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			rejectTagsRegex: []*config.TagRegex{{K: "http.useragent", V: regexp.MustCompile("^kube-probe/")}},
+			wantIgnored:     []indexedTrace{{0, 1}},
+		},
+		{
+			name: "root without a required tag ignores its trace",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckRoot},
+				{2, 2, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			requireTags: []*config.Tag{{K: "http.useragent"}},
+			wantIgnored: []indexedTrace{{0, 2}},
+		},
+		{
+			name: "root whose required tag does not match a regex ignores its trace",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckRoot},
+				{2, 2, 0, ptrace.SpanKindServer, withAttrs(usersAttrs, map[string]string{"http.useragent": "curl/8.0"})},
+			}),
+			requireTagsRegex: []*config.TagRegex{{K: "http.useragent", V: regexp.MustCompile("^curl/")}},
+			wantIgnored:      []indexedTrace{{0, 1}},
+		},
+		{
+			name: "resource attributes are root tags",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			resourceAttrs: map[string]string{"team": "payments"},
+			rejectTags:    []*config.Tag{{K: "team", V: "payments"}},
+			wantIgnored:   []indexedTrace{{0, 1}},
+		},
+		{
+			name: "container tags moved out of the resource are not root tags",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			resourceAttrs: map[string]string{"datadog.container.tag.team": "payments"},
+			rejectTags:    []*config.Tag{{K: "datadog.container.tag.team"}},
+		},
+		{
+			name: "env is normalized before matching",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			resourceAttrs: map[string]string{"deployment.environment.name": "Staging"},
+			rejectTags:    []*config.Tag{{K: "env", V: "staging"}},
+			wantIgnored:   []indexedTrace{{0, 1}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := 0; i < tt.traces.ResourceSpans().Len(); i++ {
+				for k, v := range tt.resourceAttrs {
+					tt.traces.ResourceSpans().At(i).Resource().Attributes().PutStr(k, v)
+				}
+			}
+			rootFilter := newRootFilter(nil, tt.requireTags, tt.rejectTags, tt.requireTagsRegex, tt.rejectTagsRegex)
+			ignored := ignoredTraces(tt.traces, newTestRootFilterConf(t), rootFilter)
+			assert.ElementsMatch(t, tt.wantIgnored, indexedTraces(tt.traces, ignored))
+		})
+	}
+}
+
+func TestIgnoredTracesByResourceAndTags(t *testing.T) {
+	traces := newTestTraces([]testSpan{
+		{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+		{2, 2, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/users", "http.useragent": "kube-probe/1.30"}},
+		{3, 3, 0, ptrace.SpanKindServer, usersAttrs},
+	})
+	rootFilter := newRootFilter([]string{"(GET|POST) /health"}, nil, []*config.Tag{{K: "http.useragent"}}, nil, nil)
+	ignored := ignoredTraces(traces, newTestRootFilterConf(t), rootFilter)
+	assert.ElementsMatch(t, []indexedTrace{{0, 1}, {0, 2}}, indexedTraces(traces, ignored))
+}
+
+func TestNewRootFilter(t *testing.T) {
+	assert.Nil(t, newRootFilter(nil, nil, nil, nil, nil))
+	assert.Nil(t, newRootFilter([]string{}, []*config.Tag{}, nil, nil, nil))
+	assert.NotNil(t, newRootFilter([]string{"x"}, nil, nil, nil, nil))
+	assert.NotNil(t, newRootFilter(nil, nil, nil, nil, []*config.TagRegex{{K: "k"}}))
 }
 
 // indexedTrace is a resourceTrace with the index of its resource, for readable test expectations.
