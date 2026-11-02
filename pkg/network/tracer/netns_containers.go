@@ -33,6 +33,11 @@ const (
 	// netnsRetryInterval is how often failed namespace reads are retried, since the next workloadmeta
 	// update for a container can be minutes away
 	netnsRetryInterval = 30 * time.Second
+
+	// removedContainerGrace is how long a removed container still counts in its namespace. Closed connections
+	// are resolved when the tracer reads them, which can be well after the pod is gone; meanwhile a new pod that
+	// gets the same namespace inode makes the namespace ambiguous rather than taking the old pod's connections.
+	removedContainerGrace = 2 * time.Minute
 )
 
 var netnsAttributionTelemetry = struct {
@@ -62,14 +67,15 @@ type netnsContainerResolver struct {
 	ownerImages map[string]struct{}
 	// ignoredContainers are helper containers (for example vault-agent or cloud-sql-proxy) that share a
 	// pod's network namespace and carry no traffic of their own, only the application's, so they don't
-	// count toward the pod's containers
+	// count toward the pod's containers unless one is the namespace's only container
 	ignoredContainers map[string]struct{}
-	// tunnelPorts are the mesh tunnel's ports; only sockets on them are reattributed, and none means every socket
+	// tunnelPorts are the mesh tunnel's ports; only sockets on them are reattributed
 	tunnelPorts map[uint16]struct{}
+	now         func() time.Time
 
 	mtx        sync.RWMutex
 	containers map[*intern.Value]trackedContainer
-	byNetNS    map[uint32]map[*intern.Value]struct{}
+	byNetNS    map[uint32]map[*intern.Value]netnsMember
 	// pending holds running containers whose namespace read failed, retried every netnsRetryInterval
 	pending map[*intern.Value]*workloadmeta.Container
 }
@@ -78,6 +84,16 @@ type trackedContainer struct {
 	pid   int
 	netns uint32
 	owner bool
+}
+
+// netnsMember is a container in a namespace. A removed one keeps counting until removedContainerGrace passes.
+type netnsMember struct {
+	helper    bool
+	removedAt time.Time
+}
+
+func (m netnsMember) expired(now time.Time) bool {
+	return !m.removedAt.IsZero() && now.Sub(m.removedAt) > removedContainerGrace
 }
 
 func newNetNSContainerResolver(ownerImages, ignoredContainers []string, tunnelPorts []int) (*netnsContainerResolver, error) {
@@ -95,8 +111,9 @@ func newNetNSContainerResolver(ownerImages, ignoredContainers []string, tunnelPo
 		ownerImages:       toSet(ownerImages),
 		ignoredContainers: toSet(ignoredContainers),
 		tunnelPorts:       make(map[uint16]struct{}, len(tunnelPorts)),
+		now:               time.Now,
 		containers:        make(map[*intern.Value]trackedContainer),
-		byNetNS:           make(map[uint32]map[*intern.Value]struct{}),
+		byNetNS:           make(map[uint32]map[*intern.Value]netnsMember),
 		pending:           make(map[*intern.Value]*workloadmeta.Container),
 	}
 	for _, port := range tunnelPorts {
@@ -110,9 +127,6 @@ func newNetNSContainerResolver(ownerImages, ignoredContainers []string, tunnelPo
 // onTunnel reports whether a socket with these ports is on the mesh tunnel. A proxy's other legs inside the pod
 // duplicate the app's own sockets, so they stay on the proxy.
 func (r *netnsContainerResolver) onTunnel(sport, dport uint16) bool {
-	if len(r.tunnelPorts) == 0 {
-		return true
-	}
 	_, src := r.tunnelPorts[sport]
 	_, dst := r.tunnelPorts[dport]
 	return src || dst
@@ -151,6 +165,7 @@ func (r *netnsContainerResolver) start(ctx context.Context, wmeta workloadmeta.C
 				eventBundle.Acknowledge()
 			case <-retry.C:
 				r.retryPending()
+				r.purgeRemoved()
 			}
 		}
 	}()
@@ -237,6 +252,8 @@ func (r *netnsContainerResolver) process(events []workloadmeta.Event) {
 		r.addLocked(u.id, u.container, u.netns)
 	}
 
+	r.purgeRemovedLocked(r.now())
+
 	owners := 0
 	for _, tc := range r.containers {
 		if tc.owner {
@@ -252,18 +269,27 @@ func (r *netnsContainerResolver) addLocked(id *intern.Value, container *workload
 	_, owner := r.ownerImages[container.Image.ShortName]
 	r.containers[id] = trackedContainer{pid: container.PID, netns: netns, owner: owner}
 
-	// containers in the host network namespace are never reattribution targets
-	if netns == r.rootNetNS {
+	// containers in the host network namespace are never reattribution targets, and neither are pause
+	// containers, which only hold the pod's namespace; a running one leaves no removed entry behind
+	if netns == r.rootNetNS || utilcontainers.IsPauseContainer(container.Labels) {
+		r.dropMemberLocked(netns, id)
 		return
 	}
-	// neither are helpers and pause containers, whose traffic, if any, belongs to the pod's application
-	if _, ignored := r.ignoredContainers[kubernetesContainerName(container)]; ignored || utilcontainers.IsPauseContainer(container.Labels) {
-		return
-	}
+	// helpers' traffic, if any, belongs to the pod's application, so they're only a target on their own
+	_, helper := r.ignoredContainers[kubernetesContainerName(container)]
 	if r.byNetNS[netns] == nil {
-		r.byNetNS[netns] = make(map[*intern.Value]struct{})
+		r.byNetNS[netns] = make(map[*intern.Value]netnsMember)
 	}
-	r.byNetNS[netns][id] = struct{}{}
+	r.byNetNS[netns][id] = netnsMember{helper: helper}
+}
+
+func (r *netnsContainerResolver) dropMemberLocked(netns uint32, id *intern.Value) {
+	if members := r.byNetNS[netns]; members != nil {
+		delete(members, id)
+		if len(members) == 0 {
+			delete(r.byNetNS, netns)
+		}
+	}
 }
 
 // kubernetesContainerName returns the container's Kubernetes name, falling back to the reported name.
@@ -274,23 +300,44 @@ func kubernetesContainerName(container *workloadmeta.Container) string {
 	return container.Name
 }
 
+// removeLocked forgets a container but keeps it in its namespace, marked removed, until the grace period
+// passes. An update that keeps the container running re-adds it straight away.
 func (r *netnsContainerResolver) removeLocked(id *intern.Value) {
 	tc, ok := r.containers[id]
 	if !ok {
 		return
 	}
 	delete(r.containers, id)
-	if ids := r.byNetNS[tc.netns]; ids != nil {
-		delete(ids, id)
-		if len(ids) == 0 {
-			delete(r.byNetNS, tc.netns)
+	if m, ok := r.byNetNS[tc.netns][id]; ok && m.removedAt.IsZero() {
+		m.removedAt = r.now()
+		r.byNetNS[tc.netns][id] = m
+	}
+}
+
+func (r *netnsContainerResolver) purgeRemoved() {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	r.purgeRemovedLocked(r.now())
+	netnsAttributionTelemetry.trackedNetNS.Set(float64(len(r.byNetNS)))
+}
+
+func (r *netnsContainerResolver) purgeRemovedLocked(now time.Time) {
+	for netns, members := range r.byNetNS {
+		for id, m := range members {
+			if m.expired(now) {
+				delete(members, id)
+			}
+		}
+		if len(members) == 0 {
+			delete(r.byNetNS, netns)
 		}
 	}
 }
 
 // resolve returns the container to attribute a socket to, given the socket's network namespace and
 // the container of the process that owns it. It only reattributes sockets owned by an allowlisted
-// container, in a namespace that holds exactly one container which isn't the owner.
+// container, in a namespace that holds exactly one application container which isn't the owner, or no
+// application container and exactly one helper.
 func (r *netnsContainerResolver) resolve(netns uint32, ownerContainer *intern.Value) (*intern.Value, bool) {
 	if ownerContainer == nil || netns == 0 || netns == r.rootNetNS {
 		return nil, false
@@ -303,22 +350,37 @@ func (r *netnsContainerResolver) resolve(netns uint32, ownerContainer *intern.Va
 		return nil, false
 	}
 
-	candidates := r.byNetNS[netns]
-	if _, ownNamespace := candidates[ownerContainer]; ownNamespace {
+	members := r.byNetNS[netns]
+	if _, ownNamespace := members[ownerContainer]; ownNamespace {
 		return nil, false
 	}
 
-	switch len(candidates) {
-	case 0:
-		netnsAttributionTelemetry.unknownNetNS.Inc()
-		return nil, false
-	case 1:
-		for id := range candidates {
-			netnsAttributionTelemetry.reattributed.Inc()
-			return id, true
+	now := r.now()
+	var apps, helpers int
+	var app, helper *intern.Value
+	for id, m := range members {
+		switch {
+		case m.expired(now):
+		case m.helper:
+			helpers++
+			helper = id
+		default:
+			apps++
+			app = id
 		}
 	}
 
+	switch {
+	case apps == 1:
+		netnsAttributionTelemetry.reattributed.Inc()
+		return app, true
+	case apps == 0 && helpers == 1:
+		netnsAttributionTelemetry.reattributed.Inc()
+		return helper, true
+	case apps == 0 && helpers == 0:
+		netnsAttributionTelemetry.unknownNetNS.Inc()
+		return nil, false
+	}
 	netnsAttributionTelemetry.multiContainer.Inc()
 	return nil, false
 }

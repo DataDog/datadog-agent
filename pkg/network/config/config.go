@@ -47,6 +47,10 @@ const (
 	darwinPacketBufferSizeDefault = 16 * 1024 * 1024
 )
 
+// defaultNetNSContainerAttributionPorts is Istio ambient's HBONE port, the schema default for
+// network_config.netns_container_attribution_ports
+var defaultNetNSContainerAttributionPorts = []int{15008}
+
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
 	ebpf.Config
@@ -387,8 +391,24 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "netns_container_attribution_ports"), &c.NetNSContainerAttributionPorts); err != nil {
-		log.Warnf("failed to parse netns_container_attribution_ports: %v", err)
+	tunnelPortsKey := sysconfig.FullKeyPath(netNS, "netns_container_attribution_ports")
+	if err := structure.UnmarshalKey(cfg, tunnelPortsKey, &c.NetNSContainerAttributionPorts); err != nil {
+		log.Warnf("failed to parse %s: %v", tunnelPortsKey, err)
+		c.NetNSContainerAttributionPorts = nil
+	}
+	c.NetNSContainerAttributionPorts = slices.DeleteFunc(c.NetNSContainerAttributionPorts, func(port int) bool {
+		if port < 1 || port > 65535 {
+			log.Warnf("CNM detected and removed invalid port %d from %s (must be 1-65535)", port, tunnelPortsKey)
+			return true
+		}
+		return false
+	})
+	// an empty list would leave nothing to reattribute, so a broken setting falls back to the mesh tunnel's port
+	if len(c.NetNSContainerAttributionPorts) == 0 {
+		if c.EnableNetNSContainerAttribution {
+			log.Warnf("%s has no valid ports, using the default %v", tunnelPortsKey, defaultNetNSContainerAttributionPorts)
+		}
+		c.NetNSContainerAttributionPorts = slices.Clone(defaultNetNSContainerAttributionPorts)
 	}
 
 	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList); err != nil {

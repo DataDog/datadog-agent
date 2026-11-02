@@ -42,8 +42,9 @@ func newTestNetNSResolver(pidToNetNS map[int]uint32) *netnsContainerResolver {
 		rootNetNS:         testRootNetNS,
 		ownerImages:       toSet([]string{"ztunnel"}),
 		ignoredContainers: toSet([]string{"vault-agent"}),
+		now:               time.Now,
 		containers:        make(map[*intern.Value]trackedContainer),
-		byNetNS:           make(map[uint32]map[*intern.Value]struct{}),
+		byNetNS:           make(map[uint32]map[*intern.Value]netnsMember),
 		pending:           make(map[*intern.Value]*workloadmeta.Container),
 	}
 }
@@ -145,20 +146,36 @@ func TestNetNSContainerResolverRemovesDeletedContainers(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, intern.GetByString("old-app"), cid)
 
-	// the old pod goes away and the kernel hands its namespace inode to a new pod
+	now := time.Now()
+	r.now = func() time.Time { return now }
+
+	// the old pod goes away; its connections closed just before can still be read afterwards
 	r.process([]workloadmeta.Event{
 		testContainerEvent(workloadmeta.EventTypeUnset, "old-app", "router", 20),
 	})
-	_, ok = r.resolve(reusedNS, ztunnel)
-	assert.False(t, ok, "a deleted container must not be a reattribution target")
-	assert.NotContains(t, r.byNetNS, uint32(reusedNS), "an emptied namespace must be dropped")
+	cid, ok = r.resolve(reusedNS, ztunnel)
+	require.True(t, ok, "a just-deleted container still owns connections closed before it went")
+	assert.Equal(t, intern.GetByString("old-app"), cid)
 
+	// the kernel hands its namespace inode to a new pod within the grace period
 	r.process([]workloadmeta.Event{
 		testContainerEvent(workloadmeta.EventTypeSet, "new-app", "router", 21),
 	})
+	_, ok = r.resolve(reusedNS, ztunnel)
+	assert.False(t, ok, "while the old pod still counts, a reused namespace is ambiguous rather than the new pod's")
+
+	// once the grace period passes, the old pod is purged and the namespace is the new pod's
+	now = now.Add(removedContainerGrace + time.Second)
+	r.purgeRemoved()
 	cid, ok = r.resolve(reusedNS, ztunnel)
 	require.True(t, ok)
 	assert.Equal(t, intern.GetByString("new-app"), cid)
+
+	// a namespace emptied by deletion is dropped after the grace period
+	r.process([]workloadmeta.Event{testContainerEvent(workloadmeta.EventTypeUnset, "new-app", "router", 21)})
+	now = now.Add(removedContainerGrace + time.Second)
+	r.purgeRemoved()
+	assert.NotContains(t, r.byNetNS, uint32(reusedNS))
 }
 
 func TestNetNSContainerResolverSkipsStoppedAndUnreadable(t *testing.T) {
@@ -174,7 +191,7 @@ func TestNetNSContainerResolverSkipsStoppedAndUnreadable(t *testing.T) {
 	})
 
 	assert.Len(t, r.containers, 1)
-	assert.Empty(t, r.byNetNS[0])
+	assert.Len(t, r.byNetNS, 1, "only the running, readable container's namespace is mapped")
 }
 
 func TestNetNSContainerResolverConcurrentAccess(t *testing.T) {
@@ -195,7 +212,10 @@ func TestNetNSContainerResolverConcurrentAccess(t *testing.T) {
 	}
 	<-done
 
-	// the writer's last event unset the app, so its namespace is gone
+	// the writer's last event unset the app, so its namespace goes once the grace period passes
+	later := time.Now().Add(removedContainerGrace + time.Second)
+	r.now = func() time.Time { return later }
+	r.purgeRemoved()
 	_, ok := r.resolve(4002, ztunnel)
 	assert.False(t, ok)
 	assert.NotContains(t, r.byNetNS, uint32(4002))
@@ -223,7 +243,7 @@ func TestNetNSContainerResolverIgnoresUnchangedUpdates(t *testing.T) {
 	// a restart gives the container a new process
 	r.process([]workloadmeta.Event{testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 21)})
 	assert.Equal(t, 2, reads)
-	assert.NotContains(t, r.byNetNS, uint32(5020))
+	assert.False(t, r.byNetNS[5020][intern.GetByString("app")].removedAt.IsZero(), "the old namespace only keeps the container as removed")
 	assert.Contains(t, r.byNetNS, uint32(5021))
 }
 
@@ -249,6 +269,32 @@ func TestNetNSContainerResolverIgnoresHelperContainers(t *testing.T) {
 
 	_, ok = r.resolve(multiNS, ztunnel)
 	assert.False(t, ok, "two application containers stay ambiguous")
+}
+
+func TestNetNSContainerResolverFallsBackToASoleHelper(t *testing.T) {
+	const (
+		soloNS = 6101
+		twoNS  = 6102
+	)
+	r := newTestNetNSResolver(map[int]uint32{10: 6100, 20: soloNS, 30: twoNS, 31: twoNS})
+	r.ignoredContainers = toSet([]string{"vault-agent", "cloud-sql-proxy"})
+	secondHelper := testContainerEvent(workloadmeta.EventTypeSet, "csp-2", "cloud-sql-proxy", 31)
+	secondHelper.Entity.(*workloadmeta.Container).Labels = map[string]string{kubernetesContainerNameLabel: "cloud-sql-proxy"}
+	r.process([]workloadmeta.Event{
+		testContainerEvent(workloadmeta.EventTypeSet, "ztunnel", "ztunnel", 10),
+		// cloud-sql-proxy deployed as its own pod
+		testContainerEvent(workloadmeta.EventTypeSet, "cloud-sql-proxy", "cloud-sql-proxy", 20),
+		testContainerEvent(workloadmeta.EventTypeSet, "vault-agent", "vault", 30),
+		secondHelper,
+	})
+	ztunnel := intern.GetByString("ztunnel")
+
+	cid, ok := r.resolve(soloNS, ztunnel)
+	require.True(t, ok, "a helper that is its namespace's only container is the target")
+	assert.Equal(t, intern.GetByString("cloud-sql-proxy"), cid)
+
+	_, ok = r.resolve(twoNS, ztunnel)
+	assert.False(t, ok, "two helpers and no application stay ambiguous")
 }
 
 func TestNetNSContainerResolverReclassifiesOnSamePIDUpdates(t *testing.T) {
@@ -340,8 +386,8 @@ func TestNetNSContainerResolverStart(t *testing.T) {
 	mapped := func(netns uint32, id string) bool {
 		r.mtx.RLock()
 		defer r.mtx.RUnlock()
-		_, ok := r.byNetNS[netns][intern.GetByString(id)]
-		return ok
+		m, ok := r.byNetNS[netns][intern.GetByString(id)]
+		return ok && m.removedAt.IsZero()
 	}
 	app := testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20).Entity.(*workloadmeta.Container)
 	wmeta.Set(app)
@@ -376,5 +422,5 @@ func TestNetNSContainerResolverOnTunnel(t *testing.T) {
 	assert.False(t, r.onTunnel(15001, 41000), "capturing the app's outbound traffic")
 
 	none := &netnsContainerResolver{}
-	assert.True(t, none.onTunnel(41000, 8080), "with no tunnel ports every socket counts")
+	assert.False(t, none.onTunnel(15008, 8080), "with no tunnel ports nothing is reattributed")
 }

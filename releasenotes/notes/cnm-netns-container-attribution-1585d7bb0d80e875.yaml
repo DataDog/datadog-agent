@@ -8,17 +8,19 @@
 ---
 features:
   - |
-    CNM: Add ``network_config.enable_netns_container_attribution`` (disabled by default).
-    When enabled, a socket that an allowlisted proxy, such as Istio ambient's ``ztunnel``,
-    creates inside another pod's network namespace is attributed to the container that owns
-    that namespace instead of the proxy. Only sockets on the mesh tunnel's ports are moved,
-    set with ``network_config.netns_container_attribution_ports`` (default ``15008``, Istio's
-    HBONE port); the proxy's other legs inside the pod duplicate the application's own sockets
-    and stay on the proxy. Owners are matched by image short name, set with
-    ``network_config.netns_container_attribution_owner_images`` (default ``ztunnel``).
-    Helper containers are matched by Kubernetes container name and don't count as the target,
-    set with ``network_config.netns_container_attribution_ignored_containers`` (default
-    ``vault-agent``, ``vault-agent-init``, and ``cloud-sql-proxy``); their own sockets keep
-    their container. A socket is moved only when exactly one eligible running container is in
-    the namespace, so pods with several application containers stay on the proxy. The feature
-    requires process event monitoring; without it, system-probe logs a warning and does nothing.
+    CNM: Add ``network_config.enable_netns_container_attribution`` (disabled by default, Linux
+    only). When enabled, a socket that an allowlisted proxy, such as Istio ambient's ``ztunnel``,
+    creates inside another pod's network namespace is attributed to the container that owns that
+    namespace instead of the proxy, and loses the proxy's service, env, version, and process tags.
+    Only sockets on the mesh tunnel's ports are moved, set with
+    ``network_config.netns_container_attribution_ports`` (default ``15008``, Istio's HBONE port;
+    an empty or invalid list falls back to the default); the proxy's other legs inside the pod
+    duplicate the application's own sockets and stay on the proxy. Owners are matched by image
+    short name, set with ``network_config.netns_container_attribution_owner_images`` (default
+    ``ztunnel``). A socket is moved only when the namespace has exactly one application
+    container, so pods with several stay on the proxy. Helper containers, matched by Kubernetes
+    container name and set with ``network_config.netns_container_attribution_ignored_containers``
+    (default ``vault-agent``, ``vault-agent-init``, and ``cloud-sql-proxy``), don't count as
+    application containers, but a helper running alone in its pod is the target. Helpers' own
+    sockets keep their container. The feature requires process event monitoring; without it,
+    system-probe logs a warning and does nothing.
