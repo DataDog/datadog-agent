@@ -159,11 +159,19 @@ func spanConversionResource(conf *config.AgentConfig, res pcommon.Resource) pcom
 }
 
 // rootTags returns root converted as the trace-agent's OTLP receiver does, with the tag changes that the
-// trace-agent's normalizer makes before applying apm_config.filter_tags: env is normalized, and an invalid
-// http.status_code is removed. peer.service and _dd.base_service are already normalized by the conversion.
+// trace-agent's normalizer makes before applying apm_config.filter_tags: peer.service, _dd.base_service and env are
+// normalized, and an invalid http.status_code is removed.
 func rootTags(conf *config.AgentConfig, root scopedSpan, res pcommon.Resource) *pb.Span {
 	ddspan := transform.OtelSpanToDDSpan(root.span, res, root.scope, conf)
-	if env := semantics.LookupString(semantics.DefaultRegistry(), semantics.NewDDSpanAccessor(ddspan.Meta, ddspan.Metrics), semantics.ConceptDDEnv); env != "" {
+	reg := semantics.DefaultRegistry()
+	accessor := semantics.NewDDSpanAccessor(ddspan.Meta, ddspan.Metrics)
+	if pSvc := semantics.LookupString(reg, accessor, semantics.ConceptPeerService); pSvc != "" {
+		ddspan.Meta[string(semantics.ConceptPeerService)], _ = normalizeutil.NormalizePeerService(pSvc)
+	}
+	if bSvc := semantics.LookupString(reg, accessor, semantics.ConceptDDBaseService); bSvc != "" {
+		ddspan.Meta[string(semantics.ConceptDDBaseService)], _ = normalizeutil.NormalizePeerService(bSvc)
+	}
+	if env := semantics.LookupString(reg, accessor, semantics.ConceptDDEnv); env != "" {
 		ddspan.Meta["env"] = normalizeutil.NormalizeTagValue(env)
 	}
 	if sc, ok := ddspan.Meta["http.status_code"]; ok && !normalizeutil.IsValidStatusCode(sc) {

@@ -292,6 +292,22 @@ func TestIgnoredTracesByTags(t *testing.T) {
 			wantIgnored:   []indexedTrace{{0, 1}},
 		},
 		{
+			name: "peer.service is normalized before matching",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindClient, withAttrs(dbAttrs, map[string]string{"peer.service": "Payments"})},
+			}),
+			rejectTags:  []*config.Tag{{K: "peer.service", V: "payments"}},
+			wantIgnored: []indexedTrace{{0, 1}},
+		},
+		{
+			name: "_dd.base_service is normalized before matching",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, withAttrs(usersAttrs, map[string]string{"_dd.base_service": "Users API"})},
+			}),
+			rejectTags:  []*config.Tag{{K: "_dd.base_service", V: "users_api"}},
+			wantIgnored: []indexedTrace{{0, 1}},
+		},
+		{
 			name: "invalid http.status_code is removed before matching",
 			traces: newTestTraces([]testSpan{
 				{1, 1, 0, ptrace.SpanKindServer, withAttrs(usersAttrs, map[string]string{"http.status_code": "unknown"})},
