@@ -757,4 +757,5 @@ func TestNetNSContainerAttributionDefaults(t *testing.T) {
 	assert.False(t, cfg.EnableNetNSContainerAttribution)
 	assert.Equal(t, []string{"ztunnel"}, cfg.NetNSContainerAttributionOwnerImages)
 	assert.Equal(t, []string{"vault-agent", "vault-agent-init", "cloud-sql-proxy"}, cfg.NetNSContainerAttributionIgnoredContainers)
+	assert.Equal(t, []int{15008}, cfg.NetNSContainerAttributionPorts)
 }

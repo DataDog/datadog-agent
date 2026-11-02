@@ -367,3 +367,14 @@ func TestEnableNetNSContainerAttributionGuards(t *testing.T) {
 	require.NoError(t, noProcessCache.EnableNetNSContainerAttribution(context.Background(), nil))
 	assert.Nil(t, noProcessCache.netnsResolver.Load())
 }
+
+func TestNetNSContainerResolverOnTunnel(t *testing.T) {
+	r := &netnsContainerResolver{tunnelPorts: map[uint16]struct{}{15008: {}}}
+	assert.True(t, r.onTunnel(15008, 41000), "the proxy's tunnel listener")
+	assert.True(t, r.onTunnel(41000, 15008), "the proxy dialing a remote tunnel")
+	assert.False(t, r.onTunnel(41000, 8080), "delivering into the pod")
+	assert.False(t, r.onTunnel(15001, 41000), "capturing the app's outbound traffic")
+
+	none := &netnsContainerResolver{}
+	assert.True(t, none.onTunnel(41000, 8080), "with no tunnel ports every socket counts")
+}

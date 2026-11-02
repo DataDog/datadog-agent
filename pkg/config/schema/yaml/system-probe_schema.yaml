@@ -826,6 +826,13 @@ properties:
         - ztunnel
         items:
           type: string
+      netns_container_attribution_ports:
+        node_type: setting
+        type: array
+        default:
+        - 15008
+        items:
+          type: integer
   service_monitoring_config:
     $ref: system-probe-usm.yaml
   ping:

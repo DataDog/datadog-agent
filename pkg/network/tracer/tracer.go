@@ -386,7 +386,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		c.ContainerID.Source = p.ContainerID
 	}
 
-	if r := t.netnsResolver.Load(); r != nil {
+	if r := t.netnsResolver.Load(); r != nil && r.onTunnel(c.SPort, c.DPort) {
 		if cid, ok := r.resolve(c.NetNS, c.ContainerID.Source); ok {
 			c.NetNSOriginalContainerID = c.ContainerID.Source
 			c.ContainerID.Source = cid
@@ -406,13 +406,13 @@ func (t *Tracer) EnableNetNSContainerAttribution(ctx context.Context, wmeta work
 		log.Warn("not enabling network namespace container attribution, because it depends on process event monitoring which is disabled")
 		return nil
 	}
-	r, err := newNetNSContainerResolver(t.config.NetNSContainerAttributionOwnerImages, t.config.NetNSContainerAttributionIgnoredContainers)
+	r, err := newNetNSContainerResolver(t.config.NetNSContainerAttributionOwnerImages, t.config.NetNSContainerAttributionIgnoredContainers, t.config.NetNSContainerAttributionPorts)
 	if err != nil {
 		return fmt.Errorf("could not create network namespace container resolver: %w", err)
 	}
 	r.start(ctx, wmeta)
 	t.netnsResolver.Store(r)
-	log.Infof("network namespace container attribution enabled for owner images %v", t.config.NetNSContainerAttributionOwnerImages)
+	log.Infof("network namespace container attribution enabled for owner images %v on ports %v", t.config.NetNSContainerAttributionOwnerImages, t.config.NetNSContainerAttributionPorts)
 	return nil
 }
 

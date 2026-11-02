@@ -64,6 +64,8 @@ type netnsContainerResolver struct {
 	// pod's network namespace and carry no traffic of their own, only the application's, so they don't
 	// count toward the pod's containers
 	ignoredContainers map[string]struct{}
+	// tunnelPorts are the mesh tunnel's ports; only sockets on them are reattributed, and none means every socket
+	tunnelPorts map[uint16]struct{}
 
 	mtx        sync.RWMutex
 	containers map[*intern.Value]trackedContainer
@@ -78,7 +80,7 @@ type trackedContainer struct {
 	owner bool
 }
 
-func newNetNSContainerResolver(ownerImages, ignoredContainers []string) (*netnsContainerResolver, error) {
+func newNetNSContainerResolver(ownerImages, ignoredContainers []string, tunnelPorts []int) (*netnsContainerResolver, error) {
 	procRoot := kernel.HostProc()
 	rootNetNS, err := netnsutil.GetNetNsInoFromPid(procRoot, 1)
 	if err != nil {
@@ -92,11 +94,28 @@ func newNetNSContainerResolver(ownerImages, ignoredContainers []string) (*netnsC
 		rootNetNS:         rootNetNS,
 		ownerImages:       toSet(ownerImages),
 		ignoredContainers: toSet(ignoredContainers),
+		tunnelPorts:       make(map[uint16]struct{}, len(tunnelPorts)),
 		containers:        make(map[*intern.Value]trackedContainer),
 		byNetNS:           make(map[uint32]map[*intern.Value]struct{}),
 		pending:           make(map[*intern.Value]*workloadmeta.Container),
 	}
+	for _, port := range tunnelPorts {
+		if port > 0 && port <= 65535 {
+			r.tunnelPorts[uint16(port)] = struct{}{}
+		}
+	}
 	return r, nil
+}
+
+// onTunnel reports whether a socket with these ports is on the mesh tunnel. A proxy's other legs inside the pod
+// duplicate the app's own sockets, so they stay on the proxy.
+func (r *netnsContainerResolver) onTunnel(sport, dport uint16) bool {
+	if len(r.tunnelPorts) == 0 {
+		return true
+	}
+	_, src := r.tunnelPorts[sport]
+	_, dst := r.tunnelPorts[dport]
+	return src || dst
 }
 
 func toSet(values []string) map[string]struct{} {

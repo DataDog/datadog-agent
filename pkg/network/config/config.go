@@ -220,6 +220,11 @@ type Config struct {
 	// reattribution target, because any traffic they carry belongs to the pod's application.
 	NetNSContainerAttributionIgnoredContainers []string
 
+	// NetNSContainerAttributionPorts limits reattribution to sockets with one of these local or remote ports, the
+	// mesh tunnel (Istio ambient's HBONE, 15008). A proxy's other legs inside the pod, such as capturing the app's
+	// outbound traffic or delivering inbound traffic to it, duplicate the app's own sockets and stay on the proxy.
+	NetNSContainerAttributionPorts []int
+
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
@@ -380,6 +385,10 @@ func New() *Config {
 	}
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
+	}
+
+	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "netns_container_attribution_ports"), &c.NetNSContainerAttributionPorts); err != nil {
+		log.Warnf("failed to parse netns_container_attribution_ports: %v", err)
 	}
 
 	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList); err != nil {

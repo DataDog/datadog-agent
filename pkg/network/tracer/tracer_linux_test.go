@@ -4217,13 +4217,14 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	proxyNSHandle, proxyNSIno := newPodNS()
 
 	const (
-		proxyPID  = 1001 // stand-in PIDs, mapped to namespaces below rather than read from procfs
-		appPID    = 1002
-		helperPID = 1003
-		webPID    = 1004
-		workerPID = 1005
+		tunnelPort = 15008
+		proxyPID   = 1001 // stand-in PIDs, mapped to namespaces below rather than read from procfs
+		appPID     = 1002
+		helperPID  = 1003
+		webPID     = 1004
+		workerPID  = 1005
 	)
-	r, err := newNetNSContainerResolver([]string{"ztunnel"}, []string{"vault-agent"})
+	r, err := newNetNSContainerResolver([]string{"ztunnel"}, []string{"vault-agent"}, []int{tunnelPort})
 	require.NoError(t, err)
 	r.readNetNS = func(pid int) (uint32, error) {
 		switch pid {
@@ -4261,7 +4262,7 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	var podServer *tracertestutil.TCPServer
 	var podConn net.Conn
 	err = netns.WithNS(podNSHandle, func() error {
-		podServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		podServer = tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("127.0.0.1:%d", tunnelPort), func(_ net.Conn) {})
 		if err := podServer.Run(); err != nil {
 			return err
 		}
@@ -4273,11 +4274,27 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	t.Cleanup(podServer.Shutdown)
 	t.Cleanup(func() { podConn.Close() })
 
+	// another leg in the pod's namespace, off the tunnel port, as the proxy's capture and delivery legs are
+	var legServer *tracertestutil.TCPServer
+	var legConn net.Conn
+	err = netns.WithNS(podNSHandle, func() error {
+		legServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		if err := legServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		legConn, dialErr = legServer.Dial()
+		return dialErr
+	})
+	require.NoError(t, err)
+	t.Cleanup(legServer.Shutdown)
+	t.Cleanup(func() { legConn.Close() })
+
 	// connection inside the multi-container pod's namespace
 	var multiServer *tracertestutil.TCPServer
 	var multiConn net.Conn
 	err = netns.WithNS(multiNSHandle, func() error {
-		multiServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		multiServer = tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("127.0.0.1:%d", tunnelPort), func(_ net.Conn) {})
 		if err := multiServer.Run(); err != nil {
 			return err
 		}
@@ -4293,7 +4310,7 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	var ownServer *tracertestutil.TCPServer
 	var ownConn net.Conn
 	err = netns.WithNS(proxyNSHandle, func() error {
-		ownServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		ownServer = tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("127.0.0.1:%d", tunnelPort), func(_ net.Conn) {})
 		if err := ownServer.Run(); err != nil {
 			return err
 		}
@@ -4320,6 +4337,11 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 		accepted, ok := findConnection(podConn.RemoteAddr(), podConn.LocalAddr(), conns)
 		require.True(collect, ok, "accepted connection in the pod namespace not found")
 		assert.Equal(collect, appCID, accepted.ContainerID.Source, "accepted socket in the pod namespace must be attributed to the pod")
+
+		leg, ok := findConnection(legConn.LocalAddr(), legConn.RemoteAddr(), conns)
+		require.True(collect, ok, "off-tunnel connection in the pod namespace not found")
+		assert.Equal(collect, proxyCID, leg.ContainerID.Source, "a leg off the tunnel port duplicates the app's own socket, so it stays on the proxy")
+		assert.Nil(collect, leg.NetNSOriginalContainerID)
 
 		multi, ok := findConnection(multiConn.LocalAddr(), multiConn.RemoteAddr(), conns)
 		require.True(collect, ok, "connection in the multi-container namespace not found")
