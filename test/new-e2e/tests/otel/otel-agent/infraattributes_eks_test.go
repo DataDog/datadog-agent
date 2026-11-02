@@ -45,6 +45,8 @@ agents:
 			proveks.Provisioner(
 				proveks.WithRunOptions(
 					eks.WithEKSOptions(
+						// TODO: Remove after restricted EKS bootstrap and public dependencies are supported.
+						eks.WithInternetAccess(),
 						eks.WithLinuxNodeGroup(),
 					),
 					eks.WithAgentOptions(
@@ -114,6 +116,8 @@ agents:
 		proveks.Provisioner(
 			proveks.WithRunOptions(
 				eks.WithEKSOptions(
+					// TODO: Remove after restricted EKS bootstrap and public dependencies are supported.
+					eks.WithInternetAccess(),
 					eks.WithLinuxNodeGroup(),
 				),
 				eks.WithAgentOptions(

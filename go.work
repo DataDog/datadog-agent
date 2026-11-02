@@ -109,6 +109,7 @@ use (
 	pkg/config/schema
 	pkg/config/setup
 	pkg/config/setup/constants
+	pkg/config/setup/generatedsettings_local
 	pkg/config/structure
 	pkg/config/utils
 	pkg/discovery/tracermetadata/model

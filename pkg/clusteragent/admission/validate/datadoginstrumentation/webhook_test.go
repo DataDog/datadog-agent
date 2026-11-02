@@ -427,6 +427,7 @@ func TestValidate(t *testing.T) {
 			}
 
 			resp := w.validate(req)
+			assert.False(t, req.ProcessingFailed, "policy outcomes are not internal processing failures")
 			assert.Equal(t, tc.wantAllowed, resp.Allowed)
 			if !tc.wantAllowed {
 				require.NotNil(t, resp.Result)
@@ -434,6 +435,17 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMalformedRequestProcessingFailure(t *testing.T) {
+	w := newTestWebhook(t, fakeInformerFactory(t))
+	req := &admission.Request{Object: []byte(`{"spec":`)}
+	resp := w.validate(req)
+	require.NotNil(t, resp)
+	require.False(t, resp.Allowed)
+	require.NotNil(t, resp.Result)
+	require.Contains(t, resp.Result.Message, "failed to decode DatadogInstrumentation")
+	require.True(t, req.ProcessingFailed)
 }
 
 func TestWebhookFuncReturnsAdmissionResponse(t *testing.T) {

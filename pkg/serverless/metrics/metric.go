@@ -84,9 +84,12 @@ func (c *ServerlessMetricAgent) Flush() {
 	c.Demux.ForceFlushToSerializer(time.Now(), true, false)
 }
 
-// FlushAll additionally includes the current, not-yet-closed bucket. Satisfied
-// interface: cmd/serverless-init/lifecycle.ForceFlusher — see that doc for why
-// this must stay off /suspend's path.
+// FlushAll additionally includes the current, not-yet-closed bucket. Don't call
+// it before a suspend the VM can resume from. A sample that lands in the flushed
+// bucket before the freeze makes the time sampler re-create it and zero-fill
+// every active counter, so after the resume that bucket is overwritten for every
+// counter. The cost of skipping it: a VM terminated while suspended never sends
+// its open bucket (up to 10s, including the suspend lifecycle metric).
 func (c *ServerlessMetricAgent) FlushAll() {
 	if c.Demux == nil {
 		return

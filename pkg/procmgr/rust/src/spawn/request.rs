@@ -23,8 +23,8 @@ pub(crate) struct SpawnRequest {
     #[cfg_attr(not(windows), allow(dead_code))]
     config_env_start: usize,
     /// When set, `env` already contains the supervisor process environment (minus
-    /// `DD_PM_*`). Windows uses this to skip the account environment block, which
-    /// would otherwise append a second copy of `PATH`.
+    /// supervisor-only `DD_PM_*` names). Windows uses this to skip the account
+    /// environment block, which would otherwise append a second copy of `PATH`.
     #[cfg_attr(not(windows), allow(dead_code))]
     inherit_supervisor_env: bool,
     working_dir: Option<PathBuf>,
@@ -83,9 +83,10 @@ impl SpawnRequest {
 
     /// `inherit_supervisor_env` is set when the child runs as the same user as
     /// `dd-procmgrd`. The child then receives the supervisor environment, except
-    /// `DD_PM_*`, which belongs to the process manager. A child that runs as another
-    /// account does not receive that environment. It receives only the names selected
-    /// by `DD_PM_INHERIT_ENV_PREFIXES` and `DD_PM_INHERIT_ENV_NAMES`.
+    /// supervisor-only `DD_PM_*` names, which belong to the process manager. A child
+    /// that runs as another account does not receive that environment. It receives
+    /// only the names selected by `DD_PM_INHERIT_ENV_PREFIXES` and
+    /// `DD_PM_INHERIT_ENV_NAMES`.
     pub(crate) fn from_config(
         process_name: &str,
         config: &ProcessConfig,
@@ -159,13 +160,20 @@ fn collect_env(
     Ok((env, config_env_start))
 }
 
+/// `DD_PM_*` names a same-user child still receives.
+const CHILD_VISIBLE_CONTROL_VARS: &[&str] = &["DD_PM_SOCKET_PATH"];
+
 /// Supervisor control variables. A same-user child receives the rest of the
 /// supervisor environment. The prefix match is case-insensitive so a Windows
 /// environment block cannot keep `dd_pm_*` under a different spelling.
 fn is_supervisor_control_var(name: &str) -> bool {
     const PREFIX: &str = "DD_PM_";
-    name.len() >= PREFIX.len()
-        && name.as_bytes()[..PREFIX.len()].eq_ignore_ascii_case(PREFIX.as_bytes())
+    let has_prefix = name.len() >= PREFIX.len()
+        && name.as_bytes()[..PREFIX.len()].eq_ignore_ascii_case(PREFIX.as_bytes());
+    has_prefix
+        && !CHILD_VISIBLE_CONTROL_VARS
+            .iter()
+            .any(|allowed| name.eq_ignore_ascii_case(allowed))
 }
 
 fn collect_same_user_env(
@@ -253,6 +261,7 @@ mod tests {
             collect_same_user_env(vars),
             vec![
                 ("AWS_ROLE_ARN".to_string(), "role".to_string()),
+                ("dd_pm_socket_path".to_string(), "/tmp/sock".to_string()),
                 ("SSL_CERT_DIR".to_string(), "/certs".to_string()),
             ]
         );

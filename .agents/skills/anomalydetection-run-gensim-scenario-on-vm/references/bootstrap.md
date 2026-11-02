@@ -5,7 +5,7 @@ limits. A pre-provisioned VM is preferable; building or changing an AMI is outsi
 
 `scripts/bootstrap.sh` ensures Docker CE (including Compose), kubectl 1.32, kind 0.27.0 and Helm 3.20.2, plus PyYAML, and configures
 inotify limits. It is restricted to disposable Ubuntu x86_64 hosts. Review its code before adapting another Linux image.
-The versions come from `q_branch/gadget-k8s-host.lima.yaml`.
+The pinned versions are defined in `scripts/bootstrap.sh`.
 APT installs are idempotent and repair incomplete package sets, including a missing Compose plugin.
 Helm uses its [documented APT repository](https://helm.sh/docs/intro/install/#from-apt-debianubuntu) with APT
 signature verification through a dedicated keyring and the pinned `3.20.2-1` package, rather than executing a

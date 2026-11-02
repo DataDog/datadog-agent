@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,7 +21,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -389,9 +389,6 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
-			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
-		}
 		// fakeAgentBin returns the path of an executable that, when run as
 		// `<path> hostname`, prints the given response and exits with the given
 		// code. It is the test binary itself; see TestMain.
@@ -410,6 +407,11 @@ func TestConfigHostname(t *testing.T) {
 
 		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
+
+		// The non-eudm subtests below build the config with a hostname set, so that
+		// building it does not wait on a gRPC call to the core agent (2s timeout).
+		// They then call acquireHostnameFallback directly, which overwrites the
+		// hostname.
 
 		t.Run("eudm", func(t *testing.T) {
 			for _, tc := range []struct {
@@ -434,7 +436,7 @@ func TestConfigHostname(t *testing.T) {
 		t.Run("good", func(t *testing.T) {
 			bin := fakeAgentBin(t, "host.name", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -447,7 +449,7 @@ func TestConfigHostname(t *testing.T) {
 		t.Run("empty", func(t *testing.T) {
 			bin := fakeAgentBin(t, "", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -459,7 +461,7 @@ func TestConfigHostname(t *testing.T) {
 		t.Run("empty+disallowed", func(t *testing.T) {
 			bin := fakeAgentBin(t, "", 0)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 
 			cfg := config.Object()
 			require.NotNil(t, cfg)
@@ -473,9 +475,8 @@ func TestConfigHostname(t *testing.T) {
 		t.Run("empty+disallowed+containerized", func(t *testing.T) {
 			bin := fakeAgentBin(t, "", 0)
 
-			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
-			// then override to false so only acquireHostnameFallback sees it.
-			cfg := buildConfigComponent(t, false).Object()
+			// Only acquireHostnameFallback should see osHostnameUsableFunc=false.
+			cfg := buildConfigComponent(t, true).Object()
 			require.NotNil(t, cfg)
 
 			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
@@ -491,7 +492,7 @@ func TestConfigHostname(t *testing.T) {
 		t.Run("fallback1", func(t *testing.T) {
 			bin := fakeAgentBin(t, "", 1)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -503,7 +504,7 @@ func TestConfigHostname(t *testing.T) {
 		t.Run("fallback2", func(t *testing.T) {
 			bin := fakeAgentBin(t, "some text", 1)
 
-			config := buildConfigComponent(t, false)
+			config := buildConfigComponent(t, true)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
@@ -760,6 +761,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, "localhost", cfg.StatsdHost)
 	assert.Equal(t, 8125, cfg.StatsdPort)
+	assert.Equal(t, 8192, cfg.StatsdBufferSize)
 	assert.Equal(t, true, cfg.StatsdEnabled)
 
 	assert.Equal(t, true, cfg.Enabled)
@@ -1193,6 +1195,17 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 4321, cfg.StatsdPort)
+	})
+
+	env = "DD_DOGSTATSD_BUFFER_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "16384")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 16384, cfg.StatsdBufferSize)
 	})
 
 	env = "DD_APM_NON_LOCAL_TRAFFIC"
@@ -3038,6 +3051,52 @@ func TestTracesSendToMainEndpoint(t *testing.T) {
 		cfg.SkipMainEndpoint = false
 		cfg.Endpoints = cfg.Endpoints[:1]
 		assert.NoError(t, validate(cfg, coreConfig))
+	})
+}
+
+// TestAcquireHostnameCoreAgentUnreachable checks that acquireHostname returns an
+// error when the core agent cannot be reached on the IPC port. The gRPC dial
+// blocks until its 2s timeout, so the TestConfigHostname subtests avoid this path.
+func TestAcquireHostnameCoreAgentUnreachable(t *testing.T) {
+	// Hold a free port and close every connection to it, so that the dial never
+	// reaches a core agent, whether one runs on the host or not.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	port := l.Addr().(*net.TCPAddr).Port
+
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.SetInTest("cmd_host", "127.0.0.1")
+	coreConfig.SetInTest("cmd_port", port)
+	cfg := buildComponent(t, true, coreConfig).Object()
+
+	require.Error(t, acquireHostname(cfg))
+}
+
+func TestDebugServerHostFollowsCmdHost(t *testing.T) {
+	t.Run("ipv6", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"cmd_host": "::1",
+		}).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "::1", cfg.DebugServerHost)
+		assert.Equal(t, "[::1]:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
+	})
+
+	t.Run("default", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, nil).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "127.0.0.1", cfg.DebugServerHost)
+		assert.Equal(t, "127.0.0.1:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
 	})
 }
 

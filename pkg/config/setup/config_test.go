@@ -25,6 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -1580,7 +1581,7 @@ additional_endpoints:
 
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonBase(conf)
+	generatedsettings.InitCommonBase(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
@@ -1590,12 +1591,12 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 
-	// inventory metadata collection is available in serverless-init, gated by
-	// the serverless-only serverless.inventory_enabled ramp key
+	// serverless-init collects metadata only when the serverless-only
+	// serverless.metadata_enabled key is true.
 	assert.True(t, conf.IsKnown("inventories_enabled"))
 	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
-	assert.True(t, conf.IsKnown("serverless.inventory_enabled"))
-	assert.True(t, conf.IsKnown("serverless.inventory_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_wrapped_command_enabled"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
@@ -1605,9 +1606,9 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
-func TestServerlessInventoryWrappedCommandEnabled(t *testing.T) {
-	const envVar = "DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED"
-	const key = "serverless.inventory_wrapped_command_enabled"
+func TestServerlessMetadataWrappedCommandEnabled(t *testing.T) {
+	const envVar = "DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED"
+	const key = "serverless.metadata_wrapped_command_enabled"
 	for _, tt := range []struct {
 		name string
 		env  string
@@ -1623,7 +1624,7 @@ func TestServerlessInventoryWrappedCommandEnabled(t *testing.T) {
 				require.NoError(t, os.Unsetenv(envVar))
 			}
 			conf := newEmptyMockConf(t)
-			initCommonBase(conf)
+			generatedsettings.InitCommonBase(conf)
 
 			assert.True(t, conf.IsKnown(key))
 			assert.Equal(t, tt.want, conf.GetBool(key))
