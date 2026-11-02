@@ -19,8 +19,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard // Listener configuration type only; configuration is injected.
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"      //nolint:depguard // Provider configuration type only; configuration is injected.
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +46,7 @@ func (ac *AutoConfig) prepareDefaults(ctx context.Context, cfg config.Component)
 		confSearchPaths = append(confSearchPaths, filepath.Join(cfg.GetString("fleet_policies_dir"), "conf.d"))
 	}
 
-	scanCtx, scanSpan := logging.StartStartupSpan(ctx, "config.initialize")
+	scanCtx, scanSpan := startup.StartSpan(ctx, "config.initialize")
 	providers.InitConfigFilesReaderWithContext(scanCtx, confSearchPaths)
 	scanSpan.Finish(nil)
 
@@ -59,7 +59,7 @@ func (ac *AutoConfig) prepareDefaults(ctx context.Context, cfg config.Component)
 	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
-	_, discoverySpan := logging.StartStartupSpan(ctx, "providers.discover")
+	_, discoverySpan := startup.StartSpan(ctx, "providers.discover")
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig(cfg)
 
 	var extraEnvProviders []constants.ConfigurationProviders
@@ -119,7 +119,7 @@ func (ac *AutoConfig) prepareDefaults(ctx context.Context, cfg config.Component)
 
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
-		_, span := logging.StartStartupSpan(ctx, "provider.init")
+		_, span := startup.StartSpan(ctx, "provider.init")
 		span.SetTag("provider", cp.Name)
 		err := ac.AddConfigProviderFromCatalog(cp)
 		span.Finish(err)
@@ -193,7 +193,7 @@ func (ac *AutoConfig) prepareDefaults(ctx context.Context, cfg config.Component)
 			listeners[i].SetEnabledProviders(providersSet)
 		}
 
-		listenerCtx, span := logging.StartStartupSpan(ctx, "listeners.initialize")
+		listenerCtx, span := startup.StartSpan(ctx, "listeners.initialize")
 		ac.addListenersWithContext(listenerCtx, listeners)
 		span.Finish(nil)
 	} else {

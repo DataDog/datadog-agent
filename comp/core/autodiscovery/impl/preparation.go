@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -25,8 +25,8 @@ type preparation struct {
 	done       chan struct{}
 	startCtx   context.Context
 	stopped    bool
-	tracer     *logging.FxTracingLogger
-	trace      *logging.StartupSpan
+	tracer     startup.Tracer
+	trace      *startup.Span
 	traceCtx   context.Context
 }
 
@@ -41,7 +41,9 @@ func (p *preparation) start(ctx context.Context) (<-chan struct{}, context.Conte
 	if p.done == nil {
 		p.done = make(chan struct{})
 		p.startCtx = ctx
-		p.trace = p.tracer.StartStartupTrace("autodiscovery")
+		if p.tracer != nil {
+			p.trace = p.tracer.StartStartupTrace("autodiscovery")
+		}
 		p.trace.SetTag("agent.version", version.AgentVersion)
 		p.traceCtx = p.trace.Context(context.Background())
 		ready := health.RegisterReadiness("ad-initialization")
@@ -61,7 +63,7 @@ func (p *preparation) wait(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	_, span := logging.StartStartupSpan(p.context(ctx), "preparation.wait")
+	_, span := startup.StartSpan(p.context(ctx), "preparation.wait")
 	defer func() { span.Finish(err) }()
 	// Prefer completed preparation even if the preload context has since expired.
 	select {

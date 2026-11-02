@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx/fxevent"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
@@ -21,9 +22,11 @@ import (
 // It also exposes the optional tracer for component diagnostics that outlive Fx startup.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(func(logger fxevent.Logger) *logging.FxTracingLogger {
-			instrumentedLogger, _ := logger.(*logging.FxTracingLogger)
-			return instrumentedLogger
+		fx.Provide(func(logger fxevent.Logger) startup.Tracer {
+			if instrumentedLogger, ok := logger.(*logging.FxTracingLogger); ok {
+				return instrumentedLogger
+			}
+			return nil
 		}),
 		// No need to call ProvideComponentConstructor because this module is not a component.
 		fx.Invoke(func(logger fxevent.Logger, config config.Component) {

@@ -24,8 +24,8 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
@@ -264,7 +264,7 @@ func (r *configFilesReader) readAndCacheAll(withFormats bool) ([]integration.Con
 }
 
 func (r *configFilesReader) readAndCacheAllWithContext(ctx context.Context, withFormats bool) ([]integration.Config, map[string]string) {
-	_, span := logging.StartStartupSpan(ctx, "config.scan")
+	_, span := startup.StartSpan(ctx, "config.scan")
 	defer span.Finish(nil)
 	span.SetTag("config.with_formats", strconv.FormatBool(withFormats))
 	span.AddMetric("config.worker_limit", float64(max(1, pkgconfigsetup.Datadog().GetInt("autoconf_config_files_num_workers"))))
@@ -286,7 +286,7 @@ func (r *configFilesReader) readAndCacheAllWithContext(ctx context.Context, with
 // read scans paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into integration.Config instances.
 // The scrubbed config formats are only built when withFormats is true.
-func (r *configFilesReader) read(keep FilterFunc, withFormats bool, stats *logging.StartupSpan) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
+func (r *configFilesReader) read(keep FilterFunc, withFormats bool, stats *startup.Span) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
 	integrationErrors := map[string]string{}
 	configs := []integration.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
@@ -425,7 +425,7 @@ func applyErrorAction(integrationErrors map[string]string, action errorAction) {
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
 // its scrubbed config format is only built when withFormat is true
-func collectEntry(file os.DirEntry, path string, integrationName string, withFormat bool, stats *logging.StartupSpan) (configEntry, *errorAction) {
+func collectEntry(file os.DirEntry, path string, integrationName string, withFormat bool, stats *startup.Span) (configEntry, *errorAction) {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -490,7 +490,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, withFor
 	return entry, &errorAction{name: integrationName, clear: true}
 }
 
-func collectDir(parentPath string, folder os.DirEntry, withFormats bool, stats *logging.StartupSpan) (configPkg, []errorAction) {
+func collectDir(parentPath string, folder os.DirEntry, withFormats bool, stats *startup.Span) (configPkg, []errorAction) {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
 	otherConfigs := []integration.Config{}
@@ -556,7 +556,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 
 // getIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file.
 // Its scrubbed ConfigFormatWrapper is only built when withFormat is true, an empty one is returned otherwise.
-func getIntegrationConfigFromFile(name, fpath string, withFormat bool, stats *logging.StartupSpan) (integration.Config, ConfigFormatWrapper, error) {
+func getIntegrationConfigFromFile(name, fpath string, withFormat bool, stats *startup.Span) (integration.Config, ConfigFormatWrapper, error) {
 	cf := configFormat{}
 	conf := integration.Config{Name: name}
 

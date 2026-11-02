@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"go.uber.org/fx/fxevent"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 )
 
 const (
@@ -28,20 +30,7 @@ const (
 // Span represents a Datadog APM span in JSON format for the v0.3/traces endpoint.
 // This structure is based on the Span proto message in the datadog/trace package.
 // https://github.com/DataDog/datadog-agent/blob/5be2876e3fc36fb1b70c69304bf6876ec90ed016/pkg/proto/pbgo/trace/span.pb.go#L519-L569
-type Span struct {
-	Service  string             `json:"service"`
-	Name     string             `json:"name"`
-	Resource string             `json:"resource"`
-	TraceID  uint64             `json:"trace_id"`
-	SpanID   uint64             `json:"span_id"`
-	ParentID uint64             `json:"parent_id"`
-	Start    int64              `json:"start"`
-	Duration int64              `json:"duration"`
-	Error    int32              `json:"error"`
-	Meta     map[string]string  `json:"meta,omitempty"`
-	Metrics  map[string]float64 `json:"metrics,omitempty"`
-	Type     string             `json:"type,omitempty"`
-}
+type Span = startup.PayloadSpan
 
 // FxTracingLogger implements fxevent.Logger interface to capture Fx lifecycle events
 // and send them as traces to Datadog.

@@ -53,7 +53,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	fxlogging "github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -76,8 +76,8 @@ type Requires struct {
 	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
 	// Without supplied params, preparation stays lazy until LoadAndRun.
-	Params   autodiscoverydef.Params    `optional:"true"`
-	FxTracer *fxlogging.FxTracingLogger `optional:"true"`
+	Params        autodiscoverydef.Params `optional:"true"`
+	StartupTracer startup.Tracer          `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -189,9 +189,9 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	}()
 
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
-	ac.preparation = &preparation{tracer: deps.FxTracer, initialize: func() {
+	ac.preparation = &preparation{tracer: deps.StartupTracer, initialize: func() {
 		started := time.Now()
-		ctx, span := fxlogging.StartStartupSpan(ac.preparation.traceCtx, "preparation")
+		ctx, span := startup.StartSpan(ac.preparation.traceCtx, "preparation")
 		defer span.Finish(nil)
 		ac.prepareDefaults(ctx, deps.Config)
 		deps.Log.Infof("Autodiscovery setup completed in %s", time.Since(started))
@@ -512,10 +512,10 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) error {
 }
 
 func (ac *AutoConfig) loadRegisteredProviders(ctx context.Context) {
-	ctx, span := fxlogging.StartStartupSpan(ctx, "providers.load")
+	ctx, span := startup.StartSpan(ctx, "providers.load")
 	defer span.Finish(nil)
 	for _, cp := range ac.getConfigPollers() {
-		providerCtx, providerSpan := fxlogging.StartStartupSpan(ctx, "provider.load")
+		providerCtx, providerSpan := startup.StartSpan(ctx, "provider.load")
 		providerSpan.SetTag("provider", cp.provider.String())
 		cp.start(providerCtx, ac)
 		providerSpan.Finish(nil)
@@ -692,7 +692,7 @@ func (ac *AutoConfig) initListenerCandidatesWithContext(ctx context.Context) boo
 	defer ac.m.Unlock()
 
 	for name, candidate := range ac.listenerCandidates {
-		_, span := fxlogging.StartStartupSpan(ctx, "listener.init")
+		_, span := startup.StartSpan(ctx, "listener.init")
 		span.SetTag("listener", name)
 		listener, err := candidate.try()
 		switch {

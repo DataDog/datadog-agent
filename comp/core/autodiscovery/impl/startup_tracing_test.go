@@ -23,6 +23,7 @@ import (
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
@@ -54,8 +55,8 @@ func TestAutodiscoveryStartupTraceLifecycle(t *testing.T) {
 	app := fx.New(logging.DefaultFxLoggingOption(), fxutil.FxLifecycleAdapter(),
 		fxinstrumentation.Module(),
 		fx.Provide(func() config.Component { return reqs.Config }),
-		fx.Provide(func(lc compdef.Lifecycle, tracer *logging.FxTracingLogger) autodiscovery.Component {
-			reqs.Lc, reqs.FxTracer = lc, tracer
+		fx.Provide(func(lc compdef.Lifecycle, tracer startup.Tracer) autodiscovery.Component {
+			reqs.Lc, reqs.StartupTracer = lc, tracer
 			return NewComponent(reqs).Comp
 		}), fx.Populate(&ac))
 	if err := app.Start(t.Context()); err != nil {
@@ -86,5 +87,29 @@ func TestAutodiscoveryStartupTraceLifecycle(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("Autodiscovery startup trace was not delivered")
+	}
+}
+
+func TestAutodiscoveryStartupTracingDisabledWithFx(t *testing.T) {
+	t.Setenv("DD_FX_TRACING_ENABLED", "false")
+	reqs := preparationTestRequires(t)
+	reqs.Params.PreloadConfigsOnStart = true
+	var ac autodiscovery.Component
+	app := fx.New(logging.DefaultFxLoggingOption(), fxutil.FxLifecycleAdapter(),
+		fxinstrumentation.Module(),
+		fx.Provide(func() config.Component { return reqs.Config }),
+		fx.Provide(func(lc compdef.Lifecycle, tracer startup.Tracer) autodiscovery.Component {
+			reqs.Lc, reqs.StartupTracer = lc, tracer
+			return NewComponent(reqs).Comp
+		}), fx.Populate(&ac))
+	if err := app.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Stop(context.Background()) })
+	if err := ac.LoadAndRun(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if ac.(*AutoConfig).preparation.trace != nil {
+		t.Fatal("disabled Fx tracing created an Autodiscovery trace")
 	}
 }

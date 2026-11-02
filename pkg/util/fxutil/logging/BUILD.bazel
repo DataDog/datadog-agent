@@ -12,6 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fxutil/logging",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/trace/traceutil/startup",
         "@org_uber_go_fx//:fx",
         "@org_uber_go_fx//fxevent",
     ],
@@ -21,5 +22,8 @@ dd_agent_go_test(
     name = "logging_test",
     srcs = ["startup_test.go"],
     embed = [":logging"],
-    deps = ["@org_uber_go_fx//fxevent"],
+    deps = [
+        "//pkg/trace/traceutil/startup",
+        "@org_uber_go_fx//fxevent",
+    ],
 )
