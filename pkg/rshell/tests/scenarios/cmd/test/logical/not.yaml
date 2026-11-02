@@ -1,0 +1,16 @@
+description: "test negation operator !"
+input:
+  script: |+
+    test ! ""
+    echo "not-empty: $?"
+    test ! "hello"
+    echo "not-str: $?"
+    test ! -f /nonexistent
+    echo "not-file: $?"
+expect:
+  stdout: |
+    not-empty: 0
+    not-str: 1
+    not-file: 0
+  stderr: ""
+  exit_code: 0

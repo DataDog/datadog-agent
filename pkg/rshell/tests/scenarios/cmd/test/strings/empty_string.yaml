@@ -1,0 +1,8 @@
+description: "test with empty string argument returns false"
+input:
+  script: |+
+    test ""
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

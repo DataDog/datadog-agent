@@ -1,0 +1,10 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: An unknown command with flag-like arguments still prints "unknown command".
+input:
+  script: |+
+    foo --verbose -n 5
+expect:
+  stdout: ""
+  stderr_contains: ["foo", "unknown command"]
+  exit_code: 127

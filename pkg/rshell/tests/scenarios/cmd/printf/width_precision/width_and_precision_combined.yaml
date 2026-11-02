@@ -1,0 +1,9 @@
+description: Printf with both width and precision on string truncates and pads.
+input:
+  script: |+
+    printf "[%10.3s]\n" hello
+expect:
+  stdout: |+
+    [       hel]
+  stderr: ""
+  exit_code: 0

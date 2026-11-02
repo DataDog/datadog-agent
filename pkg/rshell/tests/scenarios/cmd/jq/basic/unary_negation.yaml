@@ -1,0 +1,19 @@
+description: jq recognizes supported unary-negative filters without an option separator.
+input:
+  script: |+
+    printf '2\n' | jq -c '-.'
+    printf '{"h":2}\n' | jq -c '-.h'
+    jq -nc --argjson x 2 '-$x'
+    jq -nc '- 2'
+    jq -nc '-[2][0]'
+    jq -nc '-{"a":2}.a'
+expect:
+  stdout: |+
+    -2
+    -2
+    -2
+    -2
+    -2
+    -2
+  stderr: |+
+  exit_code: 0

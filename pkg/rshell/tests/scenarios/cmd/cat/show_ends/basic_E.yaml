@@ -1,0 +1,13 @@
+description: cat -E displays $ at end of each line.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -E file.txt
+expect:
+  stdout: "alpha$\nbeta$\n"
+  stderr: ""
+  exit_code: 0

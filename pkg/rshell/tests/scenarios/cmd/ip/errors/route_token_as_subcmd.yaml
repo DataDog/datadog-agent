@@ -1,0 +1,13 @@
+# ip route <non-subcommand-token> (e.g. "from") is treated as an unknown
+# subcommand, not as an unsupported argument to show. This is because the first
+# token after "route" is always interpreted as the subcommand name.
+description: ip route <non-subcommand-token> exits 255 with iproute2-compatible unknown subcommand error.
+input:
+  script: |+
+    ip route from 1.1.1.1
+expect:
+  stdout: |+
+  stderr: |+
+    Command "from" is unknown, try "ip route help".
+  exit_code: 255
+skip_assert_against_bash: true

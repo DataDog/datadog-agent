@@ -1,0 +1,15 @@
+description: Multiple sequential heredocs are processed in order.
+input:
+  script: |+
+    cat <<END1; echo ---; cat <<END2
+    END2
+    END1
+    foo
+    END2
+expect:
+  stdout: |+
+    END2
+    ---
+    foo
+  stderr: ""
+  exit_code: 0

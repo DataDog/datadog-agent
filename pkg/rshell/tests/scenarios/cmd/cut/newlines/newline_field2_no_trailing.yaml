@@ -1,0 +1,14 @@
+description: Cut extracts second field and adds newline when input lacks trailing newline.
+setup:
+  files:
+    - path: input.txt
+      content: "a:1\nb:2"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f2 input.txt
+expect:
+  stdout: "1\n2\n"
+  stderr: ""
+  exit_code: 0

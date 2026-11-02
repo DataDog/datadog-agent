@@ -1,0 +1,18 @@
+description: "When -mindepth exceeds -maxdepth, no entries are printed."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: a/b/c/deep.txt
+      content: "deep"
+      chmod: 0644
+    - path: a/top.txt
+      content: "top"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a -maxdepth 1 -mindepth 3
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0
