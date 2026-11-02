@@ -1,0 +1,22 @@
+---
+description: Run the buildifier test when Bazel files change
+globs: "**/*.bzl,**/*.bazel,**/BUILD,**/*.bazelrc"
+alwaysApply: false
+---
+
+# Buildifier
+
+When a change touches `BUILD`, `BUILD.bazel`, `*.bzl`, `MODULE.bazel`, or `*.bazelrc`, run:
+
+```sh
+bazel run //bazel/buildifier:test
+```
+
+That is the `bazel:run-buildifier-test` CI job. If it fails:
+
+```sh
+bazel run //bazel/buildifier
+bazel run //bazel/buildifier:test
+```
+
+Do not commit until the test passes.
