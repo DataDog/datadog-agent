@@ -98,8 +98,8 @@ github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d/go.mod h1:PaK5t+qpa/zU7wdM4SDjRhSlBNb6crYrXsEz2aHRqIY=
 github.com/DataDog/dd-trace-go/v2 v2.11.2 h1:HbANttl9UJGen/tRb+pX3nPNa4IQy2vXvUDlhZaQHeI=
 github.com/DataDog/dd-trace-go/v2 v2.11.2/go.mod h1:V/CeQWG3+2fzAgZReAYfDRNjUXjHKOOW4KtEnV/yk2g=
-github.com/DataDog/ddtrivy v0.0.0-20261015134340-48092a734bbb h1:sT5QU5IRsqcSe0qIKB+DAtC8HoytUMZ5j53tHK9Fi1U=
-github.com/DataDog/ddtrivy v0.0.0-20261015134340-48092a734bbb/go.mod h1:sffaf1+uP1PL2yk2GHiGuFFBinbi0qX0pMZTUmKQC+k=
+github.com/DataDog/ddtrivy v0.0.0-20261029172516-a3ae59cc6791 h1:m79i6ZV2KfOULyO87yznQTkgxk1YixN5LDVQY5wZwq8=
+github.com/DataDog/ddtrivy v0.0.0-20261029172516-a3ae59cc6791/go.mod h1:iF+gkvyZJQ9lmKp9MTMDk4fCiyscpXSZkBOVO7Qaxo8=
 github.com/DataDog/ebpf-manager v0.8.7 h1:qCORDJ3Q+zXudUDPnd8mHDzYaBAIHlKxD7loyBFs/g4=
 github.com/DataDog/ebpf-manager v0.8.7/go.mod h1:cvd2jNW3M29BSZGk25t8e3ffuaazbMj1fHsANObRkVw=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
@@ -134,8 +134,8 @@ github.com/DataDog/rshell v0.0.31 h1:56sIGJUkMn4SwSgDCRRzOEK+uZtsOFugfl20KLAwrMc
 github.com/DataDog/rshell v0.0.31/go.mod h1:2vGMdL2WRACtk0BPgC94z/DanMQxjRiQNkunoVt053s=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
-github.com/DataDog/trivy v0.0.0-20261029133902-7096f49b7c42 h1:w0u9rQ48Sh2flfczDemaYiOWFc3/WgMu/PKkg76dFLk=
-github.com/DataDog/trivy v0.0.0-20261029133902-7096f49b7c42/go.mod h1:2cDQBIACLxt3NpCZ0Sthx4kLp9QmaiZC/5+fPP5Bz7Q=
+github.com/DataDog/trivy v0.0.0-20261030165700-b2c8979029bc h1:G6xEvEibKWCPbyXVaH+NXt2fpZB6cO8i9gZoS23tdDs=
+github.com/DataDog/trivy v0.0.0-20261030165700-b2c8979029bc/go.mod h1:V7q0K9x7bSb51m2z5BD999UFtlbedoNafbrlbSgpZkw=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101 h1:aatle7zFb175XJ6iJvyr9a7Ipr1Dvpw4oy4MqL9v4GA=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101/go.mod h1:GRki58GuFuDh0GFVg280DZt3oCYxZG02ldDPtQ5FBoo=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260917081843-fe016948e308 h1:b3VjehTlxexLv/O6rJcqlzlbYO3AmPGwBBPayUrWPeg=
@@ -368,8 +368,8 @@ github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK3
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
-github.com/cenkalti/backoff/v7 v7.0.1 h1:+ulHti5s1d9QnfyOnLWVmQ/SaZ+TJQF9OdOI0i9BGZI=
-github.com/cenkalti/backoff/v7 v7.0.1/go.mod h1:qcKBGwsu4hpxHtQ8tWYsQ+ifzx2+sS+Xx/3jfe30lI8=
+github.com/cenkalti/backoff/v7 v7.0.2 h1:BNsyJsriOksnzphDFm5hBB51nl9AQaedacdrC9mXsi0=
+github.com/cenkalti/backoff/v7 v7.0.2/go.mod h1:qcKBGwsu4hpxHtQ8tWYsQ+ifzx2+sS+Xx/3jfe30lI8=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
