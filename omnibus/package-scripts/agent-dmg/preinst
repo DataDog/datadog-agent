@@ -22,33 +22,6 @@ LOG_FILE="$LOG_DIR/preinstall.log"
 exec > $LOG_FILE 2>&1
 
 DDAGENT_USER="_dd-agent"
-INSTALL_STAGING_DIR="/private/var/root/datadog-install"
-GUI_SESSION_FILE="$INSTALL_STAGING_DIR/gui-session-uids"
-
-# Find user IDs with current GUI sessions by checking process owners against launchd.
-# Keep this function identical in preinst/postinst; both package hooks are standalone.
-gui_session_uids() {
-    local process_uids uid
-    if ! process_uids=$(ps -axo uid=); then
-        echo "WARNING: Could not discover GUI session candidates" >&2
-        return 1
-    fi
-    process_uids=$(
-        printf '%s\n' "$process_uids" |
-            awk '$1 ~ /^[0-9]+$/ && $1 > 0 {print $1}' |
-            sort -un
-    )
-    for uid in $process_uids; do
-        if launchctl print "gui/$uid" >/dev/null 2>&1; then
-            echo "$uid"
-        fi
-    done
-}
-
-# Snapshot current GUI sessions before stopping helpers so postinst can restore them.
-mkdir -p "$INSTALL_STAGING_DIR" || exit 1
-chmod 700 "$INSTALL_STAGING_DIR" || exit 1
-gui_session_uids > "$GUI_SESSION_FILE"
 
 harden_ddagent_user() {
     # Enforce least-privilege properties regardless of how the account was
@@ -290,9 +263,9 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     rm -vf /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
     rm -vf /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
 
-    # Include users who logged in since the initial snapshot.
-    gui_session_uids >> "$GUI_SESSION_FILE"
-    for logged_uid in $(sort -un "$GUI_SESSION_FILE"); do
+    # Stop GUI for all logged-in users
+    for logged_user in $(who | awk '{print $1}' | sort -u); do
+        logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
         launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
         launchctl bootout "gui/$logged_uid/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
         launchctl bootout "gui/$logged_uid/$OLD_AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
@@ -303,6 +276,7 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
 
     # Save existing config for restoration in postinst.
     # All install-time staging data lives under a single root-only directory.
+    INSTALL_STAGING_DIR="/private/var/root/datadog-install"
     SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
     rm -rvf "$SAVED_CONF_DIR"
     mkdir -vp "$SAVED_CONF_DIR/conf.d"
@@ -313,17 +287,6 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     cp -vfR $CONF_DIR/conf.d/* "$SAVED_CONF_DIR/conf.d" 2>/dev/null || true
     find "$SAVED_CONF_DIR/conf.d" '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
     cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
-fi
-
-# bootout may return before the helper exits. Wait before the package replaces
-# its executable; postinst also handles helpers started by a concurrent login.
-attempts=0
-while [ $attempts -lt 10 ] && pgrep -f 'Datadog Agent.app/Contents/MacOS/gui' >/dev/null 2>&1; do
-    sleep 1
-    attempts=$((attempts + 1))
-done
-if pgrep -f 'Datadog Agent.app/Contents/MacOS/gui' >/dev/null 2>&1; then
-    echo "WARNING: GUI processes still running before payload replacement"
 fi
 
 echo '# Deleting old datadog-installer link'
