@@ -27,6 +27,8 @@ type Origin struct {
 	source       string
 	mappedSource string
 	tags         []string
+	shared       *TagSnapshot
+	messageTags  []string
 }
 
 // NewOrigin returns a new Origin
@@ -185,6 +187,24 @@ func (o *Origin) tagsToStringArray() []string {
 // SetTags sets the tags of the origin.
 func (o *Origin) SetTags(tags []string) {
 	o.tags = tags
+	o.shared = nil
+	o.messageTags = nil
+}
+
+// SetTagsWithSnapshot sets tags, which must contain exactly the tags of shared plus messageTags.
+func (o *Origin) SetTagsWithSnapshot(tags []string, shared *TagSnapshot, messageTags []string) {
+	o.tags = tags
+	o.shared = shared
+	o.messageTags = messageTags
+}
+
+// TagSnapshot returns the shared tags and the message-specific tags that together match like HasTag.
+// ok is false when no snapshot was set or the source config changed since it was taken.
+func (o *Origin) TagSnapshot() (shared *TagSnapshot, messageTags []string, ok bool) {
+	if o == nil || o.shared == nil || o.LogSource == nil || !o.shared.describes(o.LogSource) {
+		return nil, nil, false
+	}
+	return o.shared, o.messageTags, true
 }
 
 // SetSource sets the source of the origin.
