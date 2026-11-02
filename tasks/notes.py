@@ -1,8 +1,11 @@
+import os
+
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import GITHUB_REPO_NAME
 from tasks.libs.common.git import create_tree, get_current_branch, try_git_command
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.common.worktree import agent_context
@@ -75,6 +78,9 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
 
         update_branch = f"changelog-update-{new_version}"
         base_branch = get_current_branch(ctx)
+        # In CI, open the PR in the repository the workflow runs in (the release tests use a copy
+        # of this repository).
+        repository = os.environ.get("GITHUB_REPOSITORY", GITHUB_REPO_NAME) if running_in_ci() else GITHUB_REPO_NAME
 
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
@@ -92,7 +98,7 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             # credentials: create the branch and a signed commit with the GitHub API instead.
             print("Creating signed commits using Github API")
             tree = create_tree(ctx, base_branch)
-            github = GithubAPI()
+            github = GithubAPI(repository=repository)
             github.create_branch(update_branch, tree["base_tree"], reset=True)
             github.commit_and_push_signed(update_branch, f"Changelog updates for {new_version} release", tree)
         else:
@@ -128,4 +134,5 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             new_version,
             changelog_pr=True,
             milestone=str(new_version),
+            repository=repository,
         )

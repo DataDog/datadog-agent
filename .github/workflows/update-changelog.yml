@@ -37,7 +37,8 @@ jobs:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          # The release tests run this workflow in a copy of this repository.
+          scope: ${{ github.repository }}
           policy: self.update-changelog.create-pr
 
       # Not a sparse checkout: the task copies this git config into its own clone, and reno

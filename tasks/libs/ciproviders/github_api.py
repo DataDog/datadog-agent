@@ -582,10 +582,12 @@ class GithubAPI:
         return None
 
 
-def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
+def create_datadog_agent_pr(
+    title, base_branch, target_branch, milestone_name, other_labels=None, body="", repository=GITHUB_REPO_NAME
+):
     print(color_message("Creating PR", "bold"))
 
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
+    github = GithubAPI(repository=repository)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -640,7 +642,9 @@ Make sure that milestone is open before trying again.""",
     return updated_pr.html_url
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+def create_release_pr(
+    title, base_branch, target_branch, version, changelog_pr=False, milestone=None, repository=GITHUB_REPO_NAME
+):
     if milestone:
         milestone_name = milestone
     else:
@@ -654,7 +658,7 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")
 
-    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
+    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels, repository=repository)
 
 
 def generate_local_github_token(ctx):

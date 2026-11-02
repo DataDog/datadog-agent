@@ -16,6 +16,7 @@ class TestUpdateChangelog(unittest.TestCase):
     def _context(self):
         return MockContext(run=Result(""))
 
+    @patch.dict('os.environ', {'GITHUB_REPOSITORY': 'DataDog/datadog-agent-test'})
     @patch('tasks.notes.running_in_ci', new=MagicMock(return_value=True))
     @patch('tasks.notes.create_tree')
     @patch('tasks.notes.GithubAPI')
@@ -28,6 +29,7 @@ class TestUpdateChangelog(unittest.TestCase):
 
         self.assertEqual(generic_mock.call_count, 2)
         create_tree_mock.assert_called_once_with(ctx, '7.86.x')
+        github_mock.assert_called_once_with(repository='DataDog/datadog-agent-test')
         github = github_mock.return_value
         github.create_branch.assert_called_once_with('changelog-update-7.86.0', 'basesha', reset=True)
         github.commit_and_push_signed.assert_called_once_with(
@@ -42,8 +44,10 @@ class TestUpdateChangelog(unittest.TestCase):
             '7.86.0',
             changelog_pr=True,
             milestone='7.86.0',
+            repository='DataDog/datadog-agent-test',
         )
 
+    @patch.dict('os.environ', {'GITHUB_REPOSITORY': 'DataDog/datadog-agent-test'})
     @patch('tasks.notes.running_in_ci', new=MagicMock(return_value=False))
     @patch('tasks.notes.try_git_command', new=MagicMock(return_value=True))
     @patch('tasks.notes.GithubAPI')
@@ -55,4 +59,5 @@ class TestUpdateChangelog(unittest.TestCase):
         commands = [c.args[0] for c in ctx.run.call_args_list]
         self.assertIn('git push --set-upstream origin changelog-update-7.86.0', commands)
         github_mock.assert_not_called()
-        create_pr_mock.assert_called_once()
+        # Local runs always target the main repository.
+        self.assertEqual(create_pr_mock.call_args.kwargs['repository'], 'DataDog/datadog-agent')
