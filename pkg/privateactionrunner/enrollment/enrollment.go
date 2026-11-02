@@ -113,7 +113,11 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
+	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	publicClient := opms.NewPublicClient(cfg, endpoint, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -149,10 +153,6 @@ func SelfEnroll(
 		OrchClusterID: agentIdentifier.OrchClusterID,
 		APIKeyHash:    HashAPIKey(apiKey),
 	}, nil
-}
-
-func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
-	return par.APIBaseURL(cfg, ddSite)
 }
 
 // Enroll performs self-enrollment using config and an agent identifier.
@@ -201,7 +201,11 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
+	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	publicClient := opms.NewPublicClient(cfg, endpoint, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 

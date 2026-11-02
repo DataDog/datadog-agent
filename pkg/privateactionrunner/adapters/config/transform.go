@@ -37,6 +37,10 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		metricsClient = &statsd.NoOpClient{}
 	}
 	ddSite := par.Site(config)
+	apiBaseURL, err := par.APIBaseURL(config, ddSite)
+	if err != nil {
+		return nil, err
+	}
 	encodedPrivateKey := config.GetString(par.PrivateKey)
 	urn := config.GetString(par.URN)
 
@@ -110,7 +114,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellAllowedCommandsConfigured:    config.IsConfigured(par.RestrictedShellAllowedCommands),
 		RShellAllowedPathsConfigured:       config.IsConfigured(par.RestrictedShellAllowedPaths),
 		OpmsExtraHeaders:                   config.GetStringMapString(par.OPMSExtraHeaders),
-		APIBaseURL:                         par.APIBaseURL(config, ddSite),
+		APIBaseURL:                         apiBaseURL,
 		Modes:                              []modes.Mode{modes.ModePull},
 		OrgId:                              orgID,
 		PrivateKey:                         privateKey,

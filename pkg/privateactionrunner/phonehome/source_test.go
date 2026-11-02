@@ -71,23 +71,46 @@ func TestReaderRCEndpointFQDN(t *testing.T) {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
 					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, endpoint)
 				}
-				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
+				for _, endpoint := range []string{"https://rc-proxy.example.com:8443/prefix", "https://rc-proxy.example.com:8443/prefix/", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, NewSource(cfg, rc).Read(time.Now()).Reason, endpoint)
+					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, endpoint)
+					require.Equal(t, endpoint, enrollmentEndpoint(cfg))
 				}
 			})
 		}
 	}
 }
 
+func TestReaderRejectsInvalidRCOverride(t *testing.T) {
+	for _, endpoint := range []string{"http://proxy.example.com", "https://user:secret@proxy.example.com", "https://proxy.example.com?query"} {
+		cfg := configmock.New(t)
+		cfg.SetInTest("api_key", "key")
+		cfg.SetInTest("remote_configuration.enabled", true)
+		cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
+		rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
+		require.Equal(t, phonehomedef.ReasonInvalidEndpoint, NewSource(cfg, rc).Read(time.Now()).Reason)
+	}
+}
+
+func TestReaderRejectsDifferentSitesWithoutOverride(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest("api_key", "key")
+	cfg.SetInTest("site", "datadoghq.com")
+	cfg.SetInTest("dd_url", "https://app.datadoghq.eu")
+	cfg.SetInTest("remote_configuration.enabled", true)
+	rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
+	require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, NewSource(cfg, rc).Read(time.Now()).Reason)
+}
+
 func TestReaderFreezesLoopbackEndpoints(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "true")
 	cfg := configmock.New(t)
-	for k, v := range map[string]interface{}{"api_key": "key", "dd_url": "http://127.0.0.1:1234", "remote_configuration.rc_dd_url": "http://127.0.0.1:5678", "remote_configuration.enabled": true} {
+	for k, v := range map[string]interface{}{"api_key": "key", "dd_url": "http://127.0.0.1:1234", "remote_configuration.rc_dd_url": "http://127.0.0.1:5678", "remote_configuration.no_tls": true, "remote_configuration.enabled": true} {
 		cfg.SetInTest(k, v)
 	}
 	source := NewSource(cfg, &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}})
 	require.True(t, source.Read(time.Now()).Ready)
-	cfg.SetInTest("dd_url", "http://127.0.0.1:4321")
+	cfg.SetInTest("remote_configuration.rc_dd_url", "http://127.0.0.1:4321")
 	require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, source.Read(time.Now()).Reason)
 }

@@ -34,6 +34,7 @@ dd_agent_go_test(
     srcs = ["opms_test.go"],
     embed = [":opms"],
     deps = [
+        "//comp/core/config",
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",

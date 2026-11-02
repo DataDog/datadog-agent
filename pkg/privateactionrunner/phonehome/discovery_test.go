@@ -62,7 +62,7 @@ func TestDiscoveryRCEndpointFQDN(t *testing.T) {
 					poller.SetPARDiscoveryDemand(true)
 					require.True(t, poller.gate(), endpoint)
 				}
-				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
+				for _, endpoint := range []string{"https://rc-proxy.example.com:8443/prefix", "https://rc-proxy.example.com:8443/prefix/", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
 					poller := NewDiscovery(cfg, NewSource(cfg, rc))
 					if runtime.GOOS == "windows" {
@@ -70,7 +70,8 @@ func TestDiscoveryRCEndpointFQDN(t *testing.T) {
 						continue
 					}
 					poller.SetPARDiscoveryDemand(true)
-					require.False(t, poller.gate(), endpoint)
+					require.True(t, poller.gate(), endpoint)
+					require.Equal(t, endpoint, poller.endpoint)
 				}
 			})
 		}

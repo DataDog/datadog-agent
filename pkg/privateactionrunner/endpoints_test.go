@@ -32,9 +32,69 @@ func TestEndpoints(t *testing.T) {
 			cfg.SetInTest("site", tc.site)
 			cfg.SetInTest("dd_url", tc.ddURL)
 			assert.Equal(t, tc.wantSite, Site(cfg))
-			assert.Equal(t, "https://api."+tc.wantSite, APIBaseURL(cfg, Site(cfg)))
+			endpoint, err := APIBaseURL(cfg, Site(cfg))
+			assert.NoError(t, err)
+			assert.Equal(t, "https://api."+tc.wantSite, endpoint)
 		})
 	}
+}
+
+func TestAPIBaseURLRCOverride(t *testing.T) {
+	for _, fakeIntake := range []string{"false", "true"} {
+		t.Run("fakeIntake="+fakeIntake, func(t *testing.T) {
+			t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, fakeIntake)
+			cfg := configmock.New(t)
+			cfg.SetInTest("site", "datadoghq.eu")
+			cfg.SetInTest("remote_configuration.no_tls", true)
+			cfg.SetInTest("dd_url", "https://app.us3.datadoghq.com")
+			for _, endpoint := range []string{
+				"https://config.datadoghq.eu.",
+				"https://proxy.example.com:8443/prefix",
+				"https://proxy.example.com:8443/prefix/",
+				"http://localhost:8080",
+			} {
+				cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
+				actual, err := APIBaseURL(cfg, Site(cfg))
+				assert.NoError(t, err)
+				assert.Equal(t, endpoint, actual)
+				assert.Equal(t, "us3.datadoghq.com", Site(cfg), "routing must not change the runner's logical site")
+			}
+		})
+	}
+}
+
+func TestAPIBaseURLRejectsInvalidOverride(t *testing.T) {
+	for _, endpoint := range []string{
+		"not-a-url", "ftp://proxy.example.com", "https://", "http://proxy.example.com",
+		"https://user:secret@proxy.example.com", "https://proxy.example.com?secret=value", "https://proxy.example.com#fragment",
+	} {
+		cfg := configmock.New(t)
+		cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
+		actual, err := APIBaseURL(cfg, "datadoghq.com")
+		assert.Error(t, err, endpoint)
+		assert.Empty(t, actual)
+		if err != nil {
+			assert.NotContains(t, err.Error(), "secret")
+		}
+	}
+	cfg := configmock.New(t)
+	cfg.SetInTest("remote_configuration.rc_dd_url", "https://proxy.example.com")
+	cfg.SetInTest("skip_ssl_validation", true)
+	_, err := APIBaseURL(cfg, "datadoghq.com")
+	assert.Error(t, err)
+	cfg.SetInTest("remote_configuration.no_tls_validation", true)
+	_, err = APIBaseURL(cfg, "datadoghq.com")
+	assert.NoError(t, err)
+}
+
+func TestAPIBaseURLEmptyRCOverride(t *testing.T) {
+	t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest("site", "datadoghq.eu")
+	cfg.SetInTest("remote_configuration.rc_dd_url", "")
+	endpoint, err := APIBaseURL(cfg, Site(cfg))
+	assert.NoError(t, err)
+	assert.Equal(t, "https://api.datadoghq.eu", endpoint)
 }
 
 func TestAPIBaseURLFakeIntake(t *testing.T) {
@@ -42,6 +102,8 @@ func TestAPIBaseURLFakeIntake(t *testing.T) {
 	for _, endpoint := range []string{"http://fakeintake.test:8080", "https://fakeintake.test:8443"} {
 		cfg := configmock.New(t)
 		cfg.SetInTest("dd_url", endpoint+"/")
-		assert.Equal(t, endpoint, APIBaseURL(cfg, "datadoghq.com"))
+		actual, err := APIBaseURL(cfg, "datadoghq.com")
+		assert.NoError(t, err)
+		assert.Equal(t, endpoint, actual)
 	}
 }

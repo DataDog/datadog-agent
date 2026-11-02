@@ -139,6 +139,16 @@ properties:
     node_type: setting
     type: string
     default: ''
+    description: |-
+      Override the Remote Configuration base URL. When non-empty, this also overrides
+      the Private Action Runner API base URL for scope discovery, enrollment, task
+      traffic, and automatic connection creation. The endpoint must serve both RC
+      and PAR APIs for the same Datadog organization and site. Set site separately;
+      this routing override does not change the runner's logical site or identity.
+      PAR supports an HTTP(S) URL with an optional path prefix, but no embedded
+      credentials, query, or fragment. HTTP requires remote_configuration.no_tls;
+      skipping TLS verification requires remote_configuration.no_tls_validation.
+      Leave empty to preserve the default endpoints.
   refresh_interval:
     node_type: setting
     type: string

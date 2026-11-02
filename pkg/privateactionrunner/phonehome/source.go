@@ -53,10 +53,13 @@ func (r *rcSource) Read(_ time.Time) Observation {
 	key := r.cfg.GetString("api_key")
 	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", "remote_configuration.rc_dd_url")
 	parURL := enrollmentEndpoint(r.cfg)
+	if parURL == "" {
+		return Observation{Reason: phonehomedef.ReasonInvalidEndpoint}
+	}
 	mockPair := os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
 	rcKey := r.cfg.GetString("remote_configuration.api_key")
 	if key == "" || key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" ||
-		(strings.TrimSuffix(rcURL, ".") != "https://config."+enrollmentSite(r.cfg) && !mockPair) || (os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
+		(rcURL != parURL && strings.TrimSuffix(rcURL, ".") != "https://config."+enrollmentSite(r.cfg) && !mockPair) || (os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
 		return Observation{Reason: phonehomedef.ReasonRCCredentialOrEndpointMismatch}
 	}
 	rc := r.service.GetOrgStatus()
@@ -81,7 +84,12 @@ func enrollmentSite(cfg model.Reader) string {
 }
 
 func enrollmentEndpoint(cfg model.Reader) string {
-	return par.APIBaseURL(cfg, enrollmentSite(cfg))
+	// Read rejects an empty endpoint; discovery must never dispatch an invalid override.
+	endpoint, err := par.APIBaseURL(cfg, enrollmentSite(cfg))
+	if err != nil {
+		return ""
+	}
+	return endpoint
 }
 
 func loopbackURL(raw string) bool {
