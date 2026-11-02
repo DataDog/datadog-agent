@@ -8,6 +8,7 @@ package serializer
 import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 )
 
@@ -23,10 +24,10 @@ type metadataDropMetrics struct {
 func newMetadataDropMetrics(tel telemetry.Component) *metadataDropMetrics {
 	return &metadataDropMetrics{
 		payloads: tel.NewCounter("serializer", "metadata_payload_dropped",
-			[]string{"reason"},
+			[]string{"reason", "payload_type"},
 			"Metadata payloads dropped because they exceed the payload size limits, by limits exceeded (compressed, uncompressed or both)"),
 		bytes: tel.NewHistogram("serializer", "metadata_payload_dropped_bytes",
-			[]string{"compressed"},
+			[]string{"compressed", "payload_type"},
 			"Size, in bytes, of the metadata payloads dropped because they exceed the payload size limits",
 			[]float64{2 << 20, 3 << 20, 4 << 20, 8 << 20, 16 << 20, 32 << 20, 64 << 20, 128 << 20, 256 << 20}),
 	}
@@ -34,9 +35,10 @@ func newMetadataDropMetrics(tel telemetry.Component) *metadataDropMetrics {
 
 var defaultMetadataDropMetrics = newMetadataDropMetrics(telemetryimpl.GetCompatComponent())
 
-// record counts a dropped metadata payload and observes both its compressed and uncompressed sizes.
-func (m *metadataDropMetrics) record(exceeded split.SizeLimit, compressedSize, uncompressedSize int) {
-	m.payloads.Inc(exceeded.String())
-	m.bytes.Observe(float64(compressedSize), "compressed")
-	m.bytes.Observe(float64(uncompressedSize), "uncompressed")
+// record counts a dropped metadata payload and observes both its compressed and uncompressed sizes. Both are tagged
+// with the payload type, a bounded set of values, so the dropped payloads can be attributed to a kind.
+func (m *metadataDropMetrics) record(exceeded split.SizeLimit, payloadType marshaler.PayloadType, compressedSize, uncompressedSize int) {
+	m.payloads.Inc(exceeded.String(), string(payloadType))
+	m.bytes.Observe(float64(compressedSize), "compressed", string(payloadType))
+	m.bytes.Observe(float64(uncompressedSize), "uncompressed", string(payloadType))
 }

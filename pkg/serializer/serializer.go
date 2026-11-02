@@ -374,7 +374,7 @@ func (s *Serializer) sendMetadata(m marshaler.TypedJSONMarshaler, submit func(pa
 	s.logger.Debugf("Sending metadata payload")
 
 	if exceeded != split.WithinLimits {
-		s.metadataDropMetrics.record(exceeded, len(compressedPayload), len(payload))
+		s.metadataDropMetrics.record(exceeded, m.PayloadType(), len(compressedPayload), len(payload))
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
 	}
 
