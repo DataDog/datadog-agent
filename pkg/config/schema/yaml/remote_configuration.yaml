@@ -139,7 +139,6 @@ properties:
     node_type: setting
     type: string
     default: ''
-    description: Override the base URL for Remote Configuration and Private Action Runner.
   refresh_interval:
     node_type: setting
     type: string
