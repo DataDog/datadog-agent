@@ -83,6 +83,18 @@ func TestArchArm64(t *testing.T) {
 	testArch(t, "arm64")
 }
 
+// TestRuntimeFallbackCleanupDoesNotContaminateArchDetection verifies that a
+// successful runtime-compiled fallback is fully cleaned up before a new USM
+// monitor evaluates a library built for another architecture.
+func TestRuntimeFallbackCleanupDoesNotContaminateArchDetection(t *testing.T) {
+	if runtime.GOARCH != "arm64" {
+		t.Skip("the amd64 library is only a cross-architecture target on arm64")
+	}
+
+	t.Run("runtime fallback", TestRuntimeFallbackWorks)
+	t.Run("amd64 library", TestArchAmd64)
+}
+
 // findNonExistingPid finds a PID that doesn't exist on the system
 func findNonExistingPid(t *testing.T) int {
 	// Start from a high number to avoid common system PIDs
