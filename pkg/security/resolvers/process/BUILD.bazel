@@ -12,6 +12,8 @@ go_library(
         "opts_linux.go",
         "opts_windows.go",
         "otel_tls.go",
+        "otel_tls_tlsdesc_amd64.go",
+        "otel_tls_tlsdesc_arm64.go",
         "otel_tls_upstream_access.go",
         "otel_tls_upstream_pfelf.go",
         "resolver_ebpf.go",
@@ -267,6 +269,8 @@ dd_agent_go_test(
     srcs = [
         "go_labels_test.go",
         "otel_tls_test.go",
+        "otel_tls_tlsdesc_live_test.go",
+        "otel_tls_tlsdesc_test.go",
         "resolver_ebpfless_test.go",
         "resolver_test.go",
     ],
@@ -297,6 +301,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
+            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/usergroup",
@@ -314,6 +319,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
+            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/usergroup",

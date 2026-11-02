@@ -14,8 +14,10 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -545,31 +547,111 @@ func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSReso
 		return newDynamicOTelTLS(target, moduleID, d.offset)
 
 	case accessTLSDesc:
-		// The second word of the descriptor holds the resolved argument.
+		// Both words: the resolver is the "relocated" signal (it is never 0
+		// once the loader has processed the descriptor), and the argument is
+		// either a TP-relative offset or a pointer to a tls_index. Mirrors
+		// locateTLSDesc in go.opentelemetry.io/ebpf-profiler/tls.
+		resolver, err := mem.ReadUint64(bias + uint64(d.elfAddr))
+		if err != nil {
+			return otelTLSResolution{}, err
+		}
 		arg, err := mem.ReadUint64(bias + uint64(d.elfAddr) + 8)
 		if err != nil {
 			return otelTLSResolution{}, err
 		}
-
-		// For dynamic TLS, arg is a pointer to a tls_index struct. Static
-		// offsets are negative on x86_64 and small positive on aarch64, so a
-		// large positive value means dynamic.
-		if int64(arg) > 0xffffffff {
-			moduleID, err := mem.ReadUint64(arg)
-			if err != nil {
-				return otelTLSResolution{}, err
-			}
-			tlsOffset, err := mem.ReadUint64(arg + 8)
-			if err != nil {
-				return otelTLSResolution{}, err
-			}
-			return newDynamicOTelTLS(target, moduleID, tlsOffset+d.offset)
+		if resolver == 0 {
+			return otelTLSResolution{}, fmt.Errorf("%w: TLSDESC descriptor not yet relocated", errSpanCtxMalformed)
 		}
-		return otelTLSResolution{tlsOffset: int64(arg + d.offset)}, nil
+		return locateOTelTLSDesc(target, mem, resolver, arg, d.offset)
 
 	default:
 		return otelTLSResolution{}, fmt.Errorf("unknown TLS access model %v", d.access)
 	}
+}
+
+// otelTLSMinUserAddr bounds from below every address a loader can allocate a
+// tls_index at, so an argument under it is an offset rather than a pointer.
+// Same constant as go.opentelemetry.io/ebpf-profiler/tls.
+const otelTLSMinUserAddr = 0x10000
+
+// otelMemReader is the /proc/<pid>/mem surface locateOTelTLSDesc needs.
+// Narrowed to an interface so classification can be unit-tested without a
+// live process.
+type otelMemReader interface {
+	Read(addr uint64, buf []byte) error
+	ReadUint64(addr uint64) (uint64, error)
+}
+
+// locateOTelTLSDesc classifies a relocated TLSDESC argument as a static
+// TP-relative offset or a pointer to a tls_index, then produces the resolution.
+//
+// The previous magnitude cut at 0xffffffff misclassified heap-resident
+// tls_index pointers (common when ASLR places the heap below 4GiB) as static
+// offsets, which is exactly what broke dlopen of a TLSDESC module too large
+// for the static-TLS surplus.
+func locateOTelTLSDesc(target *otelTargetProcess, mem otelMemReader, resolver, arg, residual uint64) (otelTLSResolution, error) {
+	static, moduleID, tlsOffset, err := classifyOTelTLSDesc(mem, resolver, arg)
+	if err != nil {
+		return otelTLSResolution{}, err
+	}
+	if static {
+		return otelTLSResolution{tlsOffset: int64(arg + residual)}, nil
+	}
+	return newDynamicOTelTLS(target, moduleID, tlsOffset+residual)
+}
+
+// classifyOTelTLSDesc decides whether arg is a TP-relative offset (static) or
+// a tls_index pointer (dynamic). On dynamic it also returns the dereferenced
+// module ID and in-module offset. Mirrors locateTLSDesc in
+// go.opentelemetry.io/ebpf-profiler/tls.
+func classifyOTelTLSDesc(mem otelMemReader, resolver, arg uint64) (static bool, moduleID, tlsOffset uint64, err error) {
+	switch runtime.GOARCH {
+	case "amd64":
+		// Variant II: the TLS block sits below TP, so a static offset is
+		// always negative and a tls_index pointer never is.
+		if int64(arg) < 0 {
+			return true, 0, 0, nil
+		}
+		moduleID, tlsOffset, err = readOTelTLSIndex(mem, arg)
+		return false, moduleID, tlsOffset, err
+
+	case "arm64":
+		// Variant I: the block sits above TP, so both forms are positive.
+		// Under minUserAddr the argument cannot be an allocation.
+		if arg < otelTLSMinUserAddr {
+			return true, 0, 0, nil
+		}
+		// Otherwise ask the resolver: one that returns the argument
+		// unchanged makes that argument a TP-relative offset.
+		isStatic, err := tlsdescReturnsArg(mem, resolver)
+		if err != nil {
+			return false, 0, 0, err
+		}
+		if isStatic {
+			return true, 0, 0, nil
+		}
+		moduleID, tlsOffset, err = readOTelTLSIndex(mem, arg)
+		return false, moduleID, tlsOffset, err
+
+	default:
+		return false, 0, 0, fmt.Errorf("%w: TLSDESC on GOARCH %s", errSpanCtxUnsupported, runtime.GOARCH)
+	}
+}
+
+// readOTelTLSIndex reads the tls_index at arg.
+func readOTelTLSIndex(mem otelMemReader, arg uint64) (moduleID, tlsOffset uint64, err error) {
+	moduleID, err = mem.ReadUint64(arg)
+	if err != nil {
+		return 0, 0, fmt.Errorf("TLSDESC argument %#x is not a readable tls_index: %w", arg, err)
+	}
+	tlsOffset, err = mem.ReadUint64(arg + 8)
+	if err != nil {
+		return 0, 0, fmt.Errorf("TLSDESC argument %#x is not a readable tls_index: %w", arg, err)
+	}
+	if moduleID == 0 || moduleID > math.MaxUint16 {
+		return 0, 0, fmt.Errorf("%w: implausible TLS module ID %d at %#x", errSpanCtxMalformed, moduleID, arg)
+	}
+	return moduleID, tlsOffset, nil
 }
 
 // newDynamicOTelTLS fills in the DTVInfo needed to walk this process's DTV.
