@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -106,6 +107,23 @@ func isConnectionError(err error) bool {
 	}
 	connectionErrors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "ORA-12514", "database is closed", "bad connection", "connection was aborted"}
 	for _, e := range connectionErrors {
+		if strings.Contains(err.Error(), e) {
+			return true
+		}
+	}
+	return isDesynchronizedConnectionError(err) || strings.Contains(err.Error(), "ORA-01000")
+}
+
+// isDesynchronizedConnectionError reports errors after which the session can no longer be reused.
+// go-ora keeps a connection in the pool after a read deadline expires, so the late response is
+// consumed by a later request. Responses and cursor IDs shift, and server cursors are never closed.
+func isDesynchronizedConnectionError(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	desyncErrors := []string{"i/o timeout", "TTC error", "ORA-03146"}
+	for _, e := range desyncErrors {
 		if strings.Contains(err.Error(), e) {
 			return true
 		}

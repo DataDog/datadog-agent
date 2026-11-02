@@ -10,5 +10,6 @@ package oracle
 func (c *Check) connectionTest() error {
 	var n float64
 	err := c.db.Get(&n, "SELECT 1 FROM dual")
+	reconnectOnConnectionError(c, &c.db, err)
 	return err
 }
