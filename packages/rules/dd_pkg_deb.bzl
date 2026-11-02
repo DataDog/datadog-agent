@@ -5,6 +5,7 @@
 # buildifier: disable=bzl-visibility
 load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
 load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
+load("//packages/rules:description.bzl", "deb_description")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
 # kwargs is mandatory for macros, even if you don't use it.
@@ -31,7 +32,7 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, data, depends, d
         conflicts = conflicts,
         data = data,
         depends = depends,
-        description = description,
+        description = deb_description(description),
         homepage = homepage or "http://www.datadoghq.com",
         installed_size_file = ":" + size_out,
         license = license or "Apache License Version 2.0",
@@ -57,6 +58,7 @@ dd_pkg_deb = macro(
     inherit_attrs = pkg_deb_impl,
     implementation = _dd_pkg_deb_impl,
     attrs = {
+        "description": attr.string(configurable = False),
         "installed_size": None,
         "installed_size_file": None,
         "md5sums": None,
