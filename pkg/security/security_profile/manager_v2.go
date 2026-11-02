@@ -1307,6 +1307,8 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 	baseNsID, authoritative := baseMountNamespaceFromEvent(event)
 	if baseNsID != 0 && secprof.PinBaseMountNamespace(cgroupInode, baseNsID, authoritative) {
 		basePid := pid
+		// the root may have left the base since, the mounts IterateNamespace syncs are keyed
+		// by the namespace each pid is in, and it falls back to other pids of the base one
 		if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.GetInitialMntNS() != 0 && root.Process.Pid != 0 {
 			basePid = root.Process.Pid
 		}
