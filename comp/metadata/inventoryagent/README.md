@@ -12,6 +12,12 @@ update every minute (see `inventories_min_interval`).
 
 The `Set` method from the component allow the rest of the codebase to add any information to the payload.
 
+## Shared payload code
+
+`agentmetadata.NewData` and its `Init` method collect the common fields: versions, startup time, installation
+information, hostname source, and infrastructure mode. `GetPayload` combines those fields with caller-supplied
+metadata and the optional scrubbed configuration. The component calls `Init` only when `inventories_enabled` is true.
+
 ## Agent Configuration
 
 The agent configurations are scrubbed from any sensitive information (same logic than for the flare). The `Format`

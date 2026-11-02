@@ -81,6 +81,7 @@ enum event_type
     EVENT_SOCKET,
     EVENT_UNSHARE_MNTNS,
     EVENT_OTEL_PROCESS_CTX,
+    EVENT_SETNS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

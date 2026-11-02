@@ -935,7 +935,7 @@ func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.port", 0)
 	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
-	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", false)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
 	config.BindEnvAndSetDefault("hostprofiler.log_file", "${log_path}/host-profiler.log")

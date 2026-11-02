@@ -199,6 +199,20 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
+// FlushAll sends the open stats buckets along with everything Flush sends.
+// Flush alone leaves the newest ~20-30s of stats in memory, in both the
+// concentrator and the ClientStatsAggregator; only shutdown sends them. Unlike
+// Stop, FlushAll keeps the trace agent running and doesn't wait on the
+// receiver.
+func (t *serverlessTraceAgent) FlushAll() {
+	t.ta.ForceFlushSync()
+}
+
+// FlushAll isn't part of ServerlessTraceAgent; callers find it with a type
+// assertion. This check makes renaming or removing it a compile error instead
+// of a silent fallback to Flush.
+var _ interface{ FlushAll() } = (*serverlessTraceAgent)(nil)
+
 // Process processes a payload in the trace agent.
 //
 // Like the receiver, the payload is converted to the v1 (string-indexed)
