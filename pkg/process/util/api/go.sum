@@ -1,5 +1,5 @@
-github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421 h1:y9MeSee2LelHW4BfqIZG0j9rpGudLmm0TzTlnZoAvrE=
-github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421/go.mod h1:W6yXZM1qJnPKp4jnAG6B5W5lT8rJJFBCLk/WbeeqvTc=
+github.com/DataDog/agent-payload/v5 v5.0.215 h1:PVci8YOjgLL+AH+XXXvq5OXgshpaq8BhWxqNXr1pWp8=
+github.com/DataDog/agent-payload/v5 v5.0.215/go.mod h1:W6yXZM1qJnPKp4jnAG6B5W5lT8rJJFBCLk/WbeeqvTc=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
@@ -57,8 +57,8 @@ github.com/prometheus/client_model v0.6.3 h1:O0jaTVAYNxTHYInEPFJt5I3+sN8zqBtVMPT
 github.com/prometheus/client_model v0.6.3/go.mod h1:gpN5P9S7Rr6Yr92PiQ+Ixvhf6JZEkF1dnxsYL2aPBEM=
 github.com/prometheus/common v0.72.1 h1:ZAiQed/nk8IIcsdzb2TlJu23NEUDyDLQ9TXTN2WRK6Y=
 github.com/prometheus/common v0.72.1/go.mod h1:1IoBY4IRaJnhs2ESjNzjilP1cJ/P8pimGoomq7zRXrA=
-github.com/prometheus/procfs v0.22.0 h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0oics=
-github.com/prometheus/procfs v0.22.0/go.mod h1:CvmFr/GVhIjIvWJZW3tgkODBQMRIf0EyWMQLHCHab58=
+github.com/prometheus/procfs v0.23.0 h1:ad+S6FTkzwaMgacKLM5h6bNKExS+DMH0YiUwXItH/o4=
+github.com/prometheus/procfs v0.23.0/go.mod h1:3AVXO0FqLafyYFU/V/IQRZlC8Rgqz8Dm/x6pKLK+RIk=
 github.com/rogpeppe/go-internal v1.16.0 h1:O9DK+vNMDVGLr2BeZqmpLeMjiMNkuXfcqntWbZV6S5g=
 github.com/rogpeppe/go-internal v1.16.0/go.mod h1:DrUVZyrJU+txYW5/1kwtXQSMFio52ZOxX7yM1VHvnxs=
 github.com/shirou/gopsutil/v4 v4.26.9 h1:CaBo/hBFqvlJoLvAQEKdHdf5GD97/MN2ACfyv63+2Ig=
@@ -104,8 +104,8 @@ golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn
 golang.org/x/net v0.0.0-20190620200207-3b0461eec859/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
 golang.org/x/net v0.0.0-20200226121028-0de0cce0169b/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
 golang.org/x/net v0.0.0-20201021035429-f5854403a974/go.mod h1:sp8m0HH+o8qH0wwXwYZr8TS3Oi6o0r6Gce1SSxlDquU=
-golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
-golang.org/x/net v0.61.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
+golang.org/x/net v0.62.0 h1:18ELalfM5+XNRwzM2nYqXsZQ9ByS1uhj2O/U7+5jqRY=
+golang.org/x/net v0.62.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
 golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=

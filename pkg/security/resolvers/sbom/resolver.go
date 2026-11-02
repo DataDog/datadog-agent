@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -1154,16 +1155,38 @@ func holdsCode(file *model.FileEvent) bool {
 	if strings.HasPrefix(file.PathnameStr, "/etc/") {
 		return false
 	}
-	if file.Mode&0111 != 0 {
-		return true
-	}
-	name := path.Base(file.PathnameStr)
+	return file.Mode&0111 != 0 || codeName(path.Base(file.PathnameStr))
+}
+
+// codeName reports whether name is that of a shared library or ends with one
+// of codeSuffixes.
+func codeName(name string) bool {
 	if sharedLibrary.MatchString(name) {
 		return true
 	}
 	return slices.ContainsFunc(codeSuffixes, func(suffix string) bool {
 		return strings.HasSuffix(name, suffix)
 	})
+}
+
+// holdsHostCode reports whether the host file of an open holds code, as its
+// name tells or its start as an ELF file or a script does. Some packages give
+// data files the mode of an executable. On a read error, the mode decides.
+func (r *Resolver) holdsHostCode(file *model.FileEvent) bool {
+	if codeName(path.Base(file.PathnameStr)) {
+		return true
+	}
+	f, err := os.OpenFile(r.hostRoot+file.PathnameStr, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return true
+	}
+	defer f.Close()
+	head := make([]byte, 4)
+	n, err := io.ReadFull(f, head)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	return strings.HasPrefix(string(head[:n]), "\x7fELF") || strings.HasPrefix(string(head[:n]), "#!")
 }
 
 // codeReaders are the names of the processes that read code without running
@@ -1463,10 +1486,10 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		}
 	}
 
-	// The executable of a host process the host index lacks may belong to a
-	// package installed since the last scan. Its run waits for the scan
-	// indexing it, if the executable is still at its path.
-	if pkg == nil && !replaced && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
+	// The executable or the interpreter of a host process the host index lacks
+	// may belong to a package installed since the last scan. Its run waits for
+	// the scan indexing it, if the file is still at its path.
+	if pkg == nil && !replaced && sbom.ContainerID == "" && runs(pc, file) {
 		r.addHostMiss(pc, file)
 	}
 
@@ -1493,6 +1516,13 @@ func (r *Resolver) latches(d *Data, previous, now time.Time) bool {
 // UID, as a setuid-root binary run by another user does.
 func runsAsRoot(pc *model.ProcessContext) bool {
 	return pc.UID == 0 || pc.EUID == 0
+}
+
+// runs reports whether the process of pc runs file: its executable, or the
+// interpreter of its script.
+func runs(pc *model.ProcessContext, file *model.FileEvent) bool {
+	return file.PathnameStr == pc.Process.FileEvent.PathnameStr ||
+		pc.Process.HasInterpreter() && file.PathnameStr == pc.Process.LinuxBinprm.FileEvent.PathnameStr
 }
 
 // LookupPackage returns the package that owns file, as ResolvePackage does,
@@ -1563,8 +1593,8 @@ func (r *Resolver) HostPackageVersion(path string) string {
 // ResolveOpen records the open of file by the process of pc as usage of the
 // package that owns it, as ResolvePackage does, when file can hold code and
 // the process may run it. The open of a host package file counts once it has
-// waited settleDelay, and only if the file is still at its path then. An open
-// arriving while maxOpened opens wait is dropped.
+// waited settleDelay, and only if the file is still at its path then and holds
+// code. An open arriving while maxOpened opens wait is dropped.
 func (r *Resolver) ResolveOpen(pc *model.ProcessContext, file *model.FileEvent) {
 	if !holdsCode(file) || readsCode(pc) {
 		return
@@ -1600,7 +1630,7 @@ func (r *Resolver) settleOpens(ctx context.Context, tick <-chan time.Time) {
 }
 
 // recordSettled records as usage the opens of host files that have waited
-// settleDelay by now, those whose files are still at their paths.
+// settleDelay by now, those whose files are still at their paths and hold code.
 func (r *Resolver) recordSettled(now time.Time) {
 	r.openedLock.Lock()
 	n := 0
@@ -1613,7 +1643,7 @@ func (r *Resolver) recordSettled(now time.Time) {
 
 	for i := range settled {
 		o := &settled[i]
-		if r.replaced(&o.file) {
+		if r.replaced(&o.file) || !r.holdsHostCode(&o.file) {
 			continue
 		}
 		var pc model.ProcessContext

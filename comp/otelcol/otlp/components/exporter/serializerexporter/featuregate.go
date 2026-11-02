@@ -7,6 +7,15 @@ package serializerexporter
 
 import "go.opentelemetry.io/collector/featuregate"
 
+// gaugeIntervalGate enables explicit reporting intervals for number metrics mapped
+// to Datadog gauges. Disabled by default; the attribute remains a metric tag.
+// Enable via --feature-gates=+datadog.serializerexporter.EnableGaugeInterval.
+var gaugeIntervalGate = featuregate.GlobalRegistry().MustRegister(
+	"datadog.serializerexporter.EnableGaugeInterval",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Use datadog.gauge.interval as the reporting interval for number metrics mapped to Datadog gauges."),
+)
+
 // useSyncForwarderGate, when enabled, swaps the asynchronous DefaultForwarder
 // behind the metric serializer for a synchronous, error-propagating forwarder
 // (OTelSyncForwarder). With it on, send failures surface back through

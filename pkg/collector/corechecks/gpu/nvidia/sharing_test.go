@@ -56,6 +56,7 @@ func TestSharingCollector(t *testing.T) {
 		name       string
 		containers []*workloadmeta.Container
 		want       map[string]float64
+		wantMemory map[string]float64
 	}{
 		{
 			name:       "two pods sharing the GPU in halves",
@@ -91,6 +92,21 @@ func TestSharingCollector(t *testing.T) {
 			want:       map[string]float64{"multi": 0.5, "a": 0.5},
 		},
 		{
+			name: "memory is reported alongside the fraction",
+			containers: []*workloadmeta.Container{
+				container("a", map[string]workloadmeta.GPUShare{deviceUUID: {Fraction: 0.5, Memory: 8 << 30}}),
+				container("b", map[string]workloadmeta.GPUShare{deviceUUID: {Fraction: 0.27, Memory: 4 << 30}}),
+			},
+			want:       map[string]float64{"a": 0.5, "b": 0.27},
+			wantMemory: map[string]float64{"a": 8 << 30, "b": 4 << 30},
+		},
+		{
+			name:       "memory is reported even when the fraction is unknown, and vice versa",
+			containers: []*workloadmeta.Container{container("a", map[string]workloadmeta.GPUShare{deviceUUID: {Memory: 4 << 30}}), container("b", share(0.5))},
+			want:       map[string]float64{"b": 0.5},
+			wantMemory: map[string]float64{"a": 4 << 30},
+		},
+		{
 			name:       "a share of another GPU does not apply to this one",
 			containers: []*workloadmeta.Container{container("elsewhere", map[string]workloadmeta.GPUShare{other: {Fraction: 0.5}})},
 		},
@@ -111,24 +127,31 @@ func TestSharingCollector(t *testing.T) {
 			samples, err := collector.Collect()
 			require.NoError(t, err)
 
-			got := make(map[string]float64)
+			got := map[string]map[string]float64{
+				sharingFractionMetricName: {},
+				sharingMemoryMetricName:   {},
+			}
 			for _, sample := range samples {
 				metric, ok := sample.(*Metric)
 				require.True(t, ok)
-				require.Equal(t, sharingFractionMetricName, metric.Name)
+				require.Contains(t, got, metric.Name)
 				require.Equal(t, ddmetrics.GaugeType, metric.Type)
-				// Each fraction belongs to exactly one container, so that it
-				// does not get the tags of the others.
+				// Each share belongs to exactly one container, so that it does
+				// not get the tags of the others.
 				workloads := metric.AssociatedWorkloads()
 				require.Len(t, workloads, 1)
 				require.Equal(t, workloadmeta.KindContainer, workloads[0].Kind)
-				require.NotContains(t, got, workloads[0].ID)
-				got[workloads[0].ID] = metric.Value
+				require.NotContains(t, got[metric.Name], workloads[0].ID)
+				got[metric.Name][workloads[0].ID] = metric.Value
 			}
 			if test.want == nil {
 				test.want = map[string]float64{}
 			}
-			assert.Equal(t, test.want, got)
+			if test.wantMemory == nil {
+				test.wantMemory = map[string]float64{}
+			}
+			assert.Equal(t, test.want, got[sharingFractionMetricName], "fractions")
+			assert.Equal(t, test.wantMemory, got[sharingMemoryMetricName], "memory")
 		})
 	}
 }

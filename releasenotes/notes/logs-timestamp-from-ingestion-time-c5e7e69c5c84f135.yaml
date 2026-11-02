@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Logs that do not use a container-provided timestamp are sent with the time
+    the Agent read them, rather than the time they left the Agent's processing
+    pipeline. Delays inside the Agent, such as a slow or unavailable intake, no
+    longer shift log timestamps, and logs read in order keep that order.
+    Cloud Workload Security events are sent with the time of the event.

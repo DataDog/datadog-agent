@@ -24,6 +24,7 @@ import (
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -53,6 +54,8 @@ const (
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
 	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
+	KindKubernetesKAIPodGroup         Kind = "kubernetes_kai_pod_group"
+	KindKubernetesAutoscaler          Kind = "kubernetes_autoscaler"
 	KindECSTask                       Kind = "ecs_task"
 	KindContainerImageMetadata        Kind = "container_image_metadata"
 	KindProcess                       Kind = "process"
@@ -859,7 +862,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
+	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -892,6 +895,10 @@ type KubernetesPod struct {
 	Volumes                    []KubernetesPodVolume       `proto:"ignore"`
 	Tolerations                []KubernetesPodToleration   `proto:"ignore"`
 	Reason                     string                      `proto:"ignore"`
+
+	// AutoscalerKinds are the kinds of the autoscalers that target the pod's
+	// workload. Only set on node agents, by the kubemetadata collector.
+	AutoscalerKinds []AutoscalerKind `proto:"ignore"`
 }
 
 // GetID implements Entity#GetID.
@@ -964,6 +971,7 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
+		_, _ = fmt.Fprintln(&sb, "Autoscaler Kinds:", p.AutoscalerKinds)
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
 		_, _ = fmt.Fprintln(&sb, "Namespace Annotations:", mapToString(p.NamespaceAnnotations))
 
@@ -1042,6 +1050,31 @@ func (p KubernetesPod) String(verbose bool) string {
 // GetAllContainers returns all containers, including init containers and ephemeral containers.
 func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
 	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
+}
+
+// AutoscalerTarget is a workload that autoscalers can target.
+type AutoscalerTarget struct {
+	Kind      AutoscalerTargetKind
+	Namespace string
+	Name      string
+}
+
+// AutoscalerTarget returns the workload of the pod that an autoscaler can
+// target (Deployment, StatefulSet or Argo Rollout), found from the pod owners.
+// It returns false if the pod doesn't belong to such a workload.
+func (p *KubernetesPod) AutoscalerTarget() (AutoscalerTarget, bool) {
+	for _, owner := range p.Owners {
+		kind, name := kubernetes.ResolvePodRootOwner(owner.Kind, owner.Name, p.Labels)
+		switch kind {
+		case kubernetes.DeploymentKind:
+			return AutoscalerTarget{Namespace: p.Namespace, Kind: AutoscalerTargetDeployment, Name: name}, true
+		case kubernetes.StatefulSetKind:
+			return AutoscalerTarget{Namespace: p.Namespace, Kind: AutoscalerTargetStatefulSet, Name: name}, true
+		case kubernetes.RolloutKind:
+			return AutoscalerTarget{Namespace: p.Namespace, Kind: AutoscalerTargetArgoRollout, Name: name}, true
+		}
+	}
+	return AutoscalerTarget{}, false
 }
 
 var _ Entity = &KubernetesPod{}
@@ -1253,11 +1286,24 @@ type KubernetesNodeStatus struct {
 	OperatingSystem         string `json:"operatingSystem"`
 }
 
+// KubernetesNodeCondition is a node condition without timestamps, which change on
+// every kubelet heartbeat.
+type KubernetesNodeCondition struct {
+	Type   string
+	Status string
+}
+
 // KubernetesNode is an Entity representing a Kubernetes Node.
 type KubernetesNode struct {
 	EntityID
 	EntityMeta
+	// Status is served as is by the cluster agent /api/v1/info/node endpoint, so it
+	// only holds the kubelet info. The fields below are not part of that wire format.
 	Status KubernetesNodeStatus
+	// Conditions are the node conditions, reduced to type and status.
+	Conditions []KubernetesNodeCondition
+	// Unschedulable mirrors node.Spec.Unschedulable (set by `kubectl cordon`).
+	Unschedulable bool
 }
 
 // GetID implements Entity#GetID.
@@ -1296,6 +1342,10 @@ func (n KubernetesNode) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ContainerRuntimeVersion:", n.Status.ContainerRuntimeVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", n.Status.Architecture)
 		_, _ = fmt.Fprintln(&sb, "OperatingSystem:", n.Status.OperatingSystem)
+		_, _ = fmt.Fprintln(&sb, "Unschedulable:", n.Unschedulable)
+		for _, c := range n.Conditions {
+			_, _ = fmt.Fprintf(&sb, "Condition: %s=%s\n", c.Type, c.Status)
+		}
 	}
 	return sb.String()
 }
@@ -1654,9 +1704,11 @@ type KueuePodSetAssignment struct {
 type KubernetesKueueWorkload struct {
 	EntityID
 	EntityMeta
-	QueueName         string
-	ClusterQueueName  string
-	PodSetAssignments []KueuePodSetAssignment
+	QueueName              string
+	ClusterQueueName       string
+	PodSetAssignments      []KueuePodSetAssignment
+	PodTemplateLabels      map[string]string
+	PodTemplateAnnotations map[string]string
 }
 
 // GetID implements Entity#GetID.
@@ -1691,10 +1743,159 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
 	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
 	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	_, _ = fmt.Fprintln(&sb, "Pod Template Labels:", mapToScrubbedJSONString(w.PodTemplateLabels))
+	_, _ = fmt.Fprintln(&sb, "Pod Template Annotations:", mapToScrubbedJSONString(w.PodTemplateAnnotations))
 	return sb.String()
 }
 
 var _ Entity = &KubernetesKueueWorkload{}
+
+// GenerateKAIPodGroupEntityID returns the workloadmeta entity ID for a KAI PodGroup.
+func GenerateKAIPodGroupEntityID(namespace, name string) string {
+	return namespace + "/" + name
+}
+
+// KubernetesKAIPodGroup is an Entity representing a KAI Scheduler PodGroup.
+type KubernetesKAIPodGroup struct {
+	EntityID
+	EntityMeta
+	QueueName string
+}
+
+// GetID implements Entity#GetID.
+func (pg *KubernetesKAIPodGroup) GetID() EntityID {
+	return pg.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (pg *KubernetesKAIPodGroup) Merge(e Entity) error {
+	ppg, ok := e.(*KubernetesKAIPodGroup)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKAIPodGroup with different kind %T", e)
+	}
+
+	return merge(pg, ppg)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (pg KubernetesKAIPodGroup) DeepCopy() Entity {
+	cpg := deepcopy.Copy(pg).(KubernetesKAIPodGroup)
+	return &cpg
+}
+
+// String implements Entity#String.
+func (pg KubernetesKAIPodGroup) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, pg.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, pg.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- KAI PodGroup -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue:", pg.QueueName)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKAIPodGroup{}
+
+// AutoscalerKind is the kind of autoscaler that targets a workload.
+type AutoscalerKind string
+
+const (
+	// AutoscalerKindHPA is a HorizontalPodAutoscaler.
+	AutoscalerKindHPA AutoscalerKind = "horizontalpodautoscaler"
+	// AutoscalerKindVPA is a VerticalPodAutoscaler.
+	AutoscalerKindVPA AutoscalerKind = "verticalpodautoscaler"
+	// AutoscalerKindWPA is a WatermarkPodAutoscaler.
+	AutoscalerKindWPA AutoscalerKind = "watermarkpodautoscaler"
+	// AutoscalerKindDPA is a DatadogPodAutoscaler.
+	AutoscalerKindDPA AutoscalerKind = "datadogpodautoscaler"
+	// AutoscalerKindKEDA is a HorizontalPodAutoscaler managed by a KEDA
+	// ScaledObject.
+	AutoscalerKindKEDA AutoscalerKind = "keda"
+)
+
+// AutoscalerTargetKind is the kind of workload targeted by an autoscaler.
+type AutoscalerTargetKind string
+
+const (
+	// AutoscalerTargetDeployment is a Deployment.
+	AutoscalerTargetDeployment AutoscalerTargetKind = "deployment"
+	// AutoscalerTargetStatefulSet is a StatefulSet.
+	AutoscalerTargetStatefulSet AutoscalerTargetKind = "statefulset"
+	// AutoscalerTargetArgoRollout is an Argo Rollout.
+	AutoscalerTargetArgoRollout AutoscalerTargetKind = "argo_rollout"
+)
+
+// GenerateKubernetesAutoscalerEntityID returns the workloadmeta entity ID for
+// an autoscaler. KEDA autoscalers are HPAs owned by a ScaledObject, so their
+// resource is horizontalpodautoscaler.
+func GenerateKubernetesAutoscalerEntityID(kind AutoscalerKind, namespace, name string) EntityID {
+	resource := string(kind)
+	if kind == AutoscalerKindKEDA {
+		resource = string(AutoscalerKindHPA)
+	}
+	return EntityID{
+		Kind: KindKubernetesAutoscaler,
+		ID:   resource + "/" + namespace + "/" + name,
+	}
+}
+
+// KubernetesAutoscaler is an Entity representing an autoscaler and the workload
+// it targets.
+type KubernetesAutoscaler struct {
+	EntityID
+	EntityMeta
+	AutoscalerKind AutoscalerKind
+	TargetKind     AutoscalerTargetKind
+	TargetName     string
+}
+
+// GetID implements Entity#GetID.
+func (a *KubernetesAutoscaler) GetID() EntityID {
+	return a.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (a *KubernetesAutoscaler) Merge(e Entity) error {
+	aa, ok := e.(*KubernetesAutoscaler)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesAutoscaler with different kind %T", e)
+	}
+
+	return merge(a, aa)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (a KubernetesAutoscaler) DeepCopy() Entity {
+	ca := deepcopy.Copy(a).(KubernetesAutoscaler)
+	return &ca
+}
+
+// String implements Entity#String.
+func (a KubernetesAutoscaler) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, a.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, a.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Autoscaler -----------")
+	_, _ = fmt.Fprintln(&sb, "Autoscaler Kind:", a.AutoscalerKind)
+	_, _ = fmt.Fprintln(&sb, "Target Kind:", a.TargetKind)
+	_, _ = fmt.Fprintln(&sb, "Target Name:", a.TargetName)
+	return sb.String()
+}
+
+// Target returns the workload targeted by the autoscaler. Autoscalers can only
+// target workloads in their namespace.
+func (a *KubernetesAutoscaler) Target() AutoscalerTarget {
+	return AutoscalerTarget{
+		Kind:      a.TargetKind,
+		Namespace: a.Namespace,
+		Name:      a.TargetName,
+	}
+}
+
+var _ Entity = &KubernetesAutoscaler{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
@@ -2159,6 +2360,14 @@ func (p Process) String(verbose bool) string {
 	return sb.String()
 }
 
+// GetContainerID returns the container ID for the process, either from the Owner field or the ContainerID field.
+func (p *Process) GetContainerID() string {
+	if p.Owner != nil && p.Owner.Kind == KindContainer {
+		return p.Owner.ID
+	}
+	return p.ContainerID
+}
+
 // HostTags is an Entity that represents host tags
 type HostTags struct {
 	EntityID
@@ -2269,6 +2478,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+
+	// EnqueuedAt is the time at which the Store sent the bundle to the
+	// subscriber's channel. Subscribers can use it to measure how long the
+	// bundle waited in the channel.
+	EnqueuedAt time.Time
 }
 
 // Acknowledge acknowledges that the subscriber has handled the event.
@@ -2313,6 +2527,9 @@ type GPUShare struct {
 	// Fraction is the fraction of the GPU assigned to the container, in (0, 1],
 	// or 0 when the container shares the GPU but its share is unknown.
 	Fraction float64
+	// Memory is the GPU memory, in bytes, that the container is allowed to
+	// use, or 0 when the container shares the GPU but its memory is unknown.
+	Memory uint64
 }
 
 // GPUDeviceType is an enum to identify the type of the GPU device.
@@ -2388,6 +2605,27 @@ type GPU struct {
 	// FabricCliqueID identifies the P2P clique within the NVLink fabric cluster.
 	// It is meaningful only when FabricClusterUUID is set.
 	FabricCliqueID uint32
+
+	// ChassisSerial is the serial number of the chassis (rack) containing the GPU,
+	// reported on rack-scale systems such as GB200 NVL72. Empty otherwise.
+	ChassisSerial string
+
+	// SlotNumber, TrayIndex and ModuleID locate the GPU inside the chassis.
+	// They are meaningful only when ChassisSerial is set.
+	SlotNumber uint8
+	TrayIndex  uint8
+	ModuleID   uint8
+
+	// BoardSerial is the board serial number, shared by the GPUs of one
+	// superchip on GB200. It is set only when ChassisSerial is set.
+	BoardSerial string
+
+	// FabricGUID is the GPU's NVLink fabric GUID from NVML platform info (not an
+	// InfiniBand HCA GUID). Empty when not reported.
+	FabricGUID string
+
+	// NUMANode is the NUMA node closest to the GPU. Nil when not reported.
+	NUMANode *int
 
 	// NVLinkVersion is the version reported by the GPU's NVLink links.
 	NVLinkVersion string

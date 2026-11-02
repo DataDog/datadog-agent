@@ -145,7 +145,11 @@ enum CREDENTIAL_SOURCE {
 #define SYSCALL_MONITOR_REASON_PERIOD 1
 #define SYSCALL_MONITOR_REASON_EXIT 2
 #define SYSCALL_MONITOR_REASON_EXECVE 3
-#define SYSCALL_MONITOR_REASON_SAMPLE 4
+
+// minimum delay between two syscall usage events of a process that used a syscall for the first time
+#define SYSCALL_USAGE_NEW_SYSCALL_FLUSH_DELAY 1000000000 // 1s
+#define SYSCALL_USAGE_EVENT_HOOK_SLOT 0
+#define SYSCALL_USAGE_EVENT_TICKER_SLOT 1
 
 #define SELINUX_WRITE_BUFFER_LEN 64
 #define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0
@@ -153,7 +157,6 @@ enum CREDENTIAL_SOURCE {
 
 #define EXIT_SYSCALL_KEY 1
 #define EXECVE_SYSCALL_KEY 2
-#define SAMPLING_IGNORED_SYSCALL_KEY 3
 
 #ifndef USE_RING_BUFFER
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
@@ -253,15 +256,21 @@ static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
     return anomaly;
 };
 
-static __attribute__((always_inline)) u64 is_security_profile_v2_enabled() {
+static __attribute__((always_inline)) u64 is_syscall_monitor_enabled() {
     u64 enabled;
-    LOAD_CONSTANT("security_profile_v2_enabled", enabled);
+    LOAD_CONSTANT("syscall_monitor_enabled", enabled);
     return enabled;
 };
 
-static __attribute__((always_inline)) u64 is_event_sampling_syscalls_enabled() {
+static __attribute__((always_inline)) u64 is_raw_syscall_kill_enabled() {
     u64 enabled;
-    LOAD_CONSTANT("event_sampling_syscalls_enabled", enabled);
+    LOAD_CONSTANT("raw_syscall_kill_enabled", enabled);
+    return enabled;
+};
+
+static __attribute__((always_inline)) u64 is_security_profile_v2_enabled() {
+    u64 enabled;
+    LOAD_CONSTANT("security_profile_v2_enabled", enabled);
     return enabled;
 };
 
@@ -368,7 +377,6 @@ enum global_rate_limiter_type {
     RAW_PACKET_ACTION_LIMITER,
     OPEN_SAMPLE_LIMITER,
     CONNECT_SAMPLE_LIMITER,
-    SYSCALLS_SAMPLE_LIMITER,
     BIND_SAMPLE_LIMITER,
 };
 

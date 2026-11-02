@@ -25,7 +25,7 @@ go_library(
             "//pkg/logs/message",
             "//pkg/notableevents/types",
             "//pkg/system-probe/api/client",
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
@@ -39,7 +39,7 @@ go_library(
             "//pkg/logs/message",
             "//pkg/notableevents/types",
             "//pkg/system-probe/api/client",
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:windows": [

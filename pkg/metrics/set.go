@@ -40,3 +40,7 @@ func (s *Set) flush(timestamp float64) ([]*Serie, error) {
 func (s *Set) isStateful() bool {
 	return false
 }
+
+func (s *Set) metricType() MetricType {
+	return SetType
+}

@@ -15,7 +15,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 const (
@@ -50,7 +50,7 @@ func (p *LinuxPinger) Ping(host string) (*Result, error) {
 }
 
 func getPing(client *http.Client, clientID string, host string, count int, interval time.Duration, timeout time.Duration) (*Result, error) {
-	url := sysprobeclient.ModuleURL(sysconfig.PingModule, fmt.Sprintf("/ping/%s?client_id=%s&count=%d&interval=%d&timeout=%d", host, clientID, count, interval, timeout))
+	url := sysprobeclient.ModuleURL(sysconfigtypes.PingModule, fmt.Sprintf("/ping/%s?client_id=%s&count=%d&interval=%d&timeout=%d", host, clientID, count, interval, timeout))
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
