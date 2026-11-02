@@ -146,15 +146,11 @@ def run(
     Use --deploy-installer to make this pipeline a deploy pipeline for the installer, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
-    Use --e2e-tests to run all e2e tests on the pipeline.
+    Use --no-e2e-tests to not run e2e tests on the pipeline (they run by default).
     Use --run-flaky-tests to run tests that are marked as flaky (by default, known flaky tests are skipped).
 
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate. Staging k8s deployment PR will be created during the build pipeline.
-
-    By default, the pipeline builds both Agent 6 and Agent 7.
-    Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
-    (eg. '6' to build Agent 6 only, '6,7' to build both Agent 6 and Agent 7).
 
     The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
@@ -171,14 +167,14 @@ def run(
     Run a pipeline without Kernel Matrix Tests on the current branch:
       dda inv pipeline.run --here --no-kmt-tests
 
-    Run a pipeline with e2e tets on the current branch:
-      dda inv pipeline.run --here --e2e-tests
+    Run a pipeline without e2e tests on the current branch:
+      dda inv pipeline.run --here --no-e2e-tests
 
     Run a pipeline that includes flaky tests on the current branch:
       dda inv pipeline.run --here --run-flaky-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      dda inv pipeline.run --deploy --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()

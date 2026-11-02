@@ -157,6 +157,8 @@ const (
 	UnshareMountNsEventType
 	// OTelProcessCtxEventType is sent when a process publishes its OTel process context
 	OTelProcessCtxEventType
+	// SetNSEventType is sent when a thread joins an existing namespace
+	SetNSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -364,6 +366,8 @@ func (t EventType) String() string {
 		return "socket"
 	case OTelProcessCtxEventType:
 		return "otel_process_ctx"
+	case SetNSEventType:
+		return "setns"
 	default:
 		return "unknown"
 	}
