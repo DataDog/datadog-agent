@@ -76,6 +76,10 @@ func (m *MockSecretResolver) GetPathsAndHandles() ([]string, []string) {
 	return nil, nil
 }
 
+func (m *MockSecretResolver) GetHashValues(_ []string) map[string]string {
+	return nil
+}
+
 func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called == 0 {
