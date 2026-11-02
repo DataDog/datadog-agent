@@ -29,7 +29,8 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 		internalHTTP                                   bool
 	}{
 		{name: "PAR-local", wantURL: "https://api.us3.datadoghq.com", wantProxy: "http://user:password@proxy:3128"},
-		{name: "endpoint override", ddURL: "https://app.datadoghq.eu", wantURL: "https://api.datadoghq.eu", wantProxy: "http://user:password@proxy:3128"},
+		{name: "metrics URL ignored", ddURL: "https://app.datadoghq.eu", wantURL: "https://api.us3.datadoghq.com", wantProxy: "http://user:password@proxy:3128"},
+		{name: "metrics proxy ignored", ddURL: "https://metrics-proxy.example.com", wantURL: "https://api.us3.datadoghq.com", wantProxy: "http://user:password@proxy:3128"},
 		{name: "HTTP fakeintake", ddURL: "http://fake-intake:8080", internalHTTP: true, wantURL: "http://fake-intake:8080", wantProxy: "http://user:password@proxy:3128"},
 		{name: "RC override", ddURL: "https://app.datadoghq.eu", rcURL: "https://rc-proxy.example.com:8443/prefix", wantURL: "https://rc-proxy.example.com:8443/prefix", wantProxy: "http://user:password@proxy:3128"},
 		{name: "RC override bypass", rcURL: "https://rc-proxy.example.com:8443/prefix/", bypass: "rc-proxy.example.com", wantURL: "https://rc-proxy.example.com:8443/prefix/"},

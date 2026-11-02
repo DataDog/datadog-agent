@@ -24,8 +24,11 @@ func TestEndpoints(t *testing.T) {
 		{"US3", "us3.datadoghq.com", "", "us3.datadoghq.com"},
 		{"staging", "datad0g.com", "", "datad0g.com"},
 		{"government", "ddog-gov.com", "", "ddog-gov.com"},
-		{"dd_url precedence", "datadoghq.com", "https://app.datadoghq.eu.:8443/path", "datadoghq.eu"},
-		{"unknown domain", "datadoghq.eu", "https://proxy.example.com", ""},
+		{"metrics URL does not select the site", "datadoghq.com", "https://app.datadoghq.eu.:8443/path", "datadoghq.com"},
+		{"metrics proxy does not select the site", "datadoghq.eu", "https://proxy.example.com", "datadoghq.eu"},
+		{"metrics URL with no site", "", "https://app.datadoghq.eu", "datadoghq.com"},
+		{"metrics proxy with no site", "", "https://proxy.example.com", "datadoghq.com"},
+		{"normalized site", " US3.DATADOGHQ.COM. ", "", "us3.datadoghq.com"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
@@ -57,7 +60,7 @@ func TestAPIBaseURLRCOverride(t *testing.T) {
 				actual, err := APIBaseURL(cfg, Site(cfg))
 				assert.NoError(t, err)
 				assert.Equal(t, endpoint, actual)
-				assert.Equal(t, "us3.datadoghq.com", Site(cfg), "routing must not change the runner's logical site")
+				assert.Equal(t, "datadoghq.eu", Site(cfg), "routing must not change the runner's logical site")
 			}
 		})
 	}
