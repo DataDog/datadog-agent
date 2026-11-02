@@ -560,13 +560,26 @@ func preStopExperimentDatadogAgent(ctx HookContext) error {
 // prePromoteExperimentDatadogAgent performs pre-promote steps for the experiment.
 // It must be executed by the stable unit before promoting the experiment & before PostPromoteExperiment.
 func prePromoteExperimentDatadogAgent(ctx HookContext) error {
-	if err := agentService.StopStable(ctx); err != nil {
+	return removeStableUnitsBeforePromote(ctx, &agentService)
+}
+
+type stableUnitRemover interface {
+	StopStable(ctx HookContext) error
+	DisableStable(ctx HookContext) error
+	RemoveStable(ctx HookContext) error
+}
+
+// removeStableUnitsBeforePromote tolerates a DisableStable failure: the stable units are removed
+// right after and postPromote rewrites and re-enables them, so a leftover enablement symlink only
+// ends up pointing at the new stable unit.
+func removeStableUnitsBeforePromote(ctx HookContext, stable stableUnitRemover) error {
+	if err := stable.StopStable(ctx); err != nil {
 		return fmt.Errorf("failed to stop stable unit: %s", err)
 	}
-	if err := agentService.DisableStable(ctx); err != nil {
-		return fmt.Errorf("failed to disable stable unit: %s", err)
+	if err := stable.DisableStable(ctx); err != nil {
+		log.Warnf("failed to disable stable unit: %s", err)
 	}
-	if err := agentService.RemoveStable(ctx); err != nil {
+	if err := stable.RemoveStable(ctx); err != nil {
 		return fmt.Errorf("failed to remove stable unit: %s", err)
 	}
 	return nil

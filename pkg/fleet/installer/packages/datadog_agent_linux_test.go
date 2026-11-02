@@ -166,3 +166,47 @@ func TestExperimentStartUnits(t *testing.T) {
 		experimentStartUnits(ctx, "datadog-agent-exp.service"),
 	)
 }
+
+type fakeStableUnits struct {
+	calls      []string
+	stopErr    error
+	disableErr error
+	removeErr  error
+}
+
+func (f *fakeStableUnits) StopStable(HookContext) error {
+	f.calls = append(f.calls, "stop")
+	return f.stopErr
+}
+
+func (f *fakeStableUnits) DisableStable(HookContext) error {
+	f.calls = append(f.calls, "disable")
+	return f.disableErr
+}
+
+func (f *fakeStableUnits) RemoveStable(HookContext) error {
+	f.calls = append(f.calls, "remove")
+	return f.removeErr
+}
+
+func TestRemoveStableUnitsBeforePromote(t *testing.T) {
+	ctx := HookContext{Context: context.Background()}
+
+	t.Run("disable failure is not fatal and stable units are still removed", func(t *testing.T) {
+		stable := &fakeStableUnits{disableErr: errors.New("systemd-sysv-install disable datadog-agent: service datadog-agent does not support chkconfig")}
+		require.NoError(t, removeStableUnitsBeforePromote(ctx, stable))
+		assert.Equal(t, []string{"stop", "disable", "remove"}, stable.calls)
+	})
+
+	t.Run("stop failure aborts before touching the units", func(t *testing.T) {
+		stable := &fakeStableUnits{stopErr: errors.New("stop failed")}
+		require.ErrorContains(t, removeStableUnitsBeforePromote(ctx, stable), "failed to stop stable unit")
+		assert.Equal(t, []string{"stop"}, stable.calls)
+	})
+
+	t.Run("remove failure is fatal", func(t *testing.T) {
+		stable := &fakeStableUnits{removeErr: errors.New("remove failed")}
+		require.ErrorContains(t, removeStableUnitsBeforePromote(ctx, stable), "failed to remove stable unit")
+		assert.Equal(t, []string{"stop", "disable", "remove"}, stable.calls)
+	})
+}
