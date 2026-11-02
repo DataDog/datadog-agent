@@ -21,6 +21,7 @@
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
+/.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
 /.agents/*                                      @DataDog/agent-devx
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
