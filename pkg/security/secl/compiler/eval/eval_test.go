@@ -1991,7 +1991,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, ""))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}

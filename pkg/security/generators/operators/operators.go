@@ -48,12 +48,6 @@ import (
 {{ range .Operators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ .FuncReturnType }}, error) {
-	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
-	{{ else }}
-	isDc := isArithmDeterministic(a, b, state)
-	{{ end }}
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
 			return nil, err
@@ -74,20 +68,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
-		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-			if state.field != "" {
-				if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
-					ea = func(ctx *Context) {{ .EvalReturnType }} {
-						return true
-					}
-				}
-				if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
-					eb = func(ctx *Context) {{ .EvalReturnType }} {
-						return true
-					}
-				}
-			}
-		{{ end }}
 
 		{{/* optimize the evaluation if needed, moving the evaluation with more weight at the right */}}
 		{{ if .Commutative }}
@@ -114,7 +94,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
 			Weight: a.Weight + b.Weight,
-			isDeterministic: isDc,
 		}, nil
 	}
 	{{ end }}
@@ -127,25 +106,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 
 		return &{{ .FuncReturnType }}{
 			Value: {{ call .Op "ea" "eb" }},
-			isDeterministic: isDc,
 		}, nil
 	}
 
 	if a.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.Value
 
-		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-			if state.field != "" {
-				if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
-					ea = func(ctx *Context) {{ .EvalReturnType }} {
-						return true
-					}
-				}
-				if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
-					eb = true
-				}
-			}
-		{{ end }}
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
 			{{- if and .StoreValue (eq .EvalReturnType "bool") }}
@@ -163,7 +129,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
 			Weight: a.Weight,
-			isDeterministic: isDc,
 			{{- if .OriginField }}
 			originField: a.OriginField(),
 			{{- end }}
@@ -172,18 +137,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 
 	ea, eb := a.Value, b.EvalFnc
 
-	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-		if state.field != "" {
-			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
-				ea = true
-			}
-			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
-				eb = func(ctx *Context) {{ .EvalReturnType }} {
-					return true
-				}
-			}
-		}
-	{{ end }}
 
 	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
 		{{- if and .StoreValue (eq .EvalReturnType "bool") }}
@@ -201,7 +154,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	return &{{ .FuncReturnType }}{
 		EvalFnc: evalFnc,
 		Weight: b.Weight,
-		isDeterministic: isDc,
 		{{- if .OriginField }}
 		originField: b.OriginField(),
 		{{- end }}
@@ -212,12 +164,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 {{ range .ArrayOperators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ .FuncReturnType }}, error) {
-	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
-	{{ else }}
-	isDc := isArithmDeterministic(a, b, state)
-	{{ end }}
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -256,7 +202,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		return &{{ .FuncReturnType }}{
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + b.Weight,
-			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -267,7 +212,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		return &{{ .FuncReturnType }}{
 			Value:     res,
 			Weight:    a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -286,7 +230,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		return &{{ .FuncReturnType }}{
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
 			{{- if .OriginField }}
 			originField: a.OriginField(),
 			{{- end }}
@@ -307,7 +250,6 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	return &{{ .FuncReturnType }}{
 		EvalFnc:   evalFnc,
 		Weight:    b.Weight,
-		isDeterministic: isDc,
 		{{- if .OriginField }}
 		originField: b.OriginField(),
 		{{- end }}
