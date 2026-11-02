@@ -231,8 +231,8 @@ func TestRemoteAPIRequestIgnoresAlreadyExecutedRequests(t *testing.T) {
 }
 
 // TestStartSubscribesToTasks pins when the daemon subscribes to UPDATER_TASK. macOS subscribes
-// immediately: the backend serves it no catalog. Elsewhere the subscription waits for the first
-// catalog, as it always has.
+// immediately, without waiting for a catalog, and a catalog arriving later adds no second
+// subscription. Elsewhere the subscription waits for the first catalog, as it always has.
 func TestStartSubscribesToTasks(t *testing.T) {
 	c := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: c}

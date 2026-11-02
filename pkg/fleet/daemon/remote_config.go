@@ -57,9 +57,9 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 	}
 	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
 	if runtime.GOOS == "darwin" {
-		// The backend serves no catalog to macOS, which has no version upgrades yet, so waiting for
-		// one would never subscribe to UPDATER_TASK, which is how Fleet sends its requests.
-		// Subscribing here, before the client starts, needs no goroutine.
+		// Fleet sends macOS its requests as UPDATER_TASK tasks, and macOS has no version upgrades
+		// yet, so the subscription must not wait for a catalog to arrive first. Subscribing here,
+		// before the client starts, needs no goroutine.
 		rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 		subscribeToTask = func() {}
 	}
