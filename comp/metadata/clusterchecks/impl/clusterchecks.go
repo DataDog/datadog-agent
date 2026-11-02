@@ -116,6 +116,7 @@ func NewComponent(deps Requires) Provides {
 		deps.Serializer,
 		cc.getPayloadAsMarshaler,
 		"cluster-checks-metadata.json",
+		serializer.PayloadTypeClusterCheckMetadata,
 	)
 
 	return Provides{

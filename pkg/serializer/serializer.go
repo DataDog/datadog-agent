@@ -91,8 +91,8 @@ type MetricSerializer interface {
 	SendSketch(sketches metrics.SketchesSource) error
 	AreSketchesEnabled() bool
 
-	SendMetadata(m marshaler.JSONMarshaler) error
-	SendHostMetadata(m marshaler.JSONMarshaler) error
+	SendMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error
+	SendHostMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error
 	SendProcessesMetadata(data interface{}) error
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
 	SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error
@@ -350,21 +350,21 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) error {
-	return s.sendMetadata(m, s.Forwarder.SubmitMetadata)
+func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error {
+	return s.sendMetadata(m, payloadType, s.Forwarder.SubmitMetadata)
 }
 
 // SendHostMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
-	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
+func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error {
+	return s.sendMetadata(m, payloadType, s.Forwarder.SubmitHostMetadata)
 }
 
 // SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
 func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
-	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
+	return s.sendMetadata(m, PayloadTypeAgentChecks, s.Forwarder.SubmitAgentChecksMetadata)
 }
 
-func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
+func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, payloadType PayloadType, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
 	exceeded, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
@@ -377,7 +377,11 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
 	}
 
-	if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression); err != nil {
+	// Clone the shared headers: they are read concurrently by other senders.
+	headers := s.jsonExtraHeadersWithCompression.Clone()
+	headers.Set(PayloadTypeHeader, string(payloadType))
+
+	if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), headers); err != nil {
 		return err
 	}
 

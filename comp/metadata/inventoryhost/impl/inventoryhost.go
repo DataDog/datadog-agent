@@ -144,7 +144,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		data:     &hostMetadata{},
 	}
-	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json")
+	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json", serializer.PayloadTypeHostMetadata)
 
 	return Provides{
 		Comp:          ih,
