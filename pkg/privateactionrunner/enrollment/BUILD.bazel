@@ -14,9 +14,7 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
         "//pkg/config/model",
-        "//pkg/config/utils",
         "//pkg/privateactionrunner",
-        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/adapters/regions",

@@ -15,6 +15,7 @@ import (
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 )
 
 type Observation struct {
@@ -72,7 +73,7 @@ func (r *rcSource) Read(_ time.Time) Observation {
 }
 
 func enrollmentSite(cfg model.Reader) string {
-	site := configutils.ExtractSiteFromURL(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"))
+	site := par.Site(cfg)
 	if site == "" {
 		site = "datadoghq.com"
 	}
@@ -80,10 +81,7 @@ func enrollmentSite(cfg model.Reader) string {
 }
 
 func enrollmentEndpoint(cfg model.Reader) string {
-	if os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" {
-		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/")
-	}
-	return "https://api." + enrollmentSite(cfg)
+	return par.APIBaseURL(cfg, enrollmentSite(cfg))
 }
 
 func loopbackURL(raw string) bool {

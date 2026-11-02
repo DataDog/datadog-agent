@@ -11,15 +11,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -156,16 +152,12 @@ func SelfEnroll(
 }
 
 func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
-	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
-		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/")
-	}
-	return "https://api." + ddSite
+	return par.APIBaseURL(cfg, ddSite)
 }
 
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
-	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
-	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	ddSite := par.Site(cfg)
 	if ddSite == "" {
 		ddSite = "datadoghq.com"
 	}
