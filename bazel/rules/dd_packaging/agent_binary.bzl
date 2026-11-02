@@ -30,7 +30,6 @@ def _agent_binary_for_package_impl(
         target,
         prefix,
         patch_rpath = False,
-        destination = None,
         use_relative_rpaths = False,
         target_compatible_with = None,
         visibility = None):
@@ -41,10 +40,14 @@ def _agent_binary_for_package_impl(
     input = target
 
     if patch_rpath:
+        # pkg_files places the binary at <prefix>/<binary basename> (its
+        # strip_prefix defaults to files_only), so the directory it installs
+        # into is always <install_dir>/<prefix>; derive the rpath-relevant
+        # destination from the prefix instead of asking for it again.
         rewrite_rpath(
             name = name + "_rpath",
             inputs = [input],
-            destination = destination,
+            destination = "{install_dir}/" + prefix,
             use_relative_rpaths = use_relative_rpaths,
             tags = ["manual"],
             target_compatible_with = target_compatible_with,
@@ -87,11 +90,6 @@ The chain is: rpath rewrite (opt-in) -> strip/symbol-split -> pkg_files.
             doc = "Whether to rewrite the binary's rpath for its install location.",
             default = False,
             configurable = False,
-        ),
-        "destination": attr.string(
-            doc = """Absolute install path of the binary, used only for
-            relative-rpath computation (passed to rewrite_rpath). Required
-            when patch_rpath is True.""",
         ),
         "use_relative_rpaths": attr.bool(
             doc = """Forwarded to rewrite_rpath; only used when patch_rpath is True.""",

@@ -165,7 +165,6 @@ pkg_install(
 
 agent_binary_for_package(
     name = "agent_binary",
-    destination = "{install_dir}/bin/agent",
     patch_rpath = True,
     prefix = "bin/agent",
     target = "//cmd/agent",
@@ -174,10 +173,6 @@ agent_binary_for_package(
 
 agent_binary_for_package(
     name = "process_agent_binary",
-    destination = select({
-        "@platforms//os:windows": "{install_dir}/bin/agent",
-        "//conditions:default": "{install_dir}/embedded/bin",
-    }),
     patch_rpath = True,
     prefix = select({
         "@platforms//os:windows": "bin/agent",
@@ -210,10 +205,6 @@ agent_binary_for_package(
 
 agent_binary_for_package(
     name = "security_agent_binary",
-    destination = select({
-        "@platforms//os:windows": "{install_dir}/bin/agent",
-        "//conditions:default": "{install_dir}/embedded/bin",
-    }),
     patch_rpath = True,
     prefix = select({
         "@platforms//os:windows": "bin/agent",
