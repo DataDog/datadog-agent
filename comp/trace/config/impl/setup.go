@@ -207,7 +207,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 				endpoint.APIKey = ""
 				endpoint.HasPendingDelegatedAuth = true
 				if !pkgconfigsetup.IsDelegatedAuthMapEndpointKey(cfgKey) {
-					log.Warnf("a delegated auth directive at %q in '%s' has no delegated auth write-back for this setting; the endpoint stays pending and will not send", url, cfgKey)
+					log.Warnf("DELA[...] is not supported in '%s'; this additional endpoint entry (%q) will not send data. Configure an API key or remove the entry", cfgKey, url)
 				}
 			}
 			endpoints = append(endpoints, endpoint)
