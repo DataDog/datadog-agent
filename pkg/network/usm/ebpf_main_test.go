@@ -42,6 +42,22 @@ func newEmptyEBPFProgram() *ebpfProgram {
 	return &ebpfProgram{Manager: &ddebpf.Manager{Manager: &manager.Manager{}}}
 }
 
+func registerEBPFProgramCleanup(t *testing.T, e *ebpfProgram, initialized bool) {
+	t.Helper()
+	t.Cleanup(func() {
+		if !initialized {
+			// InitWithOptions already cleans resources from failed attempts. Keep
+			// the old best-effort manager cleanup for failures before initialization.
+			_ = e.Stop(manager.CleanAll)
+			return
+		}
+
+		// Close also stops protocol instances and perf/ring buffers configured by
+		// successful fallback attempts; Manager.Stop alone only cleans manager resources.
+		require.NoError(t, e.Close())
+	})
+}
+
 // Common Assertions
 func assertContains(t *testing.T, e *ebpfProgram, maps, probes, calls int) {
 	require.Len(t, e.Maps, maps)
@@ -207,7 +223,6 @@ func TestInitOptionsMatchAcrossBuildModes(t *testing.T) {
 
 	e, err := newEBPFProgram(cfg, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = e.Stop(manager.CleanAll) })
 
 	// Prepended so it observes the options as init built them, before the
 	// other modifiers add their own edits. The errors telemetry modifier sizes
@@ -231,6 +246,7 @@ func TestInitOptionsMatchAcrossBuildModes(t *testing.T) {
 	capture.captured = false
 	e.buildMode = buildmode.RuntimeCompiled
 	runtimeErr := e.initRuntimeCompiler()
+	registerEBPFProgramCleanup(t, e, runtimeErr == nil)
 	require.True(t, capture.captured, "runtime compiled attempt never built options: %v", runtimeErr)
 	runtimeOptions := capture.opts
 
@@ -275,7 +291,6 @@ func newFallbackTestProgram(t *testing.T) *ebpfProgram {
 
 	e, err := newEBPFProgram(cfg, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = e.Stop(manager.CleanAll) })
 	return e
 }
 
@@ -285,7 +300,9 @@ func TestRuntimeFallbackWorks(t *testing.T) {
 	e := newFallbackTestProgram(t)
 	failBuildModes(e, buildmode.CORE)
 
-	require.NoError(t, e.Init(), "runtime compiled fallback failed after a failed CO-RE load")
+	err := e.Init()
+	registerEBPFProgramCleanup(t, e, err == nil)
+	require.NoError(t, err, "runtime compiled fallback failed after a failed CO-RE load")
 	assert.Equal(t, buildmode.RuntimeCompiled, e.buildMode,
 		"expected Init to settle on the runtime compiled build mode")
 }
@@ -305,7 +322,9 @@ func TestPrebuiltFallbackWorks(t *testing.T) {
 	e := newFallbackTestProgram(t)
 	failBuildModes(e, buildmode.CORE, buildmode.RuntimeCompiled)
 
-	require.NoError(t, e.Init(), "prebuilt fallback failed after failed CO-RE and runtime compiled loads")
+	err := e.Init()
+	registerEBPFProgramCleanup(t, e, err == nil)
+	require.NoError(t, err, "prebuilt fallback failed after failed CO-RE and runtime compiled loads")
 	assert.Equal(t, buildmode.Prebuilt, e.buildMode,
 		"expected Init to settle on the prebuilt build mode")
 }
