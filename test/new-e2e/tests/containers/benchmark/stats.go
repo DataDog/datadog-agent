@@ -5,29 +5,21 @@
 
 package benchmark
 
-import "math"
+import (
+	"math"
 
-func mean(values []float64) float64 {
-	var sum float64
-	for _, v := range values {
-		sum += v
-	}
-	return sum / float64(len(values))
-}
+	"github.com/samber/lo"
+)
 
 // sampleVariance returns the unbiased variance of values, of mean m.
 func sampleVariance(values []float64, m float64) float64 {
-	var sum float64
-	for _, v := range values {
-		sum += (v - m) * (v - m)
-	}
-	return sum / float64(len(values)-1)
+	return lo.SumBy(values, func(v float64) float64 { return (v - m) * (v - m) }) / float64(len(values)-1)
 }
 
 // welchTTest returns the two-sided p-value of Welch's t-test of the hypothesis that the
 // samples a and b, of at least 2 values each, come from distributions of equal means.
 func welchTTest(a, b []float64) float64 {
-	meanA, meanB := mean(a), mean(b)
+	meanA, meanB := lo.Mean(a), lo.Mean(b)
 	// Squared standard errors of the means
 	seA := sampleVariance(a, meanA) / float64(len(a))
 	seB := sampleVariance(b, meanB) / float64(len(b))
@@ -50,11 +42,7 @@ func welchTTest(a, b []float64) float64 {
 // Its variance being (var(x)/nx + var(y)/ny) / 4, the statistic and the Welch–Satterthwaite
 // degrees of freedom are those of Welch's t-test comparing -x to y.
 func meanOfMeansTTest(x, y []float64) float64 {
-	negated := make([]float64, len(x))
-	for i, v := range x {
-		negated[i] = -v
-	}
-	return welchTTest(negated, y)
+	return welchTTest(lo.Map(x, func(v float64, _ int) float64 { return -v }), y)
 }
 
 // studentTwoSidedPValue returns P(|T| >= |t|) for T following Student's t-distribution with

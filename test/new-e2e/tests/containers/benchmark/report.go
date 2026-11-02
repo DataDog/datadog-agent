@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 const (
@@ -149,18 +151,15 @@ func (r *Report) notable() bool {
 }
 
 // significance returns the p-value under which the changes of the results are significant,
-// and whether it is the same for all of them.
+// and whether it is the same for all of them: if not, the p-value is that of the first result.
 func (r *Report) significance() (float64, bool) {
 	if len(r.Results) == 0 {
 		return SignificanceLevel, true
 	}
 	significance := r.Results[0].Thresholds.significance()
-	for _, result := range r.Results[1:] {
-		if result.Thresholds.significance() != significance {
-			return 0, false
-		}
-	}
-	return significance, true
+	return significance, lo.EveryBy(r.Results[1:], func(result Result) bool {
+		return result.Thresholds.significance() == significance
+	})
 }
 
 // Write writes the JSON report to dir, and the Markdown report only if the report is notable.
@@ -224,18 +223,16 @@ func (r *Report) Markdown() string {
 	// The significance level is stated once if it is the same for all the results, with the
 	// thresholds of each metric otherwise.
 	significance, uniform := r.significance()
-	var thresholds []string
-	for _, result := range r.Results {
-		// The thresholds of the run times differ by check, and the same metric is measured on
-		// several components: identical thresholds are listed once.
+	// The thresholds of the run times differ by check, and the same metric is measured on
+	// several components: identical thresholds are listed once. lo.UniqMap would lose their
+	// order.
+	thresholds := lo.Uniq(lo.Map(r.Results, func(result Result, _ int) string {
 		threshold := fmt.Sprintf("%s %.0f%% and %s", result.metricName(), 100*result.Thresholds.Relative, result.Unit.format(result.Thresholds.Absolute, false))
 		if !uniform {
 			threshold += fmt.Sprintf(" (p < %.2g)", result.Thresholds.significance())
 		}
-		if !slices.Contains(thresholds, threshold) {
-			thresholds = append(thresholds, threshold)
-		}
-	}
+		return threshold
+	}))
 	significanceText := "p below the level given with the thresholds of its metric"
 	if uniform {
 		significanceText = formatSignificance(significance)
@@ -264,12 +261,9 @@ func (r *Report) Markdown() string {
 		}
 	}
 
-	var profiles []string
-	for _, version := range versions {
-		if version.ProfilesURL != "" {
-			profiles = append(profiles, "["+version.Name+"]("+version.ProfilesURL+")")
-		}
-	}
+	profiles := lo.FilterMap(versions, func(version Version, _ int) (string, bool) {
+		return "[" + version.Name + "](" + version.ProfilesURL + ")", version.ProfilesURL != ""
+	})
 	if len(profiles) > 0 {
 		fmt.Fprintf(&b, "\nProfiles of the first phase: %s\n", strings.Join(profiles, ", "))
 	}

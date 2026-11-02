@@ -10,6 +10,8 @@ import (
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 // Snapshot holds the runner stats of the pods of an Agent workload at a time, by pod name.
@@ -61,9 +63,7 @@ func meanRunTime(check string, before, after Snapshot) (float64, error) {
 			if err != nil {
 				return 0, fmt.Errorf("pod %s: instance %s: %w", pod, id, err)
 			}
-			for _, t := range times {
-				total += t
-			}
+			total += lo.Sum(times)
 			runs += len(times)
 		}
 	}

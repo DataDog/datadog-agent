@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 const (
@@ -180,7 +182,7 @@ func comparePhase(phase Phase) (PhaseComparison, []float64, error) {
 		Window:         phase.Window,
 		BaselineMean:   baselineMean,
 		ComparisonMean: comparisonMean,
-		LogRatio:       mean(logRatios),
+		LogRatio:       lo.Mean(logRatios),
 		Blocks:         len(logRatios),
 	}, logRatios, nil
 }

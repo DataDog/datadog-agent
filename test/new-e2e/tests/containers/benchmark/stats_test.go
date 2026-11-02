@@ -9,6 +9,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -71,10 +72,7 @@ func TestWelchTTest(t *testing.T) {
 			assert.InDelta(t, tt.p, welchTTest(tt.b, tt.a), 1e-6, "the test must be symmetric")
 
 			// (mean(-a) + mean(b)) / 2 = 0 is the hypothesis of Welch's t-test of a and b.
-			negated := make([]float64, len(tt.a))
-			for i, v := range tt.a {
-				negated[i] = -v
-			}
+			negated := lo.Map(tt.a, func(v float64, _ int) float64 { return -v })
 			assert.InDelta(t, tt.p, meanOfMeansTTest(negated, tt.b), 1e-6)
 		})
 	}
