@@ -150,7 +150,6 @@ linters:
             - "!**/comp/core/workloadmeta/collectors/internal/containerd/network_linux.go"
             - "!**/comp/dogstatsd/packets/pool.go"
             - "!**/comp/dogstatsd/server/float64_list_pool.go"
-            - "!**/comp/dogstatsd/server/impl/float64_list_pool.go"
             - "!**/comp/dogstatsd/server/serverless.go"
             - "!**/comp/dogstatsd/server/impl/serverless.go"
             - "!**/comp/dogstatsd/serverDebug/serverdebugimpl/debug.go"

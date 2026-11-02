@@ -3,24 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 )
 
-type metricType int
+// MetricType is the metric kind encoded in the wire message.
+type MetricType int
 
 const (
-	gaugeType metricType = iota
-	countType
-	distributionType
-	histogramType
-	setType
-	timingType
+	Gauge MetricType = iota
+	Count
+	Distribution
+	Histogram
+	Set
+	Timing
 )
 
 var (
@@ -36,25 +38,26 @@ var (
 	timestampFieldPrefix  = []byte("T")
 )
 
-type dogstatsdMetricSample struct {
-	name string
+// MetricSample contains parsed fields before server enrichment.
+type MetricSample struct {
+	Name string
 	// use for single value messages
-	value float64
-	// use for multiple value messages
-	values []float64
+	Value float64
+	// Values borrows numeric storage until the caller returns it to the shared pool.
+	Values []float64
 	// use to store set's values
-	setValue   string
-	metricType metricType
-	sampleRate float64
-	tags       []string
+	SetValue   string
+	Type       MetricType
+	SampleRate float64
+	Tags       []string
 	// localData is used for Origin Detection
-	localData origindetection.LocalData
+	LocalData origindetection.LocalData
 	// externalData is used for Origin Detection
-	externalData origindetection.ExternalData
+	ExternalData origindetection.ExternalData
 	// cardinality is used for Origin Detection
-	cardinality string
+	Cardinality string
 	// timestamp read in the message if any
-	ts time.Time
+	Timestamp time.Time
 }
 
 // sanity checks a given message against the metric sample format
@@ -79,20 +82,20 @@ func parseMetricSampleNameAndRawValue(rawNameAndValue []byte) ([]byte, []byte, e
 	return rawName, rawValue, nil
 }
 
-func parseMetricSampleMetricType(rawMetricType []byte) (metricType, error) {
+func parseMetricSampleMetricType(rawMetricType []byte) (MetricType, error) {
 	switch {
 	case bytes.Equal(rawMetricType, gaugeSymbol):
-		return gaugeType, nil
+		return Gauge, nil
 	case bytes.Equal(rawMetricType, countSymbol):
-		return countType, nil
+		return Count, nil
 	case bytes.Equal(rawMetricType, histogramSymbol):
-		return histogramType, nil
+		return Histogram, nil
 	case bytes.Equal(rawMetricType, distributionSymbol):
-		return distributionType, nil
+		return Distribution, nil
 	case bytes.Equal(rawMetricType, setSymbol):
-		return setType, nil
+		return Set, nil
 	case bytes.Equal(rawMetricType, timingSymbol):
-		return timingType, nil
+		return Timing, nil
 	}
 	return 0, fmt.Errorf("invalid metric type: %q", rawMetricType)
 }

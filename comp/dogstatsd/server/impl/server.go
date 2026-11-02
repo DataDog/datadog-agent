@@ -30,6 +30,7 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -134,7 +135,7 @@ type dsdServer struct {
 	captureChan             chan packets.Packets
 	sharedPacketPool        *packets.Pool
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
-	sharedFloat64List       *float64ListPool
+	sharedFloat64List       *wire.Float64ListPool
 	Statistics              *statutil.Stats
 	Started                 bool
 	startedMtx              sync.RWMutex
@@ -186,7 +187,7 @@ type dsdServer struct {
 	tlmChannel              telemetry.Histogram
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
-	stringInternerTelemetry *stringInternerTelemetry
+	stringInternerTelemetry *wire.InternerTelemetry
 	// Counter for absolute metric types
 	tlmMetricTypes            telemetry.Counter
 	tlmMetricTypeGauge        telemetry.SimpleCounter
@@ -331,7 +332,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		tlmProcessed:            dogstatsdTelemetryCount,
 		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
-		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
+		stringInternerTelemetry: wire.NewInternerTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
 
 	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
@@ -695,7 +696,7 @@ func (s *dsdServer) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *metricname.Matcher) metrics.MetricSampleBatch {
+func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *wire.Parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *metricname.Matcher) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -709,24 +710,24 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packe
 			if s.Statistics != nil {
 				s.Statistics.StatEvent(1)
 			}
-			messageType := findMessageType(message)
+			messageType := wire.FindMessageType(message)
 
 			switch messageType {
-			case serviceCheckType:
+			case wire.ServiceCheckMessage:
 				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
 				batcher.appendServiceCheck(serviceCheck)
-			case eventType:
+			case wire.EventMessage:
 				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
 				}
 				batcher.appendEvent(event)
-			case metricSampleType:
+			case wire.MetricMessage:
 				var err error
 
 				samples = samples[0:0]
@@ -803,10 +804,10 @@ func (s *dsdServer) getOriginCounter(origin string) (okCnt telemetry.SimpleCount
 
 // NOTE(remy): for performance purpose, we may need to revisit this method to deal with both a metricSamples slice and a lateMetricSamples
 // slice, in order to not having to test multiple times if a metric sample is a late one using the Timestamp attribute,
-// which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
+// which will be slower when processing millions of samples. It could use a boolean returned by `wire.Parser.ParseMetric` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
+func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, parser *wire.Parser, message []byte, origin string,
 	processID uint32, listenerID string, originTelemetry bool, filterList *metricname.Matcher) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
@@ -814,41 +815,41 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		okCnt, errorCnt = s.getOriginCounter(origin)
 	}
 
-	sample, err := parser.parseMetricSample(message)
+	sample, err := parser.ParseMetric(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		errorCnt.Inc()
 		return metricSamples, err
 	}
 
-	switch sample.metricType {
-	case gaugeType:
+	switch sample.Type {
+	case wire.Gauge:
 		s.tlmMetricTypeGauge.Inc()
-	case countType:
+	case wire.Count:
 		s.tlmMetricTypeCounter.Inc()
-	case distributionType:
+	case wire.Distribution:
 		s.tlmMetricTypeDistribution.Inc()
-	case histogramType:
+	case wire.Histogram:
 		s.tlmMetricTypeHistogram.Inc()
-	case setType:
+	case wire.Set:
 		s.tlmMetricTypeSet.Inc()
-	case timingType:
+	case wire.Timing:
 		s.tlmMetricTypeTiming.Inc()
 	}
 
 	if s.mapper != nil {
-		mapResult := s.mapper.Map(sample.name)
+		mapResult := s.mapper.Map(sample.Name)
 		if mapResult != nil {
-			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
-			sample.name = mapResult.Name
-			sample.tags = append(sample.tags, mapResult.Tags...)
+			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.Name, mapResult.Name, mapResult.Tags)
+			sample.Name = mapResult.Name
+			sample.Tags = append(sample.Tags, mapResult.Tags...)
 		}
 	}
 
 	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, filterList)
 
-	if len(sample.values) > 0 {
-		s.sharedFloat64List.put(sample.values)
+	if len(sample.Values) > 0 {
+		s.sharedFloat64List.Put(sample.Values)
 	}
 
 	for idx := range metricSamples {
@@ -871,8 +872,8 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 	return metricSamples, nil
 }
 
-func (s *dsdServer) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {
-	sample, err := parser.parseEvent(message)
+func (s *dsdServer) parseEventMessage(parser *wire.Parser, message []byte, origin string, processID uint32) (*event.Event, error) {
+	sample, err := parser.ParseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		s.tlmProcessed.Inc("events", "error", "")
@@ -885,8 +886,8 @@ func (s *dsdServer) parseEventMessage(parser *parser, message []byte, origin str
 	return event, nil
 }
 
-func (s *dsdServer) parseServiceCheckMessage(parser *parser, message []byte, origin string, processID uint32) (*servicecheck.ServiceCheck, error) {
-	sample, err := parser.parseServiceCheck(message)
+func (s *dsdServer) parseServiceCheckMessage(parser *wire.Parser, message []byte, origin string, processID uint32) (*servicecheck.ServiceCheck, error) {
+	sample, err := parser.ParseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		s.tlmProcessed.Inc("service_checks", "error", "")

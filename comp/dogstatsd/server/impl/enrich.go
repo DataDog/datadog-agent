@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
@@ -102,28 +103,28 @@ func serverlessSourceCustomToRuntime(metricSource metrics.MetricSource) metrics.
 	return metricSource
 }
 
-func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
+func enrichMetricType(dogstatsdMetricType wire.MetricType) metrics.MetricType {
 	switch dogstatsdMetricType {
-	case gaugeType:
+	case wire.Gauge:
 		return metrics.GaugeType
-	case countType:
+	case wire.Count:
 		return metrics.CounterType
-	case distributionType:
+	case wire.Distribution:
 		return metrics.DistributionType
-	case histogramType:
+	case wire.Histogram:
 		return metrics.HistogramType
-	case setType:
+	case wire.Set:
 		return metrics.SetType
-	case timingType:
+	case wire.Timing:
 		return metrics.HistogramType
 	}
 	return metrics.GaugeType
 }
 
 // unitFromMetricType returns the Datadog unit string for a dogstatsd metric type.
-// Only timingType carries an implicit unit ("millisecond"); all other types return an empty string.
-func unitFromMetricType(mt metricType) string {
-	if mt == timingType {
+// Only wire.Timing carries an implicit unit ("millisecond"); all other types return an empty string.
+func unitFromMetricType(mt wire.MetricType) string {
+	if mt == wire.Timing {
 		return metrics.UnitMilliseconds
 	}
 	return ""
@@ -149,9 +150,9 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *metricname.Matcher) []metrics.MetricSample {
-	metricName := ddSample.name
-	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
+func enrichMetricSample(dest []metrics.MetricSample, ddSample wire.MetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *metricname.Matcher) []metrics.MetricSample {
+	metricName := ddSample.Name
+	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.Tags, origin, processID, ddSample.LocalData, ddSample.ExternalData, ddSample.Cardinality, conf)
 	if conf.infraTagger.IsCheckEligible(jmxCheckName) {
 		tags = conf.infraTagger.AppendTags(tags)
 	}
@@ -169,25 +170,25 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		hostnameFromTags = ""
 	}
 
-	mtype := enrichMetricType(ddSample.metricType)
+	mtype := enrichMetricType(ddSample.Type)
 
-	// if 'ddSample.values' contains values we're enriching a multi-value
+	// if 'ddSample.Values' contains values we're enriching a multi-value
 	// dogstatsd message and will create a MetricSample per value. If not
-	// we will use 'ddSample.value'and return a single MetricSample
-	unit := unitFromMetricType(ddSample.metricType)
+	// we will use 'ddSample.Value'and return a single MetricSample
+	unit := unitFromMetricType(ddSample.Type)
 
-	if len(ddSample.values) > 0 {
-		for idx := range ddSample.values {
+	if len(ddSample.Values) > 0 {
+		for idx := range ddSample.Values {
 			dest = append(dest,
 				metrics.MetricSample{
 					Host:       hostnameFromTags,
 					Name:       metricName,
 					Tags:       tags,
 					Mtype:      mtype,
-					Value:      ddSample.values[idx],
-					SampleRate: ddSample.sampleRate,
-					RawValue:   ddSample.setValue,
-					Timestamp:  tsToFloatForSamples(ddSample.ts),
+					Value:      ddSample.Values[idx],
+					SampleRate: ddSample.SampleRate,
+					RawValue:   ddSample.SetValue,
+					Timestamp:  tsToFloatForSamples(ddSample.Timestamp),
 					OriginInfo: extractedOrigin,
 					ListenerID: listenerID,
 					Source:     metricSource,
@@ -203,10 +204,10 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		Name:       metricName,
 		Tags:       tags,
 		Mtype:      mtype,
-		Value:      ddSample.value,
-		SampleRate: ddSample.sampleRate,
-		RawValue:   ddSample.setValue,
-		Timestamp:  tsToFloatForSamples(ddSample.ts),
+		Value:      ddSample.Value,
+		SampleRate: ddSample.SampleRate,
+		RawValue:   ddSample.SetValue,
+		Timestamp:  tsToFloatForSamples(ddSample.Timestamp),
 		OriginInfo: extractedOrigin,
 		ListenerID: listenerID,
 		Source:     metricSource,
@@ -214,81 +215,81 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	})
 }
 
-func enrichEventPriority(priority eventPriority) metricsevent.Priority {
+func enrichEventPriority(priority wire.EventPriority) metricsevent.Priority {
 	switch priority {
-	case priorityNormal:
+	case wire.PriorityNormal:
 		return metricsevent.PriorityNormal
-	case priorityLow:
+	case wire.PriorityLow:
 		return metricsevent.PriorityLow
 	}
 	return metricsevent.PriorityNormal
 }
 
-func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.AlertType {
+func enrichEventAlertType(dogstatsdAlertType wire.AlertType) metricsevent.AlertType {
 	switch dogstatsdAlertType {
-	case alertTypeSuccess:
+	case wire.AlertSuccess:
 		return metricsevent.AlertTypeSuccess
-	case alertTypeInfo:
+	case wire.AlertInfo:
 		return metricsevent.AlertTypeInfo
-	case alertTypeWarning:
+	case wire.AlertWarning:
 		return metricsevent.AlertTypeWarning
-	case alertTypeError:
+	case wire.AlertError:
 		return metricsevent.AlertTypeError
 	}
 	return metricsevent.AlertTypeSuccess
 }
 
-func enrichEvent(event dogstatsdEvent, origin string, processID uint32, conf enrichConfig) *metricsevent.Event {
-	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(event.tags, origin, processID, event.localData, event.externalData, event.cardinality, conf)
+func enrichEvent(event wire.Event, origin string, processID uint32, conf enrichConfig) *metricsevent.Event {
+	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(event.Tags, origin, processID, event.LocalData, event.ExternalData, event.Cardinality, conf)
 
 	enrichedEvent := &metricsevent.Event{
-		Title:          event.title,
-		Text:           event.text,
-		Ts:             event.timestamp,
-		Priority:       enrichEventPriority(event.priority),
+		Title:          event.Title,
+		Text:           event.Text,
+		Ts:             event.Timestamp,
+		Priority:       enrichEventPriority(event.Priority),
 		Tags:           tags,
-		AlertType:      enrichEventAlertType(event.alertType),
-		AggregationKey: event.aggregationKey,
-		SourceTypeName: event.sourceType,
+		AlertType:      enrichEventAlertType(event.AlertType),
+		AggregationKey: event.AggregationKey,
+		SourceTypeName: event.SourceType,
 		OriginInfo:     extractedOrigin,
 	}
 
-	if len(event.hostname) != 0 {
-		enrichedEvent.Host = event.hostname
+	if len(event.Hostname) != 0 {
+		enrichedEvent.Host = event.Hostname
 	} else {
 		enrichedEvent.Host = hostnameFromTags
 	}
 	return enrichedEvent
 }
 
-func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceCheckStatus {
+func enrichServiceCheckStatus(status wire.ServiceCheckStatus) servicecheck.ServiceCheckStatus {
 	switch status {
-	case serviceCheckStatusUnknown:
+	case wire.ServiceCheckUnknown:
 		return servicecheck.ServiceCheckUnknown
-	case serviceCheckStatusOk:
+	case wire.ServiceCheckOK:
 		return servicecheck.ServiceCheckOK
-	case serviceCheckStatusWarning:
+	case wire.ServiceCheckWarning:
 		return servicecheck.ServiceCheckWarning
-	case serviceCheckStatusCritical:
+	case wire.ServiceCheckCritical:
 		return servicecheck.ServiceCheckCritical
 	}
 	return servicecheck.ServiceCheckUnknown
 }
 
-func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, processID uint32, conf enrichConfig) *servicecheck.ServiceCheck {
-	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(serviceCheck.tags, origin, processID, serviceCheck.localData, serviceCheck.externalData, serviceCheck.cardinality, conf)
+func enrichServiceCheck(serviceCheck wire.ServiceCheck, origin string, processID uint32, conf enrichConfig) *servicecheck.ServiceCheck {
+	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(serviceCheck.Tags, origin, processID, serviceCheck.LocalData, serviceCheck.ExternalData, serviceCheck.Cardinality, conf)
 
 	enrichedServiceCheck := &servicecheck.ServiceCheck{
-		CheckName:  serviceCheck.name,
-		Ts:         serviceCheck.timestamp,
-		Status:     enrichServiceCheckStatus(serviceCheck.status),
-		Message:    serviceCheck.message,
+		CheckName:  serviceCheck.Name,
+		Ts:         serviceCheck.Timestamp,
+		Status:     enrichServiceCheckStatus(serviceCheck.Status),
+		Message:    serviceCheck.Message,
 		Tags:       tags,
 		OriginInfo: extractedOrigin,
 	}
 
-	if len(serviceCheck.hostname) != 0 {
-		enrichedServiceCheck.Host = serviceCheck.hostname
+	if len(serviceCheck.Hostname) != 0 {
+		enrichedServiceCheck.Host = serviceCheck.Hostname
 	} else {
 		enrichedServiceCheck.Host = hostnameFromTags
 	}

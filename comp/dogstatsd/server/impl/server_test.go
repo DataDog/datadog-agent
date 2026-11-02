@@ -171,8 +171,9 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s)
 
+	deps.Config.SetInTest("dogstatsd_origin_detection_client", true)
+
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-	parser.dsdOriginEnabled = true
 
 	// Metric
 	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", 0, "", false, nil)
@@ -215,8 +216,9 @@ func TestOrigin(t *testing.T) {
 
 		requireStart(t, s)
 
+		deps.Config.SetInTest("dogstatsd_origin_detection_client", true)
+
 		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-		parser.dsdOriginEnabled = true
 
 		// Metric
 		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", 1234, "", false, nil)

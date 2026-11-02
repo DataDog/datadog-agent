@@ -3,42 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	noops "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
-func BenchmarkLoadOrStoreReset(b *testing.B) {
-	telemetryComp := fxutil.Test[telemetry.Component](b, mocktelemetry.Module())
-	// benchmark with the internal telemetry enabled
-	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
-
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
-
-	list := []string{}
-	for i := 0; i < 512; i++ {
-		list = append(list, fmt.Sprintf("testing.metric%d", i))
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		sInterner.LoadOrStore([]byte(list[i%len(list)]))
-	}
-}
-
 func TestInternLoadOrStoreValue(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryComp := noops.GetCompatComponent()
 	assert := assert.New(t)
-	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(3, 1, stringInternerTelemetry)
+	internerTelemetry := NewInternerTelemetry(false, telemetryComp)
+	sInterner := newStringInterner(3, 1, internerTelemetry)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -58,10 +37,10 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 }
 
 func TestInternLoadOrStorePointer(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryComp := noops.GetCompatComponent()
 	assert := assert.New(t)
-	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
+	internerTelemetry := NewInternerTelemetry(false, telemetryComp)
+	sInterner := newStringInterner(4, 1, internerTelemetry)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -85,10 +64,10 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 }
 
 func TestInternLoadOrStoreReset(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryComp := noops.GetCompatComponent()
 	assert := assert.New(t)
-	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
+	internerTelemetry := NewInternerTelemetry(false, telemetryComp)
+	sInterner := newStringInterner(4, 1, internerTelemetry)
 
 	// first test that the good value is returned.
 	sInterner.LoadOrStore([]byte("foo"))

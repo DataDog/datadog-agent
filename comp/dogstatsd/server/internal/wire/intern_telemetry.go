@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
-type stringInternerTelemetry struct {
+// InternerTelemetry supplies shared instruments with worker-specific labels.
+type InternerTelemetry struct {
 	enabled bool
 
 	resets               telemetry.Counter
@@ -30,9 +31,10 @@ type stringInternerInstanceTelemetry struct {
 	globaltlmSIRStrBytes telemetry.SimpleHistogram
 }
 
-func newSiTelemetry(enabled bool, telemetry telemetry.Component) *stringInternerTelemetry {
+// NewInternerTelemetry creates interner instruments when telemetry is enabled.
+func NewInternerTelemetry(enabled bool, telemetry telemetry.Component) *InternerTelemetry {
 	if enabled {
-		return &stringInternerTelemetry{
+		return &InternerTelemetry{
 			enabled: enabled,
 			globaltlmSIRStrBytes: telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 				"Number of times string with specific length were added",
@@ -45,13 +47,13 @@ func newSiTelemetry(enabled bool, telemetry telemetry.Component) *stringInterner
 		}
 	}
 
-	return &stringInternerTelemetry{
+	return &InternerTelemetry{
 		enabled: enabled,
 	}
 }
 
-// PrepareForId creates an instance of stringInternerInstanceTelemetry for a specific id.
-func (s *stringInternerTelemetry) PrepareForID(id string) *stringInternerInstanceTelemetry {
+// prepareForID creates an instance of stringInternerInstanceTelemetry for a specific id.
+func (s *InternerTelemetry) prepareForID(id string) *stringInternerInstanceTelemetry {
 	if s.enabled {
 		return &stringInternerInstanceTelemetry{
 			enabled:              true,

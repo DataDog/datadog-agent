@@ -8,6 +8,7 @@ package serverimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
@@ -24,9 +25,10 @@ func FuzzParseEventWithEnrich(f *testing.F) {
 		// This needs to be done in the fuzz test because there's a log emitted
 		// and the fuzzer cannot call `f.Log()` inside here, it must be `t.Log()`, which we don't have access to if it's initialized once.
 		deps := newServerDeps(t)
-		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-		parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-		parsed, err := parser.parseEvent(rawEvent)
+		stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+		pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+		parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+		parsed, err := parser.ParseEvent(rawEvent)
 		if err != nil {
 			return
 		}
@@ -46,13 +48,17 @@ func FuzzParseMetricWithEnrich(f *testing.F) {
 		// This needs to be done in the fuzz test because there's a log emitted
 		// and the fuzzer cannot call `f.Log()` inside here, it must be `t.Log()`, which we don't have access to if it's initialized once.
 		deps := newServerDeps(t)
-		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-		parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+		stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+		pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+		parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
 		filter := metricname.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
 
-		parsed, err := parser.parseMetricSample(rawMetric)
+		parsed, err := parser.ParseMetric(rawMetric)
 		if err != nil {
 			return
+		}
+		if len(parsed.Values) > 0 {
+			defer pool.Put(parsed.Values)
 		}
 		dest := make([]metrics.MetricSample, 0, 1)
 		_ = enrichMetricSample(dest, parsed, origin, processID, "", enrichConfig{
@@ -71,10 +77,11 @@ func FuzzParseServiceCheckWithEnrich(f *testing.F) {
 		// This needs to be done in the fuzz test because there's a log emitted
 		// and the fuzzer cannot call `f.Log()` inside here, it must be `t.Log()`, which we don't have access to if it's initialized once.
 		deps := newServerDeps(t)
-		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-		parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+		stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+		pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+		parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
 
-		parsed, err := parser.parseServiceCheck(rawServiceCheck)
+		parsed, err := parser.ParseServiceCheck(rawServiceCheck)
 		if err != nil {
 			return
 		}

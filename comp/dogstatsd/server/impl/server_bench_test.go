@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -106,7 +107,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	}()
 	defer close(done)
 
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
 	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
@@ -166,7 +167,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	defer close(done)
 
 	batcher := newBatcher(demux, histogram)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
 	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 
 	samples := make([]metrics.MetricSample, 0, 512)

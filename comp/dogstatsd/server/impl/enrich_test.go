@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -38,13 +39,17 @@ var (
 
 func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrichConfig) (metrics.MetricSample, error) {
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	parsed, err := parser.parseMetricSample(message)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+	parsed, err := parser.ParseMetric(message)
 	if err != nil {
 		return metrics.MetricSample{}, err
 	}
 
+	if len(parsed.Values) > 0 {
+		defer pool.Put(parsed.Values)
+	}
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
 	if len(samples) != 1 {
@@ -55,22 +60,27 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 
 func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	parsed, err := parser.parseMetricSample(message)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+	parsed, err := parser.ParseMetric(message)
 	if err != nil {
 		return []metrics.MetricSample{}, err
 	}
 
+	if len(parsed.Values) > 0 {
+		defer pool.Put(parsed.Values)
+	}
 	samples := []metrics.MetricSample{}
 	return enrichMetricSample(samples, parsed, "", 0, "", conf, nil), nil
 }
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	parsed, err := parser.parseServiceCheck(message)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+	parsed, err := parser.ParseServiceCheck(message)
 	if err != nil {
 		return nil, err
 	}
@@ -79,9 +89,10 @@ func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrich
 
 func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*event.Event, error) {
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	parsed, err := parser.parseEvent(message)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+	parsed, err := parser.ParseEvent(message)
 	if err != nil {
 		return nil, err
 	}
@@ -1000,10 +1011,14 @@ func TestMetricFilterListShouldBlock(t *testing.T) {
 	}
 
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	parsed, err := parser.parseMetricSample(message)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+	parsed, err := parser.ParseMetric(message)
 	assert.NoError(t, err)
+	if len(parsed.Values) > 0 {
+		defer pool.Put(parsed.Values)
+	}
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filter)
 
@@ -1022,13 +1037,17 @@ func TestMetricFilterListPrefixEntry(t *testing.T) {
 	}
 
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
 
 	enrich := func(t *testing.T, message string) []metrics.MetricSample {
 		t.Helper()
-		parsed, err := parser.parseMetricSample([]byte(message))
-		assert.NoError(t, err)
+		parsed, err := parser.ParseMetric([]byte(message))
+		require.NoError(t, err)
+		if len(parsed.Values) > 0 {
+			t.Cleanup(func() { pool.Put(parsed.Values) })
+		}
 		return enrichMetricSample([]metrics.MetricSample{}, parsed, "", 0, "", conf, &filter)
 	}
 
@@ -1047,10 +1066,14 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 	message := []byte("custom.metric.a:21|ms")
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	parsed, err := parser.parseMetricSample(message)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+	parsed, err := parser.ParseMetric(message)
 	assert.NoError(t, err)
+	if len(parsed.Values) > 0 {
+		defer pool.Put(parsed.Values)
+	}
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
 
@@ -1065,10 +1088,14 @@ func TestMetricFilterListShouldNotBlock(t *testing.T) {
 		defaultHostname: "default",
 	}
 	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	parsed, err := parser.parseMetricSample(message)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
+	parsed, err := parser.ParseMetric(message)
 	assert.NoError(t, err)
+	if len(parsed.Values) > 0 {
+		defer pool.Put(parsed.Values)
+	}
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filterList)
 
@@ -1650,3 +1677,5 @@ func TestServerlessSourceCustomToRuntime(t *testing.T) {
 		})
 	}
 }
+
+const epsilon = 0.00001

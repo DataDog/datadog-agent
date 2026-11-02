@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "wire",
+    srcs = [
+        "doc.go",
+        "float64_list_pool.go",
+        "intern.go",
+        "intern_telemetry.go",
+        "parse.go",
+        "parse_events.go",
+        "parse_metrics.go",
+        "parse_service_checks.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire",
+    visibility = ["//comp/dogstatsd/server:__subpackages__"],
+    deps = [
+        "//comp/core/tagger/origindetection",
+        "//comp/core/telemetry/def",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "wire_test",
+    srcs = [
+        "fixture_test.go",
+        "intern_bench_test.go",
+        "intern_test.go",
+        "ownership_test.go",
+        "parse_bench_test.go",
+        "parse_events_fuzz_test.go",
+        "parse_events_test.go",
+        "parse_metrics_fuzz_test.go",
+        "parse_metrics_test.go",
+        "parse_pool_test.go",
+        "parse_service_checks_fuzz_test.go",
+        "parse_service_checks_test.go",
+        "parse_test.go",
+        "telemetry_test.go",
+    ],
+    embed = [":wire"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/impl/noops",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

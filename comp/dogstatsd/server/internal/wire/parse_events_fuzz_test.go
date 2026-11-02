@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import (
 	"testing"
@@ -20,10 +20,8 @@ func FuzzParseEvent(f *testing.F) {
 	f.Fuzz(func(t *testing.T, rawEvent []byte) {
 		// This needs to be done in the fuzz test because there's a log emitted
 		// and the fuzzer cannot call `f.Log()` inside here, it must be `t.Log()`, which we don't have access to if it's initialized once.
-		deps := newServerDeps(t)
-		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-		parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-		_, err := parser.parseEvent(rawEvent)
+		parser := testParser(t, testOptions())
+		_, err := parser.ParseEvent(rawEvent)
 		if err != nil {
 			// we expect errors, we just don't want to panic(), or timeout
 			return

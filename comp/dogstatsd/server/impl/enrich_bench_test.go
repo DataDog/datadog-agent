@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
@@ -45,8 +46,8 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 func BenchmarkMetricsExclusion(b *testing.B) {
 	conf := enrichConfig{}
 
-	sample := dogstatsdMetricSample{
-		name: "datadog.agent.testing.metric.does_not_match",
+	sample := wire.MetricSample{
+		Name: "datadog.agent.testing.metric.does_not_match",
 	}
 
 	out := make([]metrics.MetricSample, 0, 10)

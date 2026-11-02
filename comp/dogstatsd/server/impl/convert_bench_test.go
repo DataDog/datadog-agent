@@ -20,6 +20,7 @@ import (
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -46,8 +47,9 @@ var (
 
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 	deps := newServerDeps(b)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	stringInternerTelemetry := wire.NewInternerTelemetry(false, deps.Telemetry)
+	pool := newFloat64ListPool(deps.Config, deps.Telemetry)
+	parser := newParser(deps.Config, pool, 1, deps.WMeta, stringInternerTelemetry)
 
 	conf := enrichConfig{
 		defaultHostname:           "default-hostname",
@@ -62,12 +64,15 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 
 			for n := 0; n < sb.N; n++ {
 
-				parsed, err := parser.parseMetricSample(rawSample)
+				parsed, err := parser.ParseMetric(rawSample)
 				if err != nil {
-					continue
+					sb.Fatal(err)
 				}
 
 				benchSamples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
+				if len(parsed.Values) > 0 {
+					pool.Put(parsed.Values)
+				}
 			}
 		})
 	}

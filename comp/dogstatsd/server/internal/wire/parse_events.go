@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import (
 	"bytes"
@@ -15,38 +15,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type eventPriority int
+// EventPriority is an event's wire priority.
+type EventPriority int
 
 const (
-	priorityNormal eventPriority = iota
-	priorityLow
+	PriorityNormal EventPriority = iota
+	PriorityLow
 )
 
-type alertType int
+// AlertType is an event's wire alert level.
+type AlertType int
 
 const (
-	alertTypeSuccess alertType = iota
-	alertTypeInfo
-	alertTypeWarning
-	alertTypeError
+	AlertSuccess AlertType = iota
+	AlertInfo
+	AlertWarning
+	AlertError
 )
 
-type dogstatsdEvent struct {
-	title          string
-	text           string
-	timestamp      int64
-	hostname       string
-	aggregationKey string
-	priority       eventPriority
-	sourceType     string
-	alertType      alertType
-	tags           []string
+// Event contains parsed event fields before server enrichment.
+type Event struct {
+	Title          string
+	Text           string
+	Timestamp      int64
+	Hostname       string
+	AggregationKey string
+	Priority       EventPriority
+	SourceType     string
+	AlertType      AlertType
+	Tags           []string
 	// localData is used for Origin Detection
-	localData origindetection.LocalData
+	LocalData origindetection.LocalData
 	// externalData is used for Origin Detection
-	externalData origindetection.ExternalData
+	ExternalData origindetection.ExternalData
 	// cardinality is used for Origin Detection
-	cardinality string
+	Cardinality string
 }
 
 type eventHeader struct {
@@ -128,54 +131,54 @@ func parseEventTimestamp(rawTimestamp []byte) (int64, error) {
 	return parseInt64(rawTimestamp)
 }
 
-func parseEventPriority(rawPriority []byte) (eventPriority, error) {
+func parseEventPriority(rawPriority []byte) (EventPriority, error) {
 	switch {
 	case bytes.Equal(rawPriority, eventPriorityNormal):
-		return priorityNormal, nil
+		return PriorityNormal, nil
 	case bytes.Equal(rawPriority, eventPriorityLow):
-		return priorityLow, nil
+		return PriorityLow, nil
 	}
-	return priorityNormal, fmt.Errorf("invalid event priority: %q", rawPriority)
+	return PriorityNormal, fmt.Errorf("invalid event priority: %q", rawPriority)
 }
 
-func parseEventAlertType(rawAlertType []byte) (alertType, error) {
+func parseEventAlertType(rawAlertType []byte) (AlertType, error) {
 	switch {
 	case bytes.Equal(rawAlertType, eventAlertTypeSuccess):
-		return alertTypeSuccess, nil
+		return AlertSuccess, nil
 	case bytes.Equal(rawAlertType, eventAlertTypeInfo):
-		return alertTypeInfo, nil
+		return AlertInfo, nil
 	case bytes.Equal(rawAlertType, eventAlertTypeWarning):
-		return alertTypeWarning, nil
+		return AlertWarning, nil
 	case bytes.Equal(rawAlertType, eventAlertTypeError):
-		return alertTypeError, nil
+		return AlertError, nil
 	}
-	return alertTypeInfo, fmt.Errorf("invalid alert type: %q", rawAlertType)
+	return AlertInfo, fmt.Errorf("invalid alert type: %q", rawAlertType)
 }
 
-func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []byte) (dogstatsdEvent, error) {
+func (p *Parser) applyEventOptionalField(event Event, optionalField []byte) (Event, error) {
 	newEvent := event
 	var err error
 	switch {
 	case bytes.HasPrefix(optionalField, eventTimestampPrefix):
-		newEvent.timestamp, err = parseEventTimestamp(optionalField[len(eventTimestampPrefix):])
+		newEvent.Timestamp, err = parseEventTimestamp(optionalField[len(eventTimestampPrefix):])
 	case bytes.HasPrefix(optionalField, eventHostnamePrefix):
-		newEvent.hostname = string(optionalField[len(eventHostnamePrefix):])
+		newEvent.Hostname = string(optionalField[len(eventHostnamePrefix):])
 	case bytes.HasPrefix(optionalField, eventAggregationKeyPrefix):
-		newEvent.aggregationKey = string(optionalField[len(eventAggregationKeyPrefix):])
+		newEvent.AggregationKey = string(optionalField[len(eventAggregationKeyPrefix):])
 	case bytes.HasPrefix(optionalField, eventPriorityPrefix):
-		newEvent.priority, err = parseEventPriority(optionalField[len(eventPriorityPrefix):])
+		newEvent.Priority, err = parseEventPriority(optionalField[len(eventPriorityPrefix):])
 	case bytes.HasPrefix(optionalField, eventSourceTypePrefix):
-		newEvent.sourceType = string(optionalField[len(eventSourceTypePrefix):])
+		newEvent.SourceType = string(optionalField[len(eventSourceTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
-		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
+		newEvent.AlertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
-		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
+		newEvent.Tags = p.parseTags(optionalField[len(eventTagsPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newEvent.localData = p.parseLocalData(optionalField[len(localDataPrefix):])
+		newEvent.LocalData = p.parseLocalData(optionalField[len(localDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newEvent.externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
+		newEvent.ExternalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, cardinalityPrefix):
-		newEvent.cardinality = string(optionalField[len(cardinalityPrefix):])
+		newEvent.Cardinality = string(optionalField[len(cardinalityPrefix):])
 	}
 	if err != nil {
 		return event, err
@@ -183,38 +186,39 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 	return newEvent, nil
 }
 
-func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
+// ParseEvent parses an event, ignoring malformed optional fields as before.
+func (p *Parser) ParseEvent(message []byte) (Event, error) {
 	rawHeader, rawEvent, err := splitHeaderEvent(message)
 	if err != nil {
-		return dogstatsdEvent{}, err
+		return Event{}, err
 	}
 
 	header, err := parseHeader(rawHeader)
 	if err != nil {
-		return dogstatsdEvent{}, err
+		return Event{}, err
 	}
 
 	textStart, overflow := bits.Add(header.titleLength, 1, 0)
 	if overflow > 0 {
-		return dogstatsdEvent{}, errors.New("invalid event")
+		return Event{}, errors.New("invalid event")
 	}
 	contentLength, overflow := bits.Add(textStart, header.textLength, 0)
 	if overflow > 0 {
-		return dogstatsdEvent{}, errors.New("invalid event")
+		return Event{}, errors.New("invalid event")
 	}
 
 	if uint(len(rawEvent)) < contentLength {
-		return dogstatsdEvent{}, errors.New("invalid event")
+		return Event{}, errors.New("invalid event")
 	}
 
 	title := cleanEventText(rawEvent[:header.titleLength])
 	text := cleanEventText(rawEvent[textStart:contentLength])
 
-	event := dogstatsdEvent{
-		title:     string(title),
-		text:      string(text),
-		priority:  priorityNormal,
-		alertType: alertTypeInfo,
+	event := Event{
+		Title:     string(title),
+		Text:      string(text),
+		Priority:  PriorityNormal,
+		AlertType: AlertInfo,
 	}
 
 	if uint(len(rawEvent)) == contentLength {

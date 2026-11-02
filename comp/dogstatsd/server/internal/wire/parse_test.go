@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import (
 	"math"
@@ -11,36 +11,35 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIdentifyEvent(t *testing.T) {
 	metricSample := []byte("_e{4,5}:title|text|#shell,bash")
-	messageType := findMessageType(metricSample)
-	assert.Equal(t, eventType, messageType)
+	kind := FindMessageType(metricSample)
+	assert.Equal(t, EventMessage, kind)
 }
 
 func TestIdentifyServiceCheck(t *testing.T) {
 	metricSample := []byte("_sc|NAME|STATUS|d:TIMESTAMP|h:HOSTNAME|#TAG_KEY_1:TAG_VALUE_1,TAG_2|m:SERVICE_CHECK_MESSAGE")
-	messageType := findMessageType(metricSample)
-	assert.Equal(t, serviceCheckType, messageType)
+	kind := FindMessageType(metricSample)
+	assert.Equal(t, ServiceCheckMessage, kind)
 }
 
 func TestIdentifyMetricSample(t *testing.T) {
 	metricSample := []byte("song.length:240|h|@0.5")
-	messageType := findMessageType(metricSample)
-	assert.Equal(t, metricSampleType, messageType)
+	kind := FindMessageType(metricSample)
+	assert.Equal(t, MetricMessage, kind)
 }
 
 func TestIdentifyRandomString(t *testing.T) {
 	metricSample := []byte("song.length:240|h|@0.5")
-	messageType := findMessageType(metricSample)
-	assert.Equal(t, metricSampleType, messageType)
+	kind := FindMessageType(metricSample)
+	assert.Equal(t, MetricMessage, kind)
 }
 
 func TestParseTags(t *testing.T) {
-	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	p := testParser(t, testOptions())
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags)
 	expectedTags := []string{"tag:test", "mytag", "good:boy"}
@@ -48,9 +47,7 @@ func TestParseTags(t *testing.T) {
 }
 
 func TestParseTagsEmpty(t *testing.T) {
-	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	p := testParser(t, testOptions())
 	rawTags := []byte("")
 	tags := p.parseTags(rawTags)
 	assert.Nil(t, tags)
@@ -68,33 +65,36 @@ func TestUnsafeParseFloat(t *testing.T) {
 }
 
 func TestUnsafeParseFloatList(t *testing.T) {
-	deps := newServerDeps(t)
-	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	p := testParser(t, testOptions())
 	unsafeFloats, err := p.parseFloat64List([]byte("1.1234:21.5:13"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, unsafeFloats, 3)
 	assert.Equal(t, []float64{1.1234, 21.5, 13}, unsafeFloats)
+	p.float64List.Put(unsafeFloats)
 
 	unsafeFloats, err = p.parseFloat64List([]byte("1.1234"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, unsafeFloats, 1)
 	assert.Equal(t, []float64{1.1234}, unsafeFloats)
+	p.float64List.Put(unsafeFloats)
 
 	unsafeFloats, err = p.parseFloat64List([]byte("1.1234:41:"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, unsafeFloats, 2)
 	assert.Equal(t, []float64{1.1234, 41}, unsafeFloats)
+	p.float64List.Put(unsafeFloats)
 
 	unsafeFloats, err = p.parseFloat64List([]byte("1.1234::41"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, unsafeFloats, 2)
 	assert.Equal(t, []float64{1.1234, 41}, unsafeFloats)
+	p.float64List.Put(unsafeFloats)
 
 	unsafeFloats, err = p.parseFloat64List([]byte(":1.1234::41"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, unsafeFloats, 2)
 	assert.Equal(t, []float64{1.1234, 41}, unsafeFloats)
+	p.float64List.Put(unsafeFloats)
 
 	_, err = p.parseFloat64List([]byte(""))
 	assert.Error(t, err)

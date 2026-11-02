@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ type stringInterner struct {
 	telemetry *stringInternerInstanceTelemetry
 }
 
-func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
+func newStringInterner(maxSize int, internerID int, siTelemetry *InternerTelemetry) *stringInterner {
 	// telemetryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
 
 	id := fmt.Sprintf("interner_%d", internerID)
@@ -39,7 +39,7 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 		strings:   make(map[string]string),
 		id:        id,
 		maxSize:   maxSize,
-		telemetry: siTelemetry.PrepareForID(id),
+		telemetry: siTelemetry.prepareForID(id),
 	}
 
 	return i

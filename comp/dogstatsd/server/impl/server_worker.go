@@ -8,6 +8,7 @@ package serverimpl
 import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
@@ -27,7 +28,7 @@ type worker struct {
 	// checks and it will automatically forward them to the aggregator, meaning that
 	// the flushing logic to the aggregator is actually in the batcher.
 	batcher *batcher
-	parser  *parser
+	parser  *wire.Parser
 
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
@@ -40,7 +41,7 @@ type worker struct {
 	filterList       metricname.Matcher
 }
 
-func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList metricname.Matcher) *worker {
+func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *wire.InternerTelemetry, filterList metricname.Matcher) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)

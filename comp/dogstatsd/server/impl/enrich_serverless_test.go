@@ -12,9 +12,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	noops "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server/internal/wire"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestConvertParseDistributionServerless(t *testing.T) {
@@ -22,9 +28,15 @@ func TestConvertParseDistributionServerless(t *testing.T) {
 
 	assert.Equal(t, "", defaultHostname, "In serverless mode, the hostname returned should be an empty string")
 	assert.NoError(t, err)
-	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:3.5|d"), enrichConfig{})
-
-	assert.NoError(t, err)
+	cfg := configmock.New(t)
+	telemetry := noops.GetCompatComponent()
+	pool := newFloat64ListPool(cfg, telemetry)
+	p := newParser(cfg, pool, 1, option.None[workloadmeta.Component](), wire.NewInternerTelemetry(false, telemetry))
+	sample, err := p.ParseMetric([]byte("daemon:3.5|d"))
+	require.NoError(t, err)
+	samples := enrichMetricSample(nil, sample, "", 0, "", enrichConfig{}, nil)
+	require.Len(t, samples, 1)
+	parsed := samples[0]
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 3.5, parsed.Value)

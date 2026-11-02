@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverimpl
+package wire
 
 import (
 	"bytes"
@@ -15,28 +15,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type serviceCheckStatus int
+// ServiceCheckStatus is a service check's wire status.
+type ServiceCheckStatus int
 
 const (
-	serviceCheckStatusUnknown serviceCheckStatus = iota
-	serviceCheckStatusOk
-	serviceCheckStatusWarning
-	serviceCheckStatusCritical
+	ServiceCheckUnknown ServiceCheckStatus = iota
+	ServiceCheckOK
+	ServiceCheckWarning
+	ServiceCheckCritical
 )
 
-type dogstatsdServiceCheck struct {
-	name      string
-	status    serviceCheckStatus
-	timestamp int64
-	hostname  string
-	message   string
-	tags      []string
+// ServiceCheck contains parsed service-check fields before server enrichment.
+type ServiceCheck struct {
+	Name      string
+	Status    ServiceCheckStatus
+	Timestamp int64
+	Hostname  string
+	Message   string
+	Tags      []string
 	// localData is used for Origin Detection
-	localData origindetection.LocalData
+	LocalData origindetection.LocalData
 	// externalData is used for Origin Detection
-	externalData origindetection.ExternalData
+	ExternalData origindetection.ExternalData
 	// cardinality is used for Origin Detection
-	cardinality string
+	Cardinality string
 }
 
 var (
@@ -73,42 +75,42 @@ func parseServiceCheckName(rawName []byte) ([]byte, error) {
 	return rawName, nil
 }
 
-func parseServiceCheckStatus(rawStatus []byte) (serviceCheckStatus, error) {
+func parseServiceCheckStatus(rawStatus []byte) (ServiceCheckStatus, error) {
 	switch {
 	case bytes.Equal(rawStatus, rawServiceCheckStatusOk):
-		return serviceCheckStatusOk, nil
+		return ServiceCheckOK, nil
 	case bytes.Equal(rawStatus, rawServiceCheckStatusWarning):
-		return serviceCheckStatusWarning, nil
+		return ServiceCheckWarning, nil
 	case bytes.Equal(rawStatus, rawServiceCheckStatusCritical):
-		return serviceCheckStatusCritical, nil
+		return ServiceCheckCritical, nil
 	case bytes.Equal(rawStatus, rawServiceCheckStatusUnknown):
-		return serviceCheckStatusUnknown, nil
+		return ServiceCheckUnknown, nil
 	}
-	return serviceCheckStatusUnknown, fmt.Errorf("invalid dogstatsd service check status: %q", rawStatus)
+	return ServiceCheckUnknown, fmt.Errorf("invalid dogstatsd service check status: %q", rawStatus)
 }
 
 func parseServiceCheckTimestamp(rawTimestamp []byte) (int64, error) {
 	return strconv.ParseInt(string(rawTimestamp), 10, 64)
 }
 
-func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceCheck, optionalField []byte) (dogstatsdServiceCheck, error) {
+func (p *Parser) applyServiceCheckOptionalField(serviceCheck ServiceCheck, optionalField []byte) (ServiceCheck, error) {
 	newServiceCheck := serviceCheck
 	var err error
 	switch {
 	case bytes.HasPrefix(optionalField, serviceCheckTimestampPrefix):
-		newServiceCheck.timestamp, err = parseServiceCheckTimestamp(optionalField[len(serviceCheckTimestampPrefix):])
+		newServiceCheck.Timestamp, err = parseServiceCheckTimestamp(optionalField[len(serviceCheckTimestampPrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckHostnamePrefix):
-		newServiceCheck.hostname = string(optionalField[len(serviceCheckHostnamePrefix):])
+		newServiceCheck.Hostname = string(optionalField[len(serviceCheckHostnamePrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckTagsPrefix):
-		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):])
+		newServiceCheck.Tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
-		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
+		newServiceCheck.Message = string(optionalField[len(serviceCheckMessagePrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-		newServiceCheck.localData = p.parseLocalData(optionalField[len(localDataPrefix):])
+		newServiceCheck.LocalData = p.parseLocalData(optionalField[len(localDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-		newServiceCheck.externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
+		newServiceCheck.ExternalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, cardinalityPrefix):
-		newServiceCheck.cardinality = string(optionalField[len(cardinalityPrefix):])
+		newServiceCheck.Cardinality = string(optionalField[len(cardinalityPrefix):])
 	}
 	if err != nil {
 		return serviceCheck, err
@@ -116,9 +118,10 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 	return newServiceCheck, nil
 }
 
-func (p *parser) parseServiceCheck(message []byte) (dogstatsdServiceCheck, error) {
+// ParseServiceCheck parses a service check, ignoring malformed optional fields.
+func (p *Parser) ParseServiceCheck(message []byte) (ServiceCheck, error) {
 	if !hasServiceCheckFormat(message) {
-		return dogstatsdServiceCheck{}, errors.New("invalid dogstatsd service check format")
+		return ServiceCheck{}, errors.New("invalid dogstatsd service check format")
 	}
 	// pop the _sc| header
 	message = message[4:]
@@ -126,18 +129,18 @@ func (p *parser) parseServiceCheck(message []byte) (dogstatsdServiceCheck, error
 	rawName, message := nextField(message)
 	name, err := parseServiceCheckName(rawName)
 	if err != nil {
-		return dogstatsdServiceCheck{}, err
+		return ServiceCheck{}, err
 	}
 
 	rawStatus, message := nextField(message)
 	status, err := parseServiceCheckStatus(rawStatus)
 	if err != nil {
-		return dogstatsdServiceCheck{}, err
+		return ServiceCheck{}, err
 	}
 
-	serviceCheck := dogstatsdServiceCheck{
-		name:   string(name),
-		status: status,
+	serviceCheck := ServiceCheck{
+		Name:   string(name),
+		Status: status,
 	}
 
 	var optionalField []byte
