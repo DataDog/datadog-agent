@@ -8,6 +8,7 @@ go_library(
     srcs = [
         "metadata_telemetry.go",
         "metrics.go",
+        "payload_type.go",
         "serializer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer",

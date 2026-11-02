@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	mock "github.com/stretchr/testify/mock"
@@ -299,16 +300,16 @@ func (_c *MetricSerializer_SendEvents_Call) RunAndReturn(run func(e event.Events
 }
 
 // SendHostMetadata provides a mock function for the type MetricSerializer
-func (_mock *MetricSerializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
-	ret := _mock.Called(m)
+func (_mock *MetricSerializer) SendHostMetadata(m marshaler.JSONMarshaler, payloadType serializer.PayloadType) error {
+	ret := _mock.Called(m, payloadType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SendHostMetadata")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(marshaler.JSONMarshaler) error); ok {
-		r0 = returnFunc(m)
+	if returnFunc, ok := ret.Get(0).(func(marshaler.JSONMarshaler, serializer.PayloadType) error); ok {
+		r0 = returnFunc(m, payloadType)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -322,18 +323,24 @@ type MetricSerializer_SendHostMetadata_Call struct {
 
 // SendHostMetadata is a helper method to define mock.On call
 //   - m marshaler.JSONMarshaler
-func (_e *MetricSerializer_Expecter) SendHostMetadata(m any) *MetricSerializer_SendHostMetadata_Call {
-	return &MetricSerializer_SendHostMetadata_Call{Call: _e.mock.On("SendHostMetadata", m)}
+//   - payloadType serializer.PayloadType
+func (_e *MetricSerializer_Expecter) SendHostMetadata(m any, payloadType any) *MetricSerializer_SendHostMetadata_Call {
+	return &MetricSerializer_SendHostMetadata_Call{Call: _e.mock.On("SendHostMetadata", m, payloadType)}
 }
 
-func (_c *MetricSerializer_SendHostMetadata_Call) Run(run func(m marshaler.JSONMarshaler)) *MetricSerializer_SendHostMetadata_Call {
+func (_c *MetricSerializer_SendHostMetadata_Call) Run(run func(m marshaler.JSONMarshaler, payloadType serializer.PayloadType)) *MetricSerializer_SendHostMetadata_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 marshaler.JSONMarshaler
 		if args[0] != nil {
 			arg0 = args[0].(marshaler.JSONMarshaler)
 		}
+		var arg1 serializer.PayloadType
+		if args[1] != nil {
+			arg1 = args[1].(serializer.PayloadType)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -344,7 +351,7 @@ func (_c *MetricSerializer_SendHostMetadata_Call) Return(err error) *MetricSeria
 	return _c
 }
 
-func (_c *MetricSerializer_SendHostMetadata_Call) RunAndReturn(run func(m marshaler.JSONMarshaler) error) *MetricSerializer_SendHostMetadata_Call {
+func (_c *MetricSerializer_SendHostMetadata_Call) RunAndReturn(run func(m marshaler.JSONMarshaler, payloadType serializer.PayloadType) error) *MetricSerializer_SendHostMetadata_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -401,16 +408,16 @@ func (_c *MetricSerializer_SendIterableSeries_Call) RunAndReturn(run func(serieS
 }
 
 // SendMetadata provides a mock function for the type MetricSerializer
-func (_mock *MetricSerializer) SendMetadata(m marshaler.JSONMarshaler) error {
-	ret := _mock.Called(m)
+func (_mock *MetricSerializer) SendMetadata(m marshaler.JSONMarshaler, payloadType serializer.PayloadType) error {
+	ret := _mock.Called(m, payloadType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SendMetadata")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(marshaler.JSONMarshaler) error); ok {
-		r0 = returnFunc(m)
+	if returnFunc, ok := ret.Get(0).(func(marshaler.JSONMarshaler, serializer.PayloadType) error); ok {
+		r0 = returnFunc(m, payloadType)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -424,18 +431,24 @@ type MetricSerializer_SendMetadata_Call struct {
 
 // SendMetadata is a helper method to define mock.On call
 //   - m marshaler.JSONMarshaler
-func (_e *MetricSerializer_Expecter) SendMetadata(m any) *MetricSerializer_SendMetadata_Call {
-	return &MetricSerializer_SendMetadata_Call{Call: _e.mock.On("SendMetadata", m)}
+//   - payloadType serializer.PayloadType
+func (_e *MetricSerializer_Expecter) SendMetadata(m any, payloadType any) *MetricSerializer_SendMetadata_Call {
+	return &MetricSerializer_SendMetadata_Call{Call: _e.mock.On("SendMetadata", m, payloadType)}
 }
 
-func (_c *MetricSerializer_SendMetadata_Call) Run(run func(m marshaler.JSONMarshaler)) *MetricSerializer_SendMetadata_Call {
+func (_c *MetricSerializer_SendMetadata_Call) Run(run func(m marshaler.JSONMarshaler, payloadType serializer.PayloadType)) *MetricSerializer_SendMetadata_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 marshaler.JSONMarshaler
 		if args[0] != nil {
 			arg0 = args[0].(marshaler.JSONMarshaler)
 		}
+		var arg1 serializer.PayloadType
+		if args[1] != nil {
+			arg1 = args[1].(serializer.PayloadType)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -446,7 +459,7 @@ func (_c *MetricSerializer_SendMetadata_Call) Return(err error) *MetricSerialize
 	return _c
 }
 
-func (_c *MetricSerializer_SendMetadata_Call) RunAndReturn(run func(m marshaler.JSONMarshaler) error) *MetricSerializer_SendMetadata_Call {
+func (_c *MetricSerializer_SendMetadata_Call) RunAndReturn(run func(m marshaler.JSONMarshaler, payloadType serializer.PayloadType) error) *MetricSerializer_SendMetadata_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -101,7 +101,7 @@ func NewComponent(deps Requires) Provides {
 		secrets:      deps.Secrets,
 		client:       deps.IPCClient,
 	}
-	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
+	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json", serializer.PayloadTypeAgentMetadata)
 
 	if ia.Enabled {
 		ia.data.Init()

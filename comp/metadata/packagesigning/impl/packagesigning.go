@@ -95,7 +95,7 @@ func NewComponent(deps Requires) Provides {
 		hostname:   hname,
 		pkgManager: getPkgManager(),
 	}
-	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json")
+	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json", serializer.PayloadTypeSigningMetadata)
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
 	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)

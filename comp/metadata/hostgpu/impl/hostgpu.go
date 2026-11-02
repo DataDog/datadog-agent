@@ -106,7 +106,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		data:     &hostGPUMetadata{},
 	}
-	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName)
+	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName, serializer.PayloadTypeHostGPUMetadata)
 
 	return Provides{
 		Comp:          gh,

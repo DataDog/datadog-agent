@@ -38,6 +38,7 @@
 //				deps.Serializer,
 //				cp.getPayload,
 //				"custom.json",
+//				serializer.PayloadTypeAgentMetadata,
 //			),
 //		}
 //
@@ -104,6 +105,7 @@ type InventoryPayload struct {
 	log           log.Component
 	serializer    serializer.MetricSerializer
 	getPayload    PayloadGetter
+	payloadType   serializer.PayloadType
 	createdAt     time.Time
 	firstRunDelay time.Duration
 
@@ -117,7 +119,7 @@ type InventoryPayload struct {
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
 // needs to be generated.
-func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string) InventoryPayload {
+func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string, payloadType serializer.PayloadType) InventoryPayload {
 	minInterval := time.Duration(conf.GetInt("inventories_min_interval")) * time.Second
 	if minInterval <= 0 {
 		minInterval = defaultMinInterval
@@ -133,6 +135,7 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		conf:          conf,
 		log:           l,
 		serializer:    s,
+		payloadType:   payloadType,
 		getPayload:    getPayload,
 		createdAt:     time.Now(),
 		firstRunDelay: conf.GetDuration("inventories_first_run_delay") * time.Second,
@@ -224,7 +227,7 @@ func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 		i.log.Debugf("inventory payload is nil, skipping submission")
 		return i.MinInterval
 	}
-	if err := i.serializer.SendMetadata(p); err != nil {
+	if err := i.serializer.SendMetadata(p, i.payloadType); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
 	}
 	return i.MinInterval
@@ -250,7 +253,7 @@ func (i *InventoryPayload) Submit() error {
 	if p == nil {
 		return errors.New("inventory payload is nil")
 	}
-	if err := i.serializer.SendMetadata(p); err != nil {
+	if err := i.serializer.SendMetadata(p, i.payloadType); err != nil {
 		return fmt.Errorf("unable to submit inventories payload: %w", err)
 	}
 	return nil

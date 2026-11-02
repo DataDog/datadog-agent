@@ -27,5 +27,5 @@ var _ inframetadata.Pusher = (*HostMetadataPusher)(nil)
 
 // Push implements the Pusher.Push interface
 func (h *HostMetadataPusher) Push(_ context.Context, hm payload.HostMetadata) error {
-	return h.s.SendHostMetadata(&hm)
+	return h.s.SendHostMetadata(&hm, serializer.PayloadTypeOTelHost)
 }

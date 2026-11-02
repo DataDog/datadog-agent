@@ -158,7 +158,7 @@ func (h *host) collect(ctx context.Context) time.Duration {
 	// Debug log to show the actual interval that will be used
 	h.log.Debugf("Next host metadata collection scheduled in %s", nextInterval)
 
-	if err := h.serializer.SendHostMetadata(payload); err != nil {
+	if err := h.serializer.SendHostMetadata(payload, serializer.PayloadTypeHostV5); err != nil {
 		h.log.Errorf("unable to submit host metadata payload, %s", err)
 	}
 

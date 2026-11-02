@@ -83,7 +83,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		data:     &hostSystemInfoMetadata{},
 	}
-	hh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, hh.getPayload, flareFileName)
+	hh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, hh.getPayload, flareFileName, serializer.PayloadTypeHostSystemInfoMetadata)
 
 	// Override default intervals for system info metadata
 	// System info changes infrequently, so check less often
