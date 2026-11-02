@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Fixed SBOM scans of container images exported to a tarball copying every
+    executable and application package file of each layer to a temporary
+    directory, which could fill the disk on large images.
+  - |
+    Fixed SBOMs of container images exported to a tarball missing the Python,
+    Node.js, PHP, and Java interpreters installed in the image.
+  - |
+    Fixed SBOM scans with the ``languages`` analyzer failing when a file is
+    removed during the scan, such as a raw block volume of a Kubernetes CSI
+    driver.

@@ -16,6 +16,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/core/status",
         "//comp/def",
+        "//pkg/config/helper",
     ],
 )
 
@@ -25,6 +26,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/core/status",
         "@com_github_stretchr_testify//assert",
