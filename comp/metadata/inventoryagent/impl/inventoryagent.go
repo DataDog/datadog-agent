@@ -101,7 +101,7 @@ func NewComponent(deps Requires) Provides {
 		secrets:      deps.Secrets,
 		client:       deps.IPCClient,
 	}
-	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json", serializer.PayloadTypeAgentMetadata)
+	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if ia.Enabled {
 		ia.data.Init()
@@ -547,7 +547,7 @@ func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, bool) {
 	return scrubbedConfig, true
 }
 
-func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
+func (ia *inventoryagent) getPayload() marshaler.TypedJSONMarshaler {
 	ia.refreshMetadata()
 	payload := ia.data.GetPayload(nil, uuid.GetUUID())
 	payload.FilesMetadata = ia.getRawFiles()

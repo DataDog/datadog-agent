@@ -104,6 +104,11 @@ type Payload struct {
 	UUID      string        `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeHostMetadata
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -144,7 +149,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		data:     &hostMetadata{},
 	}
-	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json", serializer.PayloadTypeHostMetadata)
+	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json")
 
 	return Provides{
 		Comp:          ih,
@@ -259,7 +264,7 @@ func (ih *invHost) fillData() {
 	ih.data.RPMGlobalRepoGPGCheckEnabled = repoGPGCheck
 }
 
-func (ih *invHost) getPayload() marshaler.JSONMarshaler {
+func (ih *invHost) getPayload() marshaler.TypedJSONMarshaler {
 	ih.fillData()
 
 	return &Payload{

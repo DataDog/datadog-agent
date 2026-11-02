@@ -41,6 +41,7 @@ import (
 const (
 	protobufContentType                         = "application/x-protobuf"
 	jsonContentType                             = "application/json"
+	payloadTypeHTTPHeader                       = "DD-Payload-Type"
 	payloadVersionHTTPHeader                    = "DD-Agent-Payload"
 	maxItemCountForCreateMarshalersBySourceType = 100
 )
@@ -91,10 +92,10 @@ type MetricSerializer interface {
 	SendSketch(sketches metrics.SketchesSource) error
 	AreSketchesEnabled() bool
 
-	SendMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error
-	SendHostMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error
+	SendMetadata(m marshaler.TypedJSONMarshaler) error
+	SendHostMetadata(m marshaler.TypedJSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
-	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
+	SendAgentchecksMetadata(m marshaler.TypedJSONMarshaler) error
 	SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error
 	SendOrchestratorManifests(msgs []types.ProcessMessageBody, hostName, clusterID string) error
 	SendAgentShutdownEvent(ctx context.Context, e *event.Event) error
@@ -350,21 +351,21 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error {
-	return s.sendMetadata(m, payloadType, s.Forwarder.SubmitMetadata)
+func (s *Serializer) SendMetadata(m marshaler.TypedJSONMarshaler) error {
+	return s.sendMetadata(m, s.Forwarder.SubmitMetadata)
 }
 
 // SendHostMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler, payloadType PayloadType) error {
-	return s.sendMetadata(m, payloadType, s.Forwarder.SubmitHostMetadata)
+func (s *Serializer) SendHostMetadata(m marshaler.TypedJSONMarshaler) error {
+	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }
 
 // SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
-	return s.sendMetadata(m, PayloadTypeAgentChecks, s.Forwarder.SubmitAgentChecksMetadata)
+func (s *Serializer) SendAgentchecksMetadata(m marshaler.TypedJSONMarshaler) error {
+	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
 }
 
-func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, payloadType PayloadType, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
+func (s *Serializer) sendMetadata(m marshaler.TypedJSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
 	exceeded, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
@@ -379,7 +380,7 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, payloadType Payload
 
 	// Clone the shared headers: they are read concurrently by other senders.
 	headers := s.jsonExtraHeadersWithCompression.Clone()
-	headers.Set(PayloadTypeHeader, string(payloadType))
+	headers.Set(payloadTypeHTTPHeader, string(m.PayloadType()))
 
 	if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), headers); err != nil {
 		return err
