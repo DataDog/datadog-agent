@@ -9,9 +9,12 @@ package flare
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,4 +27,63 @@ func TestGetErrptData(t *testing.T) {
 	mock.AssertFileContentMatch(
 		`(?s)=+ Process deaths by signal.*=+ SRC subsystem lifecycle.*`,
 		"errpt.log")
+}
+
+func TestErrptSince(t *testing.T) {
+	assert.Equal(t, "1030134526", errptSince(time.Date(2026, 10, 30, 13, 45, 21, 0, time.UTC)))
+	// Year rollover: January dates must carry the previous year.
+	assert.Equal(t, "0102000027", errptSince(time.Date(2027, 1, 2, 0, 0, 0, 0, time.UTC)))
+}
+
+func TestBuildErrptLog(t *testing.T) {
+	t.Run("with data", func(t *testing.T) {
+		content := string(buildErrptLog([]byte("some entry"), nil, []byte("another entry"), nil))
+		assert.Contains(t, content, "=== Process deaths by signal")
+		assert.Contains(t, content, "=== SRC subsystem lifecycle")
+		assert.NotContains(t, content, "flare --local")
+		assert.NotContains(t, content, "errpt failed")
+	})
+
+	t.Run("empty and successful yields the root hint", func(t *testing.T) {
+		content := string(buildErrptLog(nil, nil, nil, nil))
+		assert.Contains(t, content, "sudo datadog-agent flare --local")
+	})
+
+	t.Run("failure is reported inline and suppresses the hint", func(t *testing.T) {
+		content := string(buildErrptLog(nil, errors.New("permission denied"), nil, nil))
+		assert.Contains(t, content, "(errpt failed: permission denied)")
+		assert.NotContains(t, content, "sudo datadog-agent flare --local")
+	})
+}
+
+func TestBoundedWriter(t *testing.T) {
+	t.Run("under the cap, nothing is lost", func(t *testing.T) {
+		w := &boundedWriter{max: 10}
+		n, err := w.Write([]byte("12345"))
+		require.NoError(t, err)
+		assert.Equal(t, 5, n)
+		assert.Equal(t, "12345", string(w.Bytes()))
+	})
+
+	t.Run("over the cap, keeps the prefix and drains", func(t *testing.T) {
+		w := &boundedWriter{max: 10}
+		// A single write bigger than the cap must report fully consumed.
+		n, err := w.Write([]byte("0123456789ABCDEF"))
+		require.NoError(t, err)
+		assert.Equal(t, 16, n)
+		assert.Equal(t, "0123456789"+truncatedMarker, string(w.Bytes()))
+
+		// Further writes are drained but discarded.
+		n, err = w.Write([]byte("more"))
+		require.NoError(t, err)
+		assert.Equal(t, 4, n)
+		assert.Equal(t, "0123456789"+truncatedMarker, string(w.Bytes()))
+	})
+
+	t.Run("filling the cap exactly is not truncation", func(t *testing.T) {
+		w := &boundedWriter{max: 10}
+		_, err := w.Write([]byte("0123456789"))
+		require.NoError(t, err)
+		assert.Equal(t, "0123456789", string(w.Bytes()))
+	})
 }
