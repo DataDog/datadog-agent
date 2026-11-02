@@ -653,6 +653,11 @@ func (s *packageAgentSuite) assertRuntimeLabels() {
 		require.Equal(s.T(), "dd-agent:dd-agent 755", strings.TrimSpace(remote.MustExecute("stat -Lc '%U:%G %a' "+dir)))
 		s.assertRuntimeType(dir)
 	}
+	// Socket activation starts trace-agent only after application traffic arrives.
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := remote.Execute("curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8126/info")
+		require.NoError(c, err)
+	}, time.Minute, time.Second)
 	for _, process := range []struct{ unit, file string }{{agentUnit, "agent.pid"}, {traceUnit, "trace-agent.pid"}} {
 		s.EventuallyWithT(func(c *assert.CollectT) {
 			pid, err := remote.Execute("cat " + run + "/" + process.file)

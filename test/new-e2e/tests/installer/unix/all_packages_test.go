@@ -143,6 +143,10 @@ func TestPackages(t *testing.T) {
 			if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
 				continue
 			}
+			// The SELinux NPM image does not include Ansible.
+			if flavor == e2eos.RedHat9SELinuxNPM && method == InstallMethodAnsible {
+				continue
+			}
 			// TODO: remove once ansible+suse is fully supported
 			if flavor.Flavor == e2eos.Suse && method == InstallMethodAnsible {
 				continue
