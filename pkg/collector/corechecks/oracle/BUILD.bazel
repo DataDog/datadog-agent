@@ -66,7 +66,6 @@ dd_agent_go_test(
     name = "oracle_test",
     srcs = [
         "custom_query_schedule_test.go",
-        "sql_trace_test.go",
         "sql_wrappers_test.go",
         "testsetup_helpers_test.go",
         "testsetup_test.go",
@@ -74,9 +73,7 @@ dd_agent_go_test(
     embed = [":oracle"],
     gotags_sets = [["oracle"]],
     deps = [
-        "//pkg/collector/corechecks/oracle/config",
         "@com_github_data_dog_go_sqlmock//:go-sqlmock",
-        "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
