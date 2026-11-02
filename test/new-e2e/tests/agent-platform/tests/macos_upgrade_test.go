@@ -116,6 +116,7 @@ func (m *macosUpgradeSuite) TestUpgradeFromStable() {
 	require.NoError(t, err, "the installer binary is not shipped in the package")
 	assertMacosInstallerPostinstSucceeded(t, macosTestClient)
 	assertMacosStableLaunchDaemons(t, macosTestClient)
+	assertMacosInstallerLaunchDaemon(t, macosTestClient)
 	for label, legacy := range legacyDefinitions {
 		if legacy != macosReadRemoteFile(t, macosTestClient, macosLaunchDaemonPath(label)) {
 			t.Logf("%s was replaced with the installer's definition", label)

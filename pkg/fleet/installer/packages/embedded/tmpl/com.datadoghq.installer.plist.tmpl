@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.installer</string>
+        <key>RunAtLoad</key>
+        <true/>
+{{- /* SuccessfulExit false: a clean exit is respected, so the daemon can exit 0 when it is not
+       enabled without launchd relaunching it, while a crash is relaunched. */}}
+        <key>KeepAlive</key>
+        <dict>
+            <key>SuccessfulExit</key>
+            <false/>
+        </dict>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+{{- /* The daemon runs as root, so its remote configuration cache and everything else it keeps
+       under run_path go to its own root-owned run directory rather than the Agent's. An
+       environment variable, so datadog.yaml cannot move it back. */}}
+            <key>DD_RUN_PATH</key>
+            <string>{{.InstallerRunDir}}</string>
+        </dict>
+{{- /* No pidfile, for the same reason as the Agent's job: nothing reads it, and a stale one whose
+       PID another process has since reused stops the daemon from starting, which KeepAlive would
+       turn into a restart loop. */}}
+        <key>ProgramArguments</key>
+        <array>
+            <string>{{.ProgramDir}}/embedded/bin/installer</string>
+            <string>run</string>
+            <string>-c</string>
+            <string>{{.EtcDir}}</string>
+        </array>
+{{- /* launchd opens these as root: they go to the daemon's own root-owned log directory, never
+       to the Agent's, where a planted link would redirect the write. */}}
+        <key>StandardOutPath</key>
+        <string>{{.InstallerLogDir}}/launchd_installer.log</string>
+        <key>StandardErrorPath</key>
+        <string>{{.InstallerLogDir}}/launchd_installer.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>root</string>
+        <key>GroupName</key>
+        <string>admin</string>
+    </dict>
+</plist>

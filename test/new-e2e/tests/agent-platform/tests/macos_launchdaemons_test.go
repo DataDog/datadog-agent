@@ -41,7 +41,20 @@ const (
 	macosPostinstFallbackFailed     = "ERROR: Could not install these LaunchDaemons"
 )
 
-// macosStableLaunchDaemons are the Agent's stable LaunchDaemons, in load order.
+// macosInstallerLaunchDaemon is the root installer daemon's job. The installer loads it after the
+// Agent's own jobs; the postinstall script's fallback does not install it.
+const macosInstallerLaunchDaemon = "com.datadoghq.installer"
+
+// macosInstallerOwnDirs are the installer daemon's run and log directories, which must be root-owned
+// and writable by root only.
+var macosInstallerOwnDirs = []string{
+	"/opt/datadog-packages",
+	"/opt/datadog-packages/run",
+	"/opt/datadog-packages/logs",
+}
+
+// macosStableLaunchDaemons are the Agent's stable LaunchDaemons, in load order. They are also the
+// set the postinstall script's fallback installs.
 var macosStableLaunchDaemons = []string{
 	"com.datadoghq.procmgr",
 	"com.datadoghq.agent",
@@ -49,11 +62,10 @@ var macosStableLaunchDaemons = []string{
 	"com.datadoghq.data-plane",
 }
 
-// macosUnexpectedLaunchDaemons are jobs no package install may leave behind: the installer does
-// not run as a daemon, the experiment jobs only exist while a configuration experiment runs, and
-// the process manager has no experiment variant at all.
+// macosUnexpectedLaunchDaemons are jobs no package install may leave behind: the experiment jobs
+// only exist while a configuration experiment runs, and the process manager has no experiment
+// variant at all.
 var macosUnexpectedLaunchDaemons = []string{
-	"com.datadoghq.installer",
 	"com.datadoghq.installer-exp",
 	"com.datadoghq.agent-exp",
 	"com.datadoghq.sysprobe-exp",
@@ -91,7 +103,7 @@ func macosLogLaunchDaemonDiagnostics(t *testing.T, client *common.MacOSTestClien
 	t.Logf("tail of %s:\n%s", macosPostinstallLogPath, out)
 	out, _ = client.Execute("ls -le /Library/LaunchDaemons/ " + macosShippedLaunchDaemonsDir + " " + macosInstallerBinary + "* 2>&1")
 	t.Logf("job definitions and installer:\n%s", out)
-	for _, label := range append(append([]string{}, macosStableLaunchDaemons...), macosUnexpectedLaunchDaemons...) {
+	for _, label := range append(append(append([]string{}, macosStableLaunchDaemons...), macosInstallerLaunchDaemon), macosUnexpectedLaunchDaemons...) {
 		out, _ = client.Execute("sudo launchctl print system/" + label + " 2>&1 | head -n 40")
 		t.Logf("launchctl print system/%s:\n%s", label, out)
 	}
@@ -150,8 +162,28 @@ func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient
 	}, 60*time.Second, 2*time.Second)
 }
 
-// assertNoMacosUnexpectedLaunchDaemons checks neither the installer daemon nor any experiment job
-// is loaded or has a job definition.
+// assertMacosInstallerLaunchDaemon checks the installer loaded its own daemon's job, root:wheel 644,
+// and that the directories the daemon keeps its state and logs in are root-owned and writable by
+// root only, since the daemon runs as root and trusts what they hold.
+func assertMacosInstallerLaunchDaemon(t *testing.T, client *common.MacOSTestClient) {
+	plist := macosLaunchDaemonPath(macosInstallerLaunchDaemon)
+	attributes, err := client.Execute("sudo stat -f '%Su:%Sg %Lp' " + plist)
+	require.NoError(t, err, "the installer daemon has no job definition")
+	assert.Equal(t, "root:wheel 644", strings.TrimSpace(attributes), "%s has the wrong owner or mode", plist)
+
+	for _, dir := range macosInstallerOwnDirs {
+		attributes, err := client.Execute("sudo stat -f '%HT %Su:%Sg %Lp' " + dir)
+		require.NoError(t, err, "%s is missing", dir)
+		assert.Equal(t, "Directory root:wheel 755", strings.TrimSpace(attributes), "%s must be a root-owned directory only root can write to", dir)
+	}
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		_, err := client.Execute("sudo launchctl print system/" + macosInstallerLaunchDaemon)
+		assert.NoError(c, err, "%s is not loaded", macosInstallerLaunchDaemon)
+	}, 60*time.Second, 2*time.Second)
+}
+
+// assertNoMacosUnexpectedLaunchDaemons checks no experiment job is loaded or has a job definition.
 func assertNoMacosUnexpectedLaunchDaemons(t *testing.T, client *common.MacOSTestClient) {
 	for _, label := range macosUnexpectedLaunchDaemons {
 		_, err := client.Execute("sudo launchctl print system/" + label)
@@ -343,6 +375,7 @@ func (m *macosInstallSuite) TestZYReinstallSameVersion() {
 			"reinstalling the same version should not change %s", macosLaunchDaemonPath(label))
 	}
 	assertMacosStableLaunchDaemons(t, macosTestClient)
+	assertMacosInstallerLaunchDaemon(t, macosTestClient)
 	waitForHealthyMacosAgent(t, macosTestClient, 60*time.Second)
 	assert.NotEqual(t, agentPIDBefore, macosLaunchdPID(t, macosTestClient, "system/com.datadoghq.agent"),
 		"the Agent should have been restarted from the reinstalled binaries")
