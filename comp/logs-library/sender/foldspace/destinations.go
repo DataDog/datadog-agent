@@ -148,6 +148,13 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	for i, ep := range endpoints.Endpoints {
 		host := ep.Host
 		port := ep.Port
+		// Port 0, configured or chosen by intake routing, is the scheme's default.
+		if port == 0 {
+			port = 443
+			if !ep.UseSSL() {
+				port = 80
+			}
+		}
 		if i == 0 && mainOverride != "" {
 			h, p, err := parseHostPort(mainOverride, port)
 			if err != nil {
