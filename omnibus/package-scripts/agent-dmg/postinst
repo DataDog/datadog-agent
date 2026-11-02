@@ -62,44 +62,6 @@ installation_gui_session_uids() {
     } | awk '$0 ~ /^[0-9]+$/ && $0 > 0 {print $0}' | sort -un
 }
 
-# Probe the same socket as the WLAN check, with its service identity. A valid
-# error response (for example, Location Services denied) still proves the helper
-# is available. Do not request permission or log Wi-Fi data during installation.
-gui_ipc_ready() {
-    sudo -n -u _dd-agent "$INSTALL_DIR/embedded/bin/python3" - "$RUN_DIR/ipc/gui-$1.sock" "$1" <<'PYTHON'
-import json
-import os
-import socket
-import stat
-import sys
-import time
-
-path, uid = sys.argv[1:]
-info = os.stat(path)
-if not stat.S_ISSOCK(info.st_mode) or info.st_uid != int(uid):
-    sys.exit(1)
-with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-    client.settimeout(1)
-    client.connect(path)
-    client.sendall(b'{"command":"get_wifi_info","request_location_permission":false}\n')
-    deadline = time.monotonic() + 1
-    line = b""
-    while not line.endswith(b"\n") and len(line) <= 4096:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            sys.exit(1)
-        client.settimeout(remaining)
-        chunk = client.recv(4097 - len(line))
-        if not chunk:
-            sys.exit(1)
-        line += chunk
-    if len(line) > 4096 or not line.endswith(b"\n"):
-        sys.exit(1)
-    payload = json.loads(line)
-    sys.exit(0 if isinstance(payload, dict) and isinstance(payload.get("success"), bool) else 1)
-PYTHON
-}
-
 # The installer is root, but the explicit GUI domain makes launchd run the job
 # as that session's user. bootout does not disable jobs, so no enable is needed.
 restore_gui_launchagent() {
@@ -136,15 +98,13 @@ restore_gui_launchagent() {
         fi
         state=$(launchctl print "gui/$uid/$label" 2>/dev/null)
         if printf '%s\n' "$state" | grep -Eq '^[[:space:]]*pid = [0-9]+'; then
-            if [ "$label" != "com.datadoghq.gui" ] || gui_ipc_ready "$uid" >/dev/null 2>&1; then
-                echo "# Restored gui/$uid/$label"
-                return 0
-            fi
+            echo "# Restored gui/$uid/$label"
+            return 0
         fi
         sleep 1
         attempts=$((attempts + 1))
     done
-    echo "WARNING: GUI service gui/$uid/$label did not become ready after 10 attempts (check launchd and GUI IPC permissions)"
+    echo "WARNING: GUI service gui/$uid/$label did not start after 10 attempts"
     return 1
 }
 

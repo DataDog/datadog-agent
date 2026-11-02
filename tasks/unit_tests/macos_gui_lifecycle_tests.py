@@ -1,14 +1,11 @@
 """Exercise package-hook GUI lifecycle code without touching the host's launchd."""
 
 import json
-import os
 import re
 import shlex
-import socket
 import subprocess
 import sys
 import tempfile
-import threading
 import unittest
 from pathlib import Path
 
@@ -103,14 +100,13 @@ class TestMacOSGUILifecycle(unittest.TestCase):
             "OLD_AI_USAGE_DESKTOP_MONITOR_LABEL": "com.datadoghq.ai-prompt-logger.desktop-monitor",
         }
 
-    def run_shell(self, body, process_uids="0 450 501 502 502 503", ipc_ready=True):
+    def run_shell(self, body, process_uids="0 450 501 502 502 503"):
         self.state_path.write_text(json.dumps(self.state))
         script = (
             self.functions
             + f"""
 ps() {{ printf '%s\\n' {shlex.quote(process_uids)} | tr ' ' '\\n'; }}
 sleep() {{ :; }}
-gui_ipc_ready() {{ {'true' if ipc_ready else 'false'}; }}
 {body}
 """
         )
@@ -119,10 +115,8 @@ gui_ipc_ready() {{ {'true' if ipc_ready else 'false'}; }}
         self.assertEqual(result.stderr, "")
         return result
 
-    def restore(self, uid="501", ipc_ready=True):
-        return self.run_shell(
-            f'restore_gui_launchagent {uid} {LABEL} /Library/LaunchAgents/{LABEL}.plist', ipc_ready=ipc_ready
-        )
+    def restore(self, uid="501"):
+        return self.run_shell(f'restore_gui_launchagent {uid} {LABEL} /Library/LaunchAgents/{LABEL}.plist')
 
     def bootstraps(self):
         return [call for call in self.state["calls"] if call[0] == "bootstrap"]
@@ -186,19 +180,13 @@ gui_ipc_ready() {{ {'true' if ipc_ready else 'false'}; }}
         result = self.restore()
         self.assertEqual(result.returncode, 1)
         self.assertEqual(len(self.bootstraps()), 10)
-        self.assertIn("did not become ready", result.stdout)
+        self.assertIn("did not start", result.stdout)
 
     def test_logout_during_bootstrap_is_not_an_install_failure(self):
         self.state["logout_on_bootstrap"] = True
         result = self.restore()
         self.assertEqual(result.returncode, 0)
         self.assertIn("ended during restoration", result.stdout)
-        self.assertEqual(len(self.bootstraps()), 1)
-
-    def test_registered_helper_with_unavailable_ipc_is_not_healthy(self):
-        result = self.restore(ipc_ready=False)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("IPC permissions", result.stdout)
         self.assertEqual(len(self.bootstraps()), 1)
 
     def test_no_users_at_install_time(self):
@@ -215,54 +203,3 @@ gui_ipc_ready() {{ {'true' if ipc_ready else 'false'}; }}
         self.assertEqual(result.returncode, 1)
         self.assertIn("old registration did not stop", result.stdout)
         self.assertEqual(self.bootstraps(), [])
-
-
-@unittest.skipIf(sys.platform == "win32", "GUI IPC requires Unix sockets and a POSIX shell")
-class TestMacOSGUIIPCProbe(unittest.TestCase):
-    def test_valid_error_response_proves_readiness_without_prompting(self):
-        self.check_response(b'{"success":false,"error":"Location permission denied"}\n', True)
-
-    def test_malformed_response_is_not_ready(self):
-        self.check_response(b'not json\n', False)
-
-    def test_oversized_response_is_not_ready(self):
-        self.check_response(b'x' * 4097, False)
-
-    def check_response(self, response, ready):
-        # Keep the Unix socket pathname below macOS's 104-byte limit.
-        with tempfile.TemporaryDirectory(prefix="dd-gui-", dir="/tmp") as temp:
-            root = Path(temp)
-            (root / "ipc").mkdir()
-            (root / "embedded/bin").mkdir(parents=True)
-            (root / "embedded/bin/python3").symlink_to(sys.executable)
-            uid = os.getuid()
-            request = []
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
-                server.bind(str(root / f"ipc/gui-{uid}.sock"))
-                server.listen(1)
-                server.settimeout(10)
-
-                def respond():
-                    connection, _ = server.accept()
-                    with connection:
-                        connection.settimeout(10)
-                        request.append(json.loads(connection.recv(4096)))
-                        connection.sendall(response)
-
-                thread = threading.Thread(target=respond, daemon=True)
-                thread.start()
-                probe = shell_function((HOOKS / "postinst").read_text(), "gui_ipc_ready")
-                # Exercise the real socket protocol as our test user; never run real sudo.
-                script = probe + '\nsudo() { shift 3; "$@"; }\ngui_ipc_ready "$TEST_UID"'
-                result = subprocess.run(
-                    ["/bin/sh", "-c", script],
-                    env={"PATH": "/usr/bin:/bin", "INSTALL_DIR": temp, "RUN_DIR": temp, "TEST_UID": str(uid)},
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-                thread.join(timeout=10)
-                self.assertFalse(thread.is_alive())
-                self.assertEqual(result.returncode == 0, ready, result.stderr)
-                self.assertEqual(result.stdout, "")
-                self.assertEqual(request, [{"command": "get_wifi_info", "request_location_permission": False}])
