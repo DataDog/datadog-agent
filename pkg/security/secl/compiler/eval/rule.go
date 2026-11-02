@@ -270,21 +270,28 @@ func (r *Rule) GenEvaluator(model Model) error {
 	return nil
 }
 
-// GenPartials - Compiles and generates partial Evaluators
+// genPartials compiles the partial of the rule for a field: the rule projected
+// on the field, see pass.ProjectField.
 func (r *Rule) genPartials(field Field) error {
 	if !slices.Contains(r.GetFields(), field) {
 		return nil
 	}
 
-	state := NewState(r.Model, field)
-	pEval, _, err := compileExpr(r.evaluator.tree.Root, r.Opts, state)
+	node, err := pass.Run(r.evaluator.tree, pass.ProjectField(field, r.Opts.fieldOf), pass.FoldBools())
+	if err != nil {
+		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
+	}
+	projected := node.(*ast.Rule)
+
+	state := NewState(r.Model, "")
+	pEval, _, err := compileExpr(projected.Root, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
 	}
 
 	pEvalBool, ok := pEval.(*BoolEvaluator)
 	if !ok {
-		return NewTypeError(r.evaluator.tree.Pos, reflect.Bool)
+		return NewTypeError(projected.Pos, reflect.Bool)
 	}
 
 	if pEvalBool.EvalFnc == nil {
