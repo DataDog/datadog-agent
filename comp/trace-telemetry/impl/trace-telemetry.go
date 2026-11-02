@@ -9,7 +9,8 @@ package tracetelemetryimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"net"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	tracetelemetry "github.com/DataDog/datadog-agent/comp/trace-telemetry/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 )
 
 // Requires defines the dependencies for the trace-telemetry component
@@ -132,7 +134,7 @@ func (t *tracetelemetryImpl) getTraceAgentExpvars() (traceAgentExpvars, error) {
 	port := t.config.GetInt("apm_config.debug.port")
 	timeout := t.config.GetDuration("server_timeout") * time.Second
 
-	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
+	url := "https://" + net.JoinHostPort(pkgconfighelper.APMDebugHost(t.config), strconv.Itoa(port)) + "/debug/vars"
 	resp, err := t.client.Get(url, httphelpers.WithCloseConnection, httphelpers.WithTimeout(timeout), httphelpers.WithoutAuthToken)
 	if err != nil {
 		return traceAgentExpvars{}, err
