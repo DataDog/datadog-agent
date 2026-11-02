@@ -210,7 +210,7 @@ func TestSizeBytes_IncrementalUndercountsByBoundedDrift(t *testing.T) {
 		"incremental tracker (%d) should never exceed recompute (%d) — that would mean an insert path double-charged",
 		incremental, canonical)
 	// Drift comes from parent-container growth (Children/Sockets/Bind slice cap doubling,
-	// Files/DNSNames/IMDSEvents map bucket overhead). It must stay a small fraction of the
+	// DNSNames/IMDSEvents map bucket overhead). It must stay a small fraction of the
 	// total or the metric stops being useful before recompute corrects it.
 	assert.Less(t, canonical-incremental, canonical/2,
 		"drift (%d) shouldn't exceed half the canonical size (%d)", canonical-incremental, canonical)

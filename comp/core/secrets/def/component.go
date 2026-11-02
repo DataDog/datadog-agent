@@ -60,4 +60,7 @@ type Component interface {
 	// where it appears and the corresponding handle. The elements in each slice correlate to each other. Origin
 	// is omitted for `datadog.yaml`, otherwise its prepended with a ':'.
 	GetPathsAndHandles() ([]string, []string)
+	// GetHashValues returns, for each given handle with a resolved value, the hex encoded SHA-256 hash of that
+	// value. Handles that have not been resolved are omitted from the result.
+	GetHashValues(handles []string) map[string]string
 }
