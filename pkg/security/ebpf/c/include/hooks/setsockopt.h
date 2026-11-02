@@ -53,9 +53,21 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, i
     event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
-    int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
-        ? MAX_BPF_FILTER_SIZE
-        : syscall->setsockopt.filter_size_to_send;
+    int size_to_sent = syscall->setsockopt.filter_size_to_send;
+    if (size_to_sent >= MAX_BPF_FILTER_SIZE) {
+        size_to_sent = MAX_BPF_FILTER_SIZE;
+        if (bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, syscall->setsockopt.filter) < 0) {
+            size_to_sent = 0;
+        }
+    }
+    else if (size_to_sent >= sizeof(struct sock_filter)) {
+        if (bpf_probe_read(&event->bpf_filters_buffer, size_to_sent, syscall->setsockopt.filter) < 0) {
+            size_to_sent = 0;
+        }
+    }
+    else {
+        size_to_sent = 0;
+    }
     pop_syscall(EVENT_SETSOCKOPT);
 
     event->sent_size = size_to_sent;
@@ -98,25 +110,16 @@ static int hook_sk_attach_filter(ctx_t *ctx) {
         return 0;
     }
     syscall->setsockopt.filter_len = (unsigned short) prog.len;
+    // prog.filter points to user memory the kernel has not copied yet: the copy
+    // is deferred to the syscall exit, once the kernel has faulted it in.
+    syscall->setsockopt.filter = prog.filter;
 
     syscall->setsockopt.filter_size_to_send = (sizeof(struct sock_filter) * prog.len);
-    int key = 0;
-    struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &key);
-
-    if (!event) {
-        return 0;
-    }
     if (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE) {
-        bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, prog.filter);
         syscall->setsockopt.truncated = 1;
         syscall->setsockopt.filter_size_to_send = MAX_BPF_FILTER_SIZE;
     }
-    else if (syscall->setsockopt.filter_size_to_send >= sizeof(struct sock_filter)) {
-        bpf_probe_read(&event->bpf_filters_buffer, syscall->setsockopt.filter_size_to_send, prog.filter);
-        syscall->setsockopt.truncated = 0;
-    }
-    else {
-        syscall->setsockopt.truncated = 0;
+    else if (syscall->setsockopt.filter_size_to_send < sizeof(struct sock_filter)) {
         syscall->setsockopt.filter_size_to_send = 0;
     }
 
