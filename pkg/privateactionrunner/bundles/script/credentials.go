@@ -6,6 +6,7 @@
 package com_datadoghq_script
 
 import (
+	"errors"
 	"fmt"
 
 	"go.yaml.in/yaml/v3"
@@ -15,6 +16,12 @@ import (
 
 const (
 	schemaIdV1 = "script-credentials-v1"
+)
+
+// The file content must never appear in these errors: they are returned to the backend.
+var (
+	errScriptConfigNotYAML  = errors.New("invalid script configuration: not valid YAML")
+	errScriptConfigSchemaID = fmt.Errorf("invalid script configuration: schemaId must be %q", schemaIdV1)
 )
 
 type ScriptBundleConfig struct {
@@ -57,10 +64,10 @@ func parseCredentials(credentials *privateconnection.PrivateCredentials) (*Scrip
 	scriptConfig := &ScriptBundleConfig{}
 	err := yaml.Unmarshal([]byte(stringConfig), scriptConfig)
 	if err != nil {
-		return nil, err
+		return nil, errScriptConfigNotYAML
 	}
 	if scriptConfig.SchemaId != schemaIdV1 {
-		return nil, fmt.Errorf("unexpected schemaId: %s, supported schemaId: %s", scriptConfig.SchemaId, schemaIdV1)
+		return nil, errScriptConfigSchemaID
 	}
 
 	return scriptConfig, nil
