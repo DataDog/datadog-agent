@@ -43,7 +43,7 @@ type SymbolUploaderOptions struct {
 	// UploadDynamicSymbols defines whether the agent should upload dynamic symbols to the backend.
 	UploadDynamicSymbols bool `mapstructure:"upload_dynamic_symbols"`
 	// UploadGoPCLnTab defines whether the agent should upload GoPCLnTab section for Go binaries to the backend.
-	UploadGoPCLnTab bool `mapstructure:"upload_go_pcln_tab"`
+	UploadGoPCLnTab bool `mapstructure:"upload_gopclntab"`
 	// UseHTTP2 defines whether the agent should use HTTP/2 when uploading symbols.
 	UseHTTP2 bool `mapstructure:"use_http2"`
 	// SymbolQueryInterval defines the interval at which the agent should query the backend for symbols. A value of 0 disables batching.

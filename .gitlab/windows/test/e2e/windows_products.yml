@@ -80,7 +80,6 @@ new-e2e-windows-systemprobe:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - tests_windows_sysprobe_x64
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/sysprobe-functional
@@ -98,7 +97,6 @@ new-e2e-windows-security-agent:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - tests_windows_secagent_x64
   variables:
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-products
