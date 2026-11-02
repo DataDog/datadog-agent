@@ -85,6 +85,11 @@ type launchdTemplateData struct {
 	LogDir     string
 	AgentUser  string
 	AgentGroup string
+	// InstallerRunDir and InstallerLogDir are the root installer daemon's own directories. They
+	// are root-owned and outside the install root, which the Agent's account can write to (see
+	// pkg/fleet/installer/paths/installer_paths_darwin.go).
+	InstallerRunDir string
+	InstallerLogDir string
 }
 
 type embeddedLayout struct {
@@ -149,6 +154,7 @@ func jobSetLaunchd(data launchdTemplateData) map[string][]byte {
 		"com.datadoghq.agent.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", data),
 		"com.datadoghq.sysprobe.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", data),
 		"com.datadoghq.data-plane.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", data),
+		"com.datadoghq.installer.plist":  mustRenderLaunchdJob("com.datadoghq.installer.plist", data),
 	}
 }
 
@@ -321,6 +327,9 @@ var (
 		LogDir:     "/opt/datadog-agent/logs",
 		AgentUser:  "_dd-agent",
 		AgentGroup: "daemon",
+
+		InstallerRunDir: "/opt/datadog-packages/run",
+		InstallerLogDir: "/opt/datadog-packages/logs",
 	}
 
 	windowsEmbeddedLayouts = []embeddedLayout{

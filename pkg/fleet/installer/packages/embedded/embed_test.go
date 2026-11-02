@@ -138,6 +138,7 @@ var launchdStableJobs = []string{
 	"com.datadoghq.agent",
 	"com.datadoghq.sysprobe",
 	"com.datadoghq.data-plane",
+	"com.datadoghq.installer",
 }
 
 // TestGetLaunchdJobEmbedsTheStableSet ensures every stable launchd job is actually compiled in,
@@ -190,6 +191,28 @@ func TestLaunchdAgentAndSysprobeReadTheSameConfig(t *testing.T) {
 			assert.NotContains(t, plist.Args, "-p")
 		}
 	}
+}
+
+// TestLaunchdInstallerKeepsItsStateOutOfTheAgentsReach pins that the root installer daemon's job
+// sends its run state and its logs to its own root-owned directories, never to the install root
+// the Agent's account can write to, and that it writes no pidfile.
+func TestLaunchdInstallerKeepsItsStateOutOfTheAgentsReach(t *testing.T) {
+	content, err := GetLaunchdJob("com.datadoghq.installer")
+	require.NoError(t, err)
+	definition := string(content)
+
+	assert.Regexp(t, `<key>DD_RUN_PATH</key>\s*<string>/opt/datadog-packages/run</string>`, definition)
+	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-packages/logs/`, definition)
+	assert.Regexp(t, `<key>StandardErrorPath</key>\s*<string>/opt/datadog-packages/logs/`, definition)
+	assert.Regexp(t, `<key>UserName</key>\s*<string>root</string>`, definition)
+	assert.NotContains(t, definition, "/opt/datadog-agent/run")
+	assert.NotContains(t, definition, "/opt/datadog-agent/logs")
+
+	var plist struct {
+		Args []string `xml:"dict>array>string"`
+	}
+	require.NoError(t, xml.Unmarshal(content, &plist))
+	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "run", "-c", "/opt/datadog-agent/etc"}, plist.Args)
 }
 
 // assertPropertyList checks that content is a well-formed XML property list. The repository has no

@@ -324,28 +324,34 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Run the postinst, as deb/rpm/msi do. It writes and loads the process manager, agent,
-# system-probe and Agent Data Plane LaunchDaemons from the definitions embedded in the installer.
+# Run the postinst, as deb/rpm/msi do. It creates the installer daemon's root-owned directories,
+# registers the Agent in the package repository the installer daemon reports from, and writes and
+# loads the process manager, agent, system-probe, Agent Data Plane and installer daemon
+# LaunchDaemons from the definitions embedded in the installer.
 # See pkg/fleet/installer/packages/datadog_agent_darwin.go
 #
-# If the installer cannot run, or fails, the Agent's LaunchDaemons are installed the way earlier
+# If the installer cannot run, or fails, the Agent's own LaunchDaemons are installed the way earlier
 # versions did, from plain copies of the same definitions (install_fallback_launchdaemons), so the
 # Agent always ends up running. If the installer fails on any job, the fallback reloads all four,
-# so the jobs the installer had already started restart a second time; this is harmless.
+# so the jobs the installer had already started restart a second time; this is harmless. Only the
+# installer daemon, which remote configuration management needs and the Agent does not, is left
+# out of the fallback.
 #
 # A LaunchDaemon the fallback can't load is reported in the install log but doesn't fail the
 # install. This keeps the behavior of earlier versions, which only printed a warning when a
 # bootstrap failed. Failing here would make macOS installs stricter than they have ever been, and
 # would roll back the binaries this install just laid down, on every Mac it reaches.
-echo "# Installing process manager, agent, system-probe and Agent Data Plane as system-wide LaunchDaemons"
+echo "# Installing process manager, agent, system-probe, Agent Data Plane and the installer daemon as system-wide LaunchDaemons"
 INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
 if [ -x "$INSTALLER_BIN" ]; then
     if "$INSTALLER_BIN" postinst datadog-agent dmg 2>&1; then
         echo "# The installer postinst succeeded"
     else
-        echo "WARNING: The installer postinst failed; falling back to installing the Agent's LaunchDaemons directly."
+        echo "WARNING: The installer postinst failed; falling back to installing the Agent's LaunchDaemons directly. Remote configuration management may be unavailable."
         install_fallback_launchdaemons
     fi
+    # `datadog-installer` command line
+    ln -vsf "$INSTALLER_BIN" /usr/local/bin/datadog-installer
 else
     echo "WARNING: $INSTALLER_BIN missing; falling back to installing the Agent's LaunchDaemons directly."
     install_fallback_launchdaemons

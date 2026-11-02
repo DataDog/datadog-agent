@@ -185,8 +185,9 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     echo "# Existing installation detected"
     datadog-agent version || true
 
-    # The installer daemon, from builds that ran one, goes first and is waited for: while it runs
-    # it can start the detached processes killed below.
+    # The installer daemon goes first and is waited for: while it runs it can start installer
+    # commands, and, in builds that ran configuration experiments, the detached processes killed
+    # below.
     stop_installer_daemons() {
         launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
         launchctl bootout system/com.datadoghq.installer-exp 2>/dev/null || true
@@ -262,6 +263,15 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     rm -vf /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
     rm -vf /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
     rm -vf /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
+
+    # Builds that kept the root installer daemon's state in the Agent's own run directory, which
+    # the Agent's account can write to. Nothing reads these any longer: the daemon keeps its state
+    # in its own root-owned run directory, /opt/datadog-packages/run (see
+    # pkg/fleet/installer/paths/installer_paths_darwin.go). rm unlinks the names themselves, so a
+    # link planted in their place is never followed.
+    for stale in experiment-deadline installer.sock installer.pid installer_tasks.db remote-config-installer.db; do
+        rm -vf "$INSTALL_DIR/run/$stale"
+    done
 
     # Stop GUI for all logged-in users
     for logged_user in $(who | awk '{print $1}' | sort -u); do
