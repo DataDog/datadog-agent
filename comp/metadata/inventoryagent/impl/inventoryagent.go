@@ -181,6 +181,7 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data.Set("config_proxy_http", scrub(ia.conf.GetString("proxy.http")))
 	ia.data.Set("config_proxy_https", scrub(ia.conf.GetString("proxy.https")))
 	ia.data.Set("feature_logs_enabled", ia.conf.GetBool("logs_enabled"))
+	ia.data.Set("feature_private_action_runner_enabled", ia.conf.GetBool("private_action_runner.enabled"))
 	ia.data.Set("feature_imdsv2_enabled", ia.conf.GetBool("ec2_prefer_imdsv2"))
 	ia.data.Set("feature_remote_configuration_enabled", ia.conf.GetBool("remote_configuration.enabled"))
 	ia.data.Set("feature_remote_updates_enabled", ia.conf.GetBool("remote_updates"))
