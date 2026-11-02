@@ -280,6 +280,23 @@ const ddSitePattern = `([a-z]{2,}\d{1,2}\.)?(` + ddDomainPattern + `)`
 // e.g., "notdatadoghq.com" is not mistaken for "datadoghq.com".
 var ddSiteFromHostnameRe = regexp.MustCompile(`(?:^|\.)` + ddSitePattern + `\.?$`)
 
+// ddSiteRe matches a whole Datadog site, such as "datadoghq.com" or "us3.datadoghq.com".
+var ddSiteRe = regexp.MustCompile(`^` + ddSitePattern + `$`)
+
+// IsDatadogIntakeHost reports whether host is exactly prefix followed by a Datadog site. For
+// example, with the prefix "agent-http-intake.logs.", it accepts "agent-http-intake.logs.datadoghq.com"
+// and "agent-http-intake.logs.us3.datadoghq.com", but not "agent-http-intake-pl.logs.datadoghq.com"
+// or "custom.agent-http-intake.logs.datadoghq.com". The comparison is case-insensitive and allows a
+// single trailing dot (FQDN form).
+func IsDatadogIntakeHost(prefix, host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	prefix = strings.ToLower(prefix)
+	if !strings.HasPrefix(host, prefix) {
+		return false
+	}
+	return ddSiteRe.MatchString(host[len(prefix):])
+}
+
 // ExtractSiteFromURL extracts the Datadog site from a URL.
 // For example:
 //

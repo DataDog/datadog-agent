@@ -124,6 +124,7 @@ go_library(
         "//comp/healthplatform",
         "//comp/healthplatform/store/def",
         "//comp/host-profiler/flare/fx",
+        "//comp/intakerouting/fx",
         "//comp/languagedetection/client/def",
         "//comp/languagedetection/client/fx",
         "//comp/logonduration/fx",

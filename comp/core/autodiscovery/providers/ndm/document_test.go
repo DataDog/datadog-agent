@@ -71,16 +71,16 @@ func TestDispatchCallsOnlyTheHandlersWhoseKeyIsPresent(t *testing.T) {
 	keys, err := parseDocument([]byte(`{"snmp":{},"unknown":{}}`))
 	require.NoError(t, err)
 
-	configsByKey, errsByKey, owned := p.dispatch("path-a", keys)
+	configsByKey, errsByKey := p.dispatch("path-a", keys)
 
-	assert.True(t, owned, "a registered key is present, so the document is ours")
+	assert.True(t, p.owns(keys), "a registered key is present, so the document is ours")
 	assert.Empty(t, errsByKey)
 	assert.Len(t, configsByKey["snmp"], 1)
 	assert.Equal(t, []string{"path-a"}, snmp.renderedPaths)
 	assert.Empty(t, ad.renderedPaths, "a registered key absent from the document is not dispatched")
 }
 
-func TestDispatchDoesNotOwnADocumentWithNoRegisteredKey(t *testing.T) {
+func TestProviderDoesNotOwnADocumentWithNoRegisteredKey(t *testing.T) {
 	snmp := &fakeHandler{key: "snmp"}
 	p := newTestProvider(t, snmp)
 
@@ -88,8 +88,7 @@ func TestDispatchDoesNotOwnADocumentWithNoRegisteredKey(t *testing.T) {
 		keys, err := parseDocument([]byte(raw))
 		require.NoError(t, err)
 
-		_, _, owned := p.dispatch("path-a", keys)
-		assert.False(t, owned, "document %s carries no registered key", raw)
+		assert.False(t, p.owns(keys), "document %s carries no registered key", raw)
 	}
 	assert.Empty(t, snmp.renderedPaths)
 }
@@ -104,9 +103,8 @@ func TestDispatchKeepsOneHandlersFailureFromStoppingAnother(t *testing.T) {
 	keys, err := parseDocument([]byte(`{"snmp":{},"autodiscovery":{}}`))
 	require.NoError(t, err)
 
-	configsByKey, errsByKey, owned := p.dispatch("path-a", keys)
+	configsByKey, errsByKey := p.dispatch("path-a", keys)
 
-	assert.True(t, owned)
 	assert.Len(t, configsByKey["snmp"], 1, "the succeeding key still yields its configs")
 	require.Contains(t, errsByKey, "autodiscovery")
 	assert.EqualError(t, errsByKey["autodiscovery"], "range 10.0.0.0/8 is too large")
@@ -157,9 +155,9 @@ func TestDispatchHandsAHandlerTheDocumentsOtherKeys(t *testing.T) {
 
 	keys, err := parseDocument([]byte(`{"snmp":{"instances":[]},"ping":{"instances":[]},"other":1}`))
 	require.NoError(t, err)
-	_, _, owned := p.dispatch("path-a", keys)
+	require.True(t, p.owns(keys))
+	p.dispatch("path-a", keys)
 
-	require.True(t, owned)
 	assert.Equal(t, []string{"other", "ping"}, sortedKeys(snmp.siblingsSeen))
 	assert.NotContains(t, snmp.siblingsSeen, "snmp", "a handler's own key is not one of its siblings")
 }
