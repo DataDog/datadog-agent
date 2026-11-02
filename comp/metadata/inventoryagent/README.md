@@ -108,6 +108,7 @@ The payload is a JSON dict with the following fields
   - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
   - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
+  - `feature_private_action_runner_enabled` - **bool**: True if the Private Action Runner is enabled (see: `private_action_runner.enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
   - `feature_cspm_host_benchmarks_enabled` - **bool**: True if host benchmarks are enabled (see:
