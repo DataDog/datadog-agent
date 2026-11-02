@@ -55,6 +55,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 5)
 	tel.setLogPatternCount(3)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
+	tel.flushLogTelemetry()
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "kubelet"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())

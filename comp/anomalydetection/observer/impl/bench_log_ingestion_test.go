@@ -318,3 +318,96 @@ anomaly_detection:
 	totalDrops := metricHandle.(*handle).dropCount.Load() + logHandle.(*handle).dropCount.Load()
 	b.ReportMetric(float64(totalDrops)/float64(b.N), "drops/op")
 }
+
+// BenchmarkLogTelemetry measures a completed log's telemetry bookkeeping,
+// including periodic publication and the final interval tail.
+func BenchmarkLogTelemetry(b *testing.B) {
+	for _, interval := range []int{1, 1000, 10000} {
+		b.Run(fmt.Sprintf("flush_every=%d", interval), func(b *testing.B) {
+			tel := newObserverTelemetry(telemetryimpl.NewMock(b))
+			tel.incrementLogsInFlight("containers")
+			tel.recordLogAccepted("containers", 160)
+			tel.decrementLogsInFlight("containers")
+			tel.flushLogTelemetry()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				tel.incrementLogsInFlight("containers")
+				tel.recordLogAccepted("containers", 160)
+				tel.decrementLogsInFlight("containers")
+				if (i+1)%interval == 0 {
+					tel.flushLogTelemetry()
+				}
+			}
+			tel.flushLogTelemetry()
+		})
+	}
+}
+
+// BenchmarkObserverLogTelemetry includes handoff, extraction, storage and optional
+// detection/scoring. Fixed batches and a final drain ensure work is not hidden in
+// the queue or in unpublished telemetry deltas.
+func BenchmarkObserverLogTelemetry(b *testing.B) {
+	for _, detect := range []bool{false, true} {
+		b.Run(fmt.Sprintf("detect=%t", detect), func(b *testing.B) {
+			component := telemetryimpl.NewMock(b)
+			tel := newObserverTelemetry(component)
+			patternCfg := DefaultLogPatternExtractorConfig()
+			patternCfg.MinClusterSizeBeforeEmit = 1
+			extractor := NewLogPatternExtractor(patternCfg)
+			extractor.SetObserverTelemetry(tel)
+			cfg := engineConfig{storage: newTimeSeriesStorage(), extractors: []observerdef.LogMetricsExtractor{extractor}}
+			if detect {
+				cfg.detectors = []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig())}
+				cfg.scorer = newAnomalyScorerBase(DefaultAnomalyScorerConfig())
+			}
+			obs := &observerImpl{engine: newEngine(cfg), metricsCh: make(chan observation, 1000), logsCh: make(chan observation, 1000), telemetry: tel}
+			h := &handle{source: "logs", metricsCh: obs.metricsCh, logsCh: obs.logsCh, telemetry: tel}
+			done := make(chan struct{})
+			go func() { obs.run(); close(done) }()
+			b.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh); <-done })
+			samples := make([]logObs, 32)
+			for i := range samples {
+				samples[i] = logObs{source: "containerd", status: "error", content: "GET /users/123 returned 500", tags: []string{fmt.Sprintf("service:svc%d", i), "env:bench"}, hostname: "bench-host", timestampMs: 100000}
+			}
+			for i := 0; i < 256; i++ {
+				h.ObserveLog(&samples[i%32])
+				if i%64 == 63 {
+					obs.Flush()
+				}
+			}
+			obs.Flush()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				sample := samples[i%32]
+				sample.timestampMs = 101000 + int64(i/256)*1000
+				h.ObserveLog(&sample)
+				if i%64 == 63 {
+					obs.Flush()
+				}
+			}
+			obs.Flush()
+			b.StopTimer()
+			if dropped := h.dropCount.Load(); dropped != 0 {
+				b.Fatalf("dropped %d logs", dropped)
+			}
+			counters, err := component.GetCountMetric("observer", telemetryObservationsAccepted)
+			if err != nil {
+				b.Fatal(err)
+			}
+			var accepted float64
+			for _, m := range counters {
+				if m.Tags()["kind"] == "logs" {
+					accepted += m.Value()
+				}
+			}
+			if accepted != float64(b.N+256) {
+				b.Fatalf("accepted=%v, want=%d", accepted, b.N+256)
+			}
+			if tel.inFlightContainers.Load() != 0 {
+				b.Fatal("logs remain in flight")
+			}
+		})
+	}
+}
