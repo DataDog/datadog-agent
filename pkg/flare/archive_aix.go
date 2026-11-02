@@ -42,9 +42,6 @@ func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 const (
 	// errptWindow is how far back the collected error log entries go.
 	errptWindow = 7 * 24 * time.Hour
-	// errptCommandTimeout bounds a single errpt invocation; two of them fit
-	// in the provider timeout registered for getErrptData.
-	errptCommandTimeout = 25 * time.Second
 )
 
 // getErrptData collects the AIX error log for the last 7 days: process
@@ -77,9 +74,6 @@ func getErrptData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 // never mistaken for error-log content; stderr is folded into the returned
 // error instead.
 func runErrpt(ctx context.Context, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, errptCommandTimeout)
-	defer cancel()
-
 	cmd := exec.CommandContext(ctx, "errpt", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
