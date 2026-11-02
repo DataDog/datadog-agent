@@ -43,7 +43,8 @@ tests_linux-x64-py3:
   before_script:
     - |
       if $CI_PROJECT_DIR/tools/ci/conduit.sh start; then
-        printf '%s\n' 'build --bes_backend=grpc://127.0.0.1:8080' 'build --build_event_publish_all_actions' >> user.bazelrc
+        echo 'build --bes_backend=grpc://127.0.0.1:8080' >> user.bazelrc
+        echo 'build --build_event_publish_all_actions' >> user.bazelrc
       else
         echo "conduit failed to start; coverage will run without traces"
       fi
