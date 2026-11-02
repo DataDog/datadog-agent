@@ -47,7 +47,7 @@ type RuleEvaluator struct {
 	EventType EventType
 
 	// tree is the parsed tree after the compilation passes. It is compiled for the
-	// rule, and again for each of its partials.
+	// rule, and projected then compiled for each of its partials.
 	tree *ast.Rule
 
 	fieldValues map[Field][]FieldValue
@@ -184,7 +184,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		return nil, err
 	}
 	rule = node.(*ast.Rule)
-	state := NewState(model, "")
+	state := NewState(model)
 
 	eval, _, err := compileExpr(rule.Root, opts, state)
 	if err != nil {
@@ -283,7 +283,7 @@ func (r *Rule) genPartials(field Field) error {
 	}
 	projected := node.(*ast.Rule)
 
-	state := NewState(r.Model, "")
+	state := NewState(r.Model)
 	pEval, _, err := compileExpr(projected.Root, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
