@@ -32,9 +32,7 @@ mkdir -vp $LOG_DIR
 chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
 
-# Enumerate process owners, including switched-out GUI users and directory accounts.
-# Process ownership only supplies candidate UIDs. Check each UID's launchd GUI
-# domain to confirm that the user has a graphical login session.
+# Find user IDs with current GUI sessions by checking process owners against launchd.
 # Keep this function identical in preinst/postinst; both package hooks are standalone.
 gui_session_uids() {
     local process_uids uid
@@ -54,8 +52,7 @@ gui_session_uids() {
     done
 }
 
-# Reconcile the snapshot with live sessions. Never use state-file contents as
-# shell code, and validate UIDs before using them as launchctl targets.
+# Combine the snapshot with current GUI sessions to include users who logged in during installation.
 installation_gui_session_uids() {
     {
         if [ -f "$GUI_SESSION_FILE" ]; then
@@ -513,8 +510,8 @@ else
     echo "WARNING: AI Usage Agent desktop monitor LaunchAgent template missing at $AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE"
 fi
 
-# Discover again after installing both plists: existing sessions need explicit
-# registration, while subsequent logins load /Library/LaunchAgents normally.
+# Restore helpers for sessions that still exist, including new logins since the snapshot.
+# Future logins load the installed LaunchAgents automatically.
 GUI_SESSION_UIDS=$(installation_gui_session_uids)
 if [ -z "$GUI_SESSION_UIDS" ]; then
     echo "# No GUI session detected; GUI app will launch at next user login"

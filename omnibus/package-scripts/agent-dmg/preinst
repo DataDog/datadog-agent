@@ -25,9 +25,7 @@ DDAGENT_USER="_dd-agent"
 INSTALL_STAGING_DIR="/private/var/root/datadog-install"
 GUI_SESSION_FILE="$INSTALL_STAGING_DIR/gui-session-uids"
 
-# Enumerate process owners, including switched-out GUI users and directory accounts.
-# Process ownership only supplies candidate UIDs. Check each UID's launchd GUI
-# domain to confirm that the user has a graphical login session.
+# Find user IDs with current GUI sessions by checking process owners against launchd.
 # Keep this function identical in preinst/postinst; both package hooks are standalone.
 gui_session_uids() {
     local process_uids uid
@@ -47,9 +45,7 @@ gui_session_uids() {
     done
 }
 
-# Snapshot before legacy cleanup can remove any GUI registrations. Record domains
-# even when their helper is missing, so upgrades also repair incomplete installs.
-# launchd retains disabled overrides across bootout; do not reset them on upgrade.
+# Snapshot current GUI sessions before stopping helpers so postinst can restore them.
 mkdir -p "$INSTALL_STAGING_DIR" || exit 1
 chmod 700 "$INSTALL_STAGING_DIR" || exit 1
 gui_session_uids > "$GUI_SESSION_FILE"
