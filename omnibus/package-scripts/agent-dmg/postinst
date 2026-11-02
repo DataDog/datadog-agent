@@ -33,8 +33,8 @@ chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
 
 # Enumerate process owners, including switched-out GUI users and directory accounts.
-# A UID is only a candidate: the GUI domain, not the installer's bootstrap context
-# (sudo -u ... launchctl managername), determines whether a GUI login exists.
+# Process ownership only supplies candidate UIDs. Check each UID's launchd GUI
+# domain to confirm that the user has a graphical login session.
 # Keep this function identical in preinst/postinst; both package hooks are standalone.
 gui_session_uids() {
     local process_uids uid
@@ -42,7 +42,12 @@ gui_session_uids() {
         echo "WARNING: Could not discover GUI session candidates" >&2
         return 1
     fi
-    for uid in $(printf '%s\n' "$process_uids" | awk '$1 ~ /^[0-9]+$/ && $1 > 0 {print $1}' | sort -un); do
+    process_uids=$(
+        printf '%s\n' "$process_uids" |
+            awk '$1 ~ /^[0-9]+$/ && $1 > 0 {print $1}' |
+            sort -un
+    )
+    for uid in $process_uids; do
         if launchctl print "gui/$uid" >/dev/null 2>&1; then
             echo "$uid"
         fi
