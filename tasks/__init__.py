@@ -17,6 +17,7 @@ from tasks import (
     anomalydetection,
     auth,
     bazel,
+    bazel_parity,
     bench,
     buildimages,
     claude,
@@ -211,6 +212,7 @@ ns.add_task(lint_go)
 ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(bazel)
+ns.add_collection(bazel_parity)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)

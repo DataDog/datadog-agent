@@ -7,6 +7,7 @@ go_library(
         "archive_dca.go",
         "cluster_checks.go",
         "diagnose.go",
+        "flare_creator.go",
         "identity.go",
         "identity_nocompile.go",
         "manifests.go",
@@ -59,6 +60,7 @@ dd_agent_go_test(
     srcs = [
         "archive_dca_test.go",
         "cluster_checks_test.go",
+        "flare_creator_test.go",
         "rc_task_test.go",
     ],
     embed = [":clusteragent"],

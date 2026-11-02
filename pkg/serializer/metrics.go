@@ -237,13 +237,20 @@ func (s *Serializer) buildPipelinesWithMRF(kind metricsKind, rng prng, mrfFilter
 			}
 
 		default:
+			var filter metrics.Filter = metrics.AllowAllFilter{}
+			if endpointFilter, exists := s.endpointMetricFilters[resolver.GetConfigName()]; exists {
+				if endpointFilter.Len() == 0 {
+					continue
+				}
+				filter = endpointFilter
+			}
 			shadowV3 := !useV3 && metricsShadowAllowed(resolver, kind, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
 			if shadowV3 {
 				dest.ValidationBatchID = s.genUUID()
 			}
 
 			conf := metrics.PipelineConfig{
-				Filter: metrics.AllowAllFilter{},
+				Filter: filter,
 				V3:     useV3,
 			}
 			pipelines.Add(conf, dest)
@@ -252,7 +259,7 @@ func (s *Serializer) buildPipelinesWithMRF(kind metricsKind, rng prng, mrfFilter
 			// intake-side validation. The same batchID correlates v2 and v3beta.
 			if shadowV3 {
 				sconf := metrics.PipelineConfig{
-					Filter: metrics.AllowAllFilter{},
+					Filter: filter,
 					V3:     true,
 				}
 				sdest := metrics.PipelineDestination{

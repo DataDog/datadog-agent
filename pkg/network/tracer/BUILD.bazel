@@ -199,6 +199,7 @@ dd_agent_go_test(
     name = "tracer_test",
     srcs = [
         "cached_conntrack_test.go",
+        "cilium_lb_test.go",
         "compile_test.go",
         "conntracker_test.go",
         "ebpf_conntracker_test.go",

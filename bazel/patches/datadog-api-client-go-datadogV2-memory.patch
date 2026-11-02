@@ -4,5 +4,5 @@
  
  go_library(
      name = "datadogV2",
-+    exec_properties = {"resources:memory": "6144"},
++    tags = ["resources:memory:6144"],
      srcs = [

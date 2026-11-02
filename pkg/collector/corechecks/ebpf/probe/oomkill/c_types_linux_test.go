@@ -12,6 +12,14 @@ func TestCgoAlignment_oomStats(t *testing.T) {
 	ebpftest.AssertCgoAlignment[oomStats](t)
 }
 
-func TestCgoAlignment_oomStatsV1(t *testing.T) {
-	ebpftest.AssertCgoAlignment[oomStatsV1](t)
+func TestCgoAlignment_oomStatsV2(t *testing.T) {
+	ebpftest.AssertCgoAlignment[oomStatsV2](t)
+}
+
+func TestCgoAlignment_cgroupMemoryStats(t *testing.T) {
+	ebpftest.AssertCgoAlignment[cgroupMemoryStats](t)
+}
+
+func TestCgoAlignment_statsKey(t *testing.T) {
+	ebpftest.AssertCgoAlignment[statsKey](t)
 }

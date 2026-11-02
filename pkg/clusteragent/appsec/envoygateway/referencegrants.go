@@ -101,9 +101,20 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 		return nil
 	}
 
+	// Skip namespaces already listed, e.g. when Added is retried after the policy creation failed
+	grant, err := g.client.Resource(referenceGrantGVR).Namespace(g.namespace).Get(ctx, referenceGrantName, metav1.GetOptions{})
+	if err == nil {
+		from, _, _ := unstructured.NestedSlice(grant.Object, "spec", "from")
+		for _, entry := range from {
+			if ref, ok := entry.(map[string]any); ok && ref["namespace"] == namespace {
+				return nil
+			}
+		}
+	}
+
 	jsonPatch := []map[string]any{{
 		"op":   "add",
-		"path": "/spec/from",
+		"path": "/spec/from/-",
 		"value": gwapiv1beta1.ReferenceGrantFrom{
 			Group:     "gateway.envoyproxy.io",
 			Kind:      "EnvoyExtensionPolicy",
@@ -116,7 +127,7 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 		return err
 	}
 
-	// TODO: handle case where more than 64 namespaces are present as this is the limit of "from" entries in a ReferenceGrant
+	// TODO: handle case where more than 16 namespaces are present as this is the limit of "from" entries in a ReferenceGrant
 	_, err = g.client.Resource(referenceGrantGVR).
 		Namespace(g.namespace).
 		Patch(ctx, referenceGrantName, types.JSONPatchType, jsonPatchBytes, metav1.PatchOptions{})

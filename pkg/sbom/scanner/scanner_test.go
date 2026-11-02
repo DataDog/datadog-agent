@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -40,6 +42,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
+
+// TestMain makes the done channel of the Agent's main context, which
+// workloadmeta stores share, outside every synctest bubble.
+func TestMain(m *testing.M) {
+	ctx, _ := common.GetMainCtxCancel()
+	ctx.Done()
+	os.Exit(m.Run())
+}
 
 type scanRequest struct {
 	collectorName   string
@@ -92,41 +102,12 @@ func (m mockReport) Tags() []string {
 
 var _ sbom.Report = mockReport{}
 
-// Test that the flat min_available_disk floor applies to every scan, while the
-// image-size headroom check runs only for scans that may store a tarball.
-func TestEnoughDiskSpaceImageSizeOnlyForTarballScans(t *testing.T) {
+// TestEnoughDiskSpace checks the flat min_available_disk floor of every scan.
+func TestEnoughDiskSpace(t *testing.T) {
 	s := &Scanner{disk: filesystem.NewDisk()}
-	// A huge image makes the 1.2x-size check fail whenever it runs; leaving
-	// MinAvailableDisk at 0 lets the flat floor pass, isolating the two checks.
-	imgMeta := &workloadmeta.ContainerImageMetadata{SizeBytes: 1 << 60}
-
-	// In-place scans (CRI-O, containerd with overlayfs/mount) never store a
-	// tarball, so the image-size check is skipped.
-	for _, tc := range []struct {
-		collector string
-		opts      sbom.ScanOptions
-	}{
-		{collectors.CrioCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
-		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
-		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true, UseMount: true}},
-	} {
-		assert.NoError(t, s.enoughDiskSpace(tc.collector, tc.opts, imgMeta))
-	}
-
-	// Tarball scans (containerd default, and Docker, which may fall back to the
-	// tarball export) run the image-size check, which fails for this huge image.
-	for _, tc := range []struct {
-		collector string
-		opts      sbom.ScanOptions
-	}{
-		{collectors.ContainerdCollector, sbom.ScanOptions{CheckDiskUsage: true}},
-		{collectors.DockerCollector, sbom.ScanOptions{CheckDiskUsage: true, OverlayFsScan: true}},
-	} {
-		assert.Error(t, s.enoughDiskSpace(tc.collector, tc.opts, imgMeta))
-	}
-
-	// The flat floor still applies to every scan, including in-place ones.
-	assert.Error(t, s.enoughDiskSpace(collectors.CrioCollector, sbom.ScanOptions{CheckDiskUsage: true, MinAvailableDisk: math.MaxUint64, OverlayFsScan: true}, imgMeta))
+	assert.NoError(t, s.enoughDiskSpace(sbom.ScanOptions{CheckDiskUsage: true}))
+	assert.Error(t, s.enoughDiskSpace(sbom.ScanOptions{CheckDiskUsage: true, MinAvailableDisk: math.MaxUint64}))
+	assert.NoError(t, s.enoughDiskSpace(sbom.ScanOptions{MinAvailableDisk: math.MaxUint64}))
 }
 
 // Test retry handling in case of an error
@@ -283,6 +264,13 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 			Kind: workloadmeta.KindContainerImageMetadata,
 		},
 	})
+	workloadmetaStore.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   imageID,
+			Kind: workloadmeta.KindContainer,
+		},
+		State: workloadmeta.ContainerState{Running: true},
+	})
 
 	for _, tt := range []struct {
 		name        string
@@ -296,7 +284,7 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 		},
 		{
 			name:        "procfs scan",
-			st:          collectors.ProcfsCollector,
+			st:          collectors.ProcfsScanType,
 			wantRetried: true,
 		},
 		{
@@ -470,6 +458,94 @@ func TestPerformScanRunsOneScanAtATime(t *testing.T) {
 		}
 		wg.Wait()
 	})
+}
+
+// TestRetryLogic_ContainerStopped checks that the scanner forgets the procfs
+// scan of a missing or stopped container, retries included.
+func TestRetryLogic_ContainerStopped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := configmock.New(t)
+		workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+			fx.Supply(context.Background()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		container := func(id string, running bool) *workloadmeta.Container {
+			return &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+				State:    workloadmeta.ContainerState{Running: running},
+			}
+		}
+		workloadmetaStore.Set(container("running", true))
+		workloadmetaStore.Set(container("stopped", false))
+
+		var mu sync.Mutex
+		var scanned []string
+		collName := "mock"
+		mockCollector := collectors.NewMockCollector()
+		resultCh := make(chan sbom.ScanResult, 1)
+		errorResult := sbom.ScanResult{Error: errors.New("scan error")}
+		mockCollector.On("Options").Return(sbom.ScanOptions{})
+		mockCollector.On("Scan", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			mu.Lock()
+			defer mu.Unlock()
+			scanned = append(scanned, args.Get(1).(sbom.ScanRequest).ID())
+		}).Return(errorResult)
+		mockCollector.On("Channel").Return(resultCh)
+		shutdown := mockCollector.On("Shutdown")
+		mockCollector.On("Type").Return(collectors.ProcfsScanType)
+
+		cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+		cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+
+		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
+		ctx, cancel := context.WithCancel(context.Background())
+		scanner.Start(ctx)
+
+		for _, id := range []string{"missing", "stopped", "running"} {
+			assert.NoError(t, scanner.Scan(&scanRequest{collectorName: collName, id: id, scanRequestType: sbom.ScanFilesystemType}))
+		}
+		res := <-resultCh
+		assert.Equal(t, errorResult.Error, res.Error)
+
+		// The retries end once the container stops.
+		workloadmetaStore.Set(container("running", false))
+		time.Sleep(time.Minute)
+		select {
+		case res := <-resultCh:
+			t.Errorf("the scan of a stopped container was retried: %v", res)
+		default:
+		}
+
+		cancel()
+		synctest.Wait()
+		shutdown.WaitUntil(time.After(5 * time.Second))
+
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Equal(t, []string{"running"}, scanned)
+	})
+}
+
+// TestProcessScanAttachesImage checks that a failed image scan carries the
+// image of its request, which the image collectors file the failure under.
+func TestProcessScanAttachesImage(t *testing.T) {
+	resultCh := make(chan sbom.ScanResult, 1)
+	collector := collectors.NewMockCollector()
+	collector.On("Options").Return(sbom.ScanOptions{})
+	collector.On("Channel").Return(resultCh)
+	collector.On("Type").Return(collectors.ContainerImageScanType)
+	collector.On("Scan", mock.Anything, mock.Anything).Return(sbom.ScanResult{Error: errors.New("scan error")})
+	scanner := NewScanner(configmock.New(t), map[string]collectors.Collector{"mock": collector}, option.None[workloadmeta.Component]())
+	defer scanner.scanQueue.ShutDown()
+
+	imgMeta := &workloadmeta.ContainerImageMetadata{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "id"}}
+	scanner.processScan(context.Background(), &scanRequest{collectorName: "mock", id: "id"}, imgMeta, collector)
+
+	result := <-resultCh
+	assert.EqualError(t, result.Error, "scan error")
+	assert.Same(t, imgMeta, result.ImgMeta)
 }
 
 // Test retry handling in case of an error when sending the result to a full channel

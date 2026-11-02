@@ -1290,14 +1290,17 @@ func TestResolvePackageRecordsNoUsageOnDirectory(t *testing.T) {
 }
 
 // TestResolveOpen checks that the open of a host file records usage once it
-// has waited settleDelay, if the file is still at its path then, and leaves
-// the usage as it is when the file is gone or replaced there, as rpm leaves
-// each executable it opens to clear its file capabilities. An overlayfs file
-// counts on an overlayfs host root alone: elsewhere it is the file of a
-// container, seen through /proc/<pid>/root.
+// has waited settleDelay, if the file is still at its path then and starts as
+// an executable or a script does, and leaves the usage as it is when the file
+// is gone or replaced there, as rpm leaves each executable it opens to clear
+// its file capabilities, or holds data with the mode of an executable. On a
+// read error, the mode decides. An overlayfs file counts on an overlayfs host
+// root alone: elsewhere it is the file of a container, seen through
+// /proc/<pid>/root.
 func TestResolveOpen(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
+		content      string // the content of the file, elfHeader if empty
 		after        func(t *testing.T, path string)
 		flags        int32
 		overlayRoot  bool
@@ -1305,12 +1308,15 @@ func TestResolveOpen(t *testing.T) {
 		records      bool
 	}{
 		{name: "open", records: true},
+		{name: "open of a script", content: "#!/bin/sh\n", records: true},
+		{name: "open of a data file with the mode of an executable", content: "Welcome to Amazon Linux 2023\n"},
 		{name: "open of a removed file", after: removeFile},
 		{name: "open of a replaced file", after: replaceFile},
 		{name: "open of an overlayfs file", flags: model.LowerLayer},
 		{name: "open of an overlayfs file on an overlayfs host root", flags: model.LowerLayer, overlayRoot: true, records: true},
 		{name: "open of a replaced overlayfs file on an overlayfs host root", after: replaceFile, flags: model.UpperLayer, overlayRoot: true, records: true},
 		{name: "open of a removed file of unknown inode", after: removeFile, unknownInode: true, records: true},
+		{name: "open of a file of unknown inode that reads with an error", after: replaceWithDirectory, unknownInode: true, records: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newHostSBOMResolver(t)
@@ -1319,6 +1325,11 @@ func TestResolveOpen(t *testing.T) {
 
 			pc, file := hostAccess()
 			path := createFile(t, r.hostRoot+file.PathnameStr)
+			if tc.content != "" {
+				if err := os.WriteFile(path, []byte(tc.content), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if !tc.unknownInode {
 				file.Inode = inode(t, path)
 			}
@@ -1438,15 +1449,18 @@ func TestResolveOpenOfContainerFile(t *testing.T) {
 	}
 }
 
-// createFile creates an empty executable file at path and its directories,
-// and returns path.
+// elfHeader starts the executables the tests create.
+const elfHeader = "\x7fELF"
+
+// createFile creates an executable file, an ELF header alone, at path and its
+// directories, and returns path.
 func createFile(t *testing.T, path string) string {
 	t.Helper()
 
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, nil, 0755); err != nil {
+	if err := os.WriteFile(path, []byte(elfHeader), 0755); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -1646,6 +1660,19 @@ func TestResolveOpenLeavesReadsOfCode(t *testing.T) {
 	}
 }
 
+// replaceWithDirectory puts a directory in place of the file at path. The
+// directory opens, and its read returns EISDIR.
+func replaceWithDirectory(t *testing.T, path string) {
+	t.Helper()
+
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // removeFile deletes the file at path, as rpm deletes an executable it removes.
 func removeFile(t *testing.T, path string) {
 	t.Helper()
@@ -1655,12 +1682,12 @@ func removeFile(t *testing.T, path string) {
 	}
 }
 
-// replaceFile renames a new file over the file at path, as rpm installs each
-// file of a package it upgrades or reinstalls.
+// replaceFile renames a new executable over the file at path, as rpm installs
+// each file of a package it upgrades or reinstalls.
 func replaceFile(t *testing.T, path string) {
 	t.Helper()
 
-	if err := os.WriteFile(path+".new", nil, 0755); err != nil {
+	if err := os.WriteFile(path+".new", []byte(elfHeader), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Rename(path+".new", path); err != nil {
@@ -2191,30 +2218,32 @@ func TestScanHostFingerprintsBeforeScan(t *testing.T) {
 }
 
 // TestScanHostCreditsMissedRuns checks that a scan finding a new package credits
-// it the runs of its files by host processes made before the scan, in the last
-// hostMissTTL, at the time of each run. Opens, processes on a root of their
-// own, processes of containers and runs of a file procfs names as replaced
-// leave it as it is, and the run of a file no package owns waits for a later
-// scan.
+// it the runs of its files, as executables or as the interpreters of scripts,
+// by host processes made before the scan, in the last hostMissTTL, at the time
+// of each run. Opens, processes on a root of their own, processes of
+// containers and runs of a file procfs names as replaced leave it as it is,
+// and the run of a file no package owns waits for a later scan.
 func TestScanHostCreditsMissedRuns(t *testing.T) {
 	tests := []struct {
-		name      string
-		path      string        // path of the file the process accesses
-		open      bool          // the process opens the file instead of running it
-		foreign   bool          // the process runs on a root of its own
-		container bool          // the process runs in a container
-		age       time.Duration // age of the run at the scan
-		identity  bool          // the run carries the inode of a file under the host root
-		replaced  bool          // a new file takes the path of the file before the scan
-		credited  bool          // the scan credits the run to gzip
-		uid       uint32        // the real UID of the process, whose effective UID is 0
-		kept      bool          // the run waits for a later scan
+		name        string
+		path        string        // path of the file the process accesses
+		open        bool          // the process opens the file instead of running it
+		interpreter bool          // the process runs a script through the file
+		foreign     bool          // the process runs on a root of its own
+		container   bool          // the process runs in a container
+		age         time.Duration // age of the run at the scan
+		identity    bool          // the run carries the inode of a file under the host root
+		replaced    bool          // a new file takes the path of the file before the scan
+		credited    bool          // the scan credits the run to gzip
+		uid         uint32        // the real UID of the process, whose effective UID is 0
+		kept        bool          // the run waits for a later scan
 	}{
 		{name: "run", path: "/usr/bin/gzip", credited: true},
 		{name: "run of the file at its path", path: "/usr/bin/gzip", identity: true, credited: true},
 		{name: "run of a file replaced since", path: "/usr/bin/gzip", identity: true, replaced: true},
 		{name: "run of a file procfs names as replaced", path: "/usr/bin/gzip" + deletedSuffix},
 		{name: "open", path: "/usr/bin/gzip", open: true},
+		{name: "run of an interpreter", path: "/usr/bin/gzip", interpreter: true, identity: true, credited: true},
 		{name: "foreign root", path: "/usr/bin/gzip", foreign: true},
 		{name: "container", path: "/usr/bin/gzip", container: true},
 		{name: "expired", path: "/usr/bin/gzip", age: hostMissTTL + time.Minute},
@@ -2244,6 +2273,12 @@ func TestScanHostCreditsMissedRuns(t *testing.T) {
 			if tt.open {
 				pc.Process.FileEvent.SetPathnameStr("/usr/bin/zcat")
 				file = &model.FileEvent{}
+				file.SetPathnameStr(tt.path)
+				file.Mode = 04755
+			}
+			if tt.interpreter {
+				pc.Process.FileEvent.SetPathnameStr("/tmp/script")
+				file = &pc.Process.LinuxBinprm.FileEvent
 				file.SetPathnameStr(tt.path)
 				file.Mode = 04755
 			}

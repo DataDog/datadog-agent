@@ -11,7 +11,7 @@ package(default_package_metadata = [
     ":ship_source_offer",
 ])
 
-VERSION = "3.5"
+VERSION = "3.11"
 
 package_metadata(
     name = "package_metadata",

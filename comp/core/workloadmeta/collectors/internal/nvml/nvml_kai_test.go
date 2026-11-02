@@ -308,7 +308,9 @@ func TestKAIFractionalGPUsReportsSharesFromFixtures(t *testing.T) {
 	for podName, wantFraction := range kaiFixtureExpectedFractions {
 		want := make(map[string]workloadmeta.GPUShare)
 		for _, uuid := range kaiFixtureExpectedGPUs[podName] {
-			want[uuid] = workloadmeta.GPUShare{Fraction: wantFraction}
+			// The memory is the request KAI's binder wrote: 7680Mi or
+			// 10752Mi of 15360 MiB.
+			want[uuid] = workloadmeta.GPUShare{Fraction: wantFraction, Memory: uint64(wantFraction*15360) << 20}
 		}
 		assert.Equal(t, want, fractions.sharesByContainer[podContainerID(t, pods[podName])], "shares of %s", podName)
 	}
@@ -333,6 +335,7 @@ func TestKAIFractionalGPUsReportsSharesFromMemoryRequests(t *testing.T) {
 		require.Len(t, shares, len(kaiFixtureExpectedGPUs[podName]), "shares of %s", podName)
 		for uuid, share := range shares {
 			assert.InDelta(t, wantFraction, share.Fraction, 1e-9, "share of %s on %s", podName, uuid)
+			assert.Equal(t, uint64(wantFraction*15360)<<20, share.Memory, "memory of %s on %s", podName, uuid)
 		}
 	}
 }
@@ -354,6 +357,7 @@ func TestKAIGPUShares(t *testing.T) {
 		uuidA         = "GPU-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 		uuidB         = "GPU-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 		uuidNoMemory  = "GPU-cccccccc-cccc-cccc-cccc-cccccccccccc"
+		uuidGone      = "GPU-dddddddd-dddd-dddd-dddd-dddddddddddd"
 		containerName = "gpu-workload"
 		requestKey    = kaiContainerAnnotationPrefix + containerName + kaiGPUMemoryRequestSuffix
 	)
@@ -362,50 +366,74 @@ func TestKAIGPUShares(t *testing.T) {
 		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: uuidB, Memory: kaiFixtureGPUMemory}},
 		&ddnvml.PhysicalDevice{DeviceInfo: ddnvml.DeviceInfo{UUID: uuidNoMemory}},
 	}}
+	share := func(fraction float64, memoryMiB uint64) workloadmeta.GPUShare {
+		return workloadmeta.GPUShare{Fraction: fraction, Memory: memoryMiB << 20}
+	}
+	// ofGPU is the memory of the given fraction of a fixture GPU, as a fraction
+	// with no memory request is turned into memory.
+	ofGPU := func(fraction float64) workloadmeta.GPUShare {
+		return workloadmeta.GPUShare{Fraction: fraction, Memory: uint64(fraction * float64(kaiFixtureGPUMemory))}
+	}
 
-	tests := []struct {
+	type testCase struct {
 		name        string
 		annotations map[string]string
 		uuids       []string
-		want        map[string]float64
-	}{
+		want        map[string]workloadmeta.GPUShare
+	}
+	tests := []testCase{
 		{
 			name:        "gpu-fraction",
 			annotations: map[string]string{kaiGPUFractionAnnotation: "0.3"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.3},
+			want:        map[string]workloadmeta.GPUShare{uuidA: ofGPU(0.3)},
 		},
 		{
 			name:        "gpu-fraction of a whole GPU",
 			annotations: map[string]string{kaiGPUFractionAnnotation: "1"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 1},
+			want:        map[string]workloadmeta.GPUShare{uuidA: ofGPU(1)},
 		},
 		{
 			name:        "gpu-fraction applies to every GPU of the pod",
 			annotations: map[string]string{kaiGPUFractionAnnotation: "0.5"},
 			uuids:       []string{uuidA, uuidB},
-			want:        map[string]float64{uuidA: 0.5, uuidB: 0.5},
+			want:        map[string]workloadmeta.GPUShare{uuidA: ofGPU(0.5), uuidB: ofGPU(0.5)},
 		},
 		{
 			// KAI's binder derives the request from the fraction, rounding
-			// down to a MiB, so the fraction itself is the exact value.
-			name:        "gpu-fraction wins over the memory request",
-			annotations: map[string]string{kaiGPUFractionAnnotation: "0.333", requestKey: "5068Mi"},
+			// down to a MiB: the fraction is the one KAI accounts for, and the
+			// request the memory it limits the container to.
+			name:        "gpu-fraction with the binder's memory request",
+			annotations: map[string]string{kaiGPUFractionAnnotation: "0.333", requestKey: "5114Mi"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.333},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.333, 5114)},
+		},
+		{
+			name:        "gpu-fraction on a GPU that left NVML has no memory",
+			annotations: map[string]string{kaiGPUFractionAnnotation: "0.5"},
+			uuids:       []string{uuidGone},
+			want:        map[string]workloadmeta.GPUShare{uuidGone: {Fraction: 0.5}},
 		},
 		{
 			name:        "memory request",
 			annotations: map[string]string{requestKey: "4608Mi"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.3},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.3, 4608)},
+		},
+		{
+			// 4096 MiB is 0.2666... of a 15360 MiB GPU, which KAI assigns
+			// as 0.27, while still limiting the container to 4096 MiB.
+			name:        "memory request turned into a fraction is rounded up as KAI does",
+			annotations: map[string]string{requestKey: "4096Mi"},
+			uuids:       []string{uuidA},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.27, 4096)},
 		},
 		{
 			name:        "memory request in another unit",
 			annotations: map[string]string{requestKey: "7.5Gi"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.5},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.5, 7680)},
 		},
 		{
 			name:        "memory request of another container is ignored",
@@ -416,30 +444,31 @@ func TestKAIGPUShares(t *testing.T) {
 			name:        "gpu-memory, from KAI versions without the memory request",
 			annotations: map[string]string{kaiGPUMemoryAnnotation: "10752"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.7},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.7, 10752)},
 		},
 		{
 			name:        "memory request wins over gpu-memory",
 			annotations: map[string]string{requestKey: "4608Mi", kaiGPUMemoryAnnotation: "10752"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.3},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.3, 4608)},
 		},
 		{
 			name:        "memory above the GPU's is capped at the whole GPU",
 			annotations: map[string]string{kaiGPUMemoryAnnotation: "20000"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 1},
+			want:        map[string]workloadmeta.GPUShare{uuidA: ofGPU(1)},
 		},
 		{
 			name:        "memory of a GPU reporting none cannot become a fraction",
 			annotations: map[string]string{requestKey: "4608Mi"},
 			uuids:       []string{uuidA, uuidNoMemory},
-			want:        map[string]float64{uuidA: 0.3},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.3, 4608), uuidNoMemory: share(0, 4608)},
 		},
 		{
 			name:        "memory of a GPU that left NVML cannot become a fraction",
 			annotations: map[string]string{requestKey: "4608Mi"},
-			uuids:       []string{"GPU-dddddddd-dddd-dddd-dddd-dddddddddddd"},
+			uuids:       []string{uuidGone},
+			want:        map[string]workloadmeta.GPUShare{uuidGone: share(0, 4608)},
 		},
 		{
 			name:  "no request",
@@ -447,38 +476,23 @@ func TestKAIGPUShares(t *testing.T) {
 		},
 	}
 	for _, invalid := range []string{"abc", "0", "-0.5", "1.5", "NaN", "Inf"} {
-		tests = append(tests, struct {
-			name        string
-			annotations map[string]string
-			uuids       []string
-			want        map[string]float64
-		}{
+		tests = append(tests, testCase{
 			name:        "invalid gpu-fraction " + invalid + " falls back to the memory request",
 			annotations: map[string]string{kaiGPUFractionAnnotation: invalid, requestKey: "4608Mi"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.3},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.3, 4608)},
 		})
 	}
 	for _, invalid := range []string{"abc", "0", "-4608Mi", "4608MiB"} {
-		tests = append(tests, struct {
-			name        string
-			annotations map[string]string
-			uuids       []string
-			want        map[string]float64
-		}{
+		tests = append(tests, testCase{
 			name:        "invalid memory request " + invalid + " falls back to gpu-memory",
 			annotations: map[string]string{requestKey: invalid, kaiGPUMemoryAnnotation: "4608"},
 			uuids:       []string{uuidA},
-			want:        map[string]float64{uuidA: 0.3},
+			want:        map[string]workloadmeta.GPUShare{uuidA: share(0.3, 4608)},
 		})
 	}
 	for _, invalid := range []string{"abc", "0", "-1", "1.5", "18446744073709551615"} {
-		tests = append(tests, struct {
-			name        string
-			annotations map[string]string
-			uuids       []string
-			want        map[string]float64
-		}{
+		tests = append(tests, testCase{
 			name:        "invalid gpu-memory " + invalid,
 			annotations: map[string]string{kaiGPUMemoryAnnotation: invalid},
 			uuids:       []string{uuidA},
@@ -493,14 +507,35 @@ func TestKAIGPUShares(t *testing.T) {
 
 			got := kaiGPUShares(pod, containerName, test.uuids, deviceCache)
 
-			// Every GPU gets an entry, with a zero fraction when its share is
-			// unknown.
+			// Every GPU gets an entry, with a zero share when it is unknown.
 			require.ElementsMatch(t, test.uuids, slices.Collect(maps.Keys(got)))
 			for _, uuid := range test.uuids {
-				assert.InDelta(t, test.want[uuid], got[uuid].Fraction, 1e-9, "fraction of %s", uuid)
+				assert.InDelta(t, test.want[uuid].Fraction, got[uuid].Fraction, 1e-9, "fraction of %s", uuid)
+				assert.Equal(t, test.want[uuid].Memory, got[uuid].Memory, "memory of %s", uuid)
 			}
 		})
 	}
+}
+
+func TestKAIAssignedFraction(t *testing.T) {
+	const totalMiB = 15360
+	for _, test := range []struct {
+		memoryMiB uint64
+		want      float64
+	}{
+		{7680, 0.5},
+		{4608, 0.3},
+		{10752, 0.7},
+		{4096, 0.27},
+		{8448, 0.56},
+		{1, 0.01},
+		{15360, 1},
+		{20000, 1},
+	} {
+		got := kaiAssignedFraction(test.memoryMiB<<20, totalMiB<<20)
+		assert.Equal(t, test.want, got, "%d MiB of %d MiB", test.memoryMiB, totalMiB)
+	}
+	assert.Zero(t, kaiAssignedFraction(1<<20, 1<<10), "a GPU with less than a MiB of memory")
 }
 
 func TestKAIFractionalGPUsClaimsWithoutReservationPod(t *testing.T) {
@@ -1206,7 +1241,7 @@ func TestCreateContainerGPUEventsMergesKAIWithDRA(t *testing.T) {
 		"the container's DRA device and its KAI fraction must both be published, in one event")
 	for _, event := range events {
 		if container, ok := event.Entity.(*workloadmeta.Container); ok && container.ID == containerID {
-			assert.Equal(t, map[string]workloadmeta.GPUShare{kaiGPUSharedByFracAAndB: {Fraction: 0.5}}, container.GPUShares,
+			assert.Equal(t, map[string]workloadmeta.GPUShare{kaiGPUSharedByFracAAndB: {Fraction: 0.5, Memory: 7680 << 20}}, container.GPUShares,
 				"only the KAI fraction has a share; the DRA device is the container's whole")
 		}
 	}

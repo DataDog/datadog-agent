@@ -73,6 +73,7 @@ List of the available variables:
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -91,6 +92,7 @@ List of the available variables:
 | [`process.ancestors.user_sid`](#common-process-user_sid-doc) | Sid of the user of the process |
 | [`process.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -104,6 +106,7 @@ List of the available variables:
 | [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -203,6 +206,7 @@ A process was executed or forked
 | -------- | ------------- |
 | [`exec.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exec.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`exec.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -229,6 +233,7 @@ A process was terminated
 | [`exit.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exit.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`exit.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -381,6 +386,15 @@ create.file.device_path == "\device\harddisk1\cmd.bat"
 {{< /code-block >}}
 
 Matches the creation of the file located at c:\cmd.bat
+
+### `*.ecs_task_id` {#common-containercontext-ecs_task_id-doc}
+Type: string
+
+Definition: ECS task ID
+
+`*.ecs_task_id` has 5 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container`
+
 
 ### `*.envp` {#common-process-envp-doc}
 Type: string

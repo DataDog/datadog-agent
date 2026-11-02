@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -183,7 +183,7 @@ func detectLanguage(client *http.Client, pids []int32) ([]languagemodels.Languag
 		return nil, err
 	}
 
-	url := sysprobeclient.ModuleURL(sysconfig.LanguageDetectionModule, "/detect")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.LanguageDetectionModule, "/detect")
 	req, err := http.NewRequest(http.MethodGet, url, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return nil, err

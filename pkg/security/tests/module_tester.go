@@ -807,7 +807,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"WorkloadProfileDifferentiateArgs":        opts.workloadProfileDifferentiateArgs,
 		"ProfilingStartupDelay":                   opts.profilingStartupDelay,
 		"ProfileReportingWaitPersistence":         opts.profileReportingWaitPersistence,
-		"EventSamplingSyscallsEnabled":            opts.eventSamplingSyscallsEnabled,
 		"EventSamplingOpenRateUnlimited":          opts.eventSamplingOpenRateUnlimited,
 		"ErpcDentryResolutionEnabled":             erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":              mapDentryResolutionEnabled,

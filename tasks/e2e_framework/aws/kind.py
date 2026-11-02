@@ -59,7 +59,7 @@ def create_kind(
 
     extra_flags = {
         # kind is pre-baked only in this AMI; the scenario no longer installs it.
-        "ddinfra:osDescriptor": f"ubuntu:24-04-e2e-kind:{_get_architecture(architecture)}",
+        "ddinfra:osDescriptor": f"ubuntu:24-04-kind:{_get_architecture(architecture)}",
         "ddinfra:deployFakeintakeWithLoadBalancer": use_loadBalancer,
         "ddinfra:aws/defaultInstanceType": "t3.xlarge",
         "ddagent:deployWithOperator": bool(install_agent_with_operator),

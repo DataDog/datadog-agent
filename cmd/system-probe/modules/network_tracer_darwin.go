@@ -9,14 +9,14 @@ package modules
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 func init() { registerModule(NetworkTracer) }
 
 // NetworkTracer is a factory for NPM's tracer on Darwin
 var NetworkTracer = &module.Factory{
-	Name: config.NetworkTracerModule,
+	Name: sysconfigtypes.NetworkTracerModule,
 	Fn:   createNetworkTracerModule,
 }
 
