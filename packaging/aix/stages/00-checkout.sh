@@ -103,10 +103,7 @@ else
     PARTIAL_INTEGRATIONS_CORE=
 fi
 
-# A shallow clone only holds the default-branch tip at depth 1 — the pinned
-# commit is generally not reachable from it, and a plain 'git fetch' would not
-# download it either. Fetch it explicitly when absent (GitHub supports fetching
-# public commits by SHA, git protocol v2).
+# Fetch the commit explicitly when absent
 if ! git -C "$INTEGRATIONS_CORE" cat-file -e "${INTEGRATIONS_CORE_VERSION}^{commit}" 2>/dev/null; then
     log "  Pinned commit not present; fetching $INTEGRATIONS_CORE_VERSION"
     git -C "$INTEGRATIONS_CORE" fetch --quiet --depth=1 origin "$INTEGRATIONS_CORE_VERSION"
