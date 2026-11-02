@@ -59,6 +59,13 @@ type atel struct {
 
 	startupSpan *installertelemetry.Span
 
+	// The submission queue is never closed. The mutex gates producers during
+	// shutdown; the lifecycle context stops the consumer and cancels its POST.
+	logsMu        sync.RWMutex
+	logsAccepting bool
+	logsCh        chan Log
+	logsDone      chan struct{}
+
 	prevPromMetricCounterValues   map[string]float64
 	prevPromMetricHistogramValues map[string]uint64
 	prevPromMetricValuesMU        sync.Mutex
@@ -89,6 +96,7 @@ type atel struct {
 const (
 	emitterTagName                               = "emitter"
 	defaultEmitter                               = "agent"
+	defaultLogSubmissionBufferSize               = 64
 	defaultErrortrackingFlushIntervalSeconds     = 60
 	defaultErrortrackingBufferSize               = 2048
 	defaultErrortrackingStartupJitterSeconds     = 0
@@ -196,11 +204,11 @@ func createAtel(
 		Transport: httputils.CreateHTTPTransport(cfgComp),
 	}
 
-	// Only allocate the errortracking channel (and later spawn the flush
-	// goroutine in start) when the errortracking feature is enabled.
+	// Only allocate the errortracking channel and schedule its flush job
+	// when the errortracking feature is enabled.
 	// Otherwise leave errLogsCh nil; SubmitErrorLog is then a no-op
 	// (see the errLogsCh==nil guard there) and we avoid the buffer +
-	// idle goroutine for deployments that don't opt in.
+	// scheduled job for deployments that don't opt in.
 	//
 	// Gate composes with IsAgentTelemetryEnabled so gov/FIPS sites
 	// (parent agent_telemetry is excluded for them) automatically opt
@@ -248,6 +256,7 @@ func createAtel(
 		sender:  sender,
 		runner:  runner,
 		atelCfg: atelCfg,
+		logsCh:  make(chan Log, defaultLogSubmissionBufferSize),
 
 		lightTracer: installertelemetry.NewTelemetry(
 			tracerHTTPClient,
@@ -863,6 +872,7 @@ func (a *atel) start() error {
 	}
 
 	// Start the runner and add the jobs.
+	a.startLogSubmission()
 	a.runner.start()
 	for sh, pp := range a.atelCfg.schedule {
 		a.runner.addJob(job{
@@ -907,20 +917,24 @@ func (a *atel) start() error {
 
 // stop is called by FX when the application stops.
 //
-// Shutdown ordering for the errortracking path (records-after-drain
-// safety):
-//  1. Clear the submitter + bouncer slots so producers stop reaching
+// Shutdown ordering for both log submission paths:
+//  1. Disable SubmitLog and clear the submitter + bouncer slots so producers stop reaching
 //     SubmitErrorLog. After this point Handler.Enabled is false and
 //     the parent multi-handler short-circuits.
-//  2. Cancel the lifecycle context (a.cancel) — any in-flight runner-
-//     scheduled flush tick promptly cancels its HTTP POST.
+//  2. Cancel the lifecycle context (a.cancel) and wait for the submission
+//     worker. In-flight POSTs use this context and cancel promptly.
 //  3. runner.stop() blocks new ticks; its returned Done channel
 //     signals when in-flight cron jobs have finished, taking the place
 //     of the previous custom WaitGroup-based barrier.
-//  4. Final drain: flushErrortracking with a fresh background-derived
+//  4. Drain both queues with a fresh background-derived
 //     context + shutdownDrainTimeout, so records buffered between the
 //     last tick and the slot-clear are still sent.
 func (a *atel) stop() error {
+	// Reject new submissions before cancelling the worker. Producers never
+	// send to a closed channel, including calls after Stop returns.
+	a.logsMu.Lock()
+	a.logsAccepting = false
+	a.logsMu.Unlock()
 	pkglogsetup.RegisterErrortrackingSubmitter(nil)
 	pkglogsetup.RegisterErrortrackingBouncer(nil)
 
@@ -930,6 +944,9 @@ func (a *atel) stop() error {
 
 	a.logComp.Info("Stopping agent telemetry")
 	a.cancel()
+	if a.logsDone != nil {
+		<-a.logsDone
+	}
 
 	if a.lightTracer != nil {
 		a.lightTracer.Stop()
@@ -938,11 +955,12 @@ func (a *atel) stop() error {
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()
 
-	// Final errortracking drain. Uses a fresh background-derived ctx
+	// Final log drain. Uses a fresh background-derived ctx
 	// because a.cancelCtx is already done; the bounded timeout caps the
 	// budget so a hung intake cannot block shutdown.
-	if a.errortrackingEnabled {
+	if a.errortrackingEnabled || a.logsCh != nil {
 		shutdownCtx, cancelDrain := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+		a.flushSubmittedLogs(shutdownCtx)
 		a.flushErrortracking(shutdownCtx)
 		cancelDrain()
 	}
