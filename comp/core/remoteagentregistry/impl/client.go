@@ -93,6 +93,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 			DisplayName:          registration.AgentDisplayName,
 			SanitizedDisplayName: sanitizedDisplayName,
 			PID:                  registration.AgentPID,
+			ProcessInstanceID:    registration.ProcessInstanceID,
 			LastSeen:             time.Now(),
 			SessionID:            uuid.New().String(),
 		},

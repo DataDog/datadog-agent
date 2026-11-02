@@ -60,6 +60,7 @@ cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
 tests_aix-ppc64                       @DataDog/agent-devx @DataDog/agent-runtimes
 package_aix-ppc64                     @DataDog/agent-build @DataDog/agent-runtimes
 deploy_packages_aix-ppc64             @DataDog/agent-delivery @DataDog/agent-runtimes
+deploy_aix_install_script              @DataDog/agent-delivery
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
