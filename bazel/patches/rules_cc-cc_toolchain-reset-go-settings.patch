@@ -1,0 +1,20 @@
+diff --git a/cc/private/rules_impl/cc_toolchain.bzl b/cc/private/rules_impl/cc_toolchain.bzl
+index ab55e6b..b4e8e5a 100644
+--- a/cc/private/rules_impl/cc_toolchain.bzl
++++ b/cc/private/rules_impl/cc_toolchain.bzl
+@@ -14,6 +14,7 @@
+ 
+ """Starlark implementation of cc_toolchain rule."""
+ 
++load("@@//bazel/toolchains:cc_toolchain_transition.bzl", "reset_cc_toolchain_settings")
+ load("//cc/common:cc_common.bzl", "cc_common")
+ load("//cc/common:cc_helper.bzl", "cc_helper")
+ load("//cc/common:semantics.bzl", "semantics")
+@@ -194,6 +195,7 @@ def _cc_toolchain_impl(ctx):
+ 
+ cc_toolchain = rule(
+     implementation = _cc_toolchain_impl,
++    cfg = reset_cc_toolchain_settings,
+     fragments = ["cpp"],
+     doc = """
+ <p>Represents a C++ toolchain.</p>
