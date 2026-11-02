@@ -46,6 +46,11 @@ type Payload struct {
 	Metadata  map[string]interface{} `json:"system_probe_metadata"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeSystemProbeMetadata
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -89,7 +94,7 @@ func NewComponent(deps Requires) Provides {
 		hostname:     hname,
 		sysprobeConf: deps.SysProbeConfig,
 	}
-	sb.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sb.getPayload, "system-probe.json", serializer.PayloadTypeSystemProbeMetadata)
+	sb.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sb.getPayload, "system-probe.json")
 
 	return Provides{
 		Comp:             sb,
@@ -167,7 +172,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 	return metadata
 }
 
-func (sb *systemprobe) getPayload() marshaler.JSONMarshaler {
+func (sb *systemprobe) getPayload() marshaler.TypedJSONMarshaler {
 	return &Payload{
 		Hostname:  sb.hostname,
 		Timestamp: time.Now().UnixNano(),

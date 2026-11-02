@@ -9,7 +9,6 @@ go_library(
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
-        "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/serializer/types",
         "@com_github_stretchr_testify//mock",

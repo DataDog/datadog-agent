@@ -38,7 +38,6 @@
 //				deps.Serializer,
 //				cp.getPayload,
 //				"custom.json",
-//				serializer.PayloadTypeAgentMetadata,
 //			),
 //		}
 //
@@ -49,7 +48,7 @@
 //		}
 //	}
 //
-// func (cp *customPayload) getPayload() marshaler.JSONMarshaler { ... }
+// func (cp *customPayload) getPayload() marshaler.TypedJSONMarshaler { ... }
 package util
 
 import (
@@ -81,7 +80,7 @@ var (
 )
 
 // PayloadGetter is the callback to generate a new payload exposed by each inventory payload to InventoryPayload utils
-type PayloadGetter func() marshaler.JSONMarshaler
+type PayloadGetter func() marshaler.TypedJSONMarshaler
 
 // InventoryPayload offers helpers for all inventory payloads providing all the common part to create a new payload.
 // InventoryPayload will handle the common configuration as well as refresh rates and flare. This type is meant to be
@@ -105,7 +104,6 @@ type InventoryPayload struct {
 	log           log.Component
 	serializer    serializer.MetricSerializer
 	getPayload    PayloadGetter
-	payloadType   serializer.PayloadType
 	createdAt     time.Time
 	firstRunDelay time.Duration
 
@@ -127,7 +125,7 @@ func (i *InventoryPayload) SetFirstRunDelay(delay time.Duration) {
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
 // needs to be generated.
-func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string, payloadType serializer.PayloadType) InventoryPayload {
+func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string) InventoryPayload {
 	minInterval := time.Duration(conf.GetInt("inventories_min_interval")) * time.Second
 	if minInterval <= 0 {
 		minInterval = defaultMinInterval
@@ -143,7 +141,6 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		conf:          conf,
 		log:           l,
 		serializer:    s,
-		payloadType:   payloadType,
 		getPayload:    getPayload,
 		createdAt:     time.Now(),
 		firstRunDelay: conf.GetDuration("inventories_first_run_delay") * time.Second,
@@ -235,7 +232,7 @@ func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 		i.log.Debugf("inventory payload is nil, skipping submission")
 		return i.MinInterval
 	}
-	if err := i.serializer.SendMetadata(p, i.payloadType); err != nil {
+	if err := i.serializer.SendMetadata(p); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
 	}
 	return i.MinInterval
@@ -261,7 +258,7 @@ func (i *InventoryPayload) Submit() error {
 	if p == nil {
 		return errors.New("inventory payload is nil")
 	}
-	if err := i.serializer.SendMetadata(p, i.payloadType); err != nil {
+	if err := i.serializer.SendMetadata(p); err != nil {
 		return fmt.Errorf("unable to submit inventories payload: %w", err)
 	}
 	return nil

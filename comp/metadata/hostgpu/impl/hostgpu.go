@@ -63,6 +63,11 @@ type Payload struct {
 	UUID      string           `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeHostGPUMetadata
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -106,7 +111,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		data:     &hostGPUMetadata{},
 	}
-	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName, serializer.PayloadTypeHostGPUMetadata)
+	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName)
 
 	return Provides{
 		Comp:          gh,
@@ -149,7 +154,7 @@ func (gh *gpuHost) fillData() {
 	}
 }
 
-func (gh *gpuHost) getPayload() marshaler.JSONMarshaler {
+func (gh *gpuHost) getPayload() marshaler.TypedJSONMarshaler {
 	gh.fillData()
 
 	if len(gh.data.Devices) == 0 {

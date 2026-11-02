@@ -50,6 +50,11 @@ type Payload struct {
 	UUID          string                `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeCheckMetadata
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -105,7 +110,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}
-	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json", serializer.PayloadTypeCheckMetadata)
+	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
 	// We want to be notified when the collector add or removed a check.
 	// TODO: (component) - This entire metadata provider should be part of the collector. Once the collector is a
@@ -174,11 +179,11 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 	return res
 }
 
-func (ic *inventorychecksImpl) getPayloadWithConfigs() marshaler.JSONMarshaler {
+func (ic *inventorychecksImpl) getPayloadWithConfigs() marshaler.TypedJSONMarshaler {
 	return ic.getPayload(true)
 }
 
-func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarshaler {
+func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONMarshaler {
 	ic.m.Lock()
 	defer ic.m.Unlock()
 

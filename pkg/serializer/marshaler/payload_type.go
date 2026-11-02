@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serializer
+package marshaler
 
 // PayloadType identifies the kind of a metadata payload. It is sent to the intake in the
 // `DD-Payload-Type` HTTP header so that payloads can be attributed without decompressing them.
@@ -13,9 +13,6 @@ package serializer
 type PayloadType string
 
 const (
-	// PayloadTypeHeader is the HTTP header carrying the PayloadType of a metadata submission.
-	PayloadTypeHeader = "DD-Payload-Type"
-
 	// Payloads sent to /api/v1/metadata.
 
 	// PayloadTypeAgentMetadata is the inventoryagent payload.
@@ -50,3 +47,11 @@ const (
 	// PayloadTypeOTelHost is the OTel collector host metadata payload.
 	PayloadTypeOTelHost PayloadType = "otel_host"
 )
+
+// TypedJSONMarshaler is a JSONMarshaler that also identifies the kind of metadata payload it carries.
+// Metadata payloads implement it so the serializer can tag their submission with the matching type.
+type TypedJSONMarshaler interface {
+	JSONMarshaler
+	// PayloadType returns the kind of this payload.
+	PayloadType() PayloadType
+}
