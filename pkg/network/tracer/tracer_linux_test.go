@@ -2866,6 +2866,82 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	return
 }
 
+// classifierEntryMaxSize bounds the size of the protocol classification entry program after verification and JIT
+// constant blinding. It's the only classification program attached to a socket, and attaching charges that size
+// against net.core.optmem_max: 20 KiB on kernels before 6.8 and on GKE COS, which also sets
+// net.core.bpf_jit_harden=2. 7.85.0 failed to attach there. The budget is 1 KiB below 20 KiB because the same program
+// can come out larger on other kernels (about 100 bytes larger on GKE COS than on Ubuntu 24.04), and the kernel also
+// charges a small header. To stay under it, avoid inlining the same helper more than once, or move code into the
+// tail-called programs (see classification_progs).
+const classifierEntryMaxSize = 19 * 1024
+
+func (s *TracerSuite) TestProtocolClassifierEntrySize() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+	// The entry program is found by name, and the full name comes from BTF function info (kernel 5.0+). Older
+	// kernels truncate program names (4.15+) or don't name programs at all.
+	if kv < kernel.VersionCode(5, 0, 0) {
+		t.Skip("can't identify the entry program by name before kernel 5.0")
+	}
+
+	// Constant blinding is done by the JIT, so without it the program would be measured unblinded.
+	jitEnable, err := os.ReadFile("/proc/sys/net/core/bpf_jit_enable")
+	if err != nil || strings.TrimSpace(string(jitEnable)) == "0" {
+		t.Skip("BPF JIT is disabled, so constants can't be blinded")
+	}
+
+	// Blind constants like GKE COS does, since that's what makes the program biggest.
+	const jitHarden = "/proc/sys/net/core/bpf_jit_harden"
+	orig, err := os.ReadFile(jitHarden)
+	require.NoError(t, err)
+	if err := os.WriteFile(jitHarden, []byte("2"), 0644); err != nil {
+		t.Skipf("can't enable constant blinding: %s", err)
+	}
+	t.Cleanup(func() { _ = os.WriteFile(jitHarden, orig, 0644) })
+
+	setupTracer(t, cfg)
+
+	entryName := string(probes.ProtocolClassifierEntrySocketFilter)
+	size := 0
+	var id ebpf.ProgramID
+	for {
+		id, err = ebpf.ProgramGetNextID(id)
+		if errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		require.NoError(t, err)
+
+		prog, err := ebpf.NewProgramFromID(id)
+		if err != nil {
+			continue // unloaded in the meantime
+		}
+		info, err := prog.Info()
+		prog.Close()
+		if err != nil {
+			continue
+		}
+		if info.Name == entryName[:unix.BPF_OBJ_NAME_LEN-1] {
+			// The kernel truncates program names, and the full name comes from BTF function info.
+			t.Skip("can't identify the entry program without BTF function info")
+		}
+		if info.Name != entryName {
+			continue
+		}
+		// Program IDs only increase, so the last match is the one this test's tracer loaded.
+		size, err = info.TranslatedSize()
+		require.NoError(t, err)
+	}
+
+	require.NotZero(t, size, "%s not loaded", entryName)
+	assert.LessOrEqual(t, size, classifierEntryMaxSize,
+		"%s is %d bytes after constant blinding; keep it under %d so it can be attached on hosts with net.core.optmem_max=20480 (e.g. GKE COS nodes, which also blind constants)",
+		entryName, size, classifierEntryMaxSize)
+}
+
 func (s *TracerSuite) TestTLSClassification() {
 	t := s.T()
 	cfg := testConfig()
