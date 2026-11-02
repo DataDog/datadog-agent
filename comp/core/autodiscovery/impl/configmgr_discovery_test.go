@@ -9,6 +9,7 @@ package autodiscoveryimpl
 
 import (
 	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -24,6 +25,23 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
+
+func (r *configChangeRecorder) snapshot() []integration.ConfigChanges {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.changes)
+}
+
+func (r *configChangeRecorder) wait(t *testing.T) integration.ConfigChanges {
+	t.Helper()
+	require.Eventually(t, func() bool { return len(r.snapshot()) > 0 }, 2*time.Second, time.Millisecond,
+		"timed out waiting for published changes")
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	changes := r.changes[0]
+	r.changes = r.changes[1:]
+	return changes
+}
 
 // stubDiscoverer is a discoverer.ConfigDiscoverer used by configmgr tests.
 type stubDiscoverer struct {
