@@ -412,11 +412,13 @@ additional_endpoints:
   orchestrator_additional_endpoints:
     https://app.datadoghq.com:
       - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+      - apikey2
       - DELA[org-uuid, aws, fallback=supersecretXYZ]
 `
 		scrubbed, err := ScrubYamlString(input)
 		require.NoError(t, err)
 		assert.NotContains(t, scrubbed, "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb")
+		assert.NotContains(t, scrubbed, "apikey2")
 		assert.NotContains(t, scrubbed, "supersecretXYZ")
 	})
 
