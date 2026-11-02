@@ -13,6 +13,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/containers/benchmark",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_samber_lo//:lo"],
 )
 
 dd_agent_go_test(

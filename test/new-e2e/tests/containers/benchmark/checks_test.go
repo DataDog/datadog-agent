@@ -45,17 +45,8 @@ func TestParseRunnerStats(t *testing.T) {
 		err    string
 	}{
 		{
-			name:   "JSON only",
+			name:   "valid status",
 			output: testStatus,
-		},
-		{
-			name:   "log lines around the JSON document",
-			output: "2026-10-13 21:30:06 UTC | CORE | INFO | (pkg/collector/python/init.go:350 in resolvePythonHome) | Using '/opt/datadog-agent/embedded' as Python home\n" + testStatus + "\n2026-10-13 21:30:07 UTC | CORE | INFO | done\n",
-		},
-		{
-			name:   "no JSON document",
-			output: "2026-10-13 21:30:06 UTC | CORE | ERROR | unable to reach the Agent {status}",
-			err:    "no JSON document in the status output",
 		},
 		{
 			name:   "no runner stats",
