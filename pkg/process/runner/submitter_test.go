@@ -444,7 +444,7 @@ func TestSubmitterPublishesExpirationWithoutFurtherResponses(t *testing.T) {
 		notifier := s.GetRTNotifier()
 		s.updateRTStatus(rtDestination{domain: "https://unreachable.example.com"}, 1, &model.CollectorStatus{ActiveClients: 1})
 		<-notifier.Wake
-		time.Sleep(rtStatusTTL + 10*time.Second)
+		time.Sleep(time.Minute + 10*time.Second)
 		synctest.Wait()
 		select {
 		case <-notifier.Wake:
@@ -474,9 +474,9 @@ func TestSubmitterExpiresStaleStatusAndRejectsOlderFeedback(t *testing.T) {
 	inactiveStatus.updatedAt = activeUpdatedAt.Add(time.Second)
 	s.endpointRTStatuses[inactive] = inactiveStatus
 
-	s.expireRTStatuses(activeUpdatedAt.Add(rtStatusTTL - time.Nanosecond))
+	s.expireRTStatuses(activeUpdatedAt.Add(time.Minute - time.Nanosecond))
 	assert.Len(t, notifier.Latest().Statuses, 2)
-	s.expireRTStatuses(activeUpdatedAt.Add(rtStatusTTL))
+	s.expireRTStatuses(activeUpdatedAt.Add(time.Minute))
 	<-notifier.Wake
 	require.Equal(t, []*model.CollectorStatus{{ActiveClients: 0}}, notifier.Latest().Statuses)
 

@@ -49,7 +49,7 @@ var _ Submitter = &CheckSubmitter{}
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
 // Feedback older than this is not evidence of currently connected viewers.
-const rtStatusTTL = 2 * time.Minute
+const rtStatusTTL = time.Minute
 
 type rtDestination struct {
 	domain      string
