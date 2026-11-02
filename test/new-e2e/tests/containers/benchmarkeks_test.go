@@ -856,10 +856,12 @@ func (s *benchmarkEKSSuite) runnerStats(ctx context.Context, variant benchmarkVa
 }
 
 // podRunnerStats returns the runner stats of the Agent of container in pod, from the
-// collector section of its status, retrying on failure.
+// collector section of its status, retrying on failure. The command runs without the
+// DD_LOG_LEVEL of the container, which would override its default log level, off: it then
+// logs nothing on its standard output, the JSON document alone.
 func (s *benchmarkEKSSuite) podRunnerStats(ctx context.Context, pod corev1.Pod, container string) (benchmark.RunnerStats, error) {
 	return backoff.Retry(ctx, func() (benchmark.RunnerStats, error) {
-		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, container, []string{"env", "DD_LOG_LEVEL=off", "agent", "status", "collector", "--json"})
+		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, container, []string{"env", "-u", "DD_LOG_LEVEL", "agent", "status", "collector", "--json"})
 		if err != nil {
 			return nil, fmt.Errorf("agent status failed: %w, stderr: %s", err, stderr)
 		}
