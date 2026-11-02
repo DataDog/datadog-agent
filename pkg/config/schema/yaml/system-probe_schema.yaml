@@ -1769,6 +1769,13 @@ properties:
     node_type: section
     type: object
     properties:
+      enable_logs:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Forwards DDInjector driver events, such as crashes of instrumented
+          processes, to Datadog as internal telemetry. Enabled by the APM inject package
+          installation.
       enable_telemetry:
         node_type: setting
         type: boolean

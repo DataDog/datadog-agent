@@ -77,7 +77,7 @@ func (s *fakeETWSession) GetSessionStatistics() (etw.SessionStatistics, error) {
 
 func TestDDInjectorLogsListenerStopDeadline(t *testing.T) {
 	config := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
-		"windows_crash_detection.enabled": true,
+		"injector.enable_logs": true,
 	})
 	session := &fakeETWSession{
 		stop: make(chan struct{}), started: make(chan struct{}), release: make(chan struct{}),
@@ -256,7 +256,7 @@ func TestDDInjectorLogsListenerIgnoresUnwatchedEvents(t *testing.T) {
 
 func TestDDInjectorLogsListenerEnablesWatchedKeywords(t *testing.T) {
 	config := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
-		"windows_crash_detection.enabled": true,
+		"injector.enable_logs": true,
 	})
 	session := &fakeETWSession{stop: make(chan struct{})}
 	listener := newDDInjectorLogsListener(config, nil, &fakeETWComponent{session: session}, logmock.New(t))
@@ -267,11 +267,12 @@ func TestDDInjectorLogsListenerEnablesWatchedKeywords(t *testing.T) {
 	assert.Equal(t, uint64(0x40), session.provider.MatchAnyKeyword)
 }
 
-func TestDDInjectorLogsListenerEnabledOnlyByWindowsCrashDetection(t *testing.T) {
+func TestDDInjectorLogsListenerEnabledOnlyByEnableLogs(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		config := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 			"injector.enable_telemetry":       true,
-			"windows_crash_detection.enabled": false,
+			"windows_crash_detection.enabled": true,
+			"injector.enable_logs":            false,
 		})
 		etwComponent := &fakeETWComponent{}
 		listener := newDDInjectorLogsListener(config, nil, etwComponent, nil)
@@ -283,7 +284,8 @@ func TestDDInjectorLogsListenerEnabledOnlyByWindowsCrashDetection(t *testing.T) 
 	t.Run("enabled", func(t *testing.T) {
 		config := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 			"injector.enable_telemetry":       false,
-			"windows_crash_detection.enabled": true,
+			"windows_crash_detection.enabled": false,
+			"injector.enable_logs":            true,
 		})
 		session := &fakeETWSession{stop: make(chan struct{})}
 		etwComponent := &fakeETWComponent{session: session}

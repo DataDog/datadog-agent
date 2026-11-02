@@ -178,7 +178,7 @@ func NewComponent(reqs Requires) Provides {
 }
 
 func (l *ddInjectorLogsListener) start(_ context.Context) error {
-	if !l.config.GetBool("windows_crash_detection.enabled") {
+	if !l.config.GetBool("injector.enable_logs") {
 		return nil
 	}
 

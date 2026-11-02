@@ -124,9 +124,13 @@ func (s *baseAPMInjectSuite) enableInjectorTelemetry() {
 	// Explicitly enable injector telemetry.
 	// If /telemetry supports uncompressed output, make sure to also enable
 	// RAR with remote_agent.registry.enabled = true.
-	config["injector"] = map[string]interface{}{
-		"enable_telemetry": true,
+	// Merge into the existing section to keep injector.enable_logs set by the installer.
+	injector, ok := config["injector"].(map[string]interface{})
+	if !ok {
+		injector = make(map[string]interface{})
 	}
+	injector["enable_telemetry"] = true
+	config["injector"] = injector
 
 	// Write back the modified config
 	err = s.writeYamlConfig(configPath, config)

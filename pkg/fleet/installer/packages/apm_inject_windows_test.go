@@ -32,6 +32,8 @@ func TestEnableSystemProbeConfig_NoExistingFile(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(data, &cfg))
 	require.NotNil(t, cfg.WindowsCrashDetection.Enabled)
 	assert.True(t, *cfg.WindowsCrashDetection.Enabled)
+	require.NotNil(t, cfg.Injector.EnableLogs)
+	assert.True(t, *cfg.Injector.EnableLogs)
 }
 
 func TestEnableSystemProbeConfig_AlreadyEnabled(t *testing.T) {
@@ -40,6 +42,8 @@ func TestEnableSystemProbeConfig_AlreadyEnabled(t *testing.T) {
 
 	writeFile(t, configPath, `windows_crash_detection:
   enabled: true
+injector:
+  enable_logs: true
 runtime_security_config:
   enabled: true
 `)
@@ -74,6 +78,8 @@ gpu_monitoring:
 
 	require.NotNil(t, result.WindowsCrashDetection.Enabled)
 	assert.True(t, *result.WindowsCrashDetection.Enabled)
+	require.NotNil(t, result.Injector.EnableLogs)
+	assert.True(t, *result.Injector.EnableLogs)
 	require.NotNil(t, result.RuntimeSecurityConfig.Enabled)
 	assert.True(t, *result.RuntimeSecurityConfig.Enabled)
 	require.NotNil(t, result.GPUMonitoringConfig.Enabled)
@@ -100,6 +106,30 @@ runtime_security_config:
 
 	assert.True(t, *result.WindowsCrashDetection.Enabled)
 	assert.True(t, *result.RuntimeSecurityConfig.Enabled, "existing settings should be preserved")
+}
+
+func TestEnableSystemProbeConfig_EnablesLogsOnUpgrade(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "system-probe.yaml")
+
+	// Written by an installer predating injector.enable_logs.
+	writeFile(t, configPath, `windows_crash_detection:
+  enabled: true
+injector:
+  enable_telemetry: false
+`)
+
+	err := enableSystemProbeConfigAt(configPath)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	var raw map[string]any
+	require.NoError(t, yaml.Unmarshal(data, &raw))
+
+	injector := raw["injector"].(map[string]any)
+	assert.Equal(t, true, injector["enable_logs"])
+	assert.Equal(t, false, injector["enable_telemetry"], "existing injector settings should be preserved")
 }
 
 func TestEnableSystemProbeConfig_PreservesUnknownKeys(t *testing.T) {
@@ -130,6 +160,7 @@ some_future_key:
 	// windows_crash_detection.enabled should be flipped to true
 	wcd := raw["windows_crash_detection"].(map[string]any)
 	assert.Equal(t, true, wcd["enabled"])
+	assert.Equal(t, true, raw["injector"].(map[string]any)["enable_logs"])
 
 	// unknown key under system_probe_config preserved
 	spc := raw["system_probe_config"].(map[string]any)
