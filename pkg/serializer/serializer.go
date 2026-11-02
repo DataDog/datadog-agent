@@ -22,6 +22,7 @@ import (
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -126,7 +127,8 @@ type Serializer struct {
 	hostname             string
 	logger               log.Component
 
-	zlibV3WarnOnce sync.Once
+	zlibV3WarnOnce        sync.Once
+	endpointMetricFilters map[string]*metricsserializer.EndpointMetricFilter
 
 	metadataDropMetrics *metadataDropMetrics
 }
@@ -171,6 +173,13 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 		logger.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
 	}
 
+	return s
+}
+
+// NewSerializerWithEndpointRouting creates a serializer with endpoint metric filters.
+func NewSerializerWithEndpointRouting(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string, routing configutils.MetricsEndpointRouting) *Serializer {
+	s := NewSerializer(forwarder, orchestratorForwarder, compressor, config, logger, hostName)
+	s.endpointMetricFilters = metricsserializer.CompileEndpointMetricFilters(routing)
 	return s
 }
 
@@ -361,7 +370,7 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
+	s.logger.Debugf("Sending metadata payload")
 
 	if exceeded != split.WithinLimits {
 		s.metadataDropMetrics.record(exceeded, len(compressedPayload), len(payload))

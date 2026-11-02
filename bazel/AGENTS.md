@@ -9,7 +9,10 @@ Use `bazelisk` (or the `bazel` symlink it installs) to invoke Bazel. Bazelisk au
 specified in `.bazelversion`. Never invoke a pinned `bazel` binary directly — the version must match.
 
 ```sh
-# Format and lint all BUILD/.bzl files
+# CI runs this when Bazel files change. Re-run it after formatting.
+bazel run //bazel/buildifier:test
+
+# Rewrite BUILD, .bzl, and MODULE.bazel when the test fails
 bazel run //bazel/buildifier
 
 # Resolve and fetch all external deps (updates MODULE.bazel.lock as a side-effect)
@@ -26,9 +29,11 @@ Remote cache selection lives in `bazel/tools/remote-cache-select.sh` (sourced by
 only when the frontend is reachable and a token source exists; a command-line
 `--config=cache` / `--config=no-remote-cache`, or an rc-level
 `common --config=no-remote-cache` in `user.bazelrc` / `~/.bazelrc`, always wins.
-In containers there
-is no interactive Vault login, so a token must be injected via the
-`BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
+In containers `auto`
+requires a Vault session that can read `identity/oidc/token/buildbarn` (in a
+Datadog workspace: `ddtool auth login --datacenter us1.ddbuild.io`) or a token
+injected via the `BUILDBARN_ID_TOKEN` environment variable (minted on the host
+from Vault).
 
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
@@ -200,6 +205,7 @@ generators and for other languages, sourced from third-party rulesets or written
 ```sh
 bazel run //:gazelle -- ./path/to/package   # generate or update BUILD.bazel
 bazel run //bazel/buildifier                # format
+bazel run //bazel/buildifier:test           # same check as CI
 ```
 
 Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extension's job is precisely to keep that
@@ -281,8 +287,10 @@ case-sensitive filesystem — Docker Desktop can expose the two as the same inod
 
 ### Formatting and structure
 
-- `buildifier` is mandatory. Run `bazel run //bazel/buildifier` before committing. It is the single source of truth for
-  formatting — do not debate style in code review.
+- `buildifier` is mandatory. When a change touches `BUILD`, `BUILD.bazel`, `*.bzl`, `MODULE.bazel`,
+  or `*.bazelrc`, run `bazel run //bazel/buildifier:test` before committing. That is what
+  `bazel:run-buildifier-test` runs. If it fails, `bazel run //bazel/buildifier` and re-run the test.
+  Do not debate style in code review.
 - File structure order: package description comment → `load()` statements → `package()` → rules (leaves first).
 - Standalone comments (not attached to a specific rule) require an empty line after them; attached comments do not.
 - Single blank line between top-level definitions.
@@ -1007,6 +1015,15 @@ locally since Bazel 9.2.0. Prefer that tag over a `resources:memory` entry in `e
 as a remote execution platform property, and RBE workers that don't advertise it can't be scheduled.
 
 ## Testing
+
+BPF and NPM tag variants are excluded by the default `--test_tag_filters`, even
+when named explicitly. To run a focused variant, override the filter, for example:
+
+```sh
+bazel test --test_tag_filters= //pkg/util/kernel/headers:headers_test_bpf
+```
+
+Check the reported executed test count; building a filtered target does not run it.
 
 ### Testing rules (Starlark unit tests)
 
