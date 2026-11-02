@@ -9,6 +9,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,7 +113,11 @@ func newTestLocalAPI(t *testing.T) *testLocalAPI {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	apiServer := &localAPIImpl{
-		server:   &http.Server{},
+		// The test client connects over TCP, which carries no peer uid: it is treated as root, as
+		// the installer commands that drive these routes are.
+		server: &http.Server{ConnContext: func(ctx context.Context, _ net.Conn) context.Context {
+			return context.WithValue(ctx, peerUIDKey{}, uint32(0))
+		}},
 		listener: l,
 		daemon:   daemon,
 	}
@@ -208,4 +213,38 @@ func TestAPIPromoteExperiment(t *testing.T) {
 	err := api.c.PromoteExperiment(testPackage)
 
 	assert.NoError(t, err)
+}
+
+func TestRequireRootForChanges(t *testing.T) {
+	var reached bool
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true })
+	serve := func(enabled bool, method, path string, uid *uint32) int {
+		reached = false
+		r := httptest.NewRequest(method, path, nil)
+		if uid != nil {
+			r = r.WithContext(context.WithValue(r.Context(), peerUIDKey{}, *uid))
+		}
+		w := httptest.NewRecorder()
+		requireRootForChanges(enabled, next).ServeHTTP(w, r)
+		return w.Code
+	}
+	root, agent := uint32(0), uint32(501)
+
+	assert.Equal(t, http.StatusOK, serve(true, http.MethodGet, "/status", &agent))
+	assert.True(t, reached, "a non-root caller could not read the status")
+
+	assert.Equal(t, http.StatusForbidden, serve(true, http.MethodPost, "/datadog-agent/install", &agent))
+	assert.False(t, reached, "a non-root caller reached a route that changes the host")
+
+	assert.Equal(t, http.StatusForbidden, serve(true, http.MethodGet, "/debug/pprof/", &agent))
+	assert.False(t, reached)
+
+	assert.Equal(t, http.StatusForbidden, serve(true, http.MethodPost, "/datadog-agent/install", nil))
+	assert.False(t, reached, "a caller of unknown uid was treated as root")
+
+	serve(true, http.MethodPost, "/datadog-agent/install", &root)
+	assert.True(t, reached, "a root caller was refused")
+
+	serve(false, http.MethodPost, "/datadog-agent/install", &agent)
+	assert.True(t, reached, "the check applied where it is disabled")
 }

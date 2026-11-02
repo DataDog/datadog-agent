@@ -126,6 +126,13 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if runtime.GOOS != "windows" {
 		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
 	}
+	if runtime.GOOS == "darwin" {
+		// The daemon runs as root on macOS: make sure the run directory it keeps its socket and
+		// task database in is root-owned before opening anything in it.
+		if err := paths.EnsureInstallerDataDir(); err != nil {
+			return nil, fmt.Errorf("could not secure the installer run directory: %w", err)
+		}
+	}
 	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
 	if err != nil {
@@ -391,6 +398,24 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	return d.taskDB.Close()
 }
 
+// errHostChangesNotSupported is returned for every request that would change the host, on a
+// platform where the daemon only reports the host's state: on macOS, the hooks that apply a
+// configuration experiment and bring the Agent back if it fails are not part of the installer yet,
+// so the daemon refuses the change rather than apply it without them.
+var errHostChangesNotSupported = errors.New("the installer daemon does not change the host on this platform")
+
+// hostChangesSupported reports whether the daemon may change the host. Indirected so tests can
+// exercise the change paths on every platform.
+var hostChangesSupported = runtime.GOOS != "darwin"
+
+// refuseHostChanges returns errHostChangesNotSupported where the daemon may not change the host.
+func refuseHostChanges() error {
+	if !hostChangesSupported {
+		return errHostChangesNotSupported
+	}
+	return nil
+}
+
 // Install installs the package from the given URL.
 func (d *daemonImpl) Install(ctx context.Context, url string, args []string) error {
 	d.m.Lock()
@@ -399,6 +424,9 @@ func (d *daemonImpl) Install(ctx context.Context, url string, args []string) err
 }
 
 func (d *daemonImpl) install(ctx context.Context, env *env.Env, url string, args []string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -420,6 +448,9 @@ func (d *daemonImpl) Remove(ctx context.Context, pkg string) error {
 }
 
 func (d *daemonImpl) remove(ctx context.Context, pkg string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "remove")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -442,6 +473,9 @@ func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 }
 
 func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -464,6 +498,9 @@ func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 }
 
 func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -486,6 +523,9 @@ func (d *daemonImpl) StopExperiment(ctx context.Context, pkg string) error {
 }
 
 func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -508,6 +548,9 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, oper
 }
 
 func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -539,6 +582,9 @@ func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string) er
 }
 
 func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -561,6 +607,9 @@ func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string) error
 }
 
 func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err error) {
+	if err := refuseHostChanges(); err != nil {
+		return err
+	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
