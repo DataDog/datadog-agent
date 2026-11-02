@@ -4134,17 +4134,16 @@ func TestHandleContainer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			var store workloadmetamock.Mock
-			if len(tt.images) > 0 {
-				store = fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-					fx.Provide(func() log.Component { return logmock.New(t) }),
-					fx.Provide(func() config.Component { return cfg }),
-					fx.Supply(context.Background()),
-					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				))
-				for _, image := range tt.images {
-					store.Set(image)
-				}
+			// A store is always needed: handleContainer always looks up the
+			// container image to turn its annotations into tags.
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			for _, image := range tt.images {
+				store.Set(image)
 			}
 
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
@@ -4705,9 +4704,9 @@ func TestHandleContainerImage(t *testing.T) {
 			},
 		},
 		{
-			// Image OCI annotations are turned into tags when they match the
-			// container_image_annotations_as_tags mapping. Annotations that are
-			// not in the mapping are ignored.
+			// OCI source code annotations are always turned into tags. Other
+			// image annotations are turned into tags when they match the
+			// container_image_annotations_as_tags mapping, and ignored otherwise.
 			name: "annotations as tags",
 			configValues: map[string]interface{}{
 				"container_image_annotations_as_tags": map[string]string{
@@ -4721,8 +4720,9 @@ func TestHandleContainerImage(t *testing.T) {
 					Name: entityID.ID,
 					Annotations: map[string]string{
 						"containerd.io/snapshot/nydus-builder-version": "v2.3.7",
-						"target":                          "staging",
-						"org.opencontainers.image.source": "https://github.com/DataDog/images",
+						"target":                            "staging",
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+						"org.opencontainers.image.source":   "https://github.com/DataDog/images",
 					},
 				},
 				RepoTags: []string{
@@ -4753,6 +4753,8 @@ func TestHandleContainerImage(t *testing.T) {
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
 						"architecture:amd64",
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
 						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
 						"image_tag:main-nydus",
 						"nydus_builder_version:v2.3.7",
@@ -4772,7 +4774,97 @@ func TestHandleContainerImage(t *testing.T) {
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
 						"nydus_builder_version:v2.3.7",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			// With no container_image_annotations_as_tags configured, the OCI
+			// source code annotations are still turned into tags, on the image
+			// and on the containers using it.
+			name: "OCI source annotations without configuration",
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Annotations: map[string]string{
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+						"org.opencontainers.image.source":   "https://github.com/DataDog/images",
+						"target":                            "staging",
+					},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container-using-image",
+					},
+					Image: workloadmeta.ContainerImage{
+						ID: entityID.ID,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               containerImageSource,
+					EntityID:             types.NewEntityID(types.ContainerID, "container-using-image"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			// A user mapping for an OCI source code annotation adds a tag on top
+			// of the default one, as for the matching container labels.
+			name: "user mapping for an OCI source code annotation",
+			configValues: map[string]interface{}{
+				"container_image_annotations_as_tags": map[string]string{
+					"org.opencontainers.image.source": "image_source",
+				},
+			},
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Annotations: map[string]string{
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+						"org.opencontainers.image.source":   "https://github.com/DataDog/images",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_source:https://github.com/DataDog/images",
 					},
 					StandardTags: []string{},
 				},
@@ -5173,9 +5265,10 @@ func TestHandleDelete(t *testing.T) {
 	assert.Empty(t, collector.children)
 }
 
-// When container image annotations as tags is enabled, deleting a container
-// must also expire the tags published for it under containerImageSource,
-// otherwise image annotation tags would leak until the next image event.
+// Deleting a container must also expire the tags published for it under
+// containerImageSource, otherwise image annotation tags would leak until the
+// next image event. This applies without configuration because OCI source
+// code annotations are always turned into tags.
 func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
 	const containerID = "foobarquux"
 
@@ -5189,7 +5282,6 @@ func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
 	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
 
 	cfg := configmock.New(t)
-	cfg.SetInTest("container_image_annotations_as_tags", map[string]string{"foo": "bar"})
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 
 	expected := []*types.TagInfo{

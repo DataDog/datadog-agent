@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Automatically extract the ``org.opencontainers.image.revision`` and
+    ``org.opencontainers.image.source`` container image annotations into the
+    ``git.commit.sha`` and ``git.repository_url`` tags, without requiring
+    ``container_image_annotations_as_tags``. The tags apply to container image
+    entities and to the containers using the image.
