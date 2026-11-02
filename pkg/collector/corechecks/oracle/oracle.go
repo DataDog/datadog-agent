@@ -336,18 +336,7 @@ func (c *Check) Run() error {
 		}
 	}
 
-	if c.config.AgentSQLTrace.Enabled {
-		log.Debugf("%s Traced runs %d", c.logPrompt, c.sqlTraceRunsCount)
-		c.sqlTraceRunsCount++
-		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
-			c.config.AgentSQLTrace.Enabled = false
-			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
-			if err != nil {
-				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
-			}
-			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
-		}
-	}
+	c.finishSQLTraceRun()
 
 	var message string
 	var status servicecheck.ServiceCheckStatus
@@ -363,6 +352,27 @@ func (c *Check) Run() error {
 		log.Warnf("%s missing privileges detected, running in deprecated integration compatibility mode", c.logPrompt)
 	}
 	return allErrors
+}
+
+func (c *Check) finishSQLTraceRun() {
+	if !c.config.AgentSQLTrace.Enabled {
+		return
+	}
+	log.Debugf("%s Traced runs %d", c.logPrompt, c.sqlTraceRunsCount)
+	c.sqlTraceRunsCount++
+	if c.sqlTraceRunsCount < c.config.AgentSQLTrace.TracedRuns {
+		return
+	}
+	c.config.AgentSQLTrace.Enabled = false
+	// A failed reconnect leaves no pool, and the closed session no longer needs tracing disabled.
+	if c.db == nil {
+		return
+	}
+	_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
+	if err != nil {
+		log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
+	}
+	c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 }
 
 func assertBool(val bool) bool {
