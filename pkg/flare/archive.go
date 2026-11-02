@@ -90,7 +90,12 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 		flaretypes.NewFiller(getUlimitData),
 		flaretypes.NewFiller(getSvmonData),
-		flaretypes.NewFiller(getErrptData),
+		// errpt -a scans can be slow on hosts with a large error log; give the
+		// provider more headroom than the default 10s budget.
+		{
+			Callback: getErrptData,
+			Timeout:  func(flaretypes.FlareBuilder) time.Duration { return 60 * time.Second },
+		},
 		flaretypes.NewFiller(provideCertificateSources),
 	}
 

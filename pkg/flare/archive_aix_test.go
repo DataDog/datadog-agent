@@ -12,12 +12,12 @@ import (
 	"testing"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetErrptData(t *testing.T) {
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	assert.NoError(t, getErrptData(context.Background(), mock))
+	require.NoError(t, getErrptData(context.Background(), mock))
 
 	// The section headers are always present; the errpt output itself depends
 	// on the error log content and on running the test as root.
