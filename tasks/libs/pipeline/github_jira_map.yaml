@@ -23,7 +23,7 @@
 '@datadog/agent-runtimes': AGENTRUN
 '@datadog/agent-configuration': AGENTCFG
 '@datadog/agent-supply-chain': SPPL
-'@datadog/kubernetes-experiences': CAP
+'@datadog/kubernetes-experiences': KXP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS
 '@datadog/serverless-azure-and-gcp': SVLS
