@@ -101,9 +101,9 @@ func NewComponent(deps Requires) Provides {
 	}
 	dca.initMetadata()
 	if deps.Config.GetBool("enable_cluster_agent_metadata_collection") {
-		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, dca.getPayload, "datadog-cluster-agent.json")
+		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, dca.getPayload, "datadog-cluster-agent.json", serializer.PayloadTypeClusterAgentMetadata)
 	} else {
-		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, nil, dca.getPayload, "datadog-cluster-agent.json")
+		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, nil, dca.getPayload, "datadog-cluster-agent.json", serializer.PayloadTypeClusterAgentMetadata)
 	}
 	return Provides{
 		Comp:             dca,

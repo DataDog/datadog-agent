@@ -500,21 +500,54 @@ func TestSendMetadata(t *testing.T) {
 			compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+			expectedHeaders := s.jsonExtraHeadersWithCompression.Clone()
+			expectedHeaders.Set(PayloadTypeHeader, string(PayloadTypeAgentMetadata))
+			f.On("SubmitMetadata", jsonPayloads, expectedHeaders).Return(nil).Times(1)
 
 			payload := &testPayload{compressor: compressor}
-			err := s.SendMetadata(payload)
+			err := s.SendMetadata(payload, PayloadTypeAgentMetadata)
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(errors.New("some error")).Times(1)
-			err = s.SendMetadata(payload)
+			f.On("SubmitMetadata", jsonPayloads, expectedHeaders).Return(errors.New("some error")).Times(1)
+			err = s.SendMetadata(payload, PayloadTypeAgentMetadata)
 			require.NotNil(t, err)
 			f.AssertExpectations(t)
 
 			errPayload := &testErrorPayload{}
-			err = s.SendMetadata(errPayload)
+			err = s.SendMetadata(errPayload, PayloadTypeAgentMetadata)
 			require.NotNil(t, err)
+		})
+	}
+}
+
+func TestSendMetadataPayloadTypeHeader(t *testing.T) {
+	tests := []struct {
+		name     string
+		submit   string
+		send     func(s *Serializer, m *testPayload) error
+		expected PayloadType
+	}{
+		{"metadata", "SubmitMetadata", func(s *Serializer, m *testPayload) error { return s.SendMetadata(m, PayloadTypeCheckMetadata) }, PayloadTypeCheckMetadata},
+		{"host", "SubmitHostMetadata", func(s *Serializer, m *testPayload) error { return s.SendHostMetadata(m, PayloadTypeHostV5) }, PayloadTypeHostV5},
+		{"agentchecks", "SubmitAgentChecksMetadata", func(s *Serializer, m *testPayload) error { return s.SendAgentchecksMetadata(m) }, PayloadTypeAgentChecks},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			f := &forwarder.MockedForwarder{}
+			compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+			f.On(tc.submit, mock.Anything, mock.MatchedBy(func(h http.Header) bool {
+				return h.Get(PayloadTypeHeader) == string(tc.expected)
+			})).Return(nil).Times(1)
+
+			require.NoError(t, tc.send(s, &testPayload{compressor: compressor}))
+			f.AssertExpectations(t)
+			// the shared headers must not be mutated
+			assert.Empty(t, s.jsonExtraHeadersWithCompression.Get(PayloadTypeHeader))
 		})
 	}
 }
@@ -536,7 +569,7 @@ func TestSendMetadataDoesNotLogPayload(t *testing.T) {
 	f.On("SubmitMetadata", mock.Anything, mock.Anything).Return(nil).Times(1)
 
 	payload := rawJSONPayload(`{"agent_metadata":{"enc_info":{"handles":["my_key"],"hash_secret_id":{"my_key":"234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa"}}}}`)
-	require.NoError(t, s.SendMetadata(payload))
+	require.NoError(t, s.SendMetadata(payload, PayloadTypeAgentMetadata))
 	f.AssertExpectations(t)
 	logger.Flush()
 
@@ -623,8 +656,8 @@ func TestSendWithDisabledKind(t *testing.T) {
 			f.AssertNotCalled(t, "SubmitSketchSeries")
 
 			// We never disable metadata
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
-			s.SendMetadata(payload)
+			f.On("SubmitMetadata", jsonPayloads, mock.Anything).Return(nil).Times(1)
+			s.SendMetadata(payload, PayloadTypeAgentMetadata)
 			f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
 		})
 	}
@@ -651,7 +684,7 @@ func TestSendMetadataTooBig(t *testing.T) {
 	payload, err := json.Marshal(base64.StdEncoding.EncodeToString(raw))
 	require.NoError(t, err)
 
-	err = s.SendMetadata(rawJSONPayload(payload))
+	err = s.SendMetadata(rawJSONPayload(payload), PayloadTypeAgentMetadata)
 	require.ErrorContains(t, err, "metadata payload was too big to send")
 	f.AssertNotCalled(t, "SubmitMetadata", mock.Anything, mock.Anything)
 

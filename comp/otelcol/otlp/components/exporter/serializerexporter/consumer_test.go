@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -202,8 +203,8 @@ func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error        
 func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }
 func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error               { return nil }
 func (m *MockSerializer) AreSketchesEnabled() bool                                { return true }
-func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler) error            { return nil }
-func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error        { return nil }
+func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler, _ serializer.PayloadType) error            { return nil }
+func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler, _ serializer.PayloadType) error        { return nil }
 func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }
 func (m *MockSerializer) SendAgentchecksMetadata(_ marshaler.JSONMarshaler) error { return nil }
 
