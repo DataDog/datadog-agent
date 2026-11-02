@@ -116,7 +116,11 @@ func NewComponent(deps Requires) (Provides, error) {
 	var logsFilter workloadfilter.FilterBundle
 	if fs, ok := deps.FilterStore.Get(); ok {
 		pauseFilter = fs.GetContainerPausedFilters()
-		logsFilter = fs.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter)
+		if recordingEnabled {
+			// AAD log exclusions are recorder-scoped. Leave generic log
+			// collection unchanged when recording is disabled.
+			logsFilter = fs.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter)
+		}
 	}
 
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)

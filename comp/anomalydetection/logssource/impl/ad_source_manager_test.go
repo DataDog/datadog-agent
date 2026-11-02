@@ -87,6 +87,33 @@ func TestADSourceManagerAddSourceSkipsLogsExcludeAnnotation(t *testing.T) {
 	assert.False(t, isSuppressed(sp, "orchestrator-container"))
 }
 
+func TestADSourceManagerAddSourceKeepsLogsExcludeWhenRecordingDisabled(t *testing.T) {
+	wmeta := &podAnnotationWmeta{
+		container: runningContainer("orchestrator-container", "alpine/k8s"),
+		pod: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "gensim-orchestrator-abc",
+				Annotations: map[string]string{
+					"ad.datadoghq.com/orchestrator.logs_exclude": "true",
+				},
+			},
+		},
+	}
+
+	logSources := sources.NewLogSources()
+	sp := newSourceProvider(wmeta, logSources, nil, nil)
+	mgr := newADSourceManager(logSources, service.NewServices(), sp)
+
+	src := newContainerADSource("orchestrator-container")
+	mgr.AddSource(src)
+
+	got := logSources.GetSources()
+	require.Len(t, got, 1, "non-recording builds must preserve existing AD log collection")
+	assert.Same(t, src, got[0])
+	assert.True(t, isSuppressed(sp, "orchestrator-container"))
+}
+
 func TestADSourceManagerAddSourceKeepsUnknownContainer(t *testing.T) {
 	wmeta := newWMetaMock(t)
 
