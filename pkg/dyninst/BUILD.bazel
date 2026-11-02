@@ -85,6 +85,7 @@ dd_agent_go_test(
         "testdata/decoded/sample/testError.json",
         "testdata/decoded/sample/testErrorAtLine.json",
         "testdata/decoded/sample/testErrorAtLine_config_arch=amd64,toolchain=go1.26rc1.json",
+        "testdata/decoded/sample/testErrorAtLine_config_arch=arm64,toolchain=go1.27.3.json",
         "testdata/decoded/sample/testErrorAtLine_geq_go1.27.2.json",
         "testdata/decoded/sample/testEsotericHeap.json",
         "testdata/decoded/sample/testEsotericStack.json",

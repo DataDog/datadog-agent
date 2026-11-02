@@ -1011,6 +1011,7 @@ Probes:
       tags:
         - version_diff:go1.27.2
         - config_diff:arch=amd64,toolchain=go1.26rc1
+        - config_diff:arch=arm64,toolchain=go1.27.3
         - skip_integration:arch=arm64,toolchain=go1.25.0
       sampling: {snapshotsPerSecond: 100}
       template: x={x}, err={err}
