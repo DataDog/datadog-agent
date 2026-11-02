@@ -6,7 +6,9 @@ test_install_script:
   script:
     - source /root/.bashrc
     - set +x
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    # Following the child pipeline needs a token for the project it runs in
+    - $CI_PROJECT_DIR/tools/ci/install_authanywhere.sh
+    - GITLAB_TOKEN=$(GITLAB_TOKEN_REPOSITORY=agent-linux-install-script $CI_PROJECT_DIR/tools/ci/fetch_gitlab_token.sh) || exit $?; export GITLAB_TOKEN
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET/datadog-agent/pipeline-$CI_PIPELINE_ID-a6
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     # test repositories are signed with the test keys
