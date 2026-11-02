@@ -488,6 +488,7 @@ probes:
       depthLimit: 1
   - id: testNestedPointer_expression_with_dots_bad_expr
     type: LOG_PROBE
+    tags: ["issue:TemplateExpressionUnresolvable"]
     where:
       methodName: main.testNestedPointer
     template: "{x.nested.anotherString.anotherInt} {x.notAMember}"
@@ -2568,6 +2569,7 @@ probes:
     captureSnapshot: true
   - id: testTemplateWithNonexistantVariableName
     type: LOG_PROBE
+    tags: ["issue:TemplateExpressionUnresolvable"]
     where:
       methodName: main.testMultipleNamedReturn
     template: "{nonexistentVariable}"

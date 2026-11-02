@@ -4,7 +4,7 @@ Probes:
         - subprogram: {subprogram: 198}
           events:
             - Kind: Entry
-              Type: 3092 EventRootType Probe[runtime.recovery]
+              Type: 3089 EventRootType Probe[runtime.recovery]
               InjectionPoints: [{PC: "0x4d9f0", Frameless: false}]
               Condition: null
     - id: stackC
@@ -19,11 +19,11 @@ Probes:
         - subprogram: {subprogram: 152}
           events:
             - Kind: Entry
-              Type: 2989 EventRootType Probe[main.stackC]
+              Type: 2987 EventRootType Probe[main.stackC]
               InjectionPoints: [{PC: "0x8578f8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2990 EventRootType Probe[main.stackC]Return
+              Type: 2988 EventRootType Probe[main.stackC]Return
               InjectionPoints: [{PC: "0x85792c", Frameless: false}]
               Condition: null
           probeTemplate: {TemplateString: stackC, Segments: [stackC]}
@@ -90,11 +90,11 @@ Probes:
         - subprogram: {subprogram: 130}
           events:
             - Kind: Entry
-              Type: 2958 EventRootType Probe[main.testArrayArgAndReturn]
+              Type: 2956 EventRootType Probe[main.testArrayArgAndReturn]
               InjectionPoints: [{PC: "0x85632c", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2959 EventRootType Probe[main.testArrayArgAndReturn]Return
+              Type: 2957 EventRootType Probe[main.testArrayArgAndReturn]Return
               InjectionPoints: [{PC: "0x8563c4", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -343,7 +343,7 @@ Probes:
         - subprogram: {subprogram: 150}
           events:
             - Kind: Entry
-              Type: 2987 EventRootType Probe[main.testByteSliceInvalidUtf8]
+              Type: 2985 EventRootType Probe[main.testByteSliceInvalidUtf8]
               InjectionPoints: [{PC: "0x857240", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -365,7 +365,7 @@ Probes:
         - subprogram: {subprogram: 151}
           events:
             - Kind: Entry
-              Type: 2988 EventRootType Probe[main.testByteSliceMultibyteUtf8]
+              Type: 2986 EventRootType Probe[main.testByteSliceMultibyteUtf8]
               InjectionPoints: [{PC: "0x857250", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -413,11 +413,11 @@ Probes:
         - subprogram: {subprogram: 166}
           events:
             - Kind: Entry
-              Type: 3011 EventRootType Probe[main.testStruct]
+              Type: 3009 EventRootType Probe[main.testStruct]
               InjectionPoints: [{PC: "0x857eb0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3012 EventRootType Probe[main.testStruct]Return
+              Type: 3010 EventRootType Probe[main.testStruct]Return
               InjectionPoints: [{PC: "0x857ecc", Frameless: true}]
               Condition: null
     - id: testCaptureExprLine
@@ -436,7 +436,7 @@ Probes:
         - subprogram: {subprogram: 199}
           events:
             - Kind: Line
-              Type: 3075 EventRootType Probe[main.testInlinedPrint]Line
+              Type: 3072 EventRootType Probe[main.testInlinedPrint]Line
               InjectionPoints:
                 - PC: "0x8516c8"
                   Frameless: false
@@ -466,7 +466,7 @@ Probes:
         - subprogram: {subprogram: 199}
           events:
             - Kind: Line
-              Type: 3076 EventRootType Probe[main.testInlinedPrint]Line
+              Type: 3073 EventRootType Probe[main.testInlinedPrint]Line
               InjectionPoints:
                 - PC: "0x8516c8"
                   Frameless: false
@@ -512,7 +512,7 @@ Probes:
         - subprogram: {subprogram: 199}
           events:
             - Kind: Line
-              Type: 3077 EventRootType Probe[main.testInlinedPrint]Line
+              Type: 3074 EventRootType Probe[main.testInlinedPrint]Line
               InjectionPoints:
                 - PC: "0x8516c8"
                   Frameless: false
@@ -594,7 +594,7 @@ Probes:
         - subprogram: {subprogram: 168}
           events:
             - Kind: Entry
-              Type: 3019 EventRootType Probe[main.testTenStrings]
+              Type: 3016 EventRootType Probe[main.testTenStrings]
               InjectionPoints: [{PC: "0x857f60", Frameless: true}]
               Condition:
                 Type: 6 BaseType bool
@@ -691,11 +691,11 @@ Probes:
         - subprogram: {subprogram: 112}
           events:
             - Kind: Entry
-              Type: 2923 EventRootType Probe[main.testConflictingReturn]
+              Type: 2921 EventRootType Probe[main.testConflictingReturn]
               InjectionPoints: [{PC: "0x855548", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2924 EventRootType Probe[main.testConflictingReturn]Return
+              Type: 2922 EventRootType Probe[main.testConflictingReturn]Return
               InjectionPoints: [{PC: "0x8555f4", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -871,7 +871,7 @@ Probes:
         - subprogram: {subprogram: 139}
           events:
             - Kind: Entry
-              Type: 2975 EventRootType Probe[main.testEmptySlice]
+              Type: 2973 EventRootType Probe[main.testEmptySlice]
               InjectionPoints: [{PC: "0x857160", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -898,7 +898,7 @@ Probes:
         - subprogram: {subprogram: 142}
           events:
             - Kind: Entry
-              Type: 2978 EventRootType Probe[main.testEmptySliceOfStructs]
+              Type: 2976 EventRootType Probe[main.testEmptySliceOfStructs]
               InjectionPoints: [{PC: "0x857190", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -926,7 +926,7 @@ Probes:
         - subprogram: {subprogram: 160}
           events:
             - Kind: Entry
-              Type: 3003 EventRootType Probe[main.testEmptyString]
+              Type: 3001 EventRootType Probe[main.testEmptyString]
               InjectionPoints: [{PC: "0x857af0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -948,7 +948,7 @@ Probes:
         - subprogram: {subprogram: 169}
           events:
             - Kind: Entry
-              Type: 3020 EventRootType Probe[main.testEmptyStruct]
+              Type: 3017 EventRootType Probe[main.testEmptyStruct]
               InjectionPoints: [{PC: "0x857fb0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -969,7 +969,7 @@ Probes:
         - subprogram: {subprogram: 170}
           events:
             - Kind: Entry
-              Type: 3021 EventRootType Probe[main.testEmptyStructPointer]
+              Type: 3018 EventRootType Probe[main.testEmptyStructPointer]
               InjectionPoints: [{PC: "0x857fc0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1182,11 +1182,11 @@ Probes:
         - subprogram: {subprogram: 191}
           events:
             - Kind: Entry
-              Type: 3061 EventRootType Probe[main.genericDeref[go.shape.string]]
+              Type: 3058 EventRootType Probe[main.genericDeref[go.shape.string]]
               InjectionPoints: [{PC: "0x85a440", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3062 EventRootType Probe[main.genericDeref[go.shape.string]]Return
+              Type: 3059 EventRootType Probe[main.genericDeref[go.shape.string]]Return
               InjectionPoints: [{PC: "0x85a448", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1200,11 +1200,11 @@ Probes:
         - subprogram: {subprogram: 192}
           events:
             - Kind: Entry
-              Type: 3063 EventRootType Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]
+              Type: 3060 EventRootType Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]
               InjectionPoints: [{PC: "0x85a460", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3064 EventRootType Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]Return
+              Type: 3061 EventRootType Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]Return
               InjectionPoints: [{PC: "0x85a49c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1227,11 +1227,11 @@ Probes:
         - subprogram: {subprogram: 189}
           events:
             - Kind: Entry
-              Type: 3057 EventRootType Probe[main.genericDo[go.shape.struct { main.i int }]]
+              Type: 3054 EventRootType Probe[main.genericDo[go.shape.struct { main.i int }]]
               InjectionPoints: [{PC: "0x85a3a8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3058 EventRootType Probe[main.genericDo[go.shape.struct { main.i int }]]Return
+              Type: 3055 EventRootType Probe[main.genericDo[go.shape.struct { main.i int }]]Return
               InjectionPoints: [{PC: "0x85a3b8", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1245,11 +1245,11 @@ Probes:
         - subprogram: {subprogram: 190}
           events:
             - Kind: Entry
-              Type: 3059 EventRootType Probe[main.genericDo[go.shape.struct { main.s string }]]
+              Type: 3056 EventRootType Probe[main.genericDo[go.shape.struct { main.s string }]]
               InjectionPoints: [{PC: "0x85a3f8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3060 EventRootType Probe[main.genericDo[go.shape.struct { main.s string }]]Return
+              Type: 3057 EventRootType Probe[main.genericDo[go.shape.struct { main.s string }]]Return
               InjectionPoints: [{PC: "0x85a410", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1272,11 +1272,11 @@ Probes:
         - subprogram: {subprogram: 193}
           events:
             - Kind: Entry
-              Type: 3065 EventRootType Probe[main.genericContains[go.shape.int]]
+              Type: 3062 EventRootType Probe[main.genericContains[go.shape.int]]
               InjectionPoints: [{PC: "0x85a4b0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3066 EventRootType Probe[main.genericContains[go.shape.int]]Return
+              Type: 3063 EventRootType Probe[main.genericContains[go.shape.int]]Return
               InjectionPoints:
                 - PC: "0x85a4d8"
                   Frameless: true
@@ -1294,11 +1294,11 @@ Probes:
         - subprogram: {subprogram: 194}
           events:
             - Kind: Entry
-              Type: 3067 EventRootType Probe[main.genericContains[go.shape.string]]
+              Type: 3064 EventRootType Probe[main.genericContains[go.shape.string]]
               InjectionPoints: [{PC: "0x85a508", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3068 EventRootType Probe[main.genericContains[go.shape.string]]Return
+              Type: 3065 EventRootType Probe[main.genericContains[go.shape.string]]Return
               InjectionPoints:
                 - PC: "0x85a568"
                   Frameless: false
@@ -1328,7 +1328,7 @@ Probes:
         - subprogram: {subprogram: 193}
           events:
             - Kind: Line
-              Type: 3069 EventRootType Probe[main.genericContains[go.shape.int]]Line
+              Type: 3066 EventRootType Probe[main.genericContains[go.shape.int]]Line
               InjectionPoints: [{PC: "0x85a4b4", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1340,7 +1340,7 @@ Probes:
         - subprogram: {subprogram: 194}
           events:
             - Kind: Line
-              Type: 3070 EventRootType Probe[main.genericContains[go.shape.string]]Line
+              Type: 3067 EventRootType Probe[main.genericContains[go.shape.string]]Line
               InjectionPoints: [{PC: "0x85a518", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1361,11 +1361,11 @@ Probes:
         - subprogram: {subprogram: 183}
           events:
             - Kind: Entry
-              Type: 3045 EventRootType Probe[main.largeGenericType[go.shape.string].LargeGet]
+              Type: 3042 EventRootType Probe[main.largeGenericType[go.shape.string].LargeGet]
               InjectionPoints: [{PC: "0x85a0a0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3046 EventRootType Probe[main.largeGenericType[go.shape.string].LargeGet]Return
+              Type: 3043 EventRootType Probe[main.largeGenericType[go.shape.string].LargeGet]Return
               InjectionPoints: [{PC: "0x85a0a8", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1379,11 +1379,11 @@ Probes:
         - subprogram: {subprogram: 184}
           events:
             - Kind: Entry
-              Type: 3047 EventRootType Probe[main.largeGenericType[go.shape.int].LargeGet]
+              Type: 3044 EventRootType Probe[main.largeGenericType[go.shape.int].LargeGet]
               InjectionPoints: [{PC: "0x85a130", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3048 EventRootType Probe[main.largeGenericType[go.shape.int].LargeGet]Return
+              Type: 3045 EventRootType Probe[main.largeGenericType[go.shape.int].LargeGet]Return
               InjectionPoints: [{PC: "0x85a134", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1407,11 +1407,11 @@ Probes:
         - subprogram: {subprogram: 178}
           events:
             - Kind: Entry
-              Type: 3033 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]
+              Type: 3030 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]
               InjectionPoints: [{PC: "0x859ca8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3034 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]Return
+              Type: 3031 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]Return
               InjectionPoints: [{PC: "0x859d7c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1425,11 +1425,11 @@ Probes:
         - subprogram: {subprogram: 197}
           events:
             - Kind: Entry
-              Type: 3035 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]
+              Type: 3032 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]
               InjectionPoints: [{PC: "0x84c168", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3036 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]Return
+              Type: 3033 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]Return
               InjectionPoints: [{PC: "0x84c23c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1453,11 +1453,11 @@ Probes:
         - subprogram: {subprogram: 179}
           events:
             - Kind: Entry
-              Type: 3037 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]
+              Type: 3034 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]
               InjectionPoints: [{PC: "0x859dc8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3038 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]Return
+              Type: 3035 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]Return
               InjectionPoints: [{PC: "0x859dd8", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1480,11 +1480,11 @@ Probes:
         - subprogram: {subprogram: 195}
           events:
             - Kind: Entry
-              Type: 3071 EventRootType Probe[main.typeWithGenerics[go.shape.int].Guess]
+              Type: 3068 EventRootType Probe[main.typeWithGenerics[go.shape.int].Guess]
               InjectionPoints: [{PC: "0x85a5b0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3072 EventRootType Probe[main.typeWithGenerics[go.shape.int].Guess]Return
+              Type: 3069 EventRootType Probe[main.typeWithGenerics[go.shape.int].Guess]Return
               InjectionPoints: [{PC: "0x85a5b8", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1498,11 +1498,11 @@ Probes:
         - subprogram: {subprogram: 196}
           events:
             - Kind: Entry
-              Type: 3073 EventRootType Probe[main.typeWithGenerics[go.shape.string].Guess]
+              Type: 3070 EventRootType Probe[main.typeWithGenerics[go.shape.string].Guess]
               InjectionPoints: [{PC: "0x85a648", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3074 EventRootType Probe[main.typeWithGenerics[go.shape.string].Guess]Return
+              Type: 3071 EventRootType Probe[main.typeWithGenerics[go.shape.string].Guess]Return
               InjectionPoints: [{PC: "0x85a66c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1525,11 +1525,11 @@ Probes:
         - subprogram: {subprogram: 176}
           events:
             - Kind: Entry
-              Type: 3029 EventRootType Probe[main.nestedGeneric[go.shape.int]]
+              Type: 3026 EventRootType Probe[main.nestedGeneric[go.shape.int]]
               InjectionPoints: [{PC: "0x859c10", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3030 EventRootType Probe[main.nestedGeneric[go.shape.int]]Return
+              Type: 3027 EventRootType Probe[main.nestedGeneric[go.shape.int]]Return
               InjectionPoints: [{PC: "0x859c14", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1543,11 +1543,11 @@ Probes:
         - subprogram: {subprogram: 177}
           events:
             - Kind: Entry
-              Type: 3031 EventRootType Probe[main.nestedGeneric[go.shape.string]]
+              Type: 3028 EventRootType Probe[main.nestedGeneric[go.shape.string]]
               InjectionPoints: [{PC: "0x859c20", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3032 EventRootType Probe[main.nestedGeneric[go.shape.string]]Return
+              Type: 3029 EventRootType Probe[main.nestedGeneric[go.shape.string]]Return
               InjectionPoints: [{PC: "0x859c2c", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1570,11 +1570,11 @@ Probes:
         - subprogram: {subprogram: 185}
           events:
             - Kind: Entry
-              Type: 3049 EventRootType Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]
+              Type: 3046 EventRootType Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]
               InjectionPoints: [{PC: "0x85a1d0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3050 EventRootType Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]Return
+              Type: 3047 EventRootType Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]Return
               InjectionPoints: [{PC: "0x85a1d8", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1588,11 +1588,11 @@ Probes:
         - subprogram: {subprogram: 186}
           events:
             - Kind: Entry
-              Type: 3051 EventRootType Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]
+              Type: 3048 EventRootType Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]
               InjectionPoints: [{PC: "0x85a278", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 3052 EventRootType Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]Return
+              Type: 3049 EventRootType Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]Return
               InjectionPoints: [{PC: "0x85a2a4", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1615,11 +1615,11 @@ Probes:
         - subprogram: {subprogram: 180}
           events:
             - Kind: Entry
-              Type: 3039 EventRootType Probe[main.genericPtrIdentity[go.shape.int]]
+              Type: 3036 EventRootType Probe[main.genericPtrIdentity[go.shape.int]]
               InjectionPoints: [{PC: "0x85a070", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3040 EventRootType Probe[main.genericPtrIdentity[go.shape.int]]Return
+              Type: 3037 EventRootType Probe[main.genericPtrIdentity[go.shape.int]]Return
               InjectionPoints: [{PC: "0x85a074", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1633,11 +1633,11 @@ Probes:
         - subprogram: {subprogram: 181}
           events:
             - Kind: Entry
-              Type: 3041 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]
+              Type: 3038 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]
               InjectionPoints: [{PC: "0x85a080", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3042 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]Return
+              Type: 3039 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]Return
               InjectionPoints: [{PC: "0x85a084", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1651,11 +1651,11 @@ Probes:
         - subprogram: {subprogram: 182}
           events:
             - Kind: Entry
-              Type: 3043 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]
+              Type: 3040 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]
               InjectionPoints: [{PC: "0x85a090", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3044 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]Return
+              Type: 3041 EventRootType Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]Return
               InjectionPoints: [{PC: "0x85a094", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1678,11 +1678,11 @@ Probes:
         - subprogram: {subprogram: 187}
           events:
             - Kind: Entry
-              Type: 3053 EventRootType Probe[main.genericSwap[go.shape.string,go.shape.bool]]
+              Type: 3050 EventRootType Probe[main.genericSwap[go.shape.string,go.shape.bool]]
               InjectionPoints: [{PC: "0x85a360", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3054 EventRootType Probe[main.genericSwap[go.shape.string,go.shape.bool]]Return
+              Type: 3051 EventRootType Probe[main.genericSwap[go.shape.string,go.shape.bool]]Return
               InjectionPoints: [{PC: "0x85a368", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1696,11 +1696,11 @@ Probes:
         - subprogram: {subprogram: 188}
           events:
             - Kind: Entry
-              Type: 3055 EventRootType Probe[main.genericSwap[go.shape.int,go.shape.string]]
+              Type: 3052 EventRootType Probe[main.genericSwap[go.shape.int,go.shape.string]]
               InjectionPoints: [{PC: "0x85a370", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3056 EventRootType Probe[main.genericSwap[go.shape.int,go.shape.string]]Return
+              Type: 3053 EventRootType Probe[main.genericSwap[go.shape.int,go.shape.string]]Return
               InjectionPoints: [{PC: "0x85a380", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1723,11 +1723,11 @@ Probes:
         - subprogram: {subprogram: 174}
           events:
             - Kind: Entry
-              Type: 3025 EventRootType Probe[main.wrapBox[go.shape.int]]
+              Type: 3022 EventRootType Probe[main.wrapBox[go.shape.int]]
               InjectionPoints: [{PC: "0x859bf0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3026 EventRootType Probe[main.wrapBox[go.shape.int]]Return
+              Type: 3023 EventRootType Probe[main.wrapBox[go.shape.int]]Return
               InjectionPoints: [{PC: "0x859bf4", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1741,11 +1741,11 @@ Probes:
         - subprogram: {subprogram: 175}
           events:
             - Kind: Entry
-              Type: 3027 EventRootType Probe[main.wrapBox[go.shape.string]]
+              Type: 3024 EventRootType Probe[main.wrapBox[go.shape.string]]
               InjectionPoints: [{PC: "0x859c00", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3028 EventRootType Probe[main.wrapBox[go.shape.string]]Return
+              Type: 3025 EventRootType Probe[main.wrapBox[go.shape.string]]Return
               InjectionPoints: [{PC: "0x859c0c", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -1886,7 +1886,7 @@ Probes:
         - subprogram: {subprogram: 200}
           events:
             - Kind: Entry
-              Type: 3081 EventRootType Probe[main.testInlinedBBB]
+              Type: 3078 EventRootType Probe[main.testInlinedBBB]
               InjectionPoints: [{PC: "0x851948", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1926,7 +1926,7 @@ Probes:
         - subprogram: {subprogram: 201}
           events:
             - Kind: Entry
-              Type: 3082 EventRootType Probe[main.testInlinedBCA]
+              Type: 3079 EventRootType Probe[main.testInlinedBCA]
               InjectionPoints: [{PC: "0x851a3c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1947,7 +1947,7 @@ Probes:
         - subprogram: {subprogram: 201}
           events:
             - Kind: Line
-              Type: 3083 EventRootType Probe[main.testInlinedBCA]Line
+              Type: 3080 EventRootType Probe[main.testInlinedBCA]Line
               InjectionPoints: [{PC: "0x851a3c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1965,7 +1965,7 @@ Probes:
         - subprogram: {subprogram: 202}
           events:
             - Kind: Entry
-              Type: 3084 EventRootType Probe[main.testInlinedBCB]
+              Type: 3081 EventRootType Probe[main.testInlinedBCB]
               InjectionPoints: [{PC: "0x851af0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1986,7 +1986,7 @@ Probes:
         - subprogram: {subprogram: 202}
           events:
             - Kind: Line
-              Type: 3085 EventRootType Probe[main.testInlinedBCB]Line
+              Type: 3082 EventRootType Probe[main.testInlinedBCB]Line
               InjectionPoints: [{PC: "0x851af0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -2004,7 +2004,7 @@ Probes:
         - subprogram: {subprogram: 206}
           events:
             - Kind: Entry
-              Type: 3091 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc]
+              Type: 3088 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc]
               InjectionPoints:
                 - PC: "0x84bcb8"
                   Frameless: true
@@ -2027,7 +2027,7 @@ Probes:
         - subprogram: {subprogram: 199}
           events:
             - Kind: Entry
-              Type: 3078 EventRootType Probe[main.testInlinedPrint]
+              Type: 3075 EventRootType Probe[main.testInlinedPrint]
               InjectionPoints:
                 - PC: "0x8516c8"
                   Frameless: false
@@ -2041,7 +2041,7 @@ Probes:
                   Frameless: false
               Condition: null
             - Kind: Return
-              Type: 3079 EventRootType Probe[main.testInlinedPrint]Return
+              Type: 3076 EventRootType Probe[main.testInlinedPrint]Return
               InjectionPoints: [{PC: "0x851700", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -2066,7 +2066,7 @@ Probes:
         - subprogram: {subprogram: 199}
           events:
             - Kind: Line
-              Type: 3080 EventRootType Probe[main.testInlinedPrint]Line
+              Type: 3077 EventRootType Probe[main.testInlinedPrint]Line
               InjectionPoints:
                 - PC: "0x8516c8"
                   Frameless: false
@@ -2098,7 +2098,7 @@ Probes:
         - subprogram: {subprogram: 203}
           events:
             - Kind: Entry
-              Type: 3086 EventRootType Probe[main.testInlinedSq]
+              Type: 3083 EventRootType Probe[main.testInlinedSq]
               InjectionPoints: [{PC: "0x851b44", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -2123,7 +2123,7 @@ Probes:
         - subprogram: {subprogram: 203}
           events:
             - Kind: Line
-              Type: 3087 EventRootType Probe[main.testInlinedSq]Line
+              Type: 3084 EventRootType Probe[main.testInlinedSq]Line
               InjectionPoints: [{PC: "0x851b44", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -2146,7 +2146,7 @@ Probes:
         - subprogram: {subprogram: 204}
           events:
             - Kind: Entry
-              Type: 3088 EventRootType Probe[main.testInlinedSumArray]
+              Type: 3085 EventRootType Probe[main.testInlinedSumArray]
               InjectionPoints:
                 - PC: "0x851b74"
                   Frameless: false
@@ -2309,7 +2309,7 @@ Probes:
         - subprogram: {subprogram: 162}
           events:
             - Kind: Entry
-              Type: 3005 EventRootType Probe[main.testInvalidUtf8Strings]
+              Type: 3003 EventRootType Probe[main.testInvalidUtf8Strings]
               InjectionPoints: [{PC: "0x857b10", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -2335,11 +2335,11 @@ Probes:
         - subprogram: {subprogram: 129}
           events:
             - Kind: Entry
-              Type: 2956 EventRootType Probe[main.testLargeArgAndReturn]
+              Type: 2954 EventRootType Probe[main.testLargeArgAndReturn]
               InjectionPoints: [{PC: "0x856170", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2957 EventRootType Probe[main.testLargeArgAndReturn]Return
+              Type: 2955 EventRootType Probe[main.testLargeArgAndReturn]Return
               InjectionPoints: [{PC: "0x8562c8", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -2473,11 +2473,11 @@ Probes:
         - subprogram: {subprogram: 132}
           events:
             - Kind: Entry
-              Type: 2962 EventRootType Probe[main.testManyArgsArrayReturn]
+              Type: 2960 EventRootType Probe[main.testManyArgsArrayReturn]
               InjectionPoints: [{PC: "0x85662c", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2963 EventRootType Probe[main.testManyArgsArrayReturn]Return
+              Type: 2961 EventRootType Probe[main.testManyArgsArrayReturn]Return
               InjectionPoints: [{PC: "0x856798", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -3032,7 +3032,7 @@ Probes:
         - subprogram: {subprogram: 158}
           events:
             - Kind: Entry
-              Type: 3000 EventRootType Probe[main.testMassiveString]
+              Type: 2998 EventRootType Probe[main.testMassiveString]
               InjectionPoints: [{PC: "0x857ad0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3055,7 +3055,7 @@ Probes:
         - subprogram: {subprogram: 158}
           events:
             - Kind: Entry
-              Type: 3001 EventRootType Probe[main.testMassiveString]
+              Type: 2999 EventRootType Probe[main.testMassiveString]
               InjectionPoints: [{PC: "0x857ad0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3102,11 +3102,11 @@ Probes:
         - subprogram: {subprogram: 133}
           events:
             - Kind: Entry
-              Type: 2964 EventRootType Probe[main.testMixedArgsStackReturn]
+              Type: 2962 EventRootType Probe[main.testMixedArgsStackReturn]
               InjectionPoints: [{PC: "0x856800", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2965 EventRootType Probe[main.testMixedArgsStackReturn]Return
+              Type: 2963 EventRootType Probe[main.testMixedArgsStackReturn]Return
               InjectionPoints: [{PC: "0x8569ac", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -3168,7 +3168,7 @@ Probes:
         - subprogram: {subprogram: 163}
           events:
             - Kind: Entry
-              Type: 3006 EventRootType Probe[main.testMultibyteUtf8String]
+              Type: 3004 EventRootType Probe[main.testMultibyteUtf8String]
               InjectionPoints: [{PC: "0x857b20", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3191,7 +3191,7 @@ Probes:
         - subprogram: {subprogram: 163}
           events:
             - Kind: Entry
-              Type: 3007 EventRootType Probe[main.testMultibyteUtf8String]
+              Type: 3005 EventRootType Probe[main.testMultibyteUtf8String]
               InjectionPoints: [{PC: "0x857b20", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3217,11 +3217,11 @@ Probes:
         - subprogram: {subprogram: 135}
           events:
             - Kind: Entry
-              Type: 2968 EventRootType Probe[main.testMultipleArrayArgs]
+              Type: 2966 EventRootType Probe[main.testMultipleArrayArgs]
               InjectionPoints: [{PC: "0x856aac", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2969 EventRootType Probe[main.testMultipleArrayArgs]Return
+              Type: 2967 EventRootType Probe[main.testMultipleArrayArgs]Return
               InjectionPoints: [{PC: "0x856b54", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -3252,11 +3252,11 @@ Probes:
         - subprogram: {subprogram: 131}
           events:
             - Kind: Entry
-              Type: 2960 EventRootType Probe[main.testMultipleLargeArgs]
+              Type: 2958 EventRootType Probe[main.testMultipleLargeArgs]
               InjectionPoints: [{PC: "0x856400", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2961 EventRootType Probe[main.testMultipleLargeArgs]Return
+              Type: 2959 EventRootType Probe[main.testMultipleLargeArgs]Return
               InjectionPoints: [{PC: "0x8565d0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -3507,7 +3507,7 @@ Probes:
         - subprogram: {subprogram: 167}
           events:
             - Kind: Entry
-              Type: 3015 EventRootType Probe[main.testNestedPointer]
+              Type: 3013 EventRootType Probe[main.testNestedPointer]
               InjectionPoints: [{PC: "0x857f50", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3532,7 +3532,7 @@ Probes:
         - subprogram: {subprogram: 167}
           events:
             - Kind: Entry
-              Type: 3016 EventRootType Probe[main.testNestedPointer]
+              Type: 3014 EventRootType Probe[main.testNestedPointer]
               InjectionPoints: [{PC: "0x857f50", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3544,36 +3544,6 @@ Probes:
                   DSL: x.nested.anotherString
                   EventKind: Entry
                   EventExpressionIndex: 0
-    - id: testNestedPointer_expression_with_dots_bad_expr
-      version: 0
-      type: LOG_PROBE
-      where: {methodName: main.testNestedPointer}
-      template: '{x.nested.anotherString.anotherInt} {x.notAMember}'
-      segments:
-        - json:
-            getmember:
-                - getmember: [{getmember: [{ref: x}, nested]}, anotherString]
-                - anotherInt
-          dsl: x.nested.anotherString.anotherInt
-        - ' '
-        - json: {getmember: [{ref: x}, notAMember]}
-          dsl: x.notAMember
-      captureSnapshot: false
-      instances:
-        - subprogram: {subprogram: 167}
-          events:
-            - Kind: Entry
-              Type: 3017 EventRootType Probe[main.testNestedPointer]
-              InjectionPoints: [{PC: "0x857f50", Frameless: true}]
-              Condition: null
-          probeTemplate:
-            TemplateString: '{x.nested.anotherString.anotherInt} {x.notAMember}'
-            Segments:
-                - Error: cannot access member "anotherInt" on type *ir.GoStringHeaderType ("string") in expression "x.nested.anotherString.anotherInt"
-                  DSL: x.nested.anotherString.anotherInt
-                - ' '
-                - Error: 'failed to resolve field "notAMember" in expression "x.notAMember": type "main.anotherStruct" has no notAMember field'
-                  DSL: x.notAMember
     - id: testNestedPointer_expression_with_dots_low_limit
       version: 0
       type: LOG_PROBE
@@ -3588,7 +3558,7 @@ Probes:
         - subprogram: {subprogram: 167}
           events:
             - Kind: Entry
-              Type: 3018 EventRootType Probe[main.testNestedPointer]
+              Type: 3015 EventRootType Probe[main.testNestedPointer]
               InjectionPoints: [{PC: "0x857f50", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3642,7 +3612,7 @@ Probes:
         - subprogram: {subprogram: 146}
           events:
             - Kind: Entry
-              Type: 2982 EventRootType Probe[main.testNilSlice]
+              Type: 2980 EventRootType Probe[main.testNilSlice]
               InjectionPoints: [{PC: "0x8571d0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3669,7 +3639,7 @@ Probes:
         - subprogram: {subprogram: 143}
           events:
             - Kind: Entry
-              Type: 2979 EventRootType Probe[main.testNilSliceOfStructs]
+              Type: 2977 EventRootType Probe[main.testNilSliceOfStructs]
               InjectionPoints: [{PC: "0x8571a0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3704,7 +3674,7 @@ Probes:
         - subprogram: {subprogram: 145}
           events:
             - Kind: Entry
-              Type: 2981 EventRootType Probe[main.testNilSliceWithOtherParams]
+              Type: 2979 EventRootType Probe[main.testNilSliceWithOtherParams]
               InjectionPoints: [{PC: "0x8571c0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3736,7 +3706,7 @@ Probes:
         - subprogram: {subprogram: 157}
           events:
             - Kind: Entry
-              Type: 2999 EventRootType Probe[main.testOneStringInStructPointer]
+              Type: 2997 EventRootType Probe[main.testOneStringInStructPointer]
               InjectionPoints: [{PC: "0x857ac0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -3850,11 +3820,11 @@ Probes:
         - subprogram: {subprogram: 111}
           events:
             - Kind: Entry
-              Type: 2915 EventRootType Probe[main.testSomeNamedReturn]
+              Type: 2913 EventRootType Probe[main.testSomeNamedReturn]
               InjectionPoints: [{PC: "0x855488", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2916 EventRootType Probe[main.testSomeNamedReturn]Return
+              Type: 2914 EventRootType Probe[main.testSomeNamedReturn]Return
               InjectionPoints: [{PC: "0x855510", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -4042,11 +4012,11 @@ Probes:
         - subprogram: {subprogram: 111}
           events:
             - Kind: Entry
-              Type: 2917 EventRootType Probe[main.testSomeNamedReturn]
+              Type: 2915 EventRootType Probe[main.testSomeNamedReturn]
               InjectionPoints: [{PC: "0x855488", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2918 EventRootType Probe[main.testSomeNamedReturn]Return
+              Type: 2916 EventRootType Probe[main.testSomeNamedReturn]Return
               InjectionPoints: [{PC: "0x855510", Frameless: false}]
               Condition: null
     - id: testReturnMultiTemplate
@@ -4063,11 +4033,11 @@ Probes:
         - subprogram: {subprogram: 111}
           events:
             - Kind: Entry
-              Type: 2919 EventRootType Probe[main.testSomeNamedReturn]
+              Type: 2917 EventRootType Probe[main.testSomeNamedReturn]
               InjectionPoints: [{PC: "0x855488", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2920 EventRootType Probe[main.testSomeNamedReturn]Return
+              Type: 2918 EventRootType Probe[main.testSomeNamedReturn]Return
               InjectionPoints: [{PC: "0x855510", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4193,11 +4163,11 @@ Probes:
         - subprogram: {subprogram: 118}
           events:
             - Kind: Entry
-              Type: 2934 EventRootType Probe[main.testReturnsArray]
+              Type: 2932 EventRootType Probe[main.testReturnsArray]
               InjectionPoints: [{PC: "0x855b7c", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2935 EventRootType Probe[main.testReturnsArray]Return
+              Type: 2933 EventRootType Probe[main.testReturnsArray]Return
               InjectionPoints: [{PC: "0x855bd0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4214,11 +4184,11 @@ Probes:
         - subprogram: {subprogram: 119}
           events:
             - Kind: Entry
-              Type: 2936 EventRootType Probe[main.testReturnsArrayOne]
+              Type: 2934 EventRootType Probe[main.testReturnsArrayOne]
               InjectionPoints: [{PC: "0x855c08", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2937 EventRootType Probe[main.testReturnsArrayOne]Return
+              Type: 2935 EventRootType Probe[main.testReturnsArrayOne]Return
               InjectionPoints: [{PC: "0x855c44", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4235,11 +4205,11 @@ Probes:
         - subprogram: {subprogram: 120}
           events:
             - Kind: Entry
-              Type: 2938 EventRootType Probe[main.testReturnsArrayZero]
+              Type: 2936 EventRootType Probe[main.testReturnsArrayZero]
               InjectionPoints: [{PC: "0x855c78", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2939 EventRootType Probe[main.testReturnsArrayZero]Return
+              Type: 2937 EventRootType Probe[main.testReturnsArrayZero]Return
               InjectionPoints: [{PC: "0x855cb0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4256,11 +4226,11 @@ Probes:
         - subprogram: {subprogram: 122}
           events:
             - Kind: Entry
-              Type: 2942 EventRootType Probe[main.testReturnsBacktrackInt]
+              Type: 2940 EventRootType Probe[main.testReturnsBacktrackInt]
               InjectionPoints: [{PC: "0x855d68", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2943 EventRootType Probe[main.testReturnsBacktrackInt]Return
+              Type: 2941 EventRootType Probe[main.testReturnsBacktrackInt]Return
               InjectionPoints: [{PC: "0x855dcc", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4277,11 +4247,11 @@ Probes:
         - subprogram: {subprogram: 128}
           events:
             - Kind: Entry
-              Type: 2954 EventRootType Probe[main.testReturnsBoolAndUintptr]
+              Type: 2952 EventRootType Probe[main.testReturnsBoolAndUintptr]
               InjectionPoints: [{PC: "0x8560f8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2955 EventRootType Probe[main.testReturnsBoolAndUintptr]Return
+              Type: 2953 EventRootType Probe[main.testReturnsBoolAndUintptr]Return
               InjectionPoints: [{PC: "0x856138", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4298,11 +4268,11 @@ Probes:
         - subprogram: {subprogram: 116}
           events:
             - Kind: Entry
-              Type: 2930 EventRootType Probe[main.testReturnsComplex]
+              Type: 2928 EventRootType Probe[main.testReturnsComplex]
               InjectionPoints: [{PC: "0x855a28", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2931 EventRootType Probe[main.testReturnsComplex]Return
+              Type: 2929 EventRootType Probe[main.testReturnsComplex]Return
               InjectionPoints: [{PC: "0x855a74", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4454,11 +4424,11 @@ Probes:
         - subprogram: {subprogram: 117}
           events:
             - Kind: Entry
-              Type: 2932 EventRootType Probe[main.testReturnsLargeStruct]
+              Type: 2930 EventRootType Probe[main.testReturnsLargeStruct]
               InjectionPoints: [{PC: "0x855ab0", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2933 EventRootType Probe[main.testReturnsLargeStruct]Return
+              Type: 2931 EventRootType Probe[main.testReturnsLargeStruct]Return
               InjectionPoints: [{PC: "0x855b44", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4475,11 +4445,11 @@ Probes:
         - subprogram: {subprogram: 115}
           events:
             - Kind: Entry
-              Type: 2928 EventRootType Probe[main.testReturnsManyFloats]
+              Type: 2926 EventRootType Probe[main.testReturnsManyFloats]
               InjectionPoints: [{PC: "0x855968", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2929 EventRootType Probe[main.testReturnsManyFloats]Return
+              Type: 2927 EventRootType Probe[main.testReturnsManyFloats]Return
               InjectionPoints: [{PC: "0x8559ec", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4496,11 +4466,11 @@ Probes:
         - subprogram: {subprogram: 124}
           events:
             - Kind: Entry
-              Type: 2946 EventRootType Probe[main.testReturnsMixed]
+              Type: 2944 EventRootType Probe[main.testReturnsMixed]
               InjectionPoints: [{PC: "0x855ee8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2947 EventRootType Probe[main.testReturnsMixed]Return
+              Type: 2945 EventRootType Probe[main.testReturnsMixed]Return
               InjectionPoints: [{PC: "0x855f40", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4517,11 +4487,11 @@ Probes:
         - subprogram: {subprogram: 121}
           events:
             - Kind: Entry
-              Type: 2940 EventRootType Probe[main.testReturnsMixedStruct]
+              Type: 2938 EventRootType Probe[main.testReturnsMixedStruct]
               InjectionPoints: [{PC: "0x855ce8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2941 EventRootType Probe[main.testReturnsMixedStruct]Return
+              Type: 2939 EventRootType Probe[main.testReturnsMixedStruct]Return
               InjectionPoints: [{PC: "0x855d30", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4538,11 +4508,11 @@ Probes:
         - subprogram: {subprogram: 127}
           events:
             - Kind: Entry
-              Type: 2952 EventRootType Probe[main.testReturnsMultipleFloats]
+              Type: 2950 EventRootType Probe[main.testReturnsMultipleFloats]
               InjectionPoints: [{PC: "0x856078", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2953 EventRootType Probe[main.testReturnsMultipleFloats]Return
+              Type: 2951 EventRootType Probe[main.testReturnsMultipleFloats]Return
               InjectionPoints: [{PC: "0x8560bc", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4562,7 +4532,7 @@ Probes:
         - subprogram: {subprogram: 113}
           events:
             - Kind: Line
-              Type: 2925 EventRootType Probe[main.testReturnsNamedDeferLine]Line
+              Type: 2923 EventRootType Probe[main.testReturnsNamedDeferLine]Line
               InjectionPoints: [{PC: "0x8556f8", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4583,11 +4553,11 @@ Probes:
         - subprogram: {subprogram: 126}
           events:
             - Kind: Entry
-              Type: 2950 EventRootType Probe[main.testReturnsOnlyFloat]
+              Type: 2948 EventRootType Probe[main.testReturnsOnlyFloat]
               InjectionPoints: [{PC: "0x856008", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2951 EventRootType Probe[main.testReturnsOnlyFloat]Return
+              Type: 2949 EventRootType Probe[main.testReturnsOnlyFloat]Return
               InjectionPoints: [{PC: "0x856048", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4604,11 +4574,11 @@ Probes:
         - subprogram: {subprogram: 114}
           events:
             - Kind: Entry
-              Type: 2926 EventRootType Probe[main.testReturnsPrimitives]
+              Type: 2924 EventRootType Probe[main.testReturnsPrimitives]
               InjectionPoints: [{PC: "0x8558d8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2927 EventRootType Probe[main.testReturnsPrimitives]Return
+              Type: 2925 EventRootType Probe[main.testReturnsPrimitives]Return
               InjectionPoints: [{PC: "0x855930", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4625,11 +4595,11 @@ Probes:
         - subprogram: {subprogram: 125}
           events:
             - Kind: Entry
-              Type: 2948 EventRootType Probe[main.testReturnsStructWithArray]
+              Type: 2946 EventRootType Probe[main.testReturnsStructWithArray]
               InjectionPoints: [{PC: "0x855f7c", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2949 EventRootType Probe[main.testReturnsStructWithArray]Return
+              Type: 2947 EventRootType Probe[main.testReturnsStructWithArray]Return
               InjectionPoints: [{PC: "0x855fd0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4646,11 +4616,11 @@ Probes:
         - subprogram: {subprogram: 123}
           events:
             - Kind: Entry
-              Type: 2944 EventRootType Probe[main.testReturnsWideStruct]
+              Type: 2942 EventRootType Probe[main.testReturnsWideStruct]
               InjectionPoints: [{PC: "0x855e10", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2945 EventRootType Probe[main.testReturnsWideStruct]Return
+              Type: 2943 EventRootType Probe[main.testReturnsWideStruct]Return
               InjectionPoints: [{PC: "0x855eb4", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -4982,7 +4952,7 @@ Probes:
         - subprogram: {subprogram: 153}
           events:
             - Kind: Entry
-              Type: 2991 EventRootType Probe[main.testSingleString]
+              Type: 2989 EventRootType Probe[main.testSingleString]
               InjectionPoints: [{PC: "0x857a70", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5114,7 +5084,7 @@ Probes:
         - subprogram: {subprogram: 148}
           events:
             - Kind: Entry
-              Type: 2985 EventRootType Probe[main.testSliceEmptyStructs]
+              Type: 2983 EventRootType Probe[main.testSliceEmptyStructs]
               InjectionPoints: [{PC: "0x8571f0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5136,7 +5106,7 @@ Probes:
         - subprogram: {subprogram: 140}
           events:
             - Kind: Entry
-              Type: 2976 EventRootType Probe[main.testSliceOfSlices]
+              Type: 2974 EventRootType Probe[main.testSliceOfSlices]
               InjectionPoints: [{PC: "0x857170", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5179,11 +5149,11 @@ Probes:
         - subprogram: {subprogram: 111}
           events:
             - Kind: Entry
-              Type: 2921 EventRootType Probe[main.testSomeNamedReturn]
+              Type: 2919 EventRootType Probe[main.testSomeNamedReturn]
               InjectionPoints: [{PC: "0x855488", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2922 EventRootType Probe[main.testSomeNamedReturn]Return
+              Type: 2920 EventRootType Probe[main.testSomeNamedReturn]Return
               InjectionPoints: [{PC: "0x855510", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -5204,11 +5174,11 @@ Probes:
         - subprogram: {subprogram: 134}
           events:
             - Kind: Entry
-              Type: 2966 EventRootType Probe[main.testStackArgRegReturns]
+              Type: 2964 EventRootType Probe[main.testStackArgRegReturns]
               InjectionPoints: [{PC: "0x856a08", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2967 EventRootType Probe[main.testStackArgRegReturns]Return
+              Type: 2965 EventRootType Probe[main.testStackArgRegReturns]Return
               InjectionPoints: [{PC: "0x856a6c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -5274,7 +5244,7 @@ Probes:
         - subprogram: {subprogram: 144}
           events:
             - Kind: Entry
-              Type: 2980 EventRootType Probe[main.testStringSlice]
+              Type: 2978 EventRootType Probe[main.testStringSlice]
               InjectionPoints: [{PC: "0x8571b0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5340,11 +5310,11 @@ Probes:
         - subprogram: {subprogram: 166}
           events:
             - Kind: Entry
-              Type: 3013 EventRootType Probe[main.testStruct]
+              Type: 3011 EventRootType Probe[main.testStruct]
               InjectionPoints: [{PC: "0x857eb0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3014 EventRootType Probe[main.testStruct]Return
+              Type: 3012 EventRootType Probe[main.testStruct]Return
               InjectionPoints: [{PC: "0x857ecc", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5371,7 +5341,7 @@ Probes:
         - subprogram: {subprogram: 141}
           events:
             - Kind: Entry
-              Type: 2977 EventRootType Probe[main.testStructSlice]
+              Type: 2975 EventRootType Probe[main.testStructSlice]
               InjectionPoints: [{PC: "0x857180", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5419,11 +5389,11 @@ Probes:
         - subprogram: {subprogram: 136}
           events:
             - Kind: Entry
-              Type: 2970 EventRootType Probe[main.testStructWithArrayArg]
+              Type: 2968 EventRootType Probe[main.testStructWithArrayArg]
               InjectionPoints: [{PC: "0x856b8c", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2971 EventRootType Probe[main.testStructWithArrayArg]Return
+              Type: 2969 EventRootType Probe[main.testStructWithArrayArg]Return
               InjectionPoints: [{PC: "0x856c1c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -5445,11 +5415,11 @@ Probes:
         - subprogram: {subprogram: 165}
           events:
             - Kind: Entry
-              Type: 3009 EventRootType Probe[main.testStructWithCyclicMaps]
+              Type: 3007 EventRootType Probe[main.testStructWithCyclicMaps]
               InjectionPoints: [{PC: "0x857dc0", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 3010 EventRootType Probe[main.testStructWithCyclicMaps]Return
+              Type: 3008 EventRootType Probe[main.testStructWithCyclicMaps]Return
               InjectionPoints: [{PC: "0x857dd8", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5470,7 +5440,7 @@ Probes:
         - subprogram: {subprogram: 164}
           events:
             - Kind: Entry
-              Type: 3008 EventRootType Probe[main.testStructWithCyclicSlices]
+              Type: 3006 EventRootType Probe[main.testStructWithCyclicSlices]
               InjectionPoints: [{PC: "0x857db0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5530,7 +5500,7 @@ Probes:
         - subprogram: {subprogram: 149}
           events:
             - Kind: Entry
-              Type: 2986 EventRootType Probe[main.testSubslices]
+              Type: 2984 EventRootType Probe[main.testSubslices]
               InjectionPoints: [{PC: "0x857200", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5570,7 +5540,7 @@ Probes:
         - subprogram: {subprogram: 161}
           events:
             - Kind: Entry
-              Type: 3004 EventRootType Probe[main.testSubstrings]
+              Type: 3002 EventRootType Probe[main.testSubstrings]
               InjectionPoints: [{PC: "0x857b00", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5605,31 +5575,6 @@ Probes:
               Type: 2802 EventRootType Probe[main.testTakeContext]
               InjectionPoints: [{PC: "0x84e370", Frameless: true}]
               Condition: null
-    - id: testTemplateWithNonexistantVariableName
-      version: 0
-      type: LOG_PROBE
-      where: {methodName: main.testMultipleNamedReturn}
-      template: '{nonexistentVariable}'
-      segments:
-        - json: {ref: nonexistentVariable}
-          dsl: nonexistentVariable
-      captureSnapshot: true
-      instances:
-        - subprogram: {subprogram: 110}
-          events:
-            - Kind: Entry
-              Type: 2909 EventRootType Probe[main.testMultipleNamedReturn]
-              InjectionPoints: [{PC: "0x8553b8", Frameless: false}]
-              Condition: null
-            - Kind: Return
-              Type: 2910 EventRootType Probe[main.testMultipleNamedReturn]Return
-              InjectionPoints: [{PC: "0x855444", Frameless: false}]
-              Condition: null
-          probeTemplate:
-            TemplateString: '{nonexistentVariable}'
-            Segments:
-                - Error: failed to resolve reference "nonexistentVariable"
-                  DSL: nonexistentVariable
     - id: testTemplateWithUnsupportedExpression
       version: 0
       type: LOG_PROBE
@@ -5643,11 +5588,11 @@ Probes:
         - subprogram: {subprogram: 110}
           events:
             - Kind: Entry
-              Type: 2911 EventRootType Probe[main.testMultipleNamedReturn]
+              Type: 2909 EventRootType Probe[main.testMultipleNamedReturn]
               InjectionPoints: [{PC: "0x8553b8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2912 EventRootType Probe[main.testMultipleNamedReturn]Return
+              Type: 2910 EventRootType Probe[main.testMultipleNamedReturn]Return
               InjectionPoints: [{PC: "0x855444", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -5670,11 +5615,11 @@ Probes:
         - subprogram: {subprogram: 110}
           events:
             - Kind: Entry
-              Type: 2913 EventRootType Probe[main.testMultipleNamedReturn]
+              Type: 2911 EventRootType Probe[main.testMultipleNamedReturn]
               InjectionPoints: [{PC: "0x8553b8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2914 EventRootType Probe[main.testMultipleNamedReturn]Return
+              Type: 2912 EventRootType Probe[main.testMultipleNamedReturn]Return
               InjectionPoints: [{PC: "0x855444", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -5706,7 +5651,7 @@ Probes:
         - subprogram: {subprogram: 154}
           events:
             - Kind: Entry
-              Type: 2992 EventRootType Probe[main.testThreeStrings]
+              Type: 2990 EventRootType Probe[main.testThreeStrings]
               InjectionPoints: [{PC: "0x857a80", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5738,11 +5683,11 @@ Probes:
         - subprogram: {subprogram: 155}
           events:
             - Kind: Entry
-              Type: 2993 EventRootType Probe[main.testThreeStringsInStruct]
+              Type: 2991 EventRootType Probe[main.testThreeStringsInStruct]
               InjectionPoints: [{PC: "0x857a90", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 2994 EventRootType Probe[main.testThreeStringsInStruct]Return
+              Type: 2992 EventRootType Probe[main.testThreeStringsInStruct]Return
               InjectionPoints: [{PC: "0x857aa8", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5772,11 +5717,11 @@ Probes:
         - subprogram: {subprogram: 155}
           events:
             - Kind: Entry
-              Type: 2995 EventRootType Probe[main.testThreeStringsInStruct]
+              Type: 2993 EventRootType Probe[main.testThreeStringsInStruct]
               InjectionPoints: [{PC: "0x857a90", Frameless: true}]
               Condition: null
             - Kind: Return
-              Type: 2996 EventRootType Probe[main.testThreeStringsInStruct]Return
+              Type: 2994 EventRootType Probe[main.testThreeStringsInStruct]Return
               InjectionPoints: [{PC: "0x857aa8", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5808,7 +5753,7 @@ Probes:
         - subprogram: {subprogram: 156}
           events:
             - Kind: Entry
-              Type: 2997 EventRootType Probe[main.testThreeStringsInStructPointer]
+              Type: 2995 EventRootType Probe[main.testThreeStringsInStructPointer]
               InjectionPoints: [{PC: "0x857ab0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5838,7 +5783,7 @@ Probes:
         - subprogram: {subprogram: 156}
           events:
             - Kind: Entry
-              Type: 2998 EventRootType Probe[main.testThreeStringsInStructPointer]
+              Type: 2996 EventRootType Probe[main.testThreeStringsInStructPointer]
               InjectionPoints: [{PC: "0x857ab0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5870,7 +5815,7 @@ Probes:
         - subprogram: {subprogram: 172}
           events:
             - Kind: Entry
-              Type: 3023 EventRootType Probe[main.testTimeFixedZone]
+              Type: 3020 EventRootType Probe[main.testTimeFixedZone]
               InjectionPoints: [{PC: "0x858bc0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5892,7 +5837,7 @@ Probes:
         - subprogram: {subprogram: 173}
           events:
             - Kind: Entry
-              Type: 3024 EventRootType Probe[main.testTimeMonotonic]
+              Type: 3021 EventRootType Probe[main.testTimeMonotonic]
               InjectionPoints: [{PC: "0x858bd0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -5914,7 +5859,7 @@ Probes:
         - subprogram: {subprogram: 171}
           events:
             - Kind: Entry
-              Type: 3022 EventRootType Probe[main.testTimeUTC]
+              Type: 3019 EventRootType Probe[main.testTimeUTC]
               InjectionPoints: [{PC: "0x858bb0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -6090,7 +6035,7 @@ Probes:
         - subprogram: {subprogram: 138}
           events:
             - Kind: Entry
-              Type: 2974 EventRootType Probe[main.testUintSlice]
+              Type: 2972 EventRootType Probe[main.testUintSlice]
               InjectionPoints: [{PC: "0x857150", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -6112,7 +6057,7 @@ Probes:
         - subprogram: {subprogram: 159}
           events:
             - Kind: Entry
-              Type: 3002 EventRootType Probe[main.testUnitializedString]
+              Type: 3000 EventRootType Probe[main.testUnitializedString]
               InjectionPoints: [{PC: "0x857ae0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -6178,7 +6123,7 @@ Probes:
         - subprogram: {subprogram: 147}
           events:
             - Kind: Entry
-              Type: 2983 EventRootType Probe[main.testVeryLargeSlice]
+              Type: 2981 EventRootType Probe[main.testVeryLargeSlice]
               InjectionPoints: [{PC: "0x8571e0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -6200,7 +6145,7 @@ Probes:
         - subprogram: {subprogram: 147}
           events:
             - Kind: Entry
-              Type: 2984 EventRootType Probe[main.testVeryLargeSlice]
+              Type: 2982 EventRootType Probe[main.testVeryLargeSlice]
               InjectionPoints: [{PC: "0x8571e0", Frameless: true}]
               Condition: null
           probeTemplate:
@@ -6222,7 +6167,7 @@ Probes:
         - subprogram: {subprogram: 205}
           events:
             - Kind: Entry
-              Type: 3089 EventRootType Probe[main.firstBehavior.DoSomething]
+              Type: 3086 EventRootType Probe[main.firstBehavior.DoSomething]
               InjectionPoints:
                 - PC: "0x851e08"
                   Frameless: false
@@ -6230,7 +6175,7 @@ Probes:
                   Frameless: false
               Condition: null
             - Kind: Return
-              Type: 3090 EventRootType Probe[main.firstBehavior.DoSomething]Return
+              Type: 3087 EventRootType Probe[main.firstBehavior.DoSomething]Return
               InjectionPoints: [{PC: "0x851e40", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -6252,11 +6197,11 @@ Probes:
         - subprogram: {subprogram: 137}
           events:
             - Kind: Entry
-              Type: 2972 EventRootType Probe[main.testZeroSizeArgAndReturn]
+              Type: 2970 EventRootType Probe[main.testZeroSizeArgAndReturn]
               InjectionPoints: [{PC: "0x856c58", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 2973 EventRootType Probe[main.testZeroSizeArgAndReturn]Return
+              Type: 2971 EventRootType Probe[main.testZeroSizeArgAndReturn]Return
               InjectionPoints: [{PC: "0x856cc0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -20158,7 +20103,7 @@ Types:
       Name: '@trace_context'
       ByteSize: 40
     - __kind: EventRootType
-      ID: 3035
+      ID: 3032
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]
       ByteSize: 74
       ExprStatusArraySize: 2
@@ -20213,7 +20158,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3036
+      ID: 3033
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]Return
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -20234,7 +20179,7 @@ Types:
           DictIndex: 2
           Redacted: false
     - __kind: EventRootType
-      ID: 3033
+      ID: 3030
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]
       ByteSize: 74
       ExprStatusArraySize: 2
@@ -20289,7 +20234,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3034
+      ID: 3031
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]Return
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -20310,10 +20255,10 @@ Types:
           DictIndex: 2
           Redacted: false
     - __kind: EventRootType
-      ID: 3091
+      ID: 3088
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc]
     - __kind: EventRootType
-      ID: 3037
+      ID: 3034
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]
       ByteSize: 42
       ExprStatusArraySize: 2
@@ -20368,7 +20313,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3038
+      ID: 3035
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -20389,7 +20334,7 @@ Types:
           DictIndex: 2
           Redacted: false
     - __kind: EventRootType
-      ID: 3049
+      ID: 3046
       Name: Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]
       ByteSize: 51
       ExprStatusArraySize: 2
@@ -20461,10 +20406,10 @@ Types:
           DictIndex: 2
           Redacted: false
     - __kind: EventRootType
-      ID: 3050
+      ID: 3047
       Name: Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]Return
     - __kind: EventRootType
-      ID: 3051
+      ID: 3048
       Name: Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]
       ByteSize: 74
       ExprStatusArraySize: 2
@@ -20536,7 +20481,7 @@ Types:
           DictIndex: 2
           Redacted: false
     - __kind: EventRootType
-      ID: 3052
+      ID: 3049
       Name: Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]Return
     - __kind: EventRootType
       ID: 2858
@@ -20621,7 +20566,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3089
+      ID: 3086
       Name: Probe[main.firstBehavior.DoSomething]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -20641,7 +20586,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3090
+      ID: 3087
       Name: Probe[main.firstBehavior.DoSomething]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -20661,7 +20606,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3065
+      ID: 3062
       Name: Probe[main.genericContains[go.shape.int]]
       ByteSize: 58
       ExprStatusArraySize: 2
@@ -20716,7 +20661,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3069
+      ID: 3066
       Name: Probe[main.genericContains[go.shape.int]]Line
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -20757,7 +20702,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3066
+      ID: 3063
       Name: Probe[main.genericContains[go.shape.int]]Return
       ByteSize: 2
       ExprStatusArraySize: 1
@@ -20777,7 +20722,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3067
+      ID: 3064
       Name: Probe[main.genericContains[go.shape.string]]
       ByteSize: 74
       ExprStatusArraySize: 2
@@ -20832,7 +20777,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3070
+      ID: 3067
       Name: Probe[main.genericContains[go.shape.string]]Line
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -20853,7 +20798,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3068
+      ID: 3065
       Name: Probe[main.genericContains[go.shape.string]]Return
       ByteSize: 2
       ExprStatusArraySize: 1
@@ -20873,7 +20818,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3061
+      ID: 3058
       Name: Probe[main.genericDeref[go.shape.string]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -20908,7 +20853,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3062
+      ID: 3059
       Name: Probe[main.genericDeref[go.shape.string]]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -20929,7 +20874,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3063
+      ID: 3060
       Name: Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -20964,7 +20909,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3064
+      ID: 3061
       Name: Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]Return
       ByteSize: 57
       ExprStatusArraySize: 1
@@ -20985,7 +20930,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3057
+      ID: 3054
       Name: Probe[main.genericDo[go.shape.struct { main.i int }]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -21020,7 +20965,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3058
+      ID: 3055
       Name: Probe[main.genericDo[go.shape.struct { main.i int }]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21040,7 +20985,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3059
+      ID: 3056
       Name: Probe[main.genericDo[go.shape.struct { main.s string }]]
       ByteSize: 41
       ExprStatusArraySize: 1
@@ -21075,7 +21020,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3060
+      ID: 3057
       Name: Probe[main.genericDo[go.shape.struct { main.s string }]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21095,7 +21040,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3039
+      ID: 3036
       Name: Probe[main.genericPtrIdentity[go.shape.int]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -21130,7 +21075,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3040
+      ID: 3037
       Name: Probe[main.genericPtrIdentity[go.shape.int]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21151,7 +21096,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3041
+      ID: 3038
       Name: Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -21186,7 +21131,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3042
+      ID: 3039
       Name: Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21207,7 +21152,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3043
+      ID: 3040
       Name: Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -21242,7 +21187,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3044
+      ID: 3041
       Name: Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21263,7 +21208,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3055
+      ID: 3052
       Name: Probe[main.genericSwap[go.shape.int,go.shape.string]]
       ByteSize: 50
       ExprStatusArraySize: 2
@@ -21318,7 +21263,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3056
+      ID: 3053
       Name: Probe[main.genericSwap[go.shape.int,go.shape.string]]Return
       ByteSize: 41
       ExprStatusArraySize: 1
@@ -21359,7 +21304,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3053
+      ID: 3050
       Name: Probe[main.genericSwap[go.shape.string,go.shape.bool]]
       ByteSize: 51
       ExprStatusArraySize: 2
@@ -21414,7 +21359,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3054
+      ID: 3051
       Name: Probe[main.genericSwap[go.shape.string,go.shape.bool]]Return
       ByteSize: 34
       ExprStatusArraySize: 1
@@ -21455,7 +21400,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3047
+      ID: 3044
       Name: Probe[main.largeGenericType[go.shape.int].LargeGet]
       ByteSize: 281
       ExprStatusArraySize: 1
@@ -21490,7 +21435,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3048
+      ID: 3045
       Name: Probe[main.largeGenericType[go.shape.int].LargeGet]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21511,7 +21456,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3045
+      ID: 3042
       Name: Probe[main.largeGenericType[go.shape.string].LargeGet]
       ByteSize: 297
       ExprStatusArraySize: 1
@@ -21546,7 +21491,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3046
+      ID: 3043
       Name: Probe[main.largeGenericType[go.shape.string].LargeGet]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -21567,7 +21512,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3029
+      ID: 3026
       Name: Probe[main.nestedGeneric[go.shape.int]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -21602,7 +21547,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3030
+      ID: 3027
       Name: Probe[main.nestedGeneric[go.shape.int]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21623,7 +21568,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3031
+      ID: 3028
       Name: Probe[main.nestedGeneric[go.shape.string]]
       ByteSize: 41
       ExprStatusArraySize: 1
@@ -21658,7 +21603,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3032
+      ID: 3029
       Name: Probe[main.nestedGeneric[go.shape.string]]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -21679,10 +21624,10 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 2989
+      ID: 2987
       Name: Probe[main.stackC]
     - __kind: EventRootType
-      ID: 2990
+      ID: 2988
       Name: Probe[main.stackC]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -21810,7 +21755,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2958
+      ID: 2956
       Name: Probe[main.testArrayArgAndReturn]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -21844,7 +21789,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2959
+      ID: 2957
       Name: Probe[main.testArrayArgAndReturn]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -22227,7 +22172,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2987
+      ID: 2985
       Name: Probe[main.testByteSliceInvalidUtf8]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -22261,7 +22206,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2988
+      ID: 2986
       Name: Probe[main.testByteSliceMultibyteUtf8]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -22507,7 +22452,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2923
+      ID: 2921
       Name: Probe[main.testConflictingReturn]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -22541,7 +22486,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2924
+      ID: 2922
       Name: Probe[main.testConflictingReturn]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -22813,7 +22758,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2978
+      ID: 2976
       Name: Probe[main.testEmptySliceOfStructs]
       ByteSize: 66
       ExprStatusArraySize: 2
@@ -22875,7 +22820,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2975
+      ID: 2973
       Name: Probe[main.testEmptySlice]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -22909,7 +22854,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3003
+      ID: 3001
       Name: Probe[main.testEmptyString]
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -22943,7 +22888,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3021
+      ID: 3018
       Name: Probe[main.testEmptyStructPointer]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -22977,7 +22922,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3020
+      ID: 3017
       Name: Probe[main.testEmptyStruct]
       ByteSize: 1
       ExprStatusArraySize: 1
@@ -23397,7 +23342,7 @@ Types:
       ID: 2815
       Name: Probe[main.testInlinedBBA]Return
     - __kind: EventRootType
-      ID: 3081
+      ID: 3078
       Name: Probe[main.testInlinedBBB]
     - __kind: EventRootType
       ID: 2812
@@ -23465,16 +23410,16 @@ Types:
       ID: 2813
       Name: Probe[main.testInlinedBB]Return
     - __kind: EventRootType
-      ID: 3082
+      ID: 3079
       Name: Probe[main.testInlinedBCA]
     - __kind: EventRootType
-      ID: 3083
+      ID: 3080
       Name: Probe[main.testInlinedBCA]Line
     - __kind: EventRootType
-      ID: 3084
+      ID: 3081
       Name: Probe[main.testInlinedBCB]
     - __kind: EventRootType
-      ID: 3085
+      ID: 3082
       Name: Probe[main.testInlinedBCB]Line
     - __kind: EventRootType
       ID: 2816
@@ -23483,7 +23428,7 @@ Types:
       ID: 2817
       Name: Probe[main.testInlinedBC]Return
     - __kind: EventRootType
-      ID: 3078
+      ID: 3075
       Name: Probe[main.testInlinedPrint]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -23517,7 +23462,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3075
+      ID: 3072
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -23537,7 +23482,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3076
+      ID: 3073
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -23557,7 +23502,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3077
+      ID: 3074
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -23591,7 +23536,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3080
+      ID: 3077
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -23625,10 +23570,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3079
+      ID: 3076
       Name: Probe[main.testInlinedPrint]Return
     - __kind: EventRootType
-      ID: 3086
+      ID: 3083
       Name: Probe[main.testInlinedSq]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -23662,7 +23607,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3087
+      ID: 3084
       Name: Probe[main.testInlinedSq]Line
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -23696,7 +23641,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3088
+      ID: 3085
       Name: Probe[main.testInlinedSumArray]
       ByteSize: 81
       ExprStatusArraySize: 1
@@ -23934,7 +23879,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3005
+      ID: 3003
       Name: Probe[main.testInvalidUtf8Strings]
       ByteSize: 66
       ExprStatusArraySize: 2
@@ -23996,7 +23941,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2956
+      ID: 2954
       Name: Probe[main.testLargeArgAndReturn]
       ByteSize: 161
       ExprStatusArraySize: 1
@@ -24030,7 +23975,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2957
+      ID: 2955
       Name: Probe[main.testLargeArgAndReturn]Return
       ByteSize: 81
       ExprStatusArraySize: 1
@@ -24155,7 +24100,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2962
+      ID: 2960
       Name: Probe[main.testManyArgsArrayReturn]
       ByteSize: 153
       ExprStatusArraySize: 9
@@ -24413,7 +24358,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2963
+      ID: 2961
       Name: Probe[main.testManyArgsArrayReturn]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -25181,7 +25126,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3000
+      ID: 2998
       Name: Probe[main.testMassiveString]
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -25215,7 +25160,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3001
+      ID: 2999
       Name: Probe[main.testMassiveString]
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -25249,7 +25194,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2964
+      ID: 2962
       Name: Probe[main.testMixedArgsStackReturn]
       ByteSize: 169
       ExprStatusArraySize: 9
@@ -25507,7 +25452,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2965
+      ID: 2963
       Name: Probe[main.testMixedArgsStackReturn]Return
       ByteSize: 81
       ExprStatusArraySize: 1
@@ -25527,7 +25472,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3006
+      ID: 3004
       Name: Probe[main.testMultibyteUtf8String]
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -25561,7 +25506,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3007
+      ID: 3005
       Name: Probe[main.testMultibyteUtf8String]
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -25595,7 +25540,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2968
+      ID: 2966
       Name: Probe[main.testMultipleArrayArgs]
       ByteSize: 82
       ExprStatusArraySize: 2
@@ -25657,7 +25602,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2969
+      ID: 2967
       Name: Probe[main.testMultipleArrayArgs]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -25691,7 +25636,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2960
+      ID: 2958
       Name: Probe[main.testMultipleLargeArgs]
       ByteSize: 322
       ExprStatusArraySize: 2
@@ -25753,7 +25698,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2961
+      ID: 2959
       Name: Probe[main.testMultipleLargeArgs]Return
       ByteSize: 81
       ExprStatusArraySize: 1
@@ -25913,26 +25858,6 @@ Types:
           Redacted: false
     - __kind: EventRootType
       ID: 2911
-      Name: Probe[main.testMultipleNamedReturn]
-      ByteSize: 9
-      ExprStatusArraySize: 1
-      Expressions:
-        - Name: i
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 110, index: 0, name: i}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-          Redacted: false
-    - __kind: EventRootType
-      ID: 2913
       Name: Probe[main.testMultipleNamedReturn]
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -26207,40 +26132,6 @@ Types:
           Redacted: false
     - __kind: EventRootType
       ID: 2912
-      Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 17
-      ExprStatusArraySize: 1
-      Expressions:
-        - Name: result
-          Offset: 1
-          Kind: return
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 110, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-          Redacted: false
-        - Name: result2
-          Offset: 9
-          Kind: return
-          Expression:
-            Type: 9 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 110, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-          Redacted: false
-    - __kind: EventRootType
-      ID: 2914
       Name: Probe[main.testMultipleNamedReturn]Return
       ByteSize: 26
       ExprStatusArraySize: 2
@@ -26579,7 +26470,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3015
+      ID: 3013
       Name: Probe[main.testNestedPointer]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -26613,7 +26504,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3016
+      ID: 3014
       Name: Probe[main.testNestedPointer]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -26641,10 +26532,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3017
-      Name: Probe[main.testNestedPointer]
-    - __kind: EventRootType
-      ID: 3018
+      ID: 3015
       Name: Probe[main.testNestedPointer]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -26734,7 +26622,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2979
+      ID: 2977
       Name: Probe[main.testNilSliceOfStructs]
       ByteSize: 66
       ExprStatusArraySize: 2
@@ -26796,7 +26684,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2981
+      ID: 2979
       Name: Probe[main.testNilSliceWithOtherParams]
       ByteSize: 69
       ExprStatusArraySize: 3
@@ -26886,7 +26774,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2982
+      ID: 2980
       Name: Probe[main.testNilSlice]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -26920,7 +26808,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2999
+      ID: 2997
       Name: Probe[main.testOneStringInStructPointer]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -27206,10 +27094,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2936
+      ID: 2934
       Name: Probe[main.testReturnsArrayOne]
     - __kind: EventRootType
-      ID: 2937
+      ID: 2935
       Name: Probe[main.testReturnsArrayOne]Return
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -27229,10 +27117,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2938
+      ID: 2936
       Name: Probe[main.testReturnsArrayZero]
     - __kind: EventRootType
-      ID: 2939
+      ID: 2937
       Name: Probe[main.testReturnsArrayZero]Return
       ByteSize: 1
       ExprStatusArraySize: 1
@@ -27252,10 +27140,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2934
+      ID: 2932
       Name: Probe[main.testReturnsArray]
     - __kind: EventRootType
-      ID: 2935
+      ID: 2933
       Name: Probe[main.testReturnsArray]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -27275,10 +27163,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2942
+      ID: 2940
       Name: Probe[main.testReturnsBacktrackInt]
     - __kind: EventRootType
-      ID: 2943
+      ID: 2941
       Name: Probe[main.testReturnsBacktrackInt]Return
       ByteSize: 85
       ExprStatusArraySize: 5
@@ -27410,10 +27298,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2954
+      ID: 2952
       Name: Probe[main.testReturnsBoolAndUintptr]
     - __kind: EventRootType
-      ID: 2955
+      ID: 2953
       Name: Probe[main.testReturnsBoolAndUintptr]Return
       ByteSize: 10
       ExprStatusArraySize: 1
@@ -27447,10 +27335,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2930
+      ID: 2928
       Name: Probe[main.testReturnsComplex]
     - __kind: EventRootType
-      ID: 2931
+      ID: 2929
       Name: Probe[main.testReturnsComplex]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -28035,10 +27923,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2932
+      ID: 2930
       Name: Probe[main.testReturnsLargeStruct]
     - __kind: EventRootType
-      ID: 2933
+      ID: 2931
       Name: Probe[main.testReturnsLargeStruct]Return
       ByteSize: 81
       ExprStatusArraySize: 1
@@ -28058,10 +27946,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2928
+      ID: 2926
       Name: Probe[main.testReturnsManyFloats]
     - __kind: EventRootType
-      ID: 2929
+      ID: 2927
       Name: Probe[main.testReturnsManyFloats]Return
       ByteSize: 145
       ExprStatusArraySize: 9
@@ -28305,10 +28193,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2940
+      ID: 2938
       Name: Probe[main.testReturnsMixedStruct]
     - __kind: EventRootType
-      ID: 2941
+      ID: 2939
       Name: Probe[main.testReturnsMixedStruct]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -28328,10 +28216,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2946
+      ID: 2944
       Name: Probe[main.testReturnsMixed]
     - __kind: EventRootType
-      ID: 2947
+      ID: 2945
       Name: Probe[main.testReturnsMixed]Return
       ByteSize: 51
       ExprStatusArraySize: 3
@@ -28407,10 +28295,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2952
+      ID: 2950
       Name: Probe[main.testReturnsMultipleFloats]
     - __kind: EventRootType
-      ID: 2953
+      ID: 2951
       Name: Probe[main.testReturnsMultipleFloats]Return
       ByteSize: 13
       ExprStatusArraySize: 1
@@ -28444,7 +28332,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2925
+      ID: 2923
       Name: Probe[main.testReturnsNamedDeferLine]Line
       ByteSize: 50
       ExprStatusArraySize: 2
@@ -28506,10 +28394,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2950
+      ID: 2948
       Name: Probe[main.testReturnsOnlyFloat]
     - __kind: EventRootType
-      ID: 2951
+      ID: 2949
       Name: Probe[main.testReturnsOnlyFloat]Return
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -28529,10 +28417,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2926
+      ID: 2924
       Name: Probe[main.testReturnsPrimitives]
     - __kind: EventRootType
-      ID: 2927
+      ID: 2925
       Name: Probe[main.testReturnsPrimitives]Return
       ByteSize: 34
       ExprStatusArraySize: 4
@@ -28650,10 +28538,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2948
+      ID: 2946
       Name: Probe[main.testReturnsStructWithArray]
     - __kind: EventRootType
-      ID: 2949
+      ID: 2947
       Name: Probe[main.testReturnsStructWithArray]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -28673,10 +28561,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2944
+      ID: 2942
       Name: Probe[main.testReturnsWideStruct]
     - __kind: EventRootType
-      ID: 2945
+      ID: 2943
       Name: Probe[main.testReturnsWideStruct]Return
       ByteSize: 89
       ExprStatusArraySize: 1
@@ -29036,7 +28924,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2991
+      ID: 2989
       Name: Probe[main.testSingleString]
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -29240,7 +29128,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2985
+      ID: 2983
       Name: Probe[main.testSliceEmptyStructs]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -29274,7 +29162,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2976
+      ID: 2974
       Name: Probe[main.testSliceOfSlices]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -29342,7 +29230,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2915
+      ID: 2913
       Name: Probe[main.testSomeNamedReturn]
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -29361,12 +29249,12 @@ Types:
             IsSplit: false
           DictIndex: -1
           Redacted: false
+    - __kind: EventRootType
+      ID: 2915
+      Name: Probe[main.testSomeNamedReturn]
     - __kind: EventRootType
       ID: 2917
       Name: Probe[main.testSomeNamedReturn]
-    - __kind: EventRootType
-      ID: 2919
-      Name: Probe[main.testSomeNamedReturn]
       ByteSize: 9
       ExprStatusArraySize: 1
       Expressions:
@@ -29385,7 +29273,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2921
+      ID: 2919
       Name: Probe[main.testSomeNamedReturn]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -29419,7 +29307,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2916
+      ID: 2914
       Name: Probe[main.testSomeNamedReturn]Return
       ByteSize: 34
       ExprStatusArraySize: 2
@@ -29481,7 +29369,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2918
+      ID: 2916
       Name: Probe[main.testSomeNamedReturn]Return
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -29501,7 +29389,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2920
+      ID: 2918
       Name: Probe[main.testSomeNamedReturn]Return
       ByteSize: 34
       ExprStatusArraySize: 2
@@ -29563,7 +29451,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2922
+      ID: 2920
       Name: Probe[main.testSomeNamedReturn]Return
       ByteSize: 26
       ExprStatusArraySize: 2
@@ -29611,7 +29499,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2966
+      ID: 2964
       Name: Probe[main.testStackArgRegReturns]
       ByteSize: 81
       ExprStatusArraySize: 1
@@ -29645,7 +29533,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2967
+      ID: 2965
       Name: Probe[main.testStackArgRegReturns]Return
       ByteSize: 26
       ExprStatusArraySize: 2
@@ -29761,7 +29649,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2980
+      ID: 2978
       Name: Probe[main.testStringSlice]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -29863,7 +29751,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2977
+      ID: 2975
       Name: Probe[main.testStructSlice]
       ByteSize: 66
       ExprStatusArraySize: 2
@@ -29959,7 +29847,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2970
+      ID: 2968
       Name: Probe[main.testStructWithArrayArg]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -29993,7 +29881,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2971
+      ID: 2969
       Name: Probe[main.testStructWithArrayArg]Return
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -30027,7 +29915,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3009
+      ID: 3007
       Name: Probe[main.testStructWithCyclicMaps]
       ByteSize: 97
       ExprStatusArraySize: 1
@@ -30061,10 +29949,10 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3010
+      ID: 3008
       Name: Probe[main.testStructWithCyclicMaps]Return
     - __kind: EventRootType
-      ID: 3008
+      ID: 3006
       Name: Probe[main.testStructWithCyclicSlices]
       ByteSize: 289
       ExprStatusArraySize: 1
@@ -30132,7 +30020,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3011
+      ID: 3009
       Name: Probe[main.testStruct]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -30152,7 +30040,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3013
+      ID: 3011
       Name: Probe[main.testStruct]
       ByteSize: 113
       ExprStatusArraySize: 1
@@ -30186,13 +30074,13 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
+      ID: 3010
+      Name: Probe[main.testStruct]Return
+    - __kind: EventRootType
       ID: 3012
       Name: Probe[main.testStruct]Return
     - __kind: EventRootType
-      ID: 3014
-      Name: Probe[main.testStruct]Return
-    - __kind: EventRootType
-      ID: 2986
+      ID: 2984
       Name: Probe[main.testSubslices]
       ByteSize: 147
       ExprStatusArraySize: 3
@@ -30282,7 +30170,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3004
+      ID: 3002
       Name: Probe[main.testSubstrings]
       ByteSize: 99
       ExprStatusArraySize: 3
@@ -30392,7 +30280,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3019
+      ID: 3016
       Name: Probe[main.testTenStrings]
       ByteSize: 161
       ExprStatusArraySize: 1
@@ -30412,7 +30300,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2997
+      ID: 2995
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -30446,7 +30334,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2998
+      ID: 2996
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 50
       ExprStatusArraySize: 2
@@ -30506,7 +30394,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2993
+      ID: 2991
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 97
       ExprStatusArraySize: 1
@@ -30540,7 +30428,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2995
+      ID: 2993
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 50
       ExprStatusArraySize: 2
@@ -30588,13 +30476,13 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
+      ID: 2992
+      Name: Probe[main.testThreeStringsInStruct]Return
+    - __kind: EventRootType
       ID: 2994
       Name: Probe[main.testThreeStringsInStruct]Return
     - __kind: EventRootType
-      ID: 2996
-      Name: Probe[main.testThreeStringsInStruct]Return
-    - __kind: EventRootType
-      ID: 2992
+      ID: 2990
       Name: Probe[main.testThreeStrings]
       ByteSize: 99
       ExprStatusArraySize: 3
@@ -30684,7 +30572,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3023
+      ID: 3020
       Name: Probe[main.testTimeFixedZone]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -30718,7 +30606,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3024
+      ID: 3021
       Name: Probe[main.testTimeMonotonic]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -30752,7 +30640,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3022
+      ID: 3019
       Name: Probe[main.testTimeUTC]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -31024,7 +30912,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2974
+      ID: 2972
       Name: Probe[main.testUintSlice]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -31058,7 +30946,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3002
+      ID: 3000
       Name: Probe[main.testUnitializedString]
       ByteSize: 33
       ExprStatusArraySize: 1
@@ -31160,7 +31048,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2983
+      ID: 2981
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -31194,7 +31082,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2984
+      ID: 2982
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 49
       ExprStatusArraySize: 1
@@ -31228,7 +31116,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2972
+      ID: 2970
       Name: Probe[main.testZeroSizeArgAndReturn]
       ByteSize: 18
       ExprStatusArraySize: 2
@@ -31290,7 +31178,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 2973
+      ID: 2971
       Name: Probe[main.testZeroSizeArgAndReturn]Return
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -31324,7 +31212,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3071
+      ID: 3068
       Name: Probe[main.typeWithGenerics[go.shape.int].Guess]
       ByteSize: 42
       ExprStatusArraySize: 2
@@ -31379,7 +31267,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3072
+      ID: 3069
       Name: Probe[main.typeWithGenerics[go.shape.int].Guess]Return
       ByteSize: 2
       ExprStatusArraySize: 1
@@ -31399,7 +31287,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3073
+      ID: 3070
       Name: Probe[main.typeWithGenerics[go.shape.string].Guess]
       ByteSize: 66
       ExprStatusArraySize: 2
@@ -31454,7 +31342,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3074
+      ID: 3071
       Name: Probe[main.typeWithGenerics[go.shape.string].Guess]Return
       ByteSize: 2
       ExprStatusArraySize: 1
@@ -31474,7 +31362,7 @@ Types:
           DictIndex: -1
           Redacted: false
     - __kind: EventRootType
-      ID: 3025
+      ID: 3022
       Name: Probe[main.wrapBox[go.shape.int]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -31509,7 +31397,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3026
+      ID: 3023
       Name: Probe[main.wrapBox[go.shape.int]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -31530,7 +31418,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3027
+      ID: 3024
       Name: Probe[main.wrapBox[go.shape.string]]
       ByteSize: 41
       ExprStatusArraySize: 1
@@ -31565,7 +31453,7 @@ Types:
           DictIndex: 0
           Redacted: false
     - __kind: EventRootType
-      ID: 3028
+      ID: 3025
       Name: Probe[main.wrapBox[go.shape.string]]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -31586,7 +31474,7 @@ Types:
           DictIndex: 1
           Redacted: false
     - __kind: EventRootType
-      ID: 3092
+      ID: 3089
       Name: Probe[runtime.recovery]
       ByteSize: 17
       EventKind: Entry
@@ -46501,8 +46389,28 @@ Types:
       ByteSize: 4
       GoRuntimeType: 994976
       GoKind: 5
-MaxTypeID: 3092
+MaxTypeID: 3089
 Issues:
+    - probe_definition:
+        id: testNestedPointer_expression_with_dots_bad_expr
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.testNestedPointer}
+        tags: ['issue:TemplateExpressionUnresolvable']
+        template: '{x.nested.anotherString.anotherInt} {x.notAMember}'
+        segments:
+            - json:
+                getmember:
+                    - getmember: [{getmember: [{ref: x}, nested]}, anotherString]
+                    - anotherInt
+              dsl: x.nested.anotherString.anotherInt
+            - ' '
+            - json: {getmember: [{ref: x}, notAMember]}
+              dsl: x.notAMember
+        captureSnapshot: false
+      issue:
+        Kind: 10
+        Message: 'template segment "x.nested.anotherString.anotherInt": cannot access member "anotherInt" on type *ir.GoStringHeaderType ("string") in expression "x.nested.anotherString.anotherInt"'
     - probe_definition:
         id: testReturnCondBadField
         version: 0
@@ -46533,6 +46441,21 @@ Issues:
       issue:
         Kind: 7
         Message: return value selector (e.g., @return.r0) must be used for multi-value returns
+    - probe_definition:
+        id: testTemplateWithNonexistantVariableName
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.testMultipleNamedReturn}
+        tags: ['issue:TemplateExpressionUnresolvable']
+        capture: {maxReferenceDepth: 1}
+        template: '{nonexistentVariable}'
+        segments:
+            - json: {ref: nonexistentVariable}
+              dsl: nonexistentVariable
+        captureSnapshot: true
+      issue:
+        Kind: 10
+        Message: template references unknown variable "nonexistentVariable"
 GoModuledataInfo: {FirstModuledataAddr: "0x134d380", TypesOffset: 296}
 GoMapHashInfo:
     UseAeshashAddr: "0x144302b"
