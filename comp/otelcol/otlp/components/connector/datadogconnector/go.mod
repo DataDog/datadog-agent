@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.83.0
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.83.0
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.83.0
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.0
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.1
 	github.com/DataDog/datadog-agent/pkg/util/option v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/google/go-cmp v0.7.0

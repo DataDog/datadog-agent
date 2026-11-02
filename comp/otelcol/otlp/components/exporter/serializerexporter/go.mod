@@ -91,7 +91,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.83.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
