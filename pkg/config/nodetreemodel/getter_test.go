@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGet(t *testing.T) {
@@ -367,11 +368,12 @@ func TestSensitive(t *testing.T) {
 	cfg.SetSensitive("Logs.API_Key")
 	cfg.BuildSchema()
 
-	assert.True(t, cfg.IsSensitive("api_key"))
-	assert.True(t, cfg.IsSensitive("LOGS.api_key"))
-	assert.False(t, cfg.IsSensitive("site"))
-	assert.False(t, cfg.IsSensitive("unknown"))
-	assert.Equal(t, []string{"TEST_API_KEY", "TEST_LOGS_API_KEY", "TEST_OTHER_API_KEY"}, cfg.GetSensitiveEnvVars())
+	require.True(t, cfg.IsSensitive("api_key"))
+	require.True(t, cfg.IsSensitive("LOGS.api_key"))
+	require.False(t, cfg.IsSensitive("site"))
+	require.False(t, cfg.IsSensitive("unknown"))
+	require.Equal(t, []string{"TEST_API_KEY", "TEST_LOGS_API_KEY", "TEST_OTHER_API_KEY"}, cfg.GetSensitiveEnvVars())
 
 	assert.Panics(t, func() { cfg.SetSensitive("site") })
+	assert.False(t, cfg.IsSensitive("site"))
 }

@@ -385,6 +385,7 @@ func TestAllowEnvVarSensitive(t *testing.T) {
 				"DD_LOGS_CONFIG_API_KEY":      false,
 				"DD_CLUSTER_AGENT_AUTH_TOKEN": false,
 				"DD_ADDITIONAL_ENDPOINTS":     false,
+				"DD_APM_DEBUGGER_API_KEY":     false,
 				"DD_KUBERNETES_KUBELET_HOST":  true,
 				"DD_CLC_RUNNER_ID":            true,
 				"DD_SITE":                     true,
