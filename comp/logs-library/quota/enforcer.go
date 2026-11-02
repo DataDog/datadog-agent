@@ -131,19 +131,17 @@ func (e *Enforcer) Check(msg *message.Message) bool {
 	if !now.Before(rs.nextExpiry) {
 		rs = e.prune(rs, now)
 	}
-	for _, q := range rs.quotas {
-		if !q.matches(msg.Origin) {
-			continue
-		}
-		size := msg.Size()
-		q.stats.droppedEvents.Add(1)
-		q.stats.droppedBytes.Add(size)
-		q.stats.lastDrop.Store(now.Unix())
-		q.stats.tlmEvents.Inc()
-		q.stats.tlmBytes.Add(float64(size))
-		return true
+	q := rs.match(msg.Origin)
+	if q == nil {
+		return false
 	}
-	return false
+	size := msg.Size()
+	q.stats.droppedEvents.Add(1)
+	q.stats.droppedBytes.Add(size)
+	q.stats.lastDrop.Store(now.Unix())
+	q.stats.tlmEvents.Inc()
+	q.stats.tlmBytes.Add(float64(size))
+	return true
 }
 
 // prune drops expired quotas from the active set unless Update replaced it concurrently.

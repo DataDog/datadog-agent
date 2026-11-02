@@ -5,6 +5,7 @@ go_library(
     name = "quota",
     srcs = [
         "enforcer.go",
+        "plan.go",
         "rule.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/quota",
@@ -18,7 +19,10 @@ go_library(
 
 dd_agent_go_test(
     name = "quota_test",
-    srcs = ["enforcer_test.go"],
+    srcs = [
+        "enforcer_test.go",
+        "plan_test.go",
+    ],
     embed = [":quota"],
     deps = [
         "//comp/logs-library/metrics",
