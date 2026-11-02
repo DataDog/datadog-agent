@@ -47,3 +47,7 @@ func (h *Historate) flush(timestamp float64) ([]*Serie, error) {
 func (h *Historate) isStateful() bool {
 	return true
 }
+
+func (h *Historate) metricType() MetricType {
+	return HistorateType
+}
