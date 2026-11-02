@@ -7,6 +7,7 @@ package fx
 
 import (
 	"context"
+	"os"
 	"slices"
 	"sync"
 	"testing"
@@ -56,6 +57,16 @@ func (fakeHostname) GetWithProvider(context.Context) (hostnameinterface.Data, er
 
 func TestRunnerHonorsConfiguration(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED", "")
+	t.Setenv("DD_AAS_EXTENSION_VERSION", "")
+	t.Setenv("DD_AAS_JAVA_EXTENSION_VERSION", "")
+	t.Setenv("DD_AAS_DOTNET_EXTENSION_VERSION", "3.12.0")
+	t.Setenv("DD_SERVICE", "checkout")
+	t.Setenv("DD_VERSION", "2026.10")
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
+	require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+	t.Setenv("WEBSITE_STACK", "")
+	t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "")
+	t.Setenv("WEBSITE_SLOT_NAME", "Production")
 	for _, tc := range []struct {
 		name       string
 		aas        bool
@@ -65,7 +76,7 @@ func TestRunnerHonorsConfiguration(t *testing.T) {
 		wantReport bool
 	}{
 		{"metadata enabled", true, true, true, true, true},
-		{"AAS disabled", false, true, true, true, false},
+		{"AAS disabled by default", false, true, true, true, false},
 		{"extension defaults", true, false, true, true, false},
 		{"inventory disabled", true, true, false, true, false},
 		{"missing identity", true, true, true, false, false},
@@ -73,20 +84,26 @@ func TestRunnerHonorsConfiguration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("WEBSITE_SITE_NAME", "")
 			if tc.identity {
-				t.Setenv("WEBSITE_SITE_NAME", "test-app")
+				t.Setenv("WEBSITE_SITE_NAME", "My-App")
 			}
 			t.Setenv("WEBSITE_OWNER_NAME", "sub-123+East US")
-			t.Setenv("WEBSITE_RESOURCE_GROUP", "test-rg")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "My-RG")
+			t.Setenv("REGION_NAME", "East US")
 			synctest.Test(t, func(t *testing.T) {
-				conf := config.NewMockWithOverrides(t, map[string]any{
-					"serverless.aas_extension_metadata_enabled": tc.aas,
-					"enable_metadata_collection":                tc.metadata,
-					"inventories_enabled":                       tc.inventory,
-					"inventories_configuration_enabled":         false,
-					"inventories_first_run_delay":               3600,
-					"inventories_min_interval":                  60,
-					"inventories_max_interval":                  600,
-				})
+				settings := map[string]any{
+					"enable_metadata_collection":        tc.metadata,
+					"inventories_enabled":               tc.inventory,
+					"inventories_configuration_enabled": false,
+					"inventories_first_run_delay":       3600,
+					"inventories_min_interval":          60,
+					"inventories_max_interval":          600,
+					"env":                               "staging",
+					"site":                              "datad0g.com",
+				}
+				if tc.aas {
+					settings["serverless.aas_extension_metadata_enabled"] = true
+				}
+				conf := config.NewMockWithOverrides(t, settings)
 				s := &recordingSerializer{}
 				var rootConfig config.Component
 				app := fx.New(
@@ -113,6 +130,10 @@ func TestRunnerHonorsConfiguration(t *testing.T) {
 				)
 				require.NoError(t, app.Err())
 				require.Empty(t, s.snapshot(), "construction must not submit")
+				if tc.wantReport {
+					t.Setenv("WEBSITE_SITE_NAME", "changed-after-construction")
+					t.Setenv("REGION_NAME", "changed-after-construction")
+				}
 				require.NoError(t, app.Start(t.Context()))
 				synctest.Wait()
 				require.Equal(t, tc.metadata, rootConfig.GetBool("enable_metadata_collection"), "the component must not override configuration")
@@ -120,13 +141,34 @@ func TestRunnerHonorsConfiguration(t *testing.T) {
 				if tc.wantReport {
 					payloads := s.snapshot()
 					require.Len(t, payloads, 1)
-					require.Equal(t, "serverless-extension", payloads[0].Metadata["flavor"])
-					require.Equal(t, "/subscriptions/sub-123/resourcegroups/test-rg/providers/microsoft.web/sites/test-app", payloads[0].Metadata["resource_id"])
+					firstPayload := payloads[0]
+					require.NotEmpty(t, firstPayload.UUID)
+					require.Empty(t, firstPayload.Hostname)
+					require.NotEmpty(t, firstPayload.Metadata["agent_version"])
+					for key, expected := range map[string]any{
+						"flavor":                "serverless-extension",
+						"report_reason":         "startup",
+						"resource_id":           "/subscriptions/sub-123/resourcegroups/my-rg/providers/microsoft.web/sites/my-app",
+						"resource_name":         "My-App",
+						"workload_type":         "azure_app_service",
+						"region":                "East US",
+						"azure_subscription_id": "sub-123",
+						"azure_resource_group":  "My-RG",
+						"runtime":               ".NET",
+						"extension_version":     "3.12.0",
+						"dd_env":                "staging",
+						"dd_site":               "datad0g.com",
+						"dd_service":            "checkout",
+						"dd_version":            "2026.10",
+					} {
+						require.Equal(t, expected, firstPayload.Metadata[key], key)
+					}
 					time.Sleep(10 * time.Minute) // Advance virtual time to the next report.
 					synctest.Wait()
 					payloads = s.snapshot()
 					require.Len(t, payloads, 2)
 					require.Equal(t, "periodic", payloads[1].Metadata["report_reason"])
+					require.Equal(t, "startup", firstPayload.Metadata["report_reason"], "later collections must not mutate queued payloads")
 				} else {
 					require.Empty(t, s.snapshot())
 				}
