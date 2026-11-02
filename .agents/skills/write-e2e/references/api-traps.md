@@ -17,7 +17,7 @@ The third column is the point of this file. Knowing that a form is wrong helps o
 | Wrong | Right | Why it is easy to get wrong |
 |---|---|---|
 | `dockeragentparams.WithEnvironmentVariables` to configure the agent | `dockeragentparams.WithAgentServiceEnvVariable(key, value)` | The name reads like the general case, but it only reaches the docker-compose command and its interpolation, not the agent process |
-| `os.Getenv("E2E_FAKEINTAKE_IMAGE_OVERRIDE")` and other `E2E_*` reads | the runner parameter store, e.g. `runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)` | Direct reads bypass the profile and resolve differently in CI than locally |
+| `os.Getenv("E2E_FAKEINTAKE_IMAGE_OVERRIDE")` and other `E2E_*` reads | the runner parameter store, e.g. `runner.GetProfile().ParamStore().WindowsEnabled()` for Windows gates (it honors both `E2E_RUN_WINDOWS` and the legacy `E2E_SKIP_WINDOWS`) | Direct reads bypass the profile and resolve differently in CI than locally |
 
 ## Confirming a form before you use it
 

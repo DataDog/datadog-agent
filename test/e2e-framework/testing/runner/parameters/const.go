@@ -95,8 +95,12 @@ const (
 	CoveragePipeline StoreKey = "coverage_pipeline"
 	// CoverageOutDir config flag parameter name
 	CoverageOutDir StoreKey = "coverage_out_dir"
-	// SkipWindows skips Windows infrastructure and workloads in tests
+	// SkipWindows skips Windows infrastructure and workloads in tests (legacy parameter,
+	// superseded by RunWindows)
 	SkipWindows StoreKey = "skip_windows"
+	// RunWindows controls whether Windows infrastructure and workloads run in tests;
+	// inverse of the legacy SkipWindows, defaults to true
+	RunWindows StoreKey = "run_windows"
 	// FakeintakeImageOverride overrides the pinned fakeintake image (CI sets it to
 	// the freshly built server image on a fakeintake PR). See test/fakeintake/version.
 	FakeintakeImageOverride StoreKey = "fakeintake_image_override"

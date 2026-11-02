@@ -1101,7 +1101,17 @@ def read_content(ctx, file_path, git_ref: str | None = None):
 
 
 def get_preset_contexts(required_tests):
-    possible_tests = ["all", "main", "release", "mq", "conductor"]
+    possible_tests = [
+        "all",
+        "main",
+        "release",
+        "mq",
+        "conductor",
+        "installer",
+        "integrations",
+        "pipeline_type",
+        "full_skip_windows",
+    ]
     required_test_list = required_tests.casefold().split(",")
     if set(required_test_list) | set(possible_tests) != set(possible_tests):
         raise Exit(f"Invalid test required: {required_test_list} must contain only values from {possible_tests}", 1)
@@ -1111,10 +1121,10 @@ def get_preset_contexts(required_tests):
         ("COMPARE_TO_BRANCH", ["main"]),
         ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
-        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_MACOS_BUILD", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["on"]),
-        ("RUN_UNIT_TESTS", ["on"]),
+        ("RUN_KMT_TESTS", ["true"]),
+        ("RUN_UNIT_TESTS", ["true"]),
     ]
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
@@ -1123,10 +1133,10 @@ def get_preset_contexts(required_tests):
         ("CI_COMMIT_TAG", ["3.2.1", "1.2.3-rc.4"]),
         ("CI_PIPELINE_SOURCE", ["schedule"]),
         ("DEPLOY_AGENT", ["true"]),
-        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_MACOS_BUILD", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["on"]),
-        ("RUN_UNIT_TESTS", ["on"]),
+        ("RUN_KMT_TESTS", ["true"]),
+        ("RUN_UNIT_TESTS", ["true"]),
     ]
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
@@ -1134,10 +1144,10 @@ def get_preset_contexts(required_tests):
         ("COMPARE_TO_BRANCH", ["main"]),  # the merge queue rebases PRs onto their target branch
         ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
-        ("RUN_ALL_BUILDS", ["false"]),
+        ("RUN_MACOS_BUILD", ["false"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["off"]),
-        ("RUN_UNIT_TESTS", ["off"]),
+        ("RUN_KMT_TESTS", ["false"]),
+        ("RUN_UNIT_TESTS", ["false"]),
     ]
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
@@ -1153,10 +1163,10 @@ def get_preset_contexts(required_tests):
         ("CI_PIPELINE_SOURCE", ["push", "api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("DEPLOY_INSTALLER", ["true"]),
-        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_MACOS_BUILD", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["on"]),
-        ("RUN_UNIT_TESTS", ["on"]),
+        ("RUN_KMT_TESTS", ["true"]),
+        ("RUN_UNIT_TESTS", ["true"]),
     ]
     integrations_core_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
@@ -1164,7 +1174,25 @@ def get_preset_contexts(required_tests):
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
         ("RUN_KITCHEN_TESTS", ["false"]),
-        ("RUN_E2E_TESTS", ["off"]),
+        ("RUN_E2E_TESTS", ["false"]),
+    ]
+    # PIPELINE_TYPE triggers on an ordinary dev branch, exercising the workflow-rule
+    # expansion (light/full/full_deploy) and the windows include PIPELINE_TYPE rule.
+    pipeline_type_contexts = [
+        ("BUCKET_BRANCH", ["dev"]),
+        ("CI_COMMIT_BRANCH", ["my-dev-branch"]),
+        ("CI_PIPELINE_SOURCE", ["trigger"]),
+        ("PIPELINE_TYPE", ["light", "full", "full_deploy"]),
+    ]
+    # PIPELINE_TYPE=full combined with the legacy SKIP_WINDOWS=true, exercising the
+    # first-match behavior of the workflow rules (the full rule must not override the
+    # legacy windows exclusion at the consumption points).
+    full_skip_windows_contexts = [
+        ("BUCKET_BRANCH", ["dev"]),
+        ("CI_COMMIT_BRANCH", ["my-dev-branch"]),
+        ("CI_PIPELINE_SOURCE", ["trigger"]),
+        ("PIPELINE_TYPE", ["full"]),
+        ("SKIP_WINDOWS", ["true"]),
     ]
     all_contexts = []
     for test in required_test_list:
@@ -1180,6 +1208,10 @@ def get_preset_contexts(required_tests):
             generate_contexts(installer_contexts, [], all_contexts)
         if test in ["all", "integrations"]:
             generate_contexts(integrations_core_contexts, [], all_contexts)
+        if test in ["all", "pipeline_type"]:
+            generate_contexts(pipeline_type_contexts, [], all_contexts)
+        if test in ["all", "full_skip_windows"]:
+            generate_contexts(full_skip_windows_contexts, [], all_contexts)
     return all_contexts
 
 
