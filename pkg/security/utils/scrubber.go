@@ -45,7 +45,10 @@ func NewScrubber(customSensitiveWords []string, regexps []string) (*Scrubber, er
 
 // ScrubCommand scrubs the command line using the proc scrubber and the regex scrubber
 func (s *Scrubber) ScrubCommand(cmdline []string) []string {
-	scrubbed, _ := s.procScrubber.ScrubCommand(cmdline)
+	// procutil only matches a key preceded by a space, and callers pass argv without argv[0]
+	args := append(make([]string, 1, len(cmdline)+1), cmdline...)
+	scrubbed, _ := s.procScrubber.ScrubCommand(args)
+	scrubbed = scrubbed[1:]
 
 	if s.regexScrubber != nil {
 		for i := range scrubbed {

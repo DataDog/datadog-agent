@@ -55,3 +55,12 @@ func TestScrubber(t *testing.T) {
 		assert.Equal(t, "***** 1234567890 ***** 1234567890", scrubbed)
 	})
 }
+
+func TestScrubberFirstArgument(t *testing.T) {
+	scrubber, err := NewScrubber(nil, nil)
+	assert.NoError(t, err)
+
+	assert.Equal(t, []string{"--password", "********"}, scrubber.ScrubCommand([]string{"--password", "hunter2"}))
+	assert.Equal(t, []string{"-H", "Content-Type: application/json"}, scrubber.ScrubCommand([]string{"-H", "Content-Type: application/json"}))
+	assert.Empty(t, scrubber.ScrubCommand([]string{}))
+}
