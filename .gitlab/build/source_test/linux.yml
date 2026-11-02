@@ -39,9 +39,14 @@
 tests_linux-x64-py3:
   extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
   # Trial: conduit beside this job only. `build:` so after_script's `bazel info` does not open BES.
+  # A failed start must not fail coverage, and must not leave a BES backend with nothing listening.
   before_script:
-    - $CI_PROJECT_DIR/tools/ci/conduit.sh start
-    - printf '%s\n' 'build --bes_backend=grpc://127.0.0.1:8080' 'build --build_event_publish_all_actions' >> user.bazelrc
+    - |
+      if $CI_PROJECT_DIR/tools/ci/conduit.sh start; then
+        printf '%s\n' 'build --bes_backend=grpc://127.0.0.1:8080' 'build --build_event_publish_all_actions' >> user.bazelrc
+      else
+        echo "conduit failed to start; coverage will run without traces"
+      fi
   after_script:
     - $CI_PROJECT_DIR/tools/ci/conduit.sh stop || true
     - !reference [.bazel:coverage:linux, after_script]

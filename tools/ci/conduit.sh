@@ -9,7 +9,8 @@ CONDUIT_VERSION="${CONDUIT_VERSION:-0.0.1-RC1}"
 # sha256 of conduit-linux-x86_64 from the v0.0.1-RC1 GitHub release.
 CONDUIT_SHA256="${CONDUIT_SHA256:-a0c08a2524a9cb0b3c8d4aa7754788368d9f979acb207518bb80c1c19e8b323e}"
 CONDUIT_ASSET="conduit-linux-x86_64"
-CONDUIT_URL="${CONDUIT_URL:-https://github.com/JSGette/bazel_conduit/releases/download/v${CONDUIT_VERSION}/${CONDUIT_ASSET}}"
+# Depot read API caches GitHub release assets in ADMS; curl does not use the Bazel mirror rewrite.
+CONDUIT_URL="${CONDUIT_URL:-https://depot-read-api-bzl.us1.ddbuild.io/github.com/JSGette/bazel_conduit/releases/download/v${CONDUIT_VERSION}/${CONDUIT_ASSET}}"
 CONDUIT_DIR="${CONDUIT_DIR:-${CI_PROJECT_DIR:?CI_PROJECT_DIR is required}/.conduit}"
 CONDUIT_BIN="${CONDUIT_DIR}/${CONDUIT_ASSET}"
 CONDUIT_PID_FILE="${CONDUIT_DIR}/conduit.pid"
