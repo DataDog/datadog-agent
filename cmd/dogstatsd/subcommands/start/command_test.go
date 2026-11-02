@@ -6,6 +6,8 @@
 package start
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,13 +25,25 @@ import (
 )
 
 func TestStartCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand("defaultLogFile")},
-		[]string{"start", "--cfgpath", "PATH"},
-		start,
-		func(cliParams *CLIParams, _ config.Params) {
-			require.Equal(t, "PATH", cliParams.confPath)
+	for _, tc := range []struct {
+		name      string
+		extension string
+		startFunc interface{}
+	}{
+		{"host", "0", start},
+		{"AAS", "1", startAAS},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(serverlessenv.AzureAppServicesEnvVar, tc.extension)
+			fxutil.TestOneShotSubcommand(t,
+				[]*cobra.Command{MakeCommand("defaultLogFile")},
+				[]string{"start", "--cfgpath", "PATH"},
+				tc.startFunc,
+				func(cliParams *CLIParams, _ config.Params) {
+					require.Equal(t, "PATH", cliParams.confPath)
+				})
 		})
+	}
 }
 
 func TestMetadataModulesSelectProviders(t *testing.T) {
@@ -46,9 +60,29 @@ func TestMetadataModulesSelectProviders(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(serverlessenv.AzureAppServicesEnvVar, tc.extension)
+			var startFunc interface{} = start
+			wantMetadataDependencies := 5 // Runner plus the four regular providers.
+			if tc.extension == "1" {
+				startFunc = startAAS
+				wantMetadataDependencies = 2 // Runner and the AAS provider only.
+			}
+			// Resolve the actual startup's metadata dependencies without running its
+			// blocking body or constructing unrelated DogStatsD components.
+			startupType := reflect.TypeOf(startFunc)
+			var metadataTypes []reflect.Type
+			for i := 0; i < startupType.NumIn(); i++ {
+				dependency := startupType.In(i)
+				if strings.HasPrefix(dependency.PkgPath(), "github.com/DataDog/datadog-agent/comp/metadata/") {
+					metadataTypes = append(metadataTypes, dependency)
+				}
+			}
+			require.Len(t, metadataTypes, wantMetadataDependencies)
+			captureStartup := reflect.MakeFunc(reflect.FuncOf(metadataTypes, nil, false), func([]reflect.Value) []reflect.Value {
+				return nil
+			}).Interface()
 			var providers struct {
 				fx.In
-				Values []runner.MetadataProvider `group:"metadata_provider"`
+				Values []runner.MetadataProvider `group:"metadata_provider,soft"`
 			}
 			app := fx.New(
 				fx.NopLogger,
@@ -65,7 +99,7 @@ func TestMetadataModulesSelectProviders(t *testing.T) {
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Provide(func() ipc.HTTPClient { return nil }),
 				metadataModules(),
-				fx.Invoke(func(_ runner.Component) {}),
+				fx.Invoke(captureStartup),
 				fx.Populate(&providers),
 			)
 			require.NoError(t, app.Err())
