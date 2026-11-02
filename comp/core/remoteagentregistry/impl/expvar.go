@@ -28,6 +28,9 @@ const (
 	remoteExpvarCacheTTL = time.Second
 	// Retire origin-labeled series after this long without appearing in a successful telemetry scrape.
 	remoteExpvarOriginIdleTTL = 10 * time.Minute
+	// Keep an absent process's baseline briefly when a different process of the
+	// same name is also registered; the old process may still re-register.
+	remoteExpvarReplacedIdleTTL = 10 * time.Minute
 )
 
 // expvarMapping describes one compatibility mapping from a RAR Prometheus metric family to a legacy expvar path.
@@ -379,11 +382,12 @@ type remoteSeriesKey struct {
 }
 
 type remoteCounterState struct {
-	initialized bool
-	lastRaw     int64
-	total       int64
-	lastSeen    time.Time
-	hasOrigin   bool
+	initialized       bool
+	lastRaw           int64
+	total             int64
+	lastSeen          time.Time
+	hasOrigin         bool
+	processIdentified bool
 }
 
 // getRemoteAgentExpvars builds a fresh snapshot of mapped ADP values grouped by agent.
@@ -476,12 +480,34 @@ func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, c
 		}
 	}
 
-	responses := callAgentsForServiceFiltered(ctx, ra, TelemetryServiceName, isADPAgent, client, processor)
+	// A process can briefly have two RAR sessions after re-registration. Both
+	// sessions query the same counters, and their responses can arrive out of order.
+	// Read only the most recently registered session for each process identity.
+	preferredSessions := make(map[string]string)
+	preferredOrders := make(map[string]uint64)
+	ra.agentMapMu.Lock()
+	for _, agent := range ra.agentMap {
+		if !isADPAgent(agent.RegisteredAgent) {
+			continue
+		}
+		identity := remoteAgentIdentity(agent.RegisteredAgent)
+		if agent.registrationOrder >= preferredOrders[identity] {
+			preferredSessions[identity] = agent.SessionID
+			preferredOrders[identity] = agent.registrationOrder
+		}
+	}
+	ra.agentMapMu.Unlock()
+	filter := func(agent remoteagentregistry.RegisteredAgent) bool {
+		return isADPAgent(agent) && preferredSessions[remoteAgentIdentity(agent)] == agent.SessionID
+	}
+	responses := callAgentsForServiceFiltered(ctx, ra, TelemetryServiceName, filter, client, processor)
 	successfulAgents := make(map[string]struct{})
 	activeAgents := make(map[string]struct{})
+	activeByName := make(map[string]bool)
 	for _, agent := range ra.GetRegisteredAgents() {
 		if isADPAgent(agent) {
 			activeAgents[remoteAgentIdentity(agent)] = struct{}{}
+			activeByName[agent.SanitizedDisplayName] = true
 		}
 	}
 	for _, response := range responses {
@@ -510,14 +536,14 @@ func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, c
 			}
 			state := cache.counters[key]
 			if state == nil {
-				state = &remoteCounterState{}
+				state = &remoteCounterState{processIdentified: response.agent.ProcessInstanceID != ""}
 				cache.counters[key] = state
 			}
 			state.observe(series.value)
 			state.lastSeen = now
 			// The origin label is optional and is emitted when dogstatsd_origin is enabled.
-			// Only origin-labeled series use absence-based expiry; otherwise PID unregistration
-			// is the lifecycle signal for retiring per-series state.
+			// Only origin-labeled series use time-based expiry; other series are
+			// retired when their identified process is replaced or a legacy agent deregisters.
 			state.hasOrigin = series.hasOrigin
 		}
 	}
@@ -537,8 +563,15 @@ func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, c
 	for key, state := range cache.counters {
 		_, registered := activeAgents[key.agentIdentity]
 		_, scrapeSucceeded := successfulAgents[key.agentIdentity]
-		originSeriesExpired := state.hasOrigin && scrapeSucceeded && now.Sub(state.lastSeen) >= remoteExpvarOriginIdleTTL
-		if !registered || originSeriesExpired {
+		// An absent origin can expire after a successful scrape omits it, or after
+		// the agent itself has been absent long enough. Failed scrapes of an active
+		// agent must not expire otherwise healthy series.
+		originSeriesExpired := state.hasOrigin && (scrapeSucceeded || !registered) && now.Sub(state.lastSeen) >= remoteExpvarOriginIdleTTL
+		// Keep an absent process's last baseline across re-registration. After a
+		// replacement registers, give the old process a grace period to return;
+		// otherwise retire its state into the cumulative total.
+		replacementExpired := activeByName[key.agentName] && now.Sub(state.lastSeen) >= remoteExpvarReplacedIdleTTL
+		if originSeriesExpired || (!registered && (!state.processIdentified || replacementExpired)) {
 			addRetiredExpvarTotal(cache.retiredTotals, key.agentName, key.mappingID, state.total)
 			addValue(key.agentName, key.mappingID, state.total)
 			delete(cache.counters, key)
@@ -574,12 +607,14 @@ func isADPAgent(agent remoteagentregistry.RegisteredAgent) bool {
 	return agent.Flavor == adpAgentFlavor
 }
 
+// The process ID remains stable across RAR sessions and changes on an ADP restart,
+// even when the OS reuses the PID. Older remote agents fall back to PID identity.
 func remoteAgentIdentity(agent remoteagentregistry.RegisteredAgent) string {
 	identity := agent.Flavor + "\x00" + agent.SanitizedDisplayName
-	if agent.PID != "" {
-		identity += "\x00" + agent.PID
+	if agent.ProcessInstanceID != "" {
+		return identity + "\x00id:" + agent.ProcessInstanceID
 	}
-	return identity
+	return identity + "\x00pid:" + agent.PID
 }
 
 func (s *remoteCounterState) observe(raw int64) {
