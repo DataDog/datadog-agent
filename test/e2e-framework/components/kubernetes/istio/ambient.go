@@ -63,6 +63,9 @@ func NewAmbientHelmInstallation(e config.Env, version string, opts ...pulumi.Res
 	// the cni and ztunnel charts tolerate every taint by default, which schedules them on
 	// EKS Fargate nodes, where DaemonSet pods stay Pending
 	noTolerations := pulumi.Array{}
+	// the charts pull from Docker Hub, which rate-limits anonymous pulls and has no mirror on EKS nodes;
+	// istiod's hub also sets the waypoint's proxyv2 image
+	hub := pulumi.String(e.InternalDockerhubMirror() + "/istio")
 	releases := []struct {
 		chart, name string
 		values      pulumi.Map
@@ -71,13 +74,14 @@ func NewAmbientHelmInstallation(e config.Env, version string, opts ...pulumi.Res
 		// istiod requests 2Gi by default, more than the framework's default node can spare
 		{"istiod", "istiod", pulumi.Map{
 			"profile": pulumi.String("ambient"),
+			"global":  pulumi.Map{"hub": hub},
 			"resources": pulumi.Map{"requests": pulumi.Map{
 				"cpu":    pulumi.String("100m"),
 				"memory": pulumi.String("256Mi"),
 			}},
 		}},
-		{"cni", "istio-cni", pulumi.Map{"profile": pulumi.String("ambient"), "tolerations": noTolerations}},
-		{"ztunnel", "ztunnel", pulumi.Map{"tolerations": noTolerations}},
+		{"cni", "istio-cni", pulumi.Map{"profile": pulumi.String("ambient"), "global": pulumi.Map{"hub": hub}, "tolerations": noTolerations}},
+		{"ztunnel", "ztunnel", pulumi.Map{"hub": hub, "tolerations": noTolerations}},
 	}
 	var previous pulumi.Resource = ns
 	for _, r := range releases {

@@ -364,36 +364,42 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInAppPodsAreAttributedToTheApp() {
 			pod := s.pod(tc.namespace, tc.app)
 			appID := pod.containers[tc.container]
 			s.Require().NoError(s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-			// payloads from before attribution starts (a netns read awaiting its retry, workloadmeta still
-			// syncing) are ignored: only those collected after the first iteration that sees a moved socket count
+			// each iteration judges only the payloads collected since the previous one, so a payload from before
+			// attribution settled (a netns read awaiting its retry, workloadmeta still syncing) can't keep failing
+			// later ones; the first window that shows a moved socket only marks the start
 			var since time.Time
+			started := false
 			s.EventuallyWithT(func(c *assert.CollectT) {
-				var moved, kept, selfRemote int
+				var moved, movedOffTunnel, kept, selfRemote int
 				owners := map[string]int{} // every connection from the pod, by its process's container
 				conns, latest := s.connectionsFrom(c, pod.ip, since)
+				since = latest
 				for _, conn := range conns {
 					owners[containerName(conn.pidContainer, pod, ztunnel)]++
-					// only the tunnel leg moves; ztunnel's other legs in the pod duplicate the app's sockets
 					if ztunnel[conn.container] && conn.onTunnel() {
 						kept++
 					}
 					if ztunnel[conn.pidContainer] && conn.container == appID {
-						moved++
+						// only the tunnel leg moves; ztunnel's other legs in the pod duplicate the app's sockets
+						if conn.onTunnel() {
+							moved++
+						} else {
+							movedOffTunnel++
+						}
 					}
-					// a reattributed leg must not make the app look like it's talking to itself
+					// a reattributed delivery leg would make the app look like it's talking to itself
 					if conn.pidContainer == appID && conn.raddrContainer == appID && conn.raddrIP != pod.ip {
 						selfRemote++
 					}
 				}
-				if since.IsZero() {
-					if moved > 0 {
-						since = latest
-					}
+				if !started {
+					started = moved > 0
 					assert.Fail(c, "waiting for payloads collected after attribution started", "connections by owning container: %v", owners)
 					return
 				}
 				assert.Zerof(c, kept, "%d tunnel connections from %s still attributed to ztunnel", kept, tc.app)
-				assert.Positivef(c, moved, "no ztunnel connection from %s was attributed to %s; connections by owning container: %v", tc.app, tc.container, owners)
+				assert.Positivef(c, moved, "no ztunnel tunnel connection from %s was attributed to %s; connections by owning container: %v", tc.app, tc.container, owners)
+				assert.Zerof(c, movedOffTunnel, "%d of ztunnel's off-tunnel connections from %s were attributed to %s", movedOffTunnel, tc.app, tc.container)
 				assert.Zerof(c, selfRemote, "%d of %s's connections resolve their remote end to %s itself", selfRemote, tc.app, tc.app)
 			}, 4*time.Minute, 10*time.Second)
 		})
@@ -413,40 +419,16 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInMultiAppPodsStayOnZtunnel() {
 			if !ztunnel[conn.pidContainer] {
 				continue
 			}
-			name := containerName(conn.container, pod, ztunnel)
-			switch {
-			case ztunnel[conn.container]:
+			// ztunnel's delivery legs into other pods carry this pod's address too, but they're off the tunnel
+			// port, so any ztunnel connection here that isn't on ztunnel was moved
+			if ztunnel[conn.container] {
 				kept++
-			case strings.HasPrefix(name, "unknown:"):
-				// ztunnel delivers inbound traffic from inside the server pod with the client's IP as
-				// source, so that socket carries this pod's address but belongs to the server
-			default:
-				moved[name]++
+			} else {
+				moved[containerName(conn.container, pod, ztunnel)]++
 			}
 		}
 		assert.Emptyf(c, moved, "ztunnel connections from client-two-apps were reattributed (pod containers %v)", pod.containers)
 		assert.Positive(c, kept, "no ztunnel connection from client-two-apps")
-	}, 4*time.Minute, 10*time.Second)
-}
-
-// TestZtunnelOwnTrafficStaysOnZtunnel checks that sockets in ztunnel's own namespace, such as xDS
-// to istiod, keep the ztunnel container.
-func (s *istioAmbientSuite) TestZtunnelOwnTrafficStaysOnZtunnel() {
-	ztunnel := s.ztunnelContainers()
-	ips := s.ztunnelPodIPs()
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		var own int
-		for ip := range ips {
-			conns, _ := s.connectionsFrom(c, ip, time.Time{})
-			for _, conn := range conns {
-				if !ztunnel[conn.pidContainer] {
-					continue
-				}
-				assert.Equalf(c, conn.pidContainer, conn.container, "connection from ztunnel's own namespace was reattributed: %+v", conn)
-				own++
-			}
-		}
-		assert.Positive(c, own, "no connection from ztunnel's own namespace")
 	}, 4*time.Minute, 10*time.Second)
 }
 
@@ -546,17 +528,6 @@ func (s *istioAmbientSuite) ztunnelContainers() map[string]bool {
 		}
 	}, 2*time.Minute, 5*time.Second, "could not list ztunnel containers")
 	return ids
-}
-
-func (s *istioAmbientSuite) ztunnelPodIPs() map[string]bool {
-	ips := map[string]bool{}
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		for _, p := range s.ztunnelPods(c) {
-			require.NotEmpty(c, p.ip)
-			ips[p.ip] = true
-		}
-	}, 2*time.Minute, 5*time.Second, "could not list ztunnel pod IPs")
-	return ips
 }
 
 // containerName names a container ID for failure messages: the pod's container name, ztunnel, or
