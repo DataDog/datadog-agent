@@ -26,6 +26,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
+// OperationsFromStdinFlag makes install-config-experiment read its operations
+// from stdin, as a second JSON document following the secrets.
+const OperationsFromStdinFlag = "operations-from-stdin"
+
+// Windows caps the whole command line at 32,767 characters and Linux caps a
+// single argument at 128 KiB. Escaping the JSON quotes on Windows can roughly
+// double its length, hence the margin.
+const maxOperationsArgLength = 8 * 1024
+
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
 	env              *env.Env
@@ -185,9 +194,6 @@ func (i *InstallerExec) InstallConfigExperiment(
 	if err != nil {
 		return fmt.Errorf("error marshalling config operations: %w", err)
 	}
-	cmdLineArgs := []string{pkg, string(operationsBytes)}
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
-
 	if secrets == nil {
 		secrets = make(map[string]string)
 	}
@@ -195,6 +201,18 @@ func (i *InstallerExec) InstallConfigExperiment(
 	if err != nil {
 		return fmt.Errorf("error marshalling decrypted secrets: %w", err)
 	}
+
+	stdinPayload := secretsBytes
+	var cmdLineArgs []string
+	// Installers that predate --operations-from-stdin reject the flag, so only
+	// use it when the positional argument would not fit on the command line.
+	if len(operationsBytes) > maxOperationsArgLength {
+		cmdLineArgs = []string{pkg, "--" + OperationsFromStdinFlag}
+		stdinPayload = append(append(stdinPayload, '\n'), operationsBytes...)
+	} else {
+		cmdLineArgs = []string{pkg, string(operationsBytes)}
+	}
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
 
 	// Capture stderr so a failed run surfaces the installer's error (e.g. which
 	// config file failed to parse and why) instead of a bare "exit status N".
@@ -213,11 +231,9 @@ func (i *InstallerExec) InstallConfigExperiment(
 		return fmt.Errorf("error starting command: %w", err)
 	}
 
-	// Write secrets to stdin
-	if _, err = stdinPipe.Write(secretsBytes); err != nil {
-		stdinPipe.Close()
-		return fmt.Errorf("error writing secrets to stdin: %w", err)
-	}
+	// A child that exits before draining stdin makes the write fail; its stderr
+	// is the more useful error, so wait for it before reporting the write error.
+	_, writeErr := stdinPipe.Write(stdinPayload)
 	stdinPipe.Close()
 
 	if err = cmd.Wait(); err != nil {
@@ -226,6 +242,10 @@ func (i *InstallerExec) InstallConfigExperiment(
 		}
 		installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
 		return fmt.Errorf("%w \n%s", installerError, err.Error())
+	}
+	if writeErr != nil {
+		err = fmt.Errorf("error writing to stdin: %w", writeErr)
+		return err
 	}
 	return nil
 }

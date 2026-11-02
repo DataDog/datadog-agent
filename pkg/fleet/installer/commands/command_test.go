@@ -7,15 +7,19 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -284,4 +288,95 @@ func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	cmd := setupCommand()
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
+}
+
+func TestInstallConfigExperimentArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		{name: "positional operations", args: []string{"datadog-agent", "{}"}},
+		{name: "positional operations missing", args: []string{"datadog-agent"}, wantErr: true},
+		{name: "operations from stdin", args: []string{"datadog-agent", "--" + exec.OperationsFromStdinFlag}},
+		{name: "operations from stdin and positional", args: []string{"datadog-agent", "{}", "--" + exec.OperationsFromStdinFlag}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := installConfigExperimentCommand()
+			require.NoError(t, cmd.ParseFlags(tt.args))
+			err := cmd.ValidateArgs(cmd.Flags().Args())
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestReadConfigExperimentInput(t *testing.T) {
+	operations := config.Operations{
+		DeploymentID: "deployment-1",
+		FileOperations: []config.FileOperation{{
+			FileOperationType: config.FileOperationMergePatch,
+			FilePath:          "/datadog.yaml",
+			Patch:             json.RawMessage(`{"log_level":"debug"}`),
+		}},
+	}
+	operationsJSON, err := json.Marshal(operations)
+	require.NoError(t, err)
+	secretsJSON := `{"ENC[secret]":"value"}`
+
+	tests := []struct {
+		name                string
+		args                []string
+		operationsFromStdin bool
+		stdin               string
+		wantSecrets         map[string]string
+		wantErr             string
+	}{
+		{
+			name:        "positional operations with secrets",
+			args:        []string{"datadog-agent", string(operationsJSON)},
+			stdin:       secretsJSON,
+			wantSecrets: map[string]string{"ENC[secret]": "value"},
+		},
+		{
+			name:        "positional operations with empty stdin",
+			args:        []string{"datadog-agent", string(operationsJSON)},
+			wantSecrets: map[string]string{},
+		},
+		{
+			name:                "operations from stdin after secrets",
+			args:                []string{"datadog-agent"},
+			operationsFromStdin: true,
+			stdin:               secretsJSON + "\n" + string(operationsJSON),
+			wantSecrets:         map[string]string{"ENC[secret]": "value"},
+		},
+		{
+			name:                "operations from stdin missing",
+			args:                []string{"datadog-agent"},
+			operationsFromStdin: true,
+			stdin:               secretsJSON,
+			wantErr:             "could not decode operations from stdin",
+		},
+		{
+			name:    "invalid positional operations",
+			args:    []string{"datadog-agent", "not json"},
+			wantErr: "could not decode operations",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotOperations, gotSecrets, err := readConfigExperimentInput(tt.args, tt.operationsFromStdin, strings.NewReader(tt.stdin))
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, operations, gotOperations)
+			assert.Equal(t, tt.wantSecrets, gotSecrets)
+		})
+	}
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -497,11 +498,17 @@ func promoteExperimentCommand() *cobra.Command {
 }
 
 func installConfigExperimentCommand() *cobra.Command {
+	var operationsFromStdin bool
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <operations>",
+		Use:     "install-config-experiment <package> [<operations>]",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(2),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if operationsFromStdin {
+				return cobra.ExactArgs(1)(cmd, args)
+			}
+			return cobra.ExactArgs(2)(cmd, args)
+		},
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -510,24 +517,9 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 
-			// Parse operations from command-line argument
-			var operations config.Operations
-			err = json.Unmarshal([]byte(args[1]), &operations)
+			operations, decryptedSecrets, err := readConfigExperimentInput(args, operationsFromStdin, os.Stdin)
 			if err != nil {
-				return fmt.Errorf("could not decode operations: %w", err)
-			}
-
-			// Read decrypted secrets from stdin
-			// For backwards compatibility, accept empty stdin (no secrets)
-			var decryptedSecrets map[string]string
-			decoder := json.NewDecoder(os.Stdin)
-			err = decoder.Decode(&decryptedSecrets)
-			if err != nil && err != io.EOF {
-				return fmt.Errorf("could not decode secrets from stdin: %w", err)
-			}
-			// If stdin is empty or EOF, use empty map
-			if decryptedSecrets == nil {
-				decryptedSecrets = make(map[string]string)
+				return err
 			}
 
 			i.span.SetTag("params.deployment_id", operations.DeploymentID)
@@ -535,7 +527,37 @@ func installConfigExperimentCommand() *cobra.Command {
 			return i.InstallConfigExperiment(i.ctx, args[0], operations, decryptedSecrets)
 		},
 	}
+	cmd.Flags().BoolVar(&operationsFromStdin, exec.OperationsFromStdinFlag, false, "Read the operations from stdin, as a JSON document following the secrets")
 	return cmd
+}
+
+// readConfigExperimentInput reads the decrypted secrets from stdin, then the
+// operations either from the second positional argument or, when
+// operationsFromStdin is set, from the JSON document following the secrets.
+func readConfigExperimentInput(args []string, operationsFromStdin bool, stdin io.Reader) (config.Operations, map[string]string, error) {
+	var operations config.Operations
+	if !operationsFromStdin {
+		if err := json.Unmarshal([]byte(args[1]), &operations); err != nil {
+			return operations, nil, fmt.Errorf("could not decode operations: %w", err)
+		}
+	}
+
+	// Older daemons send no secrets at all, so an empty stdin is accepted.
+	var decryptedSecrets map[string]string
+	decoder := json.NewDecoder(stdin)
+	if err := decoder.Decode(&decryptedSecrets); err != nil && err != io.EOF {
+		return operations, nil, fmt.Errorf("could not decode secrets from stdin: %w", err)
+	}
+	if decryptedSecrets == nil {
+		decryptedSecrets = make(map[string]string)
+	}
+
+	if operationsFromStdin {
+		if err := decoder.Decode(&operations); err != nil {
+			return operations, nil, fmt.Errorf("could not decode operations from stdin: %w", err)
+		}
+	}
+	return operations, decryptedSecrets, nil
 }
 
 func removeConfigExperimentCommand() *cobra.Command {
