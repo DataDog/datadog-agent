@@ -116,16 +116,6 @@ func RestartUnit(ctx context.Context, unit string, args ...string) error {
 	return handleSystemdSelfStops(err)
 }
 
-// systemctlWithoutSysVSync runs systemctl enable/disable without delegating to systemd-sysv-install.
-// Our units are always native, but a stale /etc/init.d script of the same name (e.g. left over from
-// Agent 5 on RHEL) makes systemctl run chkconfig first, and when chkconfig rejects the script systemctl
-// aborts before touching the native unit. SYSTEMCTL_SKIP_SYSV is honored by systemd >= 239.
-func systemctlWithoutSysVSync(ctx context.Context, args ...string) *telemetry.TracedCmd {
-	cmd := telemetry.CommandContext(ctx, "systemctl", args...)
-	cmd.Env = append(os.Environ(), "SYSTEMCTL_SKIP_SYSV=1")
-	return cmd
-}
-
 // EnableUnit enables a systemd unit
 func EnableUnit(ctx context.Context, unit string) error {
 	running, err := IsRunning()
@@ -136,7 +126,7 @@ func EnableUnit(ctx context.Context, unit string) error {
 		log.Infof("Installer: systemd not running, skipping enable of %s", unit)
 		return nil
 	}
-	return systemctlWithoutSysVSync(ctx, "enable", unit).Run()
+	return telemetry.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
 // DisableUnits disables multiple systemd units
@@ -161,7 +151,7 @@ func DisableUnit(ctx context.Context, unit string) error {
 		return nil
 	}
 
-	err := systemctlWithoutSysVSync(ctx, "disable", "--force", unit).
+	err := telemetry.CommandContext(ctx, "systemctl", "disable", "--force", unit).
 		WithExpectedExitCodes(
 			5, // unit not loaded — https://github.com/systemd/systemd/issues/25708
 		).Run()
