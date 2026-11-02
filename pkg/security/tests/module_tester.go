@@ -799,7 +799,16 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"EnableSecurityProfile":                   opts.enableSecurityProfile,
 		"EnableSecurityProfileV2":                 true,
 		"SecurityProfileNodeEvictionTimeout":      opts.securityProfileNodeEvictionTimeout,
+		"SecurityProfileSampleRefreshPeriod":      opts.securityProfileSampleRefreshPeriod,
 		"EnableAnomalyDetection":                  opts.enableAnomalyDetection,
+		"WorkloadProfileStorageDir":               opts.workloadProfileStorageDir,
+		"WorkloadProfilePersistencePeriod":        opts.workloadProfilePersistencePeriod,
+		"WorkloadProfileEventTypes":               opts.workloadProfileEventTypes,
+		"WorkloadProfileDifferentiateArgs":        opts.workloadProfileDifferentiateArgs,
+		"ProfilingStartupDelay":                   opts.profilingStartupDelay,
+		"ProfileReportingWaitPersistence":         opts.profileReportingWaitPersistence,
+		"EventSamplingSyscallsEnabled":            opts.eventSamplingSyscallsEnabled,
+		"EventSamplingOpenRateUnlimited":          opts.eventSamplingOpenRateUnlimited,
 		"ErpcDentryResolutionEnabled":             erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":              mapDentryResolutionEnabled,
 		"LogPatterns":                             logPatterns,
@@ -885,7 +894,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t))
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message

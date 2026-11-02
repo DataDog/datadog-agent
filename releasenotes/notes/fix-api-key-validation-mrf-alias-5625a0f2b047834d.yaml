@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix the forwarder health check (and the readiness probe that depends on it)
+    reporting the Agent as unhealthy when ``dd_url`` points at a
+    customer-specific Multi-Region Failover alias, such as
+    ``<customer>.mrf.datadoghq.com``. API keys were validated against
+    ``api.datadoghq.com`` regardless of the organization's site, so keys from
+    organizations on other sites were reported as invalid. API keys for these
+    aliases are now validated against the alias itself.

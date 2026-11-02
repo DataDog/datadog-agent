@@ -1,0 +1,59 @@
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+
+package(default_package_metadata = [
+    ":package_metadata",
+    ":ship_source_offer",
+])
+
+VERSION = "1.3"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/rpm-software-management/libpgpr/archive/refs/tags/{version}.tar.gz",
+        package = "libpgpr",
+        version = VERSION,
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = [
+        "@rules_license//licenses/spdx:GPL-2.0",
+        "@rules_license//licenses/spdx:LGPL-2.0",
+    ],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+ship_source_offer(name = "ship_source_offer")
+
+# The sources rpm's in-tree build compiles into librpmio
+# (CMakeLists-rpm.txt), with the OpenSSL backend.
+filegroup(
+    name = "rpm_intree_srcs",
+    srcs = [
+        "alg.c",
+        "armor.c",
+        "cert.c",
+        "error.c",
+        "item.c",
+        "merge.c",
+        "openssl.c",
+        "parse.c",
+        "pgpr.h",
+        "pgpr_internal.h",
+        "pkt.c",
+        "rpmglue.c",
+        "util.c",
+        "verify.c",
+    ],
+    visibility = ["@rpm//:__pkg__"],
+)

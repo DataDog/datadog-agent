@@ -88,10 +88,10 @@ class TestFixSysconfigdata(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             fixture = textwrap.dedent("""\
     build_time_vars = {
-        "CC": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh",
-        "AR": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/llvm-ar",
-        "LDSHARED": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh -shared -Wl,-z,relro -B/execroot/_main/bin -L/bazel-out/k8-opt/lib",
-        "CONFIGURED_CC": "--cc=/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh -O2",
+        "CC": "/execroot/_main/external/+toolchain/bin/clang",
+        "AR": "/execroot/_main/external/+toolchain/bin/llvm-ar",
+        "LDSHARED": "/execroot/_main/external/+toolchain/bin/clang -shared -Wl,-z,relro -B/execroot/_main/bin -L/bazel-out/k8-opt/lib",
+        "CONFIGURED_CC": "--cc=/execroot/_main/external/+toolchain/bin/clang -O2",
     }
 """)
             path = os.path.join(tmpdir, "_sysconfigdata__test.py")

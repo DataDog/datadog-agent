@@ -11,9 +11,9 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
@@ -30,6 +30,7 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
+	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)

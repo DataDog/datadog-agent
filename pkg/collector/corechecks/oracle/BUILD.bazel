@@ -68,6 +68,7 @@ go_library(
         "@com_github_robfig_cron_v3//:cron",
         "@com_github_sijms_go_ora_v2//:go-ora",
         "@com_github_sijms_go_ora_v2//network",
+        "@org_golang_x_sync//semaphore",
     ],
 )
 

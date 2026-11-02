@@ -7,7 +7,14 @@
 #define TASK_COMM_LEN 16
 #endif
 
+typedef struct {} oom_stats_v1;
+
 struct oom_stats {
+    // version marker to ensure compatibility
+    // between a new oom kill map vs the pinned map.
+    // Bump it whenever this struct changes, see
+    // pkg/collector/corechecks/ebpf/probe/oomkill/oom_stats_layout_linux.go
+    oom_stats_v1 oom_stats_version;
     // Pid of killed process
     __u32 victim_pid;
     // Pid of triggering process

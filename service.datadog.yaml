@@ -50,12 +50,10 @@ extensions:
     workday_team: "Agent Delivery"
     conductor:
       slack: "datadog-agent-pipelines"
+      # Leave ci_pipeline unset: Agent builds use the root .gitlab-ci.yml,
+      # including when Conductor selects DDCI as the build provider.
       targets:
         - name: "beta-build-full"
-          # For now, this config is mandatory, even if the target is not a ci_pipeline CNAB object.
-          # Setting this to a placeholder value for now, the intended pipeline that will be triggered will
-          # be the one that is defined in the main .gitlab-ci.yml file.
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           schedule: "10 3 * * SUN-THU"
           parent_environments: ["prod", "staging"]
@@ -70,7 +68,6 @@ extensions:
           # production on Saturday and Sunday. This way, the full pipeline does not show as "failed" on
           # days that we know no deployment should go out, and we do not have 3 deployments trying to happen
           # on Monday.
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           schedule: "10 3 * * FRI-SAT"
           parent_environments: ["staging"]
@@ -78,7 +75,6 @@ extensions:
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-deploy"
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-validate"
         - name: "beta-build-publish-image"
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           build_only: true
           slack: "agent-nightly-deployment-expansion"
@@ -86,7 +82,6 @@ extensions:
           options:
             disable_failure_notifications: true
         - name: "conductor-sandbox"
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
           # Create and push to this branch to test changes with conductor if needed without merging to main
           branch: "conductor-sandbox"
           parent_environments: ["staging"]

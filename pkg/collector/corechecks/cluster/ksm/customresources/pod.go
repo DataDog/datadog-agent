@@ -39,7 +39,7 @@ var descPodLabelsDefaultLabels = []string{"namespace", "pod", "uid"}
 // NewExtendedPodFactory returns a new Pod metric family generator factory.
 func NewExtendedPodFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &extendedPodFactory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 

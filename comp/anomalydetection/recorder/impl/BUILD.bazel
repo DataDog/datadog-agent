@@ -37,6 +37,7 @@ dd_agent_go_test(
         "//comp/anomalydetection/recorder/def",
         "//comp/core/config",
         "//comp/def",
+        "//pkg/metrics",
         "//pkg/tagset",
         "//pkg/util/option",
         "@com_github_stretchr_testify//require",

@@ -124,6 +124,11 @@ var (
 		Recursive: true,
 	}
 
+	logsRegistryPermissions = file.Permissions{
+		{Path: "run", Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "run/registry.json", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
+	}
+
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"processes.d",
@@ -391,6 +396,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
+	if err := restoreLogsRegistry(ctx); err != nil {
+		log.Warnf("failed to restore logs registry: %s", err)
+	}
 	agentVersion := getCurrentAgentVersion()
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, false); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
@@ -469,6 +477,9 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		if err := saveODBCConfig(ctx.PackagePath); err != nil {
 			log.Warnf("failed to save ODBC config: %s", err)
 		}
+		if err := saveLogsRegistry(ctx.PackagePath); err != nil {
+			log.Warnf("failed to save logs registry: %s", err)
+		}
 	}
 	return nil
 }
@@ -488,6 +499,9 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := saveODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to save ODBC config: %s", err)
+	}
+	if err := saveLogsRegistry(ctx.PackagePath); err != nil {
+		log.Warnf("failed to save logs registry: %s", err)
 	}
 	return nil
 }
@@ -513,6 +527,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
+	}
+	if err := restoreLogsRegistry(ctx); err != nil {
+		log.Warnf("failed to restore logs registry: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
@@ -1215,5 +1232,45 @@ func restoreODBCConfig(packagePath string) error {
 		}
 		_ = os.Remove(src)
 	}
+	return nil
+}
+
+func saveLogsRegistry(packagePath string) error {
+	src := filepath.Join(packagePath, "run", "registry.json")
+	dst := filepath.Join(paths.RootTmpDir, "registry.json")
+	data, err := os.ReadFile(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s: %w", src, err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", dst, err)
+	}
+	return nil
+}
+
+func restoreLogsRegistry(ctx HookContext) error {
+	src := filepath.Join(paths.RootTmpDir, "registry.json")
+	dstDir := filepath.Join(ctx.PackagePath, "run")
+	dst := filepath.Join(dstDir, "registry.json")
+	data, err := os.ReadFile(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s: %w", src, err)
+	}
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dstDir, err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", dst, err)
+	}
+	if err := logsRegistryPermissions.Ensure(ctx, ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", dst, err)
+	}
+	_ = os.Remove(src)
 	return nil
 }

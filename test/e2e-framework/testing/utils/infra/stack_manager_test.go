@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -357,4 +359,15 @@ func filterRetryOnErrorLogs(logs []string) []string {
 		}
 	}
 	return retryOnErrorLogs
+}
+
+func TestRecordStackName(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "e2e-output")
+
+	require.NoError(t, recordStackName(outputDir, "ci-init-1-14-stack-a"))
+	require.NoError(t, recordStackName(outputDir, "ci-init-1-14-stack-b"))
+
+	content, err := os.ReadFile(filepath.Join(outputDir, StacksFileName))
+	require.NoError(t, err)
+	assert.Equal(t, "ci-init-1-14-stack-a\nci-init-1-14-stack-b\n", string(content))
 }

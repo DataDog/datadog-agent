@@ -139,6 +139,63 @@ func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
 	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
 }
 
+// A multi-line group is sent with the metadata of its last line, so an empty or
+// unparseable last line must keep the ingestion timestamp its read assigned.
+func TestDecoderMultilineKeepsIngestionTimestampOfUnparsedLastLine(t *testing.T) {
+	dockerLine := func(s string) []byte { return append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, s...) }
+	tests := []struct {
+		name   string
+		parser parsers.Parser
+		lines  [][]byte
+	}{
+		{
+			name:   "docker stream empty line",
+			parser: dockerstream.New("abc123"),
+			lines: [][]byte{
+				dockerLine("2019-06-06T16:35:55.930852911Z 1234 hello\n"),
+				dockerLine("2019-06-06T16:35:55.930852912Z\n"),
+				dockerLine("2019-06-06T16:35:55.930852913Z 1234 bye\n"),
+			},
+		},
+		{
+			name:   "kubernetes malformed line",
+			parser: kubernetes.New(),
+			lines: [][]byte{
+				[]byte("2019-06-06T16:35:55.930852911Z stdout F 1234 hello\n"),
+				[]byte("malformed\n"),
+				[]byte("2019-06-06T16:35:55.930852913Z stdout F 1234 bye\n"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &config.LogsConfig{
+				ProcessingRules: []*config.ProcessingRule{
+					{
+						Type:  config.MultiLine,
+						Regex: regexp.MustCompile("1234"),
+					},
+				},
+			}
+			d := InitializeDecoderForTest(sources.NewLogSource("", c), tt.parser)
+			d.Start()
+
+			for _, line := range tt.lines {
+				d.InputChan() <- NewInput(line)
+			}
+
+			output := <-d.OutputChan()
+			assert.True(t, strings.HasPrefix(string(output.GetContent()), "1234 hello"))
+			assert.Positive(t, output.IngestionTimestamp)
+
+			d.Stop()
+			for range d.OutputChan() {
+			}
+		})
+	}
+}
+
 func TestDecoderWithDockerJSONSingleline(t *testing.T) {
 	var output *message.Message
 	var line []byte

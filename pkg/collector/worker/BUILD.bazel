@@ -23,6 +23,7 @@ go_library(
         "//pkg/util/hostname",
         "//pkg/util/log",
         "//pkg/util/utilizationtracker",
+        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -56,6 +57,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/metrics/servicecheck",
         "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_atomic//:atomic",

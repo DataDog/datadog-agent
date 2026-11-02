@@ -3,7 +3,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from importlib.util import find_spec
 from pathlib import Path
 
 from tasks.libs.linter.e2e_internet_access import (
@@ -17,8 +16,6 @@ from tasks.libs.linter.e2e_internet_access import (
     select_scope,
 )
 
-TREE_SITTER_AVAILABLE = find_spec("tree_sitter") is not None and find_spec("tree_sitter_go") is not None
-SKIP_REASON = "run with: dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 invoke-unit-tests.run"
 GO_FILE = Path("test/new-e2e/x_test.go")
 
 
@@ -48,7 +45,6 @@ class TestRepoRoot(unittest.TestCase):
         self.assertTrue((REPO_ROOT / REGISTRY_PATH.parent).is_dir())
 
 
-@unittest.skipUnless(TREE_SITTER_AVAILABLE, SKIP_REASON)
 class TestFindUsages(unittest.TestCase):
     def test_function(self):
         src = "package x\n\nfunc TestFoo(t *testing.T) {\n\trun(ec2.WithInternetAccess())\n}\n"
@@ -120,7 +116,6 @@ class TestFindUsages(unittest.TestCase):
         self.assertEqual(usages_in(src), [(3, "F"), (4, "F")])
 
 
-@unittest.skipUnless(TREE_SITTER_AVAILABLE, SKIP_REASON)
 class TestScan(unittest.TestCase):
     SOURCE = "package x\nfunc F() {\n\tWithInternetAccess()\n}\n"
 

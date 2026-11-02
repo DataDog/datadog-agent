@@ -7,6 +7,7 @@ package defaultforwarderimpl
 
 import (
 	"context"
+	"net/http"
 
 	"golang.org/x/sync/semaphore"
 
@@ -20,49 +21,75 @@ type weightedSemaphore interface {
 	Release(n int64)
 }
 
-// concurrencyPolicy controls the number of workers, connections and in-flight
-// requests of a domainForwarder.
-type concurrencyPolicy interface {
+type concurrencySettings interface {
 	numWorkers() int
 	maxConns() int
+}
+
+// concurrencyPolicy controls the number of workers, connections and in-flight
+// requests of the domainForwarders.
+type concurrencyPolicy interface {
+	concurrencySettings
+	// newDomain returns the concurrency controller for a single domain.
+	newDomain(domain string) concurrencyDomain
+}
+
+// concurrencyDomain controls the concurrency of a single domainForwarder.
+type concurrencyDomain interface {
+	concurrencySettings
 	// newRequestSemaphore returns the semaphore limiting in-flight requests
-	// of a single worker.
+	// of a worker. It may be shared between workers.
 	newRequestSemaphore() weightedSemaphore
+	// wrapTransport lets the domain observe the responses from the backend.
+	wrapTransport(rt http.RoundTripper) http.RoundTripper
+	// start is called once, before the workers of the domain start, and stop
+	// once, after they have all stopped.
+	start()
+	stop()
+}
+
+func concurrencyPolicyFromConfig(config config.Component, log log.Component) concurrencyPolicy {
+	switch policy := config.GetString("forwarder_concurrency_policy"); policy {
+	case "dynamic":
+		return dynamicConcurrencyPolicy{log: log, settings: dynamicConcurrencySettingsFromConfig(config, log)}
+	case "", "static":
+	default:
+		log.Warnf("Invalid forwarder_concurrency_policy '%s', falling back to 'static'", policy)
+	}
+
+	workers := config.GetInt("forwarder_num_workers")
+
+	return staticConcurrencyPolicy{
+		workers:     workers,
+		connections: workers,
+		requests:    maxConcurrentRequestsFromConfig(config, log, "forwarder_max_concurrent_requests"),
+	}
+}
+
+// newLocalConcurrencyDomainFromConfig returns the concurrency domain to use for
+// the local cluster-agent domain, which is served by a single worker and
+// connection.
+func newLocalConcurrencyDomainFromConfig(config config.Component, log log.Component) concurrencyDomain {
+	return staticConcurrencyPolicy{
+		workers:     1,
+		connections: 1,
+		requests:    maxConcurrentRequestsFromConfig(config, log, "forwarder_max_concurrent_requests"),
+	}
+}
+
+func maxConcurrentRequestsFromConfig(config config.Component, log log.Component, key string) int64 {
+	requests := config.GetInt64(key)
+	if requests <= 0 {
+		log.Warnf("Invalid %s '%d', setting to 1", key, requests)
+		requests = 1
+	}
+	return requests
 }
 
 type staticConcurrencyPolicy struct {
 	workers     int
 	connections int
 	requests    int64
-}
-
-func concurrencyPolicyFromConfig(config config.Component, log log.Component) staticConcurrencyPolicy {
-	workers := config.GetInt("forwarder_num_workers")
-
-	return staticConcurrencyPolicy{
-		workers:     workers,
-		connections: workers,
-		requests:    maxConcurrentRequestsFromConfig(config, log),
-	}
-}
-
-// localConcurrencyPolicyFromConfig returns the policy to use for the local
-// cluster-agent domain, which is served by a single worker and connection.
-func localConcurrencyPolicyFromConfig(config config.Component, log log.Component) staticConcurrencyPolicy {
-	return staticConcurrencyPolicy{
-		workers:     1,
-		connections: 1,
-		requests:    maxConcurrentRequestsFromConfig(config, log),
-	}
-}
-
-func maxConcurrentRequestsFromConfig(config config.Component, log log.Component) int64 {
-	requests := config.GetInt64("forwarder_max_concurrent_requests")
-	if requests <= 0 {
-		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", requests)
-		requests = 1
-	}
-	return requests
 }
 
 func (p staticConcurrencyPolicy) numWorkers() int {
@@ -73,6 +100,18 @@ func (p staticConcurrencyPolicy) maxConns() int {
 	return p.connections
 }
 
+func (p staticConcurrencyPolicy) newDomain(_ string) concurrencyDomain {
+	return p
+}
+
 func (p staticConcurrencyPolicy) newRequestSemaphore() weightedSemaphore {
 	return semaphore.NewWeighted(p.requests)
 }
+
+func (p staticConcurrencyPolicy) wrapTransport(rt http.RoundTripper) http.RoundTripper {
+	return rt
+}
+
+func (p staticConcurrencyPolicy) start() {}
+
+func (p staticConcurrencyPolicy) stop() {}

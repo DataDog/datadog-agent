@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -276,6 +278,16 @@ func TestBaseMountNamespaceFromEvent(t *testing.T) {
 		assert.Equal(t, uint32(100), nsID)
 		assert.True(t, authoritative)
 	})
+
+	t.Run("ignores container runtime processes before workload root starts", func(t *testing.T) {
+		shell := newProc("/bin/bash", "bash", 5, "", 1)
+		runc := newProc("/usr/bin/runc", "runc", 10, "c1", 50)
+		runc.Ancestor = shell
+
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(runc))
+		assert.Equal(t, uint32(0), nsID)
+		assert.False(t, authoritative)
+	})
 }
 
 func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
@@ -301,9 +313,15 @@ func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
 	})
 }
 
-func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
-	cookieMap, _ := lru.New[uint64, sampleCookieEntry](128)
+func newTestManagerV2(t *testing.T) (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+	t.Helper()
+
+	cookieMap, err := lru.New[uint64, sampleCookieEntry](128)
+	require.NoError(t, err)
+	timeResolver, err := ktime.NewResolver()
+	require.NoError(t, err)
 	m := &ManagerV2{
+		resolvers:             &resolvers.EBPFResolvers{TimeResolver: timeResolver},
 		sampleCookieMap:       cookieMap,
 		sampleRefreshReceived: atomic.NewUint64(0),
 		sampleRefreshHits:     atomic.NewUint64(0),
@@ -314,14 +332,14 @@ func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
 
 func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	t.Run("unknown_cookie", func(t *testing.T) {
-		m, _ := newTestManagerV2()
+		m, _ := newTestManagerV2(t)
 		m.HandleSampleRefresh(42)
 		assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
 	})
 
 	t.Run("valid_cookie_updates_process_and_event_node", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
-		prof := profile.New()
+		m, cookieMap := newTestManagerV2(t)
+		prof := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}))
 		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
 
 		processNode := &activity_tree.ProcessNode{}
@@ -351,8 +369,8 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	})
 
 	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
-		prof := profile.New()
+		m, cookieMap := newTestManagerV2(t)
+		prof := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}))
 		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
 
 		processNode := &activity_tree.ProcessNode{}
@@ -376,7 +394,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	})
 
 	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
+		m, cookieMap := newTestManagerV2(t)
 		prof := profile.New()
 
 		cookieMap.Add(uint64(2), sampleCookieEntry{
@@ -390,7 +408,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	})
 
 	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
+		m, cookieMap := newTestManagerV2(t)
 		prof := profile.New()
 		processNode := &activity_tree.ProcessNode{}
 		processNode.NodeBase = activity_tree.NewNodeBase()
@@ -404,6 +422,85 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		m.HandleSampleRefresh(3)
 		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
+}
+
+// monotonicFieldHandlers mimics the eBPF field handler: Timestamp stays zero until
+// ResolveEventTime converts TimestampRaw, an offset from boot.
+type monotonicFieldHandlers struct {
+	model.FakeFieldHandlers
+	boot time.Time
+}
+
+func (fh *monotonicFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = fh.boot.Add(time.Duration(ev.TimestampRaw))
+	}
+	return ev.Timestamp
+}
+
+// distributionRecorder records the values sent through Distribution.
+type distributionRecorder struct {
+	statsd.NoOpClient
+	values map[string][]float64
+}
+
+func (r *distributionRecorder) Distribution(name string, value float64, _ []string, _ float64) error {
+	r.values[name] = append(r.values[name], value)
+	return nil
+}
+
+func TestManagerV2_queueEventForTagResolution_resolvesTimestampFirst(t *testing.T) {
+	recorder := &distributionRecorder{values: map[string][]float64{}}
+	m := &ManagerV2{
+		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+			SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
+		}},
+		statsdClient:              recorder,
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
+	}
+
+	const cgroupID = containerutils.CGroupID("test-cgroup")
+	// Boot 5s ago, so the first event is about 5s old when its tags resolve.
+	fh := &monotonicFieldHandlers{boot: time.Now().Add(-5 * time.Second)}
+	newEvent := func(raw time.Duration) *model.Event {
+		event := model.NewFakeEvent()
+		event.FieldHandlers = fh
+		event.TimestampRaw = uint64(raw)
+		event.ProcessContext.Process.CGroup.CGroupID = cgroupID
+		return event
+	}
+
+	first := newEvent(time.Millisecond)
+	require.True(t, first.Timestamp.IsZero())
+	m.queueEventForTagResolution(first, nil)
+
+	pending := m.profilePendingEvents[cgroupID]
+	require.NotNil(t, pending)
+	assert.False(t, pending.firstSeen.IsZero(), "firstSeen must come from the resolved event time")
+	assert.Equal(t, first.Timestamp, pending.firstSeen)
+	assert.Equal(t, 1, pending.events.Len())
+	assert.EqualValues(t, 1, m.queueSize.Load())
+
+	// A second event for the same cgroup within 10s is queued, not dropped.
+	m.queueEventForTagResolution(newEvent(2*time.Second), nil)
+	assert.Equal(t, 2, pending.events.Len())
+	assert.EqualValues(t, 2, m.queueSize.Load())
+
+	// Resolving the tags dequeues everything and reports the latency since the first event.
+	m.processEventWithResolvedTags(newEvent(3 * time.Second))
+	assert.Empty(t, m.profilePendingEvents)
+	assert.EqualValues(t, 0, m.queueSize.Load())
+
+	latencies := recorder.values[metrics.MetricSecurityProfileV2TagResolutionLatency]
+	require.Len(t, latencies, 1)
+	assert.Greater(t, latencies[0], 4.0)
+	assert.Less(t, latencies[0], 60.0)
 }
 
 const (
@@ -460,6 +557,7 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
 				SecurityProfileEnabled:                          true,
 				SecurityProfileV2Enabled:                        true,
+				SecurityProfileMaxImageTags:                     20,
 				AnomalyDetectionEnabled:                         true,
 				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
 				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
@@ -483,6 +581,9 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
 		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:        cookieMap,
+		sampleRefreshReceived:  atomic.NewUint64(0),
+		sampleRefreshHits:      atomic.NewUint64(0),
+		sampleRefreshMisses:    atomic.NewUint64(0),
 		cleanupProfilesRemoved: atomic.NewUint64(0),
 		imageExcluder:          imgExcluder,
 		sendAnomalyDetection: func(event *model.Event) {
@@ -616,6 +717,157 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.NotNil(t, findTestEventNode(p, eventType, "new"))
 		})
 	}
+}
+
+func TestManagerV2_insertEventIntoProfile_maxImageTags(t *testing.T) {
+	for _, limit := range []int{20, 3, 1, 0, -1} {
+		t.Run(fmt.Sprintf("limit_%d", limit), func(t *testing.T) {
+			m, _ := newInsertionTestManagerV2(t)
+			m.config.RuntimeSecurity.SecurityProfileMaxImageTags = limit
+			wantLimit := max(1, limit)
+
+			for i := 0; i < wantLimit+5; i++ {
+				tag := fmt.Sprintf("v%d", i)
+				p, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+				require.NotNil(t, p)
+				assert.Len(t, p.GetVersions(), min(i+1, wantLimit))
+				assert.Contains(t, p.GetVersions(), tag, "the current version must not be evicted")
+			}
+		})
+	}
+}
+
+func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *testing.T) {
+	for _, eventType := range testEventTypesV2 {
+		t.Run(eventType.String(), func(t *testing.T) {
+			m, _ := newInsertionTestManagerV2(t)
+			m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
+
+			p, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			require.NotNil(t, p)
+			_, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			require.True(t, inserted)
+
+			v1, ok := p.GetVersionContext("v1")
+			require.True(t, ok)
+			v2, ok := p.GetVersionContext("v2")
+			require.True(t, ok)
+			// Explicit timestamps make eviction order independent of clock resolution.
+			v1.FirstSeenNano, v1.LastSeenNano = 1, 1
+			v2.LastSeenNano = 2
+			originalTags := append([]string(nil), v1.Tags...)
+
+			event := newTestEventV2(eventType, "v1", "known")
+			event.ProcessContext.Process.ContainerContext.Tags = append(event.ProcessContext.Process.ContainerContext.Tags, "service:another-container")
+			_, inserted = m.insertEventIntoProfile(event)
+			require.False(t, inserted)
+			assert.Greater(t, v1.LastSeenNano, uint64(2), "known activities must refresh the version's last seen time")
+			assert.Equal(t, uint64(1), v1.FirstSeenNano)
+			assert.Equal(t, originalTags, v1.Tags, "refreshing a version must keep the tags of its first workload")
+
+			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
+			assert.False(t, inserted, "activities shared with a retained version must stay learned")
+			assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
+			assert.Zero(t, p.ActivityTree.GetImageTagID("v2"))
+			assert.Nil(t, findTestEventNode(p, eventType, "new"), "activities exclusive to the evicted version must be removed")
+
+			node := findTestEventNode(p, eventType, "known")
+			require.NotNil(t, node)
+			assert.True(t, node.HasImageTag(p.ActivityTree.GetImageTagID("v1")))
+			assert.True(t, node.HasImageTag(p.ActivityTree.GetImageTagID("v3")))
+		})
+	}
+}
+
+func TestManagerV2_versionEviction_freesSpaceBeforeSizeCheck(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 1
+
+	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.NotNil(t, p)
+	require.True(t, inserted)
+	maxSize := int(p.ComputeHeapSize())
+	require.Positive(t, maxSize)
+	m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return maxSize }
+
+	for i := 2; i < 25; i++ {
+		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, fmt.Sprintf("v%d", i), "known"))
+		require.NotNil(t, p, "evicting the previous version must free room for the next one")
+		require.True(t, inserted)
+		assert.Len(t, p.GetVersions(), 1)
+		assert.Positive(t, p.ComputeHeapSize())
+	}
+}
+
+func TestManagerV2_insertEventIntoProfile_limitsPersistedVersions(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	var p *profile.Profile
+	for i, tag := range []string{"v1", "v2", "v3"} {
+		p, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+		require.NotNil(t, p)
+		ctx, ok := p.GetVersionContext(tag)
+		require.True(t, ok)
+		// A saved profile can carry larger monotonic timestamps from a previous boot.
+		ctx.LastSeenNano = ^uint64(0) - 2 + uint64(i)
+	}
+	encoded, err := p.Encode(config.Profile)
+	require.NoError(t, err)
+	require.NoError(t, m.localStorage.Persist(config.StorageRequest{Format: config.Profile}, p, encoded))
+	delete(m.profiles, testSelector)
+	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
+
+	// The incoming tag already exists in the saved profile: it still needs trimming.
+	reloaded, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.NotNil(t, reloaded)
+	require.NotSame(t, p, reloaded)
+	assert.False(t, inserted)
+	assert.ElementsMatch(t, []string{"v1", "v3"}, reloaded.GetVersions())
+	assert.Zero(t, reloaded.ActivityTree.GetImageTagID("v2"))
+
+	encoded, err = reloaded.Encode(config.Profile)
+	require.NoError(t, err)
+	roundtrip := profile.New()
+	require.NoError(t, roundtrip.DecodeFromReader(encoded, config.Profile))
+	assert.ElementsMatch(t, []string{"v1", "v3"}, roundtrip.GetVersions(), "evicted versions must not be persisted again")
+}
+
+func TestManagerV2_versionEviction_sampleRefresh(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
+
+	for i, tag := range []string{"v1", "v2"} {
+		event := newTestEventV2(model.FileOpenEventType, tag, "known")
+		event.Open.SampleCookie = uint64(i + 1)
+		p, _ := m.insertEventIntoProfile(event)
+		require.NotNil(t, p)
+		ctx, ok := p.GetVersionContext(tag)
+		require.True(t, ok)
+		ctx.LastSeenNano = uint64(i + 1)
+	}
+	p := m.profiles[testSelector]
+	v1Cookie, ok := m.sampleCookieMap.Peek(1)
+	require.True(t, ok)
+	v2Cookie, ok := m.sampleCookieMap.Peek(2)
+	require.True(t, ok)
+	require.Same(t, v1Cookie.eventNodeBase, v2Cookie.eventNodeBase, "the cookies refresh a shared node")
+	otherProfile := profile.New()
+	m.sampleCookieMap.Add(3, sampleCookieEntry{profile: otherProfile, imageTag: "v2"})
+
+	m.HandleSampleRefresh(1)
+	v1, ok := p.GetVersionContext("v1")
+	require.True(t, ok)
+	assert.Greater(t, v1.LastSeenNano, uint64(2), "sample refreshes must count as version activity")
+
+	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v3", "known"))
+	assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
+	assert.True(t, m.sampleCookieMap.Contains(1), "cookies of retained versions must stay cached")
+	assert.False(t, m.sampleCookieMap.Contains(2), "cookies of an evicted version must be purged even when their node is shared")
+	assert.True(t, m.sampleCookieMap.Contains(3), "cookies belonging to another profile must not be purged")
+
+	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v2", "known"))
+	assert.False(t, m.sampleCookieMap.Contains(2), "a returning version must not revive old cookies")
+	m.HandleSampleRefresh(2)
+	assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
 }
 
 func TestManagerV2_onEventTagsResolved(t *testing.T) {
@@ -757,4 +1009,128 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		m.cleanupPendingProfiles()
 		assert.Contains(t, m.profiles, testSelector)
 	})
+}
+
+// TestManagerV2_onCGroupDeleted goes through the actual lifecycle of a workload, instead of queuing the removal
+// by hand: the deletion of the cgroup of the only workload of a profile unlinks it, and the profile is removed
+// once the cleanup delay is over.
+func TestManagerV2_onCGroupDeleted(t *testing.T) {
+	const cleanupDelay = time.Minute
+
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
+
+	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.True(t, inserted)
+	require.Len(t, p.Instances, 1, "the workload of the event should be linked to the profile")
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.onCGroupDeleted(cgce)
+
+	assert.Empty(t, p.Instances, "the deleted workload should be unlinked from the profile")
+	queuedAt, queued := m.pendingProfileRemovals[testSelector]
+	require.True(t, queued, "a profile without workload should be queued for removal")
+
+	m.pendingProfileRemovals[testSelector] = queuedAt.Add(-2 * cleanupDelay)
+	m.cleanupPendingProfiles()
+	assert.NotContains(t, m.profiles, testSelector, "the profile should be removed once the cleanup delay is over")
+}
+
+// TestManagerV2_ProcessEventWithoutCWS verifies that without CWS, whatever the profile flags,
+// ProcessEvent returns before it records the cgroup or queues the event.
+func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
+	m := &ManagerV2{
+		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileEnabled:      true,
+			SecurityProfileV2Enabled:    true,
+			SecurityProfileV2EventTypes: []model.EventType{model.ExecEventType},
+		}},
+		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:      make(map[containerutils.CGroupID]struct{}),
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.ExecEventType)
+	event.ProcessContext.Process.ContainerContext.ContainerID = "container"
+	m.ProcessEvent(event)
+
+	assert.Empty(t, m.profilePendingEvents)
+	assert.Empty(t, m.resolvedCgroups)
+}
+
+// newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the
+// containers its tagger doesn't know.
+func newTagResolutionTestManagerV2(t *testing.T, maxPendingPerCgroup, maxPending int) *ManagerV2 {
+	t.Helper()
+
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup = maxPendingPerCgroup
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents = maxPending
+	m.profilePendingEvents = make(map[containerutils.CGroupID]*pendingProfile)
+	m.resolvedCgroups = make(map[containerutils.CGroupID]struct{})
+	m.queueSize = atomic.NewUint64(0)
+	m.pendingProfiles = atomic.NewUint64(0)
+	m.tagResolutionCappedCgroup = atomic.NewUint64(0)
+	m.tagResolutionCappedTotal = atomic.NewUint64(0)
+	m.initEventMetrics()
+	return m
+}
+
+func untaggedTestCGroupID(i int) containerutils.CGroupID {
+	return containerutils.CGroupID(fmt.Sprintf("/docker/%064x", i+1))
+}
+
+// newUntaggedTestEventV2 forges an open event in a container whose tags never resolve, like the
+// containers started by a Docker-in-Docker daemon.
+func newUntaggedTestEventV2(i int) *model.Event {
+	event := newTestEventV2(model.FileOpenEventType, "v1", "new")
+	cgroupID := untaggedTestCGroupID(i)
+	event.ProcessContext.Process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroupID)
+	event.ProcessContext.Process.ContainerContext.Tags = nil
+	event.ProcessContext.Process.CGroup.CGroupID = cgroupID
+	return event
+}
+
+func TestManagerV2_ProcessEvent_capsPendingEventsPerCgroup(t *testing.T) {
+	const maxPendingPerCgroup = 4
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, 100)
+
+	for i := 0; i < maxPendingPerCgroup+10; i++ {
+		m.ProcessEvent(newUntaggedTestEventV2(0))
+	}
+	m.ProcessEvent(newUntaggedTestEventV2(1))
+
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(1))
+	assert.Equal(t, maxPendingPerCgroup, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+	assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(1)].events.Len(), "a full cgroup shouldn't keep the others from queueing")
+	assert.EqualValues(t, maxPendingPerCgroup+1, m.queueSize.Load())
+	assert.EqualValues(t, 10, m.tagResolutionCappedCgroup.Load())
+	assert.Zero(t, m.tagResolutionCappedTotal.Load())
+}
+
+func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
+	const (
+		maxPendingPerCgroup = 4
+		maxPending          = 8
+	)
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, maxPending)
+
+	fullCgroups := maxPending / maxPendingPerCgroup
+	for c := 0; c < fullCgroups; c++ {
+		for i := 0; i < maxPendingPerCgroup; i++ {
+			m.ProcessEvent(newUntaggedTestEventV2(c))
+		}
+	}
+	require.EqualValues(t, maxPending, m.queueSize.Load())
+
+	m.ProcessEvent(newUntaggedTestEventV2(fullCgroups))
+
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(fullCgroups))
+	assert.Zero(t, m.profilePendingEvents[untaggedTestCGroupID(fullCgroups)].events.Len())
+	assert.EqualValues(t, maxPending, m.queueSize.Load())
+	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
+	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
 }

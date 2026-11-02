@@ -15,7 +15,10 @@ import (
 	"github.com/hashicorp/golang-lru/v2/expirable"
 )
 
+// some vendors (Cisco NBAR) send an application id on the flow and later send options tables with metadata for that id,
+// other vendors (Palo Alto App-ID), just send the application name on the flow itself
 const ApplicationIDField = "datadog.application_id"
+const ApplicationNameField = "datadog.application_name"
 
 type Application struct {
 	ID          uint64

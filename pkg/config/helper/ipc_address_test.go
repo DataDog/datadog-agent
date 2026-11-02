@@ -6,7 +6,6 @@
 package helper
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -71,7 +70,7 @@ func TestGetIPCAddress(t *testing.T) {
 }
 
 func getConfig(_ *testing.T) model.Config {
-	cfg := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg := nodetreemodel.NewNodeTreeConfig("datadog", model.CoreSchema) // nolint: forbidigo // legit use case
 	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.BindEnvAndSetDefault("ipc_address", "localhost")
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)

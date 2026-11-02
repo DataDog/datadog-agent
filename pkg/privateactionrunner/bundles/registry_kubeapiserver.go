@@ -9,11 +9,13 @@
 package privatebundles
 
 import (
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
@@ -64,7 +66,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
+func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, _ pcapuploader.Component, _ hostnameinterface.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),

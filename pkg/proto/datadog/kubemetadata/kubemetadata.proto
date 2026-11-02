@@ -67,6 +67,8 @@ message KueueWorkload {
   string uid = 7;
   repeated KueuePodSetAssignment pod_set_assignments = 8;
   KubeMetadataEventType type = 9;
+  map<string, string> pod_template_labels = 10;
+  map<string, string> pod_template_annotations = 11;
 }
 
 message KubeMetadataStreamResponse {

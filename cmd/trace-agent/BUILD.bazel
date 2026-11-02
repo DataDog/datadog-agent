@@ -26,7 +26,6 @@ go_library(
 # `bazel build //cmd/trace-agent` once the Bazel build is fully validated.
 dd_agent_go_binary(
     name = "trace-agent",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/trace-agent/windows/resources:rsrc"],
         "//conditions:default": [],
@@ -39,7 +38,6 @@ dd_agent_go_binary(
 dd_agent_go_binary(
     name = "trace-agent-heroku",
     embed = [":trace-agent_lib"],
-    # keep
     exact_gotags = sorted(COMMON_TAGS | TRACE_AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
 )

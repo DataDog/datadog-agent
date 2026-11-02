@@ -4,7 +4,7 @@ from invoke.context import Context
 
 from tasks.libs.common.status import Status
 
-from ..tool import info, is_root
+from ..tool import ensure_sudo_privileges, info, is_root
 from .requirement import Requirement, RequirementState, summarize_requirement_states
 
 
@@ -103,6 +103,7 @@ def check_requirements(
         ctx.config["run"]["hide"] = True
 
     if not is_root():
+        ensure_sudo_privileges(ctx, "KMT setup requirements checks")
         print(
             "Some checks require root privileges, authenticating 'sudo' now to avoid prompts later. It might ask for your password."
         )

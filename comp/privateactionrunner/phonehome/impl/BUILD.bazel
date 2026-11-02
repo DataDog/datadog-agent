@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["phonehome.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/def",
+        "//comp/privateactionrunner/phonehome/def",
+        "//comp/remote-config/rcservice/def",
+        "//pkg/privateactionrunner/phonehome",
+        "//pkg/util/option",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["phonehome_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/def",
+        "@com_github_stretchr_testify//require",
+    ],
+)

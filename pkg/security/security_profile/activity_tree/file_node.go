@@ -261,12 +261,9 @@ func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {
 }
 
 func (fn *FileNode) evictImageTag(imageTagID uint64) (bool, int64) {
-	if !fn.HasImageTag(imageTagID) {
-		return false, 0
-	}
-	if fn.EvictImageTag(imageTagID) {
-		return true, fileSubtreeSizeBytes(fn)
-	}
+	fn.EvictImageTag(imageTagID)
+	// Directory placeholders can have no tags of their own, or different tags
+	// from their children. Always visit children before deciding to prune a node.
 	var removed int64
 	for filename, child := range fn.Children {
 		shouldRemove, childRemoved := child.evictImageTag(imageTagID)
@@ -274,6 +271,9 @@ func (fn *FileNode) evictImageTag(imageTagID uint64) (bool, int64) {
 			delete(fn.Children, filename)
 		}
 		removed += childRemoved
+	}
+	if fn.SeenIsEmpty() && len(fn.Children) == 0 {
+		return true, removed + fn.size()
 	}
 	return false, removed
 }

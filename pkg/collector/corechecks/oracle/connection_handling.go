@@ -18,6 +18,9 @@ import (
 
 func buildGoOraURL(c *Check, queryTimeout string) string {
 	connectionOptions := map[string]string{"TIMEOUT": queryTimeout}
+	if c.config.Schemas.Enabled {
+		connectionOptions["PREFETCH_ROWS"] = "100"
+	}
 	if c.config.Protocol == "TCPS" {
 		connectionOptions["SSL"] = "TRUE"
 		if c.config.Wallet != "" {
@@ -64,12 +67,12 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
-		_, err := handleRefusedConnection(c, db, err)
+		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
 	err = db.Ping()
 	if err != nil {
-		_, err := handleRefusedConnection(c, db, err)
+		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 

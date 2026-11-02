@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    When an SNMP device fails to return column OIDs with both GetBulk and the GetNext fallback, the SNMP check error now includes the original GetBulk error, which names the request that failed first, instead of only the fallback error.

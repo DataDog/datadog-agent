@@ -136,7 +136,7 @@ WHERE con_id = :1 AND open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricte
 		require.NoError(t, err)
 		require.Contains(t, containers, conID)
 		var events []schemaEvent
-		coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
+		coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
 			var event schemaEvent
 			require.NoError(t, json.Unmarshal(payload, &event))
 			events = append(events, event)

@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -179,5 +180,50 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 		if !strings.Contains(string(slurp), "Pipeline stats forwarder is OFF") {
 			t.Fatalf("invalid message: %q", slurp)
 		}
+	})
+}
+
+// assertEmptyBodyFansOut serves the proxy built by newProxy on a real HTTP
+// server and sends it a POST with Content-Length: 0. httputil.ReverseProxy hands
+// the transport a nil Body in that case, so this exercises the multi-target
+// path with no body to read.
+func assertEmptyBodyFansOut(t *testing.T, newProxy func(urls []*url.URL, keys []string) http.Handler) {
+	t.Helper()
+	var hits [2]atomic.Int32
+	var urls []*url.URL
+	for i := range hits {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			slurp, err := io.ReadAll(req.Body)
+			assert.NoError(t, err)
+			assert.Empty(t, slurp)
+			hits[i].Add(1)
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		urls = append(urls, u)
+	}
+
+	proxy := httptest.NewServer(newProxy(urls, []string{"key1", "key2"}))
+	t.Cleanup(proxy.Close)
+
+	resp, err := http.Post(proxy.URL, "application/msgpack", http.NoBody)
+	if !assert.NoError(t, err, "proxy dropped the connection on an empty-body request") {
+		return
+	}
+	resp.Body.Close()
+	assert.GreaterOrEqual(t, resp.StatusCode, 200)
+	assert.Less(t, resp.StatusCode, 300)
+	assert.EqualValues(t, 1, hits[0].Load(), "main endpoint not hit")
+	assert.EqualValues(t, 1, hits[1].Load(), "additional endpoint not hit")
+}
+
+func TestPipelineStatsProxyMultipleEndpointsEmptyBody(t *testing.T) {
+	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
+		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, MaxRequestBytes: 1024}
+		return newPipelineStatsProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
 	})
 }

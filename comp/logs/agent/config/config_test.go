@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -52,6 +51,7 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
 	suite.Equal([]interface{}{}, suite.config.Get("logs_config.processing_rules"))
 	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
+	suite.Equal(map[string]interface{}{}, suite.config.Get("logs_config.tag_filters"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_tcp"))
 	suite.Equal(false, suite.config.GetBool("logs_config.force_use_tcp"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
@@ -156,6 +156,46 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
 	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersYAMLMapForm() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude": []string{"container_id:*"},
+		"include": []string{"pod_name:keep-me"},
+	})
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.Empty(report.Rejected)
+	suite.Empty(report.Warnings)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersJSONEnvVarStringForm() {
+	suite.config.SetInTest("logs_config.tag_filters", `{"exclude":["container_id:*"]}`)
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.Empty(report.Rejected)
+	suite.Empty(report.Warnings)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersUnknownSubKeyErrors() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"inculde": []string{"foo:bar"},
+	})
+	filters, _, err := GlobalTagFilters(suite.config)
+	suite.Error(err)
+	suite.Nil(filters)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersMalformedPatternIsReportedNotErrored() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude": []string{"no_colon_here"},
+	})
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.NotEmpty(report.Rejected)
 }
 
 func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
@@ -317,7 +357,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.SetInTest("logs_config.use_v2_api", false)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -335,7 +375,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -353,7 +393,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKey:                 atomic.NewString("789"),
+		credential:             newEndpointCredential("789", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
@@ -388,7 +428,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	suite.config.SetInTest("logs_config.dev_mode_use_proto", true)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -401,7 +441,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -447,7 +487,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	suite.config.SetInTest("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -464,7 +504,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -481,7 +521,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKey:                 atomic.NewString("789"),
+		credential:             newEndpointCredential("789", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
@@ -531,7 +571,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	suite.config.SetInTest("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -551,7 +591,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -568,7 +608,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKey:                 atomic.NewString("789"),
+		credential:             newEndpointCredential("789", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
@@ -611,7 +651,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	suite.config.SetInTest("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -624,7 +664,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -732,7 +772,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -772,7 +812,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.config.SetInTest("logs_config.batch_wait", 1)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -1142,7 +1182,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                  atomic.NewString("123"),
+		credential:              newEndpointCredential("123", false),
 		configSettingPath:       "api_key",
 		isAdditionalEndpoint:    false,
 		additionalEndpointsIdx:  0,
@@ -1189,7 +1229,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -1234,7 +1274,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,

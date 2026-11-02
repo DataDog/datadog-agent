@@ -27,6 +27,9 @@ const (
 	AttachedMode = "attached"
 )
 
+// MaxMessageSize is the largest msgpack payload accepted by the eBPF-less probe.
+const MaxMessageSize = 256 * 1024
+
 // MessageType defines the type of a message
 type MessageType int32
 
@@ -142,11 +145,21 @@ type ExecSyscallMsg struct {
 	Credentials   *Credentials
 	PPID          uint32
 	FromProcFS    bool
+
+	// CreateTime is the optional procfs birth date, in Unix nanoseconds.
+	// It does not assert that an exec or fork was observed.
+	CreateTime uint64 `json:",omitempty" msgpack:",omitempty"`
 }
 
 // ForkSyscallMsg defines a fork message
 type ForkSyscallMsg struct {
 	PPID uint32
+
+	// Only used with an attached procfs Exec snapshot: the envelope describes
+	// the child, whereas that snapshot describes PPID. These may differ.
+	ParentStartTime   uint64                     `json:",omitempty" msgpack:",omitempty"`
+	ParentContainerID containerutils.ContainerID `json:",omitempty" msgpack:",omitempty"`
+	ParentCGroupID    containerutils.CGroupID    `json:",omitempty" msgpack:",omitempty"`
 }
 
 // ExitSyscallMsg defines an exit message
@@ -377,7 +390,9 @@ type SocketSyscallMsg struct {
 	Protocol uint16
 }
 
-// SyscallMsg defines a syscall message
+// SyscallMsg defines a syscall message.
+// On a non-exec event, Exec with FromProcFS set is an optional metadata-only
+// snapshot of PID (or Fork.PPID for a fork), not an additional exec event.
 type SyscallMsg struct {
 	Type         SyscallType
 	PID          uint32
@@ -416,6 +431,9 @@ type SyscallMsg struct {
 	Setrlimit    *SetrlimitSyscallMsg    `json:",omitempty"`
 	Prctl        *PrctlSyscallMsg        `json:",omitempty"`
 	SocketEvent  *SocketSyscallMsg       `json:",omitempty"`
+
+	// StartTime identifies PID's process generation; zero supports older senders.
+	StartTime uint64 `json:",omitempty" msgpack:",omitempty"`
 
 	// internals
 	Dup        *DupSyscallFakeMsg    `json:",omitempty"`

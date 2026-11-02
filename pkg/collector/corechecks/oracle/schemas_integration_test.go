@@ -17,11 +17,89 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const schemaTestUser = "c##dd_schema_test"
+
+func TestSchemaForeignKeysAcrossWindowsAgainstDatabase(t *testing.T) {
+	setupSchemaFixtures(t)
+	c, _ := newDefaultCheck(t, "collect_schemas:\n  enabled: true", "")
+	defer c.Teardown()
+	require.NoError(t, c.init())
+	ctx := context.Background()
+	owner := strings.ToUpper(schemaTestUser)
+	source := tableKey{conID: 1, owner: owner, table: "DD_FK_SOURCE"}
+	target := tableKey{conID: 1, owner: owner, table: "DD_FK_TARGET"}
+	for _, scenario := range []struct {
+		name                                         string
+		insideWindow, selectedTarget, wrongContainer bool
+	}{
+		{name: "same_window", insideWindow: true, selectedTarget: true},
+		{name: "other_window", selectedTarget: true},
+		{name: "excluded_target"},
+		{name: "wrong_container", selectedTarget: true, wrongContainer: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			allowed := map[tableKey]struct{}{source: {}}
+			selected := map[tableKey]struct{}{source: {}}
+			if scenario.insideWindow {
+				allowed[target] = struct{}{}
+			}
+			if scenario.selectedTarget {
+				key := target
+				if scenario.wrongContainer {
+					key.conID = 999999
+				}
+				selected[key] = struct{}{}
+			}
+			definitions, columns := 0, 0
+			var queriedRows []*sqlx.Rows
+			c.schemaQueryError = nil
+			c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+				if strings.HasPrefix(query, strings.Split(referencedConstraintsQuery, "/*RELATIONS*/")[0]) {
+					definitions++
+				}
+				if strings.HasPrefix(query, strings.Split(referencedConstraintColumnsQuery, "/*RELATIONS*/")[0]) {
+					columns++
+				}
+				rows, err := c.db.QueryxContext(ctx, query, args...)
+				require.NoError(t, err, "optional query errors must not pass as expected FK fallback")
+				queriedRows = append(queriedRows, rows)
+				return rows, err
+			})
+			defer func() { c.schemaQueryer = nil }()
+			details := c.tableConstraintsForPage(ctx, allowed, selected)
+			require.NoError(t, c.schemaContextError(ctx))
+			for _, rows := range queriedRows {
+				require.NoError(t, rows.Err())
+			}
+			require.NotNil(t, details[source])
+			fk := findConstraint(details[source].Constraints, "DD_FK_SOURCE_FK")
+			require.NotNil(t, fk)
+			require.Equal(t, "foreign_key", fk.Type)
+			require.Equal(t, []string{"REF_K1", "REF_K2"}, fk.Columns)
+			require.Equal(t, owner, fk.ReferencedOwner)
+			if scenario.selectedTarget && !scenario.wrongContainer {
+				require.Equal(t, target.table, fk.ReferencedTable)
+				require.Equal(t, []string{"K1", "K2"}, fk.ReferencedColumns)
+				require.Empty(t, fk.ReferencedConstraint)
+			} else {
+				require.Empty(t, fk.ReferencedTable)
+				require.Empty(t, fk.ReferencedColumns)
+				require.Equal(t, "DD_FK_TARGET_PK", fk.ReferencedConstraint)
+			}
+			if scenario.selectedTarget && !scenario.insideWindow && !scenario.wrongContainer {
+				require.Equal(t, 1, definitions)
+				require.Equal(t, 1, columns)
+			} else {
+				require.Zero(t, columns)
+			}
+		})
+	}
+}
 
 func TestSchemaIndexQueriesPreserveJoinIndexColumnsAgainstDatabase(t *testing.T) {
 	c, _ := newDefaultCheck(t, "collect_schemas:\n  enabled: true", "")
@@ -215,7 +293,6 @@ func setupSchemaFixtures(t *testing.T) string {
 
 		fmt.Sprintf("create view %s.dd_orders_view as select order_id, status from %s.dd_orders", schemaTestUser, schemaTestUser),
 		fmt.Sprintf("comment on table %s.dd_orders_view is 'Schema collection view fixture'", schemaTestUser),
-		// A nonmatching view verifies that exclude_tables removes only matching views.
 		fmt.Sprintf("create view %s.dd_reports_view as select order_id from %s.dd_orders", schemaTestUser, schemaTestUser),
 		fmt.Sprintf(`create materialized view %s.dd_orders_mv
 			build immediate refresh complete on demand

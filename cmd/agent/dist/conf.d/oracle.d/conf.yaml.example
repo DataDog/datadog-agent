@@ -232,6 +232,8 @@ instances:
 
     ## Configure collection of table and column metadata for Oracle 12c or later. Requires
     ## `dbm: true` or `data_observability.enabled: true`.
+    ## Collection runs in the background using up to four connections from the Agent's shared pool.
+    ## When SQL tracing is enabled, collection runs synchronously on the single tracing connection.
     ## Include/exclude filters use Oracle regular expressions with case-insensitive matching.
     ## Invalid patterns fail collection; exclusions take precedence over inclusions.
     #

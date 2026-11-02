@@ -46,6 +46,26 @@ def is_root():
     return os.getuid() == 0
 
 
+PRIVILEGES_CLI = "/Applications/Privileges.app/Contents/MacOS/PrivilegesCLI"
+
+
+def ensure_sudo_privileges(ctx: Context, reason: str):
+    """
+    On macOS, users may not be allowed to sudo unless they are temporarily granted admin
+    rights through the Privileges app. If the app is installed and the user is not currently
+    an admin, request privileges so that subsequent sudo calls work. No-op everywhere else.
+    """
+    if sys.platform != "darwin" or is_root() or not os.path.exists(PRIVILEGES_CLI):
+        return
+
+    res = ctx.run("id -Gn", hide=True, warn=True)
+    if res is not None and res.ok and "admin" in res.stdout.split():
+        return
+
+    info(f"[+] Requesting administrator privileges through Privileges app: {reason}")
+    ctx.run(f"'{PRIVILEGES_CLI}' --add --reason '{reason}'")
+
+
 def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     res = ctx.run(f"file {file}")
     if res is None or not res.ok:

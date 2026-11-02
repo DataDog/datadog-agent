@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package dpioptions decodes the application tables exporters send in IPFIX options records,
-// so that the dpi package only deals with typed values.
+// Package dpioptions decodes the application tables exporters send in NetFlow v9/IPFIX
+// options records, so that the dpi package only deals with typed values.
 package dpioptions
 
 import (
@@ -29,7 +29,7 @@ var stringFields = map[fieldKey]func(app *dpi.Application, value string){
 	{field: ipfixFieldApplicationName}:        func(app *dpi.Application, v string) { app.Name = v },
 	{field: ipfixFieldApplicationDescription}: func(app *dpi.Application, v string) { app.Description = v },
 
-	// Cisco NBAR's `option application-attributes`
+	// Cisco NBAR's IPFIX `option application-attributes`
 	{pen: ciscoPEN, field: ciscoFieldApplicationCategory}:          func(app *dpi.Application, v string) { app.Category = v },
 	{pen: ciscoPEN, field: ciscoFieldApplicationSubCategory}:       func(app *dpi.Application, v string) { app.SubCategory = v },
 	{pen: ciscoPEN, field: ciscoFieldApplicationGroup}:             func(app *dpi.Application, v string) { app.ApplicationGroup = v },
@@ -40,21 +40,37 @@ var stringFields = map[fieldKey]func(app *dpi.Application, value string){
 	{pen: ciscoPEN, field: ciscoFieldApplicationBusinessRelevance}: func(app *dpi.Application, v string) { app.BusinessRelevance = v },
 	{pen: ciscoPEN, field: ciscoFieldApplicationSet}:               func(app *dpi.Application, v string) { app.ApplicationSet = v },
 	{pen: ciscoPEN, field: ciscoFieldApplicationFamily}:            func(app *dpi.Application, v string) { app.ApplicationFamily = v },
+
+	// Cisco NBAR's NetFlow v9 export of the same fields, with enterpriseBit set instead of a PEN.
+	// Since there is no PEN to represent a vendor, we assume these field numbers are Cisco's,
+	// so if another vendor uses the same numbers for different fields, we will misread them.
+	{field: ciscoFieldApplicationCategory | enterpriseBit}:          func(app *dpi.Application, v string) { app.Category = v },
+	{field: ciscoFieldApplicationSubCategory | enterpriseBit}:       func(app *dpi.Application, v string) { app.SubCategory = v },
+	{field: ciscoFieldApplicationGroup | enterpriseBit}:             func(app *dpi.Application, v string) { app.ApplicationGroup = v },
+	{field: ciscoFieldApplicationTrafficClass | enterpriseBit}:      func(app *dpi.Application, v string) { app.TrafficClass = v },
+	{field: ciscoFieldApplicationBusinessRelevance | enterpriseBit}: func(app *dpi.Application, v string) { app.BusinessRelevance = v },
+	{field: ciscoFieldApplicationSet | enterpriseBit}:               func(app *dpi.Application, v string) { app.ApplicationSet = v },
+	{field: ciscoFieldApplicationFamily | enterpriseBit}:            func(app *dpi.Application, v string) { app.ApplicationFamily = v },
 }
 
-// DecodeApplications decodes the applications announced in the options records of an IPFIX packet
+// DecodeApplications decodes the applications announced in the options records of a NetFlow v9 or IPFIX packet
 func DecodeApplications(msgDec interface{}) []dpi.Application {
-	ipfixPacket, ok := msgDec.(netflow.IPFIXPacket)
-	if !ok {
+	var optionsDataFlowSet []netflow.OptionsDataFlowSet
+	var isIPFIX bool
+	switch packet := msgDec.(type) {
+	case netflow.NFv9Packet:
+		_, _, _, optionsDataFlowSet = producer.SplitNetFlowSets(packet)
+	case netflow.IPFIXPacket:
+		_, _, _, optionsDataFlowSet = producer.SplitIPFIXSets(packet)
+		isIPFIX = true
+	default:
 		return nil
 	}
-
-	_, _, _, optionsDataFlowSet := producer.SplitIPFIXSets(ipfixPacket)
 
 	var apps []dpi.Application
 	for _, dataFlowSet := range optionsDataFlowSet {
 		for _, record := range dataFlowSet.Records {
-			if app, ok := decodeApplication(record); ok {
+			if app, ok := decodeApplication(record, isIPFIX); ok {
 				apps = append(apps, app)
 			}
 		}
@@ -62,32 +78,50 @@ func DecodeApplications(msgDec interface{}) []dpi.Application {
 	return apps
 }
 
-func decodeApplication(record netflow.OptionsDataRecord) (dpi.Application, bool) {
-	var app dpi.Application
-	for _, values := range [][]netflow.DataField{record.ScopesValues, record.OptionsValues} {
-		for _, df := range values {
-			v, ok := df.Value.([]byte)
-			if !ok {
-				continue
-			}
-			key := optionsFieldKey(df)
-			if key == applicationIDKey {
-				var id uint64
-				if producer.DecodeUNumber(v, &id) == nil {
-					app.ID = id
-				}
-			} else if set, ok := stringFields[key]; ok {
-				set(&app, string(bytes.Trim(v, "\x00"))) // removing null padding
-			}
+func decodeApplication(record netflow.OptionsDataRecord, isIPFIX bool) (dpi.Application, bool) {
+	id, ok := decodeApplicationID(record, isIPFIX)
+	if !ok {
+		return dpi.Application{}, false
+	}
+
+	app := dpi.Application{ID: id}
+	for _, df := range record.OptionsValues {
+		v, ok := df.Value.([]byte)
+		if !ok {
+			continue
+		}
+		if set, ok := stringFields[optionsFieldKey(df)]; ok {
+			set(&app, string(bytes.Trim(v, "\x00"))) // removing null padding
 		}
 	}
-	return app, app.ID != 0
+	return app, true
+}
+
+func decodeApplicationID(record netflow.OptionsDataRecord, isIPFIX bool) (uint64, bool) {
+	// the application id is a scope value in IPFIX, but an option field in NetFlow v9
+	idFields := record.OptionsValues
+	if isIPFIX {
+		idFields = record.ScopesValues
+	}
+	for _, df := range idFields {
+		v, ok := df.Value.([]byte)
+		if !ok || optionsFieldKey(df) != applicationIDKey {
+			continue
+		}
+		var id uint64
+		if producer.DecodeUNumber(v, &id) == nil && id != 0 {
+			return id, true
+		}
+	}
+	return 0, false
 }
 
 func optionsFieldKey(df netflow.DataField) fieldKey {
 	if !df.PenProvided {
+		// NetFlow v9 fields have no PEN, so the enterprise bit (if any) is kept as part of the field type
 		return fieldKey{field: df.Type}
 	}
-	// goflow2 leaves the enterprise bit (0x8000) set on options template fields
-	return fieldKey{pen: df.Pen, field: df.Type &^ 0x8000}
+	// IPFIX enterprise fields: the PEN identifies the vendor,
+	// so strip the enterprise bit (left set by goflow2) to get the field number
+	return fieldKey{pen: df.Pen, field: df.Type &^ enterpriseBit}
 }

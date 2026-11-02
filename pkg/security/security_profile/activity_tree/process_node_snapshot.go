@@ -153,8 +153,8 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.FileFields.UID = fileStats.Uid
 			evt.Open.File.FileFields.GID = fileStats.Gid
 
-			evt.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-			evt.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+			evt.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano())
+			evt.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano())
 			evt.Open.File.Mode = fileStats.Mode
 			evt.Open.File.Inode = fileStats.Ino
 			evt.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor

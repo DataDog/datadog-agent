@@ -90,15 +90,15 @@ mod tests {
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         #[cfg(windows)]
-        assert!(
-            exit_rx
-                .recv()
-                .await
-                .expect("graceful workload exit")
-                .status
-                .success(),
-            "CTRL_BREAK should exit cleanly, not by job force-kill"
-        );
+        {
+            let status = exit_rx.recv().await.expect("graceful workload exit").status;
+            // A CTRL_BREAK beating the workload's handler ends it through the default handler.
+            assert!(
+                status.success()
+                    || status.code() == Some(windows_sys::Win32::Foundation::STATUS_CONTROL_C_EXIT),
+                "CTRL_BREAK should be delivered, not escalated to job force-kill: {status:?}"
+            );
+        }
         #[cfg(not(windows))]
         let _ = exit_rx;
         assert!(

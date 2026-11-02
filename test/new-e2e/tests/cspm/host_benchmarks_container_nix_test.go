@@ -7,6 +7,8 @@ package cspm
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,6 +83,36 @@ func (s *containerBenchmarksSuite) runHost(cmd string) string {
 func (s *containerBenchmarksSuite) check(args string) []event {
 	cmd := fmt.Sprintf("%s compliance check %s 2>/dev/null", securityAgent, args)
 	return parseEvents(s.T(), s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd))
+}
+
+// fipsCheck runs compliance check with libgcrypt forced into FIPS mode and a
+// memory lock limit of zero, as on a FIPS host in system-probe, whose seccomp
+// profile denies mlock.
+func (s *containerBenchmarksSuite) fipsCheck(args string) []event {
+	cmd := fmt.Sprintf("ulimit -l 0 && LIBGCRYPT_FORCE_FIPS_MODE=1 %s compliance check %s 2>/dev/null", securityAgent, args)
+	return parseEvents(s.T(), s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd))
+}
+
+// oscapTempDirs counts the entries of /tmp in the agent container named after
+// OpenSCAP, which an oscap-io process that dies leaves behind.
+func (s *containerBenchmarksSuite) oscapTempDirs() int {
+	out := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", "ls -A /tmp | grep -c '^oscap' || true")
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	require.NoErrorf(s.T(), err, "counting the oscap entries of /tmp: %q", out)
+	return n
+}
+
+// TestFIPSWithoutLockedMemory checks that the probe rules give the results of a
+// normal run in libgcrypt's FIPS mode with no memory to lock, and that those
+// runs leave nothing in /tmp.
+func (s *containerBenchmarksSuite) TestFIPSWithoutLockedMemory() {
+	before := s.oscapTempDirs()
+	for _, p := range probesFor(s.distro, false) {
+		want := checkRule(s.T(), s.distro, s.check, p.rule).Result
+		got := checkRule(s.T(), s.distro, s.fipsCheck, p.rule).Result
+		assert.Equalf(s.T(), want, got, "%s in FIPS mode without locked memory", p.rule)
+	}
+	assert.Equal(s.T(), before, s.oscapTempDirs(), "oscap entries in /tmp")
 }
 
 // TestBundledContent checks the agent image ships this distro's benchmark content.

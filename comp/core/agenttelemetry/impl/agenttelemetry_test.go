@@ -3071,6 +3071,30 @@ func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	assert.ElementsMatch(t, []string{"section", "status"}, metrics["instrumentation_controller.reconciliations"])
 }
 
+func TestAgentPerformanceProfilePreservesContainerTags(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, defaultProfiles)
+	atCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+
+	for _, profile := range atCfg.Profiles {
+		if profile.Name != "agent-performance" {
+			continue
+		}
+		require.NotNil(t, profile.Metric)
+		terminatedMetricFound := false
+		for _, metric := range profile.Metric.Metrics {
+			assert.Contains(t, metric.PreserveTags, "container_name", metric.Name)
+			if metric.Name == "agent_performance.container_terminated" {
+				terminatedMetricFound = true
+				assert.Contains(t, metric.PreserveTags, "exit_code")
+			}
+		}
+		require.True(t, terminatedMetricFound)
+		return
+	}
+	t.Fatal("agent-performance profile is missing")
+}
+
 // TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
 //
 // The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these

@@ -35,7 +35,7 @@ func (k metricsKind) String() string {
 	case metricsKindSeries:
 		return "series"
 	case metricsKindSketches:
-		return "sketches"
+		return "distributions"
 	default:
 		panic("invalid metricsKind value")
 	}
@@ -43,13 +43,28 @@ func (k metricsKind) String() string {
 
 // metricsUseV3 decides whether a given resolver should ship the given metrics kind via the v3 intake.
 func metricsUseV3(r resolver.DomainResolver, config config.Component, logger log.Component, kind metricsKind) bool {
-	if kind == metricsKindSeries {
-		return seriesUseV3(r, config, logger)
+	if r.IsMetricToVector() {
+		if kind == metricsKindSeries {
+			return vectorSeriesUseV3(config)
+		}
+		return false
 	}
 
-	return slices.Contains(
-		config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.endpoints", kind)),
-		r.GetConfigName())
+	if kind == metricsKindSketches && slices.Contains(
+		config.GetStringSlice("serializer_experimental_use_v3_api.sketches.endpoints"),
+		r.GetConfigName()) {
+		return true
+	}
+
+	endpointsKey := fmt.Sprintf("use_v3_api.%s.endpoints", kind)
+	endpoints := config.GetStringMapString(endpointsKey)
+	if value, ok := endpoints[r.GetConfigName()]; ok {
+		key := fmt.Sprintf("%s.%q", endpointsKey, r.GetConfigName())
+		return evalSeriesV3(key, value, r, logger)
+	}
+
+	enabledKey := fmt.Sprintf("use_v3_api.%s.enabled", kind)
+	return evalSeriesV3(enabledKey, config.GetString(enabledKey), r, logger)
 }
 
 // zlibForcesV2 reports whether the active metrics compressor is zlib, which is incompatible
@@ -91,21 +106,6 @@ func vectorSeriesUseV3(config config.Component) bool {
 	return config.GetBool("vector.metrics.use_v3_api.series")
 }
 
-func seriesUseV3(r resolver.DomainResolver, config config.Component, logger log.Component) bool {
-	if r.IsMetricToVector() {
-		return vectorSeriesUseV3(config)
-	}
-
-	endpointsKey := "use_v3_api.series.endpoints"
-	endpoints := config.GetStringMapString(endpointsKey)
-	if value, ok := endpoints[r.GetConfigName()]; ok {
-		key := fmt.Sprintf("%s.%q", endpointsKey, r.GetConfigName())
-		return evalSeriesV3(key, value, r, logger)
-	}
-
-	return evalSeriesV3("use_v3_api.series.enabled", config.GetString("use_v3_api.series.enabled"), r, logger)
-}
-
 // metricsShadowSampleRate returns the per-flush probability of also sending
 // this kind of metrics to v3beta as a validation shadow when v3 is not the
 // authoritative endpoint. Series shadowing is retired: the series rollout is
@@ -114,7 +114,7 @@ func metricsShadowSampleRate(config config.Component, kind metricsKind) float64 
 	if kind == metricsKindSeries {
 		return 0
 	}
-	return config.GetFloat64(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sample_rate", kind))
+	return config.GetFloat64("serializer_experimental_use_v3_api.sketches.shadow_sample_rate")
 }
 
 // v3BetaShadowEndpoint returns the v3beta shadow endpoint for a metrics kind,
@@ -138,7 +138,7 @@ func metricsShadowSites(config config.Component, kind metricsKind) []string {
 	if kind == metricsKindSeries {
 		return nil
 	}
-	return config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sites", kind))
+	return config.GetStringSlice("serializer_experimental_use_v3_api.sketches.shadow_sites")
 }
 
 // metricsShadowAllowed reports whether the resolver targets a site that opts
@@ -186,9 +186,14 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 }
 
 func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.PipelineSet {
+	return s.buildPipelinesWithMRF(kind, rng, s.getFailoverAllowlist())
+}
+
+// buildPipelinesWithMRF sends to the MRF domain through mrfFilter, or leaves the MRF
+// domain out when mrfFilter is nil.
+func (s *Serializer) buildPipelinesWithMRF(kind metricsKind, rng prng, mrfFilter metrics.Filter) metrics.PipelineSet {
 	pipelines := metrics.PipelineSet{}
 
-	mrfFilter := s.getFailoverAllowlist()
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
 	shadowRate := metricsShadowSampleRate(s.config, kind)
 	shadowSites := metricsShadowSites(s.config, kind)
@@ -261,6 +266,24 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	}
 
 	return pipelines
+}
+
+// SketchesV2Domains returns the configured domains that sketches are sent to over the v2
+// intake, which cannot carry OpenTelemetry histograms. It uses the same routing as SendSketch,
+// but counts the MRF domain even while failover is off, since failover can be turned on later.
+// The names are the ones matched against use_v3_api.distributions.endpoints.
+func (s *Serializer) SketchesV2Domains() []string {
+	var domains []string
+	for conf, ctx := range s.buildPipelinesWithMRF(metricsKindSketches, stdRand{}, metrics.AllowAllFilter{}) {
+		if conf.V3 {
+			continue
+		}
+		for _, dest := range ctx.Destinations {
+			domains = append(domains, dest.Resolver.GetConfigName())
+		}
+	}
+	slices.Sort(domains)
+	return slices.Compact(domains)
 }
 
 func (s *Serializer) genUUID() string {

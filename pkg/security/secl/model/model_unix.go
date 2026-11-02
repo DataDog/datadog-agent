@@ -880,8 +880,9 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File FileEvent `field:"file"` // File pointing to the cgroup
-	Pid  uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
+	File   FileEvent `field:"file"` // File pointing to the cgroup
+	Pid    uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
+	Retval int32     `field:"-"`
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump

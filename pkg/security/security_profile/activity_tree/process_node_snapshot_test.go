@@ -10,12 +10,18 @@ package activitytree
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestSnapshotMemoryMappedFiles(t *testing.T) {
@@ -106,4 +112,30 @@ func TestExtractPathFromMapsLine(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAddFilesTimes(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	file := filepath.Join(dir, "lib.so")
+	require.NoError(t, os.WriteFile(file, nil, 0o644))
+	mtime := time.Date(2024, 5, 6, 7, 8, 9, 123456789, time.UTC)
+	require.NoError(t, os.Chtimes(file, mtime, mtime))
+	var st unix.Stat_t
+	require.NoError(t, unix.Stat(file, &st))
+
+	pn := &ProcessNode{}
+	pn.Process.Pid = uint32(os.Getpid())
+	pn.addFiles([]string{file}, NewActivityTreeNodeStats(), model.NewFakeEvent, nil, "")
+
+	var leaf *FileNode
+	children := pn.Files
+	for _, name := range strings.Split(file[1:], "/") {
+		leaf = children[name]
+		require.NotNil(t, leaf, "%s is missing from the tree", name)
+		children = leaf.Children
+	}
+	require.NotNil(t, leaf.File)
+	assert.Equal(t, uint64(st.Ctim.Nano()), leaf.File.CTime)
+	assert.Equal(t, uint64(st.Mtim.Nano()), leaf.File.MTime)
 }

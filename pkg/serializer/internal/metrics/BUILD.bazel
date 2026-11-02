@@ -53,6 +53,7 @@ dd_agent_go_test(
         "series_benchmark_test.go",
         "service_checks_test.go",
         "sketch_benchmark_test.go",
+        "sketch_series_otel_test.go",
         "sketch_series_test.go",
     ],
     embed = [":metrics"],

@@ -12,7 +12,6 @@ go_library(
         "log_test_init.go",
         "logger.go",
         "logger_test_utils.go",
-        "observer_tap.go",
         "wrapper.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log",
@@ -36,7 +35,6 @@ dd_agent_go_test(
         "log_limit_test.go",
         "log_podman_util_test.go",
         "log_test.go",
-        "observer_tap_test.go",
         "wrapper_test.go",
     ],
     embed = [":log"],
@@ -45,6 +43,5 @@ dd_agent_go_test(
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_uber_go_atomic//:atomic",
     ],
 )

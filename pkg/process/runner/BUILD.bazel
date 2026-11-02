@@ -25,7 +25,6 @@ go_library(
         "//pkg/process/util/api",
         "//pkg/process/util/api/config",
         "//pkg/process/util/api/headers",
-        "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
         "//pkg/util/flavor",
         "//pkg/util/log",

@@ -16,6 +16,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//pkg/cli/subcommands/config",
+        "//pkg/config/model",
         "//pkg/config/schema",
         "//pkg/config/utils",
         "//pkg/util/fxutil",

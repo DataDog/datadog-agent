@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -227,5 +228,71 @@ func TestSchemaLocalColumnValuesKeepStableBoundSQL(t *testing.T) {
 	require.Equal(t, sql.Named("col0name0", sql.NullString{String: "C'OL2", Valid: true}), second.args[3])
 	for _, arg := range second.args[4:] {
 		require.Equal(t, sql.NullString{}, arg.(sql.NamedArg).Value)
+	}
+}
+
+func TestSchemaSparseDefaultsPreserveNullVirtualAndHiddenColumns(t *testing.T) {
+	for _, version := range []string{"12.1.0.2.0", "19.0.0.0.0", "21.3.0.0.0", "23.0.0.0.0"} {
+		t.Run(version, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			c.dbVersion = version
+			key := tableKey{conID: 3, owner: "APP", table: "T"}
+			columns := make(map[columnKey]struct{})
+			for _, name := range []string{"DEFAULT_NULL", "LONG_DEFAULT", "NO_DEFAULT", "SYS_NC_USER", "VIRTUAL_VALUE"} {
+				columns[columnKey{tableKey: key, column: name}] = struct{}{}
+			}
+			longDefault := strings.Repeat("界", 4001)
+			for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_col_comments"} {
+				mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+			}
+			if version == "23.0.0.0.0" {
+				mock.ExpectQuery(`(?s)FROM cdb_tab_cols c WHERE .*AND c.default_length > 0$`).
+					WithArgs(schemaColumnArgs(3, "APP", "T", "DEFAULT_NULL", "LONG_DEFAULT", "NO_DEFAULT", "SYS_NC_USER", "VIRTUAL_VALUE")...).
+					WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+						AddRow(3, "APP", "T", "DEFAULT_NULL", "NULL").
+						AddRow(3, "APP", "T", "LONG_DEFAULT", longDefault).
+						AddRow(3, "APP", "T", "SYS_NC_USER", "42").
+						AddRow(3, "APP", "T", "VIRTUAL_VALUE", "ID * 2"))
+			}
+			mock.ExpectQuery("FROM cdb_indexes").WithArgs(schemaRelationArgs(3, "APP", "T")...).WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
+					AddRow(3, "APP", "T", "APP", "A_OID", "UNIQUE", "NORMAL", "SYS_NC_OID$").
+					AddRow(3, "APP", "T", "APP", "B_FUNCTION", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00002$").
+					AddRow(3, "APP", "T", "APP", "C_USER", "NONUNIQUE", "NORMAL", "SYS_NC_USER"))
+			if version == "23.0.0.0.0" {
+				mock.ExpectQuery(`(?s)FROM cdb_tab_cols.*AND c.default_length > 0 AND ` + regexp.QuoteMeta(schemaIndexExpressionColumn)).
+					WithArgs(schemaColumnArgs(3, "APP", "T", "SYS_NC00002$", "SYS_NC_OID$", "SYS_NC_USER")...).
+					WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+						AddRow(3, "APP", "T", "SYS_NC00002$", "UPPER(ID)"))
+			} else {
+				expectSchemaSession(mock, 3, "APP_PDB")
+				mock.ExpectQuery(`(?s)` + regexp.QuoteMeta("CASE WHEN "+schemaIndexExpressionColumn+" THEN 'YES' ELSE 'NO' END") + `.*FROM dba_tab_cols.*AND c.default_length > 0$`).
+					WithArgs(schemaColumnArgs(3, "APP", "T", "DEFAULT_NULL", "LONG_DEFAULT", "NO_DEFAULT", "SYS_NC00002$", "SYS_NC_OID$", "SYS_NC_USER", "VIRTUAL_VALUE")...).
+					WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "EXPRESSION_COLUMN", "DATA_DEFAULT"}).
+						AddRow(3, "APP", "T", "DEFAULT_NULL", "NO", "NULL").
+						AddRow(3, "APP", "T", "LONG_DEFAULT", "NO", longDefault).
+						AddRow(3, "APP", "T", "SYS_NC00002$", "YES", "UPPER(ID)").
+						AddRow(3, "APP", "T", "SYS_NC_OID$", "NO", "SYS_OP_GUID()").
+						AddRow(3, "APP", "T", "SYS_NC_USER", "NO", "42").
+						AddRow(3, "APP", "T", "VIRTUAL_VALUE", "NO", "ID * 2"))
+			}
+			for _, view := range []string{"cdb_external_tables", "cdb_part_tables"} {
+				mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+			}
+			details := c.tableDetailsForPage(context.Background(), map[tableKey]struct{}{key: {}}, columns)
+			require.NoError(t, mock.ExpectationsWereMet())
+			require.NotNil(t, details[key])
+			require.Equal(t, "NULL", details[key].ColumnDefaults["DEFAULT_NULL"])
+			require.Equal(t, strings.Repeat("界", 4000), details[key].ColumnDefaults["LONG_DEFAULT"])
+			require.Equal(t, "42", details[key].ColumnDefaults["SYS_NC_USER"])
+			require.Equal(t, "ID * 2", details[key].ColumnDefaults["VIRTUAL_VALUE"])
+			require.NotContains(t, details[key].ColumnDefaults, "NO_DEFAULT")
+			require.NotContains(t, details[key].ColumnDefaults, "SYS_NC_OID$")
+			require.Len(t, details[key].Indexes, 3)
+			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}}, details[key].Indexes[0].Columns)
+			require.Equal(t, []indexKeyPart{{Expression: "UPPER(ID)"}}, details[key].Indexes[1].Columns)
+			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_USER"}}, details[key].Indexes[2].Columns)
+		})
 	}
 }

@@ -87,7 +87,7 @@ This will start the VM(s) in your stack.
 ```bash
 dda inv -e kmt.launch-stack
 ```
-> Since this is a local VM, you may be prompted for your password to run some commands with `sudo`.
+> On Linux, since this is a local VM, you may be prompted for your password to run some commands with `sudo`. On macOS, no password is needed.
 
 **4. Check Status**
 
@@ -239,7 +239,7 @@ The same `launch-stack` command will start the local VM and launch the remote EC
 ```bash
 dda inv -e kmt.launch-stack
 ```
-> You may be prompted for your `sudo` password for the local VM setup. The remote VM will use your pre-configured SSH key.
+> On Linux, you may be prompted for your `sudo` password for the local VM setup. The remote VM will use your pre-configured SSH key.
 
 **4. Connect and Clean Up**
 
@@ -274,7 +274,7 @@ Configuring a stack involves generating a configuration file, referred to as the
 
 This file is managed by the `kmt.gen-config` command. You typically don't need to edit it manually.
 
-A sample VMSet file can be found [here](https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
+A sample VMSet file can be found [here](https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/scenarios/aws/microVMs/microvms/files/sample-vm-config.json).
 
 ### Local vs. Remote VMs
 
@@ -393,7 +393,7 @@ Launches all configured VMs in a stack. If VMs have been added to the configurat
 dda inv -e kmt.launch-stack [--stack=<name>] [--ssh-key=<key>]
 ```
 
--   If launching **local VMs**, you may be prompted for your `sudo` password. This is required because the program needs to run some commands as root. We do not run the entire scenario with `sudo` to avoid creating broken permissions.
+-   If launching **local VMs** on Linux, you may be prompted for your `sudo` password. This is required because the program needs to run some commands as root (e.g. firewall rules for NFS). We do not run the entire scenario with `sudo` to avoid creating broken permissions. On macOS, launching and destroying local VMs does not require `sudo`: only `kmt.setup` does. If the [Privileges](https://github.com/SAP/macOS-enterprise-privileges) app is installed, KMT requests administrator privileges automatically when `sudo` is needed.
 -   If launching **remote VMs**, an SSH key is required. If you configured a default key with `kmt.config-ssh-key`, you don't need to provide it again.
 
 The `--ssh-key` argument allows you to specify a key for this launch, overriding the default. The value can be:
