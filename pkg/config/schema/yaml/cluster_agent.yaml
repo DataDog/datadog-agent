@@ -281,6 +281,14 @@ properties:
         - ^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$
         items:
           type: string
+  kai_scheduler:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   kueue:
     node_type: section
     type: object
@@ -289,6 +297,19 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      pod_template_tags:
+        node_type: setting
+        type: boolean
+        default: true
+        description: |-
+          Tag labels and annotations that are identical on every pod set template
+          of a Kueue Workload. Tag names come from kubernetes_pod_labels_as_tags
+          and kubernetes_pod_annotations_as_tags, plus
+          kubernetes_resources_labels_as_tags and
+          kubernetes_resources_annotations_as_tags for pods. A key in the
+          resources maps overrides the same key in the pod maps. Enabled by
+          default.
+        comment: Requires cluster_agent.kueue.enabled.
   language_detection:
     node_type: section
     type: object

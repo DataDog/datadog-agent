@@ -10,8 +10,12 @@ package tests
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -119,10 +123,12 @@ var _ = declareInlineConfig(TestWorkloadProfileDedicatedSyscalls)
 // an anomaly.
 func TestWorkloadProfileDedicatedSyscalls(t *testing.T) {
 	skipIfNoWorkloadProfileEnv(t)
+	checkKernelCompatibility(t, "Missing bpf_for_each_map_elem helper", func(kv *kernel.Version) bool {
+		return !kv.HasBPFForEachMapElemHelper()
+	})
 
 	tagger := NewFakeManualTagger()
 	opts := workloadProfileTestOpts(t.TempDir(), tagger)
-	opts.eventSamplingSyscallsEnabled = true
 	opts.workloadProfileEventTypes = []string{"exec", "open", "dns", "bind", "connect", "capabilities", "syscalls"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
@@ -165,6 +171,109 @@ func TestWorkloadProfileDedicatedSyscalls(t *testing.T) {
 		chroot = chroot || strings.Contains(anomaly.json, `"chroot"`)
 	}
 	assert.True(t, chroot, "a new syscall should trigger an anomaly: %+v", anomalies)
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedSyscallsReporting)
+
+// TestWorkloadProfileDedicatedSyscallsReporting checks that the syscalls of a process land on its process node when they
+// are reported while it runs, and when it execs, and that a syscall used again is refreshed. The report on exit is
+// checked by TestWorkloadProfileDedicatedSyscalls.
+func TestWorkloadProfileDedicatedSyscallsReporting(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+	checkKernelCompatibility(t, "Missing bpf_for_each_map_elem helper", func(kv *kernel.Version) bool {
+		return !kv.HasBPFForEachMapElemHelper()
+	})
+
+	const (
+		refreshPeriod   = time.Second
+		syscallInterval = 3 * time.Second
+	)
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.workloadProfileEventTypes = []string{"exec", "syscalls"}
+	opts.securityProfileSampleRefreshPeriod = refreshPeriod
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// each subtest gets its own image, and so its own profile
+	t.Run("running-process", func(t *testing.T) {
+		dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "latest")
+
+		// the process still sleeps when its syscalls are checked, so they can only come from the
+		// periodic report
+		cmd := dockerInstance.Command(workloadProfileSyscallTester, []string{"prctl-setname", "sampled", ";", "sleep", "30"}, nil)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}()
+
+		expectProfileSyscalls(t, test, selector, func(syscalls profileSyscalls) error {
+			return syscalls.expect(workloadProfileSyscallTester, model.SysPrctl)
+		})
+	})
+
+	t.Run("exec", func(t *testing.T) {
+		dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "latest")
+
+		// the process execs right after the syscall, before the first periodic report: the syscall
+		// belongs to the node of the process before the exec, not to the executed binary
+		if out, err := dockerInstance.Command(workloadProfileSyscallTester, []string{"prctl-setname", "sampled", ";", "exec", "/bin/true"}, nil).CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v", out, err)
+		}
+
+		expectProfileSyscalls(t, test, selector, func(syscalls profileSyscalls) error {
+			if err := syscalls.expect(workloadProfileSyscallTester, model.SysPrctl, model.SysExecve); err != nil {
+				return err
+			}
+			if err := syscalls.expect("/bin/true", model.SysExitGroup); err != nil {
+				return err
+			}
+			if syscalls["/bin/true"][int(model.SysPrctl)] {
+				return errors.New("prctl was reported on the node of the executed binary")
+			}
+			return nil
+		})
+	})
+
+	t.Run("refresh", func(t *testing.T) {
+		dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "latest")
+
+		// the second round uses no new syscall and the process exits after the profile checks: only the refresh can
+		// report the second prctl
+		args := []string{"prctl-setname", "first", ";", "sleep", strconv.Itoa(int(syscallInterval.Seconds())), ";", "prctl-setname", "second", ";", "sleep", "60"}
+		cmd := dockerInstance.Command(workloadProfileSyscallTester, args, nil)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}()
+
+		p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+			firstSeen, lastSeen, found := profileSyscallSeenTimes(p, workloadProfileSyscallTester, model.SysPrctl, "latest")
+			return found && lastSeen.Sub(firstSeen) >= refreshPeriod
+		})
+		if err != nil {
+			if p == nil {
+				t.Fatal(err)
+			}
+			firstSeen, lastSeen, found := profileSyscallSeenTimes(p, workloadProfileSyscallTester, model.SysPrctl, "latest")
+			t.Fatalf("the second prctl should refresh the last seen timestamp of the syscall (found: %v, first seen: %s, last seen: %s): %v", found, firstSeen, lastSeen, err)
+		}
+	})
 }
 
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedDifferentiateArgs)
@@ -619,6 +728,8 @@ func TestWorkloadProfileDedicatedWaitFirstPersistence(t *testing.T) {
 	storageDir := t.TempDir()
 	opts := workloadProfileTestOpts(storageDir, tagger)
 	opts.profileReportingWaitPersistence = true
+	// the container runtime can exhaust the global open sampling rate before the test opens its file
+	opts.eventSamplingOpenRateUnlimited = true
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
@@ -842,4 +953,168 @@ func TestWorkloadProfileDedicatedNodeEviction(t *testing.T) {
 			assert.True(t, et.hasAnomalyFor(anomalies, "known"), "an evicted %s activity should trigger an anomaly again", et.name)
 		})
 	}
+}
+
+// Path patterns
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedPathPatternsInsert)
+
+// TestWorkloadProfileDedicatedPathPatternsInsert checks that the siblings of a directory with more children than the
+// insert-time threshold are merged into a pattern node, and that a new sibling matching the pattern is known.
+func TestWorkloadProfileDedicatedPathPatternsInsert(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	// the merge needs every open of the family: none can be dropped by the open sampling rate
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+	const dir = "/tmp/wp-patterns"
+	mkdirInContainer(t, dockerInstance, dir)
+
+	var family []string
+	for i := 1; i <= activity_tree.DefaultPathPatternConfig().MaxChildren+1; i++ {
+		family = append(family, fmt.Sprintf("%s/sess-%d", dir, i))
+	}
+	runUntilSentinel(t, test, dockerInstance, openInContainer(dockerInstance, family...), nil)
+
+	p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		pattern := profileDirChildren(p, dir)["sess-<num>"]
+		return pattern != nil && pattern.IsPattern
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, []string{"sess-<num>"}, slices.Sorted(maps.Keys(profileDirChildren(p, dir))), "every sibling should be merged into the pattern node")
+
+	anomalies := collectAnomalies(t, test, openInContainer(dockerInstance, dir+"/sess-42"), dockerInstance)
+	assert.False(t, hasOpenAnomaly(anomalies, dir+"/sess-42"), "a new sibling matching the pattern shouldn't trigger an anomaly")
+
+	anomalies = collectAnomalies(t, test, openInContainer(dockerInstance, dir+"/other"), dockerInstance)
+	assert.True(t, hasOpenAnomaly(anomalies, dir+"/other"), "a new sibling not matching the pattern should trigger an anomaly")
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedPathPatternsReload)
+
+// TestWorkloadProfileDedicatedPathPatternsReload checks that the siblings merged when a profile is persisted are still
+// known after a restart, and that a file named like a pattern stays a literal entry, before and after the restart.
+func TestWorkloadProfileDedicatedPathPatternsReload(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	const (
+		jobsDir    = "/tmp/wp-patterns-jobs"
+		literalDir = "/tmp/wp-patterns-literal"
+	)
+	storageDir := t.TempDir()
+	image := newWorkloadProfileImage()
+	newOpts := func(tagger *FakeManualTagger) testOpts {
+		opts := workloadProfileTestOpts(storageDir, tagger)
+		// the merge needs every open of the family: none can be dropped by the open sampling rate
+		opts.eventSamplingOpenRateUnlimited = true
+		return opts
+	}
+
+	// first run: learn a family of siblings and a file named like a pattern, then persist the profile
+	func() {
+		tagger := NewFakeManualTagger()
+		test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(newOpts(tagger)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.CloseTest()
+		syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v1")
+		defer dockerInstance.stop()
+		mkdirInContainer(t, dockerInstance, jobsDir, literalDir)
+
+		runUntilSentinel(t, test, dockerInstance, openInContainer(dockerInstance, jobsDir+"/job-1.log", jobsDir+"/job-2.log", jobsDir+"/job-3.log", literalDir+"/<num>"), nil)
+		if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+			return len(profileDirChildren(p, jobsDir)) == 3 && profileDirChildren(p, literalDir)["<num>"] != nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		anomalies := collectAnomalies(t, test, openInContainer(dockerInstance, literalDir+"/42"), dockerInstance)
+		assert.True(t, hasOpenAnomaly(anomalies, literalDir+"/42"), "a file named like a pattern shouldn't match its siblings")
+
+		m, err := getManagerV2(test)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.PersistAllProfiles()
+		p := getWorkloadProfile(t, test, selector)
+		if p == nil {
+			t.Fatal("no profile after the persistence")
+		}
+		assert.Equal(t, []string{"job-<num>.log"}, slices.Sorted(maps.Keys(profileDirChildren(p, jobsDir))), "the siblings should be merged when the profile is persisted")
+		literal := profileDirChildren(p, literalDir)["<num>"]
+		assert.True(t, literal != nil && !literal.IsPattern, "a file named like a pattern should stay a literal entry")
+	}()
+
+	// second run: the profile is reloaded from the local storage for a new container of the image
+	tagger := NewFakeManualTagger()
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(newOpts(tagger)), withForceReload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v1")
+	mkdirInContainer(t, dockerInstance, jobsDir, literalDir)
+
+	// first: its anomaly shows that the detection runs, so that job-4.log raising none means the pattern was reloaded
+	anomalies := collectAnomalies(t, test, openInContainer(dockerInstance, literalDir+"/43"), dockerInstance)
+	assert.True(t, hasOpenAnomaly(anomalies, literalDir+"/43"), "a file named like a pattern shouldn't match its siblings after the restart")
+
+	anomalies = collectAnomalies(t, test, openInContainer(dockerInstance, jobsDir+"/job-4.log"), dockerInstance)
+	assert.False(t, hasOpenAnomaly(anomalies, jobsDir+"/job-4.log"), "a sibling matching a pattern merged before the restart shouldn't trigger an anomaly")
+}
+
+// mkdirInContainer creates the directories in the container
+func mkdirInContainer(t *testing.T, dockerInstance *dockerCmdWrapper, dirs ...string) {
+	t.Helper()
+	if out, err := dockerInstance.Command("mkdir", append([]string{"-p"}, dirs...), []string{}).CombinedOutput(); err != nil {
+		t.Fatalf("couldn't create %v: %v (%s)", dirs, err, string(out))
+	}
+}
+
+// openInContainer returns an action opening the files, in a single run of the syscall tester of the container
+func openInContainer(dockerInstance *dockerCmdWrapper, paths ...string) func() error {
+	return func() error {
+		args := append([]string{"open"}, paths...)
+		if out, err := dockerInstance.Command(workloadProfileSyscallTester, args, []string{}).CombinedOutput(); err != nil {
+			return fmt.Errorf("%s: %w", string(out), err)
+		}
+		return nil
+	}
+}
+
+// hasOpenAnomaly returns true if one of the anomalies was triggered by an open of path
+func hasOpenAnomaly(anomalies []workloadProfileAnomaly, path string) bool {
+	for _, anomaly := range anomalies {
+		if anomaly.eventType == model.FileOpenEventType && strings.Contains(anomaly.json, path+`"`) {
+			return true
+		}
+	}
+	return false
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from typing import TYPE_CHECKING
 
@@ -44,6 +45,48 @@ def Exit(msg: str):
 
 def is_root():
     return os.getuid() == 0
+
+
+PRIVILEGES_CLI = "/Applications/Privileges.app/Contents/MacOS/PrivilegesCLI"
+
+
+def ensure_sudo_privileges(ctx: Context, reason: str):
+    """
+    On macOS, users may not be allowed to sudo unless they are temporarily granted admin
+    rights through the Privileges app. If the app is installed and the user is not currently
+    an admin, request privileges so that subsequent sudo calls work. No-op everywhere else.
+    """
+    if is_root():
+        return
+    if sys.platform != "darwin" or not os.path.exists(PRIVILEGES_CLI):
+        authenticate_sudo()
+        return
+
+    res = ctx.run("id -Gn", hide=True, warn=True)
+    if res is not None and res.ok and "admin" in res.stdout.split():
+        authenticate_sudo()
+        return
+
+    info(f"[+] Requesting administrator privileges through Privileges app: {reason}")
+    ctx.run(f"'{PRIVILEGES_CLI}' --add --reason '{reason}'")
+    authenticate_sudo()
+
+
+def authenticate_sudo():
+    """
+    Cache sudo credentials up front by running `sudo -v` directly attached to the terminal.
+    invoke's ctx.run mirrors stdin to the child process, which competes with sudo reading the
+    password from the tty: characters get echoed or dropped. Running sudo outside of invoke
+    avoids that. No-op when root, when credentials are already cached, or without a tty.
+    """
+    if is_root():
+        return
+    if subprocess.run(["sudo", "-n", "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+        return
+    if not sys.stdin.isatty():
+        return
+    if subprocess.run(["sudo", "-v"]).returncode != 0:
+        raise Exit("Failed to authenticate with sudo")
 
 
 def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:

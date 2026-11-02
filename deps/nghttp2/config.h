@@ -16,7 +16,8 @@
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
 
-/* Define to 1 if you have the std::atomic_* overloads for std::shared_ptr. */
+/* Define to 1 if you have the std::atomic<std::shared_ptr<T>> is supported.
+   */
 #define HAVE_ATOMIC_STD_SHARED_PTR 1
 
 /* Define to 1 if you have enum bpf_stats_type in linux/bpf.h. */
@@ -28,12 +29,20 @@
 /* Define to 1 if you have the `clock_gettime' function. */
 #define HAVE_CLOCK_GETTIME 1
 
-/* define if the compiler supports basic C++14 syntax */
-#define HAVE_CXX14 1
+/* define if the compiler supports basic C++23 syntax */
+/* #undef HAVE_CXX23 */
+
+/* Define to 1 if you have the declaration of `CLOCK_MONOTONIC', and to 0 if
+   you don't. */
+#define HAVE_DECL_CLOCK_MONOTONIC 1
 
 /* Define to 1 if you have the declaration of `initgroups', and to 0 if you
    don't. */
 #define HAVE_DECL_INITGROUPS 1
+
+/* Define to 1 if you have the declaration of `LIBRESSL_VERSION_NUMBER', and
+   to 0 if you don't. */
+/* #undef HAVE_DECL_LIBRESSL_VERSION_NUMBER */
 
 /* Define to 1 if you have the declaration of `strerror_r', and to 0 if you
    don't. */
@@ -69,14 +78,26 @@
 /* Define to 1 if you have `libbpf` library. */
 /* #undef HAVE_LIBBPF */
 
+/* Define to 1 if you have `libbrotlienc` and `libbrotlidec` libraries. */
+/* #undef HAVE_LIBBROTLI */
+
 /* Define to 1 if you have `libev` library. */
 /* #undef HAVE_LIBEV */
 
 /* Define to 1 if you have `libngtcp2_crypto_boringssl` library. */
 /* #undef HAVE_LIBNGTCP2_CRYPTO_BORINGSSL */
 
+/* Define to 1 if you have `libngtcp2_crypto_libressl` library. */
+/* #undef HAVE_LIBNGTCP2_CRYPTO_LIBRESSL */
+
+/* Define to 1 if you have `libngtcp2_crypto_ossl` library. */
+/* #undef HAVE_LIBNGTCP2_CRYPTO_OSSL */
+
 /* Define to 1 if you have `libngtcp2_crypto_quictls` library. */
 /* #undef HAVE_LIBNGTCP2_CRYPTO_QUICTLS */
+
+/* Define to 1 if you have `libngtcp2_crypto_wolfssl` library. */
+/* #undef HAVE_LIBNGTCP2_CRYPTO_WOLFSSL */
 
 /* Define to 1 if you have `libsystemd` library. */
 /* #undef HAVE_LIBSYSTEMD */
@@ -120,6 +141,9 @@
 /* Define to 1 if you have `neverbleed` library. */
 /* #undef HAVE_NEVERBLEED */
 
+/* Define to 1 if you have the `pipe2' function. */
+/* #undef HAVE_PIPE2 */
+
 /* Define to 1 if the system has the type `ptrdiff_t'. */
 #define HAVE_PTRDIFF_T 1
 
@@ -150,11 +174,11 @@
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
 
+/* Define to 1 if you have the `std::chrono::time_zone`. */
+/* #undef HAVE_STD_CHRONO_TIME_ZONE */
+
 /* Define to 1 if you have the `std::future`. */
 #define HAVE_STD_FUTURE 1
-
-/* Define to 1 if you have the `std::map::emplace`. */
-#define HAVE_STD_MAP_EMPLACE 1
 
 /* Define to 1 if you have the `strchr' function. */
 #define HAVE_STRCHR 1
@@ -189,9 +213,6 @@
 /* Define to 1 if you have `struct tm.tm_gmtoff` member. */
 #define HAVE_STRUCT_TM_TM_GMTOFF 1
 
-/* Define to 1 if you have the <sysinfoapi.h> header file. */
-/* #undef HAVE_SYSINFOAPI_H */
-
 /* Define to 1 if you have the <syslog.h> header file. */
 #define HAVE_SYSLOG_H 1
 
@@ -207,14 +228,8 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #define HAVE_SYS_TYPES_H 1
 
-/* Define to 1 if you have thread_local storage specifier. */
-#define HAVE_THREAD_LOCAL 1
-
 /* Define to 1 if you have the `timegm' function. */
 #define HAVE_TIMEGM 1
-
-/* Define to 1 if you have the <time.h> header file. */
-#define HAVE_TIME_H 1
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
@@ -227,6 +242,12 @@
 
 /* Define to 1 if you have the <wchar.h> header file. */
 #define HAVE_WCHAR_H 1
+
+/* Define to 1 if you have the <windows.h> header file. */
+/* #undef HAVE_WINDOWS_H */
+
+/* Define to 1 if you have 'wolfssl' library. */
+/* #undef HAVE_WOLFSSL */
 
 /* Define to 1 if `fork' works. */
 #define HAVE_WORKING_FORK 1
@@ -259,7 +280,7 @@
 #define PACKAGE_NAME "nghttp2"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "nghttp2 1.58.0"
+#define PACKAGE_STRING "nghttp2 1.70.0"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "nghttp2"
@@ -268,13 +289,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.58.0"
-
-/* The size of `int *', as computed by sizeof. */
-#define SIZEOF_INT_P 8
-
-/* The size of `time_t', as computed by sizeof. */
-#define SIZEOF_TIME_T 8
+#define PACKAGE_VERSION "1.70.0"
 
 /* Define to 1 if all of the C90 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
@@ -373,7 +388,7 @@
 
 
 /* Version number of package */
-#define VERSION "1.58.0"
+#define VERSION "1.70.0"
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

@@ -8,6 +8,41 @@ from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import Color, color_message
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
+# fakeintake is test infrastructure, not the system under test: failing to reach it at the
+# network level (e.g. the VM being briefly unreachable, or fakeintake not listening yet) is
+# an infra flake, not a product bug. Shared with tasks.libs.common.junit_upload_core so the
+# job-log-level classifier here and the JUnit-XML-level classifier there never drift apart.
+#
+# Matches Go's *url.Error text for a fakeintake HTTP call that failed at the network level:
+#   Get "http://10.255.119.230:80/fakeintake/rc/stats": dial tcp 10.255.119.230:80: i/o timeout
+#   Get "http://10.255.98.252:80/fakeintake/payloads?endpoint=/api/v2/series": dial tcp ...: connect: connection refused
+#
+# Anchored on the route prefix rather than by excluding /api/... paths: the Agent's own
+# forwarder errors use /api/... on the same host and must not be swept in, but /api/... also
+# appears inside the ?endpoint= query of a legitimate fakeintake URL (second example above),
+# so only the path segment is a reliable discriminator. /debug/ covers GetLastAPIKey, the one
+# fakeintake client route not under /fakeintake/.
+#
+# The error-side alternation lists what real jobs have produced (i/o timeout, connection
+# refused -- both seen in the same retry loop, so which one surfaces is a timing coin-flip)
+# plus the neighbouring dial, transport and DNS failures of the same "cannot reach
+# fakeintake" class. It is still an enumeration, so a form not listed here is a false
+# negative; only the Go side could decide this on net.Error instead of on text.
+FAKEINTAKE_UNREACHABLE_RE = re.compile(
+    r'"https?://[^"\s]*/(?:fakeintake|debug)/[^"\s]*": [^"\n]*'
+    r'(?:i/o timeout'
+    r'|context deadline exceeded'
+    r'|TLS handshake timeout'
+    r'|connect: connection refused'
+    r'|connection reset by peer'
+    r'|no route to host'
+    r'|no such host)'
+)
+# Produced by test/fakeintake/client's c.get() panic on a read-side timeout. Complementary to
+# the regex above: c.get() is the only path that panics, every other client method returns the
+# bare *url.Error the regex matches.
+FAKEINTAKE_TIMEOUT_PANIC = 'fakeintake call timed out'
+
 
 def get_failed_jobs(pipeline: ProjectPipeline, repo_name: str) -> FailedJobs:
     """
@@ -109,6 +144,15 @@ infra_failure_logs = [
     # End to end tests internal infrastructure failures
     (
         re.compile(r'E2E INTERNAL ERROR'),
+        FailedJobReason.E2E_INFRA_FAILURE,
+    ),
+    # Network-level failure talking to fakeintake: test infra, not the system under test
+    (
+        FAKEINTAKE_UNREACHABLE_RE,
+        FailedJobReason.E2E_INFRA_FAILURE,
+    ),
+    (
+        re.compile(re.escape(FAKEINTAKE_TIMEOUT_PANIC)),
         FailedJobReason.E2E_INFRA_FAILURE,
     ),
 ]

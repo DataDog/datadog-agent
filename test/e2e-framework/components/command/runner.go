@@ -72,6 +72,9 @@ func toLocalCommandArgs(cmdArgs RunnerCommandArgs, config RunnerConfiguration, o
 		Stdin:      args.Stdin,
 		AssetPaths: assetsPath,
 		Dir:        dir,
+		// Keep the last output out of the environment: exec fails with
+		// E2BIG on a string over 128 KiB.
+		AddPreviousOutputInEnv: pulumi.Bool(false),
 	}, nil
 }
 
@@ -90,8 +93,15 @@ func toRemoteCommandArgs(cmdArgs RunnerCommandArgs, config RunnerConfiguration, 
 		Delete:     osCommand.BuildCommandString(args.Delete, args.Environment, args.Sudo, args.RequirePasswordFromStdin, config.user),
 		Triggers:   args.Triggers,
 		Stdin:      args.Stdin,
+		// Keep the last output out of the environment: sshd drops the
+		// connection on a packet over 256 KiB.
+		AddPreviousOutputInEnv: pulumi.Bool(false),
 	}, nil
 }
+
+// ignoreAddPreviousOutputInEnv leaves existing commands alone: a change to the
+// setting would update or replace each one, running its create again.
+var ignoreAddPreviousOutputInEnv = pulumi.IgnoreChanges([]string{"addPreviousOutputInEnv"})
 
 // Transformer is a function that can be used to modify the command name and args.
 // Examples: swapping `args.Delete` with `args.Create`, or adding `args.Triggers`, or editing the name
@@ -226,6 +236,7 @@ func (r *RemoteRunner) Command(name string, args RunnerCommandArgs, opts ...pulu
 		return nil, err
 	}
 
+	opts = utils.MergeOptions(opts, ignoreAddPreviousOutputInEnv)
 	cmd, err := remote.NewCommand(r.e.Ctx(), r.namer.ResourceName("cmd", name), remoteArgs, utils.MergeOptions(r.options, opts...)...)
 
 	if err != nil {
@@ -289,7 +300,7 @@ func (r *LocalRunner) OsCommand() OSCommand {
 }
 
 func (r *LocalRunner) Command(name string, args RunnerCommandArgs, opts ...pulumi.ResourceOption) (Command, error) {
-	opts = utils.MergeOptions[pulumi.ResourceOption](opts, r.e.WithProviders(config.ProviderCommand))
+	opts = utils.MergeOptions[pulumi.ResourceOption](opts, r.e.WithProviders(config.ProviderCommand), ignoreAddPreviousOutputInEnv)
 	localArgs, err := toLocalCommandArgs(args, r.config, r.osCommand)
 	if err != nil {
 		return nil, err

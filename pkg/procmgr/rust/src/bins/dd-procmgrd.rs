@@ -15,20 +15,23 @@ fn main() {
     if let Some(code) = dd_procmgrd::platform::dispatch_internal_console_signal() {
         std::process::exit(code);
     }
-    let result = run();
-    if let Err(e) = result {
-        eprintln!("dd-procmgrd failed: {e:#}");
-        std::process::exit(1);
+    match run() {
+        Ok(0) => {}
+        Ok(code) => std::process::exit(code),
+        Err(e) => {
+            eprintln!("dd-procmgrd failed: {e:#}");
+            std::process::exit(1);
+        }
     }
 }
 
 #[cfg(windows)]
-fn run() -> anyhow::Result<()> {
+fn run() -> anyhow::Result<i32> {
     dd_procmgrd::service::run_as_service()
 }
 
 #[cfg(not(windows))]
-fn run() -> anyhow::Result<()> {
+fn run() -> anyhow::Result<i32> {
     use dd_procmgrd::config::YamlConfigLoader;
     use dd_procmgrd::manager::ProcessManager;
     use dd_procmgrd::uuid_gen::V4UuidGenerator;

@@ -77,7 +77,7 @@ Optionally, you can also set any of:
 
 ```
 DD_TAGS="key:value,key1:value2" # defaults to workspace:${workspace-name} on a Datadog workspace
-DD_HOSTPROFILER_DEBUG='{"verbosity":"detailed"}' # enable debug exporter (basic|normal|detailed|none)
+DD_HOSTPROFILER_DEBUG_EXPORTER_VERBOSITY=detailed # enable debug exporter (basic|normal|detailed)
 DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS='{"x-custom-header":"value"}' # additional HTTP headers on OTLP exporter requests; defaults to workspace metadata on Datadog workspaces
 ```
 
@@ -121,6 +121,8 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 - **`processors.k8s_attributes`**: Kubernetes metadata enrichment (standalone mode)
 - **`exporters.otlp_http`**: Datadog profiling intake endpoint configuration
 - **`extensions.ddprofiling`**: Datadog profiling extension (Agent mode only)
+- **`symbol_uploader.report.interval`**: How often, in seconds, a pending report is flushed. Default `300` (5 minutes), max `86400` (24h)
+- **`symbol_uploader.report.max_paths_per_report`**: Maximum number of sampled binary paths kept per report. Default `100`, max `100000`.
 
 ### Configuration Inference
 

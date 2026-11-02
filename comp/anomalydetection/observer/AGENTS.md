@@ -158,9 +158,12 @@ Only `metrics.CountType` outputs enter fixed-width log count buckets.
 
 ### Non-blocking ingestion
 
-Handles do non-blocking sends to a buffered channel. If the channel is full,
-observations are dropped and counted in Observer telemetry. Analysis never
-back-pressures data ingestion.
+Handles do non-blocking sends to separate metric and log queues, each buffered
+with 1,000 observations (2,000 slots total). If a queue is full, only that
+telemetry kind is dropped and counted in Observer telemetry. One dispatch goroutine consumes both queues
+and owns engine processing; FIFO order is preserved within each queue, but there
+is no shared ordering across metrics and logs. Flush waits for both queues.
+Analysis never back-pressures data ingestion.
 The agent-internal log tap likewise uses a bounded non-blocking handoff before
 performing processing rules, rate limiting, allocation, and `ObserveLog` work,
 so it does not run those operations under the global Agent logger lock.
@@ -283,7 +286,7 @@ dda inv anomalydetection.launch-testbench
 
 # The testbench has no Bazel targets yet; use the legacy task and include
 # the testbench reporter build tag through extra args.
-dda inv test-legacy --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
+dda inv test-legacy --module=internal/anomalydetection/testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.
@@ -296,4 +299,4 @@ bin/anomalydetection-testbench \
 ```
 
 Reads scenarios from `observer/scenarios/`. See
-`internal/qbranch/anomalydetection-testbench/README.md`.
+`internal/anomalydetection/testbench/README.md`.

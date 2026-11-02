@@ -57,7 +57,7 @@ func TestLogHandoffRejectsSourceOnlyAndMinSeverityBeforeSnapshot(t *testing.T) {
 	}
 
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "logs", telemetry: tel, logFilter: filter}
+	h := &handle{logsCh: ch, source: "logs", telemetry: tel, logFilter: filter}
 
 	// Conclusive source-only exclusion rejects before reading status, tags, or content.
 	h.ObserveLog(&sourceOnlyPrecheckLogView{source: "containerd"})
@@ -83,7 +83,7 @@ func TestLogHandoffSnapshotsReusableLogFieldsAndPreservesTagOrder(t *testing.T) 
 	}
 
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "logs", logFilter: filter}
+	h := &handle{logsCh: ch, source: "logs", logFilter: filter}
 
 	callerTags := []string{"zeta:1", "service:api", "alpha:2", "env:prod"}
 	sample := &logObs{
@@ -226,7 +226,7 @@ func TestLogHandoffBackpressureDropsWithoutRecordingOrRateCharge(t *testing.T) {
 
 	ch := make(chan observation, 1)
 	ch <- observation{} // Fill channel
-	h := &handle{ch: ch, source: "logs", telemetry: tel, logFilter: filter}
+	h := &handle{logsCh: ch, source: "logs", telemetry: tel, logFilter: filter}
 
 	h.ObserveLog(&logObs{
 		source:      "containerd",
@@ -293,7 +293,7 @@ anomaly_detection:
 			})
 			require.NoError(t, err)
 			obs := provides.Comp.(*observerImpl)
-			t.Cleanup(func() { close(obs.obsCh) })
+			t.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh) })
 
 			h := obs.GetHandle("logs")
 			// 1. Source-only excluded (precheck).
@@ -323,9 +323,50 @@ anomaly_detection:
 
 func TestObserverFlushCtxHonorsExpiredContext(t *testing.T) {
 	obs := &observerImpl{
-		obsCh: make(chan observation), // unbuffered and no consumer running
+		metricsCh: make(chan observation),
+		logsCh:    make(chan observation), // unbuffered and no consumer running
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.ErrorIs(t, obs.flushCtx(ctx), context.Canceled)
+}
+
+func TestObserverFlushCtxCancellationAfterMetricBarrier(t *testing.T) {
+	obs := &observerImpl{
+		metricsCh: make(chan observation),
+		logsCh:    make(chan observation),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- obs.flushCtx(ctx) }()
+	metricBarrier := <-obs.metricsCh
+	close(metricBarrier.flush)
+	// With no log consumer, cancellation must interrupt the second enqueue.
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+}
+
+func TestObserverFlushCtxCancellationWaitingForLogBarrier(t *testing.T) {
+	obs := &observerImpl{
+		metricsCh: make(chan observation),
+		logsCh:    make(chan observation),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- obs.flushCtx(ctx) }()
+	metricBarrier := <-obs.metricsCh
+	logBarrier := <-obs.logsCh
+	close(metricBarrier.flush)
+	// The metric acknowledgement alone must not complete the flush.
+	select {
+	case err := <-done:
+		t.Fatalf("flush completed before the log barrier was acknowledged: %v", err)
+	default:
+	}
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+	// A cancelled caller does not prevent the worker acknowledging later.
+	close(logBarrier.flush)
 }

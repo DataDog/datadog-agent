@@ -14,8 +14,9 @@ enhancements:
     unseen OS package reads ``LastSeenRunning`` ``0``. Within that window, such
     a package leaves ``LastSeenRunning``, ``HasSetSuidBit`` and
     ``RunningAsRoot`` unset, so its usage reads as unknown. The SBOMs hold the
-    start of the window in the ``UsageObservedSince`` metadata property, and a
-    package database refresh of a container starts a new window.
+    start of the window in the ``datadog:usage:ObservedSince`` metadata
+    property, and a package database refresh of a container starts a new
+    window.
   - |
     With ``sbom.enrichment.usage.enabled`` set, an OS package of the host SBOM
     that system-probe has yet to index, such as one installed or upgraded
