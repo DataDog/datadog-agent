@@ -391,6 +391,8 @@ func TestAllowEnvVarAgentEnvVars(t *testing.T) {
 				"DD_KUBERNETES_KUBELET_NODENAME": true,
 				"DD_SITE":                        true,
 				"DD_TAGS":                        true,
+				"DD_SERVICE":                     true,
+				"DD_VERSION":                     true,
 				"DD_API_KEY":                     false,
 				"DD_CLUSTER_AGENT_AUTH_TOKEN":    false,
 				"DD_CLC_RUNNER_ID":               false,
