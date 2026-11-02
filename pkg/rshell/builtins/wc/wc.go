@@ -280,6 +280,20 @@ func countReader(ctx context.Context, r io.Reader) (counts, error) {
 			c.bytes += int64(n)
 
 			for i := 0; i < len(chunk); {
+				// Fast path: printable non-space ASCII (0x21-0x7E) is always a
+				// width-1 word character, so skip the rune decoding and
+				// Unicode table lookups below. Equivalent to the general
+				// path, just far cheaper on ASCII-heavy input.
+				if b := chunk[i]; b > ' ' && b < 0x7f {
+					i++
+					c.chars++
+					if !inWord {
+						c.words++
+						inWord = true
+					}
+					lineLen++
+					continue
+				}
 				if !utf8.FullRune(chunk[i:]) {
 					// Preserve a split rune even when earlier bytes were invalid.
 					carryN = copy(carry[:], chunk[i:])
