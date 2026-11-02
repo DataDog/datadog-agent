@@ -8,13 +8,16 @@ bazel:package:linux-amd64:
   script:
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION
-    - bazel build //packages/agent/linux:debian //packages/agent/linux:rpm
+    - mkdir -p bazel-profile
+    - bazel build --execution_log_compact_file="$CI_PROJECT_DIR/bazel-profile/execlog.zst" --profile="$CI_PROJECT_DIR/bazel-profile/profile.json.gz" //packages/agent/linux:debian //packages/agent/linux:rpm
     - mkdir -p bazel-packages
     - BAZEL_PACKAGE_BIN="$(bazel info bazel-bin)/packages/agent/linux"
     - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent_*.deb bazel-packages/
     - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent-*.rpm bazel-packages/
   artifacts:
     expire_in: 2 weeks
+    when: always
     paths:
       - bazel-packages/
+      - bazel-profile/
   allow_failure: true
