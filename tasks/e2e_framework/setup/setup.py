@@ -13,13 +13,13 @@ from tasks.e2e_framework.tool import (
     debug,
     error,
     get_aws_cmd,
-    get_pulumi_run_folder,
     get_resource_owner_id,
     info,
     is_windows,
     run_pulumi,
     warn,
 )
+from tasks.libs.build.bazel import bazel
 
 
 def _force_cleanup(
@@ -152,7 +152,7 @@ def setup(
     else:
         install_pulumi(ctx)
 
-    run_pulumi(ctx, "--non-interactive plugin install", project_dir=get_pulumi_run_folder(), hide=True)
+    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.expanduser("~/.pulumi/plugins")}")
     run_pulumi(ctx, "login --local", project_dir=False, hide=True)
     info("✓ Pulumi plugins installed; local backend configured")
 

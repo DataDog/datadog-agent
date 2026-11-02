@@ -584,6 +584,9 @@ include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/pulumi_plugins:pulumi_plugins.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
