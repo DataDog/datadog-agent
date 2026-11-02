@@ -204,9 +204,7 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 	containerIDByConnection := make(map[connKey]*intern.Value, containerIDCount)
 	for i := range conns.Conns {
 		conn := &conns.Conns[i]
-		// a reattributed socket is a proxy's leg on the pod's addresses, so it must not name the pod as the
-		// remote end of the pod's own sockets
-		if !conn.IntraHost || conn.NetNSOriginalContainerID != nil {
+		if !conn.IntraHost {
 			continue
 		}
 		cid := conn.ContainerID.Source

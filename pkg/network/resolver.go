@@ -59,9 +59,7 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 
 	ctrsByConn := make(map[connKey]*intern.Value, conns.Len()/2)
 	conns.Iterate(func(_ int, conn *ConnectionStats) {
-		// a reattributed socket is a proxy's leg on the pod's addresses, so it must not name the pod as the
-		// remote end of the pod's own sockets
-		if conn.ContainerID.Source == nil || conn.NetNSOriginalContainerID != nil {
+		if conn.ContainerID.Source == nil {
 			return
 		}
 		srcCID, _ := conn.ContainerID.Source.Get().(string)

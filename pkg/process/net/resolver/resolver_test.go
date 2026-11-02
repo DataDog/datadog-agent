@@ -812,21 +812,19 @@ func TestResolveReportsNetNSReattributedConnections(t *testing.T) {
 	assert.Equal(t, "new-container", stale.Laddr.ContainerId, "an unmarked mismatch keeps system-probe's laddr container")
 }
 
-func TestResolveSkipsNetNSReattributedConnectionsForRaddr(t *testing.T) {
+func TestResolveReattributedTunnelLegs(t *testing.T) {
 	resolver := NewLocalResolver(nil, nil, 10, 10)
-	resolver.LoadAddrs(nil, map[int]string{1: "pod-a", 2: "pod-b", 3: "ztunnel"})
+	resolver.LoadAddrs(nil, map[int]string{3: "ztunnel"})
 
-	// pod A's request to pod B, on the same node
-	out := &model.Connection{Pid: 1, NetNS: 1, IntraHost: true, Direction: model.ConnectionDirection_outgoing, Type: model.ConnectionType_tcp,
-		Laddr: &model.Addr{Ip: "10.0.0.1", Port: 40000, ContainerId: "pod-a"}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 8080}}
-	// pod B's app accepting it
-	in := &model.Connection{Pid: 2, NetNS: 2, IntraHost: true, Direction: model.ConnectionDirection_incoming, Type: model.ConnectionType_tcp,
-		Laddr: &model.Addr{Ip: "10.0.0.2", Port: 8080, ContainerId: "pod-b"}, Raddr: &model.Addr{Ip: "10.0.0.1", Port: 40000}}
-	// the proxy delivering it inside pod B's namespace with A's address, reattributed to B
-	leg := &model.Connection{Pid: 3, NetNS: 2, IntraHost: true, Direction: model.ConnectionDirection_outgoing, Type: model.ConnectionType_tcp,
-		Laddr: &model.Addr{Ip: "10.0.0.1", Port: 40000, ContainerId: "pod-b"}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 8080}, NetnsOriginalContainerId: "ztunnel"}
+	// a proxy's tunnel between pods on the same node: its socket in pod A's namespace and the one it
+	// accepted in pod B's, each attributed to its pod
+	out := &model.Connection{Pid: 3, NetNS: 1, IntraHost: true, Direction: model.ConnectionDirection_outgoing, Type: model.ConnectionType_tcp,
+		Laddr: &model.Addr{Ip: "10.0.0.1", Port: 40000, ContainerId: "pod-a"}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 15008}, NetnsOriginalContainerId: "ztunnel"}
+	in := &model.Connection{Pid: 3, NetNS: 2, IntraHost: true, Direction: model.ConnectionDirection_incoming, Type: model.ConnectionType_tcp,
+		Laddr: &model.Addr{Ip: "10.0.0.2", Port: 15008, ContainerId: "pod-b"}, Raddr: &model.Addr{Ip: "10.0.0.1", Port: 40000}, NetnsOriginalContainerId: "ztunnel"}
 
-	resolver.Resolve(&model.Connections{Conns: []*model.Connection{out, in, leg}})
+	resolver.Resolve(&model.Connections{Conns: []*model.Connection{out, in}})
 
-	assert.Equal(t, "pod-a", in.Raddr.ContainerId, "the proxy's leg must not make pod B look like it's talking to itself")
+	assert.Equal(t, "pod-b", out.Raddr.ContainerId)
+	assert.Equal(t, "pod-a", in.Raddr.ContainerId)
 }

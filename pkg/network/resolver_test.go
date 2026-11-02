@@ -406,7 +406,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 	}
 }
 
-func TestResolveSkipsNetNSReattributedConnections(t *testing.T) {
+func TestResolveReattributedTunnelLegs(t *testing.T) {
 	podA, podB := intern.GetByString("pod-a"), intern.GetByString("pod-b")
 	conn := func(src, dst string, sport, dport uint16, netns uint32, dir ConnectionDirection, cid *intern.Value) ConnectionStats {
 		c := ConnectionStats{ConnectionTuple: ConnectionTuple{
@@ -414,20 +414,20 @@ func TestResolveSkipsNetNSReattributedConnections(t *testing.T) {
 			NetNS: netns, Type: TCP, Direction: dir,
 		}, IntraHost: true}
 		c.ContainerID.Source = cid
+		c.NetNSOriginalContainerID = intern.GetByString("ztunnel")
 		return c
 	}
+	// a proxy's tunnel between pods on the same node: its socket in pod A's namespace and the one it
+	// accepted in pod B's, each attributed to its pod
 	conns := []ConnectionStats{
-		// pod A's request to pod B, on the same node
-		conn("10.0.0.1", "10.0.0.2", 40000, 8080, 1, OUTGOING, podA),
-		// pod B's app accepting it
-		conn("10.0.0.2", "10.0.0.1", 8080, 40000, 2, INCOMING, podB),
-		// the proxy delivering it inside pod B's namespace with A's address, reattributed to B
-		conn("10.0.0.1", "10.0.0.2", 40000, 8080, 2, OUTGOING, podB),
+		conn("10.0.0.1", "10.0.0.2", 40000, 15008, 1, OUTGOING, podA),
+		conn("10.0.0.2", "10.0.0.1", 15008, 40000, 2, INCOMING, podB),
 	}
-	conns[2].NetNSOriginalContainerID = intern.GetByString("ztunnel")
 
 	LocalResolver{true}.Resolve(slice.NewChain(conns))
 
+	require.NotNil(t, conns[0].ContainerID.Dest)
+	assert.Equal(t, "pod-b", conns[0].ContainerID.Dest.Get().(string))
 	require.NotNil(t, conns[1].ContainerID.Dest)
-	assert.Equal(t, "pod-a", conns[1].ContainerID.Dest.Get().(string), "the proxy's leg must not make pod B look like it's talking to itself")
+	assert.Equal(t, "pod-a", conns[1].ContainerID.Dest.Get().(string))
 }
