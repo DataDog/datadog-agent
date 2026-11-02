@@ -1,19 +1,12 @@
-"""Format multi-line package descriptions the way omnibus does.
+"""Format multi-line package descriptions for deb and rpm.
 
-Descriptions are written without indentation in BUILD files. Omnibus project
-descriptions instead indent every continuation line with one space, and its
-packagers handle that literal differently:
+Descriptions are written without indentation in BUILD files. Continuation
+lines are indented so that package managers display them as written instead
+of re-wrapping them:
 
-- deb: the control template prepends another space to each continuation line,
-  so they end up indented by two spaces. Debian displays such lines verbatim
-  instead of word-wrapping them. Blank lines become " .", the Debian paragraph
-  separator.
-- rpm: the description is used as is, keeping the single space indentation,
-  which rpm also treats as verbatim. Blank lines are kept as paragraph
-  separators.
-
-Reproduce these outputs so that Bazel and omnibus packages are displayed the
-same way by package managers.
+- deb: two spaces, since one space would allow re-wrapping. Blank lines
+  become " .", the Debian paragraph separator.
+- rpm: one space. Blank lines are kept as paragraph separators.
 """
 
 def _format(description, indent, blank):
