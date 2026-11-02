@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/serializer
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421
+	github.com/DataDog/agent-payload/v5 v5.0.215
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
@@ -106,7 +106,7 @@ require (
 	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.72.1 // indirect
-	github.com/prometheus/procfs v0.22.0 // indirect
+	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.9 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
