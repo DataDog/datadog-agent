@@ -113,6 +113,7 @@ type PrivateActionRunner struct {
 	executorMu          sync.Mutex // Protects executor startup/cancellation publication.
 	executorStopping    bool
 	executorCleanupOnce sync.Once
+	executorCleanupDone chan struct{}
 	executorCleanupErr  error
 	shutdowner          compdef.Shutdowner
 
@@ -463,8 +464,9 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		// Startup owns these fields until startChan closes, even after cancellation.
 		go func() {
 			<-p.startChan
-			if err := p.cleanupExecutor(ctx); err != nil {
-				p.logger.Errorf("Private action runner executor deferred cleanup failed: %v", err)
+			<-p.startExecutorCleanup(ctx)
+			if p.executorCleanupErr != nil {
+				p.logger.Errorf("Private action runner executor deferred cleanup failed: %v", p.executorCleanupErr)
 			}
 		}()
 		return err
@@ -473,33 +475,53 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) cleanupExecutor(ctx context.Context) error {
+	done := p.startExecutorCleanup(ctx)
+	select {
+	case <-done:
+		return p.executorCleanupErr
+	default:
+	}
+	select {
+	case <-done:
+		return p.executorCleanupErr
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (p *PrivateActionRunner) startExecutorCleanup(ctx context.Context) <-chan struct{} {
 	p.executorCleanupOnce.Do(func() {
-		if p.executorDone != nil {
-			select {
-			case <-p.executorDone:
-				p.logger.Info("Private action runner executor stopped gracefully")
-			case <-ctx.Done():
-				p.logger.Warn("Private action runner executor did not stop in time")
+		p.executorCleanupDone = make(chan struct{})
+		// Only starting the worker is serialized; each caller waits with its own deadline.
+		go func() {
+			defer close(p.executorCleanupDone)
+			if p.executorDone != nil {
+				select {
+				case <-p.executorDone:
+					p.logger.Info("Private action runner executor stopped gracefully")
+				case <-ctx.Done():
+					p.logger.Warn("Private action runner executor did not stop in time")
+				}
 			}
-		}
 
-		// Flush completed spans after draining, or best-effort if the stop deadline expired.
-		// Actions still running after the deadline may finish after the sender stops.
-		p.stopTelemetry()
+			// Flush completed spans after draining, or best-effort if the stop deadline expired.
+			// Actions still running after the deadline may finish after the sender stops.
+			p.stopTelemetry()
 
-		if p.encryptionStore != nil {
-			p.encryptionStore.Stop()
-		}
-		if p.ownsMetricsClient && p.metricsClient != nil {
-			if err := p.metricsClient.Flush(); err != nil {
-				p.executorCleanupErr = errors.Join(p.executorCleanupErr, fmt.Errorf("failed to flush metrics client: %w", err))
+			if p.encryptionStore != nil {
+				p.encryptionStore.Stop()
 			}
-			if err := p.metricsClient.Close(); err != nil {
-				p.executorCleanupErr = errors.Join(p.executorCleanupErr, fmt.Errorf("failed to close metrics client: %w", err))
+			if p.ownsMetricsClient && p.metricsClient != nil {
+				if err := p.metricsClient.Flush(); err != nil {
+					p.executorCleanupErr = errors.Join(p.executorCleanupErr, fmt.Errorf("failed to flush metrics client: %w", err))
+				}
+				if err := p.metricsClient.Close(); err != nil {
+					p.executorCleanupErr = errors.Join(p.executorCleanupErr, fmt.Errorf("failed to close metrics client: %w", err))
+				}
 			}
-		}
+		}()
 	})
-	return p.executorCleanupErr
+	return p.executorCleanupDone
 }
 
 func (p *PrivateActionRunner) start(ctx context.Context) error {

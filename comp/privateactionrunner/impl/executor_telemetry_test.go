@@ -179,6 +179,56 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 	}
 }
 
+func TestConcurrentExecutorStopHonorsEachDeadline(t *testing.T) {
+	metrics := &blockingExecutorMetrics{entered: make(chan struct{}), release: make(chan struct{})}
+	unblock := sync.OnceFunc(func() { close(metrics.release) })
+	defer unblock()
+	runner := newStartedRunnerForStopTest(metrics, true)
+	runner.logger = logmock.New(t)
+	first := make(chan error, 1)
+	go func() { first <- runner.StopExecutor(context.Background()) }()
+	select {
+	case <-metrics.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("executor cleanup did not start")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	second := make(chan error, 1)
+	go func() { second <- runner.StopExecutor(ctx) }()
+	var secondErr error
+	returned := false
+	select {
+	case secondErr = <-second:
+		returned = true
+	case <-time.After(time.Second):
+		t.Error("a concurrent stop did not return at its own deadline")
+	}
+	assert.Empty(t, first, "the original cleanup must still wait for the metrics flush")
+	unblock()
+	require.NoError(t, <-first)
+	if !returned {
+		secondErr = <-second
+	}
+	require.ErrorIs(t, secondErr, context.DeadlineExceeded)
+	require.NoError(t, runner.StopExecutor(context.Background()))
+	assert.Equal(t, 1, metrics.flushCalls)
+	assert.Equal(t, 1, metrics.closeCalls)
+}
+
+type blockingExecutorMetrics struct {
+	recordingMetricsClient
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (m *blockingExecutorMetrics) Flush() error {
+	close(m.entered)
+	<-m.release
+	return m.recordingMetricsClient.Flush()
+}
+
 type telemetryTestTransport func(*http.Request) (*http.Response, error)
 
 func (f telemetryTestTransport) RoundTrip(r *http.Request) (*http.Response, error) {
