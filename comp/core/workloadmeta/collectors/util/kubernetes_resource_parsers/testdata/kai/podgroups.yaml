@@ -1,0 +1,236 @@
+apiVersion: v1
+items:
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    annotations:
+      gpu-fraction: '0.5'
+      kai.scheduler/last-start-timestamp: '2026-10-14T14:49:10Z'
+      kai.scheduler/top-owner-metadata: 'name: frac-a
+
+        uid: efc71a63-bdb9-4f0b-b95a-7309efddf661
+
+        group: ""
+
+        version: v1
+
+        kind: Pod
+
+        '
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-a","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      runai/shared-gpu-configmap: frac-a-jb6btbp-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:10Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+    name: pg-frac-a-efc71a63-bdb9-4f0b-b95a-7309efddf661
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-a
+      uid: efc71a63-bdb9-4f0b-b95a-7309efddf661
+    resourceVersion: '18177'
+    uid: 355f982a-d7b8-4ef4-ab6e-232bb97a6ad2
+  spec:
+    minMember: 1
+    priorityClassName: train
+    queue: default-queue
+    topologyConstraint: {}
+  status:
+    resourcesStatus:
+      allocated:
+        nvidia.com/gpu: 500m
+      requested:
+        run.ai/gpu.memory: 7680Mi
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    annotations:
+      gpu-fraction: '0.5'
+      kai.scheduler/last-start-timestamp: '2026-10-14T14:49:11Z'
+      kai.scheduler/top-owner-metadata: 'name: frac-b
+
+        uid: f37a9009-010c-4c5b-8f9f-76df01891491
+
+        group: ""
+
+        version: v1
+
+        kind: Pod
+
+        '
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-b","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      runai/shared-gpu-configmap: frac-b-fwh4zv2-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:10Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+    name: pg-frac-b-f37a9009-010c-4c5b-8f9f-76df01891491
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-b
+      uid: f37a9009-010c-4c5b-8f9f-76df01891491
+    resourceVersion: '18170'
+    uid: f029660c-4694-4372-93e6-205b62391b39
+  spec:
+    minMember: 1
+    priorityClassName: train
+    queue: default-queue
+    topologyConstraint: {}
+  status:
+    resourcesStatus:
+      allocated:
+        nvidia.com/gpu: 500m
+      requested:
+        run.ai/gpu.memory: 7680Mi
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    annotations:
+      gpu-fraction: '0.7'
+      kai.scheduler/last-start-timestamp: '2026-10-14T14:49:11Z'
+      kai.scheduler/top-owner-metadata: 'name: frac-c
+
+        uid: 4eddcbec-8852-40ec-aad6-a9a98454ac83
+
+        group: ""
+
+        version: v1
+
+        kind: Pod
+
+        '
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.7"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-c","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      runai/shared-gpu-configmap: frac-c-xqjzwv7-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:10Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+    name: pg-frac-c-4eddcbec-8852-40ec-aad6-a9a98454ac83
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-c
+      uid: 4eddcbec-8852-40ec-aad6-a9a98454ac83
+    resourceVersion: '18221'
+    uid: e8543427-9186-4619-909a-e5389f37c6f0
+  spec:
+    minMember: 1
+    priorityClassName: train
+    queue: default-queue
+    topologyConstraint: {}
+  status:
+    resourcesStatus:
+      allocated:
+        nvidia.com/gpu: 700m
+      requested:
+        run.ai/gpu.memory: 10752Mi
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    annotations:
+      gpu-fraction: '0.5'
+      kai.scheduler/last-start-timestamp: '2026-10-14T15:02:27Z'
+      kai.scheduler/top-owner-metadata: 'name: frac-cuda
+
+        uid: 8dc5dc63-8264-449a-9264-8954b267391d
+
+        group: ""
+
+        version: v1
+
+        kind: Pod
+
+        '
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-cuda","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","while
+        true; do /usr/local/bin/cuda-basic 2000000 10000000 0; done"],"image":"ghcr.io/datadog/apps-cuda-basic:main","name":"gpu-workload"}],"restartPolicy":"Always","schedulerName":"kai-scheduler"}}
+
+        '
+      runai/shared-gpu-configmap: frac-cuda-z658g79-shared-gpu
+    creationTimestamp: '2026-10-14T15:02:27Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+    name: pg-frac-cuda-8dc5dc63-8264-449a-9264-8954b267391d
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-cuda
+      uid: 8dc5dc63-8264-449a-9264-8954b267391d
+    resourceVersion: '20327'
+    uid: 393e6d77-5f5b-4490-9a20-d30588916a7f
+  spec:
+    minMember: 1
+    priorityClassName: train
+    queue: default-queue
+    topologyConstraint: {}
+  status:
+    resourcesStatus:
+      allocated:
+        nvidia.com/gpu: 500m
+      requested:
+        run.ai/gpu.memory: 7680Mi
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    annotations:
+      gpu-fraction: '0.5'
+      gpu-fraction-num-devices: '2'
+      kai.scheduler/last-start-timestamp: '2026-10-14T14:49:11Z'
+      kai.scheduler/top-owner-metadata: 'name: frac-multi
+
+        uid: 0d8f15f1-5dd6-45ee-90e2-17d3e0c2e310
+
+        group: ""
+
+        version: v1
+
+        kind: Pod
+
+        '
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5","gpu-fraction-num-devices":"2"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-multi","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      runai/shared-gpu-configmap: frac-multi-76m6zln-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:10Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+    name: pg-frac-multi-0d8f15f1-5dd6-45ee-90e2-17d3e0c2e310
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-multi
+      uid: 0d8f15f1-5dd6-45ee-90e2-17d3e0c2e310
+    resourceVersion: '18250'
+    uid: 78b5f889-00a6-4e3d-9a51-f729359ce029
+  spec:
+    minMember: 1
+    priorityClassName: train
+    queue: default-queue
+    topologyConstraint: {}
+  status:
+    resourcesStatus:
+      allocated:
+        nvidia.com/gpu: 500m
+      requested:
+        run.ai/gpu.memory: 15Gi
+kind: List
+metadata:
+  resourceVersion: ''

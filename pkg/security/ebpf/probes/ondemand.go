@@ -20,6 +20,15 @@ func GetOnDemandProbes() []*manager.Probe {
 	}
 }
 
+// GetOnDemandFuncNames returns the names of the on-demand programs, which are cloned at runtime
+func GetOnDemandFuncNames() []string {
+	var funcNames []string
+	for _, probe := range GetOnDemandProbes() {
+		funcNames = append(funcNames, probe.EBPFFuncName)
+	}
+	return funcNames
+}
+
 // GetOnDemandRegularProbe returns the on-demand probe used for regular (non-sycall) function hooking
 func GetOnDemandRegularProbe() *manager.Probe {
 	return &manager.Probe{

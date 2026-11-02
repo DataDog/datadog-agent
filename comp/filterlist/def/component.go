@@ -11,7 +11,7 @@ package filterlist
 
 // team: agent-metric-pipelines
 
-import "github.com/DataDog/datadog-agent/pkg/util/metricname"
+import "github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 
 // Component is the component type
 type Component interface {
