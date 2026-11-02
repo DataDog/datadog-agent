@@ -53,24 +53,23 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, i
     event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
-    int size_to_sent = syscall->setsockopt.filter_size_to_send;
-    if (size_to_sent >= MAX_BPF_FILTER_SIZE) {
-        size_to_sent = MAX_BPF_FILTER_SIZE;
-        if (bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, syscall->setsockopt.filter) < 0) {
-            size_to_sent = 0;
+    // Pass the bounds-checked local to bpf_probe_read and keep it dead after the
+    // call: otherwise clang reloads it or copies it before the check, and older
+    // verifiers (e.g. 4.14) then see a size that may be 0.
+    event->sent_size = 0;
+    u32 filter_size = syscall->setsockopt.filter_size_to_send;
+    if (filter_size >= MAX_BPF_FILTER_SIZE) {
+        if (bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, syscall->setsockopt.filter) == 0) {
+            event->sent_size = MAX_BPF_FILTER_SIZE;
         }
     }
-    else if (size_to_sent >= sizeof(struct sock_filter)) {
-        if (bpf_probe_read(&event->bpf_filters_buffer, size_to_sent, syscall->setsockopt.filter) < 0) {
-            size_to_sent = 0;
+    else if (filter_size >= sizeof(struct sock_filter)) {
+        event->sent_size = filter_size;
+        if (bpf_probe_read(&event->bpf_filters_buffer, filter_size, syscall->setsockopt.filter) < 0) {
+            event->sent_size = 0;
         }
-    }
-    else {
-        size_to_sent = 0;
     }
     pop_syscall(EVENT_SETSOCKOPT);
-
-    event->sent_size = size_to_sent;
 
     // The span context is attached and the event emitted (with its partial
     // header+filter size, read back from event->sent_size) by the setsockopt
