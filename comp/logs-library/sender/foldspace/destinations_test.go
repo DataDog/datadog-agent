@@ -144,6 +144,38 @@ func TestDDURLOverridesMainOnly(t *testing.T) {
 	assert.Equal(t, "extra.example:443", dest.Senders[1].Address)
 }
 
+// Intake routing hands the builder endpoints whose hosts it has moved. Foldspace
+// dials the routed hosts with the endpoints' own keys, a routed port of 0 is the
+// HTTPS default, and foldspace.dd_url still decides the main host.
+func TestIntakeRoutingMovesSenders(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 32)
+	cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+
+	main := config.NewEndpoint("0123456789abcdef", "api_key", "main.example", 443, config.EmptyPathPrefix, true)
+	extra := config.NewEndpoint("fedcba9876543210", "api_key", "extra.example", 443, config.EmptyPathPrefix, true)
+	endpoints := config.NewMockEndpoints([]config.Endpoint{main, extra})
+	endpoints.Main = main
+	routed := endpoints.WithHostOverrides(map[int]config.HostOverride{
+		0: {Host: "routed-main.example", Port: 8443},
+		1: {Host: "routed-extra.example"},
+	})
+
+	dest, err := BuildDestinationConfig(cfg, routed)
+	require.NoError(t, err)
+	require.Len(t, dest.Senders, 2)
+	assert.Equal(t, "routed-main.example:8443", dest.Senders[0].Address)
+	assert.Equal(t, "routed-extra.example:443", dest.Senders[1].Address)
+	assert.Equal(t, "0123456789abcdef", dest.Senders[0].APIKey())
+	assert.Equal(t, "fedcba9876543210", dest.Senders[1].APIKey())
+
+	cfg.SetInTest("logs_config.foldspace.dd_url", "foldspace.internal:9999")
+	dest, err = BuildDestinationConfig(cfg, routed)
+	require.NoError(t, err)
+	assert.Equal(t, "foldspace.internal:9999", dest.Senders[0].Address)
+	assert.Equal(t, "routed-extra.example:443", dest.Senders[1].Address)
+}
+
 func TestStreamLifetimeIgnoresConnectionReset(t *testing.T) {
 	build := func(t *testing.T, reset time.Duration) time.Duration {
 		cfg := configmock.New(t)
