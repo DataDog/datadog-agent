@@ -48,6 +48,14 @@ func (m Mem) Read(addr uint64, buf []byte) error {
 	return nil
 }
 
+// ReadAt is Read as an io.ReaderAt, with the virtual address as the offset.
+func (m Mem) ReadAt(buf []byte, addr int64) (int, error) {
+	if err := m.Read(uint64(addr), buf); err != nil {
+		return 0, err
+	}
+	return len(buf), nil
+}
+
 // ReadUint64 reads one 8-byte native-endian word at addr.
 func (m Mem) ReadUint64(addr uint64) (uint64, error) {
 	var buf [8]byte

@@ -12,5 +12,7 @@ typedef struct {
 } DeviceInfo;
 
 DeviceInfo getDeviceInfo(void);
+// Returns an owned UTF-8 string, or NULL when unavailable. The caller must free it.
+char *copyLocalHostName(void);
 
 #endif

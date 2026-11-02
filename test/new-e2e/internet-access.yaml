@@ -364,6 +364,10 @@ entries:
   function: TestMacosInstallScript
   status: debt
   reason: Fetches the macOS install script from install.datadoghq.com or the dd-agent-macostesting bucket; should use a QA-account mirror.
+- file: test/new-e2e/tests/agent-platform/tests/macos_upgrade_test.go
+  function: TestMacosInstallScriptUpgradeFromStable
+  status: debt
+  reason: Fetches the macOS install script from install.datadoghq.com and the released Agent .dmg it installs before upgrading; should use a QA-account mirror.
 - file: test/new-e2e/tests/agent-platform/tests/package_signing_test.go
   function: TestPackageSigningComponent
   status: debt
