@@ -31,46 +31,6 @@ mkdir -vp $LOG_DIR
 chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
 
-# The installer is root, but the explicit GUI domain makes launchd run the job
-# as that session's user. bootout does not disable jobs, so no enable is needed.
-restore_gui_launchagent() {
-    local uid="$1" label="$2" plist="$3"
-    local disabled attempts state
-    if ! launchctl print "gui/$uid" >/dev/null 2>&1; then
-        echo "# GUI session $uid ended; $label will load at next login"
-        return 0
-    fi
-    if ! disabled=$(launchctl print-disabled "gui/$uid" 2>&1); then
-        echo "WARNING: Could not read disabled state for gui/$uid: $disabled"
-        return 1
-    fi
-    if printf '%s\n' "$disabled" | awk -F '"' -v label="$label" '$2 == label && $3 ~ /=>[[:space:]]*true/ {found=1} END {exit !found}'; then
-        echo "# Preserving disabled service gui/$uid/$label"
-        return 0
-    fi
-
-    attempts=0
-    while [ $attempts -lt 10 ]; do
-        if ! launchctl print "gui/$uid" >/dev/null 2>&1; then
-            echo "# GUI session $uid ended during restoration"
-            return 0
-        fi
-        if ! launchctl print "gui/$uid/$label" >/dev/null 2>&1; then
-            # A concurrent login may already have loaded the new plist.
-            launchctl bootstrap "gui/$uid" "$plist" 2>&1 || true
-        fi
-        state=$(launchctl print "gui/$uid/$label" 2>/dev/null)
-        if printf '%s\n' "$state" | grep -Eq '^[[:space:]]*pid = [0-9]+'; then
-            echo "# Restored gui/$uid/$label"
-            return 0
-        fi
-        sleep 1
-        attempts=$((attempts + 1))
-    done
-    echo "WARNING: GUI service gui/$uid/$label did not start after 10 attempts"
-    return 1
-}
-
 # The stable LaunchDaemons the Agent needs, in load order, and the root-owned directory the package
 # ships plain copies of their definitions in. These copies are the very files the installer embeds
 # (pkg/fleet/installer/packages/embedded/tmpl/gen/darwin), so the fallback below installs exactly
@@ -405,6 +365,19 @@ fi
 chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
 chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
 
+# Load GUI immediately for the console user if they have an active GUI session
+CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || echo 'root')
+CONSOLE_USER_UID=$(id -u "$CONSOLE_USER" 2>/dev/null)
+if [ -n "$CONSOLE_USER_UID" ] && launchctl print "gui/$CONSOLE_USER_UID" >/dev/null 2>&1; then
+    echo "# Loading GUI app for $CONSOLE_USER"
+    launchctl enable "gui/$CONSOLE_USER_UID/com.datadoghq.gui" 2>/dev/null || true
+    if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" /Library/LaunchAgents/com.datadoghq.gui.plist 2>&1; then
+        echo "WARNING: Failed to bootstrap GUI app."
+    fi
+else
+    echo "# No GUI session detected; GUI app will launch at next user login"
+fi
+
 # Remove previous LaunchAgent labels if this package is upgrading an in-branch install.
 rm -f "/Library/LaunchAgents/${OLD_AI_USAGE_DESKTOP_MONITOR_LABEL}.plist"
 rm -f "$CONF_DIR/${OLD_AI_USAGE_DESKTOP_MONITOR_LABEL}.plist.example"
@@ -415,21 +388,19 @@ if [ -f "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" ]; then
     cp -vf "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" "$AI_USAGE_DESKTOP_MONITOR_PLIST"
     chown root:wheel "$AI_USAGE_DESKTOP_MONITOR_PLIST"
     chmod 644 "$AI_USAGE_DESKTOP_MONITOR_PLIST"
+
+    if [ -n "$CONSOLE_USER_UID" ] && launchctl print "gui/$CONSOLE_USER_UID" >/dev/null 2>&1; then
+        echo "# Loading AI Usage Agent desktop monitor for $CONSOLE_USER"
+        launchctl enable "gui/$CONSOLE_USER_UID/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
+        if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" "$AI_USAGE_DESKTOP_MONITOR_PLIST" 2>&1; then
+            echo "WARNING: Failed to bootstrap AI Usage Agent desktop monitor."
+        fi
+    else
+        echo "# No GUI session detected; AI Usage Agent desktop monitor will launch at next user login"
+    fi
 else
     echo "WARNING: AI Usage Agent desktop monitor LaunchAgent template missing at $AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE"
 fi
-
-# Start helpers for logged-in users with a GUI session. Future logins load the
-# installed LaunchAgents automatically.
-for logged_user in $(who | awk '{print $1}' | sort -u); do
-    logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
-    launchctl print "gui/$logged_uid" >/dev/null 2>&1 || continue
-
-    restore_gui_launchagent "$logged_uid" com.datadoghq.gui /Library/LaunchAgents/com.datadoghq.gui.plist
-    if [ -f "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" ]; then
-        restore_gui_launchagent "$logged_uid" "$AI_USAGE_DESKTOP_MONITOR_LABEL" "$AI_USAGE_DESKTOP_MONITOR_PLIST"
-    fi
-done
 
 echo ""
 echo "=========================================="

@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    Restore macOS GUI helpers for logged-in users after Agent upgrades, preventing
-    Wi-Fi collection from remaining unavailable until the next login. Preserve
-    explicitly disabled helpers and also start helpers for new GUI sessions.
+    Fix macOS installer GUI-session detection so the Datadog GUI helper and
+    desktop monitor start for the console user after installation or upgrade
+    when a GUI session exists, including installations run outside a desktop terminal.
