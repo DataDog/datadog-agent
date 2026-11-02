@@ -48,7 +48,9 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
-// Feedback older than this is not evidence of currently connected viewers.
+// rtStatusTTL limits how long a destination's last status remains in the
+// realtime snapshot without a new response. Otherwise, an endpoint that
+// reported active clients before going offline could keep realtime enabled.
 const rtStatusTTL = time.Minute
 
 type rtDestination struct {
@@ -62,7 +64,8 @@ type endpointRTStatus struct {
 	status     *model.CollectorStatus
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// CheckSubmitter forwards queued process check payloads and maintains the
+// latest realtime status reported by each destination.
 type CheckSubmitter struct {
 	log            log.Component
 	queues         []*api.WeightedQueue
@@ -250,7 +253,8 @@ func (s *CheckSubmitter) Start() error {
 		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
-		// Expire stale feedback even when no endpoint responds again.
+		// Check expiration on a timer; an unreachable destination will not send
+		// another response to trigger removal of its last status.
 		rtStatusTicker := time.NewTicker(10 * time.Second)
 		defer rtStatusTicker.Stop()
 
@@ -293,7 +297,8 @@ func (s *CheckSubmitter) Stop() {
 	close(s.rtNotifierChan)
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// GetRTNotifier gives the runner a wake-up signal and access to the latest
+// merged realtime status.
 func (s *CheckSubmitter) GetRTNotifier() *types.RTNotifier {
 	return &types.RTNotifier{
 		Wake:   s.rtNotifierChan,
@@ -301,12 +306,17 @@ func (s *CheckSubmitter) GetRTNotifier() *types.RTNotifier {
 	}
 }
 
+// latestRTStatus returns the newest merged status and its publication sequence.
+// The runner reads it after a wake-up, which may represent several publications.
 func (s *CheckSubmitter) latestRTStatus() types.RTResponse {
 	s.rtStatusMu.Lock()
 	defer s.rtStatusMu.Unlock()
 	return s.latestRTResponse
 }
 
+// consumePayloads submits payloads from one result queue. Connections wait for
+// each response channel to close before submitting the next payload; other
+// checks drain responses asynchronously.
 func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 	for {
 		// results.Poll() will return ok=false when stopped
@@ -354,6 +364,9 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 	}
 }
 
+// drainResponses reads one payload's responses without holding up later
+// submissions. It forwards valid realtime statuses as they arrive and records
+// submission errors once the response channel closes.
 func (s *CheckSubmitter) drainResponses(checkName string, responses <-chan forwarder.Response, generation uint64) {
 	var submissionErrors int64
 	for response := range responses {
@@ -416,8 +429,8 @@ func (s *CheckSubmitter) publishRTStatuses() {
 		}
 	}
 
-	// Publication order is separate from payload generation. A pending wake-up
-	// can be coalesced because the runner reads the newest complete snapshot.
+	// Publication order is separate from payload generation. Pending wake-ups
+	// collapse into one signal; the runner reads the latest complete status.
 	s.latestRTResponse = types.RTResponse{
 		Statuses: statuses,
 		Sequence: s.latestRTResponse.Sequence + 1,
@@ -553,7 +566,7 @@ func (s *CheckSubmitter) heartbeat(heartbeatTicker *time.Ticker) {
 	}
 }
 
-// notifyRTStatusChange coalesces wake-ups without blocking a response drainer.
+// notifyRTStatusChange collapses pending wake-ups into one signal without blocking a response drainer.
 func notifyRTStatusChange(rtNotifierChan chan<- struct{}) {
 	select {
 	case rtNotifierChan <- struct{}{}:

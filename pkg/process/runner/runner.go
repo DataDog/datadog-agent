@@ -83,7 +83,7 @@ type CheckRunner struct {
 	// Submits check payloads to datadog
 	Submitter Submitter
 
-	// Wake-ups are coalesced; read the latest complete status when notified.
+	// Pending wake-ups collapse into one signal; the runner reads the latest status.
 	rtNotifier *types.RTNotifier
 }
 
