@@ -14,7 +14,6 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/api/api/utils",
-        "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
         "//comp/ndmconnectivitycheck/def",
@@ -23,7 +22,6 @@ go_library(
         "//pkg/networkdevice/probe/snmpprobe",
         "//pkg/networkdevices/connectivity",
         "//pkg/util/http",
-        "@org_golang_x_sync//semaphore",
     ],
 )
 
