@@ -83,6 +83,30 @@ func TestReadLocalhostSeccompProfileFromKubeletRoot(t *testing.T) {
 	assert.Equal(t, ActionErrno, res.DefaultAction)
 }
 
+func TestResolveSeccompFilterAfterKubeletRestart(t *testing.T) {
+	proc := t.TempDir()
+	writeKubelet := func(pid string) {
+		dir := filepath.Join(proc, pid, "root", "var/lib/kubelet/seccomp")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "p.json"), []byte(testSeccompProfileJSON), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(proc, pid, "cmdline"), []byte("kubelet\x00"), 0o600))
+	}
+	t.Setenv("HOST_PROC", proc)
+	t.Setenv("HOST_ROOT", "")
+
+	writeKubelet("100")
+	r := &WorkloadmetaResolver{kubelet: findKubelet()}
+	require.NotNil(t, r.kubelet)
+
+	require.NoError(t, os.RemoveAll(filepath.Join(proc, "100")))
+	writeKubelet("200")
+
+	res, err := r.ResolveSeccompFilter(&SeccompProfile{Type: SeccompLocalhost, LocalhostProfile: "p.json"})
+	require.NoError(t, err)
+	assert.Equal(t, ActionErrno, res.DefaultAction)
+	assert.Equal(t, "200", r.kubelet.pid)
+}
+
 func TestReadLocalhostSeccompProfileFromInitRoot(t *testing.T) {
 	proc := t.TempDir()
 	dir := filepath.Join(proc, "1", "root", "var/lib/kubelet/seccomp")

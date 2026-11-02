@@ -265,17 +265,24 @@ func findKubelet() *kubeletInfo {
 		if _, err := strconv.Atoi(e.Name()); err != nil {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(proc, e.Name(), "cmdline"))
-		if err != nil {
-			continue
+		if args, ok := kubeletArgs(e.Name()); ok {
+			return parseKubeletArgs(e.Name(), args)
 		}
-		args := strings.Split(strings.TrimRight(string(data), "\x00"), "\x00")
-		if len(args) == 0 || filepath.Base(args[0]) != "kubelet" {
-			continue
-		}
-		return parseKubeletArgs(e.Name(), args[1:])
 	}
 	return nil
+}
+
+// kubeletArgs returns the arguments of pid if it is a kubelet process.
+func kubeletArgs(pid string) ([]string, bool) {
+	data, err := os.ReadFile(filepath.Join(procDir(), pid, "cmdline"))
+	if err != nil {
+		return nil, false
+	}
+	args := strings.Split(strings.TrimRight(string(data), "\x00"), "\x00")
+	if filepath.Base(args[0]) != "kubelet" {
+		return nil, false
+	}
+	return args[1:], true
 }
 
 func parseKubeletArgs(pid string, args []string) *kubeletInfo {
