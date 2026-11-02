@@ -8,8 +8,5 @@
 ---
 fixes:
   - |
-    Oracle: Fixed open cursors accumulating in the monitoring session until
-    ``ORA-01000: maximum open cursors exceeded`` after queries exceeded
-    ``query_timeout``. The check now reconnects after a read timeout,
-    a TTC protocol error, or ``ORA-01000`` instead of reusing a connection
-    that can return responses from earlier queries.
+    Oracle: Fixed open cursors accumulating in the monitoring session after
+    queries exceeded ``query_timeout``.
