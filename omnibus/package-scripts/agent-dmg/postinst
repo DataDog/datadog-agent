@@ -19,10 +19,11 @@ AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE="$CONF_DIR/${AI_USAGE_DESKTOP_MONITOR_LAB
 LOG_DIR=/opt/datadog-agent/logs
 
 # Root-only staging directory shared with the install script.
-# Contains env (install-time vars) and saved-conf/ (backup from preinst).
+# Contains env, saved-conf/ and the GUI session snapshot from preinst.
 INSTALL_STAGING_DIR="/private/var/root/datadog-install"
 INSTALL_ENV_FILE="$INSTALL_STAGING_DIR/env"
 SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
+GUI_SESSION_FILE="$INSTALL_STAGING_DIR/gui-session-uids"
 AI_USAGE_CHROME_EXTENSION_ID_DEFAULT="gkmbhgbippkmmmidcikijiblbagbjgjj"
 
 # Let's log the standard outputs of this script
@@ -30,6 +31,120 @@ LOG_FILE="$LOG_DIR/postinstall.log"
 mkdir -vp $LOG_DIR
 chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
+
+# Enumerate process owners, including switched-out GUI users and directory accounts.
+# A UID is only a candidate: the GUI domain, not the installer's bootstrap context
+# (sudo -u ... launchctl managername), determines whether a GUI login exists.
+# Keep this function identical in preinst/postinst; both package hooks are standalone.
+gui_session_uids() {
+    local process_uids uid
+    if ! process_uids=$(ps -axo uid=); then
+        echo "WARNING: Could not discover GUI session candidates" >&2
+        return 1
+    fi
+    for uid in $(printf '%s\n' "$process_uids" | awk '$1 ~ /^[0-9]+$/ && $1 > 0 {print $1}' | sort -un); do
+        if launchctl print "gui/$uid" >/dev/null 2>&1; then
+            echo "$uid"
+        fi
+    done
+}
+
+# Reconcile the snapshot with live sessions. Never use state-file contents as
+# shell code, and validate UIDs before using them as launchctl targets.
+installation_gui_session_uids() {
+    {
+        if [ -f "$GUI_SESSION_FILE" ]; then
+            cat "$GUI_SESSION_FILE"
+        fi
+        gui_session_uids
+    } | awk '$0 ~ /^[0-9]+$/ && $0 > 0 {print $0}' | sort -un
+}
+
+# Probe the same socket as the WLAN check, with its service identity. A valid
+# error response (for example, Location Services denied) still proves the helper
+# is available. Do not request permission or log Wi-Fi data during installation.
+gui_ipc_ready() {
+    sudo -n -u _dd-agent "$INSTALL_DIR/embedded/bin/python3" - "$RUN_DIR/ipc/gui-$1.sock" "$1" <<'PYTHON'
+import json
+import os
+import socket
+import stat
+import sys
+import time
+
+path, uid = sys.argv[1:]
+info = os.stat(path)
+if not stat.S_ISSOCK(info.st_mode) or info.st_uid != int(uid):
+    sys.exit(1)
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+    client.settimeout(1)
+    client.connect(path)
+    client.sendall(b'{"command":"get_wifi_info","request_location_permission":false}\n')
+    deadline = time.monotonic() + 1
+    line = b""
+    while not line.endswith(b"\n") and len(line) <= 4096:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            sys.exit(1)
+        client.settimeout(remaining)
+        chunk = client.recv(4097 - len(line))
+        if not chunk:
+            sys.exit(1)
+        line += chunk
+    if len(line) > 4096 or not line.endswith(b"\n"):
+        sys.exit(1)
+    payload = json.loads(line)
+    sys.exit(0 if isinstance(payload, dict) and isinstance(payload.get("success"), bool) else 1)
+PYTHON
+}
+
+# The installer is root, but the explicit GUI domain makes launchd run the job
+# as that session's user. bootout does not disable jobs, so no enable is needed.
+restore_gui_launchagent() {
+    local uid="$1" label="$2" plist="$3"
+    local disabled attempts state
+    case " $GUI_STOP_FAILED " in
+        *" $uid/$label "*)
+            echo "WARNING: Not restoring gui/$uid/$label because its old registration did not stop"
+            return 1
+            ;;
+    esac
+    if ! launchctl print "gui/$uid" >/dev/null 2>&1; then
+        echo "# GUI session $uid ended; $label will load at next login"
+        return 0
+    fi
+    if ! disabled=$(launchctl print-disabled "gui/$uid" 2>&1); then
+        echo "WARNING: Could not read disabled state for gui/$uid: $disabled"
+        return 1
+    fi
+    if printf '%s\n' "$disabled" | awk -F '"' -v label="$label" '$2 == label && $3 ~ /=>[[:space:]]*true/ {found=1} END {exit !found}'; then
+        echo "# Preserving disabled service gui/$uid/$label"
+        return 0
+    fi
+
+    attempts=0
+    while [ $attempts -lt 10 ]; do
+        if ! launchctl print "gui/$uid" >/dev/null 2>&1; then
+            echo "# GUI session $uid ended during restoration"
+            return 0
+        fi
+        if ! launchctl print "gui/$uid/$label" >/dev/null 2>&1; then
+            # A concurrent login may already have loaded the new plist.
+            launchctl bootstrap "gui/$uid" "$plist" 2>&1 || true
+        fi
+        state=$(launchctl print "gui/$uid/$label" 2>/dev/null)
+        if printf '%s\n' "$state" | grep -Eq '^[[:space:]]*pid = [0-9]+'; then
+            if [ "$label" != "com.datadoghq.gui" ] || gui_ipc_ready "$uid" >/dev/null 2>&1; then
+                echo "# Restored gui/$uid/$label"
+                return 0
+            fi
+        fi
+        sleep 1
+        attempts=$((attempts + 1))
+    done
+    echo "WARNING: GUI service gui/$uid/$label did not become ready after 10 attempts (check launchd and GUI IPC permissions)"
+    return 1
+}
 
 # The stable LaunchDaemons the Agent needs, in load order, and the root-owned directory the package
 # ships plain copies of their definitions in. These copies are the very files the installer embeds
@@ -97,11 +212,23 @@ ls -al "$APP_DIR/Contents/Resources" || true
 # Stop any running GUI instances before installation/upgrade
 # This prevents "Load failed" errors when KeepAlive=true
 echo "# Stopping GUI app if running"
-for logged_user in $(who | awk '{print $1}' | sort -u); do
-    logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
-    launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
-    launchctl bootout "gui/$logged_uid/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
-    launchctl bootout "gui/$logged_uid/$OLD_AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
+mkdir -p "$INSTALL_STAGING_DIR"
+chmod 700 "$INSTALL_STAGING_DIR"
+gui_session_uids >> "$GUI_SESSION_FILE"
+GUI_STOP_FAILED=""
+for logged_uid in $(installation_gui_session_uids); do
+    for gui_label in com.datadoghq.gui "$AI_USAGE_DESKTOP_MONITOR_LABEL" "$OLD_AI_USAGE_DESKTOP_MONITOR_LABEL"; do
+        launchctl bootout "gui/$logged_uid/$gui_label" 2>/dev/null || true
+        attempts=0
+        while [ $attempts -lt 10 ] && launchctl print "gui/$logged_uid/$gui_label" >/dev/null 2>&1; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+        if launchctl print "gui/$logged_uid/$gui_label" >/dev/null 2>&1; then
+            echo "WARNING: GUI service gui/$logged_uid/$gui_label did not unregister"
+            GUI_STOP_FAILED="$GUI_STOP_FAILED $logged_uid/$gui_label"
+        fi
+    done
 done
 
 # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
@@ -365,19 +492,6 @@ fi
 chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
 chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
 
-# Load GUI immediately for the console user if they have an active GUI session
-CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || echo 'root')
-CONSOLE_USER_UID=$(id -u "$CONSOLE_USER" 2>/dev/null)
-if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
-    echo "# Loading GUI app for $CONSOLE_USER"
-    launchctl enable "gui/$CONSOLE_USER_UID/com.datadoghq.gui" 2>/dev/null || true
-    if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" /Library/LaunchAgents/com.datadoghq.gui.plist 2>&1; then
-        echo "WARNING: Failed to bootstrap GUI app."
-    fi
-else
-    echo "# No GUI session detected; GUI app will launch at next user login"
-fi
-
 # Remove previous LaunchAgent labels if this package is upgrading an in-branch install.
 rm -f "/Library/LaunchAgents/${OLD_AI_USAGE_DESKTOP_MONITOR_LABEL}.plist"
 rm -f "$CONF_DIR/${OLD_AI_USAGE_DESKTOP_MONITOR_LABEL}.plist.example"
@@ -389,18 +503,23 @@ if [ -f "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" ]; then
     chown root:wheel "$AI_USAGE_DESKTOP_MONITOR_PLIST"
     chmod 644 "$AI_USAGE_DESKTOP_MONITOR_PLIST"
 
-    if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
-        echo "# Loading AI Usage Agent desktop monitor for $CONSOLE_USER"
-        launchctl enable "gui/$CONSOLE_USER_UID/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
-        if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" "$AI_USAGE_DESKTOP_MONITOR_PLIST" 2>&1; then
-            echo "WARNING: Failed to bootstrap AI Usage Agent desktop monitor."
-        fi
-    else
-        echo "# No GUI session detected; AI Usage Agent desktop monitor will launch at next user login"
-    fi
+
 else
     echo "WARNING: AI Usage Agent desktop monitor LaunchAgent template missing at $AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE"
 fi
+
+# Discover again after installing both plists: existing sessions need explicit
+# registration, while subsequent logins load /Library/LaunchAgents normally.
+GUI_SESSION_UIDS=$(installation_gui_session_uids)
+if [ -z "$GUI_SESSION_UIDS" ]; then
+    echo "# No GUI session detected; GUI app will launch at next user login"
+fi
+for gui_uid in $GUI_SESSION_UIDS; do
+    restore_gui_launchagent "$gui_uid" com.datadoghq.gui /Library/LaunchAgents/com.datadoghq.gui.plist
+    if [ -f "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" ]; then
+        restore_gui_launchagent "$gui_uid" "$AI_USAGE_DESKTOP_MONITOR_LABEL" "$AI_USAGE_DESKTOP_MONITOR_PLIST"
+    fi
+done
 
 echo ""
 echo "=========================================="
