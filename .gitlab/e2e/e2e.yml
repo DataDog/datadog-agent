@@ -91,10 +91,20 @@ new-e2e-containers:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestKindSuite
-      - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+
+# Split out of the new-e2e-containers matrix so it keeps infra-only retries: rerunning re-provisions an EKS cluster
+new-e2e-containers-eks:
+  extends:
+    - .new_e2e_template_needs_container_deploy
+  rules: !reference [.on_container_or_e2e_changes_or_manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64

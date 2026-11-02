@@ -119,6 +119,7 @@
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
+  retry: !reference [.retry_only_infra_failure, retry]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -193,6 +194,12 @@
 
 # -- Test runners
 .kmt_run_tests:
+  retry:
+    max: 2
+    exit_codes: 42
+    when:
+      - job_execution_timeout
+      - runner_system_failure
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2

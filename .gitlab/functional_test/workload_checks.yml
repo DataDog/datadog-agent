@@ -18,6 +18,8 @@ single-machine-performance-workload-checks:
     TOTAL_SAMPLES: 600
     REPLICAS: 5
   allow_failure: true
+  # A rerun would submit another SMP workload
+  retry: !reference [.retry_only_infra_failure, retry]
   script:
     - git fetch origin
     # Setup AWS credentials for single-machine-performance AWS account
