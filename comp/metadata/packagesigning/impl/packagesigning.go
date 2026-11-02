@@ -40,6 +40,11 @@ type Payload struct {
 	UUID      string           `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeSigningMetadata
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -95,7 +100,7 @@ func NewComponent(deps Requires) Provides {
 		hostname:   hname,
 		pkgManager: getPkgManager(),
 	}
-	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json", serializer.PayloadTypeSigningMetadata)
+	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json")
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
 	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)
@@ -161,7 +166,7 @@ func (is *pkgSigning) getData() []signingKey {
 	return nil
 }
 
-func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
+func (is *pkgSigning) getPayload() marshaler.TypedJSONMarshaler {
 
 	return &Payload{
 		Hostname:  is.hostname,

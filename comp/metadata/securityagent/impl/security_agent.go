@@ -44,6 +44,11 @@ type Payload struct {
 	Metadata  map[string]interface{} `json:"security_agent_metadata"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeSecurityAgentMetadata
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -85,7 +90,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		client:   deps.IPCClient,
 	}
-	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json", serializer.PayloadTypeSecurityAgentMetadata)
+	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
 
 	return Provides{
 		Comp:             sa,
@@ -157,7 +162,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 	return metadata
 }
 
-func (sa *secagent) getPayload() marshaler.JSONMarshaler {
+func (sa *secagent) getPayload() marshaler.TypedJSONMarshaler {
 	return &Payload{
 		Hostname:  sa.hostname,
 		Timestamp: time.Now().UnixNano(),

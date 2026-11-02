@@ -97,6 +97,11 @@ func NewEmpty() HostMetadata {
 	}
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *HostMetadata) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeOTelHost
+}
+
 // MarshalJSON implements the JSONMarshaler.MarshalJSON interface
 func (p *HostMetadata) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing

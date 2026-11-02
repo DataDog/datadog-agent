@@ -50,6 +50,11 @@ type Payload struct {
 	UUID        string                 `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.PayloadType {
+	return marshaler.PayloadTypeClusterAgentMetadata
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -101,9 +106,9 @@ func NewComponent(deps Requires) Provides {
 	}
 	dca.initMetadata()
 	if deps.Config.GetBool("enable_cluster_agent_metadata_collection") {
-		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, dca.getPayload, "datadog-cluster-agent.json", serializer.PayloadTypeClusterAgentMetadata)
+		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, dca.getPayload, "datadog-cluster-agent.json")
 	} else {
-		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, nil, dca.getPayload, "datadog-cluster-agent.json", serializer.PayloadTypeClusterAgentMetadata)
+		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, nil, dca.getPayload, "datadog-cluster-agent.json")
 	}
 	return Provides{
 		Comp:             dca,
@@ -111,7 +116,7 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-func (dca *datadogclusteragent) getPayload() marshaler.JSONMarshaler {
+func (dca *datadogclusteragent) getPayload() marshaler.TypedJSONMarshaler {
 
 	return &Payload{
 		Clustername: dca.clustername,
