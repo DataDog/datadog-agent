@@ -950,15 +950,21 @@ func (g *gatedTransport) set(ready, awaiting bool) {
 	g.ready, g.awaiting = ready, awaiting
 }
 
-// streamErrorCore counts the stream errors the driver reports.
+// streamErrorCore counts the stream errors and abandonments the driver reports.
 type streamErrorCore struct {
 	Core
-	errors atomic.Int64
+	errors    atomic.Int64
+	abandoned atomic.Int64
 }
 
 func (c *streamErrorCore) HandleStreamError(sender SenderID, stream StreamID, message string) Progress {
 	c.errors.Add(1)
 	return c.Core.HandleStreamError(sender, stream, message)
+}
+
+func (c *streamErrorCore) HandleStreamAbandoned(sender SenderID, stream StreamID, message string) Progress {
+	c.abandoned.Add(1)
+	return c.Core.HandleStreamAbandoned(sender, stream, message)
 }
 
 func shortenCredentialWait(t *testing.T) {
@@ -980,6 +986,7 @@ func TestDialWaitsForDelegatedAuthKey(t *testing.T) {
 	assert.Never(t, func() bool { return transport.Dials() > 0 || len(sink.ch) > 0 }, 100*time.Millisecond, 5*time.Millisecond,
 		"a sender must not dial before its key is ready")
 	assert.Zero(t, core.errors.Load(), "waiting for a key is not a stream failure")
+	assert.Zero(t, core.abandoned.Load())
 
 	transport.set(true, false)
 	waitPayloads(t, sink, 1)
@@ -987,17 +994,22 @@ func TestDialWaitsForDelegatedAuthKey(t *testing.T) {
 	assert.Zero(t, core.errors.Load())
 }
 
-// A sender whose key will never arrive fails the dial without opening a
-// stream, so the core treats the endpoint as down.
-func TestDialFailsWithoutDelegatedAuthKey(t *testing.T) {
+// A sender whose key will never arrive abandons the dial without opening a
+// stream: like the HTTP destination, it drops its copies without acknowledging
+// them, so nothing reaches the auditor and nothing stays pinned.
+func TestDialAbandonsWithoutDelegatedAuthKey(t *testing.T) {
 	shortenCredentialWait(t)
-	core := &streamErrorCore{Core: NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})}
+	fake := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	core := &streamErrorCore{Core: fake}
 	transport := &gatedTransport{FakeTransport: NewFakeTransport(1)}
 	sink := newChannelSink()
 	d := startDriver(t, core, transport, sink, false)
 
 	d.Offer(testMessage("refused"))
-	require.Eventually(t, func() bool { return core.errors.Load() > 0 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return core.abandoned.Load() > 0 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, fake.IsDrained, 2*time.Second, 5*time.Millisecond,
+		"the abandoned record must be released, not held for a dial that cannot succeed")
+	assert.Zero(t, core.errors.Load(), "no key coming abandons the dial rather than failing it")
 	assert.Zero(t, transport.Dials(), "a sender with no key coming must not dial")
 	assert.Empty(t, sink.ch)
 }

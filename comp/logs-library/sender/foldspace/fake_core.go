@@ -46,6 +46,8 @@ type FakeCore struct {
 	streams   []StreamID
 	streamGen []uint64   // last opened generation, 0 if never opened
 	dialing   []StreamID // the stream an OpenStream asked for and no report has settled, 0 if none
+	// givingUp is set by HandleStreamAbandoned and cleared when a stream opens.
+	givingUp []bool
 
 	queued   [][]queuedSend
 	effects  [][]Effect
@@ -102,6 +104,7 @@ func NewFakeCore(cfg FakeCoreConfig) *FakeCore {
 		streams:         make([]StreamID, n),
 		streamGen:       make([]uint64, n),
 		dialing:         make([]StreamID, n),
+		givingUp:        make([]bool, n),
 		queued:          make([][]queuedSend, n),
 		effects:         make([][]Effect, n),
 		pending:         make(map[uint64]*fakePayload),
@@ -216,6 +219,10 @@ func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64, ro
 	wake := make([]SenderID, 0, len(c.classes))
 	for i := range c.classes {
 		if !route.Contains(SenderID(i)) {
+			continue
+		}
+		if c.givingUp[i] {
+			c.giveUpLocked(SenderID(i), p)
 			continue
 		}
 		c.enqueueSendLocked(SenderID(i), metadataID, body)
@@ -367,6 +374,7 @@ func (c *FakeCore) HandleStreamOpened(sender SenderID, stream StreamID) Progress
 		return c.progressLocked(nil)
 	}
 	c.dialing[sender] = 0
+	c.givingUp[sender] = false
 	c.streams[sender] = stream
 	c.streamGen[sender] = uint64(stream)
 	queued := c.queued[sender]
@@ -513,6 +521,70 @@ func (c *FakeCore) HandleStreamError(sender SenderID, stream StreamID, message s
 		Err:    &CoreError{Kind: StreamFailed, Message: message},
 	}, c.dialLocked(sender, fakeRedialBackoff))
 	return c.progressLocked([]SenderID{sender})
+}
+
+// HandleStreamAbandoned reports that a sender's stream cannot be opened and is
+// not expected to become openable. It fails the stream like HandleStreamError,
+// and the sender gives up every payload it holds, as it does what seals for it
+// until a stream opens. Each is reported dropped, and one a reliable sender held
+// is abandoned at once rather than after its other senders settle it.
+func (c *FakeCore) HandleStreamAbandoned(sender SenderID, stream StreamID, message string) Progress {
+	c.enterSender(sender)
+	defer c.leaveSender(sender)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch {
+	case stream != 0 && stream == c.dialing[sender]:
+		c.dialing[sender] = 0
+	case stream != 0 && stream == c.streams[sender]:
+		c.streamGen[sender] = 0
+		c.streams[sender] = 0
+	default:
+		return c.progressLocked(nil)
+	}
+	c.givingUp[sender] = true
+	c.queued[sender] = nil
+	kept := c.effects[sender][:0]
+	for _, effect := range c.effects[sender] {
+		if effect.Kind == SendBatch {
+			effect.Batch.Release()
+			continue
+		}
+		kept = append(kept, effect)
+	}
+	c.effects[sender] = kept
+	for _, id := range c.order {
+		if p := c.pending[id]; p != nil && p.route.Contains(sender) {
+			c.giveUpLocked(sender, p)
+		}
+	}
+	c.effects[sender] = append(c.effects[sender], Effect{
+		Kind:   ReportError,
+		Sender: sender,
+		Stream: stream,
+		Err:    &CoreError{Kind: StreamFailed, Message: message},
+	}, c.dialLocked(sender, fakeRedialBackoff))
+	return c.progressLocked([]SenderID{sender})
+}
+
+func (c *FakeCore) giveUpLocked(sender SenderID, p *fakePayload) {
+	if p.resolved || p.acked[sender] || p.dropped[sender] {
+		return
+	}
+	p.dropped[sender] = true
+	c.notifications = append(c.notifications, Notification{
+		Kind:      DroppedStats,
+		Sender:    sender,
+		HasSender: true,
+		Records:   1,
+		Bytes:     uint64(len(p.body)),
+	})
+	if c.classes[sender] == Reliable {
+		c.resolveLocked(p, Notification{
+			Kind:        PayloadAbandoned,
+			MetadataIDs: []uint64{p.id},
+		})
+	}
 }
 
 // HandleTimer feeds back a timer the library asked for.

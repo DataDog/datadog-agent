@@ -360,6 +360,13 @@ int foldspace_handle_ack(foldspace_client *client, uint64_t sender_id, uint64_t 
 int foldspace_handle_stream_error(foldspace_client *client, uint64_t sender_id,
                                   uint64_t stream_id, foldspace_str message,
                                   foldspace_progress *progress);
+/* For a stream that cannot be opened and is not expected to become openable,
+ * such as an endpoint with no credential to dial with and none on its way. The
+ * sender gives up everything it holds, whatever its class, and drops what seals
+ * for it until one of its streams opens. */
+int foldspace_handle_stream_abandoned(foldspace_client *client, uint64_t sender_id,
+                                      uint64_t stream_id, foldspace_str message,
+                                      foldspace_progress *progress);
 int foldspace_handle_timer(foldspace_client *client, uint64_t sender_id, uint64_t stream_id,
                            int timer_kind, foldspace_progress *progress);
 

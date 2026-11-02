@@ -170,6 +170,45 @@ func TestNativeAdmissionCodes(t *testing.T) {
 	}
 }
 
+// TestNativeAbandonedDialGivesUpTheRecord abandons the dial a sealed record
+// asked for, as the driver does for an endpoint with no key coming. The
+// library's reliable sender gives the record up rather than keeping it for a
+// reconnect, so it is abandoned and nothing stays pinned, and the sender still
+// redials on backoff.
+func TestNativeAbandonedDialGivesUpTheRecord(t *testing.T) {
+	core, err := NewNativeCore(nativeTestConfig())
+	require.NoError(t, err)
+	t.Cleanup(core.Close)
+
+	admission, _ := core.PushLog(Record{Body: []byte("no key coming"), TimestampMillis: time.Now().UnixMilli()},
+		uint64(time.Now().UnixNano()), 7, AllSenders(1))
+	require.Equal(t, Accepted, admission)
+	flushed, _ := core.Flush()
+	require.Equal(t, Accepted, flushed)
+	opening := core.PollSender(0)
+	require.Len(t, opening, 1)
+	require.Equal(t, OpenStream, opening[0].Kind)
+
+	core.HandleStreamAbandoned(0, opening[0].Stream, errNoCredential.Error())
+	var redial *Effect
+	for _, e := range core.PollSender(0) {
+		if e.Kind == OpenStream {
+			redial = &e
+		}
+	}
+	require.NotNil(t, redial, "an abandoned dial is replaced")
+	require.Positive(t, redial.After, "the redial waits out the backoff")
+
+	var abandoned []uint64
+	for _, n := range core.PollNotifications() {
+		if n.Kind == PayloadAbandoned {
+			abandoned = append(abandoned, n.MetadataIDs...)
+		}
+	}
+	require.Equal(t, []uint64{7}, abandoned)
+	require.True(t, core.IsDrained(), "the abandoned record must not stay pinned")
+}
+
 // nativeTestConfig is complete, because the library validates the config and
 // refuses a zero reconnect backoff, drain timeout, or stream lifetime.
 func nativeTestConfig() Config {

@@ -223,6 +223,14 @@ func (c *nativeCore) HandleStreamError(sender SenderID, stream StreamID, message
 	return p.result()
 }
 
+func (c *nativeCore) HandleStreamAbandoned(sender SenderID, stream StreamID, message string) Progress {
+	var pinner runtime.Pinner
+	defer pinner.Unpin()
+	p := c.progress(&pinner)
+	must(C.foldspace_handle_stream_abandoned(c.client, C.uint64_t(sender), C.uint64_t(stream), pinString(&pinner, message), &p.native))
+	return p.result()
+}
+
 func (c *nativeCore) HandleTimer(sender SenderID, stream StreamID, timer TimerKind) Progress {
 	var pinner runtime.Pinner
 	defer pinner.Unpin()

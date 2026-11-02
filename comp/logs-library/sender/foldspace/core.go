@@ -28,6 +28,7 @@ type Core interface {
 	HandleStreamOpened(sender SenderID, stream StreamID) Progress
 	HandleAck(sender SenderID, stream StreamID, batchID uint32, status int32) Progress
 	HandleStreamError(sender SenderID, stream StreamID, message string) Progress
+	HandleStreamAbandoned(sender SenderID, stream StreamID, message string) Progress
 	HandleTimer(sender SenderID, stream StreamID, timer TimerKind) Progress
 	PollNotifications() []Notification
 	TakeClockAdvance() time.Duration

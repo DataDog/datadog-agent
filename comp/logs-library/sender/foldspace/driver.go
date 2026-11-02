@@ -496,8 +496,9 @@ const (
 // destination holds its payloads. Waiting is not a stream failure: the core
 // sees one slow dial, keeps the sender's work queued, and grows no backoff.
 // A key that will never arrive (the endpoint is disabled until restart, or its
-// directive sits in a setting nothing writes back) fails the dial instead, so
-// the core treats the endpoint as down rather than holding its work forever.
+// directive sits in a setting nothing writes back) abandons the dial instead:
+// the sender gives up its copies without acknowledging them, as the HTTP
+// destination drops them, so the endpoint never holds the other senders back.
 func (d *Driver) awaitCredential(sender SenderID) credentialWait {
 	gate, ok := d.transport.(CredentialGate)
 	if !ok {
@@ -634,7 +635,7 @@ func (d *Driver) senderLoop(sender SenderID) {
 					case credentialStopped:
 						return
 					case credentialUnavailable:
-						progress := d.core.HandleStreamError(sender, effect.Stream, errNoCredential.Error())
+						progress := d.core.HandleStreamAbandoned(sender, effect.Stream, errNoCredential.Error())
 						d.dispatch(progress)
 						continue
 					}
