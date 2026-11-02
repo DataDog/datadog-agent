@@ -50,6 +50,10 @@ profiles:
         preserve_tags:
           - issue_type
           - severity
+      - name: autodiscovery.agent_env_var_resolutions
+        preserve_tags:
+          - env_var
+          - allowed
   schedule:
     start_after: 30
     iterations: 0

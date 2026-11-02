@@ -491,7 +491,9 @@ func GetEnvvar(envVar string, res Resolvable) (string, error) {
 		return "", errors.New("envvar name is missing")
 	}
 
-	if !allowEnvVar(envVar) {
+	allowed := allowEnvVar(envVar)
+	recordAgentEnvVarResolution(envVar, allowed)
+	if !allowed {
 		if res != nil {
 			return "", fmt.Errorf("envvar %s is not allowed in check configs, skipping service %s", envVar, res.GetServiceID())
 		}
