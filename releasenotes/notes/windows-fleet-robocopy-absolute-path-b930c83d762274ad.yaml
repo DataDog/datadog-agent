@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Remote configuration changes on Windows now run ``robocopy`` from the Windows
+    system directory instead of looking it up in ``PATH``. This fixes failures on
+    hosts whose ``PATH`` does not include ``System32`` or contains an older
+    ``robocopy`` that does not support ``/SL``.
