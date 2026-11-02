@@ -480,7 +480,16 @@ func readLastBytes(ctx context.Context, callCtx *builtins.CallContext, r io.Read
 			return ctx.Err()
 		}
 		n, readErr := r.Read(tmp)
-		for i := 0; i < n; {
+		i := 0
+		if n > bufSize {
+			// Only the last bufSize bytes of this chunk can survive in the
+			// ring; skip the rest instead of copying them in bufSize-sized
+			// pieces, which is O(n/bufSize) per read and very slow for small
+			// counts on long inputs (e.g. `tail -c 10 /dev/zero`).
+			i = n - bufSize
+			totalWritten += int64(i)
+		}
+		for i < n {
 			pos := int(totalWritten % int64(bufSize))
 			canWrite := min(bufSize-pos, n-i)
 			copy(circ[pos:pos+canWrite], tmp[i:i+canWrite])
