@@ -718,7 +718,20 @@ type observerImpl struct {
 func (o *observerImpl) run() {
 	// One generator per dispatch goroutine; its scratch space is not thread-safe.
 	keyGenerator := NewSliceKeyGenerator()
-	for obs := range o.obsCh {
+	ticker := time.NewTicker(filteredMetricPublishInterval)
+	defer ticker.Stop()
+	for {
+		var obs observation
+		select {
+		case received, ok := <-o.obsCh:
+			if !ok {
+				return
+			}
+			obs = received
+		case <-ticker.C:
+			o.engine.flushFilteredMetrics()
+			continue
+		}
 		if obs.flush != nil {
 			close(obs.flush)
 			continue
@@ -1110,6 +1123,7 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 	}
 	select {
 	case <-done:
+		o.engine.flushFilteredMetrics()
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -1543,6 +1557,19 @@ func (h *handle) publishFilteredMetricsIfDue(now int64) {
 		return
 	}
 
+	if n := h.pendingFilteredSource.Swap(0); n != 0 {
+		h.telemetry.filteredMetrics.Add(float64(n), h.source)
+	}
+	if n := h.pendingFilteredAgent.Swap(0); n != 0 {
+		h.telemetry.filteredMetrics.Add(float64(n), observerdef.AgentNamespace)
+	}
+}
+
+func (h *handle) flushFilteredMetrics() {
+	h.forcePublishFilteredMetrics()
+}
+
+func (h *handle) forcePublishFilteredMetrics() {
 	if n := h.pendingFilteredSource.Swap(0); n != 0 {
 		h.telemetry.filteredMetrics.Add(float64(n), h.source)
 	}

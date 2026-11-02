@@ -1107,6 +1107,40 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
 }
 
+func TestFilteredMetricTelemetryFlushDrainsIdleTail(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	obs := &observerImpl{
+		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		obsCh:                make(chan observation, 1),
+		telemetry:            newObserverTelemetry(telComp),
+		ingestMetricsEnabled: true,
+		metricFilter:         &metricsFilterRules{},
+	}
+	obs.handleFunc = obs.innerHandle
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+
+	h, ok := obs.GetHandle("dogstatsd").(*handle)
+	require.True(t, ok)
+	h.recordFilteredMetric("dogstatsd")
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+
+	// A second rejection inside the interval stays pending until flush.
+	h.recordFilteredMetric("dogstatsd")
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+
+	obs.Flush()
+	requireCounterMetricValueBySource(t, "dogstatsd", 2.0, telComp)
+}
+
 func TestParseAllowedMetricTypes(t *testing.T) {
 	t.Run("empty list allows all types including unknown", func(t *testing.T) {
 		filter, err := parseAllowedMetricTypes(nil)
