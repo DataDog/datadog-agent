@@ -49,6 +49,9 @@ var allocBudgets = []struct {
 	{"TokenizeBorrowed+Retained", 1, func(tok *Tokenizer, line []byte, _, _ []Token) {
 		retainedSink = tok.TokenizeBorrowed(line).Retained()
 	}},
+	{"TokensToString", 1, func(_ *Tokenizer, _ []byte, owned, _ []Token) {
+		stringSink = TokensToString(owned)
+	}},
 	{"IsImportant", 0, func(_ *Tokenizer, _ []byte, owned, _ []Token) {
 		if IsImportant(owned) {
 			benchSink++
@@ -73,6 +76,7 @@ var (
 	ownedSink    []Token
 	indexSink    []int
 	retainedSink BorrowedTokens
+	stringSink   string
 )
 
 // contractLines is perfLines plus two edge cases: an empty line, and a 134 KB
