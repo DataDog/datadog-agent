@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -185,6 +187,17 @@ func TestSetPackageVersionWipesExtensionsOnVersionChange(t *testing.T) {
 	assert.Empty(t, got.Extensions, "extensions should be wiped on version change")
 }
 
+// newTestRegistry starts a local registry stub that rejects every request and counts them.
+func newTestRegistry(t *testing.T) (*httptest.Server, *atomic.Int32) {
+	hits := &atomic.Int32{}
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(s.Close)
+	return s, hits
+}
+
 // TestInstallGroupsByRegistry verifies that Install correctly groups extensions
 // by registry, downloading from overridden registries where configured.
 func TestInstallGroupsByRegistry(t *testing.T) {
@@ -206,24 +219,27 @@ func TestInstallGroupsByRegistry(t *testing.T) {
 	require.NoError(t, err)
 	db.Close()
 
-	downloader := oci.NewDownloader(&env.Env{}, http.DefaultClient)
+	// Both groups point at local stubs that reject every request.
+	defaultRegistry, defaultHits := newTestRegistry(t)
+	overrideRegistry, overrideHits := newTestRegistry(t)
+	downloader := oci.NewDownloader(&env.Env{RegistryOverride: defaultRegistry.URL}, http.DefaultClient)
 	overrides := map[string]ExtensionRegistry{
 		"ddot": {
-			URL:      "custom.registry.com",
+			URL:      overrideRegistry.URL,
 			Auth:     "password",
 			Username: "user",
 			Password: "pass",
 		},
 	}
 
-	// Install will fail due to no real registry, but we can verify the function
-	// accepts overrides without panic and attempts to download.
 	err = Install(ctx, downloader, "oci://install.datadoghq.com/agent-package:7.50.0-1",
 		[]string{"ddot", "other-ext"}, false, hooks, overrides)
 
-	// We expect download errors (no real registry), not a panic or grouping error.
+	// Each group tries its own registry; we expect download errors, not a panic or grouping error.
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not download package")
+	assert.NotZero(t, defaultHits.Load(), "default registry was not contacted")
+	assert.NotZero(t, overrideHits.Load(), "override registry was not contacted")
 }
 
 // TestInstallNilOverridesBackwardsCompat verifies that nil overrides work (backwards compat).
@@ -246,15 +262,17 @@ func TestInstallNilOverridesBackwardsCompat(t *testing.T) {
 	require.NoError(t, err)
 	db.Close()
 
-	downloader := oci.NewDownloader(&env.Env{}, http.DefaultClient)
+	registry, hits := newTestRegistry(t)
+	downloader := oci.NewDownloader(&env.Env{RegistryOverride: registry.URL}, http.DefaultClient)
 
 	// nil overrides should work exactly as before
 	err = Install(ctx, downloader, "oci://install.datadoghq.com/agent-package:7.50.0-1",
 		[]string{"ddot"}, false, hooks, nil)
 
-	// Expect download failure (no real registry), not a grouping error
+	// Expect download failure from the local stub, not a grouping error
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not download package")
+	assert.NotZero(t, hits.Load(), "registry was not contacted")
 }
 
 // TestHookErrorPropagation verifies that hook failures are properly propagated

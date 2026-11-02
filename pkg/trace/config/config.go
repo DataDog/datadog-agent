@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -610,6 +611,10 @@ type AgentConfig struct {
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 
+	// DebugServerHost is the loopback address the debug server binds.
+	// Empty and "localhost" use 127.0.0.1, so the default cmd_host does not dial ::1.
+	DebugServerHost string
+
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
@@ -660,6 +665,16 @@ type AgentConfig struct {
 	// APIKeyIsFromSecretFn reports whether an API key value was resolved from a
 	// secret handle (and can therefore be changed by a refresh).
 	APIKeyIsFromSecretFn func(apiKey string) bool `json:"-"`
+}
+
+// DebugServerAddr returns the host:port the debug server binds and that in-process clients dial.
+// "localhost" is rewritten to 127.0.0.1. Dialing the name also tries ::1, which stalls when that address drops SYNs.
+func (c *AgentConfig) DebugServerAddr() string {
+	host := c.DebugServerHost
+	if host == "" || host == "localhost" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, strconv.Itoa(c.DebugServerPort))
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
