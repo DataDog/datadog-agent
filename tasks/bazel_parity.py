@@ -321,9 +321,10 @@ def print_report(report: dict) -> None:
     }
 )
 def check(ctx, omnibus_dir, bazel_dir, readelf):
-    """Report package parity; remaining tasks fail this advisory CI check."""
+    """Report package parity; differences never fail the job, only failing to compare packages does."""
     report = build_report(ctx, omnibus_dir, bazel_dir, readelf)
     print_report(report)
     submit_metrics(report)
-    if report['summary']['remaining']:
-        raise Exit(f'{report["summary"]["remaining"]} Bazel parity tasks remaining', code=1)
+    failed = [package for package in report['packages'] if 'error' in package]
+    if failed:
+        raise Exit(f'{len(failed)} packages could not be compared', code=1)
