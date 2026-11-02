@@ -46,7 +46,7 @@ func TestConnectivityCheckEndpointHandler(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c := newImpl(logmock.New(t), 1)
+			c := newImpl(logmock.New(t))
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, "/agent/networkdevices/connectivity-check", strings.NewReader(tc.body))

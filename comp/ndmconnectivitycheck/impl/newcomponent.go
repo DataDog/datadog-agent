@@ -7,29 +7,20 @@
 package ndmconnectivitycheckimpl
 
 import (
-	"context"
 	"sync"
 
-	"golang.org/x/sync/semaphore"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	ndmconnectivitycheck "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
-// workersConfigKey sizes the interactive probe budget.
-const workersConfigKey = "network_devices.connectivity_check.workers"
-
 // Requires defines the dependencies for the ndmconnectivitycheck component.
 type Requires struct {
 	compdef.In
 
-	Lifecycle compdef.Lifecycle
-	Logger    log.Component
-	Config    config.Component
+	Logger log.Component
 }
 
 // Provides defines the output of the ndmconnectivitycheck component.
@@ -41,32 +32,19 @@ type Provides struct {
 }
 
 type connectivityCheck struct {
-	logger     log.Component
-	maxWorkers int
-	sem        *semaphore.Weighted
+	logger log.Component
 
 	pingOnce sync.Once
 	ping     pingprobe.Capability
 }
 
-func newImpl(logger log.Component, maxWorkers int) *connectivityCheck {
-	if maxWorkers < 1 {
-		maxWorkers = 1
-	}
-	return &connectivityCheck{
-		logger:     logger,
-		maxWorkers: maxWorkers,
-		sem:        semaphore.NewWeighted(int64(maxWorkers)),
-	}
+func newImpl(logger log.Component) *connectivityCheck {
+	return &connectivityCheck{logger: logger}
 }
 
 // NewComponent creates a new ndmconnectivitycheck component.
 func NewComponent(reqs Requires) Provides {
-	comp := newImpl(reqs.Logger, reqs.Config.GetInt(workersConfigKey))
-	reqs.Lifecycle.Append(compdef.Hook{OnStart: func(context.Context) error {
-		comp.pingCapability()
-		return nil
-	}})
+	comp := newImpl(reqs.Logger)
 
 	return Provides{
 		Comp: comp,

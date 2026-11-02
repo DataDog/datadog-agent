@@ -52,18 +52,23 @@ func TestToProbeOptionsMapsPing(t *testing.T) {
 	assert.True(t, opts.Ping.UseRawSocket)
 }
 
-func TestToProbeOptionsLetsTheRequestOverrideTheSocketType(t *testing.T) {
-	useRawSocket := false
-	req := connectivity.Request{
-		Checks:      []string{connectivity.CheckPing},
-		PingOptions: &connectivity.PingOptions{Count: 1, UseRawSocket: &useRawSocket},
-	}
+func TestResolveRawSocketHonorsTheRequestOnLinux(t *testing.T) {
+	useRawSocket := true
 
-	opts, err := toProbeOptions(req, pingprobe.Capability{Available: true, UseRawSocket: true})
+	assert.True(t, resolveRawSocket("linux", false, &useRawSocket))
+}
 
-	require.NoError(t, err)
-	require.NotNil(t, opts.Ping)
-	assert.False(t, opts.Ping.UseRawSocket)
+func TestResolveRawSocketKeepsTheDetectedTypeWhereThePlatformForcesIt(t *testing.T) {
+	udp := false
+	raw := true
+
+	assert.True(t, resolveRawSocket("windows", true, &udp), "windows has no UDP pinger")
+	assert.False(t, resolveRawSocket("darwin", false, &raw), "macOS has no raw pinger")
+}
+
+func TestResolveRawSocketKeepsTheDetectedTypeWithoutAnOverride(t *testing.T) {
+	assert.True(t, resolveRawSocket("linux", true, nil))
+	assert.False(t, resolveRawSocket("linux", false, nil))
 }
 
 func TestToProbeOptionsMapsSNMP(t *testing.T) {

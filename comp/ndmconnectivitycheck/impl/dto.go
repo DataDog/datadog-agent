@@ -8,6 +8,7 @@ package ndmconnectivitycheckimpl
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
@@ -27,15 +28,11 @@ func toProbeOptions(req connectivity.Request, ping pingprobe.Capability) (probe.
 				return probe.Options{}, fmt.Errorf("%w: options are required for ping", connectivity.ErrInvalidRequest)
 			}
 
-			useRawSocket := ping.UseRawSocket
-			if req.PingOptions.UseRawSocket != nil {
-				useRawSocket = *req.PingOptions.UseRawSocket
-			}
 			opts.Ping = &pingprobe.Options{
 				Count:        req.PingOptions.Count,
 				Interval:     time.Duration(req.PingOptions.IntervalMs) * time.Millisecond,
 				Timeout:      time.Duration(req.PingOptions.TimeoutMs) * time.Millisecond,
-				UseRawSocket: useRawSocket,
+				UseRawSocket: resolveRawSocket(runtime.GOOS, ping.UseRawSocket, req.PingOptions.UseRawSocket),
 			}
 		case connectivity.CheckSNMP:
 			if req.SNMPOptions == nil {
@@ -86,6 +83,16 @@ func toSNMPCredentials(creds []connectivity.SNMPCredential) []snmpprobe.Credenti
 }
 
 // toConnectivityResult maps the probe results back to the endpoint's response.
+// resolveRawSocket applies the request's socket-type override only on the
+// platform that offers a choice. Windows has no UDP pinger and macOS no raw
+// one, so there the detected value is the only one that works.
+func resolveRawSocket(goos string, detected bool, override *bool) bool {
+	if goos == "linux" && override != nil {
+		return *override
+	}
+	return detected
+}
+
 func toConnectivityResult(results []probe.Result) connectivity.Result {
 	devices := make([]connectivity.DeviceResult, 0, len(results))
 	for _, r := range results {

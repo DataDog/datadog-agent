@@ -20,26 +20,18 @@ func (c *connectivityCheck) scan(ctx context.Context, req connectivity.Request) 
 		return connectivity.Result{}, err
 	}
 
-	workers := c.workers(req.Workers)
-	if err := c.sem.Acquire(ctx, int64(workers)); err != nil {
-		return connectivity.Result{}, err
-	}
-	defer c.sem.Release(int64(workers))
-
-	results, err := probe.Scan(ctx, workers, req.Targets, opts)
+	results, err := probe.Scan(ctx, workers(req.Workers), req.Targets, opts)
 	if err != nil {
 		return connectivity.Result{}, err
 	}
 	return toConnectivityResult(results), nil
 }
 
-// workers keeps the request's hint inside this agent's interactive budget.
-func (c *connectivityCheck) workers(hint int) int {
+// workers is the request's concurrency, which bounds one check. The number of
+// checks in flight is bounded by the Private Action Runner's task concurrency.
+func workers(hint int) int {
 	if hint < 1 {
 		return 1
-	}
-	if hint > c.maxWorkers {
-		return c.maxWorkers
 	}
 	return hint
 }
