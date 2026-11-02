@@ -14,6 +14,13 @@ def _xz_resource_set(_os, _inputs_size):
 def _xz_compress_impl(ctx):
     src = ctx.file.src
     out = ctx.outputs.out
+
+    # xz doesn't offer a way to specify an arbitrary output path. We either need to:
+    # - Capture stdout, which is only possible with run_shell or bazel-lib's spawn_binary
+    # - Output the compressed file in the same folder as the input, with the extension provided
+    #   with --suffix
+    # We use the 2nd approach for now, this condition ensures the prerequisite are respected.
+    # FIXME(agent-build) switch to ctx.actions.run.stdout once we switch to bazel 10
     if out.dirname != src.dirname or not out.basename.startswith(src.basename) or out.basename == src.basename:
         fail("out (%s) must be next to src (%s) and named after it, with a suffix" % (out.path, src.path))
 
