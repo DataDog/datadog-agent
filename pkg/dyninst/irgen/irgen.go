@@ -802,6 +802,10 @@ type analyzedProbe struct {
 	// a probe issue by populateProbeExpressions.
 	conditionIssue ir.Issue
 
+	// templateIssue is set when a template segment can never evaluate,
+	// so the probe is rejected the same way an equivalent condition is.
+	templateIssue ir.Issue
+
 	// Budget for type exploration.
 	budget uint32
 
@@ -1778,8 +1782,19 @@ func analyzeAllProbes(
 				}
 			}
 
-			// Mark unmatched segments as invalid.
+			// Mark unmatched segments as invalid. On a function probe, a name the
+			// function doesn't declare rejects the probe; a declared but
+			// unreadable variable (register-only float) stays an inline error.
+			// Line probes are exempt: DWARF can omit variables at some lines.
+			isLineProbe := len(inst.Events) == 1 && inst.Events[0].Kind == ir.EventKindLine
 			for name, segs := range segmentRefs {
+				if _, declared := varByName[name]; !declared && !isLineProbe &&
+					!strings.HasPrefix(name, "@") && ap.templateIssue.IsNone() {
+					ap.templateIssue = ir.Issue{
+						Kind:    ir.IssueKindTemplateExpressionUnresolvable,
+						Message: fmt.Sprintf("template references unknown variable %q", name),
+					}
+				}
 				for _, seg := range segs {
 					ap.template.Segments[seg.index] = ir.InvalidSegment{
 						Error: fmt.Sprintf("failed to resolve reference %q", name),
@@ -3696,6 +3711,10 @@ func validateNonOverlappingPCRanges(
 	return nil
 }
 
+// errOldStyleHmap marks map operations dyninst can't do on pre-swiss maps, a
+// toolchain limitation rather than a malformed expression.
+var errOldStyleHmap = errors.New("only swiss maps (Go 1.24+) are supported")
+
 // unsupportedFeatureError is a typed error indicating that a probe uses a
 // feature that we recognise but have not implemented. It propagates from
 // the resolver/emitter up to the Issue-emission sites, where errors.As
@@ -4398,11 +4417,18 @@ func exploreTypesForExpressions(
 			if _, err := exploreExpressionTypes(
 				expr.expr, expr.rootVariable.Type, tc, exprPath,
 			); err != nil {
-				// Mark segment as invalid instead of failing.
 				if expr.segment != nil && ap.template != nil {
 					ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
 						Error: err.Error(),
 						DSL:   expr.dsl,
+					}
+					var unsup *unsupportedFeatureError
+					if !errors.As(err, &unsup) && !errors.Is(err, errOldStyleHmap) &&
+						ap.templateIssue.IsNone() {
+						ap.templateIssue = ir.Issue{
+							Kind:    ir.IssueKindTemplateExpressionUnresolvable,
+							Message: fmt.Sprintf("template segment %q: %v", expr.dsl, err),
+						}
 					}
 				} else {
 					// Capture (non-segment) expression failure. Surface
@@ -4748,7 +4774,7 @@ func exploreExpressionTypes(
 		swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
 		if !ok {
 			if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
-				return nil, errors.New("contains not supported on old-style hmap; only swiss maps (Go 1.24+) are supported")
+				return nil, fmt.Errorf("contains not supported on old-style hmap; %w", errOldStyleHmap)
 			}
 			return nil, fmt.Errorf("contains not supported on map header type %T", headerType)
 		}
@@ -4946,7 +4972,7 @@ func exploreSwissMapIndexTypes(
 	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
 	if !ok {
 		if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
-			return nil, errors.New("index not supported on old-style hmap; only swiss maps (Go 1.24+) are supported")
+			return nil, fmt.Errorf("index not supported on old-style hmap; %w", errOldStyleHmap)
 		}
 		return nil, fmt.Errorf("index not supported on map header type %T", headerType)
 	}
@@ -8007,6 +8033,9 @@ func populateInstanceExpressions(
 	// or exploreTypesForExpressions.
 	if !ap.conditionIssue.IsNone() {
 		return ap.conditionIssue
+	}
+	if !ap.templateIssue.IsNone() {
+		return ap.templateIssue
 	}
 
 	for _, event := range inst.Events {

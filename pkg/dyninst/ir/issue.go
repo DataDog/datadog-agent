@@ -49,6 +49,10 @@ const (
 	// fit in the per-call carry byte (8 bits). The probe is rejected
 	// rather than silently truncated.
 	IssueKindConditionCarryTooLarge
+	// IssueKindTemplateExpressionUnresolvable is an issue that was
+	// encountered when a template segment can never evaluate (e.g., an
+	// unknown variable, a missing struct field, a member access on a map).
+	IssueKindTemplateExpressionUnresolvable
 )
 
 // Issue is an issue that was encountered while processing a probe.

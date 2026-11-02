@@ -113,6 +113,7 @@ probes:
       dsl: "s"
 - id: logProbe_no_snapshot_stringArg_bad_template
   type: LOG_PROBE
+  tags: ["issue:TemplateExpressionUnresolvable"]
   where:
     methodName: main.stringArg
   template: "x: {x}"
@@ -1540,6 +1541,7 @@ probes:
 # len on int (base type — should fail)
 - id: lenErr_int
   type: LOG_PROBE
+  tags: ["issue:TemplateExpressionUnresolvable"]
   captureSnapshot: false
   where:
     methodName: main.lenErrInt
@@ -1573,6 +1575,7 @@ probes:
 # len on struct (structure type — should fail)
 - id: lenErr_struct
   type: LOG_PROBE
+  tags: ["issue:TemplateExpressionUnresolvable"]
   captureSnapshot: false
   where:
     methodName: main.lenErrStruct
@@ -1929,6 +1932,7 @@ probes:
 # Out-of-bounds index on array in template
 - id: indexErr_array_oob_template
   type: LOG_PROBE
+  tags: ["issue:TemplateExpressionUnresolvable"]
   captureSnapshot: false
   where:
     methodName: main.intArrayArg
