@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The system-probe now retries config sync with the core agent for up to
+    30 seconds at startup, instead of 10 seconds. This prevents it from exiting
+    and being restarted when the core agent starts its IPC server late.
