@@ -18,8 +18,13 @@ import (
 // Module enables the Fx initialization spans to be sent to Datadog.
 // The tracer is implemented in pkg/util/fxutil/logging/tracer.go.
 // Traces are sent only when the environment variable DD_FX_TRACING_ENABLED is set to true and this module added to the Fx application.
+// It also exposes the optional tracer for component diagnostics that outlive Fx startup.
 func Module() fxutil.Module {
 	return fxutil.Component(
+		fx.Provide(func(logger fxevent.Logger) *logging.FxTracingLogger {
+			instrumentedLogger, _ := logger.(*logging.FxTracingLogger)
+			return instrumentedLogger
+		}),
 		// No need to call ProvideComponentConstructor because this module is not a component.
 		fx.Invoke(func(logger fxevent.Logger, config config.Component) {
 			if instrumentedLogger, ok := logger.(*logging.FxTracingLogger); ok {

@@ -53,6 +53,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	fxlogging "github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -75,7 +76,8 @@ type Requires struct {
 	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
 	// Without supplied params, preparation stays lazy until LoadAndRun.
-	Params autodiscoverydef.Params `optional:"true"`
+	Params   autodiscoverydef.Params    `optional:"true"`
+	FxTracer *fxlogging.FxTracingLogger `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -187,9 +189,11 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	}()
 
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
-	ac.preparation = &preparation{initialize: func() {
+	ac.preparation = &preparation{tracer: deps.FxTracer, initialize: func() {
 		started := time.Now()
-		ac.prepareDefaults(deps.Config)
+		ctx, span := fxlogging.StartStartupSpan(ac.preparation.traceCtx, "preparation")
+		defer span.Finish(nil)
+		ac.prepareDefaults(ctx, deps.Config)
 		deps.Log.Infof("Autodiscovery setup completed in %s", time.Since(started))
 	}}
 	deps.Lc.Append(compdef.Hook{
@@ -498,14 +502,23 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) error {
 		if err := ac.preparation.wait(ctx); err != nil {
 			return err
 		}
+		ctx = ac.preparation.trace.Context(ctx)
 	}
 	ac.loadRegisteredProviders(ctx)
+	if ac.preparation != nil {
+		ac.preparation.trace.Finish(nil)
+	}
 	return nil
 }
 
 func (ac *AutoConfig) loadRegisteredProviders(ctx context.Context) {
+	ctx, span := fxlogging.StartStartupSpan(ctx, "providers.load")
+	defer span.Finish(nil)
 	for _, cp := range ac.getConfigPollers() {
-		cp.start(ctx, ac)
+		providerCtx, providerSpan := fxlogging.StartStartupSpan(ctx, "provider.load")
+		providerSpan.SetTag("provider", cp.provider.String())
+		cp.start(providerCtx, ac)
+		providerSpan.Finish(nil)
 		if cp.canPoll {
 			log.Infof("Started config provider %q, polled every %s", cp.provider.String(), cp.pollInterval.String())
 		} else {
@@ -625,8 +638,12 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 // try is done synchronously. If a listener fails with a ErrWillRetry, the initialization
 // will be re-triggered later until success or ErrPermaFail.
 func (ac *AutoConfig) AddListeners(listenerConfigs []pkgconfigsetup.Listeners) {
+	ac.addListenersWithContext(context.Background(), listenerConfigs)
+}
+
+func (ac *AutoConfig) addListenersWithContext(ctx context.Context, listenerConfigs []pkgconfigsetup.Listeners) {
 	ac.addListenerCandidates(listenerConfigs)
-	remaining := ac.initListenerCandidates()
+	remaining := ac.initListenerCandidatesWithContext(ctx)
 	if !remaining {
 		return
 	}
@@ -667,10 +684,16 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 }
 
 func (ac *AutoConfig) initListenerCandidates() bool {
+	return ac.initListenerCandidatesWithContext(context.Background())
+}
+
+func (ac *AutoConfig) initListenerCandidatesWithContext(ctx context.Context) bool {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
 	for name, candidate := range ac.listenerCandidates {
+		_, span := fxlogging.StartStartupSpan(ctx, "listener.init")
+		span.SetTag("listener", name)
 		listener, err := candidate.try()
 		switch {
 		case err == nil:
@@ -687,6 +710,7 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 			log.Errorf("%s listener cannot start: %s", name, err)
 			delete(ac.listenerCandidates, name)
 		}
+		span.Finish(err)
 	}
 
 	return len(ac.listenerCandidates) > 0

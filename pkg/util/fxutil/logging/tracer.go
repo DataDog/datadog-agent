@@ -29,18 +29,18 @@ const (
 // This structure is based on the Span proto message in the datadog/trace package.
 // https://github.com/DataDog/datadog-agent/blob/5be2876e3fc36fb1b70c69304bf6876ec90ed016/pkg/proto/pbgo/trace/span.pb.go#L519-L569
 type Span struct {
-	Service  string `json:"service"`
-	Name     string `json:"name"`
-	Resource string `json:"resource"`
-	TraceID  uint64 `json:"trace_id"`
-	SpanID   uint64 `json:"span_id"`
-	ParentID uint64 `json:"parent_id"`
-	Start    int64  `json:"start"`
-	Duration int64  `json:"duration"`
-	Error    int32  `json:"error"`
-	// Meta     map[string]string  `json:"meta,omitempty"`
-	// Metrics  map[string]float64 `json:"metrics,omitempty"`
-	Type string `json:"type,omitempty"`
+	Service  string             `json:"service"`
+	Name     string             `json:"name"`
+	Resource string             `json:"resource"`
+	TraceID  uint64             `json:"trace_id"`
+	SpanID   uint64             `json:"span_id"`
+	ParentID uint64             `json:"parent_id"`
+	Start    int64              `json:"start"`
+	Duration int64              `json:"duration"`
+	Error    int32              `json:"error"`
+	Meta     map[string]string  `json:"meta,omitempty"`
+	Metrics  map[string]float64 `json:"metrics,omitempty"`
+	Type     string             `json:"type,omitempty"`
 }
 
 // FxTracingLogger implements fxevent.Logger interface to capture Fx lifecycle events
@@ -134,12 +134,12 @@ func (l *FxTracingLogger) handleRun(e *fxevent.Run) {
 	}
 
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	// drop the span if the Fx initialization is complete
 	if l.spans == nil {
 		return
 	}
 	l.spans = append(l.spans, span)
-	l.mu.Unlock()
 }
 
 // handleOnStartExecuted captures OnStart hook execution time.
@@ -162,12 +162,12 @@ func (l *FxTracingLogger) handleOnStartExecuted(e *fxevent.OnStartExecuted) {
 	}
 
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	// drop the span if the Fx initialization is complete
 	if l.spans == nil {
 		return
 	}
 	l.spans = append(l.spans, span)
-	l.mu.Unlock()
 }
 
 // handleStarted is called when Fx startup completes.

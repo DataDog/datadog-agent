@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +25,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
@@ -118,6 +121,12 @@ var doOnce sync.Once
 // It reads all configs and caches them in memory for 5 minutes.
 // InitConfigFilesReader should be called at agent startup.
 func InitConfigFilesReader(paths []string) {
+	InitConfigFilesReaderWithContext(context.Background(), paths)
+}
+
+// InitConfigFilesReaderWithContext attaches initial scan diagnostics to an
+// opt-in startup trace. It otherwise behaves like InitConfigFilesReader.
+func InitConfigFilesReaderWithContext(ctx context.Context, paths []string) {
 	readerMu.Lock()
 	defer readerMu.Unlock()
 
@@ -145,7 +154,7 @@ func InitConfigFilesReader(paths []string) {
 
 		// The scrubbed config formats are not needed at startup: skip building them to
 		// speed up the initial scan, they are built when first requested by ReadConfigFormats.
-		reader.readAndCacheAll(false)
+		reader.readAndCacheAllWithContext(ctx, false)
 	})
 }
 
@@ -251,7 +260,17 @@ func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.
 // readAndCacheAll scans the config files and caches the result. The scrubbed config formats are only
 // built (and cached) when withFormats is true.
 func (r *configFilesReader) readAndCacheAll(withFormats bool) ([]integration.Config, map[string]string) {
-	configs, configFormats, errors := r.read(GetAll, withFormats)
+	return r.readAndCacheAllWithContext(context.Background(), withFormats)
+}
+
+func (r *configFilesReader) readAndCacheAllWithContext(ctx context.Context, withFormats bool) ([]integration.Config, map[string]string) {
+	_, span := logging.StartStartupSpan(ctx, "config.scan")
+	defer span.Finish(nil)
+	span.SetTag("config.with_formats", strconv.FormatBool(withFormats))
+	span.AddMetric("config.worker_limit", float64(max(1, pkgconfigsetup.Datadog().GetInt("autoconf_config_files_num_workers"))))
+	configs, configFormats, errors := r.read(GetAll, withFormats, span)
+	span.AddMetric("config.loaded", float64(len(configs)))
+	span.AddMetric("config.errors", float64(len(errors)))
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
 	if withFormats {
@@ -267,7 +286,7 @@ func (r *configFilesReader) readAndCacheAll(withFormats bool) ([]integration.Con
 // read scans paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into integration.Config instances.
 // The scrubbed config formats are only built when withFormats is true.
-func (r *configFilesReader) read(keep FilterFunc, withFormats bool) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
+func (r *configFilesReader) read(keep FilterFunc, withFormats bool, stats *logging.StartupSpan) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
 	integrationErrors := map[string]string{}
 	configs := []integration.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
@@ -277,7 +296,9 @@ func (r *configFilesReader) read(keep FilterFunc, withFormats bool) ([]integrati
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
+		finishEnumerate := stats.Measure("config.enumerate_time_ns")
 		entries, err := os.ReadDir(path)
+		finishEnumerate()
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				log.Debugf("Skipping, %s", err)
@@ -315,10 +336,10 @@ func (r *configFilesReader) read(keep FilterFunc, withFormats bool) ([]integrati
 					fileEntry := entries[i]
 					// We support only one level of nesting for check configs
 					if fileEntry.IsDir() {
-						dirConfigs, dirActions := collectDir(path, fileEntry, withFormats)
+						dirConfigs, dirActions := collectDir(path, fileEntry, withFormats, stats)
 						results[i] = entryResult{isDir: true, dirConfigs: dirConfigs, dirActions: dirActions}
 					} else {
-						entry, entryAction := collectEntry(fileEntry, path, "", withFormats)
+						entry, entryAction := collectEntry(fileEntry, path, "", withFormats, stats)
 						results[i] = entryResult{entry: entry, entryAction: entryAction}
 					}
 				}
@@ -404,7 +425,7 @@ func applyErrorAction(integrationErrors map[string]string, action errorAction) {
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
 // its scrubbed config format is only built when withFormat is true
-func collectEntry(file os.DirEntry, path string, integrationName string, withFormat bool) (configEntry, *errorAction) {
+func collectEntry(file os.DirEntry, path string, integrationName string, withFormat bool, stats *logging.StartupSpan) (configEntry, *errorAction) {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -447,7 +468,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, withFor
 	}
 
 	var err error
-	entry.conf, entry.cfgFormat, err = getIntegrationConfigFromFile(integrationName, absPath, withFormat)
+	entry.conf, entry.cfgFormat, err = getIntegrationConfigFromFile(integrationName, absPath, withFormat, stats)
 	if err != nil {
 		if err.Error() == emptyFileError {
 			log.Debugf("skipping empty file: %s", absPath)
@@ -469,7 +490,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, withFor
 	return entry, &errorAction{name: integrationName, clear: true}
 }
 
-func collectDir(parentPath string, folder os.DirEntry, withFormats bool) (configPkg, []errorAction) {
+func collectDir(parentPath string, folder os.DirEntry, withFormats bool, stats *logging.StartupSpan) (configPkg, []errorAction) {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
 	otherConfigs := []integration.Config{}
@@ -485,7 +506,9 @@ func collectDir(parentPath string, folder os.DirEntry, withFormats bool) (config
 	}
 
 	// search for yaml files within this directory
+	finishEnumerate := stats.Measure("config.enumerate_time_ns")
 	subEntries, err := os.ReadDir(dirPath)
+	finishEnumerate()
 	if err != nil {
 		log.Warnf("Skipping config directory %s: %s", dirPath, err)
 		return configPkg{configs, defaultConfigs, otherConfigs, cfgFormats}, actions
@@ -497,7 +520,7 @@ func collectDir(parentPath string, folder os.DirEntry, withFormats bool) (config
 	// try to load any config file in it
 	for _, sEntry := range subEntries {
 		if !sEntry.IsDir() {
-			entry, action := collectEntry(sEntry, dirPath, integrationName, withFormats)
+			entry, action := collectEntry(sEntry, dirPath, integrationName, withFormats, stats)
 			if action != nil {
 				actions = append(actions, *action)
 			}
@@ -528,18 +551,22 @@ const emptyFileError = "empty file"
 
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
 func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, ConfigFormatWrapper, error) {
-	return getIntegrationConfigFromFile(name, fpath, true)
+	return getIntegrationConfigFromFile(name, fpath, true, nil)
 }
 
 // getIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file.
 // Its scrubbed ConfigFormatWrapper is only built when withFormat is true, an empty one is returned otherwise.
-func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integration.Config, ConfigFormatWrapper, error) {
+func getIntegrationConfigFromFile(name, fpath string, withFormat bool, stats *logging.StartupSpan) (integration.Config, ConfigFormatWrapper, error) {
 	cf := configFormat{}
 	conf := integration.Config{Name: name}
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
+	finishRead := stats.Measure("config.read_time_ns")
 	yamlFile, err := os.ReadFile(fpath)
+	finishRead()
+	stats.AddMetric("config.files", 1)
+	stats.AddMetric("config.bytes", float64(len(yamlFile)))
 	if err != nil {
 		return conf, ConfigFormatWrapper{}, err
 	}
@@ -551,20 +578,26 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 
 	// Parse configuration
 	// Try UnmarshalStrict first, so we can warn about duplicated keys
+	finishParse := stats.Measure("config.parse_time_ns")
 	if strictErr := yaml.UnmarshalStrict(yamlFile, &cf); strictErr != nil {
 		if err := yaml.Unmarshal(yamlFile, &cf); err != nil {
+			finishParse()
 			return conf, ConfigFormatWrapper{}, err
 		}
 		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
+	finishParse()
 
 	var scrubbedConfigFormat string
 	if withFormat {
+		finishFormat := stats.Measure("config.format_time_ns")
 		serializedConfigFormat, err := yaml.Marshal(cf)
 		if err != nil {
+			finishFormat()
 			return conf, ConfigFormatWrapper{}, err
 		}
 		scrubbedConfigFormat, err = scrubber.ScrubYamlString(string(serializedConfigFormat))
+		finishFormat()
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
@@ -650,7 +683,9 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 	if !withFormat {
 		return conf, ConfigFormatWrapper{}, err
 	}
+	finishHash := stats.Measure("config.hash_time_ns")
 	hash := sha256.Sum256([]byte(scrubbedConfigFormat))
+	finishHash()
 
 	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:]), IsDiscovery: cf.Discovery != nil}, err
 }
