@@ -264,6 +264,20 @@ func TestBaseMountNamespaceFromEvent(t *testing.T) {
 		assert.True(t, authoritative)
 	})
 
+	t.Run("anchors on the namespace the workload root had before it unshared", func(t *testing.T) {
+		shell := newProc("/bin/bash", "bash", 5, "", 1)
+		runc := newProc("/usr/bin/runc", "runc", 10, "c1", 50)
+		runc.Ancestor = shell
+		// the root's MntNS followed its unshare, its initial one is the base
+		app := newProc("/app/server", "server", 20, "c1", 200)
+		app.Process.InitialMntNS = 100
+		app.Ancestor = runc
+
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(app))
+		assert.Equal(t, uint32(100), nsID)
+		assert.True(t, authoritative)
+	})
+
 	t.Run("does not cross the workload boundary into host processes", func(t *testing.T) {
 		systemd := newProc("/usr/lib/systemd/systemd", "systemd", 1, "", 1)
 		containerd := newProc("/usr/bin/containerd", "containerd", 5, "", 2)
