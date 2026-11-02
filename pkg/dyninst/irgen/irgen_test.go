@@ -8,11 +8,14 @@
 package irgen
 
 import (
+	"debug/dwarf"
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
 func TestCompileUnitFromNameCases(t *testing.T) {
@@ -53,7 +56,61 @@ func TestCompileUnitFromNameCases(t *testing.T) {
 			require.Equal(t, tc.want, compileUnitFromName(tc.symbol))
 		})
 	}
+}
 
+func TestFollowLineJump(t *testing.T) {
+	file := &dwarf.LineFile{Name: "example.go"}
+	otherFile := &dwarf.LineFile{Name: "other.go"}
+	const addr = uint64(0x100)
+	for _, arch := range []struct {
+		name                               object.Architecture
+		body, conditional, call, backward  string
+		secondMove, afterJump, afterTarget uint64
+	}{
+		// Two moves, a forward jump, padding, and a return.
+		{"amd64", "488b4424084889c3e9070000009090909090909090c3", "7512", "e80f000000", "e9f3ffffff", 5, 13, 21},
+		{"arm64", "e00301aae10302aa030000141f2003d51f2003d51f2003d5c0035fd6", "a0000054", "05000094", "feffff17", 4, 12, 24},
+	} {
+		t.Run(string(arch.name), func(t *testing.T) {
+			decode := func(s string) []byte {
+				b, err := hex.DecodeString(s)
+				require.NoError(t, err)
+				return b
+			}
+			for _, tc := range []struct {
+				name   string
+				change func([]byte, []line) []byte
+				want   uint64
+			}{
+				{"shared line", nil, addr + 20},
+				{"different file", func(b []byte, l []line) []byte { l[4].file = otherFile; return b }, addr},
+				{"different line", func(b []byte, l []line) []byte { l[4].line++; return b }, addr},
+				{"sequence end", func(b []byte, l []line) []byte { l[4].endSequence = true; return b }, addr},
+				{"crosses another line", func(b []byte, l []line) []byte { l[1].line--; return b }, addr},
+				{"conditional branch", func(b []byte, _ []line) []byte { copy(b, decode(arch.conditional)); return b }, addr},
+				{"call", func(b []byte, _ []line) []byte { copy(b, decode(arch.call)); return b }, addr},
+				{"backward jump", func(b []byte, _ []line) []byte { copy(b[8:], decode(arch.backward)); return b }, addr},
+				{"outside function", func(b []byte, _ []line) []byte { return b[:20] }, addr},
+				{"truncated instruction", func(b []byte, _ []line) []byte { return b[:1] }, addr},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					body := decode(arch.body)
+					lines := []line{
+						{pc: addr, line: 93, isStatement: true, file: file},
+						{pc: addr + arch.secondMove, line: 93, file: file},
+						{pc: addr + 8, line: 84, file: file},
+						{pc: addr + arch.afterJump, line: 86, file: file},
+						{pc: addr + 20, line: 93, file: file},
+						{pc: addr + arch.afterTarget, line: 94, file: file},
+					}
+					if tc.change != nil {
+						body = tc.change(body, lines)
+					}
+					require.Equal(t, tc.want, followLineJump(arch.name, addr, addr, body, lines))
+				})
+			}
+		})
+	}
 }
 
 func TestPickLineInjectionPC(t *testing.T) {

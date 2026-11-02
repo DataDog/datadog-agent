@@ -37,6 +37,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -2683,6 +2684,7 @@ type line struct {
 	line        uint32
 	isStatement bool
 	endSequence bool
+	file        *dwarf.LineFile
 }
 
 type lineData struct {
@@ -8507,6 +8509,9 @@ func pickInjectionPoint(
 		if !issue.IsNone() || err != nil {
 			return buf, nil, issue, err
 		}
+		if !inlined {
+			injectionPC = followLineJump(arch, addr, injectionPC, body, lines.lines)
+		}
 		frameless := lines.prologueEnd == 0
 		// Disassemble the function to validate injection PC.
 		_, issue = disassembleFunction(
@@ -8581,6 +8586,69 @@ func pickLineInjectionPC(
 		}, nil
 	}
 	return nonStmtPc, ir.Issue{}, nil
+}
+
+// Follow branch-local moves to shared code on the same source line.
+func followLineJump(arch object.Architecture, addr, injectionPC uint64, body []byte, lines []line) uint64 {
+	if injectionPC < addr || injectionPC-addr >= uint64(len(body)) {
+		return injectionPC
+	}
+	lineAt := func(pc uint64) line {
+		i := sort.Search(len(lines), func(i int) bool { return lines[i].pc > pc }) - 1
+		if i < 0 {
+			return line{}
+		}
+		return lines[i]
+	}
+	source := lineAt(injectionPC)
+	if source.file == nil || source.endSequence {
+		return injectionPC
+	}
+	for pc := injectionPC; pc-addr < uint64(len(body)); {
+		var size int
+		var target uint64
+		var move bool
+		switch arch {
+		case "amd64":
+			inst, err := x86asm.Decode(body[pc-addr:], 64)
+			if err != nil {
+				return injectionPC
+			}
+			size = inst.Len
+			move = inst.Op == x86asm.MOV || inst.Op == x86asm.NOP
+			if inst.Op == x86asm.JMP {
+				if rel, ok := inst.Args[0].(x86asm.Rel); ok {
+					target = uint64(int64(pc) + int64(size) + int64(rel))
+				}
+			}
+		case "arm64":
+			inst, err := arm64asm.Decode(body[pc-addr:])
+			if err != nil {
+				return injectionPC
+			}
+			size = Arm64InstructionByteLength
+			move = inst.Op == arm64asm.MOV || inst.Op == arm64asm.LDR || inst.Op == arm64asm.STR || inst.Op == arm64asm.NOP
+			if inst.Op == arm64asm.B {
+				if rel, ok := inst.Args[0].(arm64asm.PCRel); ok {
+					target = uint64(int64(pc) + int64(rel))
+				}
+			}
+		default:
+			return injectionPC
+		}
+		if target > pc && target-addr < uint64(len(body)) {
+			dest := lineAt(target)
+			if !dest.endSequence && dest.file == source.file && dest.line == source.line {
+				return target
+			}
+		}
+		current := lineAt(pc)
+		if !move || current.endSequence || current.file != source.file || current.line != source.line {
+			return injectionPC
+		}
+		pc += uint64(size)
+	}
+	return injectionPC
 }
 
 type injectionPoint struct {
@@ -8923,6 +8991,7 @@ func collectLineDataForRange(
 			line:        uint32(lineEntry.Line),
 			isStatement: lineEntry.IsStmt,
 			endSequence: lineEntry.EndSequence,
+			file:        lineEntry.File,
 		})
 		if err := lineReader.Next(&lineEntry); err != nil {
 			return lineData{err: err}
