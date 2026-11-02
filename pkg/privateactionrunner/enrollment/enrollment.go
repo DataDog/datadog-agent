@@ -158,9 +158,6 @@ func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
 	ddSite := par.Site(cfg)
-	if ddSite == "" {
-		ddSite = "datadoghq.com"
-	}
 	apiKey := cfg.GetString("api_key")
 	extraHeaders := cfg.GetStringMapString(par.OPMSExtraHeaders)
 

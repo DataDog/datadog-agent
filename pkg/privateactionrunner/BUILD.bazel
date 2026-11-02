@@ -13,6 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",
+        "//pkg/config/setup/constants",
         "//pkg/config/utils",
         "//pkg/privateactionrunner/adapters/constants",
     ],
