@@ -657,6 +657,11 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 		builtinCollectors = append(builtinCollectors, terminatedPodCollector)
 	}
 
+	// add Helm release ConfigMap collector
+	if helmReleaseConfigMapCollector := cb.getHelmReleaseConfigMapCollector(); helmReleaseConfigMapCollector != nil {
+		builtinCollectors = append(builtinCollectors, helmReleaseConfigMapCollector)
+	}
+
 	// add builtin collectors and check if they are already activated
 	for _, collector := range builtinCollectors {
 		if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
@@ -886,6 +891,20 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 		if terminatedPodCollector.Metadata().IsStable {
 			return terminatedPodCollector
 		}
+	}
+	return nil
+}
+
+// getHelmReleaseConfigMapCollector returns the Helm release ConfigMap collector if it is stable, which its setting
+// controls.
+func (cb *CollectorBundle) getHelmReleaseConfigMapCollector() collectors.K8sCollector {
+	collector, err := cb.collectorDiscovery.VerifyForInventory(utilTypes.HelmReleaseConfigMapName, "", cb.inventory)
+	if err != nil {
+		log.Warnf("Unable to add the Helm release ConfigMap collector: %s", err)
+		return nil
+	}
+	if collector.Metadata().IsStable {
+		return collector
 	}
 	return nil
 }
