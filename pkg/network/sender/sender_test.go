@@ -696,13 +696,14 @@ func TestCollectLoopIgnoresPendingTickAfterCancel(t *testing.T) {
 
 func TestNetworkConnectionNetNSReattributed(t *testing.T) {
 	// two sockets owned by the same proxy process: one in its own container, one that the
-	// tracer attributed to the pod owning the socket's network namespace
+	// tracer attributed to the pod owning the socket's network namespace. The reattributed one
+	// sorts first (lower Dest), so the PID's container comes from it unless encoding corrects it.
 	p := makeConnections(2)
 	p[1].Pid = p[0].Pid
-	p[1].SPort++
-	proxyCID := p[0].ContainerID.Source
-	p[1].ContainerID.Source = intern.GetByString("app-container")
-	p[1].NetNSOriginalContainerID = proxyCID
+	p[0].SPort++
+	proxyCID := p[1].ContainerID.Source
+	p[0].ContainerID.Source = intern.GetByString("app-container")
+	p[0].NetNSOriginalContainerID = proxyCID
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(p[0].Pid))), "process", nil, nil, []string{"service:ztunnel"}, nil)
@@ -723,8 +724,10 @@ func TestNetworkConnectionNetNSReattributed(t *testing.T) {
 		tags := cc.GetConnectionsTags(c.TagsIdx)
 		if c.Laddr.ContainerId == "app-container" {
 			assert.NotContains(t, tags, "service:ztunnel", "the proxy's process tags must not move onto the pod")
+			assert.Equal(t, proxyCID.Get().(string), c.NetnsOriginalContainerId, "the payload must mark the reattribution")
 		} else {
 			assert.Contains(t, tags, "service:ztunnel")
+			assert.Empty(t, c.NetnsOriginalContainerId)
 		}
 	}
 }
@@ -744,4 +747,31 @@ func TestAddConnectionListenersSkipsNetNSReattributed(t *testing.T) {
 
 	assert.NotContains(t, listeners, listenKey{IP: proxied.Source.Addr, Port: 8080}, "the proxy's PID must not name the pod's listener")
 	assert.Equal(t, int32(8), listeners[listenKey{IP: direct.Source.Addr, Port: 9090}])
+}
+
+func TestResolveDestinationContainerIDsSkipsNetNSReattributed(t *testing.T) {
+	podA, podB := intern.GetByString("pod-a"), intern.GetByString("pod-b")
+	conn := func(src, dst string, sport, dport uint16, netns uint32, dir network.ConnectionDirection, cid *intern.Value) network.ConnectionStats {
+		c := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
+			Source: util.AddressFromString(src), SPort: sport, Dest: util.AddressFromString(dst), DPort: dport,
+			NetNS: netns, Type: network.TCP, Direction: dir,
+		}, IntraHost: true}
+		c.ContainerID.Source = cid
+		return c
+	}
+	conns := []network.ConnectionStats{
+		// pod A's request to pod B, on the same node
+		conn("10.0.0.1", "10.0.0.2", 40000, 8080, 1, network.OUTGOING, podA),
+		// pod B's app accepting it
+		conn("10.0.0.2", "10.0.0.1", 8080, 40000, 2, network.INCOMING, podB),
+		// the proxy delivering it inside pod B's namespace with A's address, reattributed to B
+		conn("10.0.0.1", "10.0.0.2", 40000, 8080, 2, network.OUTGOING, podB),
+	}
+	conns[2].NetNSOriginalContainerID = intern.GetByString("ztunnel")
+
+	r := &containerResolver{addrToContainerID: make(map[containerAddr]containerID)}
+	r.resolveDestinationContainerIDs(&network.Connections{BufferedData: network.BufferedData{Conns: conns}})
+
+	require.NotNil(t, conns[1].ContainerID.Dest)
+	assert.Equal(t, "pod-a", conns[1].ContainerID.Dest.Get().(string), "the proxy's leg must not make pod B look like it's talking to itself")
 }

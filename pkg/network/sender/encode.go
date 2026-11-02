@@ -49,6 +49,9 @@ func (d *directSender) encodeConnection(
 	builder.SetLastPacketsReceived(nc.Last.RecvPackets)
 	builder.SetDirection(uint64(formatDirection(nc.Direction)))
 	builder.SetNetNS(nc.NetNS)
+	if nc.NetNSOriginalContainerID != nil {
+		builder.SetNetnsOriginalContainerId(getInternedString(nc.NetNSOriginalContainerID))
+	}
 	if nc.IPTranslation != nil {
 		builder.SetIpTranslation(func(w *model.IPTranslationBuilder) {
 			w.SetReplSrcIP(unique.Make(nc.IPTranslation.ReplSrcIP.Addr.String()).Value())

@@ -230,7 +230,9 @@ func (l *LocalResolver) Resolve(c *model.Connections) map[*model.Connection]stri
 
 		conn.Laddr.ContainerId = cid
 
-		if !conn.IntraHost {
+		// a reattributed socket is a proxy's leg on the pod's addresses, so it must not name the pod as the
+		// remote end of the pod's own sockets
+		if !conn.IntraHost || conn.NetnsOriginalContainerId != "" {
 			continue
 		}
 
