@@ -90,6 +90,13 @@ func TestUnshareEvent(t *testing.T) {
 		}
 	}
 
+	// RHEL 7 kernels resolve the exec mount namespace of a CLONE_NEWNS child to 1
+	checkCloneNewNSCompatibility := func(t *testing.T) {
+		checkKernelCompatibility(t, "exec mount namespace resolves to 1 on RHEL7 kernels", func(kv *kernel.Version) bool {
+			return kv.IsRH7Kernel()
+		})
+	}
+
 	t.Run("unshare-newnet", func(t *testing.T) {
 		flags := unix.CLONE_NEWNET
 		if err := test.GetEventSent(t, runUnshare(flags), assertUnshare(t, flags), time.Second*3, "test_unshare_newnet"); err != nil {
@@ -122,6 +129,8 @@ func TestUnshareEvent(t *testing.T) {
 		if ebpfLessEnabled {
 			t.Skip("Not applicable to ebpfless")
 		}
+		checkCloneNewNSCompatibility(t)
+
 		parentMntNS, err := utils.NewNSPathFromPid(utils.Getpid(), utils.MntNsType).GetNSID()
 		require.NoError(t, err)
 
@@ -160,6 +169,8 @@ func TestUnshareEvent(t *testing.T) {
 		if ebpfLessEnabled {
 			t.Skip("Not applicable to ebpfless")
 		}
+		checkCloneNewNSCompatibility(t)
+
 		parentMntNS, err := utils.NewNSPathFromPid(utils.Getpid(), utils.MntNsType).GetNSID()
 		require.NoError(t, err)
 
