@@ -161,8 +161,10 @@ func retryInfoCall(t *testing.T, conf *config.AgentConfig) (string, error) {
 // testInit runs at the beginning of each test, this is because we *really*
 // need to have InitInfo be called before doing anything
 func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
+	t.Helper()
 	assert := assert.New(t)
 	conf := config.New()
+	conf.OnAdditionalEndpointsUpdate = func(func(string, []string)) {}
 	conf.Endpoints[0].APIKey = "key1"
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
@@ -185,7 +187,7 @@ func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	}
 
 	err := InitInfo(conf)
-	assert.NoError(err)
+	require.NoError(t, err)
 
 	return conf
 }
@@ -498,6 +500,7 @@ func TestInfoConfig(t *testing.T) {
 
 	js := expvar.Get("config").String() // this is what expvar will call
 	assert.NotEqual("", js)
+	assert.NotContains(js, "OnAdditionalEndpointsUpdate")
 	var confCopy config.AgentConfig
 	err := json.Unmarshal([]byte(js), &confCopy)
 	assert.NoError(err)
@@ -527,6 +530,7 @@ func TestInfoConfig(t *testing.T) {
 	conf.ContainerTags = nil
 	conf.ContainerTagsWithCompleteness = nil
 	conf.ContainerIDFromOriginInfo = nil
+	conf.OnAdditionalEndpointsUpdate = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }
