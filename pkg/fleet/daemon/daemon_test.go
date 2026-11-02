@@ -256,7 +256,17 @@ type testInstaller struct {
 	bm  *testBoostrapper
 }
 
+// allowHostChanges lets the daemon change the host for the length of the test, on every platform,
+// so the change paths can be exercised where the daemon would otherwise refuse them.
+func allowHostChanges(t *testing.T) {
+	t.Helper()
+	original := hostChangesSupported
+	hostChangesSupported = true
+	t.Cleanup(func() { hostChangesSupported = original })
+}
+
 func newTestInstaller(t *testing.T) *testInstaller {
+	allowHostChanges(t)
 	bm := &testBoostrapper{}
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
@@ -671,4 +681,37 @@ func TestDecryptSecrets(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decrypt secret")
 	})
+}
+
+// TestHostChangesAreRefusedOnMacOS pins that the macOS daemon only reports the host's state: every
+// request that would change the host fails before it reaches the installer, whether it comes from
+// remote configuration or from the local API.
+func TestHostChangesAreRefusedOnMacOS(t *testing.T) {
+	i := newTestInstaller(t)
+	defer i.Stop()
+	hostChangesSupported = false
+	ctx := context.Background()
+	const testURL = "oci://example.com/test-package:1.0.0"
+
+	for name, change := range map[string]func() error{
+		"install":                   func() error { return i.Install(ctx, testURL, nil) },
+		"remove":                    func() error { return i.Remove(ctx, "datadog-agent") },
+		"start experiment":          func() error { return i.StartExperiment(ctx, testURL) },
+		"promote experiment":        func() error { return i.PromoteExperiment(ctx, "datadog-agent") },
+		"stop experiment":           func() error { return i.StopExperiment(ctx, "datadog-agent") },
+		"start config experiment":   func() error { return i.StartConfigExperiment(ctx, "datadog-agent", config.Operations{}, nil) },
+		"promote config experiment": func() error { return i.PromoteConfigExperiment(ctx, "datadog-agent") },
+		"stop config experiment":    func() error { return i.StopConfigExperiment(ctx, "datadog-agent") },
+	} {
+		assert.ErrorIs(t, change(), errHostChangesNotSupported, name)
+	}
+
+	// Nothing reached the installer: the package manager mock would have failed the test on any
+	// call it has no expectation for, and the bootstrapper saw no experiment.
+	i.bm.AssertNotCalled(t, "InstallExperiment", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// TestHostChangesAreOnlyRefusedOnMacOS pins where the daemon refuses to change the host.
+func TestHostChangesAreOnlyRefusedOnMacOS(t *testing.T) {
+	assert.Equal(t, runtime.GOOS != "darwin", hostChangesSupported)
 }
