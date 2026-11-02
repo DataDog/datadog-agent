@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -121,8 +122,13 @@ func newConfigManager(config config.Component) configManager {
 		symbolUploaderOptions["enabled"] = config.Get("hostprofiler.symbol_uploader.enabled")
 	}
 
-	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
-		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
+	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled")
+	infraMode := config.GetString("infrastructure_mode")
+	if healthMetricsEnabled && infraMode != constants.InfraModeBasic && infraMode != constants.InfraModeFull {
+		log.Warnf("hostprofiler.health_metrics.enabled is set but ignored because infrastructure_mode=%q; health metrics require infrastructure_mode to be %q or %q",
+			infraMode, constants.InfraModeBasic, constants.InfraModeFull)
+		healthMetricsEnabled = false
+	}
 	hostProfilerConfig := hostProfilerConfig{
 		ReporterInterval:      config.GetString("hostprofiler.reporter_interval"),
 		EBPFDebugLogs:         config.GetBool("hostprofiler.debug.ebpf_logs"),
