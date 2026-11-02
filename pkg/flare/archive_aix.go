@@ -50,16 +50,14 @@ func getSvmonData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("svmon.log", out)
 }
 
-// getErrptData collects the AIX error log for the last 7 days: process deaths
-// by signal, kernel paging-space kills, and SRC subsystem restarts — often the
+// getErrptData collects the AIX error log for the last 7 days — often the
 // only in-host evidence when the agent dies without leaving anything in its
-// own logs. It also runs in local mode (the data is host-wide), because errpt
-// is only readable by root: the agent process (dd-agent) cannot include it,
-// and errpt.log then carries a hint to rerun with
-// `sudo datadog-agent flare --local`, which builds the flare as root.
+// own logs. Also runs in local mode, since errpt needs root and the agent
+// process (dd-agent) cannot read it.
 func getErrptData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	since := errptSince(time.Now().Add(-errptWindow))
 
+	// A924A5FC CORE_DUMP, 620096CD/8527F6F4 out-of/no paging space.
 	deaths, errDeaths := runErrpt(ctx, "-a", "-j", "A924A5FC,620096CD,8527F6F4", "-s", since)
 	if errDeaths != nil {
 		_ = fb.Logf("error running errpt for process deaths: %s", errDeaths)
