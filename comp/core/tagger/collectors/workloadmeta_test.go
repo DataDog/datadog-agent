@@ -4902,6 +4902,121 @@ func TestHandleContainerImage(t *testing.T) {
 	}
 }
 
+type containerListCountingStore struct {
+	workloadmeta.Component
+	listContainersWithFilterCalls int
+}
+
+func (s *containerListCountingStore) ListContainersWithFilter(filter workloadmeta.EntityFilterFunc[*workloadmeta.Container]) []*workloadmeta.Container {
+	s.listContainersWithFilterCalls++
+	return s.Component.ListContainersWithFilter(filter)
+}
+
+func TestHandleContainerImageWithoutAnnotationsSkipsContainerScan(t *testing.T) {
+	const (
+		imageID     = "sha256:image-without-annotations"
+		containerID = "container-using-image-without-annotations"
+	)
+
+	cfg := configmock.New(t)
+	baseStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	image := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imageID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: imageID,
+		},
+	}
+	baseStore.Set(image)
+	baseStore.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		Image:    workloadmeta.ContainerImage{ID: imageID},
+	})
+
+	store := &containerListCountingStore{Component: baseStore}
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleContainerImage(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: image,
+	})
+
+	require.Zero(t, store.listContainersWithFilterCalls)
+	require.Len(t, actual, 1)
+	assert.Equal(t, types.NewEntityID(types.ContainerImageMetadata, imageID), actual[0].EntityID)
+}
+
+func TestProcessEventsCleansContainerImageAnnotationTagsWhenAnnotationsRemoved(t *testing.T) {
+	const (
+		imageID     = "sha256:image-with-annotations"
+		containerID = "container-using-image-with-annotations"
+		commitSHA   = "758691a28aa920070651d360814c559bc26af907"
+	)
+
+	cfg := configmock.New(t)
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	image := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imageID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: imageID,
+			Annotations: map[string]string{
+				"org.opencontainers.image.revision": commitSHA,
+			},
+		},
+	}
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		Image:    workloadmeta.ContainerImage{ID: imageID},
+	}
+	store.Set(image)
+	store.Set(container)
+
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collectorCh := make(chan []*types.TagInfo, 2)
+	collector.tagProcessor = &fakeProcessor{collectorCh}
+
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: image}},
+		Ch:     make(chan struct{}),
+	})
+	firstTagInfos := <-collectorCh
+	var propagated *types.TagInfo
+	for _, tagInfo := range firstTagInfos {
+		if tagInfo.Source == containerImageSource && tagInfo.EntityID == types.NewEntityID(types.ContainerID, containerID) {
+			propagated = tagInfo
+			break
+		}
+	}
+	require.NotNil(t, propagated)
+	assert.Contains(t, propagated.LowCardTags, tags.GitCommitSha+":"+commitSHA)
+
+	imageWithoutAnnotations := *image
+	imageWithoutAnnotations.Annotations = nil
+	store.Set(&imageWithoutAnnotations)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: &imageWithoutAnnotations}},
+		Ch:     make(chan struct{}),
+	})
+	secondTagInfos := <-collectorCh
+	var deleted bool
+	for _, tagInfo := range secondTagInfos {
+		if tagInfo.Source == containerImageSource && tagInfo.EntityID == types.NewEntityID(types.ContainerID, containerID) && tagInfo.DeleteEntity {
+			deleted = true
+			break
+		}
+	}
+	require.True(t, deleted, "expected image annotation tags to be deleted from the container")
+}
+
 func TestExtractGPUMIGProfileTag(t *testing.T) {
 	for _, tt := range []struct {
 		name       string

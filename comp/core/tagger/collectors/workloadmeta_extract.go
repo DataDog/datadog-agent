@@ -581,6 +581,12 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 		},
 	}
 
+	// Avoid scanning containers when there are no annotation tags to propagate.
+	// Previously registered children are still cleaned up by processEvents.
+	if len(image.Annotations) == 0 {
+		return tagInfos
+	}
+
 	// Re-apply the image annotation tags to every container currently using
 	// this image, so that image metadata that arrives or changes after a
 	// container has already been tagged still propagates to container.*
