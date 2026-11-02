@@ -17,7 +17,13 @@ import (
 
 var (
 	additionals = []string{"*token*", "*jwt*"}
+	// procutil sensitive words can't contain '-', so headers like `DD-API-KEY: <key>` need their own pattern
+	keyValuePattern = regexp.MustCompile(`(?i)((?:api|app|application)[-_]?key\s*[:=]\s*)[^\s&;,"']+`)
 )
+
+func scrubKeyValues(s string) string {
+	return keyValuePattern.ReplaceAllString(s, "${1}********")
+}
 
 // Scrubber is a struct that holds the proc scrubber and the regex scrubber
 type Scrubber struct {
@@ -46,7 +52,11 @@ func NewScrubber(customSensitiveWords []string, regexps []string) (*Scrubber, er
 // ScrubCommand scrubs the command line using the proc scrubber and the regex scrubber
 func (s *Scrubber) ScrubCommand(cmdline []string) []string {
 	// procutil only matches a key preceded by a space, and callers pass argv without argv[0]
-	args := append(make([]string, 1, len(cmdline)+1), cmdline...)
+	args := make([]string, 1, len(cmdline)+1)
+	// before procutil, which re-splits the whole line on spaces once it changes anything
+	for _, arg := range cmdline {
+		args = append(args, scrubKeyValues(arg))
+	}
 	scrubbed, _ := s.procScrubber.ScrubCommand(args)
 	scrubbed = scrubbed[1:]
 
@@ -61,6 +71,7 @@ func (s *Scrubber) ScrubCommand(cmdline []string) []string {
 
 // ScrubLine scrubs the line using the proc scrubber and the regex scrubber
 func (s *Scrubber) ScrubLine(line string) string {
+	line = scrubKeyValues(line)
 	if s.regexScrubber != nil {
 		return s.regexScrubber.ScrubLine(line)
 	}
