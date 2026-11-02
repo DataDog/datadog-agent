@@ -25,7 +25,8 @@ type wmetaSource interface {
 // WorkloadmetaResolver resolves the declared container security context via
 // workloadmeta.
 type WorkloadmetaResolver struct {
-	wmeta wmetaSource
+	wmeta   wmetaSource
+	kubelet *kubeletInfo
 	// seccompDefaultEnabled mirrors the node's kubelet --seccomp-default /
 	// seccompDefault setting, read once at construction.
 	seccompDefaultEnabled bool
@@ -33,7 +34,11 @@ type WorkloadmetaResolver struct {
 
 // NewWorkloadmetaResolver returns a resolver backed by wmeta; nil is safe.
 func NewWorkloadmetaResolver(wmeta workloadmeta.Component) *WorkloadmetaResolver {
-	r := &WorkloadmetaResolver{seccompDefaultEnabled: kubeletSeccompDefaultEnabled()}
+	kubelet := findKubelet()
+	r := &WorkloadmetaResolver{
+		kubelet:               kubelet,
+		seccompDefaultEnabled: kubeletSeccompDefaultEnabled(kubelet),
+	}
 	if wmeta != nil {
 		r.wmeta = wmeta
 	}
@@ -142,7 +147,7 @@ func (r *WorkloadmetaResolver) ResolveSeccompFilter(profile *SeccompProfile) (*S
 	if profile == nil || profile.Type != SeccompLocalhost {
 		return nil, nil
 	}
-	return readLocalhostSeccompProfile(profile.LocalhostProfile)
+	return readLocalhostSeccompProfile(r.kubelet, profile.LocalhostProfile)
 }
 
 func seccompFromWmeta(sp *workloadmeta.SeccompProfile) *SeccompProfile {
