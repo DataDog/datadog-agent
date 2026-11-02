@@ -9,38 +9,30 @@ package process
 
 import (
 	"bufio"
-	"debug/elf"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+	"go.opentelemetry.io/ebpf-profiler/libpf"
 )
 
-// TestLiveDlopenBigTLSDescClassification reproduces the KMT failure mode of
-// PR #59318 without eBPF: dlopen a TLSDESC module too large for the static-TLS
-// surplus, then classify its GOT slot the same way attachOTelTLS does. The
-// old `> 0xffffffff` cut called the heap-resident tls_index a static offset;
-// the sign-based (amd64) / resolver-based (arm64) discriminant must not.
+// TestLiveDlopenBigTLSDescResolution dlopens a TLSDESC module too large for the
+// static-TLS surplus and resolves it the way resolveTLSOffsets does. Its
+// tls_index often lives on a heap below 4GiB, which a magnitude cut on the
+// TLSDESC argument would mistake for a static offset.
 //
-// Requires the bazel-built tester artifacts next to this package's cwd, or
-// under the well-known bazel-bin path. Skips otherwise.
-func TestLiveDlopenBigTLSDescClassification(t *testing.T) {
+// Needs the otel_tls tester artifacts: set OTEL_TLS_ARTIFACT_DIR or build them
+// under bazel-bin. Skips otherwise.
+func TestLiveDlopenBigTLSDescResolution(t *testing.T) {
 	driver, so, ok := findOTelTLSBigArtifacts()
 	if !ok {
 		t.Skip("otel_tls_dlopen_glibc / libotel_tls_glibc_big.so not built")
 	}
-
-	tlsdescOff, err := findTLSDESCOffset(so, otelTLSSymbolName)
-	require.NoError(t, err)
 
 	continueFile := filepath.Join(t.TempDir(), "continue")
 	cmd := exec.Command(driver, so, "otel-span-open", "deadbeef", "204", filepath.Join(t.TempDir(), "touch"))
@@ -58,27 +50,27 @@ func TestLiveDlopenBigTLSDescClassification(t *testing.T) {
 		return mappedObjectContains(pid, filepath.Base(so))
 	}, 5*time.Second, 20*time.Millisecond, "fixture never appeared in maps")
 
-	bias, err := loadBiasOf(pid, filepath.Base(so))
+	var target otelTargetProcess
+	target.reset(pid)
+	module, sym, err := target.findOTelTLSModule(otelTLSSymbolName)
 	require.NoError(t, err)
+	defer module.file.Close()
 
-	mem, err := procfs.OpenMem(pid)
+	access, err := resolveTLSAccess(module.file, &libpf.Symbol{
+		Name:    libpf.SymbolName(sym.Name),
+		Address: libpf.SymbolValue(sym.Value),
+		Size:    sym.Size,
+	})
 	require.NoError(t, err)
-	defer mem.Close()
+	require.Equal(t, accessTLSDesc, access.access)
 
-	resolver, err := mem.ReadUint64(bias + tlsdescOff)
+	res, err := attachOTelTLS(&target, module.loadBias, access)
 	require.NoError(t, err)
-	arg, err := mem.ReadUint64(bias + tlsdescOff + 8)
-	require.NoError(t, err)
-	require.NotZero(t, resolver, "TLSDESC not yet relocated")
+	t.Logf("module=%d tlsOffset=%#x dtv=%+v", res.moduleID, res.tlsOffset, res.dtvInfo)
 
-	static, moduleID, tlsOffset, err := classifyOTelTLSDesc(mem, resolver, arg)
-	require.NoError(t, err)
-	t.Logf("bias=%#x resolver=%#x arg=%#x static=%v module=%d offset=%#x",
-		bias, resolver, arg, static, moduleID, tlsOffset)
-
-	require.False(t, static, "dlopen of _big must resolve through the DTV")
-	require.NotZero(t, moduleID)
-	require.Equal(t, uint64(0), tlsOffset, "otel_thread_ctx_v1 is at offset 0 of the TLS block")
+	require.NotZero(t, res.moduleID, "dlopen of _big must resolve through the DTV")
+	require.Zero(t, res.tlsOffset, "otel_thread_ctx_v1 is at offset 0 of the TLS block")
+	require.NotZero(t, res.dtvInfo.multiplier)
 }
 
 func findOTelTLSBigArtifacts() (driver, so string, ok bool) {
@@ -91,7 +83,6 @@ func findOTelTLSBigArtifacts() (driver, so string, ok bool) {
 		filepath.Join(os.Getenv("TEST_SRCDIR"), "pkg/security/tests/syscall_tester/c"),
 	)
 	if wd, err := os.Getwd(); err == nil {
-		// Climb toward the repo root from this package.
 		dir := wd
 		for range 8 {
 			candidates = append(candidates, filepath.Join(dir, "bazel-bin/pkg/security/tests/syscall_tester/c"))
@@ -114,46 +105,6 @@ func findOTelTLSBigArtifacts() (driver, so string, ok bool) {
 	return "", "", false
 }
 
-func findTLSDESCOffset(soPath, symbol string) (uint64, error) {
-	f, err := elf.Open(soPath)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-
-	// debug/elf's Symbols/DynamicSymbols omit the null symbol at index 0, so a
-	// reloc's symbol index N refers to syms[N-1].
-	syms, err := f.DynamicSymbols()
-	if err != nil {
-		return 0, err
-	}
-	for _, section := range f.Sections {
-		if section.Type != elf.SHT_RELA {
-			continue
-		}
-		data, err := section.Data()
-		if err != nil {
-			continue
-		}
-		for off := 0; off+24 <= len(data); off += 24 {
-			rOff := binary.LittleEndian.Uint64(data[off : off+8])
-			info := binary.LittleEndian.Uint64(data[off+8 : off+16])
-			typ := elf.R_TYPE64(info)
-			if typ != uint32(elf.R_X86_64_TLSDESC) && typ != uint32(elf.R_AARCH64_TLSDESC) {
-				continue
-			}
-			symIdx := elf.R_SYM64(info)
-			if symIdx == 0 || int(symIdx) > len(syms) {
-				continue
-			}
-			if syms[symIdx-1].Name == symbol {
-				return rOff, nil
-			}
-		}
-	}
-	return 0, fmt.Errorf("no TLSDESC reloc for %s", symbol)
-}
-
 func mappedObjectContains(pid uint32, base string) bool {
 	f, err := os.Open(fmt.Sprintf("/proc/%d/maps", pid))
 	if err != nil {
@@ -167,39 +118,4 @@ func mappedObjectContains(pid uint32, base string) bool {
 		}
 	}
 	return false
-}
-
-func loadBiasOf(pid uint32, base string) (uint64, error) {
-	f, err := os.Open(fmt.Sprintf("/proc/%d/maps", pid))
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := sc.Text()
-		if !strings.Contains(line, base) || !strings.Contains(line, "r-xp") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 6 {
-			continue
-		}
-		startEnd := strings.SplitN(fields[0], "-", 2)
-		if len(startEnd) != 2 {
-			continue
-		}
-		start, err := strconv.ParseUint(startEnd[0], 16, 64)
-		if err != nil {
-			return 0, err
-		}
-		fileOff, err := strconv.ParseUint(fields[2], 16, 64)
-		if err != nil {
-			return 0, err
-		}
-		// Executable PT_LOAD of our fixture is linked at vaddr 0x1000 with
-		// file offset 0x1000, so bias = start - 0x1000 when fileOff is 0x1000.
-		return start - fileOff, nil
-	}
-	return 0, fmt.Errorf("no executable mapping for %s", base)
 }

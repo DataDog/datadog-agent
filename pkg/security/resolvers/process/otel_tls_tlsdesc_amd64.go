@@ -7,10 +7,10 @@
 
 package process
 
-import "fmt"
+import "errors"
 
 // tlsdescReturnsArg is only consulted on aarch64 (variant I). On amd64 the
 // sign of the TLSDESC argument is enough, so this is unreachable.
 func tlsdescReturnsArg(otelMemReader, uint64) (bool, error) {
-	return false, fmt.Errorf("internal error: tlsdescReturnsArg called on amd64")
+	return false, errors.New("internal error: tlsdescReturnsArg called on amd64")
 }
