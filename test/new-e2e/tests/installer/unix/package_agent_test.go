@@ -603,7 +603,6 @@ func (s *packageAgentSuite) TestFleetUpgradeAndReboot() {
 	s.RunInstallScript()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 	baselinePath := strings.TrimSpace(remote.MustExecute("readlink -f /opt/datadog-packages/datadog-agent/stable"))
-	remote.MustExecute(`printf '\nremote_updates: true\n' | sudo tee -a /etc/datadog-agent/datadog.yaml`)
 	remote.MustExecute("sudo systemctl restart datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
 	upgrade := &upgradeScenarioSuite{packageBaseSuite: &s.packageBaseSuite}
