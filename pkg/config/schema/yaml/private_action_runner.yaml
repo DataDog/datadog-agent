@@ -206,6 +206,7 @@ properties:
       type: string
   private_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
   restricted_shell:

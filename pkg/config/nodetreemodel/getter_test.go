@@ -355,3 +355,23 @@ func TestGetEnvVars(t *testing.T) {
 	// testing that duplicate are removed and result is sorted
 	assert.Equal(t, []string{"ABC", "D", "DEF", "TEST_X"}, cfg.GetEnvVars())
 }
+
+func TestSensitive(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
+
+	cfg.BindEnvAndSetDefault("api_key", "", "TEST_API_KEY", "TEST_OTHER_API_KEY")
+	cfg.BindEnvAndSetDefault("logs.api_key", "")
+	cfg.BindEnvAndSetDefault("site", "")
+	cfg.SetSensitive("api_key")
+	cfg.SetSensitive("Logs.API_Key")
+	cfg.BuildSchema()
+
+	assert.True(t, cfg.IsSensitive("api_key"))
+	assert.True(t, cfg.IsSensitive("LOGS.api_key"))
+	assert.False(t, cfg.IsSensitive("site"))
+	assert.False(t, cfg.IsSensitive("unknown"))
+	assert.Equal(t, []string{"TEST_API_KEY", "TEST_LOGS_API_KEY", "TEST_OTHER_API_KEY"}, cfg.GetSensitiveEnvVars())
+
+	assert.Panics(t, func() { cfg.SetSensitive("site") })
+}

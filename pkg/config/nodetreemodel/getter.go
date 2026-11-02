@@ -40,6 +40,18 @@ func (c *ntmConfig) GetEnvVars() []string {
 	return vars
 }
 
+// GetSensitiveEnvVars returns the env vars bound to sensitive settings
+func (c *ntmConfig) GetSensitiveEnvVars() []string {
+	c.RLock()
+	defer c.RUnlock()
+	var vars []string
+	for key := range c.sensitiveKeys {
+		vars = append(vars, c.configEnvVars[key]...)
+	}
+	slices.Sort(vars)
+	return slices.Compact(vars)
+}
+
 // EnvVarSettings walks the env layer and returns each setting it provides, mapped to the env vars
 // the schema binds to that setting. The layer is walked on each call rather than kept as it is built.
 func (c *ntmConfig) EnvVarSettings() map[string][]string {

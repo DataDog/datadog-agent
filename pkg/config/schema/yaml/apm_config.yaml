@@ -822,6 +822,7 @@ properties:
     env_parser: comma_then_space_separated
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1402,6 +1403,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         env_vars:

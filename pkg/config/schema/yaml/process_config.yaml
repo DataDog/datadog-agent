@@ -305,6 +305,7 @@ properties:
     description: Disable realtime process and container checks
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:

@@ -134,6 +134,9 @@ type ntmConfig struct {
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
 
+	// sensitiveKeys are the settings that hold credentials
+	sensitiveKeys map[string]struct{}
+
 	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use.
 	// sync.Map is used because checkKnownKey writes to this map while callers
@@ -624,6 +627,25 @@ func (c *ntmConfig) IsKnown(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.isKnownKey(key)
+}
+
+// SetSensitive marks a setting as holding a credential
+func (c *ntmConfig) SetSensitive(key string) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.isReady() && !c.allowDynamicSchema.Load() {
+		panic("cannot SetSensitive() once the config has been marked as ready for use")
+	}
+	c.sensitiveKeys[strings.ToLower(key)] = struct{}{}
+}
+
+// IsSensitive returns whether the setting holds a credential
+func (c *ntmConfig) IsSensitive(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	_, found := c.sensitiveKeys[strings.ToLower(key)]
+	return found
 }
 
 // IsSetting returns true for leaf nodes
@@ -1388,6 +1410,7 @@ func NewNodeTreeConfig(name string, schemaType model.SchemaID) model.BuildableCo
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
+		sensitiveKeys:      map[string]struct{}{},
 		setWarnings:        map[string]bool{},
 		setTypeWarnings:    map[string]bool{},
 		defaults:           newInnerNode(nil),

@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    Autodiscovery no longer resolves ``%%env_*%%`` template variables that
+    reference environment variables bound to Agent settings holding
+    credentials, such as ``DD_API_KEY`` or ``DD_CLUSTER_AGENT_AUTH_TOKEN``.
+    This prevents configs from untrusted sources, like pod annotations, from
+    reading the Agent's credentials. Other environment variables are still
+    resolved, unless ``ad_allowed_env_vars`` is set.

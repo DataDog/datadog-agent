@@ -514,14 +514,16 @@ func allowEnvVar(envVar string) bool {
 	}
 
 	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
-
-	// If the option is not set or is empty, the default behavior applies: all
-	// envs are allowed.
-	if len(allowedEnvs) == 0 {
-		return true
+	if len(allowedEnvs) > 0 {
+		return slices.ContainsFunc(allowedEnvs, func(env string) bool {
+			return strings.EqualFold(env, envVar)
+		})
 	}
 
-	return slices.ContainsFunc(allowedEnvs, func(env string) bool {
+	// If the option is not set or is empty, all envs are allowed except the
+	// ones bound to sensitive settings, which configs from untrusted sources
+	// (e.g. pod annotations) must not be able to read.
+	return !slices.ContainsFunc(pkgconfigsetup.Datadog().GetSensitiveEnvVars(), func(env string) bool {
 		return strings.EqualFold(env, envVar)
 	})
 }

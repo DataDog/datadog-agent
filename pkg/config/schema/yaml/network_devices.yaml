@@ -607,6 +607,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -796,6 +797,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -892,6 +894,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -1010,6 +1013,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
