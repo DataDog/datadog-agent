@@ -157,8 +157,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     const bool encryption_layer_known = is_protocol_layer_known(&stack, LAYER_ENCRYPTION);
+    protocol_t app_layer_proto = get_protocol_from_stack(&stack, LAYER_APPLICATION);
+    const bool app_layer_may_be_tls = app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES;
     tls_record_header_t tls_hdr = {0};
     bool is_tls_record = false;
+
+    // Parse the TLS record header once, up front, for both checks below (a second inlined copy costs program size).
+    if (encryption_layer_known || app_layer_may_be_tls) {
+        is_tls_record = is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr);
+    }
 
     if (encryption_layer_known) {
         // The socket filter can't see past the encryption layer (USM's uprobes classify the inner protocol on
@@ -166,7 +173,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         // tags. Let those records through and skip everything else. Letting them through also lets a new connection
         // that reuses a leaked connection_protocol entry's tuple get its handshake parsed, as long as the stale entry
         // has no application layer set; otherwise the TLS block below is skipped and the stale tags remain.
-        is_tls_record = is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr);
         if (!is_tls_record || tls_hdr.content_type != TLS_HANDSHAKE) {
             return;
         }
@@ -186,12 +192,9 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     const char *buffer = &(classification_ctx->buffer.data[0]);
 
-    protocol_t app_layer_proto = get_protocol_from_stack(&stack, LAYER_APPLICATION);
-
     protocol_stack_t *protocol_stack = NULL;
 
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) &&
-        (is_tls_record || is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr))) {
+    if (app_layer_may_be_tls && is_tls_record) {
         protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
         if (!protocol_stack) {
             return;
