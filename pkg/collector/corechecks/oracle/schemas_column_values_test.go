@@ -37,6 +37,34 @@ func expectSchemaRestore(mock sqlmock.Sqlmock) {
 	expectSchemaSession(mock, 1, "CDB$ROOT")
 }
 
+func TestSchemaConnectionMetadataSurvivesContainerSwitch(t *testing.T) {
+	c, pool, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	conn, err := pool.Connx(context.Background())
+	require.NoError(t, err)
+	defer conn.Close()
+	c.schemaQueryer = conn
+	c.cdbName = "sales"
+	mock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("agent.example", 1, "CDB$ROOT"))
+	c.schemaConnection, err = c.schemaConnectionMetadata(context.Background())
+	require.NoError(t, err)
+	expectSchemaSwitch(mock, 3, "PDB1")
+	expectSchemaRestore(mock)
+	require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error {
+		collector := newSchemaEventCollector(&c, func(event schemaEvent) {
+			require.Equal(t, "sales.PDB1", event.Metadata[0].Name)
+			require.Equal(t, "sales.CDB$ROOT", event.Connection.ContainerName)
+			require.Equal(t, "1", event.Connection.ContainerID)
+			require.Equal(t, "agent.example", event.Connection.ServiceName)
+		}, nil, nil, map[int64]string{3: "PDB1"})
+		collector.startContainer(3)
+		collector.finish()
+		return nil
+	}))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestSchemaContainerRestoredAfterCollection(t *testing.T) {
 	for _, scenario := range []string{"success", "query error", "panic", "canceled"} {
 		t.Run(scenario, func(t *testing.T) {

@@ -108,6 +108,8 @@ type Check struct {
 	schemaPool                              *sqlx.DB
 	schemaEmitter                           payloadEmitter
 	schemaQueryError                        error
+	schemaServices                          map[int64][]schemaService
+	schemaConnection                        *schemaConnectionInfo
 	filePath                                string
 	sqlTraceRunsCount                       int
 	sqlSubstringLength                      int

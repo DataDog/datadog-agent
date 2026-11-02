@@ -286,6 +286,12 @@ const containerNamesQuery = `SELECT con_id, name FROM v$containers
 WHERE open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricted, 'NO') = 'NO'
 AND EXISTS (SELECT 1 FROM cdb_users u WHERE u.con_id = v$containers.con_id AND u.username = 'SYS')`
 
+const schemaServicesQuery = `SELECT con_id, name, network_name FROM cdb_services
+ORDER BY con_id, name, network_name`
+
+const schemaConnectionQuery = `SELECT SYS_CONTEXT('USERENV', 'SERVICE_NAME'),
+TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID')), SYS_CONTEXT('USERENV', 'CON_NAME') FROM dual`
+
 // ORA-01795 limits an IN list to 1000 expressions.
 const (
 	maxSchemaOwners            = 1000
@@ -467,25 +473,41 @@ type viewDetails struct {
 }
 
 type containerObject struct {
-	ID      string          `json:"id"`
-	Name    string          `json:"name"`
-	Schemas []*schemaObject `json:"schemas"`
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Services []schemaService `json:"services,omitzero"`
+	Schemas  []*schemaObject `json:"schemas"`
+}
+
+type schemaService struct {
+	Name        string `json:"name"`
+	NetworkName string `json:"network_name,omitempty"`
+}
+
+type schemaConnectionInfo struct {
+	Host              string `json:"host,omitempty"`
+	Port              int    `json:"port,omitempty"`
+	ConfiguredService string `json:"configured_service,omitempty"`
+	ServiceName       string `json:"service_name"`
+	ContainerID       string `json:"container_id"`
+	ContainerName     string `json:"container_name"`
 }
 
 type schemaEvent struct {
-	Host                    string            `json:"host"`
-	DatabaseInstance        string            `json:"database_instance"`
-	AgentVersion            string            `json:"agent_version"`
-	Dbms                    string            `json:"dbms"`
-	Kind                    string            `json:"kind"`
-	CollectionInterval      int64             `json:"collection_interval"`
-	DbmsVersion             string            `json:"dbms_version"`
-	Tags                    []string          `json:"tags"`
-	Timestamp               float64           `json:"timestamp"`
-	CollectionStartedAt     int64             `json:"collection_started_at"`
-	CollectionPayloadsCount int               `json:"collection_payloads_count,omitempty"`
-	Truncated               bool              `json:"truncated,omitempty"`
-	Metadata                []containerObject `json:"metadata"`
+	Host                    string                `json:"host"`
+	DatabaseInstance        string                `json:"database_instance"`
+	AgentVersion            string                `json:"agent_version"`
+	Dbms                    string                `json:"dbms"`
+	Kind                    string                `json:"kind"`
+	CollectionInterval      int64                 `json:"collection_interval"`
+	DbmsVersion             string                `json:"dbms_version"`
+	Tags                    []string              `json:"tags"`
+	Timestamp               float64               `json:"timestamp"`
+	CollectionStartedAt     int64                 `json:"collection_started_at"`
+	CollectionPayloadsCount int                   `json:"collection_payloads_count,omitempty"`
+	Truncated               bool                  `json:"truncated,omitempty"`
+	Connection              *schemaConnectionInfo `json:"connection,omitempty"`
+	Metadata                []containerObject     `json:"metadata"`
 }
 
 type payloadEmitter func(payload []byte)
@@ -691,6 +713,7 @@ func (s *schemaCollector) baseEvent() schemaEvent {
 		DbmsVersion:        s.check.dbVersion,
 		Tags:               s.check.tags,
 		Timestamp:          float64(s.check.clock.Now().UnixMilli()),
+		Connection:         s.check.schemaConnection,
 	}
 }
 
@@ -704,9 +727,10 @@ func (s *schemaCollector) maybeFlush(isLast bool) {
 
 	e := s.baseEvent()
 	e.Metadata = []containerObject{{
-		ID:      strconv.FormatInt(s.conID, 10),
-		Name:    s.conName,
-		Schemas: s.schemas,
+		ID:       strconv.FormatInt(s.conID, 10),
+		Name:     s.conName,
+		Services: s.check.schemaServices[s.conID],
+		Schemas:  s.schemas,
 	}}
 	e.Truncated = s.truncated
 
@@ -1471,6 +1495,55 @@ func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	return names, nil
 }
 
+func (c *Check) containerServices(ctx context.Context, containers map[int64]string) (map[int64][]schemaService, error) {
+	services := make(map[int64][]schemaService, len(containers))
+	for id := range containers {
+		services[id] = []schemaService{}
+	}
+	err := c.queryMetadata(ctx, schemaServicesQuery, func(rows *sqlx.Rows) error {
+		var conID int64
+		var name string
+		var networkName sql.NullString
+		if err := rows.Scan(&conID, &name, &networkName); err != nil {
+			return err
+		}
+		if _, ok := containers[conID]; ok {
+			services[conID] = append(services[conID], schemaService{Name: name, NetworkName: networkName.String})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return services, nil
+}
+
+func (c *Check) schemaConnectionMetadata(ctx context.Context) (*schemaConnectionInfo, error) {
+	var connection *schemaConnectionInfo
+	err := c.queryMetadata(ctx, schemaConnectionQuery, func(rows *sqlx.Rows) error {
+		var service, name string
+		var conID int64
+		if err := rows.Scan(&service, &conID, &name); err != nil {
+			return err
+		}
+		connection = &schemaConnectionInfo{
+			ServiceName:   service,
+			ContainerID:   strconv.FormatInt(conID, 10),
+			ContainerName: c.getFullPDBName(name),
+		}
+		if c.config.TnsAlias == "" {
+			connection.Host = c.config.Server
+			connection.Port = c.config.Port
+			connection.ConfiguredService = c.config.ServiceName
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connection, nil
+}
+
 func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKey]struct{}, selectedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
 	details := make(map[tableKey]*tableDetails)
 	at := func(conID int64, owner, table string) *tableDetails {
@@ -2151,6 +2224,8 @@ func (c *Check) schemaTableWindow(ctx context.Context, window []tableKey, select
 
 func (c *Check) schemaCollection(ctx context.Context) error {
 	c.schemaQueryError = nil
+	c.schemaServices = nil
+	c.schemaConnection = nil
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -2175,6 +2250,17 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	containers, err := c.containerNames(ctx)
 	if err != nil {
 		return err
+	}
+
+	if len(containers) > 0 {
+		c.schemaConnection, err = c.schemaWindowCheck(c.schemaQueryer).schemaConnectionMetadata(ctx)
+		if err != nil {
+			log.Debugf("%s schema connection metadata unavailable: %v", c.logPrompt, err)
+		}
+		c.schemaServices, err = c.schemaWindowCheck(c.schemaQueryer).containerServices(ctx, containers)
+		if err != nil {
+			log.Debugf("%s schema services unavailable: %v", c.logPrompt, err)
+		}
 	}
 
 	owners, names, err := c.schemaOwners(ctx, containers)

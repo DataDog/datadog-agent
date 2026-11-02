@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Oracle schema collection now identifies the database container associated
+    with each visible service and reports the Agent's connection endpoint.

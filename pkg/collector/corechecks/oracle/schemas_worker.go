@@ -164,8 +164,14 @@ func (c *Check) newSchemaCollectionRun() (*Check, error) {
 	}
 	return &Check{
 		config: &config.CheckConfig{InstanceConfig: config.InstanceConfig{
-			Schemas:          schemas,
-			ConnectionConfig: config.ConnectionConfig{QueryTimeout: c.config.QueryTimeout},
+			Schemas: schemas,
+			ConnectionConfig: config.ConnectionConfig{
+				QueryTimeout: c.config.QueryTimeout,
+				Server:       c.config.Server,
+				Port:         c.config.Port,
+				ServiceName:  c.config.ServiceName,
+				TnsAlias:     c.config.TnsAlias,
+			},
 		}},
 		tags:                   slices.Clone(c.tags),
 		driver:                 c.driver,
@@ -331,6 +337,9 @@ func (c *Check) schemaWindowCheck(queryer schemaQueryer) *Check {
 		clock:                  c.clock,
 		schemaPayloadChunkSize: c.schemaPayloadChunkSize,
 		schemaQueryer:          queryer,
+		db:                     c.db,
+		schemaServices:         c.schemaServices,
+		schemaConnection:       c.schemaConnection,
 	}
 }
 
