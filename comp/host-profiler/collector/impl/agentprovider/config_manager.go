@@ -6,6 +6,8 @@
 package agentprovider
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,13 +35,17 @@ type hpFlareConfig struct {
 
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
+	ReporterInterval      string
+	EBPFDebugLogs         bool
 	DebugVerbosity        string
 	IncludeEnvVars        string
 	SendErrorFrames       bool
+	FilterMinProcessAge   time.Duration
 	AdditionalHTTPHeaders map[string]string
 	DDProfiling           ddProfilingConfig
 	HealthMetrics         healthMetricsConfig
 	HPFlare               hpFlareConfig
+	SymbolUploaderOptions confMap
 	SymbolUploaderReport  symbolUploaderReportConfig
 }
 
@@ -106,12 +112,24 @@ func newConfigManager(config config.Component) configManager {
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 
+	symbolUploaderOptions := config.GetStringMap("hostprofiler.symbol_uploader.options")
+	if symbolUploaderOptions == nil {
+		symbolUploaderOptions = make(confMap)
+	}
+	// An explicitly configured enabled setting takes precedence over the options map.
+	if config.IsConfigured("hostprofiler.symbol_uploader.enabled") {
+		symbolUploaderOptions["enabled"] = config.Get("hostprofiler.symbol_uploader.enabled")
+	}
+
 	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
 		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
 	hostProfilerConfig := hostProfilerConfig{
-		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
+		ReporterInterval:      config.GetString("hostprofiler.reporter_interval"),
+		EBPFDebugLogs:         config.GetBool("hostprofiler.debug.ebpf_logs"),
+		DebugVerbosity:        config.GetString("hostprofiler.debug.exporter.verbosity"),
 		IncludeEnvVars:        config.GetString("hostprofiler.include_env_vars"),
 		SendErrorFrames:       config.GetBool("hostprofiler.send_error_frames"),
+		FilterMinProcessAge:   config.GetDuration("hostprofiler.filter_min_process_age"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
 		DDProfiling: ddProfilingConfig{
 			Enabled: config.GetBool("hostprofiler.ddprofiling.enabled"),
@@ -125,6 +143,7 @@ func newConfigManager(config config.Component) configManager {
 		HPFlare: hpFlareConfig{
 			Port: config.GetInt("hostprofiler.hpflare.port"),
 		},
+		SymbolUploaderOptions: symbolUploaderOptions,
 		SymbolUploaderReport: symbolUploaderReportConfig{
 			Interval:          config.GetInt("hostprofiler.symbol_uploader.report.interval"),
 			MaxPathsPerReport: config.GetInt("hostprofiler.symbol_uploader.report.max_paths_per_report"),
