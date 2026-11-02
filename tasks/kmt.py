@@ -2601,6 +2601,9 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
             info(f"[-] Failed to retry job {job.name}: {e}")
             continue
 
+    for subpipeline in subpipelines_to_retry:
+        retried_jobs += subpipeline.retry_tests_joins()
+
     info(f"[+] All jobs retried, job IDs: {retried_jobs}")
 
 
