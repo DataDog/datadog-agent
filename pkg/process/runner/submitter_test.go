@@ -285,7 +285,7 @@ func TestSubmitterConnectionsRemainOrderedOnSlowDomain(t *testing.T) {
 		submitConnections := func() {
 			s.Submit(time.Now(), checks.ConnectionsCheckName, &types.Payload{
 				CheckName: checks.ConnectionsCheckName,
-				Message:   []model.MessageBody{&model.CollectorConnections{HostName: testHostName}},
+				Messages:  []model.MessageBody{&model.CollectorConnections{HostName: testHostName}},
 			})
 		}
 		submitConnections()
@@ -328,7 +328,7 @@ func TestSubmitterIgnoresLateSameDomainResponse(t *testing.T) {
 		submit := func() {
 			s.Submit(time.Now(), checks.ProcessCheckName, &types.Payload{
 				CheckName: checks.ProcessCheckName,
-				Message:   []model.MessageBody{&model.CollectorProc{HostName: testHostName}},
+				Messages:  []model.MessageBody{&model.CollectorProc{HostName: testHostName}},
 			})
 		}
 		submit()
@@ -336,7 +336,7 @@ func TestSubmitterIgnoresLateSameDomainResponse(t *testing.T) {
 		require.EqualValues(t, 1, calls.Load())
 		s.Submit(time.Now(), checks.RTProcessCheckName, &types.Payload{
 			CheckName: checks.RTProcessCheckName,
-			Message:   []model.MessageBody{&model.CollectorRealTime{HostName: testHostName}},
+			Messages:  []model.MessageBody{&model.CollectorRealTime{HostName: testHostName}},
 		})
 		synctest.Wait()
 		require.EqualValues(t, 2, calls.Load())
