@@ -73,7 +73,7 @@ func (wcr *WinCrashReporter) haveAlreadyReported(wcs probe.WinCrashStatus) bool 
 func (wcr *WinCrashReporter) setReported(wcs probe.WinCrashStatus) {
 	newval := wcr.generateReportedValue(wcs)
 
-	k, _, err := registry.CreateKey(wcr.hive, wcr.baseKey, registry.ALL_ACCESS)
+	k, err := registry.OpenKey(wcr.hive, wcr.baseKey, registry.SET_VALUE)
 	if err != nil {
 		// key not even there
 		return

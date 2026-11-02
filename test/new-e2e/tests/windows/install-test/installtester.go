@@ -6,7 +6,9 @@
 package installtest
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"slices"
@@ -429,26 +431,68 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	})
 
 	tt.Run("registry permissions", func(tt *testing.T) {
-		// ensure registry key has normal inherited permissions and an explicit
-		// full access rule for ddagentuser
-		path := windowsAgent.RegistryKeyPath
-		out, err := windows.GetSecurityInfoForPath(t.host, path)
-		require.NoError(tt, err)
-		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
-			agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
-				ddAgentUserIdentity,
-				windows.RegistryFullControl,
-				windows.AccessControlTypeAllow,
-			)
-			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
-		}
-		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
+		t.testInstalledRegistryPermissions(tt, ddAgentUserIdentity)
 	})
 
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 
 	if !testing.Short() {
 		t.runTestsForKitchenCompat(tt)
+	}
+}
+
+// testInstalledRegistryPermissions inventories the entire Datadog subtree, including
+// inherited and group ACEs. Only the two crash checkpoints may have non-admin
+// write grants, and those grants must be limited to the Agent account.
+func (t *Tester) testInstalledRegistryPermissions(tt *testing.T, agentUser windows.Identity) {
+	root := `HKLM:\SOFTWARE\Datadog`
+	output, err := t.host.Execute(fmt.Sprintf(`ConvertTo-Json -Compress -InputObject @((Get-Item '%s').PSPath; Get-ChildItem '%s' -Recurse | ForEach-Object { $_.PSPath })`, root, root))
+	require.NoError(tt, err)
+	var paths []string
+	require.NoError(tt, json.Unmarshal([]byte(output), &paths), output)
+
+	checkpoints := map[string]bool{
+		strings.ToLower(windowsAgent.RegistryKeyPath + `\agent_crash_reporting`):   false,
+		strings.ToLower(windowsAgent.RegistryKeyPath + `\windows_crash_reporting`): false,
+	}
+	granted := make(map[string]bool)
+	writeRights := windows.KEY_SET_VALUE | windows.KEY_CREATE_SUB_KEY | windows.KEY_CREATE_LINK |
+		windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER | windows.GENERIC_WRITE | windows.GENERIC_ALL
+	for _, path := range paths {
+		// PowerShell's PSPath includes the registry provider prefix; use a
+		// provider-qualified path for Get-Acl and a normalized path for matching.
+		normalized := path
+		if i := strings.Index(strings.ToLower(path), `hkey_local_machine\`); i >= 0 {
+			normalized = `HKLM:\` + path[i+len(`hkey_local_machine\`):]
+		}
+		security, err := windows.GetSecurityInfoForPath(t.host, path)
+		require.NoError(tt, err, path)
+		key := strings.ToLower(normalized)
+		_, checkpoint := checkpoints[key]
+		if checkpoint {
+			checkpoints[key] = true
+			assert.False(tt, security.AreAccessRulesProtected, "%s should retain inherited registry permissions", normalized)
+		}
+		for _, rule := range security.Access {
+			if !rule.IsAllow() || rule.Rights&writeRights == 0 {
+				continue
+			}
+			sid := rule.Identity.SID
+			if sid == windows.LocalSystemSID || sid == windows.AdministratorsSID {
+				continue
+			}
+			if checkpoint && sid == agentUser.SID && rule.Rights&^(windows.READ_CONTROL|windows.KEY_QUERY_VALUE|windows.KEY_SET_VALUE) == 0 {
+				granted[key] = true
+				continue
+			}
+			assert.Failf(tt, "unexpected registry write grant", "%s: %s (%s) rights %#x inherited=%t", normalized, rule.Identity.Name, sid, rule.Rights, rule.IsInherited)
+		}
+	}
+	for path, found := range checkpoints {
+		assert.True(tt, found, "checkpoint key %s should exist", path)
+		if !windows.IsIdentityLocalSystem(agentUser) {
+			assert.True(tt, granted[path], "Agent should be able to update %s", path)
+		}
 	}
 }
 

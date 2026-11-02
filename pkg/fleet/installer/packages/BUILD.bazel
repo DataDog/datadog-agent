@@ -97,6 +97,19 @@ go_library(
 )
 
 dd_agent_go_test(
+    name = "datadog_agent_registry_test",
+    srcs = ["datadog_agent_registry_windows_test.go"],
+    target_compatible_with = ["@platforms//os:windows"],
+    embed = [":packages"],
+    deps = [
+        "//pkg/util/winutil",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sys//windows",
+        "@org_golang_x_sys//windows/registry",
+    ],
+)
+
+dd_agent_go_test(
     name = "packages_test",
     srcs = [
         "apm_inject_windows_test.go",
