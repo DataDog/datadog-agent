@@ -8,6 +8,7 @@ the debug output.
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
+load("//bazel/rules:cc_graph_attrs.bzl", "CC_GRAPH_WALKED_ATTRS", "get_deps")
 load("//bazel/rules/dd_strip:dd_strip_info.bzl", "DdStripInfo")
 
 _CollectedPackagingInfo = provider(
@@ -17,36 +18,18 @@ _CollectedPackagingInfo = provider(
     },
 )
 
-# Aspects walked by dd_strip collector
-# - dynamic_deps: cc_shared_library -> cc_shared_library edges
-# - input: _dd_cc_packaged_rule -> cc_shared_library edges (bridges a
-#   packaged target back to its underlying cc_shared_library)
-# - shared_library: cc_import -> _dd_cc_packaged_rule edges (a cc_import
-#   bridge pointed at an already-packaged shared library)
-# - embed, deps: go_library/go_binary edges, so a walk can start from a
-#   real Go binary
-# - cdeps: go_library/go_binary -> cc_library edges (the cgo boundary)
-# - data: cc_library -> _dd_cc_packaged_rule edges (a runtime, dlopen'd
-#   dependency rather than a link-time one)
-# - installed_files: inputs to _dd_cc_packaged_rule via dd_cc_packaged macro
-_WALKED_ATTRS = ["srcs", "dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps", "data", "installed_files"]
-
-def _get_deps(ctx, attr_names):
-    deps = []
-    for attr_name in attr_names:
-        val = getattr(ctx.rule.attr, attr_name, None)
-        if val == None:
-            continue
-        if type(val) == "list":
-            deps.extend(val)
-        else:
-            deps.append(val)
-    return deps
+# In addition to the CC dependency graph edges (see CC_GRAPH_WALKED_ATTRS),
+# the dd_strip collector walks:
+# - srcs: pkg_filegroup srcs, so a walk started from a packaging rule
+#   (e.g. a dd_collect_dependencies output) reaches through to the CC graph
+# - installed_files: _dd_cc_packaged_rule extra files, so strip info
+#   reachable through them is collected as well
+_WALKED_ATTRS = CC_GRAPH_WALKED_ATTRS + ["srcs", "installed_files"]
 
 def _collect_dd_strip_aspect_impl(target, ctx):
     strip_info_direct = [target[DdStripInfo]] if DdStripInfo in target else []
 
-    deps = _get_deps(ctx, _WALKED_ATTRS)
+    deps = get_deps(ctx.rule.attr, _WALKED_ATTRS)
     strip_info_transitive = [
         dep[_CollectedPackagingInfo].strip_info
         for dep in deps
