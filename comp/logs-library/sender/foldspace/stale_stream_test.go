@@ -42,6 +42,8 @@ func (s *simultaneousFailureStream) Recv(ctx context.Context) (uint32, int32, er
 
 func (*simultaneousFailureStream) Close() error { return nil }
 
+func (*simultaneousFailureStream) CredentialsChanged() bool { return false }
+
 type trackedReplacementStream struct {
 	Stream
 	closed atomic.Bool
