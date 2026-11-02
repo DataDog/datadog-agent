@@ -121,6 +121,16 @@ const (
 	KueueWorkload = "kueue_workload"
 	// KueueWorkloadUID is the tag for the Kueue Workload UID
 	KueueWorkloadUID = "kueue_workload_uid"
+	// Scheduler is the tag for the batch scheduler that manages a pod, e.g. kai
+	Scheduler = "kube_scheduler"
+	// SchedulerWorkload is the tag for the scheduling unit of a pod, e.g. the KAI PodGroup name
+	SchedulerWorkload = "kube_scheduler_workload"
+	// SchedulerQueue is the tag for the queue that manages the quota of a pod's scheduling unit
+	SchedulerQueue = "kube_scheduler_queue"
+	// KAIWorkload is the tag for the KAI PodGroup name
+	KAIWorkload = "kai_workload"
+	// KAIQueue is the tag for the KAI queue name
+	KAIQueue = "kai_queue"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
 	KubeAutoscalerKind = "kube_autoscaler_kind"
 	// KubeStaticCPUsTag is the tag that describes a container's cpu management
@@ -171,6 +181,20 @@ const (
 	GPUFabricClusterUUID = "gpu_fabric_cluster_uuid"
 	// GPUFabricCliqueID is the tag for the NVLink fabric clique ID of the GPU
 	GPUFabricCliqueID = "gpu_fabric_clique_id"
+	// GPUChassisSerial is the tag for the serial number of the chassis (rack) containing the GPU
+	GPUChassisSerial = "gpu_chassis_serial"
+	// GPUSlotNumber is the tag for the chassis slot containing the GPU
+	GPUSlotNumber = "gpu_slot_number"
+	// GPUTrayIndex is the tag for the compute tray containing the GPU
+	GPUTrayIndex = "gpu_tray_index"
+	// GPUModuleID is the tag for the module ID of the GPU within its node
+	GPUModuleID = "gpu_module_id"
+	// GPUBoardSerial is the tag for the board serial number of the GPU
+	GPUBoardSerial = "gpu_board_serial"
+	// GPUNUMANode is the tag for the NUMA node closest to the GPU
+	GPUNUMANode = "gpu_numa_node"
+	// GPUFabricGUID is the tag for the NVLink fabric GUID of the GPU
+	GPUFabricGUID = "gpu_fabric_guid"
 	// GPUNVLinkVersion is the tag for the GPU's NVLink version.
 	GPUNVLinkVersion = "gpu_nvlink_version"
 	// GPUNVLinkCapable is the tag indicating whether the GPU has one or more NVLink links.

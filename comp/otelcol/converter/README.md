@@ -19,6 +19,7 @@ The converter supports selective enabling and disabling of features through the 
 - **`health_check`**: Adds the health check extension for health monitoring
 - **`ddflare`**: Adds the Datadog flare extension for diagnostic information
 - **`datadog`**: Adds the OSS Datadog extension to send Fleet Automation data
+- **`opamp`**: Adds the OpAMP extension so the collector reports to an OpAMP server (standalone mode only; mutually exclusive with `datadog`)
 
 ### Configuration Examples
 
@@ -50,7 +51,7 @@ export DD_OTELCOLLECTOR_CONVERTER_FEATURES="infraattributes,prometheus,pprof"
 
 ### Extensions
 
-The converter looks for the `pprof`, `health_check`, `zpages`, `ddflare` and `datadog` extensions. If these are already defined in the service pipeline, it makes no changes. If any of these extensions are not defined, it will add the extensions config (name: `<extension_name>/dd-autoconfigured`) and add the component in the services extension pipeline.
+The converter looks for the `pprof`, `health_check`, `zpages`, `ddflare`, `datadog` and `opamp` extensions. If these are already defined in the service pipeline, it makes no changes. If any of these extensions are not defined, it will add the extensions config (name: `<extension_name>/dd-autoconfigured`) and add the component in the services extension pipeline.
 
 ### Infra Attributes Processor
 
@@ -63,6 +64,35 @@ The converter will check to see if a prometheus receiver is defined which points
 If it finds datadogexporters which are not defined in a pipeline with the prometheus receiver, it adds the prometheus config (name: `prometheus/dd-autoconfigured`), and then create it's own pipeline `metrics/dd-autoconfigured/<dd exporter name>` which contains the prometheus receiver and the datadog exporter.
 
 For any prometheus receiver collecting collector health metrics, and sending these to Datadog, it will update the job name to `datadog-agent`. This ensures the health metrics are tagged by `service:datadog-agent` and differentiable from collector health metrics.
+
+### OpAMP Extension
+
+The `datadog` and `opamp` extensions are mutually exclusive, and which one is injected is decided by the deployment mode:
+
+- **Connected mode** (`otel_standalone: false`, the default): the `datadog` extension is injected. The core Datadog Agent is present and already reports to the backend.
+- **Standalone mode** (`otel_standalone: true`): the `opamp` extension is injected instead, and the `datadog` extension is never injected even when `datadog` is listed in `otelcollector.converter.features`.
+
+Both require an `api_key`; without one neither extension is injected. A user-defined `opamp` extension is reused rather than duplicated, as with the other extensions above.
+
+The injected configuration is derived from the agent config:
+
+```yaml
+extensions:
+  opamp/dd-autoconfigured:
+    server:
+      http:
+        endpoint: https://opamp.<site>/v1/opamp
+        headers:
+          DD-API-KEY: <api_key>
+    reports_raw_config: true
+```
+
+Two settings adjust it:
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `otelcollector.opamp.endpoint` | `""` | When set, used verbatim instead of the site-derived default. |
+| `otelcollector.opamp.reports_raw_config` | `true` | Reports the unexpanded configuration, so references such as `${env:FOO}` are preserved instead of being resolved. Fields typed as `configopaque` are redacted either way. |
 
 ### API Key and API Site
 
@@ -78,8 +108,9 @@ Please refer to the following example in order to manually set the `pprof`, `hea
 - [pprof](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/pprofextension/README.md): Enables collecting collector profiles at a defined endpoint.
 - [health_check](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/healthcheckextension/README.md): Enables an HTTP url that can be probed to check the status of the OpenTelemetry Collector.
 - [zpages](https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension/README.md): Enables an extension that serves zPages, an HTTP endpoint that provides live data for debugging different components
-- [ddflare](../extension/README.md): Enables otel-agent information to be collected in the datadog-agent flare.
+- [ddflare](../ddflareextension/README.md): Enables otel-agent information to be collected in the datadog-agent flare.
 - [datadog](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/datadogextension): Enables collector configuration and build info to be viewed in both Datadog Infrastructure Monitoring and Fleet Automation.
+- [opamp](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/opampextension): Enables the collector to report its status and configuration to an OpAMP server.
 
 ### Prometheus Receiver
 

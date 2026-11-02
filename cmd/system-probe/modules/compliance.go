@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,7 +35,7 @@ func init() { registerModule(ComplianceModule) }
 // For instance, being able to run cross-container checks at runtime by directly
 // accessing the /proc/<pid>/root mount point.
 var ComplianceModule = &module.Factory{
-	Name: config.ComplianceModule,
+	Name: sysconfigtypes.ComplianceModule,
 	Fn:   newComplianceModule,
 	NeedsEBPF: func() bool {
 		return false

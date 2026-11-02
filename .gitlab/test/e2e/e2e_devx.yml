@@ -124,8 +124,6 @@ generate-flakes-finder-pipeline:
     - qa_agent_fips_linux
     - qa_agent_fips_linux_jmx
     - qa_agent_full
-    - job: tests_windows_sysprobe_x64
-      optional: true
   tags: ["arch:amd64", "specific:true"]
   script:
     - dda inv -- -e testwasher.generate-flake-finder-pipeline
@@ -196,8 +194,6 @@ generate-fips-e2e-pipeline:
       optional: true
     - qa_agent_fips_linux
     - qa_agent_fips_linux_jmx
-    - job: tests_windows_sysprobe_x64
-      optional: true
   tags: ["arch:amd64", "specific:true"]
   script:
     - dda inv -- -e fips.generate-fips-e2e-pipeline

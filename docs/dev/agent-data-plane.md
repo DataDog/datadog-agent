@@ -39,7 +39,7 @@ Extending it is not something to do on a real host; the switch operators need is
 `data_plane.preflight_mode`. It exists for benchmarking harnesses that need ADP resident for the
 whole of a fixed-length run, where the pre-flight otherwise stops halfway through and the step
 down in RSS reads as an oscillation in the target's footprint. The SMP quality gates in
-`test/regression/cases/quality_gate_*` set it for exactly that reason.
+`test/regression/container/quality_gates/quality_gate_*` set it for exactly that reason.
 
 Extending the window past the agent telemetry `start_after` does not strand the outcome: the
 `data-plane-preflight-mode` schedule is recurring, so a flush landing mid-run finds nothing and a

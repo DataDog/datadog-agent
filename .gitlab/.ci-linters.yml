@@ -44,8 +44,6 @@ needs-rules:
     - tests_ebpf_x64
     - tests_macos_gitlab_amd64
     - tests_macos_gitlab_arm64
-    - tests_windows_secagent_x64
-    - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
     - trigger_manual_prod_release
     - trigger_distribution

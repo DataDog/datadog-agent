@@ -10,12 +10,12 @@ import (
 	"net/http"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // GetNetworkID fetches the network_id (vpc_id) from system-probe
 func GetNetworkID(client *http.Client) (string, error) {
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/network_id")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, "/network_id")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)

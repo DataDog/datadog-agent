@@ -156,7 +156,7 @@ For each module, you can specify:
 * `default` - for modules with default attribute values
 * `ignored` - for ignored modules.
 
-To create a special configuration, the attributes of the `GoModule` class can be overriden - see the definition <<<repo("tasks/libs/common/gomodules.py", "here")>>> for the list of attributes and their details.
+To create a special configuration, the attributes of the `GoModule` class can be overridden - see the definition <<<repo("tasks/libs/common/gomodules.py", "here")>>> for the list of attributes and their details.
 
 /// tip
 This file can be linted and checked by using `dda inv modules.validate [--fix-format]`.

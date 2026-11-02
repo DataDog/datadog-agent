@@ -67,7 +67,7 @@ func TestSyncProcessorProcess(t *testing.T) {
 	t.Run("rules of the message source apply", func(t *testing.T) {
 		withRule := newSource(config.ExcludeAtMatch, "", "noisy")
 
-		send, err := p.Process(newMessage([]byte("noisy line"), &withRule, message.StatusInfo))
+		send, err := p.Process(newMessage([]byte("noisy line"), withRule, message.StatusInfo))
 
 		require.NoError(t, err)
 		assert.False(t, send)

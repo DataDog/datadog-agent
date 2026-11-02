@@ -11,7 +11,7 @@ Platform semantics mirror omnibus's Stripper
     --strip-unneeded on a copy, then objcopy --add-gnu-debuglink to link the
     two back together. Tools come from the exec platform's cc_toolchain
     (already wired for gcc-toolchain patches), matching how preprocessor.bzl
-    and windows_resources.bzl resolve cc_toolchain tools.
+    and windows/resources.bzl resolve cc_toolchain tools.
   - macOS: strip the shipped copy, dsymutil produces the .dSYM bundle. No
     prior art for macOS dbg packages in this repo or omnibus -- flag for
     build-team confirmation before merge. Tool paths are hardcoded to

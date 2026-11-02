@@ -12,7 +12,7 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-VERSION = "1.21.3"
+VERSION = "1.22.2"
 
 package_metadata(
     name = "package_metadata",
@@ -20,7 +20,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://kerberos.org/dist/krb5/1.21/krb5-{version}.tar.gz",
+        download_url = "https://kerberos.org/dist/krb5/1.22/krb5-{version}.tar.gz",
         package = "krb5",
         version = VERSION,
     ),
@@ -122,9 +122,6 @@ LIBS = {
 
 configure_make(
     name = "krb5",
-    args = [
-        "-j 16",
-    ],
     configure_options = [
         "--without-keyutils",  # this would require additional deps/system deps, disable it
         "--without-system-verto",  # do not prefer libverto from the system, if installed
@@ -148,6 +145,7 @@ configure_make(
         ) if spec["prefix"] else "{}.so".format(libname)
         for libname, spec in LIBS.items()
     ],
+    resource_size = "enormous",
     deps = [
         "@openssl",
     ],

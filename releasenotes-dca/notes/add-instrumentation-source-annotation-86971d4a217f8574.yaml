@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Auto-instrumented pods now expose the configuration source that selected
+    their tracing libraries in ``internal.apm.datadoghq.com/injection-source``.
+    Target, DatadogInstrumentation, and remote policy configuration is recorded
+    in ``internal.apm.datadoghq.com/applied-config``, replacing the
+    ``applied-target`` and ``applied-policy`` annotations.

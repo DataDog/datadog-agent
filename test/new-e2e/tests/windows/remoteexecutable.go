@@ -6,6 +6,7 @@
 package windows
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,8 +60,13 @@ func (rs *RemoteExecutable) FindTestPrograms() error {
 		}
 		return nil
 	})
-
-	return err
+	if err != nil {
+		return err
+	}
+	if len(rs.testfiles) == 0 {
+		return fmt.Errorf("no %s under %s", rs.filespec, rs.basepath)
+	}
+	return nil
 }
 
 // CreateRemotePaths creates the remote paths for the test programs

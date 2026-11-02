@@ -34,6 +34,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/sbom",
         "//pkg/sbom/collectors",
+        "//pkg/util/common",
         "//pkg/util/filesystem",
         "//pkg/util/fxutil",
         "//pkg/util/option",
