@@ -203,7 +203,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	tcfg := reqs.TraceConfig.Object()
 	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil,
-		datadogconnector.WithAgentIgnoreResources(reqs.Config.GetStringSlice("apm_config.ignore_resources")),
+		datadogconnector.WithAgentIgnoreResources(tcfg.Ignore["resource"]),
 		datadogconnector.WithAgentFilterTags(tcfg.RequireTags, tcfg.RejectTags, tcfg.RequireTagsRegex, tcfg.RejectTagsRegex))
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
