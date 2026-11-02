@@ -36,16 +36,13 @@ type datadogAgentLaunchdJobs struct {
 	LaunchdJobsStable []string
 }
 
-// installerLaunchdJob is the root installer daemon, which drives remote configuration management.
-const installerLaunchdJob = "com.datadoghq.installer"
-
 // agentLaunchdJobs are the jobs the Agent package installs.
 //
 // The process manager is loaded first, so it is up before the processes it will supervise. It
 // is a stable job only: unlike on Linux, it will get no experiment variant, since a configuration
 // experiment swaps the Agent's own jobs, not the daemon that supervises them.
 //
-// The installer daemon is loaded last, once the Agent it reports on is up. The .dmg's
+// The root installer daemon is loaded last, once the Agent it reports on is up. The .dmg's
 // postinstall script leaves it out of its fallback: the Agent runs without it.
 var agentLaunchdJobs = datadogAgentLaunchdJobs{
 	LaunchdMainJobStable: "com.datadoghq.agent",
@@ -54,7 +51,7 @@ var agentLaunchdJobs = datadogAgentLaunchdJobs{
 		"com.datadoghq.agent",
 		"com.datadoghq.sysprobe",
 		"com.datadoghq.data-plane",
-		installerLaunchdJob,
+		"com.datadoghq.installer",
 	},
 }
 
