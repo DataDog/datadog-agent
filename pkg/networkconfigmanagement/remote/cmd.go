@@ -118,8 +118,11 @@ func runInteractive(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	// Only now can the CLI be closed without its echo reaching the capture.
 	_ = sendLine(stdin, sessionEndCommand)
 	_ = stdin.Close()
-	done := make(chan error, 1)
-	go func() { done <- session.Wait() }()
+	done := make(chan struct{})
+	go func() {
+		_ = session.Wait()
+		close(done)
+	}()
 	select {
 	case <-done:
 	case <-time.After(sessionEndWait):
