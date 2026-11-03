@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const scanMaxPoints = 120
@@ -163,6 +164,43 @@ func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// detectorSelectionKey snapshots kind/type values and nil presence, not aggregations.
+type detectorSelectionKey struct {
+	kindSet bool
+	kind    observer.MetricKind
+	typeSet bool
+	typ     metrics.MetricType
+}
+
+func newDetectorSelectionKey(filter observer.DetectionFilter) detectorSelectionKey {
+	var key detectorSelectionKey
+	if filter.MetricKind != nil {
+		key.kindSet, key.kind = true, *filter.MetricKind
+	}
+	if filter.MetricType != nil {
+		key.typeSet, key.typ = true, *filter.MetricType
+	}
+	return key
+}
+
+func detectorSeriesFilter(filter observer.DetectionFilter) observer.SeriesFilter {
+	selection := observer.WorkloadSeriesFilter()
+	selection.MetricKind, selection.MetricType = filter.MetricKind, filter.MetricType
+	return selection
+}
+
+func aggregationAllowed(agg observer.Aggregate, requested []observer.Aggregate) bool {
+	if len(requested) == 0 {
+		return true
+	}
+	for _, candidate := range requested {
+		if candidate == agg {
+			return true
+		}
+	}
+	return false
 }
 
 // seriesStatus holds point count and write generation for a single series.

@@ -9,8 +9,131 @@ import (
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDetectorSeriesFilter(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	add := func(key uint64, namespace string, metricType metrics.MetricType, kind observer.MetricKind) observer.SeriesRef {
+		ref := storage.AddWithKeyAndHostComposite(namespace, "metric", "", 100, 1,
+			tagset.CompositeTags{}, key, metricType).Ref
+		storage.SetSeriesKind(ref, kind)
+		return ref
+	}
+	stableGauge := add(1, "work", metrics.GaugeType, observer.STABLE)
+	stableCount := add(2, "work", metrics.CountType, observer.STABLE)
+	linearGauge := add(3, "work", metrics.GaugeType, observer.LINEAR)
+	unset := add(4, "work", observer.UnknownType, observer.UNSET)
+	unknownGauge := add(5, "work", metrics.GaugeType, observer.UNKNOWN)
+	add(6, observer.TelemetryNamespace, metrics.GaugeType, observer.STABLE)
+
+	stable, linear, unknownKind, unsetKind := observer.STABLE, observer.LINEAR, observer.UNKNOWN, observer.UNSET
+	gauge, count, unknownType := metrics.GaugeType, metrics.CountType, observer.UnknownType
+	for _, tc := range []struct {
+		name   string
+		filter observer.DetectionFilter
+		want   []observer.SeriesRef
+	}{
+		{"zero", observer.DetectionFilter{}, []observer.SeriesRef{stableGauge, stableCount, linearGauge, unset, unknownGauge}},
+		{"kind only", observer.DetectionFilter{MetricKind: &stable}, []observer.SeriesRef{stableGauge, stableCount}},
+		{"type only", observer.DetectionFilter{MetricType: &gauge}, []observer.SeriesRef{stableGauge, linearGauge, unknownGauge}},
+		{"combined", observer.DetectionFilter{MetricKind: &stable, MetricType: &count}, []observer.SeriesRef{stableCount}},
+		{"explicit unset", observer.DetectionFilter{MetricKind: &unsetKind}, []observer.SeriesRef{unset}},
+		{"explicit unknown type", observer.DetectionFilter{MetricType: &unknownType}, []observer.SeriesRef{unset}},
+		{"unknown kind", observer.DetectionFilter{MetricKind: &unknownKind}, []observer.SeriesRef{unknownGauge}},
+		{"no match", observer.DetectionFilter{MetricKind: &linear, MetricType: &count}, nil},
+		{"aggregation does not select series", observer.DetectionFilter{
+			MetricKind: &stable, Aggregations: []observer.Aggregate{observer.AggregateSum},
+		}, []observer.SeriesRef{stableGauge, stableCount}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := newDetectorSelectionKey(tc.filter)
+			selection := detectorSeriesFilter(tc.filter)
+			require.Equal(t, observer.SeriesFilter{
+				MetricKind: tc.filter.MetricKind, MetricType: tc.filter.MetricType,
+				ExcludeNamespaces: []string{observer.TelemetryNamespace},
+			}, selection)
+			require.ElementsMatch(t, tc.want, storage.ListSeriesRefsInto(selection, nil))
+			require.Equal(t, before, newDetectorSelectionKey(tc.filter), "selection must not modify caller values")
+		})
+	}
+}
+
+func TestDetectorSelectionKey(t *testing.T) {
+	kind, metricType := observer.UNSET, observer.UnknownType
+	filter := observer.DetectionFilter{MetricKind: &kind, MetricType: &metricType}
+	original := newDetectorSelectionKey(filter)
+	require.Equal(t, detectorSelectionKey{
+		kindSet: true, kind: observer.UNSET, typeSet: true, typ: observer.UnknownType,
+	}, original)
+	require.NotEqual(t, original, newDetectorSelectionKey(observer.DetectionFilter{}))
+	require.NotEqual(t, newDetectorSelectionKey(observer.DetectionFilter{}),
+		newDetectorSelectionKey(observer.DetectionFilter{MetricKind: &kind}))
+	require.NotEqual(t, newDetectorSelectionKey(observer.DetectionFilter{}),
+		newDetectorSelectionKey(observer.DetectionFilter{MetricType: &metricType}))
+
+	otherKind, otherType := kind, metricType
+	require.Equal(t, original, newDetectorSelectionKey(observer.DetectionFilter{
+		MetricKind: &otherKind, MetricType: &otherType,
+	}), "pointer identity must not affect the key")
+	filter.Aggregations = []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage}
+	require.Equal(t, original, newDetectorSelectionKey(filter), "aggregation restrictions do not affect series membership")
+
+	kind = observer.STABLE
+	require.NotEqual(t, original, newDetectorSelectionKey(filter))
+	kind = observer.UNSET
+	metricType = metrics.GaugeType
+	require.NotEqual(t, original, newDetectorSelectionKey(filter))
+	require.Equal(t, observer.UNSET, original.kind, "previous keys must retain their values")
+	require.Equal(t, observer.UnknownType, original.typ)
+}
+
+func TestAggregationAllowed(t *testing.T) {
+	configured := []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage}
+	for _, tc := range []struct {
+		name      string
+		requested []observer.Aggregate
+		want      []observer.Aggregate
+	}{
+		{"nil", nil, configured},
+		{"empty", []observer.Aggregate{}, configured},
+		{"intersection", []observer.Aggregate{observer.AggregateSum, observer.AggregateAverage}, []observer.Aggregate{observer.AggregateAverage}},
+		{"no match", []observer.Aggregate{observer.AggregateSum}, nil},
+		{"configured order", []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, configured},
+		{"duplicates", []observer.Aggregate{observer.AggregateAverage, observer.AggregateAverage}, []observer.Aggregate{observer.AggregateAverage}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := append([]observer.Aggregate{}, tc.requested...)
+			var selected []observer.Aggregate
+			for _, agg := range configured {
+				if aggregationAllowed(agg, tc.requested) {
+					selected = append(selected, agg)
+				}
+			}
+			require.Equal(t, tc.want, selected)
+			require.Equal(t, before, append([]observer.Aggregate{}, tc.requested...), "caller aggregations must be unchanged")
+		})
+	}
+}
+
+func TestDetectorFilterHelpersDoNotAllocate(t *testing.T) {
+	kind, metricType := observer.STABLE, metrics.GaugeType
+	filter := observer.DetectionFilter{
+		MetricKind: &kind, MetricType: &metricType,
+		Aggregations: []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage},
+	}
+	var key detectorSelectionKey
+	var allowed bool
+	allocations := testing.AllocsPerRun(100, func() {
+		key = newDetectorSelectionKey(filter)
+		allowed = aggregationAllowed(observer.AggregateAverage, filter.Aggregations)
+	})
+	require.Zero(t, allocations, "cache-key construction and membership checks are hot-path operations")
+	require.Equal(t, newDetectorSelectionKey(filter), key)
+	require.True(t, allowed)
+}
 
 func TestListSeriesRefsFallbackUsesListSeries(t *testing.T) {
 	storage := &seriesListOnlyStorage{
