@@ -11,6 +11,9 @@ import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
 
+const INITIAL_METRIC_GROUPS = 5;
+const MAX_METRIC_GROUPS = 50;
+
 const AGGREGATION_TYPES = ['avg', 'count', 'sum'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
 
@@ -100,6 +103,8 @@ export function MetricsView({
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [selectedMetricTypes, setSelectedMetricTypes] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
+  const seriesDataCacheRef = useRef(new Map<string, SeriesData>());
+  const autoSelectedScenarioRef = useRef<string | null>(null);
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
@@ -338,7 +343,7 @@ export function MetricsView({
         if (countDiff !== 0) return countDiff;
         return a.baseName.localeCompare(b.baseName);
       })
-      .slice(0, 50)
+      .slice(0, MAX_METRIC_GROUPS)
       .map((g) => g.key),
     [visibleGroups, anomalyCountByGroup]
   );
@@ -381,6 +386,8 @@ export function MetricsView({
     if (!state.activeScenario || selectionScenario === state.activeScenario) return;
     setSelectedGroups(new Set());
     setGroupSeriesData(new Map());
+    seriesDataCacheRef.current = new Map();
+    autoSelectedScenarioRef.current = null;
     setSelectionScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [
@@ -389,23 +396,31 @@ export function MetricsView({
     onTimeRangeChange,
   ]);
 
-  const prevSelectedGroupsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!state.activeScenario || selectionScenario !== state.activeScenario ||
+        state.connectionState !== 'ready' || topAnomalousGroupKeys.length === 0 ||
+        autoSelectedScenarioRef.current === state.activeScenario) return;
+    autoSelectedScenarioRef.current = state.activeScenario;
+    setSelectedGroups(new Set(topAnomalousGroupKeys.slice(0, INITIAL_METRIC_GROUPS)));
+  }, [state.activeScenario, state.connectionState, selectionScenario, topAnomalousGroupKeys]);
+
+  const canShowMoreMetrics = topAnomalousGroupKeys.some((key) => !selectedGroups.has(key));
+
   useEffect(() => {
     if (selectionScenario !== state.activeScenario) return;
     if (selectedGroups.size === 0 || state.connectionState !== 'ready') {
-      prevSelectedGroupsRef.current = new Set();
-      if (groupSeriesData.size > 0) setGroupSeriesData(new Map());
+      setGroupSeriesData(new Map());
       return;
     }
 
-    const selectionChanged = selectedGroups.size !== prevSelectedGroupsRef.current.size ||
-      [...selectedGroups].some((k) => !prevSelectedGroupsRef.current.has(k));
-    if (!selectionChanged) return;
-    prevSelectedGroupsRef.current = new Set(selectedGroups);
-
+    // Keep visible charts while loading additional groups. Cache series so expanding
+    // the selection does not fetch the initial charts again.
+    setGroupSeriesData((current) => new Map(
+      [...current].filter(([key]) => selectedGroups.has(key))
+    ));
+    const seriesCache = seriesDataCacheRef.current;
     let cancelled = false;
     const fetchSeriesData = async () => {
-      const next = new Map<string, SeriesData[]>();
       for (const groupKey of selectedGroups) {
         if (cancelled) return;
         const group = allGroupByKey.get(groupKey);
@@ -414,16 +429,19 @@ export function MetricsView({
         for (const s of group.members) {
           if (cancelled) return;
           try {
-            const data = await api.getSeriesDataByID(s.id);
+            let data = seriesCache.get(s.id);
+            if (!data) {
+              data = await api.getSeriesDataByID(s.id);
+              if (cancelled) return;
+              seriesCache.set(s.id, data);
+            }
             seriesList.push(data);
           } catch (e) {
             console.error(`Failed to fetch series ${s.id}:`, e);
           }
         }
-        next.set(groupKey, seriesList);
-      }
-      if (!cancelled) {
-        setGroupSeriesData(next);
+        if (cancelled) return;
+        setGroupSeriesData((current) => new Map(current).set(groupKey, seriesList));
       }
     };
 
@@ -431,7 +449,7 @@ export function MetricsView({
     return () => {
       cancelled = true;
     };
-  }, [selectedGroups, selectionScenario, state.connectionState, state.activeScenario, allGroupByKey, groupSeriesData.size]);
+  }, [selectedGroups, selectionScenario, state.connectionState, state.activeScenario, allGroupByKey]);
 
   const toggleDetector = (name: string) => {
     actions.toggleComponent(name);
@@ -776,22 +794,27 @@ export function MetricsView({
 
         {state.connectionState === 'ready' && (
           <div className="space-y-6">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedGroups(new Set(topAnomalousGroupKeys))}
-                disabled={selectionScenario !== state.activeScenario || topAnomalousGroupKeys.length === 0}
-                className="px-3 py-2 text-xs font-medium rounded bg-purple-600 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Load top 50 most anomalous metrics
-              </button>
-            </div>
+            {canShowMoreMetrics && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedGroups(new Set(topAnomalousGroupKeys))}
+                  disabled={selectionScenario !== state.activeScenario}
+                  className="px-3 py-2 text-xs font-medium rounded bg-purple-600 text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Show up to {MAX_METRIC_GROUPS} most anomalous metrics
+                </button>
+              </div>
+            )}
+            {selectedGroups.size > 0 && groupSeriesData.size < selectedGroups.size && (
+              <div role="status" className="text-sm text-slate-400">
+                Loading metrics ({groupSeriesData.size}/{selectedGroups.size})…
+              </div>
+            )}
             {selectedGroups.size === 0 ? (
               <div className="text-center py-10 text-slate-500">
-                Select metric groups from the sidebar or use “Load top 50 most anomalous metrics” to view charts
+                Select metric groups from the sidebar to view charts
               </div>
-            ) : groupSeriesData.size === 0 ? (
-              <div className="text-center py-10 text-slate-500">Loading series data...</div>
             ) : (
               <>
                 {/* Regular metric groups */}
