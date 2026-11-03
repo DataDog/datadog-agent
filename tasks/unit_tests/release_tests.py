@@ -952,6 +952,7 @@ class TestGetModulePseudoVersion(unittest.TestCase):
         commit = "795d6adf0d67cf2a84fa2b1ab5e080358c4803dd"
         c = MockContext(
             run={
+                "git rev-parse --is-shallow-repository": Result("false\n"),
                 "git fetch --tags --force origin": Result(""),
                 f"git log -1 --format=%ct {commit}": Result("1793294943\n"),
                 f"git tag --merged {commit}": Result("pkg/gohai/v0.53.2-rc.18\npkg/gohai/v0.53.2-rc.19\n"),
@@ -966,6 +967,20 @@ class TestGetModulePseudoVersion(unittest.TestCase):
                 "suffix": self.SUFFIX,
             },
         )
+
+    def test_get_commit_refs_unshallows(self):
+        commit = "795d6adf0d67cf2a84fa2b1ab5e080358c4803dd"
+        c = MockContext(
+            run={
+                "git rev-parse --is-shallow-repository": Result("true\n"),
+                "git fetch --tags --force --unshallow origin": Result(""),
+                f"git log -1 --format=%ct {commit}": Result("1793294943\n"),
+                f"git tag --merged {commit}": Result(""),
+                f"git tag --points-at {commit}": Result(""),
+            }
+        )
+        release._get_commit_refs(c, commit)
+        c.run.assert_any_call("git fetch --tags --force --unshallow origin", hide=True)
 
 
 class TestUpdateModules(unittest.TestCase):

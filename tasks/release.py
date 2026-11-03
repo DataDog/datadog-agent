@@ -101,7 +101,9 @@ def _go_semver_key(version):
 
 def _get_commit_refs(ctx, commit):
     """Get the tags and pseudo-version suffix Go uses to name the modules of the repository at a commit."""
-    ctx.run("git fetch --tags --force origin", hide=True)
+    # The tags merged into the commit are only all visible with its full history
+    shallow = ctx.run("git rev-parse --is-shallow-repository", hide=True).stdout.strip() == "true"
+    ctx.run(f"git fetch --tags --force{' --unshallow' if shallow else ''} origin", hide=True)
     timestamp = int(ctx.run(f"git log -1 --format=%ct {commit}", hide=True).stdout.strip())
     return {
         "merged_tags": ctx.run(f"git tag --merged {commit}", hide=True).stdout.split(),
