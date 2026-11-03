@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Opt-in all-in-one supervisor. Unset ENTRYPOINT still runs /opt/entrypoints/_default, which execs /init (s6).
+# Cont-init stays in this shell so a failing script exits before dd-procmgrd starts.
+set -euo pipefail
+
+for init in /etc/cont-init.d/*.sh; do
+    if [[ -e $init ]]; then
+        printf '===== RUNNING %s =====\n' "$init"
+        bash "$init"
+    fi
+done
+
+export DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio
+printf '===== STARTING dd-procmgrd =====\n'
+exec /opt/datadog-agent/embedded/bin/dd-procmgrd

@@ -22,6 +22,12 @@ const SECURITY_AGENT: &str = "/opt/datadog-agent/embedded/bin/security-agent";
 const OTEL_AGENT: &str = "/opt/datadog-agent/embedded/bin/otel-agent";
 const DATA_PLANE: &str = "/opt/datadog-agent/embedded/bin/agent-data-plane";
 const PAR_CONTROL: &str = "/opt/datadog-agent/embedded/bin/par-control";
+const PRIVATE_ACTION_RUNNER: &str = "/opt/datadog-agent/embedded/bin/privateactionrunner";
+
+const ENTRYPOINT_DEFAULT: &str =
+    include_str!("../../../../Dockerfiles/agent/entrypoint.d/_default");
+const ENTRYPOINT_PROCMGR_ALL_IN_ONE: &str =
+    include_str!("../../../../Dockerfiles/agent/entrypoint.d/procmgr-all-in-one");
 
 const CATALOG: &[(&str, &str)] = &[
     (
@@ -58,6 +64,10 @@ const CATALOG: &[(&str, &str)] = &[
             "../../../../Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml"
         ),
     ),
+    (
+        "datadog-agent-par.yaml",
+        include_str!("../../../../Dockerfiles/agent/processes.d/aio/datadog-agent-par.yaml"),
+    ),
 ];
 
 const AUXILIARIES: &[&str] = &[
@@ -67,6 +77,7 @@ const AUXILIARIES: &[&str] = &[
     "datadog-agent-security",
     "datadog-agent-otel",
     "datadog-agent-data-plane",
+    "datadog-agent-par",
 ];
 
 fn load_shipped_catalog() -> HashMap<String, ProcessConfig> {
@@ -193,6 +204,64 @@ fn aio_par_control_skips_when_the_binary_is_absent() {
     assert_eq!(
         par_control.condition_path_exists.as_deref(),
         Some(PAR_CONTROL)
+    );
+    assert_eq!(par_control.stop_timeout, Some(180));
+    assert_eq!(
+        par_control
+            .condition_config_any
+            .iter()
+            .flat_map(|file| file.keys.iter().map(String::as_str))
+            .collect::<Vec<_>>(),
+        ["private_action_runner.split_enabled"]
+    );
+    assert_eq!(
+        par_control
+            .env
+            .get("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
+            .map(String::as_str),
+        Some("true")
+    );
+}
+
+#[test]
+fn aio_private_action_runner_monolith_is_gated_on_enabled() {
+    let configs = load_shipped_catalog();
+    let monolith = configs.get("datadog-agent-par").expect("par monolith");
+
+    assert_eq!(monolith.command, PRIVATE_ACTION_RUNNER);
+    assert_eq!(
+        monolith.args,
+        ["run", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
+    );
+    assert_eq!(
+        monolith.condition_path_exists.as_deref(),
+        Some(PRIVATE_ACTION_RUNNER)
+    );
+    assert_eq!(
+        monolith
+            .condition_config_any
+            .iter()
+            .flat_map(|file| file.keys.iter().map(String::as_str))
+            .collect::<Vec<_>>(),
+        ["private_action_runner.enabled"]
+    );
+    assert_eq!(
+        monolith
+            .condition_config_none
+            .iter()
+            .flat_map(|file| file.keys.iter().map(String::as_str))
+            .collect::<Vec<_>>(),
+        ["private_action_runner.split_enabled"]
+    );
+    assert!(!monolith.exit_with_supervisor);
+    let enabled_gated = monolith.condition_config_any.iter().any(|file| {
+        file.keys
+            .iter()
+            .any(|key| key == "private_action_runner.enabled")
+    });
+    assert!(
+        monolith.auto_start && enabled_gated,
+        "monolith is not auto_start unless private_action_runner.enabled is present"
     );
 }
 
@@ -350,6 +419,7 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
             "datadog-agent-action-executor",
             "datadog-agent-data-plane",
             "datadog-agent-otel",
+            "datadog-agent-par",
             "datadog-agent-par-control",
             "datadog-agent-process",
             "datadog-agent-security",
@@ -374,4 +444,51 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
             "datadog-agent-par-control.yaml".to_string(),
         ]
     );
+
+    let executor = catalog
+        .processes
+        .iter()
+        .find(|process| process.name == "datadog-agent-action-executor")
+        .expect("action-executor");
+    assert!(
+        !executor.config.auto_start,
+        "action-executor stays on demand"
+    );
+}
+
+#[test]
+fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
+    let script = ENTRYPOINT_PROCMGR_ALL_IN_ONE;
+    assert!(script.contains("set -euo pipefail"));
+    assert!(script.contains("/etc/cont-init.d/*.sh"));
+    assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
+    assert!(script.contains("exec /opt/datadog-agent/embedded/bin/dd-procmgrd"));
+    assert!(
+        !script.contains("DD_PM_INHERIT_ENV"),
+        "the entrypoint must not set DD_PM_INHERIT_ENV"
+    );
+}
+
+#[test]
+fn default_entrypoint_still_execs_init() {
+    assert!(ENTRYPOINT_DEFAULT.contains("exec /init"));
+    assert!(
+        !ENTRYPOINT_DEFAULT.contains("dd-procmgrd"),
+        "_default must keep exec /init and must not exec dd-procmgrd"
+    );
+}
+
+#[cfg(all(not(bazel), unix))]
+#[test]
+fn procmgr_all_in_one_entrypoint_mode_is_755() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../Dockerfiles/agent/entrypoint.d/procmgr-all-in-one");
+    let mode = fs::metadata(&path)
+        .unwrap_or_else(|err| panic!("stat {}: {err}", path.display()))
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o755);
 }

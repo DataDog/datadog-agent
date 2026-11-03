@@ -115,6 +115,8 @@ enum GatedKey {
     DataPlaneEnabled,
     ComplianceConfig,
     OtelCollector,
+    PrivateActionRunnerEnabled,
+    PrivateActionRunnerSplitEnabled,
 }
 
 struct GatedKeySpec {
@@ -143,6 +145,8 @@ const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_stand
 const DATA_PLANE_ENABLED_KEY: &str = "data_plane.enabled";
 const COMPLIANCE_CONFIG_KEY: &str = "compliance_config.enabled";
 const OTELCOLLECTOR_ENABLED_KEY: &str = "otelcollector.enabled";
+const PRIVATE_ACTION_RUNNER_ENABLED_KEY: &str = "private_action_runner.enabled";
+const PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY: &str = "private_action_runner.split_enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -250,6 +254,22 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     GatedKeySpec {
         kind: GatedKey::OtelCollector,
         key: OTELCOLLECTOR_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // All-in-one Private Action Runner. Schema default is false. No platform override.
+    GatedKeySpec {
+        kind: GatedKey::PrivateActionRunnerEnabled,
+        key: PRIVATE_ACTION_RUNNER_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // Schema platform_default is container false, linux true, windows true, other false.
+    // GatedKeySpec.default is a single bool and HostOs has no container variant.
+    // This catalog is the container entrypoint. Use false so a missing key does not read as true.
+    GatedKeySpec {
+        kind: GatedKey::PrivateActionRunnerSplitEnabled,
+        key: PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY,
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
@@ -2113,5 +2133,78 @@ process_config:
         let agent = fx.agent("otelcollector:\n  enabled: false\n");
         fx.env("DD_OTELCOLLECTOR_ENABLED", "true");
         fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, true);
+    }
+
+    // -------------------------------- Private Action Runner process gates
+
+    fn par_key(path: &str, key: &str) -> ConditionConfigFile {
+        ConditionConfigFile {
+            path: path.to_owned(),
+            keys: vec![key.to_owned()],
+        }
+    }
+
+    /// par-control starts when `private_action_runner.split_enabled` is true.
+    fn par_control_would_start(fx: &Gate, agent: &str) -> bool {
+        fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY)])
+    }
+
+    /// The monolith starts when `enabled` is true and `split_enabled` does not veto it.
+    fn par_monolith_would_start(fx: &Gate, agent: &str) -> bool {
+        fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_ENABLED_KEY)])
+            && fx.veto_clear(&[par_key(agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY)])
+    }
+
+    #[test]
+    fn private_action_runner_empty_yaml_starts_neither_process() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, PRIVATE_ACTION_RUNNER_ENABLED_KEY, false);
+        fx.assert_key(&agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY, false);
+        assert!(
+            !par_control_would_start(&fx, &agent),
+            "missing split_enabled is false, so par-control stays down"
+        );
+        assert!(
+            !par_monolith_would_start(&fx, &agent),
+            "missing enabled is false, so the monolith stays down"
+        );
+    }
+
+    #[test]
+    fn private_action_runner_split_true_enabled_false_starts_control() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: false\n  split_enabled: true\n");
+        assert!(par_control_would_start(&fx, &agent));
+        assert!(
+            !par_monolith_would_start(&fx, &agent),
+            "split true vetoes the monolith even when that is the accepted split-without-enabled case"
+        );
+    }
+
+    #[test]
+    fn private_action_runner_enabled_true_split_false_starts_monolith() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n  split_enabled: false\n");
+        assert!(!par_control_would_start(&fx, &agent));
+        assert!(par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_env_selects_control() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: false\n  split_enabled: false\n");
+        fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+        assert!(par_control_would_start(&fx, &agent));
+        assert!(!par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_enabled_env_selects_monolith() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.env("DD_PRIVATE_ACTION_RUNNER_ENABLED", "true");
+        assert!(!par_control_would_start(&fx, &agent));
+        assert!(par_monolith_would_start(&fx, &agent));
     }
 }

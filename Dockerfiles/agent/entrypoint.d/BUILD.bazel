@@ -1,0 +1,9 @@
+# gazelle:ignore
+
+exports_files(
+    [
+        "_default",
+        "procmgr-all-in-one",
+    ],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
