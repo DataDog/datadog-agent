@@ -48,8 +48,6 @@ dd_agent_go_test(
     ]],
     deps = [
         "//comp/core/config",
-        "//pkg/config/mock",
-        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
