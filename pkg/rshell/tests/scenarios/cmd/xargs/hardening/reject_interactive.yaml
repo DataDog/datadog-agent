@@ -1,0 +1,8 @@
+description: xargs rejects -p (interactive) with exit 1 — not implemented in the sandbox.
+input:
+  script: |+
+    echo a | xargs -p echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

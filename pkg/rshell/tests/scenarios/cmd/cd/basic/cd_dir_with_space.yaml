@@ -1,0 +1,14 @@
+description: cd accepts a quoted directory name containing spaces.
+setup:
+  files:
+    - path: "with space/leaf"
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd "with space"
+    pwd
+expect:
+  stdout_contains: ["with space"]
+  stderr: ""
+  exit_code: 0

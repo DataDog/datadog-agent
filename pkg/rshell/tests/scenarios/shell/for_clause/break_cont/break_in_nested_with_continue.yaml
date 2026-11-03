@@ -1,0 +1,18 @@
+description: Break in inner loop while outer loop continues iterating.
+input:
+  script: |+
+    for i in 1 2 3; do
+      for j in a b c; do
+        if [ "$j" = "b" ]; then
+          break
+        fi
+        echo "$i$j"
+      done
+    done
+expect:
+  stdout: |+
+    1a
+    2a
+    3a
+  stderr: ""
+  exit_code: 0

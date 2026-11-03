@@ -1,0 +1,13 @@
+description: ss rejects dangerous flags (-F, -p, -K, -E, -N) with exit code 1.
+# skip: these flags are not registered in rshell's ss; they are intentionally
+# blocked to prevent GTFOBins-style abuse (file reads, PID disclosure, kills).
+skip_assert_against_bash: true
+input:
+  script: |+
+    ss -F /dev/null; echo "exit:$?"
+expect:
+  stdout_contains:
+    - "exit:1"
+  stderr_contains:
+    - "ss:"
+  exit_code: 0

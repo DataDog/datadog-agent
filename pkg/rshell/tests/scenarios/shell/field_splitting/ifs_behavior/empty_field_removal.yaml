@@ -1,0 +1,13 @@
+description: Empty unquoted expansion produces no fields.
+input:
+  script: |+
+    a=
+    echo "[$a]"
+    for word in $a; do echo "word: $word"; done
+    echo done
+expect:
+  stdout: |+
+    []
+    done
+  stderr: ""
+  exit_code: 0

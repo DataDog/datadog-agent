@@ -1,0 +1,18 @@
+description: A `break` invoked inside a `{...}` pipeline stage prints the "only useful in a loop" diagnostic AND keeps running the rest of the stage's statements — bash treats the grouped stage as out-of-context for loop control even when the pipeline runs inside a parent loop.
+input:
+  script: |+
+    while true; do
+      echo before
+      true | { break; echo bothered; }
+      echo afterpipe
+      break
+    done
+expect:
+  stdout: |+
+    before
+    bothered
+    afterpipe
+  stderr_contains:
+    - "break"
+    - "loop"
+  exit_code: 0

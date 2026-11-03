@@ -1,0 +1,14 @@
+description: strings -- treats dash-prefixed filenames as operands.
+setup:
+  files:
+    - path: "-secret.bin"
+      content: "dash_file_secret\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -- -secret.bin
+expect:
+  stdout: |+
+    dash_file_secret
+  stderr: ""
+  exit_code: 0

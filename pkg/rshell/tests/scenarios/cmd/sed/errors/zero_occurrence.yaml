@@ -1,0 +1,10 @@
+description: The s command rejects 0 as an occurrence number.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo 'aaa' | sed 's/a/b/0'
+expect:
+  stdout: ""
+  stderr_contains: ["number option to 's' command may not be zero"]
+  exit_code: 1

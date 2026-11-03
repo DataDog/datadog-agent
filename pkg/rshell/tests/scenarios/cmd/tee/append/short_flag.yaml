@@ -1,0 +1,18 @@
+description: -a appends to an existing file instead of overwriting it.
+setup:
+  files:
+    - path: out.txt
+      content: "first\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "second\n" | tee -a out.txt
+    cat out.txt
+expect:
+  stdout: |+
+    second
+    first
+    second
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: head -n 3 outputs the first 3 lines of a file.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 3 file.txt
+expect:
+  stdout: "alpha\nbeta\ngamma\n"
+  stderr: ""
+  exit_code: 0

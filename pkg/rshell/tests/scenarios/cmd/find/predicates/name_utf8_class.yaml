@@ -1,0 +1,20 @@
+description: -name character class matches multibyte UTF-8 characters.
+skip_assert_against_bash: true  # Docker bash cannot match é in character class
+setup:
+  files:
+    - path: dir/a
+      content: "a"
+    - path: dir/é
+      content: "accent"
+    - path: dir/b
+      content: "b"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name '[aé]' -type f
+expect:
+  stdout_unordered: |+
+    dir/a
+    dir/é
+  stderr: ""
+  exit_code: 0
