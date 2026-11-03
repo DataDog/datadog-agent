@@ -1,0 +1,14 @@
+description: strings on a binary file with NUL bytes scattered between printable sequences correctly extracts each printable run as a separate string.
+setup:
+  files:
+    - path: file.bin
+      content: "hello\x00world\x00found\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings file.bin
+expect:
+  stdout: "hello\nworld\nfound\n"
+  stderr: ""
+  exit_code: 0

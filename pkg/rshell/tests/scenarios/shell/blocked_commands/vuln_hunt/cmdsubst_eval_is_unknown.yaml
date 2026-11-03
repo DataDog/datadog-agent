@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-19-codex / blocked_commands.
+# skip: eval is intentionally unavailable in the restricted shell.
+skip_assert_against_bash: true
+description: A blocked command name produced by command substitution is dispatched as data, not parsed as shell syntax.
+input:
+  script: |+
+    $(echo eval) echo pwned
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: |+
+    rshell: eval: unknown command
+    Run 'help' to see available commands.
+  exit_code: 0

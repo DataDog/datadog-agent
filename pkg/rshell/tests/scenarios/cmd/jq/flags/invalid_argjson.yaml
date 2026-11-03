@@ -1,0 +1,8 @@
+description: jq returns command-line status for malformed --argjson values.
+input:
+  script: |+
+    jq -nc --argjson unused not-json '1 < 2 < 3'
+expect:
+  stdout: |+
+  stderr_contains: ["invalid JSON"]
+  exit_code: 2

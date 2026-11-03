@@ -1,0 +1,9 @@
+description: Backslash in double quotes escapes $, backquote, double-quote, backslash, and newline.
+input:
+  script: |+
+    echo "a\\b" "a\$b"
+expect:
+  stdout: |+
+    a\b a$b
+  stderr: ""
+  exit_code: 0

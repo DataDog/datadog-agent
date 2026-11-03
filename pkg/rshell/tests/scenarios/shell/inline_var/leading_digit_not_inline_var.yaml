@@ -1,0 +1,17 @@
+# skip: command-allowlist behavior is rshell-specific.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt P1 (2026-05-18-initial-audit): a token like `1A=val` violates the
+  POSIX identifier rule (no leading digit), so it is NOT parsed as an inline
+  assignment — it becomes a command name, which is then rejected (exit 127).
+  The parent shell's `1A` (an invalid identifier) is never set.
+input:
+  allowed_commands: ["rshell:echo"]
+  script: |+
+    1A=val echo body
+    echo "exit_was=$?"
+expect:
+  stdout: |+
+    exit_was=127
+  stderr_contains: ["1A=val: command not allowed"]
+  exit_code: 0

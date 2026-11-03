@@ -1,0 +1,9 @@
+description: Brace group can be used as the right operand of an || operator.
+input:
+  script: |+
+    false || { echo "fallback"; }
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

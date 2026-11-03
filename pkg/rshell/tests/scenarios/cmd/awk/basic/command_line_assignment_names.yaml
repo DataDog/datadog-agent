@@ -1,0 +1,17 @@
+description: awk rejects reserved, builtin, and function names in command-line assignments.
+input:
+  script: |+
+    awk -v length=1 'BEGIN { print "unreachable" }' 2>/dev/null
+    printf 'builtin=%s\n' "$?"
+    awk -v else=1 'BEGIN { print "unreachable" }' 2>/dev/null
+    printf 'keyword=%s\n' "$?"
+    awk 'BEGIN { print "begin" } END { print "unreachable" }' length=1 2>/dev/null
+    printf 'operand=%s\n' "$?"
+expect:
+  stdout: |+
+    builtin=2
+    keyword=2
+    begin
+    operand=2
+  stderr: |+
+  exit_code: 0

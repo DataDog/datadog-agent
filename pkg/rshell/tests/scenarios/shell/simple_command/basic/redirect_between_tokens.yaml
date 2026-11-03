@@ -1,0 +1,9 @@
+description: Redirection can appear between command arguments.
+input:
+  script: |+
+    echo 2>/dev/null foo
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

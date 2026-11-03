@@ -1,0 +1,11 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: sed y command errors when source and destination lengths differ.
+input:
+  script: |+
+    echo "hello" | sed 'y/hel/HE/'
+expect:
+  stdout: ""
+  stderr_contains:
+    - "source and destination must have the same length"
+  exit_code: 1

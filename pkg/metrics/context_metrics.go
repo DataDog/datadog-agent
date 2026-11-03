@@ -23,17 +23,24 @@ func MakeContextMetrics() ContextMetrics {
 	return ContextMetrics(make(map[ckey.ContextKey]Metric))
 }
 
-// AddSampleTelemetry counts number of new metrics added.
+// AddSampleTelemetry counts number of new metrics added, and samples whose type differs from
+// the existing metric.
+//
+// Total, Stateful and Stateless are either all set or all nil. TypeMismatch must be set.
 type AddSampleTelemetry struct {
-	Total     telemetry.SimpleCounter
-	Stateful  telemetry.SimpleCounter
-	Stateless telemetry.SimpleCounter
+	Total        telemetry.SimpleCounter
+	Stateful     telemetry.SimpleCounter
+	Stateless    telemetry.SimpleCounter
+	TypeMismatch telemetry.SimpleCounter
 }
 
-// Inc should be called once for each new metric added to the map.
+// IncAdded should be called once for each new metric added to the map.
 //
 // isStateful should be the value returned by isStateful method for the new metric.
-func (a *AddSampleTelemetry) Inc(isStateful bool) {
+func (a *AddSampleTelemetry) IncAdded(isStateful bool) {
+	if a.Total == nil {
+		return
+	}
 	a.Total.Inc()
 	if isStateful {
 		a.Stateful.Inc()
@@ -47,7 +54,7 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 	if math.IsInf(sample.Value, 0) || math.IsNaN(sample.Value) {
 		return fmt.Errorf("sample with value '%v'", sample.Value)
 	}
-	if _, ok := m[contextKey]; !ok {
+	if metric, ok := m[contextKey]; !ok {
 		switch sample.Mtype {
 		case GaugeType:
 			m[contextKey] = &Gauge{}
@@ -75,7 +82,11 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 			return err
 		}
 		if t != nil {
-			t.Inc(m[contextKey].isStateful())
+			t.IncAdded(m[contextKey].isStateful())
+		}
+	} else if metric.metricType() != sample.Mtype {
+		if t != nil {
+			t.TypeMismatch.Inc()
 		}
 	}
 	m[contextKey].addSample(sample, timestamp)

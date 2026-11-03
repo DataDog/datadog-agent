@@ -1,0 +1,10 @@
+description: Variables can be expanded using brace syntax ${VAR}.
+input:
+  script: |+
+    GREETING=hello
+    echo ${GREETING}
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

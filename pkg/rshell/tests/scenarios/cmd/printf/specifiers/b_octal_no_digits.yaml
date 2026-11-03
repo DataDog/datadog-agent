@@ -1,0 +1,9 @@
+description: "%b \\0 followed by non-octal produces NUL byte."
+input:
+  script: |+
+    printf "%b" '\0x'
+expect:
+  stdout: "\0x"
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true

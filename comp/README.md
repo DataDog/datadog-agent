@@ -549,6 +549,12 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package securityagent is the metadata provider for security-agent process
 
+### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessinit defines the serverless-init metadata provider.
+
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
 Package systemprobe is the metadata provider for system-probe process
@@ -928,6 +934,12 @@ Package fleetstatus implements the core status component information provider in
 *Datadog Team*: network-device-monitoring-core
 
 Package haagent handles states for HA Agent feature.
+
+### [comp/intakerouting](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/intakerouting)
+
+*Datadog Team*: agent-data-plane
+
+Package intakerouting asks the Datadog backend where to send telemetry.
 
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 

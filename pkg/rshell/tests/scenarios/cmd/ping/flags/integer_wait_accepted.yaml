@@ -1,0 +1,12 @@
+# -W and -i accept plain integer/float seconds for iputils ping compatibility.
+# "ping -W 1" means wait 1 second, same as "ping -W 1s".
+# DNS fails immediately on the unresolvable host so the test exits fast.
+description: "ping -W with bare integer seconds is accepted"
+input:
+  script: |+
+    ping -c 1 -W 1 no-such-host-xyzzy.invalid
+expect:
+  stdout: ""
+  stderr_contains: ["no-such-host-xyzzy.invalid"]
+  exit_code: 1
+skip_assert_against_bash: true

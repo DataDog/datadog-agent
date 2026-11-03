@@ -1,0 +1,18 @@
+description: ls -Ra recursively lists including hidden files.
+setup:
+  files:
+    - path: dir1/file1.txt
+      content: "hello"
+    - path: dir1/.hidden
+      content: "secret"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -RA
+expect:
+  stdout_contains:
+    - "dir1"
+    - "file1.txt"
+    - ".hidden"
+  stderr: ""
+  exit_code: 0

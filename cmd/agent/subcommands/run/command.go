@@ -41,6 +41,7 @@ import (
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	intakeroutingfx "github.com/DataDog/datadog-agent/comp/intakerouting/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	ndmrcconfigfx "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
@@ -535,6 +536,8 @@ func getSharedFxOption() fx.Option {
 		// OneShot resolves the run arguments during Fx construction.
 		fx.Provide(newGPUReadiness),
 		logs.Bundle(),
+		// Intake routing serves every telemetry type, so it is not part of the logs bundle.
+		intakeroutingfx.Module(),
 		observerfx.Module(),
 		logssourcefx.Module(),
 		recorderfx.Module(),
