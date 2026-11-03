@@ -1,0 +1,11 @@
+# Rotation mutates active journals and is unavailable outside remediation mode.
+skip_assert_against_bash: true
+description: journalctl rotation requires remediation mode
+input:
+  script: |+
+    journalctl --rotate
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: systemd action "clean" requires remediation mode
+  exit_code: 1

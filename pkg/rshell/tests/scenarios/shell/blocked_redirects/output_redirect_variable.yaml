@@ -1,0 +1,16 @@
+# skip: file redirection is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: |
+  Output redirection to a variable filename that is not /dev/null is refused by
+  the runtime check. Only that command fails — the script keeps running.
+input:
+  script: |+
+    F=out.txt
+    echo hello > "$F"
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: |+
+    > out.txt: file redirection is only supported for /dev/null
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: wc on an empty file reports 0 lines, 0 words, 0 bytes.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc empty.txt
+expect:
+  stdout: "0 0 0 empty.txt\n"
+  stderr: ""
+  exit_code: 0

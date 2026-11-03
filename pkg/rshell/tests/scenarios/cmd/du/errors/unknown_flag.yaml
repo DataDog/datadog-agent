@@ -1,0 +1,10 @@
+description: du rejects unknown flags with exit 1.
+skip_assert_against_bash: true  # bash error wording differs from pflag
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du --no-such-flag .
+expect:
+  stdout: |+
+  stderr_contains: ["du:"]
+  exit_code: 1

@@ -15,6 +15,21 @@ PROVIDERS = ("codex", "claude", "gemini")
 PROVIDER_CHOICES = (*PROVIDERS, "all")
 
 
+class _ChunkedStringIO(io.StringIO):
+    """
+    A stdin stream Invoke forwards in chunks rather than single characters.
+
+    Invoke reads any non-TTY `in_stream` one character per 10ms poll, so a review prompt of tens of
+    kilobytes took many minutes to reach the provider, which looked like a hang. Chunks stay bounded
+    because Invoke hands each one to a single `os.write` without checking for a short write.
+    """
+
+    chunk_size = 4096
+
+    def read(self, size: int | None = -1) -> str:
+        return super().read(self.chunk_size)
+
+
 @dataclass(frozen=True)
 class ProviderInvocation:
     provider: str
@@ -69,7 +84,7 @@ def run_provider(ctx, invocation: ProviderInvocation, *, cwd: Path) -> None:
     print(f"Running {invocation.provider} review...", file=sys.stderr)
     kwargs = {"hide": True, "warn": True, "encoding": "utf-8"}
     if invocation.stdin is not None:
-        kwargs["in_stream"] = io.StringIO(invocation.stdin)
+        kwargs["in_stream"] = _ChunkedStringIO(invocation.stdin)
 
     # The provider inherits the working directory instead of being prefixed with a shell `cd`, which
     # cmd.exe cannot chain across drives.

@@ -1,0 +1,15 @@
+description: The $? value can be captured into multiple variables across a sequence of commands.
+input:
+  script: |+
+    true
+    R1=$?
+    false
+    R2=$?
+    true
+    R3=$?
+    echo "$R1 $R2 $R3"
+expect:
+  stdout: |+
+    0 1 0
+  stderr: ""
+  exit_code: 0

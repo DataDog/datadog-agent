@@ -1,0 +1,9 @@
+description: xargs without arguments runs echo over space-separated input.
+input:
+  script: |+
+    echo 'a b c' | xargs
+expect:
+  stdout: |+
+    a b c
+  stderr: |+
+  exit_code: 0

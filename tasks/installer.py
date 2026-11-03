@@ -59,9 +59,9 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --output-bin.")
         if not no_strip_binary:
             raise NotImplementedError("--enable-bazel does not support --no-strip-binary=False.")
-
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=INSTALLER_BIN)
+        if fips_mode:
+            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=INSTALLER_BIN)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)

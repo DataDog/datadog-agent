@@ -1,0 +1,13 @@
+description: The \& escape in replacement inserts a literal ampersand instead of the matched text.
+setup:
+  files:
+    - path: input.txt
+      content: "foo\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/foo/\&/' input.txt
+expect:
+  stdout: "&\n"
+  stderr: ""
+  exit_code: 0

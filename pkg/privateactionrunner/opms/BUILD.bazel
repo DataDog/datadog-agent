@@ -31,14 +31,21 @@ go_library(
 
 dd_agent_go_test(
     name = "opms_test",
-    srcs = ["opms_test.go"],
+    srcs = [
+        "opms_test.go",
+        "workload_enrollment_test.go",
+    ],
     embed = [":opms"],
     deps = [
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/adapters/modes",
+        "//pkg/privateactionrunner/libs/par",
+        "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
         "@com_github_datadog_jsonapi//:jsonapi",
+        "@com_github_go_jose_go_jose_v4//:go-jose",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

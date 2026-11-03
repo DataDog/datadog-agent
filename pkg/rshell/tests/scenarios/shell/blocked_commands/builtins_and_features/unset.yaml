@@ -1,0 +1,13 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Unset builtin is intentionally blocked in the restricted shell.
+input:
+  script: |+
+    a=hello
+    unset a
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: unset: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

@@ -1,0 +1,10 @@
+description: uniq --all-repeated= with explicit empty method is rejected.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    printf 'a\na\n' | uniq --all-repeated=
+expect:
+  stdout: ""
+  stderr_contains: ["invalid argument '' for '--all-repeated'"]
+  exit_code: 1

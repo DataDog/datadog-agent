@@ -1,0 +1,11 @@
+description: Consecutive whitespace characters in IFS are coalesced into a single delimiter.
+input:
+  script: |+
+    A="hello   world"
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: |+
+    [hello]
+    [world]
+  stderr: ""
+  exit_code: 0

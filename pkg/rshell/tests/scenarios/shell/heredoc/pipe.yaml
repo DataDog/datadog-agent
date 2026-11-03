@@ -1,0 +1,11 @@
+description: Heredoc output can be piped to another command.
+input:
+  script: |+
+    cat <<EOF | cat
+    piped
+    EOF
+expect:
+  stdout: |+
+    piped
+  stderr: ""
+  exit_code: 0

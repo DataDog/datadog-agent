@@ -1,0 +1,23 @@
+description: find -iname matches case-insensitively.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/README.md
+      content: "readme"
+      chmod: 0644
+    - path: dir/readme.txt
+      content: "also readme"
+      chmod: 0644
+    - path: dir/other.go
+      content: "go"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -iname 'readme*'
+expect:
+  stdout_unordered: |+
+    dir/README.md
+    dir/readme.txt
+  stderr: ""
+  exit_code: 0
