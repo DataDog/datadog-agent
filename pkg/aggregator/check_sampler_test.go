@@ -10,6 +10,7 @@ package aggregator
 import (
 	"math"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -957,4 +958,313 @@ func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
 
 func TestSketchSeriesSourcePreserved(t *testing.T) {
 	testWithTagsStore(t, testSketchSeriesSourcePreserved)
+}
+
+// Shared contract tests for the frozen PR and literal periodic prototype.
+// Only compareIntermediate differs: it invokes each revision's actual sampler boundary.
+func comparisonSampler(t *testing.T) *CheckSampler {
+	t.Helper()
+	cs := newCheckSampler(2, true, true, time.Hour, false, tags.NewStore(true, "comparison"), checkid.ID("comparison"), nooptagger.NewComponent())
+	comparisonConfigure(cs)
+	t.Cleanup(cs.release)
+	return cs
+}
+func comparisonAdd(cs *CheckSampler, kind metrics.MetricType, value, ts float64, first bool) {
+	cs.addSample(&metrics.MetricSample{Name: "comparison.metric", Mtype: kind, Value: value, Timestamp: ts, SampleRate: 1, FlushFirstValue: first}, filterlistimpl.NewNoopTagMatcher())
+}
+func comparisonPoints(cs *CheckSampler, suffix string) []float64 {
+	series, _ := cs.flush()
+	var values []float64
+	for _, s := range series {
+		if s.Name == "comparison.metric"+suffix {
+			for _, p := range s.Points {
+				values = append(values, p.Value)
+			}
+		}
+	}
+	return values
+}
+func TestComparisonHistorateContinuity(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.HistorateType, 100, 1, false)
+	comparisonAdd(cs, metrics.HistorateType, 120, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.HistorateType, 150, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{25}, comparisonPoints(cs, ".avg"), "historate must retain its complete check-run distribution")
+}
+func TestComparisonCountConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.CountType, 3, 1, false)
+	comparisonAdd(cs, metrics.CountType, 7, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.CountType, 5, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{10, 5}, comparisonPoints(cs, ""))
+}
+func TestComparisonRateContinuity(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.RateType, 100, 1, false)
+	comparisonAdd(cs, metrics.RateType, 120, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.RateType, 150, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{30}, comparisonPoints(cs, ""), "rate keeps the original last-two-samples check-run contract")
+}
+func TestComparisonMonotonicResetConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.MonotonicCountType, 100, 1, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.MonotonicCountType, 110, 2, true)
+	comparisonAdd(cs, metrics.MonotonicCountType, 5, 3, true)
+	comparisonAdd(cs, metrics.MonotonicCountType, 15, 4, true)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{25}, comparisonPoints(cs, ""), "10 before reset + 5 reset value + 10 after reset")
+}
+func TestComparisonGaugeFinalValue(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.GaugeType, 1, 1, false)
+	comparisonAdd(cs, metrics.GaugeType, 2, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.GaugeType, 3, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{2, 3}, comparisonPoints(cs, ""))
+}
+
+func comparisonConfigure(_ *CheckSampler)                 {}
+func comparisonIntermediate(cs *CheckSampler, ts float64) { cs.commitIntermediate(ts, nil) }
+
+func TestComparisonHistogramConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.HistogramType, 10, 1, false)
+	comparisonAdd(cs, metrics.HistogramType, 20, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.HistogramType, 60, 3, false)
+	cs.commit(101, nil)
+	series, _ := cs.flush()
+	counts := map[float64]float64{}
+	averages := map[float64]float64{}
+	for _, s := range series {
+		for _, p := range s.Points {
+			if s.Name == "comparison.metric.count" {
+				counts[p.Ts] = p.Value
+			}
+			if s.Name == "comparison.metric.avg" {
+				averages[p.Ts] = p.Value
+			}
+		}
+	}
+	var count, sum float64
+	for ts, n := range counts {
+		count += n
+		sum += n * averages[ts]
+	}
+	require.Equal(t, float64(3), count)
+	require.Equal(t, float64(90), sum)
+}
+func TestComparisonDistributionConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	cs.addBucket(&metrics.HistogramBucket{Name: "comparison.bucket", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: 1}, filterlistimpl.NewNoopTagMatcher())
+	comparisonIntermediate(cs, 100)
+	cs.addBucket(&metrics.HistogramBucket{Name: "comparison.bucket", Value: 11, LowerBound: 1, UpperBound: 1, Timestamp: 2}, filterlistimpl.NewNoopTagMatcher())
+	cs.commit(101, nil)
+	_, sketches := cs.flush()
+	var count int64
+	for _, s := range sketches {
+		for _, p := range s.Points {
+			count += p.Sketch.Basic.Cnt
+		}
+	}
+	require.Equal(t, int64(18), count)
+}
+func TestComparisonBucketBaselineAcrossIntermediateExpiry(t *testing.T) {
+	for _, multiple := range []bool{false, true} {
+		t.Run(map[bool]string{false: "single", true: "multiple"}[multiple], func(t *testing.T) {
+			cs := comparisonSampler(t)
+			bucket := func(v int64, ts float64) {
+				cs.addBucket(&metrics.HistogramBucket{Name: "comparison.bucket", Value: v, LowerBound: 1, UpperBound: 2, Timestamp: ts, Monotonic: true, MultipleBuckets: multiple}, filterlistimpl.NewNoopTagMatcher())
+			}
+			bucket(100, 1)
+			for ts := 100.; ts < 104; ts++ {
+				comparisonIntermediate(cs, ts)
+			}
+			bucket(125, 104)
+			cs.commit(105, nil)
+			_, sketches := cs.flush()
+			var count int64
+			for _, s := range sketches {
+				for _, p := range s.Points {
+					count += p.Sketch.Basic.Cnt
+				}
+			}
+			require.Equal(t, int64(25), count, "periodic context expiry within one run must not forget a bucket baseline")
+		})
+	}
+}
+
+func TestCorrectedPeriodicFinalTimestampCollision(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cs := comparisonSampler(t)
+		comparisonAdd(cs, metrics.CountType, 7, 1, false)
+		cs.commitNow(true, nil)
+		first := cs.lastCommitSecond
+		comparisonAdd(cs, metrics.CountType, 11, 2, false)
+		cs.commitNow(false, nil)
+		require.Equal(t, first, cs.lastCommitSecond)
+		cs.commitAt(float64(first+15), true, false, nil)
+		series, _ := cs.flush()
+		points := map[int64]float64{}
+		var total float64
+		for _, s := range series {
+			for _, p := range s.Points {
+				require.NotContains(t, points, int64(p.Ts))
+				points[int64(p.Ts)] = p.Value
+				total += p.Value
+			}
+		}
+		require.Equal(t, float64(18), total)
+		require.Greater(t, cs.lastCommitSecond, first)
+	})
+}
+
+func TestPeriodicReclaimsFlushedGaugeContexts(t *testing.T) {
+	cs := comparisonSampler(t)
+	add := func(value float64) {
+		cs.addSample(&metrics.MetricSample{Name: "reclaimed.gauge", Mtype: metrics.GaugeType, Value: value, Timestamp: 1, SampleRate: 1, Tags: []string{"stable:tag"}}, filterlistimpl.NewNoopTagMatcher())
+	}
+	add(7)
+	cs.commitIntermediate(100, nil)
+	require.Zero(t, cs.contextResolver.length())
+	series, _ := cs.flush()
+	require.Len(t, series, 1)
+	require.Equal(t, "reclaimed.gauge", series[0].Name)
+	require.Equal(t, float64(7), series[0].Points[0].Value)
+	require.Equal(t, "stable:tag", series[0].Tags.Join(","))
+	add(11)
+	cs.commitIntermediate(101, nil)
+	series, _ = cs.flush()
+	require.Len(t, series, 1)
+	require.Equal(t, float64(11), series[0].Points[0].Value)
+	require.Equal(t, "stable:tag", series[0].Tags.Join(","))
+}
+
+func TestPeriodicClockAndDeferredCommit(t *testing.T) {
+	for _, kind := range []metrics.MetricType{metrics.CountType, metrics.MonotonicCountType, metrics.GaugeType} {
+		t.Run(kind.String(), func(t *testing.T) {
+			cs := comparisonSampler(t)
+			comparisonAdd(cs, kind, 7, 1, true)
+			cs.commitAt(100, true, false, nil)
+			series, _ := cs.flush()
+			require.Len(t, series, 1)
+			require.Equal(t, float64(7), series[0].Points[0].Value)
+			comparisonAdd(cs, kind, 11, 2, true)
+			// Many same-second check completions must neither wait nor expire
+			// accepted contributions. Histogram windows still close each run.
+			for i := 0; i < 10; i++ {
+				cs.commitAt(100.5, false, false, nil)
+			}
+			require.Empty(t, cs.series)
+			require.Equal(t, int64(100), cs.lastCommitSecond)
+			cs.commitAt(115, true, false, nil)
+			series, _ = cs.flush()
+			require.Len(t, series, 1)
+			want := 11.0
+			if kind == metrics.MonotonicCountType {
+				want = 4
+			}
+			require.Equal(t, want, series[0].Points[0].Value)
+			require.Equal(t, float64(115), series[0].Points[0].Ts)
+			comparisonAdd(cs, kind, 13, 3, true)
+			// Rollback does not block the input loop or retain unbounded output.
+			cs.commitAt(1, true, false, nil)
+			series, _ = cs.flush()
+			require.Len(t, series, 1)
+			require.Equal(t, float64(116), series[0].Points[0].Ts)
+			comparisonAdd(cs, kind, 17, 4, true)
+			cs.commitAt(1, true, true, nil)
+			series, _ = cs.flush()
+			require.Len(t, series, 1)
+			require.Equal(t, float64(117), series[0].Points[0].Ts)
+		})
+	}
+}
+
+func TestPeriodicPreservesHistogramQueries(t *testing.T) {
+	cs := comparisonSampler(t)
+	for i := 0; i < 99; i++ {
+		comparisonAdd(cs, metrics.HistogramType, 0, float64(i+1), false)
+	}
+	cs.commitAt(100, true, false, nil)
+	require.Empty(t, cs.series)
+	comparisonAdd(cs, metrics.HistogramType, 100, 101, false)
+	// Even a colliding final commit must close the full histogram window.
+	cs.commitAt(100.5, false, false, nil)
+	series, _ := cs.flush()
+	values := map[string]float64{}
+	for _, s := range series {
+		values[s.Name] = s.Points[0].Value
+	}
+	require.Equal(t, float64(1), values["comparison.metric.avg"])
+	require.Equal(t, float64(100), values["comparison.metric.count"])
+	require.Contains(t, values, "comparison.metric.95percentile")
+	require.Zero(t, values["comparison.metric.95percentile"])
+	comparisonAdd(cs, metrics.HistogramType, 7, 102, false)
+	cs.commitAt(100.6, false, false, nil)
+	require.Equal(t, []float64{7}, comparisonPoints(cs, ".avg"), "next run must have a fresh window")
+}
+
+func TestPeriodicReclaimsMonotonicMetadataWithoutAgingBaseline(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.MonotonicCountType, 100, 1, false)
+	cs.commitIntermediate(100, nil)
+	require.Zero(t, cs.contextResolver.length())
+	require.Len(t, cs.retiredBaselines, 1)
+	// Several hours of one run must not start the stateful expiry timeout.
+	cs.commitIntermediate(10000, nil)
+	comparisonAdd(cs, metrics.MonotonicCountType, 125, 2, false)
+	require.Empty(t, cs.retiredBaselines)
+	cs.commitIntermediate(10001, nil)
+	require.Zero(t, cs.contextResolver.length())
+	require.Equal(t, []float64{25}, comparisonPoints(cs, ""))
+	// The usual two completed-run context grace period still applies.
+	cs.commit(10002, nil)
+	cs.commit(10003, nil)
+	require.Len(t, cs.retiredBaselines, 1)
+	cs.commit(10004, nil)
+	require.Empty(t, cs.retiredBaselines)
+	// Once the additional stateful timeout passes, a new baseline is needed.
+	cs.commit(14000, nil)
+	comparisonAdd(cs, metrics.MonotonicCountType, 150, 3, false)
+	cs.commit(14001, nil)
+	require.Empty(t, comparisonPoints(cs, ""))
+}
+
+func TestPeriodicExplicitTimestampsSurviveClockPolicy(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.CountWithTimestampType, 7, 42, false)
+	cs.commitAt(100, true, false, nil)
+	comparisonAdd(cs, metrics.CountWithTimestampType, 11, 43, false)
+	cs.commitAt(1, true, true, nil)
+	series, _ := cs.flush()
+	require.Len(t, series, 2)
+	require.Equal(t, float64(42), series[0].Points[0].Ts)
+	require.Equal(t, float64(43), series[1].Points[0].Ts)
+}
+
+func TestPeriodicPendingSketchPinsMetadataUntilFlushed(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.DistributionType, 7, 200, false)
+	// Model a wall-clock rollback: several runs finish while the old bucket
+	// remains ahead of wall time. Run-based expiry must not orphan its sketch.
+	for ts := 100.0; ts < 105; ts++ {
+		cs.commitAt(ts, false, false, nil)
+		require.Equal(t, 1, cs.contextResolver.length())
+	}
+	cs.commitAt(201, false, false, nil)
+	_, sketches := cs.flush()
+	require.Len(t, sketches, 1)
+	require.Equal(t, int64(1), sketches[0].Points[0].Sketch.Basic.Cnt)
+	require.Equal(t, int64(200), sketches[0].Points[0].Ts)
+	// Pinning metadata must not reset its original completed-run age.
+	require.Zero(t, cs.contextResolver.length())
 }

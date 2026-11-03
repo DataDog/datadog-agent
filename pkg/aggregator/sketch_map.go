@@ -68,10 +68,10 @@ func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
 }
 
 // flushBefore calls f for every sketch inserted before beforeTs, removing flushed sketches
-// from the map.
+// from the map. math.MaxInt64 drains every bucket during final shutdown.
 func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.SketchPoint)) {
 	for ts, byCtx := range m {
-		if ts >= beforeTs {
+		if ts >= beforeTs && beforeTs != math.MaxInt64 {
 			continue
 		}
 
