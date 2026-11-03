@@ -555,6 +555,12 @@ Package securityagent is the metadata provider for security-agent process
 
 Package serverlessaas defines the Azure App Service extension metadata component.
 
+### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessinit defines the serverless-init metadata provider.
+
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
 Package systemprobe is the metadata provider for system-probe process

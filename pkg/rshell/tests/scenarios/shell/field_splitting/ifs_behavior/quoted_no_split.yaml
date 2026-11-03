@@ -1,0 +1,10 @@
+description: Quoted variable expansion prevents field splitting.
+input:
+  script: |+
+    a="one two three"
+    echo "$a"
+expect:
+  stdout: |+
+    one two three
+  stderr: ""
+  exit_code: 0

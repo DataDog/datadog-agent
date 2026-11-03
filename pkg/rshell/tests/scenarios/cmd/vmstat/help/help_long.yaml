@@ -1,0 +1,12 @@
+description: vmstat --help prints usage information to stdout and exits with code 0.
+# skip: rshell builtin help output differs from the real procps vmstat(8) utility
+skip_assert_against_bash: true
+input:
+  script: |+
+    vmstat --help
+expect:
+  stdout_contains:
+    - "Usage: vmstat"
+    - "--stats"
+  stderr: |+
+  exit_code: 0

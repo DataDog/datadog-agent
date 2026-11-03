@@ -1,0 +1,7 @@
+description: Regular heredoc (without dash) preserves leading tabs in content.
+input:
+  script: "cat <<EOF\n\ttabbed line\n\tanother tabbed\nEOF\n"
+expect:
+  stdout: "\ttabbed line\n\tanother tabbed\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Unsigned overflow for huge negative clamps to MaxUint64 with warning (bash compat).
+input:
+  script: |+
+    printf "%u\n" -999999999999999999999
+expect:
+  stdout: "18446744073709551615\n"
+  stderr_contains: ["Numerical result out of range"]
+  exit_code: 0

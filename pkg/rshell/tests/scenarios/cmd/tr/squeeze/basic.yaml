@@ -1,0 +1,10 @@
+description: tr -s squeezes repeated characters in set.
+input:
+  script: |+
+    cat <<'EOF' | tr -s a-z
+    aaBBcDcc
+    EOF
+expect:
+  stdout: "aBBcDc\n"
+  stderr: ""
+  exit_code: 0

@@ -115,7 +115,6 @@ new-e2e-containers-eks-init:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    PRE_BUILT_BINARIES_FLAG: ""
     KUBERNETES_MEMORY_REQUEST: 24Gi
     KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
@@ -160,7 +159,6 @@ new-e2e-containers-openshift-init:
     EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    PRE_BUILT_BINARIES_FLAG: ""
     # Same as new-e2e-containers-eks-init.
     KUBERNETES_MEMORY_REQUEST: 24Gi
     KUBERNETES_MEMORY_LIMIT: 24Gi

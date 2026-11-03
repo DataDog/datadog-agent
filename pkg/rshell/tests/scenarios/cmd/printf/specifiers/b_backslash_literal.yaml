@@ -1,0 +1,8 @@
+description: Printf %b with double backslash produces a single backslash.
+input:
+  script: |+
+    printf "%b\n" 'a\\b'
+expect:
+  stdout: "a\\b\n"
+  stderr: ""
+  exit_code: 0

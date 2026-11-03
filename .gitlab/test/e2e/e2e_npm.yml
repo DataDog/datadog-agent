@@ -48,7 +48,6 @@ new-e2e-npm-eks-init:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    PRE_BUILT_BINARIES_FLAG: ""
     KUBERNETES_MEMORY_REQUEST: 24Gi
     KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true

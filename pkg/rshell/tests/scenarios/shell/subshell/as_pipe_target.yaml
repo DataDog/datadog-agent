@@ -1,0 +1,10 @@
+description: Subshell on the right-hand side of a pipe consumes stdin.
+input:
+  script: |+
+    echo foo | (cat; echo bar)
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

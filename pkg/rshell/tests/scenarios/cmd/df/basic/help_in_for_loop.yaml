@@ -1,0 +1,13 @@
+description: df --help works inside a for loop — verifies that the FlagSet is recreated cleanly per invocation so the second iteration doesn't see leaked state from the first (e.g. a flag still flagged "Changed" from before).
+skip_assert_against_bash: true
+input:
+  script: |+
+    for i in 1 2 3; do df --help | head -n 1; done
+expect:
+  # "Usage: df" appears exactly three times (once per loop iteration).
+  stdout: |+
+    Usage: df [OPTION]...
+    Usage: df [OPTION]...
+    Usage: df [OPTION]...
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,17 @@
+description: sort rejects -hn (human-numeric and numeric are mutually exclusive).
+setup:
+  files:
+    - path: data.txt
+      content: |+
+        1
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h -n data.txt
+# skip: rshell builtin error format differs from the reference implementation
+skip_assert_against_bash: true
+expect:
+  stdout: |+
+  stderr: |+
+    sort: options '-hn' are incompatible
+  exit_code: 2

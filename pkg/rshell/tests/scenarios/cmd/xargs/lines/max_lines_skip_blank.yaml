@@ -1,0 +1,10 @@
+description: xargs -L ignores blank input lines (matches GNU manual).
+input:
+  script: |+
+    printf 'a\n\n\nb\n' | xargs -L 1 echo
+expect:
+  stdout: |+
+    a
+    b
+  stderr: |+
+  exit_code: 0

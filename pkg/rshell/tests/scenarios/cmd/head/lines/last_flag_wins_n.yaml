@@ -1,0 +1,13 @@
+description: When -n is given multiple times, the last value wins.
+setup:
+  files:
+    - path: file.txt
+      content: "a\nb\nc\nd\ne\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 1 -n 3 file.txt
+expect:
+  stdout: "a\nb\nc\n"
+  stderr: ""
+  exit_code: 0
