@@ -1,0 +1,9 @@
+description: pwd -h prints usage to stdout and exits 0.
+skip_assert_against_bash: true
+input:
+  script: |+
+    pwd -h
+expect:
+  stdout_contains: ["Usage: pwd"]
+  stderr: ""
+  exit_code: 0

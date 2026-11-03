@@ -1,0 +1,19 @@
+description: find -execdir echo + {} \; treats + as a literal argument, not batch terminator.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -name 'a.txt' -execdir echo + {} \;
+expect:
+  stdout: |+
+    + ./a.txt
+  stderr: ""
+  exit_code: 0

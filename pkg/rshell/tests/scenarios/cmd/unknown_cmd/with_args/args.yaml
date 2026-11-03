@@ -1,0 +1,10 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: An unknown command with arguments still prints "unknown command" for the command name.
+input:
+  script: |+
+    foo arg1 arg2 arg3
+expect:
+  stdout: ""
+  stderr_contains: ["foo", "unknown command"]
+  exit_code: 127

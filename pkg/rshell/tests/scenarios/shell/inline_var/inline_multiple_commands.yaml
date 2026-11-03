@@ -1,0 +1,13 @@
+description: Each command has its own inline variable scope; they do not leak between commands.
+input:
+  script: |+
+    X=first echo one
+    Y=second echo two
+    echo "[$X] [$Y]"
+expect:
+  stdout: |+
+    one
+    two
+    [] []
+  stderr: ""
+  exit_code: 0

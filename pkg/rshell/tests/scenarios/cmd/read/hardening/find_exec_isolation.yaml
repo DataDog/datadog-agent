@@ -1,0 +1,26 @@
+description: |+
+  read invoked via find -exec does not mutate the calling shell's
+  variables. find treats each -exec as a separate command invocation
+  (bash forks and execs); state-mutating builtins must therefore be
+  unable to reach back into the parent environment. rshell enforces
+  this by leaving SetVar / GetVar unavailable in the RunCommand
+  CallContext, so read fails with "variable access is not available"
+  rather than silently overwriting the caller's value.
+# rshell errors out with a specific message; bash silently fails to
+# exec `read` (which is a builtin, not an executable). Both preserve
+# the parent X, but the divergence in stderr/exit-code mechanics
+# means we skip the bash comparison.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: probe
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    X=parent
+    printf 'child\n' | { find probe -maxdepth 0 -exec read X \; 2>/dev/null; echo "X=[$X]"; }
+expect:
+  stdout: |+
+    X=[parent]
+  exit_code: 0
