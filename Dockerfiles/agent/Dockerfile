@@ -288,7 +288,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
-VOLUME ["/var/run/s6", "/var/run/datadog-procmgrd", "/var/log/datadog"]
+VOLUME ["/var/run/s6", "/var/run/datadog-procmgrd", "/opt/datadog-agent/run", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so

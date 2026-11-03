@@ -595,6 +595,13 @@ fn procmgr_all_in_one_entrypoint_is_installed_executable() {
             .any(|line| { line.trim() == "COPY --chmod=755 entrypoint.d /opt/entrypoints" })
     );
     assert!(
+        AGENT_DOCKERFILE.lines().any(|line| {
+            line.trim()
+                == r#"VOLUME ["/var/run/s6", "/var/run/datadog-procmgrd", "/opt/datadog-agent/run", "/var/log/datadog"]"#
+        }),
+        "Docker --read-only only writes VOLUME paths, and the all-in-one socket lives in /opt/datadog-agent/run"
+    );
+    assert!(
         ENTRYPOINT_LAUNCHER.contains(r#"[[ -x "$ENTRYPOINT_PATH/$ENTRYPOINT" ]]"#),
         "entrypoint.sh must exec only an executable entrypoint"
     );
