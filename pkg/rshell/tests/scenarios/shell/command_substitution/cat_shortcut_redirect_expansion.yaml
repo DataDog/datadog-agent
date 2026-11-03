@@ -1,0 +1,26 @@
+description: The input-only command substitution applies redirect expansion and ambiguity checks.
+setup:
+  files:
+    - path: only.txt
+      content: |+
+        glob
+    - path: spaced file
+      content: |+
+        quoted
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    value=$(< *.txt)
+    printf '%s\n' "$value"
+    target='spaced file'
+    value=$(< "$target")
+    printf '%s\n' "$value"
+    { value=$(< $target); } 2>/dev/null
+    printf '%s:<%s>\n' "$?" "$value"
+expect:
+  stdout: |+
+    glob
+    quoted
+    1:<>
+  stderr: |+
+  exit_code: 0

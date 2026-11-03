@@ -1,0 +1,19 @@
+description: Relative symlinks in container mode resolve without double-prepending the host prefix
+# skip: container host-prefix symlink resolution is an rshell-specific feature
+skip_assert_against_bash: true
+containerized: true
+setup:
+  files:
+    - path: host/var/log/pods/app.log
+      content: "relative log\n"
+    - path: host/var/log/containers/app.log
+      symlink: ../pods/app.log
+input:
+  allowed_paths: ["host/var/log"]
+  script: |+
+    cat host/var/log/containers/app.log
+expect:
+  stdout: |+
+    relative log
+  stderr: |+
+  exit_code: 0

@@ -565,7 +565,9 @@ The irgen phase extracts all structural information needed for map lookup:
 
 5. **Hash configuration addresses**: `runtime.useAeshash` and
    `runtime.aeskeysched` — global variable addresses from DWARF, stored in
-   `ir.GoMapHashInfo`.
+   `ir.GoMapHashInfo`. Go 1.27 moves these globals to
+   `internal/runtime/maps.UseAeshash` and `internal/runtime/maps.aeskeysched`;
+   irgen recognizes both names.
 
 ### What the BPF Program Receives
 

@@ -1,0 +1,14 @@
+description: Continue with negation prefix continues the loop with inverted exit code.
+input:
+  script: |+
+    for i in 1 2; do
+      echo $i
+      ! continue
+      echo not reached
+    done
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 1

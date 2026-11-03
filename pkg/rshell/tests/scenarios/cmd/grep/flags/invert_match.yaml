@@ -1,0 +1,19 @@
+description: grep -v selects non-matching lines.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        bar
+        baz
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -v foo file.txt
+expect:
+  stdout: |+
+    bar
+    baz
+  stderr: ""
+  exit_code: 0

@@ -185,9 +185,22 @@ sudo hdiutil attach %[1]s/agent.dmg -mountpoint %[2]s -nobrowse >/dev/null
 pkg=$(find %[2]s -name '*.pkg' | head -n 1)
 pkgutil --expand "$pkg" %[1]s/expanded
 sudo hdiutil detach %[2]s >/dev/null 2>&1 || sudo hdiutil detach %[2]s -force >/dev/null
-scripts=$(find %[1]s/expanded -name Scripts -type f | head -n 1)
-cd %[1]s/scripts && gzip -dc "$scripts" | cpio -i --quiet
-test -f %[1]s/scripts/postinstall
+postinstall=$(find %[1]s/expanded -path '*/Scripts/postinstall' -type f | head -n 1)
+if [ -n "$postinstall" ]; then
+    cp "$postinstall" %[1]s/scripts/postinstall
+else
+    scripts=$(find %[1]s/expanded -name Scripts -type f | head -n 1)
+    if [ -n "$scripts" ]; then
+        # Keep decompression separate so cpio cannot mask a gzip failure.
+        gzip -dc "$scripts" > %[1]s/scripts.cpio
+        (cd %[1]s/scripts && cpio -i --quiet < %[1]s/scripts.cpio)
+    fi
+fi
+if [ ! -f %[1]s/scripts/postinstall ]; then
+    echo "Could not find postinstall: expected Scripts/postinstall or a Scripts archive containing postinstall. Expanded package contents:" >&2
+    find %[1]s/expanded -ls >&2
+    exit 1
+fi
 `, workDir, mountPoint, dmgURL))
 	return workDir + "/scripts/postinstall"
 }

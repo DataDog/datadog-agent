@@ -1,0 +1,11 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: nameref (DeclClause sibling of declare/readonly) is not supported.
+input:
+  script: |+
+    nameref Y=X
+expect:
+  stdout: ""
+  stderr: |+
+    nameref is not supported
+  exit_code: 2

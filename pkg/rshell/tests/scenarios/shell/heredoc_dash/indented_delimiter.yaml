@@ -1,0 +1,9 @@
+description: Heredoc-dash strips leading tabs from the closing delimiter line.
+input:
+  script: "cat <<-EOF\n\thello\n\tworld\n\tEOF\n"
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

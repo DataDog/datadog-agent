@@ -27,6 +27,8 @@ var (
 
 	// Kernel3_19 is the KernelVersion representation of kernel version 3.19
 	Kernel3_19 = kernel.VersionCode(3, 19, 0)
+	// Kernel4_6 is the KernelVersion representation of kernel version 4.6
+	Kernel4_6 = kernel.VersionCode(4, 6, 0)
 	// Kernel4_7 is the KernelVersion representation of kernel version 4.7
 	Kernel4_7 = kernel.VersionCode(4, 7, 0)
 	// Kernel4_9 is the KernelVersion representation of kernel version 4.9

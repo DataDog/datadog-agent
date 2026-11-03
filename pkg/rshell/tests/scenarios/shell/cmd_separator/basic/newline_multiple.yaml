@@ -1,0 +1,15 @@
+description: Multiple commands separated by newlines all execute in order.
+input:
+  script: |+
+    echo one
+    echo two
+    echo three
+    echo four
+expect:
+  stdout: |+
+    one
+    two
+    three
+    four
+  stderr: ""
+  exit_code: 0
