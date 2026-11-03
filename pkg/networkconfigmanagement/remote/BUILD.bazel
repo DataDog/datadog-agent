@@ -38,5 +38,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_x_crypto//ssh",
+        "@org_uber_go_goleak//:goleak",
     ],
 )
