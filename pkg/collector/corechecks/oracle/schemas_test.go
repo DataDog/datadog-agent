@@ -136,56 +136,69 @@ func TestSchemaServicesMatchContainers(t *testing.T) {
 			for _, id := range []int64{1, 3, 4, 5} {
 				expectSchemaContainerAvailable(mock, id)
 			}
-			var events []schemaEvent
-			c.schemaEmitter = func(payload []byte) {
-				var event schemaEvent
-				require.NoError(t, json.Unmarshal(payload, &event))
-				events = append(events, event)
-			}
+			var payloads [][]byte
+			c.schemaEmitter = func(payload []byte) { payloads = append(payloads, payload) }
 			require.NoError(t, c.SchemaCollection())
-			require.Len(t, events, 4)
-			byContainer := map[string]containerObject{}
-			for _, event := range events {
-				require.Equal(t, &schemaConnectionInfo{
-					Host: "listener.example", Port: instance.port, ConfiguredService: "agent", ServiceName: "agent.example",
-					ContainerID: "1", ContainerName: instance.cdb + ".CDB$ROOT",
-				}, event.Connection)
-				require.Equal(t, 1, event.CollectionPayloadsCount)
-				require.Len(t, event.Metadata, 1)
-				byContainer[event.Metadata[0].ID] = event.Metadata[0]
+			require.Len(t, payloads, 5)
+			var inventory schemaServicesEvent
+			require.NoError(t, json.Unmarshal(payloads[0], &inventory))
+			require.Equal(t, "oracle_services", inventory.Kind)
+			require.Equal(t, "reported-host", inventory.Host)
+			require.Equal(t, instance.cdb, inventory.CDBName)
+			require.Equal(t, &schemaConnectionInfo{
+				Host: "listener.example", Port: instance.port, ConfiguredService: "agent", ServiceName: "agent.example",
+				ContainerID: "1", ContainerName: instance.cdb + ".CDB$ROOT",
+			}, inventory.Connection)
+			require.Equal(t, []schemaServiceContainer{
+				{ID: "1", Name: instance.cdb + ".CDB$ROOT", Services: []schemaService{{Name: "agent", NetworkName: "agent.example"}}},
+				{ID: "3", Name: instance.cdb + ".APP_PDB", Services: []schemaService{{Name: "airflow", NetworkName: "airflow.example"}, {Name: "reporting", NetworkName: "reporting.example"}}},
+				{ID: "4", Name: instance.cdb + ".OTHER_PDB", Services: []schemaService{{Name: "internal"}}},
+				{ID: "5", Name: instance.cdb + ".EMPTY_PDB", Services: []schemaService{}},
+			}, inventory.Metadata)
+			for _, payload := range payloads[1:] {
+				var event map[string]any
+				require.NoError(t, json.Unmarshal(payload, &event))
+				require.Equal(t, "oracle_databases", event["kind"])
+				require.NotContains(t, event, "connection")
+				require.NotContains(t, event["metadata"].([]any)[0], "services")
+				require.EqualValues(t, 1, event["collection_payloads_count"])
 			}
-			require.Equal(t, instance.cdb+".APP_PDB", byContainer["3"].Name)
-			require.Equal(t, []schemaService{{Name: "airflow", NetworkName: "airflow.example"}, {Name: "reporting", NetworkName: "reporting.example"}}, byContainer["3"].Services)
-			require.Equal(t, []schemaService{{Name: "agent", NetworkName: "agent.example"}}, byContainer["1"].Services)
-			require.Equal(t, []schemaService{{Name: "internal"}}, byContainer["4"].Services)
-			require.Equal(t, []schemaService{}, byContainer["5"].Services)
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }
 
 func TestSchemaServicesUnavailablePreservesCollection(t *testing.T) {
-	for _, scenario := range []string{"empty", "permission", "timeout", "scan", "rows"} {
+	for _, scenario := range []string{"empty", "connection permission", "connection timeout", "connection empty", "permission", "timeout", "scan", "rows"} {
 		t.Run(scenario, func(t *testing.T) {
 			c, _, mock, cleanup := newSchemaCheck(t)
 			defer cleanup()
-			c.schemaServices = map[int64][]schemaService{3: {{Name: "stale"}}}
-			c.schemaConnection = &schemaConnectionInfo{ServiceName: "stale"}
 			mock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
 				sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
-			mock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnError(context.DeadlineExceeded)
-			query := mock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery))
+			connection := mock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery))
 			switch scenario {
-			case "empty":
-				query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}))
-			case "permission":
-				query.WillReturnError(errors.New("ORA-00942: table or view does not exist"))
-			case "timeout":
-				query.WillReturnError(context.DeadlineExceeded)
-			case "scan":
-				query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow("invalid", "airflow", "airflow.example"))
-			case "rows":
-				query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow(3, "airflow", "airflow.example").RowError(0, errors.New("read failed")))
+			case "connection permission":
+				connection.WillReturnError(errors.New("ORA-00942: table or view does not exist"))
+			case "connection timeout":
+				connection.WillReturnError(context.DeadlineExceeded)
+			case "connection empty":
+				connection.WillReturnRows(sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}))
+			default:
+				connection.WillReturnRows(sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("agent.example", 1, "CDB$ROOT"))
+				query := mock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery))
+				switch scenario {
+				case "empty":
+					query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}))
+				case "permission":
+					query.WillReturnError(errors.New("ORA-00942: table or view does not exist"))
+				case "timeout":
+					query.WillReturnError(context.DeadlineExceeded)
+				case "scan":
+					query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow("invalid", "airflow", "airflow.example"))
+				case "rows":
+					query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).
+						AddRow(3, "airflow", "airflow.example").AddRow(3, "reporting", "reporting.example").RowError(1, errors.New("read failed")))
+				}
 			}
 			mock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
 			expectSchemaContainerAvailable(mock, 3)
@@ -196,18 +209,83 @@ func TestSchemaServicesUnavailablePreservesCollection(t *testing.T) {
 				payloads = append(payloads, event)
 			}
 			require.NoError(t, c.SchemaCollection())
-			require.Len(t, payloads, 1)
-			require.NotContains(t, payloads[0], "connection")
-			require.EqualValues(t, 1, payloads[0]["collection_payloads_count"])
-			container := payloads[0]["metadata"].([]any)[0].(map[string]any)
 			if scenario == "empty" {
-				require.Equal(t, []any{}, container["services"])
-			} else {
-				require.NotContains(t, container, "services")
+				require.Len(t, payloads, 2)
+				require.Equal(t, "oracle_services", payloads[0]["kind"])
+				require.Equal(t, []any{}, payloads[0]["metadata"].([]any)[0].(map[string]any)["services"])
+				payloads = payloads[1:]
 			}
+			require.Len(t, payloads, 1)
+			require.Equal(t, "oracle_databases", payloads[0]["kind"])
+			require.EqualValues(t, 1, payloads[0]["collection_payloads_count"])
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+func TestSchemaServicesSnapshotReplacesContainers(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	c.cdbName = "sales"
+	c.config.Server, c.config.Port, c.config.ServiceName = "listener.example", 1521, "agent"
+	var events []schemaServicesEvent
+	for _, containers := range []map[int64]string{{3: "APP_PDB", 4: "OTHER_PDB"}, {3: "APP_PDB"}, {}} {
+		mock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnRows(
+			sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("agent.example", 1, "CDB$ROOT"))
+		mock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery)).WillReturnRows(
+			sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow(3, "airflow", "airflow.example").AddRow(4, "reporting", nil))
+		require.NoError(t, c.sendSchemaServicesMetadata(context.Background(), containers, func(payload []byte) {
+			var event schemaServicesEvent
+			require.NoError(t, json.Unmarshal(payload, &event))
+			events = append(events, event)
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(payload, &fields))
+			require.NotContains(t, fields, "collection_payloads_count")
+			require.NotContains(t, fields, "collection_started_at")
+			if len(containers) == 0 {
+				require.Equal(t, []any{}, fields["metadata"])
+			}
+			for _, container := range fields["metadata"].([]any) {
+				require.NotContains(t, container, "schemas")
+			}
+		}))
+	}
+	require.Len(t, events, 3)
+	require.Len(t, events[0].Metadata, 2)
+	require.Len(t, events[1].Metadata, 1)
+	require.Equal(t, "3", events[1].Metadata[0].ID)
+	require.Empty(t, events[2].Metadata)
+	for i, event := range events {
+		require.Equal(t, "sales", event.CDBName)
+		if i > 0 {
+			require.Greater(t, event.Timestamp, events[i-1].Timestamp)
+		}
+	}
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSchemaServicesSnapshotSurvivesSchemaFailure(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	mock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	mock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("agent.example", 1, "CDB$ROOT"))
+	mock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow(3, "airflow", "airflow.example"))
+	failure := errors.New("schema owners unavailable")
+	mock.ExpectQuery("cdb_users").WillReturnError(failure)
+	var events []schemaServicesEvent
+	c.schemaEmitter = func(payload []byte) {
+		var event schemaServicesEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	}
+	require.ErrorIs(t, c.SchemaCollection(), failure)
+	require.Len(t, events, 1)
+	require.Equal(t, "oracle_services", events[0].Kind)
+	require.Len(t, events[0].Metadata, 1)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestSchemaConnectionDoesNotInventTNSEndpoint(t *testing.T) {
@@ -218,11 +296,15 @@ func TestSchemaConnectionDoesNotInventTNSEndpoint(t *testing.T) {
 	c.cdbName = "sales"
 	mock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnRows(
 		sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("airflow.example", 3, "APP_PDB"))
-	connection, err := c.schemaConnectionMetadata(context.Background())
-	require.NoError(t, err)
-	payload, err := json.Marshal(connection)
-	require.NoError(t, err)
-	require.JSONEq(t, `{"service_name":"airflow.example","container_id":"3","container_name":"sales.APP_PDB"}`, string(payload))
+	mock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow(3, "airflow", "airflow.example"))
+	require.NoError(t, c.sendSchemaServicesMetadata(context.Background(), map[int64]string{3: "APP_PDB"}, func(payload []byte) {
+		var event schemaServicesEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		connection, err := json.Marshal(event.Connection)
+		require.NoError(t, err)
+		require.JSONEq(t, `{"service_name":"airflow.example","container_id":"3","container_name":"sales.APP_PDB"}`, string(connection))
+	}))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -245,34 +327,6 @@ func TestSchemaServicesCancellationStopsCollection(t *testing.T) {
 	c.schemaEmitter = func([]byte) { t.Fatal("canceled collection emitted a payload") }
 	require.ErrorIs(t, c.schemaCollection(ctx), context.Canceled)
 	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestSchemaServicesInViewSnapshots(t *testing.T) {
-	c, _, _, cleanup := newSchemaCheck(t)
-	defer cleanup()
-	c.schemaPayloadChunkSize = 1
-	c.schemaServices = map[int64][]schemaService{3: {{Name: "airflow", NetworkName: "airflow.example"}}}
-	c.schemaConnection = &schemaConnectionInfo{ServiceName: "agent", ContainerID: "1", ContainerName: "sales.CDB$ROOT"}
-	var events []schemaEvent
-	coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
-		var event schemaEvent
-		require.NoError(t, json.Unmarshal(payload, &event))
-		events = append(events, event)
-	})
-	collector := newViewEventCollector(&c, coordinator.add, nil, nil, map[int64]string{3: "PDB"})
-	for _, view := range []string{"V1", "V2"} {
-		collector.addView(schemaRowDB{ConID: 3, Owner: "APP", TableName: view})
-	}
-	collector.finish()
-	require.NoError(t, coordinator.complete())
-	require.Len(t, events, 2)
-	for _, event := range events {
-		require.Equal(t, "oracle_views", event.Kind)
-		require.Equal(t, c.schemaServices[3], event.Metadata[0].Services)
-		require.Equal(t, c.schemaConnection, event.Connection)
-	}
-	require.Zero(t, events[0].CollectionPayloadsCount)
-	require.Equal(t, 2, events[1].CollectionPayloadsCount)
 }
 
 type deadlineCountingContext struct {
@@ -298,11 +352,24 @@ func TestSchemaCollectionNoOwnersSkips(t *testing.T) {
 	defer closeDB()
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+	dbMock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("agent.example", 1, "CDB$ROOT"))
+	dbMock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	var events []schemaServicesEvent
+	c.schemaEmitter = func(payload []byte) {
+		var event schemaServicesEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	}
 
 	ctx := &deadlineCountingContext{Context: context.Background()}
 	require.NoError(t, c.schemaCollection(ctx))
-	assert.Equal(t, 2, ctx.deadlines, "container and owner queries must each create their own timeout")
+	require.Len(t, events, 1)
+	require.Equal(t, "oracle_services", events[0].Kind)
+	require.Equal(t, []schemaServiceContainer{}, events[0].Metadata)
+	assert.Equal(t, 4, ctx.deadlines, "container, connection, services, and owner queries must each create their own timeout")
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 }
 
@@ -2018,8 +2085,6 @@ func TestSchemaCollectorKeepsSnapshotStateAcrossPages(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
 	c.schemaPayloadChunkSize = 40
-	c.schemaServices = map[int64][]schemaService{3: {{Name: "airflow", NetworkName: "airflow.example"}}}
-	c.schemaConnection = &schemaConnectionInfo{Host: "listener.example", Port: 1521, ServiceName: "agent", ContainerID: "1", ContainerName: "sales.CDB$ROOT"}
 
 	var payloads []schemaEvent
 	coordinator := newSchemaSnapshotCoordinator(c.nextSnapshotID, func(payload []byte) {
@@ -2049,8 +2114,6 @@ func TestSchemaCollectorKeepsSnapshotStateAcrossPages(t *testing.T) {
 	assert.Equal(t, payloads[0].CollectionStartedAt, payloads[3].CollectionStartedAt)
 	for _, payload := range payloads {
 		assert.LessOrEqual(t, len(payload.Metadata[0].Schemas[0].Tables), 40)
-		assert.Equal(t, c.schemaServices[3], payload.Metadata[0].Services)
-		assert.Equal(t, c.schemaConnection, payload.Connection)
 	}
 }
 

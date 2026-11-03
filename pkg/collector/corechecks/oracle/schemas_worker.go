@@ -338,8 +338,6 @@ func (c *Check) schemaWindowCheck(queryer schemaQueryer) *Check {
 		schemaPayloadChunkSize: c.schemaPayloadChunkSize,
 		schemaQueryer:          queryer,
 		db:                     c.db,
-		schemaServices:         c.schemaServices,
-		schemaConnection:       c.schemaConnection,
 	}
 }
 

@@ -385,6 +385,9 @@ func collectSchemaEventsWithConfig(t *testing.T, schemasConfig string) []schemaE
 		if err := json.Unmarshal(call.Arguments.Get(0).([]byte), &e); err != nil {
 			continue
 		}
+		if e.Kind != "oracle_databases" && e.Kind != "oracle_views" {
+			continue
+		}
 		events = append(events, e)
 	}
 	return events

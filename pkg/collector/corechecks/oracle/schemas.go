@@ -473,15 +473,20 @@ type viewDetails struct {
 }
 
 type containerObject struct {
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	Services []schemaService `json:"services,omitzero"`
-	Schemas  []*schemaObject `json:"schemas"`
+	ID      string          `json:"id"`
+	Name    string          `json:"name"`
+	Schemas []*schemaObject `json:"schemas"`
 }
 
 type schemaService struct {
 	Name        string `json:"name"`
 	NetworkName string `json:"network_name,omitempty"`
+}
+
+type schemaServiceContainer struct {
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Services []schemaService `json:"services"`
 }
 
 type schemaConnectionInfo struct {
@@ -493,21 +498,35 @@ type schemaConnectionInfo struct {
 	ContainerName     string `json:"container_name"`
 }
 
+type schemaServicesEvent struct {
+	Host               string                   `json:"host"`
+	DatabaseInstance   string                   `json:"database_instance"`
+	AgentVersion       string                   `json:"agent_version"`
+	Dbms               string                   `json:"dbms"`
+	Kind               string                   `json:"kind"`
+	CollectionInterval int64                    `json:"collection_interval"`
+	DbmsVersion        string                   `json:"dbms_version"`
+	Tags               []string                 `json:"tags"`
+	Timestamp          float64                  `json:"timestamp"`
+	CDBName            string                   `json:"cdb_name"`
+	Connection         *schemaConnectionInfo    `json:"connection"`
+	Metadata           []schemaServiceContainer `json:"metadata"`
+}
+
 type schemaEvent struct {
-	Host                    string                `json:"host"`
-	DatabaseInstance        string                `json:"database_instance"`
-	AgentVersion            string                `json:"agent_version"`
-	Dbms                    string                `json:"dbms"`
-	Kind                    string                `json:"kind"`
-	CollectionInterval      int64                 `json:"collection_interval"`
-	DbmsVersion             string                `json:"dbms_version"`
-	Tags                    []string              `json:"tags"`
-	Timestamp               float64               `json:"timestamp"`
-	CollectionStartedAt     int64                 `json:"collection_started_at"`
-	CollectionPayloadsCount int                   `json:"collection_payloads_count,omitempty"`
-	Truncated               bool                  `json:"truncated,omitempty"`
-	Connection              *schemaConnectionInfo `json:"connection,omitempty"`
-	Metadata                []containerObject     `json:"metadata"`
+	Host                    string            `json:"host"`
+	DatabaseInstance        string            `json:"database_instance"`
+	AgentVersion            string            `json:"agent_version"`
+	Dbms                    string            `json:"dbms"`
+	Kind                    string            `json:"kind"`
+	CollectionInterval      int64             `json:"collection_interval"`
+	DbmsVersion             string            `json:"dbms_version"`
+	Tags                    []string          `json:"tags"`
+	Timestamp               float64           `json:"timestamp"`
+	CollectionStartedAt     int64             `json:"collection_started_at"`
+	CollectionPayloadsCount int               `json:"collection_payloads_count,omitempty"`
+	Truncated               bool              `json:"truncated,omitempty"`
+	Metadata                []containerObject `json:"metadata"`
 }
 
 type payloadEmitter func(payload []byte)
@@ -713,7 +732,6 @@ func (s *schemaCollector) baseEvent() schemaEvent {
 		DbmsVersion:        s.check.dbVersion,
 		Tags:               s.check.tags,
 		Timestamp:          float64(s.check.clock.Now().UnixMilli()),
-		Connection:         s.check.schemaConnection,
 	}
 }
 
@@ -727,10 +745,9 @@ func (s *schemaCollector) maybeFlush(isLast bool) {
 
 	e := s.baseEvent()
 	e.Metadata = []containerObject{{
-		ID:       strconv.FormatInt(s.conID, 10),
-		Name:     s.conName,
-		Services: s.check.schemaServices[s.conID],
-		Schemas:  s.schemas,
+		ID:      strconv.FormatInt(s.conID, 10),
+		Name:    s.conName,
+		Schemas: s.schemas,
 	}}
 	e.Truncated = s.truncated
 
@@ -1544,6 +1561,57 @@ func (c *Check) schemaConnectionMetadata(ctx context.Context) (*schemaConnection
 	return connection, nil
 }
 
+func (c *Check) sendSchemaServicesMetadata(ctx context.Context, containers map[int64]string, emit payloadEmitter) error {
+	run := c.schemaWindowCheck(c.schemaQueryer)
+	connection, err := run.schemaConnectionMetadata(ctx)
+	if err != nil {
+		return err
+	}
+	if connection == nil {
+		return errors.New("schema connection metadata is empty")
+	}
+	services, err := run.containerServices(ctx, containers)
+	if err != nil {
+		return err
+	}
+	containerIDs := make([]int64, 0, len(containers))
+	for id := range containers {
+		containerIDs = append(containerIDs, id)
+	}
+	sort.Slice(containerIDs, func(i, j int) bool { return containerIDs[i] < containerIDs[j] })
+	metadata := make([]schemaServiceContainer, 0, len(containers))
+	for _, id := range containerIDs {
+		metadata = append(metadata, schemaServiceContainer{
+			ID:       strconv.FormatInt(id, 10),
+			Name:     c.getFullPDBName(containers[id]),
+			Services: services[id],
+		})
+	}
+	event := schemaServicesEvent{
+		Host:               c.dbHostname,
+		DatabaseInstance:   c.dbInstanceIdentifier,
+		AgentVersion:       c.agentVersion,
+		Dbms:               "oracle",
+		Kind:               "oracle_services",
+		CollectionInterval: c.config.Schemas.CollectionInterval,
+		DbmsVersion:        c.dbVersion,
+		Tags:               c.tags,
+		Timestamp:          float64(c.nextSnapshotID()),
+		CDBName:            c.cdbName,
+		Connection:         connection,
+		Metadata:           metadata,
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal services metadata: %w", err)
+	}
+	if err := run.schemaContextError(ctx); err != nil {
+		return err
+	}
+	emit(payload)
+	return nil
+}
+
 func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKey]struct{}, selectedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
 	details := make(map[tableKey]*tableDetails)
 	at := func(conID int64, owner, table string) *tableDetails {
@@ -2224,8 +2292,6 @@ func (c *Check) schemaTableWindow(ctx context.Context, window []tableKey, select
 
 func (c *Check) schemaCollection(ctx context.Context) error {
 	c.schemaQueryError = nil
-	c.schemaServices = nil
-	c.schemaConnection = nil
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -2252,15 +2318,8 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		return err
 	}
 
-	if len(containers) > 0 {
-		c.schemaConnection, err = c.schemaWindowCheck(c.schemaQueryer).schemaConnectionMetadata(ctx)
-		if err != nil {
-			log.Debugf("%s schema connection metadata unavailable: %v", c.logPrompt, err)
-		}
-		c.schemaServices, err = c.schemaWindowCheck(c.schemaQueryer).containerServices(ctx, containers)
-		if err != nil {
-			log.Debugf("%s schema services unavailable: %v", c.logPrompt, err)
-		}
+	if err := c.sendSchemaServicesMetadata(ctx, containers, emit); err != nil {
+		log.Debugf("%s schema services metadata unavailable: %v", c.logPrompt, err)
 	}
 
 	owners, names, err := c.schemaOwners(ctx, containers)

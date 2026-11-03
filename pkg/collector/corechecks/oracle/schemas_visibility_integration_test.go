@@ -90,6 +90,9 @@ WHERE con_id > 2 AND open_mode = 'READ WRITE' AND restricted = 'NO' ORDER BY con
 			}
 			var event schemaEvent
 			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+			if event.Kind != "oracle_databases" && event.Kind != "oracle_views" {
+				continue
+			}
 			events = append(events, event)
 		}
 		return events

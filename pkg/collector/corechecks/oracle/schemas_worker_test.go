@@ -61,8 +61,6 @@ func TestSchemaParallelWindowsKeepOrderedSnapshots(t *testing.T) {
 		t.Run(map[bool]string{false: "complete", true: "failure_then_retry"}[failFirst], func(t *testing.T) {
 			c, _, _, cleanup := newSchemaCheck(t)
 			defer cleanup()
-			c.schemaServices = map[int64][]schemaService{3: {{Name: "airflow", NetworkName: "airflow.example"}}}
-			c.schemaConnection = &schemaConnectionInfo{Host: "listener.example", Port: 1521, ServiceName: "agent", ContainerID: "1", ContainerName: "sales.CDB$ROOT"}
 			keys := schemaHydrationKeys(4001, "APP", 3)
 			selected := make(map[tableKey]struct{}, len(keys))
 			for _, key := range keys {
@@ -122,8 +120,6 @@ func TestSchemaParallelWindowsKeepOrderedSnapshots(t *testing.T) {
 				var tables []string
 				for i, event := range events {
 					require.Equal(t, events[0].CollectionStartedAt, event.CollectionStartedAt)
-					require.Equal(t, c.schemaServices[3], event.Metadata[0].Services)
-					require.Equal(t, c.schemaConnection, event.Connection)
 					if i < len(events)-1 {
 						require.Zero(t, event.CollectionPayloadsCount)
 					} else {
@@ -434,12 +430,14 @@ func TestSchemaWorkerCopiesMutableInputs(t *testing.T) {
 	require.NoError(t, err)
 	mockSender, ok := sender.(*mocksender.MockSender)
 	require.True(t, ok)
-	var events []schemaEvent
+	var events []schemaServicesEvent
 	for _, call := range mockSender.Calls {
 		if call.Method == "EventPlatformEvent" {
-			var event schemaEvent
+			var event schemaServicesEvent
 			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
-			events = append(events, event)
+			if event.Kind == "oracle_services" {
+				events = append(events, event)
+			}
 		}
 	}
 	require.Len(t, events, 1)
