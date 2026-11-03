@@ -844,13 +844,7 @@ var stopProcmgrService = func(ctx HookContext, manager service.Type) error {
 	}
 }
 
-// chownProcmgrDefaultsFile owns the defaults file as root. The installer runs as root.
-var chownProcmgrDefaultsFile = func(f *os.File) error {
-	return f.Chown(0, 0)
-}
-
-// writeProcmgrDefaultsDisabled replaces path with a new regular root-owned file.
-// Truncating the existing inode would leave old writable descriptors attached to it.
+// writeProcmgrDefaultsDisabled replaces path instead of truncating it, so an old writable descriptor stays on the previous inode.
 func writeProcmgrDefaultsDisabled(path string) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -870,9 +864,6 @@ func writeProcmgrDefaultsDisabled(path string) error {
 	}()
 	if _, err := f.Write([]byte(procmgrDefaultsDisabled)); err != nil {
 		return fmt.Errorf("failed to write %s: %w", path, err)
-	}
-	if err := chownProcmgrDefaultsFile(f); err != nil {
-		return fmt.Errorf("failed to chown %s: %w", path, err)
 	}
 	if err := f.Chmod(0644); err != nil {
 		return fmt.Errorf("failed to chmod %s: %w", path, err)

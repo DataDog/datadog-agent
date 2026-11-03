@@ -174,16 +174,11 @@ func TestSyncProcmgrDefaults(t *testing.T) {
 	originalPath := procmgrDefaultsPath
 	originalManager := currentServiceManager
 	originalStop := stopProcmgrService
-	originalChown := chownProcmgrDefaultsFile
 	procmgrDefaultsPath = path
-	chownProcmgrDefaultsFile = func(f *os.File) error {
-		return f.Chown(os.Getuid(), os.Getgid())
-	}
 	t.Cleanup(func() {
 		procmgrDefaultsPath = originalPath
 		currentServiceManager = originalManager
 		stopProcmgrService = originalStop
-		chownProcmgrDefaultsFile = originalChown
 	})
 
 	var stopped []service.Type
