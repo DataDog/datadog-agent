@@ -83,6 +83,9 @@ def build(ctx, enable_bazel=False):
     else:
         build_tags = get_default_build_tags(build="host-profiler")
         ldflags, gcflags, env = get_build_flags(ctx)
+        # Common CGo flags replace Go's defaults, including native optimization.
+        if not os.environ.get("CGO_CFLAGS"):
+            env["CGO_CFLAGS"] = "-O2 -g" + env["CGO_CFLAGS"]
         if profiler_version := _get_profiler_agent_version(ctx):
             ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
 
