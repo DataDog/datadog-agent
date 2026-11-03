@@ -472,6 +472,7 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 // matching ENOMEM anywhere in it.
 func classifierAttachENOMEM(m *manager.Manager) bool {
 	for _, p := range m.Probes {
+		//nolint:forbidigo // ebpf-manager's Probe.GetLastError (the probe's recorded attach error), not the Windows syscall
 		if p.EBPFFuncName == string(probes.ProtocolClassifierEntrySocketFilter) && errors.Is(p.GetLastError(), unix.ENOMEM) {
 			return true
 		}
