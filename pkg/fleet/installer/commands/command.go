@@ -498,11 +498,11 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> [operations]",
+		Use:     "install-config-experiment <package>",
 		Short:   "Install a config experiment",
-		Long:    "Install a config experiment. Without the operations argument, stdin carries the operations JSON followed by the decrypted secrets JSON; with it, stdin only carries the decrypted secrets.",
+		Long:    "Install a config experiment. Stdin carries the operations JSON followed by the decrypted secrets JSON.",
 		GroupID: "installer",
-		Args:    cobra.RangeArgs(1, 2),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -511,7 +511,7 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 
-			operations, decryptedSecrets, err := readConfigExperimentInput(args, os.Stdin)
+			operations, decryptedSecrets, err := readConfigExperimentInput(os.Stdin)
 			if err != nil {
 				return err
 			}
@@ -524,20 +524,14 @@ func installConfigExperimentCommand() *cobra.Command {
 	return cmd
 }
 
-func readConfigExperimentInput(args []string, stdin io.Reader) (config.Operations, map[string]string, error) {
+func readConfigExperimentInput(stdin io.Reader) (config.Operations, map[string]string, error) {
 	var operations config.Operations
+	var decryptedSecrets map[string]string
 	decoder := json.NewDecoder(stdin)
-	if len(args) > 1 {
-		if err := json.Unmarshal([]byte(args[1]), &operations); err != nil {
-			return operations, nil, fmt.Errorf("could not decode operations: %w", err)
-		}
-	} else if err := decoder.Decode(&operations); err != nil {
+	if err := decoder.Decode(&operations); err != nil {
 		return operations, nil, fmt.Errorf("could not decode operations from stdin: %w", err)
 	}
-
-	// Older daemons send no secrets at all, so missing secrets are accepted.
-	var decryptedSecrets map[string]string
-	if err := decoder.Decode(&decryptedSecrets); err != nil && err != io.EOF {
+	if err := decoder.Decode(&decryptedSecrets); err != nil {
 		return operations, nil, fmt.Errorf("could not decode secrets from stdin: %w", err)
 	}
 	if decryptedSecrets == nil {

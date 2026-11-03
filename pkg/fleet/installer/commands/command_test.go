@@ -294,8 +294,7 @@ func TestInstallConfigExperimentArgs(t *testing.T) {
 	cmd := installConfigExperimentCommand()
 	assert.Error(t, cmd.ValidateArgs([]string{}))
 	assert.NoError(t, cmd.ValidateArgs([]string{"datadog-agent"}))
-	assert.NoError(t, cmd.ValidateArgs([]string{"datadog-agent", "{}"}))
-	assert.Error(t, cmd.ValidateArgs([]string{"datadog-agent", "{}", "extra"}))
+	assert.Error(t, cmd.ValidateArgs([]string{"datadog-agent", "{}"}))
 }
 
 func TestReadConfigExperimentInput(t *testing.T) {
@@ -309,58 +308,46 @@ func TestReadConfigExperimentInput(t *testing.T) {
 	}
 	operationsJSON, err := json.Marshal(operations)
 	require.NoError(t, err)
-	secretsJSON := `{"ENC[secret]":"value"}`
 
 	tests := []struct {
 		name        string
-		args        []string
 		stdin       string
 		wantSecrets map[string]string
 		wantErr     string
 	}{
 		{
-			name:        "positional operations with secrets on stdin",
-			args:        []string{"datadog-agent", string(operationsJSON)},
-			stdin:       secretsJSON,
+			name:        "operations then secrets",
+			stdin:       string(operationsJSON) + "\n" + `{"ENC[secret]":"value"}`,
 			wantSecrets: map[string]string{"ENC[secret]": "value"},
 		},
 		{
-			name:        "positional operations with empty stdin",
-			args:        []string{"datadog-agent", string(operationsJSON)},
+			name:        "operations then empty secrets",
+			stdin:       string(operationsJSON) + "\n{}",
 			wantSecrets: map[string]string{},
 		},
 		{
-			name:        "operations then secrets on stdin",
-			args:        []string{"datadog-agent"},
-			stdin:       string(operationsJSON) + "\n" + secretsJSON,
-			wantSecrets: map[string]string{"ENC[secret]": "value"},
-		},
-		{
-			name:        "operations on stdin without secrets",
-			args:        []string{"datadog-agent"},
-			stdin:       string(operationsJSON),
-			wantSecrets: map[string]string{},
-		},
-		{
-			name:    "operations missing from stdin",
-			args:    []string{"datadog-agent"},
+			name:    "empty stdin",
 			wantErr: "could not decode operations from stdin",
 		},
 		{
-			name:    "invalid positional operations",
-			args:    []string{"datadog-agent", "not json"},
-			wantErr: "could not decode operations",
+			name:    "invalid operations",
+			stdin:   "not json",
+			wantErr: "could not decode operations from stdin",
 		},
 		{
-			name:    "invalid secrets after stdin operations",
-			args:    []string{"datadog-agent"},
+			name:    "missing secrets",
+			stdin:   string(operationsJSON),
+			wantErr: "could not decode secrets from stdin",
+		},
+		{
+			name:    "invalid secrets",
 			stdin:   string(operationsJSON) + "\nnot json",
 			wantErr: "could not decode secrets from stdin",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotOperations, gotSecrets, err := readConfigExperimentInput(tt.args, strings.NewReader(tt.stdin))
+			gotOperations, gotSecrets, err := readConfigExperimentInput(strings.NewReader(tt.stdin))
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 				return
