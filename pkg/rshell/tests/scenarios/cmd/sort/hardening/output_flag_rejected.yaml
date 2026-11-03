@@ -1,0 +1,16 @@
+# Per RULES.md: -o writes to filesystem and must be rejected
+description: sort rejects the -o flag which writes to the filesystem.
+# skip: feature is intentionally blocked in rshell for security
+skip_assert_against_bash: true  # intentional restriction; -o is a valid GNU sort flag
+setup:
+  files:
+    - path: f.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -o out.txt f.txt
+expect:
+  stdout: ""
+  stderr_contains: ["sort:"]
+  exit_code: 1

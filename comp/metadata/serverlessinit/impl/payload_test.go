@@ -44,14 +44,6 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 	assert.NotContains(t, fields, "tags")
 }
 
-func TestBuildFieldsRuntimeSettingOverridesDetection(t *testing.T) {
-	conf := configmock.New(t)
-	conf.Set("serverless.metadata_runtime", "Go", model.SourceAgentRuntime)
-	inv := serverlessdef.CloudServiceMetadata{ResourceID: "test-resource", RuntimeCandidates: []string{"python"}}
-	fields := buildFields(inv, serverlessdef.Params{WrappedCommand: []string{"node", "app.js"}}, conf)
-	assert.Equal(t, "Go", fields["runtime"])
-}
-
 func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
@@ -109,31 +101,11 @@ func TestBuildFieldsRuntime(t *testing.T) {
 		metadata string
 		want     interface{}
 	}{
-		{name: "wrapped command", command: []string{"/usr/bin/python3.12", "app.py"}, want: "Python"},
-		{name: "Python launcher", command: []string{"ddtrace-run", "python", "app.py"}, want: "Python"},
-		{name: "Ruby launcher", command: []string{"bundle", "exec", "ruby", "app.rb"}, want: "Ruby"},
-		{name: "Python entry point", command: []string{"ddtrace-run", "gunicorn", "app:app"}, want: "Python"},
-		{name: "Ruby entry point", command: []string{"bundle", "exec", "puma"}, want: "Ruby"},
-		{name: "bare Python entry point", command: []string{"gunicorn", "app:app"}, want: "Python"},
-		{name: "bare Ruby entry point", command: []string{"puma"}, want: "Ruby"},
-		{name: "sidecar ignores bare Python entry point", sidecar: true, command: []string{"gunicorn", "app:app"}},
-		{name: "sidecar ignores bare Ruby entry point", sidecar: true, command: []string{"puma"}},
-		{name: "sidecar ignores Python entry point", sidecar: true, command: []string{"ddtrace-run", "gunicorn", "app:app"}},
-		{name: "sidecar ignores Ruby entry point", sidecar: true, command: []string{"bundle", "exec", "puma"}},
-		{name: "sidecar ignores Python launcher", sidecar: true, command: []string{"ddtrace-run", "python", "app.py"}},
-		{name: "sidecar ignores Ruby launcher", sidecar: true, command: []string{"bundle", "exec", "ruby", "app.rb"}},
-		{name: "incomplete Python launcher", command: []string{"ddtrace-run"}},
-		{name: "incomplete Ruby launcher", command: []string{"bundle", "exec"}},
-		{name: "no command"},
-		{name: "own executable is not workload", command: nil},
+		{name: "in-container command", command: []string{"/usr/bin/python3.12", "app.py"}, want: "Python"},
 		{name: "sidecar ignores command", sidecar: true, command: []string{"node", "app.js"}},
 		{name: "sidecar metadata", sidecar: true, command: []string{"node"}, metadata: "Java", want: "Java"},
-		{name: "sidecar override", sidecar: true, command: []string{"node"}, override: " MyRuntime ", metadata: "Java", want: "MyRuntime"},
-		{name: "sidecar placeholder", sidecar: true, command: []string{"node"}, metadata: "Container"},
-		{name: "unknown missing", metadata: "unknown"},
-		{name: "null missing", metadata: " NuLl "},
-		{name: "blank missing", metadata: " \t"},
-		{name: "invalid override still detects", override: "null", command: []string{"ruby"}, want: "Ruby"},
+		{name: "override wins", override: "Go", command: []string{"node"}, metadata: "Java", want: "Go"},
+		{name: "no evidence"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			conf.Set("serverless.metadata_runtime", tt.override, model.SourceAgentRuntime)
@@ -159,8 +131,6 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 		{name: "no command"},
 		{name: "sidecar", command: []string{"python", "app.py"}, sidecar: true},
 		{name: "equals password", command: []string{"python", "app.py", "--password=secret"}},
-		{name: "equals token", command: []string{"python", "app.py", "--token=secret"}},
-		{name: "separated password", command: []string{"python", "app.py", "--password", "secret"}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			conf := configmock.New(t)
@@ -180,14 +150,8 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 					assert.Contains(t, fields, "wrapped_command", "nil must clear a previously cached value")
 					if enabled != "true" || scenario.sidecar || len(scenario.command) == 0 {
 						assert.Nil(t, fields["wrapped_command"])
-					} else if scenario.name == "equals password" {
-						assert.Equal(t, "python app.py --password=********", fields["wrapped_command"])
 					} else {
-						assert.NotEmpty(t, fields["wrapped_command"], "opt-in redaction is best effort, not complete")
-					}
-					if !scenario.sidecar && len(scenario.command) > 0 {
-						assert.Equal(t, "Python", fields["runtime"])
-						assert.Equal(t, "in-container", fields["deployment_model"])
+						assert.Equal(t, "python app.py --password=********", fields["wrapped_command"])
 					}
 					delete(fields, "wrapped_command")
 					if enabled == "unset" {

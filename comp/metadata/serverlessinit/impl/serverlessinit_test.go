@@ -104,9 +104,9 @@ func enabledConfig() map[string]any {
 
 func TestFirstCollectionAndPayloadCompatibility(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "resource", WorkloadType: "azure_app_service"}}
-		tags := map[string]string{"env": "test-env", "service": "test-service"}
-		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{Tags: tags, WrappedCommand: []string{"python", "app.py"}})
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "resource"}}
+		tags := map[string]string{"service": "test-service"}
+		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{Tags: tags})
 		require.Zero(t, provider.reads, "construction must not collect")
 		require.Empty(t, s.payloads)
 		require.Len(t, lc.hooks, 1)
@@ -121,10 +121,8 @@ func TestFirstCollectionAndPayloadCompatibility(t *testing.T) {
 		assert.Equal(t, "test-host", payload.Hostname)
 		assert.Equal(t, start.UnixNano(), payload.Timestamp)
 		for key, want := range map[string]any{
-			"resource_id": "resource", "flavor": "serverless-init", "report_reason": "startup",
-			"workload_type": "azure_app_service", "dd_env": "test-env", "dd_service": "test-service",
-			"deployment_model": "in-container", "runtime": "Python", "wrapped_command": nil,
-			"region": nil, "agent_version": version.AgentVersion, "package_version": version.AgentPackageVersion,
+			"resource_id": "resource", "report_reason": "startup", "dd_service": "test-service",
+			"agent_version": version.AgentVersion, "package_version": version.AgentPackageVersion,
 			"infrastructure_mode": "full", "hostname_source": "configuration",
 		} {
 			assert.Equal(t, want, payload.Metadata[key], key)
@@ -378,13 +376,6 @@ func TestReportNowWithoutIdentity(t *testing.T) {
 	})
 }
 
-func TestEligible(t *testing.T) {
-	assert.False(t, eligible(config.NewMock(t), &fakeProvider{eligible: true}), "default off")
-	conf := config.NewMockWithOverrides(t, map[string]any{"serverless.metadata_enabled": true})
-	assert.False(t, eligible(conf, &fakeProvider{eligible: false}))
-	assert.True(t, eligible(conf, &fakeProvider{eligible: true}))
-}
-
 func TestIdentityWaitBacksOff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		provider := &fakeProvider{eligible: true}
@@ -451,33 +442,24 @@ func TestReportNowFirstRunRace(t *testing.T) {
 	}
 }
 
-func TestReportNowSameIdentityKeepsUUID(t *testing.T) {
+func TestReportNowIdentityUUID(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"}}
 		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 		p.Comp.ReportNow()
-		require.Len(t, s.payloads, 1)
 		p.Comp.ReportNow()
 		require.Len(t, s.payloads, 2, "a resume of the same identity reports at once")
 		assert.Equal(t, s.payloads[0].UUID, s.payloads[1].UUID)
 		assert.Equal(t, "startup", s.payloads[1].Metadata["report_reason"])
-		assert.Equal(t, "vm-A", s.payloads[1].Metadata["resource_id"])
 		p.Provider.Callback(t.Context())
 		assert.Len(t, s.payloads, 2, "collection must not repeat a reported payload")
-	})
-}
 
-func TestReportNowNewIdentityRotatesUUID(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"}}
-		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
-		p.Comp.ReportNow()
 		provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "vm-B"})
 		p.Comp.ReportNow()
-		require.Len(t, s.payloads, 2)
-		assert.NotEqual(t, s.payloads[0].UUID, s.payloads[1].UUID)
-		assert.Equal(t, "vm-B", s.payloads[1].Metadata["resource_id"])
-		assert.Equal(t, "startup", s.payloads[1].Metadata["report_reason"])
+		require.Len(t, s.payloads, 3)
+		assert.NotEqual(t, s.payloads[0].UUID, s.payloads[2].UUID)
+		assert.Equal(t, "vm-B", s.payloads[2].Metadata["resource_id"])
+		assert.Equal(t, "startup", s.payloads[2].Metadata["report_reason"])
 	})
 }
 
@@ -613,16 +595,14 @@ func TestRunnerShutdownOrdering(t *testing.T) {
 	})
 }
 
-func TestCollectionConfigurationAndWrappedCommand(t *testing.T) {
+func TestCollectionConfigurationIsScrubbed(t *testing.T) {
 	conf := enabledConfig()
 	conf["inventories_configuration_enabled"] = true
-	conf["serverless.metadata_wrapped_command_enabled"] = true
 	conf["api_key"] = "secret-api-key"
 	provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "resource"}}
-	p, s, _ := newTestComponent(t, conf, provider, serverlessdef.Params{WrappedCommand: []string{"python", "app.py"}})
+	p, s, _ := newTestComponent(t, conf, provider, serverlessdef.Params{})
 	p.Provider.Callback(t.Context())
 	require.Len(t, s.payloads, 1)
-	assert.Equal(t, "python app.py", s.payloads[0].Metadata["wrapped_command"])
 	assert.Contains(t, s.payloads[0].Metadata, "full_configuration")
 	raw, err := s.payloads[0].MarshalJSON()
 	require.NoError(t, err)

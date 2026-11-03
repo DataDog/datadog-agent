@@ -176,11 +176,8 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 	metrics.TlmPayloadFlushed.Inc(b.pipelineName, reason)
 
 	if b.serverlessMeta.IsEnabled() {
-		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
-		// The lock is needed to ensure that the wait group is not incremented while the flush is in progress
-		b.serverlessMeta.Lock()
-		b.serverlessMeta.WaitGroup().Add(1)
-		b.serverlessMeta.Unlock()
+		// Record the payload as pending so the flush doesn't finish until it is sent to all destinations
+		b.serverlessMeta.AddPendingSend()
 	}
 
 	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), b.compression.ContentEncoding(), unencodedSize)

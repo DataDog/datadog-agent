@@ -78,6 +78,7 @@
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
       - E2E_MSI_TEST: TestNPMInstallWithAddLocal
+      - E2E_MSI_TEST: TestNPMInstallWithNetworkEnabledProperty
       - E2E_MSI_TEST: TestNPMUpgradeFromBeta
       - E2E_MSI_TEST: TestUpgradeFromV6
 
@@ -341,3 +342,4 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInjectorStats/TestDefaultSkipListCounter$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptStartsSystemProbe$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestStandaloneInstallDoesNotStartSystemProbe$"
+      - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptEnablesNetworkMonitoring$"

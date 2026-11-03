@@ -1,0 +1,10 @@
+description: For loop items can contain special characters when quoted.
+input:
+  script: |+
+    for f in "hello world" "foo bar"; do echo "$f"; done
+expect:
+  stdout: |+
+    hello world
+    foo bar
+  stderr: ""
+  exit_code: 0

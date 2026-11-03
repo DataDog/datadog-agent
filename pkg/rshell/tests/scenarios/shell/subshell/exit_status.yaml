@@ -1,0 +1,10 @@
+description: Subshell exit status propagates to parent.
+input:
+  script: |+
+    (exit 42)
+    echo "$?"
+expect:
+  stdout: |+
+    42
+  stderr: ""
+  exit_code: 0

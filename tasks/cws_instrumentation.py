@@ -55,8 +55,9 @@ def build(
             if injector_only
             else "//cmd/cws-instrumentation:cws-instrumentation"
         )
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(target, args=bazel_args, bin_path=BIN_PATH)
+        if fips_mode:
+            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
+        build_binary_with_bazel(target, bin_path=BIN_PATH)
         return
 
     if build_tags is None:
