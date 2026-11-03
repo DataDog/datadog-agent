@@ -72,10 +72,10 @@ func (p *PrometheusPodsConfigProvider) Stream(ctx context.Context) <-chan integr
 	inCh := p.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter)
 
 	go func() {
+		defer p.workloadmetaStore.Unsubscribe(inCh)
 		for {
 			select {
 			case <-ctx.Done():
-				p.workloadmetaStore.Unsubscribe(inCh)
 				return
 
 			case evBundle, ok := <-inCh:
@@ -83,7 +83,13 @@ func (p *PrometheusPodsConfigProvider) Stream(ctx context.Context) <-chan integr
 					return
 				}
 
-				outCh <- p.processEvents(evBundle)
+				changes := p.processEvents(evBundle)
+				select {
+				case outCh <- changes:
+				case <-ctx.Done():
+					evBundle.Acknowledge()
+					return
+				}
 				evBundle.Acknowledge()
 			}
 		}

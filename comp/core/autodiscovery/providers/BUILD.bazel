@@ -157,6 +157,7 @@ dd_agent_go_test(
         "prometheus_services_eps_test.go",
         "prometheus_services_test.go",
         "providers_kubeapiserver_test.go",
+        "stream_shutdown_test.go",
         "utils_test.go",
         "zookeeper_test.go",
     ],

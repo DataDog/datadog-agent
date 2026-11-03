@@ -194,10 +194,10 @@ func (p *processLogConfigProvider) Stream(ctx context.Context) <-chan integratio
 	inCh := p.workloadmetaStore.Subscribe("process-log-provider", workloadmeta.ConfigProviderPriority, filter)
 
 	go func() {
+		defer p.workloadmetaStore.Unsubscribe(inCh)
 		for {
 			select {
 			case <-ctx.Done():
-				p.workloadmetaStore.Unsubscribe(inCh)
 				return
 			case evBundle, ok := <-inCh:
 				if !ok {
@@ -205,7 +205,12 @@ func (p *processLogConfigProvider) Stream(ctx context.Context) <-chan integratio
 				}
 
 				evBundle.Acknowledge()
-				outCh <- p.processEvents(evBundle)
+				changes := p.processEvents(evBundle)
+				select {
+				case outCh <- changes:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()

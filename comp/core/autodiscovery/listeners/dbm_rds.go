@@ -28,6 +28,7 @@ type DBMRdsListener struct {
 	newService   chan<- Service
 	delService   chan<- Service
 	stop         chan bool
+	done         chan struct{}
 	services     map[string]Service
 	config       aws.Config
 	awsRdsClient aws.RdsClient
@@ -81,12 +82,16 @@ func newDBMRdsListener(config aws.Config, awsClient aws.RdsClient, ticks <-chan 
 func (l *DBMRdsListener) Listen(newSvc, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
+	l.done = make(chan struct{})
 	go l.run()
 }
 
 // Stop stops the listener
 func (l *DBMRdsListener) Stop() {
-	l.stop <- true
+	close(l.stop)
+	if l.done != nil {
+		<-l.done
+	}
 	if l.ticker != nil {
 		l.ticker.Stop()
 	}
@@ -94,6 +99,7 @@ func (l *DBMRdsListener) Stop() {
 
 // run is the main loop for the rds listener discovery
 func (l *DBMRdsListener) run() {
+	defer close(l.done)
 	for {
 		l.discoverRdsInstances()
 		select {
@@ -144,17 +150,29 @@ func (l *DBMRdsListener) createService(entityID string, instance aws.Instance) {
 		}
 		// If the cached service is not equal to the new service then metadata has changed
 		// Delete the cached service first and then send the updated one to the newSvc channel.
-		l.delService <- existing
+		select {
+		case l.delService <- existing:
+		case <-l.stop:
+			return
+		}
 		delete(l.services, entityID)
 	}
 	l.services[entityID] = svc
-	l.newService <- svc
+	select {
+	case l.newService <- svc:
+	case <-l.stop:
+		return
+	}
 }
 
 func (l *DBMRdsListener) deleteServices(entityIDs []string) {
 	for _, entityID := range entityIDs {
 		if svc, present := l.services[entityID]; present {
-			l.delService <- svc
+			select {
+			case l.delService <- svc:
+			case <-l.stop:
+				return
+			}
 			delete(l.services, entityID)
 		}
 	}

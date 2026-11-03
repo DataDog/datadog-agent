@@ -364,6 +364,10 @@ func TestDBMRdsListener(t *testing.T) {
 				ticks <- time.Now()
 			}
 
+			require.Eventually(t, func() bool {
+				return len(newSvc) == len(tc.expectedServices) && len(delSvc) == len(tc.expectedDelServices)
+			}, time.Second, time.Millisecond)
+
 			// shutdown service, and get output from channels
 			l.Stop()
 			close(newSvc)
