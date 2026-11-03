@@ -16,8 +16,8 @@ import (
 )
 
 func TestEverySubscriptionCategoryUsesSameWireEncoder(t *testing.T) {
-	for _, encoding := range []config.PathEncoding{config.PathEncodingOrigin, config.PathEncodingLiteralOpenConfig} {
-		t.Run(string(encoding), func(t *testing.T) {
+	for _, encoding := range []gnmipb.Encoding{gnmipb.Encoding_PROTO, gnmipb.Encoding_JSON_IETF} {
+		t.Run(encoding.String(), func(t *testing.T) {
 			c := &Client{cfg: Config{
 				Profile: config.ProfileDefinition{
 					Metrics: []config.MetricConfig{
@@ -28,15 +28,14 @@ func TestEverySubscriptionCategoryUsesSameWireEncoder(t *testing.T) {
 				},
 				CollectTopology: true,
 				SampleInterval:  10 * time.Second,
-				Encoding:        config.Encoding(gnmipb.Encoding_PROTO),
-				PathEncoding:    encoding,
+				Encoding:        config.Encoding(encoding),
 			}}
 			request, err := c.buildSubscribeRequest()
 			require.NoError(t, err)
 			list := request.GetSubscribe()
 			require.Nil(t, list.Prefix, "origin belongs to individual paths, never both places")
 			require.Equal(t, gnmipb.SubscriptionList_STREAM, list.Mode)
-			require.Equal(t, gnmipb.Encoding_PROTO, list.Encoding)
+			require.Equal(t, encoding, list.Encoding)
 			roots := make(map[string]bool)
 			for _, sub := range list.Subscription {
 				require.Equal(t, gnmipb.SubscriptionMode_SAMPLE, sub.Mode)
@@ -48,15 +47,9 @@ func TestEverySubscriptionCategoryUsesSameWireEncoder(t *testing.T) {
 					roots["native"] = true
 					continue
 				}
-				if encoding == config.PathEncodingLiteralOpenConfig {
-					require.Empty(t, path.Origin)
-					require.Equal(t, "openconfig", path.Elem[0].Name)
-					roots[path.Elem[1].Name] = true
-				} else {
-					require.Equal(t, "openconfig", path.Origin)
-					require.NotEqual(t, "openconfig", path.Elem[0].Name)
-					roots[path.Elem[0].Name] = true
-				}
+				require.Equal(t, "openconfig", path.Origin)
+				require.NotEqual(t, "openconfig", path.Elem[0].Name)
+				roots[path.Elem[0].Name] = true
 			}
 			for _, root := range []string{"interfaces", "system", "components", "lldp", "native"} {
 				require.True(t, roots[root], "missing subscription category/root %s", root)

@@ -13,29 +13,6 @@ import (
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 )
 
-// PathEncoding selects the wire representation, independently of profile syntax.
-type PathEncoding string
-
-const (
-	// PathEncodingOrigin sends an explicit origin and no synthetic path element.
-	PathEncodingOrigin PathEncoding = "origin"
-	// PathEncodingLiteralOpenConfig preserves the measured Nokia compatibility form.
-	// Native-model selectors are never changed by this option.
-	PathEncodingLiteralOpenConfig PathEncoding = "literal-openconfig"
-)
-
-// ParsePathEncoding validates the optional instance-level wire encoding.
-func ParsePathEncoding(value string) (PathEncoding, error) {
-	switch PathEncoding(value) {
-	case "", PathEncodingOrigin:
-		return PathEncodingOrigin, nil
-	case PathEncodingLiteralOpenConfig:
-		return PathEncodingLiteralOpenConfig, nil
-	default:
-		return "", fmt.Errorf("unsupported path_encoding %q (supported: origin, literal-openconfig)", value)
-	}
-}
-
 // NormalizePath preserves an explicit origin:/path while accepting older paths
 // without a leading slash. It does not rewrite response paths or namespaces.
 func NormalizePath(value string) string {
@@ -101,23 +78,6 @@ func CompilePath(value string, bindings map[string]string) (*gnmipb.Path, error)
 			}
 		}
 		path.Elem = append(path.Elem, elem)
-	}
-	return path, nil
-}
-
-// EncodePath compiles every subscription category through the same encoder.
-func EncodePath(value string, bindings map[string]string, encoding PathEncoding) (*gnmipb.Path, error) {
-	resolved, err := ParsePathEncoding(string(encoding))
-	if err != nil {
-		return nil, err
-	}
-	path, err := CompilePath(value, bindings)
-	if err != nil {
-		return nil, err
-	}
-	if resolved == PathEncodingLiteralOpenConfig && path.Origin == "openconfig" {
-		path.Origin = ""
-		path.Elem = append([]*gnmipb.PathElem{{Name: "openconfig"}}, path.Elem...)
 	}
 	return path, nil
 }

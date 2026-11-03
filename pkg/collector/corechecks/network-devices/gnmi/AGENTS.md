@@ -162,6 +162,13 @@ dda inv test --targets=./pkg/collector/corechecks/network-devices/gnmi/...
   deltas; the first `preview-metrics` tick may omit bandwidth usage rates. Counter
   state is pruned after three check intervals without observing a series, even
   while the stream is disconnected.
-- **Profile selectors**: `config.CompilePath` is the configuration boundary for legacy `/openconfig/...` and explicit `origin:/...` selectors. Use `config.EncodePath` for every subscription category; do not independently split metric, metadata or topology strings into wire paths. Default wire encoding uses explicit OpenConfig origin; `path_encoding: literal-openconfig` is a target-specific compatibility option and never rewrites native-origin selectors. Structured selector compilation does not yet replace the legacy cache/report lookup representation; that migration is still required.
+- **Profile selectors**: Use `config.CompilePath` for every subscription category;
+  do not independently split metric, metadata or topology strings into wire paths.
+  Legacy `/openconfig/...` syntax is accepted at this configuration boundary and
+  produces explicit OpenConfig origin, without a synthetic wire element. Explicit
+  native origins and module-qualified names remain intact. There is no dialect
+  option or speculative fallback. Structured selector compilation does not yet
+  replace the legacy cache/report lookup representation; that migration is still
+  required.
 - **confd_path**: Wrong `confd_path` breaks both instance and profile loading;
   use `--conf-file` in CLI tools to avoid ambiguity during local dev.

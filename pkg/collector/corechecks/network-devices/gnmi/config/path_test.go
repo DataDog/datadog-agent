@@ -63,23 +63,20 @@ func TestCompilePathRejectsMalformedSelectors(t *testing.T) {
 	require.ErrorContains(t, err, "ambiguous key binding")
 }
 
-func TestPathEncoding(t *testing.T) {
-	for _, value := range []string{"", "origin", "literal-openconfig"} {
-		_, err := ParsePathEncoding(value)
-		require.NoError(t, err)
-	}
-	_, err := ParsePathEncoding("automatic")
-	require.Error(t, err)
-	_, err = EncodePath("/openconfig/system/state/hostname", nil, "unknown")
-	require.Error(t, err)
-	path, err := EncodePath("/openconfig/system/state/hostname", nil, PathEncodingLiteralOpenConfig)
+func TestCompilePathNormalizesLegacySyntaxWithoutAnOption(t *testing.T) {
+	bindings := map[string]string{"interface": "name"}
+	legacy, err := CompilePath("/openconfig/interfaces/interface/state/name", bindings)
 	require.NoError(t, err)
-	require.Empty(t, path.Origin)
-	require.Equal(t, "openconfig", path.Elem[0].Name)
-	path, err = EncodePath("native:/openconfig/state", nil, PathEncodingLiteralOpenConfig)
+	explicit, err := CompilePath("openconfig:/interfaces/interface/state/name", bindings)
 	require.NoError(t, err)
-	require.Equal(t, "native", path.Origin)
-	require.Len(t, path.Elem, 2)
+	require.Equal(t, explicit, legacy)
+	require.Equal(t, "openconfig", legacy.Origin)
+	require.Equal(t, "interfaces", legacy.Elem[0].Name)
+
+	// Compiling a selector must not mutate the profile or share mutable keys.
+	legacy.Elem[1].Key["name"] = "changed"
+	require.Equal(t, "*", explicit.Elem[1].Key["name"])
+	require.Equal(t, map[string]string{"interface": "name"}, bindings)
 }
 
 func TestNormalizePathPreservesOrigins(t *testing.T) {

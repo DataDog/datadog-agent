@@ -51,7 +51,6 @@ type Config struct {
 	// targets may reject a zero sample_interval with Unimplemented.
 	SampleInterval time.Duration
 	Encoding       config.Encoding
-	PathEncoding   config.PathEncoding
 }
 
 // Option configures optional client behavior, primarily for tests.
@@ -165,14 +164,9 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 		cfg.SampleInterval = DefaultSampleInterval
 	}
 
-	pathEncoding, err := config.ParsePathEncoding(string(cfg.PathEncoding))
-	if err != nil {
-		return nil, err
-	}
-	cfg.PathEncoding = pathEncoding
 	// Reject malformed selectors before starting an endless reconnect loop.
 	for _, spec := range buildSubscriptionSpecs(cfg) {
-		if _, err := config.EncodePath(spec.Path, spec.Keys, cfg.PathEncoding); err != nil {
+		if _, err := config.CompilePath(spec.Path, spec.Keys); err != nil {
 			return nil, fmt.Errorf("subscription path %q: %w", spec.Path, err)
 		}
 	}
@@ -488,7 +482,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 	specs := buildSubscriptionSpecs(c.cfg)
 	subscriptions := make([]*gnmipb.Subscription, 0, len(specs))
 	for _, spec := range specs {
-		path, err := config.EncodePath(spec.Path, spec.Keys, c.cfg.PathEncoding)
+		path, err := config.CompilePath(spec.Path, spec.Keys)
 		if err != nil {
 			return nil, fmt.Errorf("path %q: %w", spec.Path, err)
 		}

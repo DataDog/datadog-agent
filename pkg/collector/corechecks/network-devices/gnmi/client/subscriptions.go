@@ -100,5 +100,5 @@ func normalizeSubscriptionPath(path string) string {
 }
 
 func subscribePathFromSpec(spec SubscriptionSpec) (*gnmipb.Path, error) {
-	return config.EncodePath(spec.Path, spec.Keys, config.PathEncodingOrigin)
+	return config.CompilePath(spec.Path, spec.Keys)
 }

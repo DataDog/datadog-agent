@@ -181,5 +181,5 @@ func canonicalizePathSegments(elems []pathElement) []string {
 }
 
 func subscribePathFromMetric(metric config.MetricConfig) (*gnmipb.Path, error) {
-	return config.EncodePath(metric.Path, metric.SubscriptionKeys(), config.PathEncodingOrigin)
+	return config.CompilePath(metric.Path, metric.SubscriptionKeys())
 }
