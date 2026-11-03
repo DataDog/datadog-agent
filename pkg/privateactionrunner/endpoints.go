@@ -45,18 +45,9 @@ func APIBaseURL(cfg model.Reader, site string) (string, error) {
 	return "https://api." + site, nil
 }
 
-// ShouldWarnAboutRCOverride reports nonstandard RC routing without an explicit PAR URL.
+// ShouldWarnAboutRCOverride reports an RC override without an explicit PAR URL when PAR is enabled.
 func ShouldWarnAboutRCOverride(cfg model.Reader) bool {
-	rcURL := cfg.GetString("remote_configuration.rc_dd_url")
-	return cfg.GetBool(Enabled) && cfg.GetString(PARDDURL) == "" &&
-		os.Getenv(constants.InternalUseDDURLForOPMSEnvVar) != "true" &&
-		rcURL != "" && !isDefaultRCURL(rcURL, Site(cfg))
-}
-
-func isDefaultRCURL(raw, site string) bool {
-	u, err := url.Parse(raw)
-	return err == nil && u.Scheme == "https" && u.User == nil &&
-		strings.TrimSuffix(strings.ToLower(u.Hostname()), ".") == "config."+site &&
-		(u.Port() == "" || u.Port() == "443") && (u.Path == "" || u.Path == "/") &&
-		u.RawQuery == "" && !u.ForceQuery && !strings.Contains(raw, "#")
+	return cfg.GetBool(Enabled) &&
+		cfg.GetString("remote_configuration.rc_dd_url") != "" &&
+		cfg.GetString(PARDDURL) == ""
 }

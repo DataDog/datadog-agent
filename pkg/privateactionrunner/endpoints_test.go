@@ -82,13 +82,13 @@ func TestCanonicalRCURLDoesNotOverridePAR(t *testing.T) {
 				endpoint, err := APIBaseURL(cfg, Site(cfg))
 				require.NoError(t, err, rcURL)
 				assert.Equal(t, "https://api."+site, endpoint)
-				assert.False(t, ShouldWarnAboutRCOverride(cfg), rcURL)
+				assert.Equal(t, rcURL != "", ShouldWarnAboutRCOverride(cfg), rcURL)
 			}
 		})
 	}
 }
 
-func TestNonstandardRCURLWarnsWithoutChangingPAR(t *testing.T) {
+func TestRCURLOverrideWarnsWithoutChangingPAR(t *testing.T) {
 	t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, "false")
 	for _, rcURL := range []string{
 		"https://rc-proxy.example.com", "https://config.us3.datadoghq.com", "https://api.datadoghq.eu",
@@ -161,6 +161,6 @@ func TestAPIBaseURLFakeIntake(t *testing.T) {
 		actual, err := APIBaseURL(cfg, "datadoghq.com")
 		require.NoError(t, err)
 		assert.Equal(t, endpoint, actual)
-		assert.False(t, ShouldWarnAboutRCOverride(cfg))
+		assert.True(t, ShouldWarnAboutRCOverride(cfg))
 	}
 }
