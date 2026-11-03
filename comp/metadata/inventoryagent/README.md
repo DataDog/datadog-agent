@@ -12,21 +12,11 @@ update every minute (see `inventories_min_interval`).
 
 The `Set` method from the component allow the rest of the codebase to add any information to the payload.
 
-## Embedding capabilities
+## Shared payload code
 
-`Capabilities` is an optional internal Fx dependency, not a YAML or environment setting. Without it, each payload
-retains the standard full-agent metadata refresh.
-
-`NewServerlessCapabilities` sets `SkipFullAgentMetadataRefresh`, which skips **all** collectors in `refreshMetadata()`:
-core Agent, security Agent, process Agent, trace Agent, system-probe, Fleet, and application monitoring. Skipping
-collection drops both cross-process enrichment and locally derived fields, for example `config_site`,
-`feature_logs_enabled`, `fleet_policies_applied`, Fleet's `config_id`, and the application-monitoring file fields.
-Serverless-init does not need them and injects `dd_site` explicitly.
-
-What remains available: construction-time metadata (versions, startup time, installation information, infrastructure
-mode), values supplied through `Set`, and optional configuration payloads controlled by
-`inventories_configuration_enabled`. The capability skips collection rather than filtering the payload, and does not
-affect the metadata runner, its scheduling, or explicit `Submit()` calls.
+`agentmetadata.NewData` and its `Init` method collect the common fields: versions, startup time, installation
+information, hostname source, and infrastructure mode. `GetPayload` combines those fields with caller-supplied
+metadata and the optional scrubbed configuration. The component calls `Init` only when `inventories_enabled` is true.
 
 ## Agent Configuration
 

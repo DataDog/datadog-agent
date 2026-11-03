@@ -1,0 +1,12 @@
+description: IFS with newline character splits on newlines.
+input:
+  script: |+
+    IFS='
+    '
+    x="hello
+    world"
+    for word in $x; do echo "[$word]"; done
+expect:
+  stdout: "[hello]\n[world]\n"
+  stderr: ""
+  exit_code: 0

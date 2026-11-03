@@ -98,6 +98,7 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 
 ### Unit Tests
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
+Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
@@ -137,6 +138,9 @@ derives the keypair name from the container username; use the host instead.
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
+- Bazel: when the change touches `BUILD`, `BUILD.bazel`, `*.bzl`, `MODULE.bazel`, or `*.bazelrc`,
+  run `bazel run //bazel/buildifier:test`. If it fails, `bazel run //bazel/buildifier` and re-run
+  the test.
 
 #### Typechecking code for another platform
 Build-tagged files are invisible to the host test run, so `//go:build windows`

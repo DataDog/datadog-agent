@@ -1,0 +1,15 @@
+description: -newer ref where ref is the file itself — file is not newer than itself.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/only.txt
+      content: "only"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -newer dir/only.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

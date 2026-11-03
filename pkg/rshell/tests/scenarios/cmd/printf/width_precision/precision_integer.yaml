@@ -1,0 +1,9 @@
+description: Printf precision on integer pads with leading zeros.
+input:
+  script: |+
+    printf "%.5d\n" 42
+expect:
+  stdout: |+
+    00042
+  stderr: ""
+  exit_code: 0

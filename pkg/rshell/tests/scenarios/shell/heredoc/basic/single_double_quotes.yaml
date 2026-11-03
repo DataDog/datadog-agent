@@ -1,0 +1,11 @@
+description: Quotes in heredoc content are preserved literally.
+input:
+  script: |+
+    cat <<END
+    quote 'single' "double"
+    END
+expect:
+  stdout: |+
+    quote 'single' "double"
+  stderr: ""
+  exit_code: 0

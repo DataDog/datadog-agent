@@ -1,0 +1,11 @@
+# skip: pflag formats unknown-flag errors differently from the reference implementation
+# ("unknown shorthand flag" vs "invalid option"). Exit code matches (1).
+description: uname rejects unknown flags
+skip_assert_against_bash: true
+input:
+  script: |+
+    uname -z
+expect:
+  stdout: ""
+  stderr_contains: ["uname:"]
+  exit_code: 1

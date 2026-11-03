@@ -1,0 +1,13 @@
+description: uniq --group=append adds blank line after last group too.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --group=append input.txt
+expect:
+  stdout: "a\na\n\nb\n\n"
+  stderr: ""
+  exit_code: 0

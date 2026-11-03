@@ -1,0 +1,13 @@
+# Size-only cleanup could delete newly rotated archives, so rshell requires an
+# explicit retention floor before checking mutation authorization.
+skip_assert_against_bash: true
+description: journalctl size vacuum requires a time retention floor
+input:
+  mode: remediation
+  script: |+
+    journalctl --vacuum-size=64M
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: --vacuum-size requires --vacuum-time to protect recently modified archives
+  exit_code: 1

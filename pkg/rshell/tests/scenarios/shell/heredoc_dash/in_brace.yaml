@@ -1,0 +1,8 @@
+description: Heredoc-dash works inside a brace group.
+input:
+  script: "{\ncat <<-EOF\n\thello from brace\nEOF\n}\n"
+expect:
+  stdout: |+
+    hello from brace
+  stderr: ""
+  exit_code: 0

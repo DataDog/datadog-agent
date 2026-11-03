@@ -1,0 +1,10 @@
+description: tr translates [:lower:] to [:upper:] character class.
+input:
+  script: |+
+    cat <<'EOF' | tr '[:lower:]' '[:upper:]'
+    abcxyzABCXYZ
+    EOF
+expect:
+  stdout: "ABCXYZABCXYZ\n"
+  stderr: ""
+  exit_code: 0

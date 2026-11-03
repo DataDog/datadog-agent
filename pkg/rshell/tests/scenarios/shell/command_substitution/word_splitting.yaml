@@ -1,0 +1,11 @@
+description: Unquoted command substitution undergoes word splitting.
+input:
+  script: |+
+    for w in $(echo "a  b  c"); do echo "[$w]"; done
+expect:
+  stdout: |+
+    [a]
+    [b]
+    [c]
+  stderr: ""
+  exit_code: 0

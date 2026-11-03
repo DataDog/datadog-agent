@@ -62,6 +62,8 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
             raise NotImplementedError("--enable-bazel does not support --byoc.")
         if cross_compiling_windows:
             raise NotImplementedError("--enable-bazel does not support cross compiling.")
+        if flavor.is_fips():
+            raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
         bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
         build_binary_with_bazel("//cmd/otel-agent:otel-agent", args=bazel_args, bin_path=bin_path)
     else:

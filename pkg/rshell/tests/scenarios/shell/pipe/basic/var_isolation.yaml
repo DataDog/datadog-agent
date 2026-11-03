@@ -1,0 +1,12 @@
+description: Variable assignment in pipe subshell does not propagate to parent shell.
+input:
+  script: |+
+    X=before
+    { X=after; echo $X; } | cat
+    echo $X
+expect:
+  stdout: |+
+    after
+    before
+  stderr: ""
+  exit_code: 0

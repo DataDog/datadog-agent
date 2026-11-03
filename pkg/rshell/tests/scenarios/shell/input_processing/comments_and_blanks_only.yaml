@@ -1,0 +1,12 @@
+description: Script with only comments and blank lines exits with 0.
+input:
+  script: |+
+
+    # foo
+
+    # bar
+
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

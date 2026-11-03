@@ -82,7 +82,7 @@ func (c *SecretCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *SecretCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.OrchestratorInformerFactory.MetadataInformerFactory.ForResource(secretGVR)
+	c.informer = rcfg.OrchestratorInformerFactory.SecretMetadataInformerFactory.ForResource(secretGVR)
 	if err := c.informer.Informer().SetTransform(trimSecretMetadata); err != nil {
 		c.initErr = fmt.Errorf("unable to set transform on the Secret informer, Secret collection is disabled: %w", err)
 		log.Warn(c.initErr)

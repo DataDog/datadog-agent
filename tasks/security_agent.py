@@ -74,9 +74,9 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
-
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        if fips_mode:
+            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
@@ -601,6 +601,8 @@ DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/consta
 
 @task
 def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
@@ -608,6 +610,8 @@ def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONS
 
 @task
 def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
