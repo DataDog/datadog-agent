@@ -105,8 +105,8 @@ type Payload struct {
 }
 
 // PayloadType implements marshaler.TypedJSONMarshaler
-func (p *Payload) PayloadType() marshaler.PayloadType {
-	return marshaler.PayloadTypeHostMetadata
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHost
 }
 
 // MarshalJSON serialization a Payload to JSON

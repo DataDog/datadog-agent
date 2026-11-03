@@ -16,10 +16,14 @@ go_library(
 
 dd_agent_go_test(
     name = "marshaler_test",
-    srcs = ["marshaler_adapter_test.go"],
+    srcs = [
+        "marshaler_adapter_test.go",
+        "payload_type_test.go",
+    ],
     embed = [":marshaler"],
     deps = [
         "@com_github_json_iterator_go//:go",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )

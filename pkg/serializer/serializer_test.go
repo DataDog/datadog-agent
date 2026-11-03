@@ -136,7 +136,9 @@ type testPayload struct {
 
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 
-func (p *testPayload) PayloadType() marshaler.PayloadType { return marshaler.PayloadTypeAgentMetadata }
+func (p *testPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
+}
 
 func (p *testPayload) Marshal() ([]byte, error) { return protobufString, nil }
 
@@ -173,8 +175,8 @@ type testErrorPayload struct{}
 
 func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, errors.New("some error") }
 
-func (p *testErrorPayload) PayloadType() marshaler.PayloadType {
-	return marshaler.PayloadTypeAgentMetadata
+func (p *testErrorPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
 }
 
 func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, errors.New("some error") }
@@ -507,7 +509,7 @@ func TestSendMetadata(t *testing.T) {
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
 			expectedHeaders := s.jsonExtraHeadersWithCompression.Clone()
-			expectedHeaders.Set(payloadTypeHTTPHeader, string(marshaler.PayloadTypeAgentMetadata))
+			expectedHeaders.Set("DD-Payload-Type", "agent_metadata")
 			f.On("SubmitMetadata", jsonPayloads, expectedHeaders).Return(nil).Times(1)
 
 			payload := &testPayload{compressor: compressor}
@@ -529,21 +531,23 @@ func TestSendMetadata(t *testing.T) {
 
 type typedTestPayload struct {
 	testPayload
-	payloadType marshaler.PayloadType
+	payloadType marshaler.MetadataPayloadType
 }
 
-func (p *typedTestPayload) PayloadType() marshaler.PayloadType { return p.payloadType }
+func (p *typedTestPayload) PayloadType() marshaler.MetadataPayloadType { return p.payloadType }
 
 func TestSendMetadataPayloadTypeHeader(t *testing.T) {
 	tests := []struct {
 		name   string
 		submit string
 		send   func(s *Serializer, m marshaler.JSONMarshaler) error
-		typ    marshaler.PayloadType
+		typ    marshaler.MetadataPayloadType
+		// want is the literal header value intake expects, so that a typo in a constant fails the test
+		want string
 	}{
-		{"metadata", "SubmitMetadata", (*Serializer).SendMetadata, marshaler.PayloadTypeCheckMetadata},
-		{"host", "SubmitHostMetadata", (*Serializer).SendHostMetadata, marshaler.PayloadTypeHostV5},
-		{"agentchecks", "SubmitAgentChecksMetadata", (*Serializer).SendAgentchecksMetadata, marshaler.PayloadTypeAgentChecks},
+		{"metadata", "SubmitMetadata", (*Serializer).SendMetadata, marshaler.MetadataPayloadTypeCheck, "check_metadata"},
+		{"host", "SubmitHostMetadata", (*Serializer).SendHostMetadata, marshaler.MetadataPayloadTypeHostV5, "host_v5"},
+		{"agentchecks", "SubmitAgentChecksMetadata", (*Serializer).SendAgentchecksMetadata, marshaler.MetadataPayloadTypeAgentChecks, "agent_checks"},
 	}
 
 	for _, tc := range tests {
@@ -554,14 +558,14 @@ func TestSendMetadataPayloadTypeHeader(t *testing.T) {
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
 
 			f.On(tc.submit, mock.Anything, mock.MatchedBy(func(h http.Header) bool {
-				return h.Get(payloadTypeHTTPHeader) == string(tc.typ)
+				return h.Get("DD-Payload-Type") == tc.want
 			})).Return(nil).Times(1)
 
 			payload := &typedTestPayload{testPayload: testPayload{compressor: compressor}, payloadType: tc.typ}
 			require.NoError(t, tc.send(s, payload))
 			f.AssertExpectations(t)
 			// the shared headers must not be mutated
-			assert.Empty(t, s.jsonExtraHeadersWithCompression.Get(payloadTypeHTTPHeader))
+			assert.Empty(t, s.jsonExtraHeadersWithCompression.Get("DD-Payload-Type"))
 		})
 	}
 }
@@ -578,7 +582,7 @@ func TestSendMetadataWithoutPayloadType(t *testing.T) {
 	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
 
 	f.On("SubmitMetadata", mock.Anything, mock.MatchedBy(func(h http.Header) bool {
-		_, ok := h[http.CanonicalHeaderKey(payloadTypeHTTPHeader)]
+		_, ok := h[http.CanonicalHeaderKey("DD-Payload-Type")]
 		return !ok
 	})).Return(nil).Times(1)
 
@@ -701,8 +705,8 @@ type rawJSONPayload []byte
 
 func (p rawJSONPayload) MarshalJSON() ([]byte, error) { return p, nil }
 
-func (p rawJSONPayload) PayloadType() marshaler.PayloadType {
-	return marshaler.PayloadTypeAgentMetadata
+func (p rawJSONPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
 }
 
 func TestSendMetadataTooBig(t *testing.T) {

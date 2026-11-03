@@ -98,8 +98,8 @@ func NewEmpty() HostMetadata {
 }
 
 // PayloadType implements marshaler.TypedJSONMarshaler
-func (p *HostMetadata) PayloadType() marshaler.PayloadType {
-	return marshaler.PayloadTypeOTelHost
+func (p *HostMetadata) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeOTelHost
 }
 
 // MarshalJSON implements the JSONMarshaler.MarshalJSON interface
