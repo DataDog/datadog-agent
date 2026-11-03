@@ -9,7 +9,6 @@ package compiler
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -49,6 +48,12 @@ func TestClangRefusesUntrustedBinary(t *testing.T) {
 			// Group/other-writable is rejected regardless of which user runs the test.
 			name:    "group/other writable",
 			binPath: func(t *testing.T) string { return copyExecutable(t, "/bin/true", 0777) },
+			wantErr: "incorrect permissions",
+		},
+		{
+			// A group that can write could swap the binary, whichever group it is.
+			name:    "group writable",
+			binPath: func(t *testing.T) string { return copyExecutable(t, "/bin/true", 0775) },
 			wantErr: "incorrect permissions",
 		},
 		{
@@ -97,18 +102,13 @@ func TestClangExecutesVerifiedBinary(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("requires root to create a root-owned binary")
 	}
-
+	bin := copyExecutable(t, "/bin/echo", 0755)
 	// The owning group does not matter when it cannot write: CI and KMT hosts
 	// provision clang-bpf as root with a non-root group.
-	for _, gid := range []int{0, 1000} {
-		t.Run(fmt.Sprintf("gid=%d", gid), func(t *testing.T) {
-			bin := copyExecutable(t, "/bin/echo", 0755)
-			require.NoError(t, os.Chown(bin, 0, gid))
-			setClangBinPath(t, bin)
+	require.NoError(t, os.Chown(bin, 0, 1000))
+	setClangBinPath(t, bin)
 
-			out := &bytes.Buffer{}
-			require.NoError(t, clang([]string{"hello"}, WithStdout(out)))
-			assert.Equal(t, "hello\n", out.String())
-		})
-	}
+	out := &bytes.Buffer{}
+	require.NoError(t, clang([]string{"hello"}, WithStdout(out)))
+	assert.Equal(t, "hello\n", out.String())
 }
