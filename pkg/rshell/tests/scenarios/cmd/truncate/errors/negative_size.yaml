@@ -1,0 +1,16 @@
+# Derived from uutils test_truncate.rs::test_truncate_negative_size.
+description: A relative-size modifier is rejected with a hint message (exit 1).
+setup:
+  files:
+    - path: f.txt
+      content: "data"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s -5 f.txt
+expect:
+  stdout: |+
+  stderr_contains: ["relative size operators not supported"]
+  exit_code: 1
+skip_assert_against_bash: true

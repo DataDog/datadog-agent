@@ -1,0 +1,15 @@
+# Repeated operands are deduplicated rather than rejected: validation raises no
+# duplicate error and the run reaches the normal authorization denial.
+skip_assert_against_bash: true
+description: systemctl accepts and deduplicates repeated unit operands
+input:
+  mode: remediation
+  script: |+
+    systemctl status api.service api.service api.service
+    systemctl restart api.service api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: system service "api.service" is not allowed for action "read"
+    systemctl: system service "api.service" is not allowed for action "restart"
+  exit_code: 1

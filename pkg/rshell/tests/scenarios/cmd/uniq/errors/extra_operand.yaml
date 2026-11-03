@@ -1,0 +1,21 @@
+description: uniq rejects extra positional operands.
+# GNU uniq's real usage is `uniq [OPTION]... [INPUT [OUTPUT]]` — the second
+# operand is a destination file, not an error, so bash writes deduped output
+# into b.txt and exits 0. rshell intentionally rejects it instead.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: a.txt
+      content: "a\n"
+    - path: b.txt
+      content: "b\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq a.txt b.txt
+expect:
+  stdout: |+
+  stderr: |+
+    uniq: extra operand 'b.txt'
+    Try 'uniq --help' for more information.
+  exit_code: 1

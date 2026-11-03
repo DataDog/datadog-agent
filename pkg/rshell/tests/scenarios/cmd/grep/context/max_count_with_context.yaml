@@ -1,0 +1,13 @@
+description: grep -m 1 -A 1 prints one match plus one line of after-context.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\nmatch1\nafter1\nmatch2\nafter2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -m 1 -A 1 'match' input.txt
+expect:
+  stdout: "match1\nafter1\n"
+  stderr: ""
+  exit_code: 0

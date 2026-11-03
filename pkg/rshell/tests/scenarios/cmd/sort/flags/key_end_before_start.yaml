@@ -1,0 +1,21 @@
+description: "sort -k with end field before start field treats key as zero-width (GNU behavior)."
+setup:
+  files:
+    - path: multi.txt
+      content: "1 b\n2 a\n3 c\n"
+    - path: single.txt
+      content: "b\na\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 2,1 multi.txt
+    echo ---
+    sort -k 2,1 -u multi.txt
+    echo ---
+    sort -k 2,1 single.txt
+    echo ---
+    sort -k 2,1 -u single.txt
+expect:
+  stdout: "1 b\n2 a\n3 c\n---\n1 b\n---\na\nb\nc\n---\nb\n"
+  stderr: ""
+  exit_code: 0

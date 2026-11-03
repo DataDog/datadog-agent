@@ -1,0 +1,19 @@
+description: find dir/ -execdir preserves trailing slash in {} replacement.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/file.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir/ -maxdepth 0 -execdir echo {} \;
+expect:
+  stdout: |+
+    ./dir/
+  stderr: ""
+  exit_code: 0

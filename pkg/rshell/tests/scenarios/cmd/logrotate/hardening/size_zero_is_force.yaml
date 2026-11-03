@@ -1,0 +1,24 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: -s 0 is intentionally equivalent to --force; every non-empty file clears a zero threshold and empty files are still reported as no-ops.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+    - path: empty.log
+      content: ""
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --verbose -s 0 app.log empty.log
+    wc -c < app.log
+    wc -c < empty.log
+expect:
+  stdout: |+
+    logrotate: app.log: truncated 5 bytes
+    logrotate: empty.log: already empty, skipping
+    0
+    0
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: Semicolons separate multiple commands within a single script.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/hello/goodbye/; s/world/earth/' input.txt
+expect:
+  stdout: "goodbye earth\n"
+  stderr: ""
+  exit_code: 0
