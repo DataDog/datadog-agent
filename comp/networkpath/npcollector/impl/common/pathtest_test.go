@@ -49,6 +49,45 @@ func TestPathtest_GetHash(t *testing.T) {
 	assert.NotEqual(t, p2.GetHash(), p3.GetHash())
 	assert.NotEqual(t, p1.GetHash(), p4.GetHash())
 	assert.NotEqual(t, p1.GetHash(), p5.GetHash())
+	assert.NotEmpty(t, p1.MakeCorrelationKey("source-host"))
+	assert.Empty(t, p1.MakeCorrelationKey(""))
+
+	// The store dedups per container, the correlation key deliberately does not:
+	// the CNM pipeline drops a key that a flow's connections disagree on.
+	assert.Equal(t, p1.MakeCorrelationKey("source-host"), p5.MakeCorrelationKey("source-host"))
+}
+
+func TestPathtest_MakeCorrelationKey(t *testing.T) {
+	base := Pathtest{
+		Hostname:          "aaa1",
+		Port:              80,
+		Protocol:          "TCP",
+		SourceContainerID: "containerID1",
+		Namespace:         "ns1",
+		Origin:            payload.PathOriginNetworkTraffic,
+	}
+
+	// Pinned so a change to the hash inputs, their order, the digest or the
+	// truncation breaks here rather than silently breaking the backend join.
+	assert.Equal(t, "8eb9d46512bbe7e1423d9ef35f054ef6", base.MakeCorrelationKey("source-host"))
+
+	// Each of the four documented inputs discriminates.
+	differs := map[string]Pathtest{
+		"destination hostname": {Hostname: "aaa2", Port: 80, Protocol: "TCP"},
+		"destination port":     {Hostname: "aaa1", Port: 81, Protocol: "TCP"},
+		"protocol":             {Hostname: "aaa1", Port: 80, Protocol: "UDP"},
+	}
+	for name, p := range differs {
+		assert.NotEqual(t, base.MakeCorrelationKey("source-host"), p.MakeCorrelationKey("source-host"), name)
+	}
+	assert.NotEqual(t, base.MakeCorrelationKey("source-host"), base.MakeCorrelationKey("other-host"), "agent hostname")
+
+	// Nothing outside those four does.
+	sameKey := base
+	sameKey.SourceContainerID = "containerID2"
+	sameKey.Namespace = "ns2"
+	sameKey.Origin = payload.PathOriginNetflow
+	assert.Equal(t, base.MakeCorrelationKey("source-host"), sameKey.MakeCorrelationKey("source-host"))
 }
 
 func TestPathtest_GetHash_Netflow(t *testing.T) {

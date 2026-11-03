@@ -57,10 +57,11 @@ type capturingNPCollector struct {
 	netflowConns        []npmodel.NetworkPathConnection
 }
 
-func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (c *capturingNPCollector) ScheduleNetworkPathTests(_ string, conns iter.Seq[npmodel.NetworkPathConnection]) []model.NetworkPath {
 	for conn := range conns {
 		c.networkTrafficConns = append(c.networkTrafficConns, conn)
 	}
+	return nil
 }
 
 func (c *capturingNPCollector) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
