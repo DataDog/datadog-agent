@@ -1,0 +1,14 @@
+description: Cut replaces the input delimiter with the output delimiter between fields.
+setup:
+  files:
+    - path: input.txt
+      content: "a:b:c\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: --output-delimiter=_ -f2,3 input.txt
+expect:
+  stdout: "b_c\n"
+  stderr: ""
+  exit_code: 0

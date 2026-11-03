@@ -1,0 +1,9 @@
+description: Printf output can be piped to another command.
+input:
+  script: |+
+    printf "%s\n" hello | cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

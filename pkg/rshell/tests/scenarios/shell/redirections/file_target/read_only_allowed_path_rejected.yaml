@@ -1,0 +1,12 @@
+skip_assert_against_bash: true
+description: In remediation mode, file-target redirection is rejected inside an explicitly read-only AllowedPaths root.
+input:
+  allowed_paths: ["$DIR:ro"]
+  mode: "remediation"
+  script: |+
+    echo secret > blocked.txt
+expect:
+  exit_code: 1
+  stdout: |+
+  stderr: |+
+    open blocked.txt: permission denied

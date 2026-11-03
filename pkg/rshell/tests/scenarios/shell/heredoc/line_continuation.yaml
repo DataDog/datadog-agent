@@ -1,0 +1,11 @@
+description: Backslash-newline in unquoted heredoc body acts as line continuation.
+input:
+  script: |+
+    cat <<END
+    line-\
+    continuation
+    END
+expect:
+  stdout: "line-continuation\n"
+  stderr: ""
+  exit_code: 0

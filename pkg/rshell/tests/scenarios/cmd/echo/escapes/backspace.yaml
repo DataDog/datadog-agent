@@ -1,0 +1,8 @@
+description: Echo -e with \b (backspace) escape sequence.
+input:
+  script: |+
+    echo -e '\b'
+expect:
+  stdout: "\b\n"
+  stderr: ""
+  exit_code: 0

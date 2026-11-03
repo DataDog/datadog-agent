@@ -1725,7 +1725,15 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False, ci: bool = False):
+def build_dyninst_test_programs(
+    ctx: Context,
+    output_root: Path = ".",
+    debug: bool = False,
+    ci: bool = False,
+    toolchains: str = "",
+    programs: str = "",
+):
+    """Build fixtures, optionally filtering comma-separated toolchains and programs."""
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
@@ -1735,7 +1743,7 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
             name="gobin",
             command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
-        ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+        ninja_add_dyninst_test_programs(ctx, nw, output_root, "go", toolchains=toolchains, programs=programs)
 
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
@@ -1748,6 +1756,9 @@ def ninja_add_dyninst_test_programs(
     nw: NinjaWriter,
     output_root: Path,
     go_path: str,
+    *,
+    toolchains: str = "",
+    programs: str = "",
 ):
     """
     This function is used to add the dyninst test programs to the ninja file.
@@ -1786,7 +1797,15 @@ def ninja_add_dyninst_test_programs(
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
-    go_versions = ["go1.23.11", "go1.24.3", "go1.25.0", "go1.26rc1"]
+    go_versions = (
+        toolchains.split(",") if toolchains else ["go1.23.11", "go1.24.3", "go1.25.0", "go1.26rc1", "go1.27.3"]
+    )
+    if programs:
+        selected = programs.split(",")
+        unknown = set(selected) - pkg_deps.keys()
+        if unknown:
+            raise Exit(message=f"Unknown dyninst test programs: {sorted(unknown)}")
+        pkg_deps = {pkg: pkg_deps[pkg] for pkg in selected}
     archs = ["amd64", "arm64"]
 
     # Avoiding cgo aids in reproducing the build environment. It's less good in
@@ -1845,6 +1864,10 @@ def ninja_add_dyninst_test_programs(
                 ),
             },
         )
+
+    # Filtered builds must not remove fixtures from other configurations.
+    if toolchains or programs:
+        return
 
     # Remove any previously built binaries that are no longer needed.
     for path in glob.glob(f"{output_base}/*/*"):

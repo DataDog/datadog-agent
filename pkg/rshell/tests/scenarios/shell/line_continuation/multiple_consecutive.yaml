@@ -1,0 +1,11 @@
+description: Multiple consecutive line continuations join several lines into one word.
+input:
+  script: |+
+    echo hel\
+    l\
+    o
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

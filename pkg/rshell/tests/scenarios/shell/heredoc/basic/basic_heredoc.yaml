@@ -1,0 +1,15 @@
+description: Basic heredoc with content.
+input:
+  script: |+
+    cat <<END
+    here
+
+    	document
+    END
+expect:
+  stdout: |+
+    here
+
+    	document
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+description: cat -v displays non-printing characters in caret notation.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\x01world\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -v file.txt
+expect:
+  stdout: "hello^Aworld\n"
+  stderr: ""
+  exit_code: 0
