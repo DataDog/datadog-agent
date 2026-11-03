@@ -510,11 +510,10 @@ func TestDanglingConfig(t *testing.T) {
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
-	// get the danglings and make sure they are removed from the store
-	configs := dispatcher.retrieveDangling()
-	dispatcher.deleteDangling([]string{config.Digest()})
-	assert.Len(t, configs, 1)
+	// dispatch the danglings and make sure they are removed from the store
+	dispatcher.dispatchDangling()
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+	assert.Len(t, dispatcher.store.nodes["nodeA"].digestToConfig, 1)
 }
 
 func TestUnscheduleDanglingConfig(t *testing.T) {
