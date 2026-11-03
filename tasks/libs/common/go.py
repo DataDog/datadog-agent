@@ -148,8 +148,8 @@ def go_build(
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
     # the link step — before `go build` copies the .exe to bin_path —
     # which is why the pre-create is needed.
-    target_is_windows = sys.platform == "win32" or env.get("GOOS") == "windows" or os.getenv("GOOS") == "windows"
-    if bin_path and target_is_windows:
+    target_os = env.get("GOOS") or os.getenv("GOOS") or platform.system().lower()
+    if bin_path and target_os == "windows":
         os.makedirs(os.path.dirname(os.path.abspath(str(bin_path))) or ".", exist_ok=True)
         if os.environ.get("DD_GO_PDB", "1") != "0":
             ldflags = _with_pdb_extldflag(ldflags or "", str(bin_path))
@@ -189,7 +189,7 @@ def go_build(
 
     if fips_backend == FipsBackend.boringcrypto:
         env = env | {"GOEXPERIMENT": "boringcrypto"}
-    elif fips_backend == FipsBackend.msgo and (env.get("GOOS") or os.getenv("GOOS") or sys.platform) == "linux":
+    elif fips_backend == FipsBackend.msgo and target_os == "linux":
         env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}
 
     if check_deadcode:
