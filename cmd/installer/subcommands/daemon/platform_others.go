@@ -7,12 +7,10 @@
 
 package daemon
 
-type boolGetter interface {
-	GetBool(key string) bool
-}
+import "github.com/DataDog/datadog-agent/pkg/config/model"
 
 // daemonEnabledOnPlatform reports whether this platform lets the daemon run with the given
 // configuration. Only macOS requires an opt-in.
-func daemonEnabledOnPlatform(boolGetter) bool {
+func daemonEnabledOnPlatform(model.Reader) bool {
 	return true
 }
