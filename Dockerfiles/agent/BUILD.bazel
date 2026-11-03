@@ -1,0 +1,9 @@
+# gazelle:ignore
+
+exports_files(
+    [
+        "Dockerfile",
+        "entrypoint.sh",
+    ],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)

@@ -14,3 +14,17 @@ exports_files(
     ],
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
+
+# Non-recursive: aio/ stays out of the top-level set, so a monolith YAML
+# symlinked next to the PAR entries fails the catalog test.
+filegroup(
+    name = "top_level_yaml",
+    srcs = glob(["*.yaml"]),
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
+filegroup(
+    name = "aio_yaml",
+    srcs = glob(["aio/*.yaml"]),
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
