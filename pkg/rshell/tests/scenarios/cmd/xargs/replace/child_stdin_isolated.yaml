@@ -1,0 +1,10 @@
+description: xargs reads its items from stdin but redirects the child's stdin from /dev/null (POSIX), so a stdin-reading sub-command does not consume bytes that xargs has not yet tokenised.
+input:
+  script: |+
+    printf 'a\nb\n' | xargs -I{} wc -c
+expect:
+  stdout: |+
+    0
+    0
+  stderr: |+
+  exit_code: 0

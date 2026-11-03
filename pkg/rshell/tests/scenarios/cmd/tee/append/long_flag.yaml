@@ -1,0 +1,18 @@
+description: --append is the long form of -a.
+setup:
+  files:
+    - path: out.txt
+      content: "first\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "second\n" | tee --append out.txt
+    cat out.txt
+expect:
+  stdout: |+
+    second
+    first
+    second
+  stderr: |+
+  exit_code: 0

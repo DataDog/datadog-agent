@@ -245,6 +245,24 @@ func TestCheckOTLPConversionScopePrecedence(t *testing.T) {
 	assert.Empty(t, CheckOTLPConversion(rs, out))
 }
 
+func TestCheckOTLPConversionSpanLinkAttributes(t *testing.T) {
+	// The SDK sent a link attribute equal to a span attribute: the conversion
+	// copies it to the native span link unchanged, so it is not reported.
+	rs := ptrace.NewResourceSpans()
+	otlpSpan := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	otlpSpan.SetSpanID(spanID64(2))
+	otlpSpan.Attributes().PutStr("custom.copy", "dupcheck-long-value")
+	otlpSpan.Links().AppendEmpty().Attributes().PutStr("custom.link", "dupcheck-long-value")
+
+	out := &pb.TracerPayload{Chunks: []*pb.TraceChunk{{Spans: []*pb.Span{{
+		SpanID:    2,
+		Meta:      map[string]string{"custom.copy": "dupcheck-long-value"},
+		SpanLinks: []*pb.SpanLink{{Attributes: map[string]string{"custom.link": "dupcheck-long-value"}}},
+	}}}}}
+
+	assert.Empty(t, CheckOTLPConversion(rs, out))
+}
+
 func TestCheckOTLPConversionEmptySpanAttributeFallsBackToResource(t *testing.T) {
 	// The span attribute is empty: the conversion fills it from the resource
 	// attribute, whose value the SDK also sent under another span attribute.

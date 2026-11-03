@@ -1,0 +1,13 @@
+description: head -n N outputs exactly N lines when file has more.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\nline4\nline5\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 3 input.txt
+expect:
+  stdout: "line1\nline2\nline3\n"
+  stderr: ""
+  exit_code: 0

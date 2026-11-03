@@ -46,10 +46,9 @@ def build(
             )
         if race:
             raise NotImplementedError("--enable-bazel does not support --race. Use bazel build directly.")
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(
-            "//cmd/secret-generic-connector:secret-generic-connector", args=bazel_args, bin_path=BIN_PATH
-        )
+        if fips_mode:
+            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
+        build_binary_with_bazel("//cmd/secret-generic-connector:secret-generic-connector", bin_path=BIN_PATH)
         return
 
     version = get_version(ctx, include_git=True)

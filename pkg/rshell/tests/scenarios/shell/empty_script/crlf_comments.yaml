@@ -1,0 +1,7 @@
+description: Comment-only script with CRLF line endings (Windows-saved) exits cleanly.
+input:
+  script: "# windows comment\r\n# another comment\r\n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

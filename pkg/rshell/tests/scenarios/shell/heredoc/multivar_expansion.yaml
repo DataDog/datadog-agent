@@ -1,0 +1,15 @@
+description: Multiple variable expansions across several lines in a heredoc.
+input:
+  script: |+
+    A=hello
+    B=world
+    cat <<EOF
+    $A beautiful $B
+    one=$A two=$B
+    EOF
+expect:
+  stdout: |+
+    hello beautiful world
+    one=hello two=world
+  stderr: ""
+  exit_code: 0

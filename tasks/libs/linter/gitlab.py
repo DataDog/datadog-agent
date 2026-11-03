@@ -302,6 +302,7 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
         'new-e2e-agent-runtimes',
         'new-e2e-agent-configuration',
         'new-e2e-cws',
+        'new-e2e-cws-windows',
         'new-e2e-language-detection',
         'new-e2e-npm-docker',
         'new-e2e-eks-cleanup',
