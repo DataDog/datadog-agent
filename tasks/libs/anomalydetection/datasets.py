@@ -13,7 +13,6 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 from tasks.libs.anomalydetection.ddeval import sha256_file
-from tasks.libs.common.s3 import download_file_from_s3
 
 DEFAULT_DATASET = "observer-metric-types-2026-10-26"
 DEFAULT_PROJECT = "observer-log-ad"
@@ -95,8 +94,11 @@ def _download(uri, destination, aws_profile):
         with urllib.request.urlopen(uri, timeout=120) as source, destination.open("wb") as target:
             shutil.copyfileobj(source, target)
     elif parsed.scheme == "s3":
+        import boto3
+
         try:
-            download_file_from_s3(uri, str(destination), aws_profile=aws_profile or None)
+            client = boto3.Session(profile_name=aws_profile).client("s3") if aws_profile else boto3.client("s3")
+            client.download_file(parsed.netloc, parsed.path.lstrip("/"), str(destination))
         except Exception as error:
             raise ValueError(
                 f"Cannot download the S3 recording with AWS profile {aws_profile or 'default'}: {error}"
