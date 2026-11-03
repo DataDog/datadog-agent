@@ -63,6 +63,7 @@ dd_agent_go_test(
         "metadata_controller_test.go",
         "store_test.go",
         "wpa_controller_test.go",
+        "wpa_shutdown_test.go",
     ],
     embed = [":controllers"],
     gotags_sets = [[

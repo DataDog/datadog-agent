@@ -27,6 +27,7 @@ dd_agent_go_test(
     name = "loadstore_test",
     srcs = [
         "dump_test.go",
+        "shutdown_test.go",
         "store_test.go",
     ],
     embed = [":loadstore"],
