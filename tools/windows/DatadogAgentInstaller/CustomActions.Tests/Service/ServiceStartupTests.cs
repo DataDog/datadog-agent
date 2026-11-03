@@ -72,6 +72,77 @@ namespace CustomActions.Tests.Service
             }
         }
 
+        [ElevatedFact]
+        public void IncomingEmptySnapshotCannotOverwriteOutgoingStartupSettings()
+        {
+            TestDirectory.EnableSetOwnerPrivilege();
+            SetServices(Constants.AgentServiceName);
+            Session.Object["ProductCode"] = Guid.NewGuid().ToString("B");
+            ServiceCustomAction.PrepareServiceStartupRollback(Session.Object);
+            var outgoingName = ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object);
+            Session.Object["ProductCode"] = Guid.NewGuid().ToString("B");
+            ServiceCustomAction.PrepareServiceStartupRollback(Session.Object);
+            var incomingName = ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object);
+            try
+            {
+                var outgoing = new RollbackDataStore(Session.Object, outgoingName, FileSystemServices.Object, ServiceController.Object);
+                outgoing.Add(new ServiceStartupRollbackData(new List<ServiceCustomAction.StartupSettings>
+                {
+                    new ServiceCustomAction.StartupSettings
+                    {
+                        Name = Constants.AgentServiceName,
+                        StartType = ServiceStartMode.Manual,
+                        DelayedAutoStart = false
+                    }
+                }));
+                outgoing.Store();
+                var incoming = new RollbackDataStore(Session.Object, incomingName, FileSystemServices.Object, ServiceController.Object);
+                incoming.Add(new ServiceStartupRollbackData(new List<ServiceCustomAction.StartupSettings>()));
+                incoming.Store();
+
+                incoming.Restore();
+                ServiceController.Verify(c => c.SetStartType(It.IsAny<string>(), It.IsAny<ServiceStartMode>()), Times.Never);
+                outgoing.Restore();
+                ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Manual), Times.Once);
+                ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+            }
+            finally
+            {
+                foreach (var name in new[] { outgoingName, incomingName })
+                {
+                    File.Delete(Path.Combine(Path.GetTempPath(), "datadog-installer", "rollback", name + ".json"));
+                }
+            }
+        }
+
+        [Fact]
+        public void SnapshotNamesSeparateProductsAndRepeatedOperations()
+        {
+            Session.Object["ProductCode"] = Guid.NewGuid().ToString("B");
+            ServiceCustomAction.PrepareServiceStartupRollback(Session.Object);
+            var oldProduct = ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object);
+            Assert.Equal(oldProduct, ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object));
+
+            // The incoming MSI cannot overwrite the outgoing MSI's snapshot.
+            Session.Object["ProductCode"] = Guid.NewGuid().ToString("B");
+            Assert.NotEqual(oldProduct, ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object));
+
+            var previousOperation = ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object);
+            ServiceCustomAction.PrepareServiceStartupRollback(Session.Object);
+            Assert.NotEqual(previousOperation, ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object));
+        }
+
+        [Theory]
+        [InlineData("", "")]
+        [InlineData("../old", "00000000-0000-0000-0000-000000000001")]
+        [InlineData("00000000-0000-0000-0000-000000000001", "")]
+        public void InvalidSnapshotIdentityCannotSelectAnExistingSnapshot(string product, string operation)
+        {
+            Session.Object["ProductCode"] = product;
+            Session.Object["ServiceStartupRollbackId"] = operation;
+            Assert.Throws<FormatException>(() => ServiceCustomAction.ServiceStartupRollbackDataName(Session.Object));
+        }
+
         [Fact]
         public void PersistsSettingsAndDisablesEvenStoppedServicesBeforeStopping()
         {
@@ -96,7 +167,7 @@ namespace CustomActions.Tests.Service
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public void StopActionOnlySnapshotsAndDisablesForTheOuterTransaction(bool nestedRemoval)
+        public void StopActionSnapshotsAndDisablesIncludingUpgradeRemoval(bool nestedRemoval)
         {
             SetServices(Constants.AgentServiceName);
             var service = Mock.Get(ServiceController.Object.Services.Single());
@@ -104,8 +175,6 @@ namespace CustomActions.Tests.Service
             if (nestedRemoval)
             {
                 Session.Object["UPGRADINGPRODUCTCODE"] = "{outer-product-code}";
-                // A future old MSI sees the temporary Disabled value left by the outer MSI.
-                service.SetupGet(s => s.StartType).Returns(ServiceStartMode.Disabled);
             }
             var events = new List<string>();
             ServiceController.Setup(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Disabled))
@@ -120,7 +189,7 @@ namespace CustomActions.Tests.Service
             });
 
             Assert.Equal(ActionResult.Success, result);
-            Assert.Equal(nestedRemoval ? new[] { "stopped" } : new[] { "saved", "disabled", "stopped" }, events);
+            Assert.Equal(new[] { "saved", "disabled", "stopped" }, events);
         }
 
         [Theory]

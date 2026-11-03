@@ -168,6 +168,12 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult PrepareServiceStartupRollback(Session session)
+        {
+            return Datadog.CustomActions.ServiceCustomAction.PrepareServiceStartupRollback(session);
+        }
+
+        [CustomAction]
         public static ActionResult StopDDServicesRollback(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.StopDDServicesRollback(session);

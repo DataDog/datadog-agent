@@ -515,11 +515,28 @@ namespace Datadog.CustomActions
             return restored;
         }
 
-        private const string ServiceStartupRollbackDataName = "StopDDServices";
+        internal static ActionResult PrepareServiceStartupRollback(ISession session)
+        {
+            session["ServiceStartupRollbackId"] = Guid.NewGuid().ToString("N");
+            return ActionResult.Success;
+        }
+
+        public static ActionResult PrepareServiceStartupRollback(Session session)
+        {
+            return PrepareServiceStartupRollback(new SessionWrapper(session));
+        }
+
+        internal static string ServiceStartupRollbackDataName(ISession session)
+        {
+            // Validate and normalize both IDs before using them in a filename.
+            var product = Guid.Parse(session.Property("ProductCode"));
+            var operation = Guid.Parse(session.Property("ServiceStartupRollbackId"));
+            return $"StopDDServices-{product:N}-{operation:N}";
+        }
 
         internal static void SaveSnapshot(ISession session, List<StartupSettings> settings)
         {
-            var store = new RollbackDataStore(session, ServiceStartupRollbackDataName);
+            var store = new RollbackDataStore(session, ServiceStartupRollbackDataName(session));
             store.Add(new ServiceStartupRollbackData(settings));
             store.Store();
         }
@@ -529,7 +546,7 @@ namespace Datadog.CustomActions
             var wrapper = new SessionWrapper(session);
             try
             {
-                new RollbackDataStore(wrapper, ServiceStartupRollbackDataName).Restore();
+                new RollbackDataStore(wrapper, ServiceStartupRollbackDataName(wrapper)).Restore();
             }
             catch (Exception e)
             {
@@ -564,12 +581,8 @@ namespace Datadog.CustomActions
 
         internal ActionResult StopDDServicesWithSnapshot(Action<List<StartupSettings>> save)
         {
-            // The outer MSI owns startup settings. The old MSI still stops services,
-            // but must not replace the snapshot with the temporary Disabled values.
-            if (!string.IsNullOrEmpty(_session.Property("UPGRADINGPRODUCTCODE")))
-            {
-                return StopDDServices(false);
-            }
+            // The outgoing MSI owns the original settings during upgrade removal.
+            // The incoming MSI has a separate snapshot, normally empty after removal.
             if (_session.Property("RollbackDisabled") == "1")
             {
                 _session.Log("Service protection requires Windows Installer rollback to be enabled");
@@ -602,7 +615,7 @@ namespace Datadog.CustomActions
 
         internal ActionResult StartDDServices()
         {
-            // Restore startup settings even when DD_INSTALL_ONLY skips starting services.
+            // Apply package defaults even when DD_INSTALL_ONLY skips starting services.
             // Unlike a start failure, an enable failure must fail the install and roll back.
             if (EnableDDServices(_session, _serviceController) != ActionResult.Success)
             {
@@ -660,7 +673,8 @@ namespace Datadog.CustomActions
         private ActionResult StartDDServicesRollback()
         {
             // Re-establish protection before undoing files/configuration after a late
-            // failure. The early rollback action restores startup settings last.
+            // failure. StopDDServicesRollback restores this product's startup settings
+            // after its service, file and user rollback actions.
             foreach (var name in ProtectedServices)
             {
                 try
