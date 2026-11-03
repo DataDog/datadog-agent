@@ -294,11 +294,6 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, creatorTID int, regs syscall.P
 	case ExecveNr, ExecveatNr:
 		// now the pid is the tgid
 		process.Pid = process.Tgid
-
-		// the thread-local registered belongs to the image the exec replaced
-		if ret := ctx.ReadRet(regs); ret == 0 || ret == -int64(syscall.ENOSYS) {
-			ctx.processCache.unsetOTel(process.Tgid)
-		}
 	case PrctlNr:
 		if process.otelProcessCtxNaming {
 			process.otelProcessCtxNaming = false

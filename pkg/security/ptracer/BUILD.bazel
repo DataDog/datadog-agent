@@ -123,6 +123,7 @@ dd_agent_go_test(
     srcs = [
         "child_creation_wait_test.go",
         "cws_test.go",
+        "otel_test.go",
         "proc_stat_test.go",
         "proc_test.go",
         "process_context_retry_test.go",

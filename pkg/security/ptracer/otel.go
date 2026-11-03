@@ -78,6 +78,12 @@ func (ctx *CWSPtracerCtx) resolveOTelProcessContext(process *Process) {
 	}
 }
 
+func (ctx *CWSPtracerCtx) unsetOTelOnExec(pid int) {
+	if process := ctx.processCache.Get(pid); process != nil {
+		ctx.processCache.unsetOTel(process.Tgid)
+	}
+}
+
 // otelSpanContext reads the record of the thread of process. regs must be that
 // thread's, in a ptrace-stop.
 func (ctx *CWSPtracerCtx) otelSpanContext(process *Process, regs *syscall.PtraceRegs) *ebpfless.SpanContext {
