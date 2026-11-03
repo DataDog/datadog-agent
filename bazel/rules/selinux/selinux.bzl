@@ -1,6 +1,6 @@
 """compile_selinux_policy - compile a SELinux .te policy source into a packaged .pp module.
 
-Based on: `dda inv selinux.compile-system-probe-policy-file` (tasks/selinux.py).
+`dda inv selinux.compile-system-probe-policy-file` writes this rule's output to the source tree.
 """
 
 _SELINUX_TOOLS = "@@//bazel/toolchains/selinux_tools:selinux_tools_toolchain_type"
