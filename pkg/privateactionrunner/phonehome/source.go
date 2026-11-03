@@ -36,7 +36,7 @@ type rcSource struct {
 
 // NewSource uses only the existing RC accessor. Positive RC is sufficient in this slice.
 func NewSource(cfg model.Reader, service rcservice.Component) Source {
-	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url"), parURL: enrollmentEndpoint(cfg)}
+	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", par.RemoteConfigURL), parURL: enrollmentEndpoint(cfg)}
 }
 
 // Release is a no-op: RC polling is shared with the rest of core Agent.
@@ -50,7 +50,7 @@ func (r *rcSource) Read(_ time.Time) Observation {
 		return Observation{Reason: phonehomedef.ReasonRCServiceUnavailable}
 	}
 	key := r.cfg.GetString("api_key")
-	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", "remote_configuration.rc_dd_url")
+	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", par.RemoteConfigURL)
 	parURL, err := par.APIBaseURL(r.cfg, par.Site(r.cfg))
 	if err != nil {
 		return Observation{Reason: phonehomedef.ReasonInvalidEndpoint}

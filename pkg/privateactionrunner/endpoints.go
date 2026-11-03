@@ -28,7 +28,7 @@ func Site(cfg model.Reader) string {
 
 // APIBaseURL resolves the PAR API endpoint independently of the RC endpoint and runner identity.
 func APIBaseURL(cfg model.Reader, site string) (string, error) {
-	if endpoint := cfg.GetString(PARDDURL); endpoint != "" {
+	if endpoint := cfg.GetString(RunnerURL); endpoint != "" {
 		u, err := url.Parse(endpoint)
 		if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") {
 			return "", errors.New("invalid private_action_runner.par_dd_url: expected an HTTP(S) URL with a host")
@@ -48,6 +48,6 @@ func APIBaseURL(cfg model.Reader, site string) (string, error) {
 // ShouldWarnAboutRCOverride reports an RC override without an explicit PAR URL when PAR is enabled.
 func ShouldWarnAboutRCOverride(cfg model.Reader) bool {
 	return cfg.GetBool(Enabled) &&
-		cfg.GetString("remote_configuration.rc_dd_url") != "" &&
-		cfg.GetString(PARDDURL) == ""
+		cfg.GetString(RemoteConfigURL) != "" &&
+		cfg.GetString(RunnerURL) == ""
 }

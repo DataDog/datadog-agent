@@ -229,7 +229,7 @@ func TestFromDDConfigWarnsForRCWithoutPARURL(t *testing.T) {
 		require.NotContains(t, warnings, "nonstandard")
 	}
 
-	cfg.SetInTest(par.PARDDURL, "https://par-proxy.example.com/prefix")
+	cfg.SetInTest(par.RunnerURL, "https://par-proxy.example.com/prefix")
 	warnings := captureTransformWarnings(t, func() {
 		runner, err := FromDDConfig(cfg, nil)
 		require.NoError(t, err)
