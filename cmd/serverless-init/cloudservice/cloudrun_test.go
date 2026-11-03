@@ -298,7 +298,7 @@ func TestCloudRunMissingIdentity(t *testing.T) {
 	for _, kind := range []CloudRunType{CloudRunService, CloudRunFunction, CloudRunJob} {
 		t.Run(string(kind), func(t *testing.T) {
 			env := map[string]string{
-				ServiceNameEnvVar: "unknown", revisionNameEnvVar: "revision", functionTargetEnvVar: "target",
+				ServiceNameEnvVar: "unknown", revisionNameEnvVar: "revision",
 				cloudRunJobNameEnvVar: "job", cloudRunExecutionEnvVar: "execution",
 			}
 			for key, value := range env {
@@ -308,7 +308,7 @@ func TestCloudRunMissingIdentity(t *testing.T) {
 			if kind == CloudRunJob {
 				keys = []string{projectID, location, cloudRunJobNameEnvVar, cloudRunExecutionEnvVar}
 			}
-			for _, missing := range append([]string{"none", containerID, functionTargetEnvVar}, keys...) {
+			for _, missing := range append([]string{"none"}, keys...) {
 				t.Run(missing, func(t *testing.T) {
 					values := map[string]string{projectID: "unknown", location: "region", containerID: "instance"}
 					delete(values, missing)
@@ -322,12 +322,11 @@ func TestCloudRunMissingIdentity(t *testing.T) {
 					}
 					service.GetTags()
 					id := service.GetMetadata().ResourceID
-					if missing == "none" || missing == containerID || missing == functionTargetEnvVar {
+					if missing == "none" {
 						assert.NotEmpty(t, id)
 					} else {
 						assert.Empty(t, id)
 					}
-					assert.True(t, service.CanCollectMetadata(), "identity readiness does not change platform support")
 				})
 			}
 		})

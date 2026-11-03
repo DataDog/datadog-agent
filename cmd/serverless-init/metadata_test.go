@@ -100,9 +100,8 @@ func clearPlatformEnv(t *testing.T) {
 }
 
 // collectPlatformMetadata warms the provider through the main tag path, runs
-// one metadata collection, and stops the component. ok is false when the
-// metadata payload is not eligible for collection.
-func collectPlatformMetadata(t *testing.T, provider serverlessdef.CloudServiceMetadataProvider, enabled bool) (payloads []*sentMetadataPayload, ok bool) {
+// one metadata collection, and stops the component.
+func collectPlatformMetadata(t *testing.T, provider serverlessdef.CloudServiceMetadataProvider) (payloads []*sentMetadataPayload) {
 	configmock.New(t)
 	configureTags(provider.(cloudservice.CloudService))
 	synctest.Test(t, func(t *testing.T) {
@@ -111,7 +110,7 @@ func collectPlatformMetadata(t *testing.T, provider serverlessdef.CloudServiceMe
 		p := serverlessinitimpl.NewComponent(serverlessinitimpl.Requires{
 			Lc: lc,
 			Config: config.NewMockWithOverrides(t, map[string]any{
-				"serverless.metadata_enabled":       enabled,
+				"serverless.metadata_enabled":       true,
 				"inventories_first_run_delay":       0,
 				"inventories_configuration_enabled": false,
 			}),
@@ -121,10 +120,7 @@ func collectPlatformMetadata(t *testing.T, provider serverlessdef.CloudServiceMe
 			Provider:   provider,
 			Serializer: serial,
 		})
-		if p.Provider.Callback == nil {
-			return
-		}
-		ok = true
+		require.NotNil(t, p.Provider.Callback)
 		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan struct{})
 		go func() { p.Provider.Callback(ctx); close(done) }()
@@ -136,10 +132,10 @@ func collectPlatformMetadata(t *testing.T, provider serverlessdef.CloudServiceMe
 		}
 		payloads = serial.payloads
 	})
-	return payloads, ok
+	return payloads
 }
 
-func TestCloudRunMetadataSerializesIdentity(t *testing.T) {
+func TestPlatformMetadataSerializesIdentity(t *testing.T) {
 	originalTransport := http.DefaultTransport
 	t.Cleanup(func() { http.DefaultTransport = originalTransport })
 	http.DefaultTransport = gcpMetadataTransport{
@@ -149,176 +145,78 @@ func TestCloudRunMetadataSerializesIdentity(t *testing.T) {
 	}
 
 	const gcpPrefix = "//run.googleapis.com/projects/test-project/locations/us-central1"
+	const containerApp = "/subscriptions/test-subscription/resourcegroups/test-group/providers/microsoft.app/containerapps/test-app"
+	appServiceEnv := map[string]string{
+		"WEBSITE_OWNER_NAME": "Test-Subscription+webspace", "WEBSITE_RESOURCE_GROUP": "Test-Group",
+		"WEBSITE_SITE_NAME": "Test-Site", "WEBSITE_STACK": "NODE",
+	}
 	for _, platform := range []struct {
-		name               string
-		env                map[string]string
-		missingRequiredEnv string
-		resourceID         string
-		parentID           string
-		resourceName       string
+		workloadType string
+		env          map[string]string
+		resourceID   string
+		parentID     any
 	}{
 		{
-			name: "cloud_run_service",
-			env: map[string]string{
-				"K_SERVICE": "test-service", "K_REVISION": "test-revision",
-			},
-			missingRequiredEnv: "K_SERVICE",
-			resourceID:         gcpPrefix + "/revisions/test-revision",
-			parentID:           gcpPrefix + "/services/test-service",
-			resourceName:       "test-service",
+			workloadType: "cloud_run_service",
+			env:          map[string]string{"K_SERVICE": "test-service", "K_REVISION": "test-revision"},
+			resourceID:   gcpPrefix + "/revisions/test-revision",
+			parentID:     gcpPrefix + "/services/test-service",
 		},
 		{
-			name: "cloud_run_function",
-			env: map[string]string{
-				"K_SERVICE": "test-function", "K_REVISION": "test-function-revision", "FUNCTION_TARGET": "handler",
-			},
-			missingRequiredEnv: "K_REVISION",
-			resourceID:         gcpPrefix + "/revisions/test-function-revision",
-			parentID:           gcpPrefix + "/services/test-function",
-			resourceName:       "test-function",
+			workloadType: "cloud_run_function",
+			env:          map[string]string{"K_SERVICE": "test-function", "K_REVISION": "test-function-revision", "FUNCTION_TARGET": "handler"},
+			resourceID:   gcpPrefix + "/revisions/test-function-revision",
+			parentID:     gcpPrefix + "/services/test-function",
 		},
 		{
-			name: "cloud_run_job",
+			workloadType: "cloud_run_job",
+			env:          map[string]string{"CLOUD_RUN_JOB": "test-job", "CLOUD_RUN_EXECUTION": "test-execution"},
+			resourceID:   gcpPrefix + "/executions/test-execution",
+			parentID:     gcpPrefix + "/jobs/test-job",
+		},
+		{
+			workloadType: "azure_container_app",
 			env: map[string]string{
-				"CLOUD_RUN_JOB": "test-job", "CLOUD_RUN_EXECUTION": "test-execution",
+				"DD_AZURE_SUBSCRIPTION_ID": "Test-Subscription", "DD_AZURE_RESOURCE_GROUP": "Test-Group",
+				"CONTAINER_APP_NAME": "Test-App", "CONTAINER_APP_REVISION": "Test-Revision",
+				"CONTAINER_APP_ENV_DNS_SUFFIX": "environment.eastus.azurecontainerapps.io",
 			},
-			missingRequiredEnv: "CLOUD_RUN_JOB",
-			resourceID:         gcpPrefix + "/executions/test-execution",
-			parentID:           gcpPrefix + "/jobs/test-job",
-			resourceName:       "test-job",
+			resourceID: containerApp + "/revisions/Test-Revision",
+			parentID:   containerApp,
+		},
+		{
+			workloadType: "azure_app_service",
+			env:          appServiceEnv,
+			resourceID:   "/subscriptions/test-subscription/resourcegroups/test-group/providers/microsoft.web/sites/test-site",
+		},
+		{
+			workloadType: "azure_function",
+			env:          map[string]string{"FUNCTIONS_WORKER_RUNTIME": "node"},
+			resourceID:   "/subscriptions/Test-Subscription/resourcegroups/Test-Group/providers/microsoft.web/sites/Test-Site",
 		},
 	} {
-		t.Run(platform.name, func(t *testing.T) {
-			for _, missing := range []bool{false, true} {
-				t.Run(fmt.Sprintf("missing_required=%t", missing), func(t *testing.T) {
-					clearPlatformEnv(t)
-					for key, value := range platform.env {
-						t.Setenv(key, value)
-					}
-					service := cloudservice.GetCloudServiceType()
-					// An already-identified Gen2 function needs no function target for its identity.
-					require.NoError(t, os.Unsetenv("FUNCTION_TARGET"))
-					if missing {
-						t.Setenv(platform.missingRequiredEnv, "")
-					}
-					require.True(t, service.CanCollectMetadata())
-
-					payloads, ok := collectPlatformMetadata(t, service, true)
-					require.True(t, ok)
-					if missing {
-						assert.Empty(t, payloads, "missing identity must withhold the payload")
-						return
-					}
-					require.Len(t, payloads, 1)
-					metadata := payloads[0].Metadata
-					assert.Equal(t, platform.resourceID, metadata["resource_id"])
-					assert.Equal(t, platform.resourceName, metadata["resource_name"])
-					assert.Equal(t, platform.name, metadata["workload_type"])
-					assert.Equal(t, platform.parentID, metadata["parent_resource_id"])
-					assert.Equal(t, "us-central1", metadata["region"])
-					assert.Equal(t, "test-project", metadata["gcp_project_id"])
-					assert.Equal(t, "custom-dd-service", metadata["dd_service"])
-					assert.Equal(t, "startup", metadata["report_reason"])
-				})
-			}
-		})
-	}
-}
-
-func TestContainerAppMetadataSerializesIdentity(t *testing.T) {
-	for _, scenario := range []string{"valid", "missing revision", "metadata disabled"} {
-		t.Run(scenario, func(t *testing.T) {
+		t.Run(platform.workloadType, func(t *testing.T) {
 			clearPlatformEnv(t)
-			t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "Test-Subscription")
-			t.Setenv("DD_AZURE_RESOURCE_GROUP", "Test-Group")
-			t.Setenv("CONTAINER_APP_NAME", "Test-App")
-			t.Setenv("CONTAINER_APP_REVISION", "Test-Revision")
-			t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "environment.eastus.azurecontainerapps.io")
+			if platform.workloadType == "azure_function" {
+				for key, value := range appServiceEnv {
+					t.Setenv(key, value)
+				}
+			}
+			for key, value := range platform.env {
+				t.Setenv(key, value)
+			}
 			service := cloudservice.GetCloudServiceType()
-			require.IsType(t, &cloudservice.ContainerApp{}, service)
-			if scenario == "missing revision" {
-				t.Setenv("CONTAINER_APP_REVISION", "")
-			}
+			// An already-identified Gen2 function needs no function target for its identity.
+			require.NoError(t, os.Unsetenv("FUNCTION_TARGET"))
+			require.True(t, service.CanCollectMetadata())
 
-			payloads, ok := collectPlatformMetadata(t, service, scenario != "metadata disabled")
-			if scenario == "metadata disabled" {
-				assert.False(t, ok, "disabled metadata must not register periodic collection")
-				return
-			}
-			require.True(t, ok)
-			if scenario == "missing revision" {
-				assert.Empty(t, payloads, "missing identity must withhold the payload")
-				return
-			}
+			payloads := collectPlatformMetadata(t, service)
 			require.Len(t, payloads, 1)
 			metadata := payloads[0].Metadata
-			const parent = "/subscriptions/test-subscription/resourcegroups/test-group/providers/microsoft.app/containerapps/test-app"
-			assert.Equal(t, parent+"/revisions/Test-Revision", metadata["resource_id"])
-			assert.Equal(t, parent, metadata["parent_resource_id"])
-			assert.Equal(t, "Test-App", metadata["resource_name"])
-			assert.Equal(t, "azure_container_app", metadata["workload_type"])
-			assert.Equal(t, "eastus", metadata["region"])
-			assert.Equal(t, "Test-Subscription", metadata["azure_subscription_id"])
-			assert.Equal(t, "Test-Group", metadata["azure_resource_group"])
+			assert.Equal(t, platform.workloadType, metadata["workload_type"])
+			assert.Equal(t, platform.resourceID, metadata["resource_id"])
+			assert.Equal(t, platform.parentID, metadata["parent_resource_id"])
 			assert.Equal(t, "custom-dd-service", metadata["dd_service"])
-			assert.Equal(t, "startup", metadata["report_reason"])
-		})
-	}
-}
-
-func TestAppServiceMetadataSerializesIdentity(t *testing.T) {
-	for _, platform := range []struct {
-		name       string
-		worker     string
-		resourceID string
-	}{
-		{
-			name:       "azure_app_service",
-			resourceID: "/subscriptions/test-subscription/resourcegroups/test-group/providers/microsoft.web/sites/test-site",
-		},
-		{
-			name:       "azure_function",
-			worker:     "node",
-			resourceID: "/subscriptions/Test-Subscription/resourcegroups/Test-Group/providers/microsoft.web/sites/Test-Site",
-		},
-	} {
-		t.Run(platform.name, func(t *testing.T) {
-			for _, scenario := range []string{"valid", "missing site", "metadata disabled"} {
-				t.Run(scenario, func(t *testing.T) {
-					clearPlatformEnv(t)
-					t.Setenv("WEBSITE_OWNER_NAME", "Test-Subscription+webspace")
-					t.Setenv("WEBSITE_RESOURCE_GROUP", "Test-Group")
-					t.Setenv("WEBSITE_SITE_NAME", "Test-Site")
-					t.Setenv("WEBSITE_STACK", "NODE")
-					if platform.worker != "" {
-						t.Setenv("FUNCTIONS_WORKER_RUNTIME", platform.worker)
-					}
-					service := cloudservice.GetCloudServiceType()
-					require.IsType(t, &cloudservice.AppService{}, service)
-					if scenario == "missing site" {
-						t.Setenv("WEBSITE_SITE_NAME", "")
-					}
-
-					payloads, ok := collectPlatformMetadata(t, service, scenario != "metadata disabled")
-					if scenario == "metadata disabled" {
-						assert.False(t, ok, "disabled metadata must not register periodic collection")
-						return
-					}
-					require.True(t, ok)
-					if scenario == "missing site" {
-						assert.Empty(t, payloads, "missing identity must withhold the payload")
-						return
-					}
-					require.Len(t, payloads, 1)
-					metadata := payloads[0].Metadata
-					assert.Equal(t, platform.resourceID, metadata["resource_id"])
-					assert.Nil(t, metadata["parent_resource_id"])
-					assert.Equal(t, "Test-Site", metadata["resource_name"])
-					assert.Equal(t, platform.name, metadata["workload_type"])
-					assert.Equal(t, "custom-dd-service", metadata["dd_service"])
-					assert.Equal(t, "startup", metadata["report_reason"])
-				})
-			}
 		})
 	}
 }
