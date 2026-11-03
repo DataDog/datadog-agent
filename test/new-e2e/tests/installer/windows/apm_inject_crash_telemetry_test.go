@@ -32,6 +32,9 @@ var runDDInjectorCrashScript string
 const (
 	ddInjectorCrashTestRegistry = "install.datadoghq.com"
 	ddInjectorCrashTestVersion  = "0.71.0-1"
+	// ddInjectorCrashErrorKind prefixes the error kind of forwarded crash attribution events,
+	// which is suffixed with whether the crash happened during or post injection.
+	ddInjectorCrashErrorKind = "ddinjector: CrashAttribution_Event"
 )
 
 type crashProcessResult struct {
@@ -94,7 +97,7 @@ func (s *testInjectorCrashTelemetry) TestCrashLogReachesAgentTelemetry() {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
 		for _, log := range logs {
-			if log.ErrorKind != "ddinjector_crash" {
+			if !strings.HasPrefix(log.ErrorKind, ddInjectorCrashErrorKind) {
 				continue
 			}
 			var crash ddInjectorLog
@@ -116,10 +119,14 @@ func (s *testInjectorCrashTelemetry) TestCrashLogReachesAgentTelemetry() {
 				assert.GreaterOrEqual(c, elapsedMs, int64(0))
 				assert.LessOrEqual(c, elapsedMs, int64(1000))
 			}
-			assert.Contains(c, []string{
-				"Injection-related crash during injection detected",
-				"Injection-related crash post injection detected",
-			}, crash.Properties["Message"])
+			// The error kind tells crashes during injection from crashes post injection.
+			expectedErrorKind := map[string]string{
+				"Injection-related crash during injection detected": ddInjectorCrashErrorKind + "/during_injection",
+				"Injection-related crash post injection detected":   ddInjectorCrashErrorKind + "/post_injection",
+			}
+			if assert.Contains(c, expectedErrorKind, crash.Properties["Message"]) {
+				assert.Equal(c, expectedErrorKind[crash.Properties["Message"]], log.ErrorKind)
+			}
 			return
 		}
 		assert.Fail(c, "DDInjector crash telemetry not found", "no log for PID %d among %d Agent telemetry logs", process.ProcessID, len(logs))
