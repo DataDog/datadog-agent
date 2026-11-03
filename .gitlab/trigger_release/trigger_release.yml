@@ -21,7 +21,9 @@
     # agent-release-management creates pipeline for Agent 6
     - source /root/.bashrc
     - export RELEASE_VERSION=$(inv agent.version --major-version 6 --url-safe --omnibus-format)-1
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    # Following the child pipeline needs a token for the project it runs in
+    - $CI_PROJECT_DIR/tools/ci/install_authanywhere.sh
+    - GITLAB_TOKEN=$(GITLAB_TOKEN_REPOSITORY=agent-release-management $CI_PROJECT_DIR/tools/ci/fetch_gitlab_token.sh) || exit $?; export GITLAB_TOKEN
     - 'inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
       --variable ACTION
       --variable AUTO_RELEASE
