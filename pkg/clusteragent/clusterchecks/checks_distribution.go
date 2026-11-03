@@ -161,13 +161,6 @@ func (distribution *configsDistribution) runnerForConfig(digest string) string {
 	return ""
 }
 
-func (distribution *configsDistribution) workersNeededForConfig(digest string) float64 {
-	if info, found := distribution.Configs[digest]; found {
-		return info.WorkersNeeded
-	}
-	return 0
-}
-
 // configsSortedByWorkersNeeded returns config digests by descending
 // workersNeeded, with ties broken alphabetically to keep placement stable.
 func (distribution *configsDistribution) configsSortedByWorkersNeeded() []string {

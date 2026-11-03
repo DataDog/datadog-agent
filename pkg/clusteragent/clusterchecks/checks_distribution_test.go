@@ -167,7 +167,7 @@ func TestAddCheck(t *testing.T) {
 
 	distribution.addConfig("check1", "check1", 3, "runner1", false)
 	assert.Equal(t, "runner1", distribution.runnerForConfig("check1"))
-	assert.Equal(t, 3.0, distribution.workersNeededForConfig("check1"))
+	assert.Equal(t, 3.0, distribution.Configs["check1"].WorkersNeeded)
 }
 
 func TestChecksSortedByWorkersNeeded(t *testing.T) {

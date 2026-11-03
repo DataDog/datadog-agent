@@ -100,7 +100,6 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStor
 
 // clearDangling resets the danglingConfigs map to a new empty one, cleaning up
 // the telemetry tracked for the configs it held.
-// sticky) at their last value until the process restarts.
 func (s *clusterStore) clearDangling() {
 	for _, c := range s.danglingConfigs {
 		if c.unscheduledCheck {
