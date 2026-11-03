@@ -1,0 +1,10 @@
+# Running ip with no arguments should fail with exit 1.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip with no arguments exits 1 with 'object required' error"
+input:
+  script: |+
+    ip
+expect:
+  stderr: "ip: object required\nTry 'ip --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

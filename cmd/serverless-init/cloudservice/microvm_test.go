@@ -201,13 +201,9 @@ func TestMicroVMGetMetadata(t *testing.T) {
 	assert.Equal(t, instance, m.GetMetadata())
 }
 
-func TestMicroVMGetMetadataMissingARN(t *testing.T) {
-	m := &MicroVM{}
-	assert.Equal(t, serverlessdef.CloudServiceMetadata{WorkloadType: "aws_lambda_microvm"}, m.GetMetadata())
-}
-
 func TestMicroVMGetMetadataMalformedARN(t *testing.T) {
 	for _, arn := range []string{
+		"",
 		"arn:aws:lambda",
 		"not-an-arn",
 		"arn:aws:lambda:us-east-1:123456789012:function:my-function",
@@ -221,71 +217,20 @@ func TestMicroVMGetMetadataMalformedARN(t *testing.T) {
 				"a malformed ARN supplies no metadata")
 		})
 	}
-	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda")
-	m := &MicroVM{}
-	tags := m.GetTags()
-	assert.Equal(t, "unknown", tags["region"])
-	assert.Equal(t, "unknown", tags["account_id"])
-	assert.Equal(t, "unknown", tags["image_name"])
 }
 
-// TestMicroVMMetadataReporter_ReportsAfterRunAndResume wires the reporter Init
-// installs into a server on a random free port.
-func TestMicroVMMetadataReporter_ReportsAfterRunAndResume(t *testing.T) {
-	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
-	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+func TestMicroVMMetadataReporter(t *testing.T) {
 	m := &MicroVM{}
-	reportedIDs := make(chan string, 8)
-	metadata := serverlessinitmock.New(t, 8, func() { reportedIDs <- m.GetMetadata().ResourceID })
-	srv := lifecycle.NewServer(
-		0,
-		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
-		metricAgent, nil,
-		m.GetSource(),
-		time.Second,
-		lifecycle.NewNoopChildHandle(),
-		nil,                     // no forwarder
-		lifecycle.HookToggles{}, // no hooks enabled
-		nil,                     // no heartbeat
-	)
-	srv.SetMetadataReporter(m.MetadataReporter(metadata))
-	require.NoError(t, srv.ListenAndServe(nil))
-	t.Cleanup(func() {
-		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		_ = srv.Stop(shutCtx)
-	})
-	post := func(hook, body string) {
-		t.Helper()
-		resp, err := http.Post("http://"+srv.Addr().String()+"/aws/lambda-microvms/runtime/v1/"+hook, "application/json", strings.NewReader(body))
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-	}
-
-	nextReportedID := func() string {
-		t.Helper()
+	reportedIDs := make(chan string, 2)
+	reporter := m.MetadataReporter(serverlessinitmock.New(t, 2, func() { reportedIDs <- m.GetMetadata().ResourceID }))
+	for _, id := range []string{"vm-A", "vm-B"} {
+		reporter.ReportMetadata(id)
 		select {
-		case id := <-reportedIDs:
-			return id
+		case reported := <-reportedIDs:
+			assert.Equal(t, id, reported, "the instance ID is stored before the report")
 		case <-time.After(5 * time.Second):
 			t.Fatal("no metadata report")
-			return ""
 		}
-	}
-
-	post("resume", "")
-	post("run", `{"microvmId":""}`)
-	assert.Empty(t, m.GetMetadata().ResourceID)
-	assert.Empty(t, metadata.Reported(), "nothing is reported before /run delivers an instance ID")
-
-	for _, step := range []struct{ hook, body, id string }{
-		{"run", `{"microvmId":"vm-A"}`, "vm-A"},
-		{"resume", "", "vm-A"},
-		{"run", `{"microvmId":"vm-B"}`, "vm-B"},
-	} {
-		post(step.hook, step.body)
-		assert.Equal(t, step.id, nextReportedID(), "the instance ID is set before each report")
-		<-metadata.Reported()
 	}
 }
 

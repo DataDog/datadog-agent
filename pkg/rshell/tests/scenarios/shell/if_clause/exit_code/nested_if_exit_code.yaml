@@ -1,0 +1,16 @@
+description: Exit code of nested if is determined by the executed branch's last command.
+input:
+  script: |+
+    if true; then
+      if false; then
+        echo a
+      else
+        false
+      fi
+    fi
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,29 @@
+description: Absolute glob expansion supports bracket ranges and negated character classes inside allowed paths.
+setup:
+  files:
+    - path: data/team-a/report-1.txt
+      content: |+
+        a1
+    - path: data/team-a/report-2.txt
+      content: |+
+        a2
+    - path: data/team-b/report-1.txt
+      content: |+
+        b1
+    - path: data/team-c/report-1.txt
+      content: |+
+        c1
+    - path: data/team-a/report-3.txt
+      content: |+
+        a3
+input:
+  allowed_paths: ["data"]
+  script: |+
+    cat "$PWD"/data/team-[!c]/report-[1-2].txt
+expect:
+  stdout: |+
+    a1
+    a2
+    b1
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,17 @@
+description: And-or lists work correctly inside for loop body.
+input:
+  script: |+
+    for i in a b c; do
+      true && echo "ok:$i"
+    done
+    for i in x; do
+      false && echo "skip" || echo "fallback:$i"
+    done
+expect:
+  stdout: |+
+    ok:a
+    ok:b
+    ok:c
+    fallback:x
+  stderr: ""
+  exit_code: 0

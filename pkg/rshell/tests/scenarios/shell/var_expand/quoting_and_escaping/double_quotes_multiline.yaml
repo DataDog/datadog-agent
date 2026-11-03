@@ -1,0 +1,11 @@
+description: Double quotes preserve embedded newlines.
+input:
+  script: |+
+    echo "a
+    b"
+expect:
+  stdout: |+
+    a
+    b
+  stderr: ""
+  exit_code: 0

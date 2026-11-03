@@ -1,0 +1,20 @@
+description: du -a -b emits one line per file plus the directory total.
+setup:
+  files:
+    - path: top/a.txt
+      content: "12345"
+    - path: top/b.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -a -b top
+expect:
+  # File ordering inside a directory is filesystem-dependent on most
+  # platforms, but the entries returned by callCtx.OpenDir on Linux/macOS
+  # both produce the same order GNU du uses, so substring assertions work.
+  stdout_contains:
+    - "5\ttop/a.txt\n"
+    - "3\ttop/b.txt\n"
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: ps -p with consecutive commas (1,,2) exits with code 1.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -p '1,,2'
+expect:
+  stderr_contains:
+    - "invalid PID"
+  exit_code: 1

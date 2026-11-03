@@ -1,0 +1,21 @@
+description: find -execdir false {} \; -print — false return suppresses -print for each file via AND short-circuit.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:false
+  script: |+
+    find dir -type f -execdir false {} \; -print
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

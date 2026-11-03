@@ -1,0 +1,7 @@
+description: Hex escape consumes at most 2 digits, third character is literal.
+input:
+  script: |+
+    printf '\x414'
+expect:
+  stdout: "A4"
+  exit_code: 0

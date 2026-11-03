@@ -1770,7 +1770,7 @@ func TestFilteredByTags(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if filteredByTags(&tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex) != tt.drop {
+			if filters.FilteredByTags(&tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex) != tt.drop {
 				t.Fatal()
 			}
 		})
@@ -1867,7 +1867,7 @@ func runTraceFilteringBenchmark(b *testing.B, root *pb.Span, require []*config.T
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		filteredByTags(root, require, reject, requireRegex, rejectRegex)
+		filters.FilteredByTags(root, require, reject, requireRegex, rejectRegex)
 	}
 }
 

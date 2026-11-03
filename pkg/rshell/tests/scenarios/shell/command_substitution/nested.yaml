@@ -1,0 +1,9 @@
+description: Nested command substitution works.
+input:
+  script: |+
+    echo $(echo $(echo nested))
+expect:
+  stdout: |+
+    nested
+  stderr: ""
+  exit_code: 0
