@@ -69,9 +69,10 @@ func TestStorageBackedScanDetectors_OneShotMatchesIncremental(t *testing.T) {
 		{
 			name: "scanmw",
 			newDetector: func() observer.Detector {
-				d := testScanMWDetector()
-				d.MinPoints, d.MinSegment, d.MaxPoints = 12, 6, 24
-				return d
+				cfg := DefaultScanMWConfig()
+				cfg.MinPoints, cfg.MinSegment, cfg.MaxPoints = 12, 6, 24
+				cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+				return NewScanMWDetector(cfg)
 			},
 		},
 		{

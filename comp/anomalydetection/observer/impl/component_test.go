@@ -82,7 +82,7 @@ func TestMaxDetectorPoints(t *testing.T) {
 		NewBOCPDDetector(bocpdConfig),
 		NewHoltResidualDetector(),
 		NewTukeyBiweightDetector(),
-		NewScanMWDetector(),
+		NewScanMWDetector(DefaultScanMWConfig()),
 		NewScanWelchDetector(),
 	}
 	require.Equal(t, 120, maxDetectorPoints(detectors))

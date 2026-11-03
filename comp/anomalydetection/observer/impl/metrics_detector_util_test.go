@@ -50,7 +50,7 @@ func TestDetectorPointWindows(t *testing.T) {
 		"bocpd":     {bocpd, observer.DetectorPointWindow{MinPoints: 40, MaxPoints: 120}},
 		"holt":      {holt, observer.DetectorPointWindow{MinPoints: 24, MaxPoints: 60}},
 		"tukey":     {tukey, observer.DetectorPointWindow{MinPoints: 40, MaxPoints: 80}},
-		"scanmw":    {NewScanMWDetector(), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
+		"scanmw":    {NewScanMWDetector(DefaultScanMWConfig()), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
 		"scanwelch": {NewScanWelchDetector(), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -78,12 +78,12 @@ func TestDetectorPointWindowActivation(t *testing.T) {
 			ScoreEvery:   1,
 			Aggregations: []observer.Aggregate{observer.AggregateAverage},
 		},
-		"scanmw": &ScanMWDetector{
+		"scanmw": NewScanMWDetector(ScanMWConfig{
 			MinPoints:    4,
 			MinSegment:   2,
 			MaxPoints:    8,
 			Aggregations: []observer.Aggregate{observer.AggregateAverage},
-		},
+		}),
 		"scanwelch": &ScanWelchDetector{
 			MinPoints:    4,
 			MinSegment:   2,

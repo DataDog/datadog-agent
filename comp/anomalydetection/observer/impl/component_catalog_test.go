@@ -8,11 +8,13 @@ package observerimpl
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
@@ -28,6 +30,47 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 func TestDefaultCatalog_EnabledDetectors(t *testing.T) {
 	detectors, _, _, _, _ := defaultCatalog().Instantiate(ComponentSettings{})
 	require.Equal(t, []string{"bocpd"}, detectorNames(detectors))
+}
+
+func TestScanMW_CatalogConfiguration(t *testing.T) {
+	for _, source := range []string{"agent", "json"} {
+		for _, enabled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/enabled=%t", source, enabled), func(t *testing.T) {
+				var settings ComponentSettings
+				if source == "agent" {
+					cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+anomaly_detection:
+  detectors:
+    scanmw:
+      enabled: %t
+      min_points: 42
+      max_points: 84
+`, enabled))
+					settings = settingsFromAgentConfig(defaultCatalog(), cfg)
+				} else {
+					var err error
+					settings, err = ParseSettingsFromJSON(map[string]json.RawMessage{
+						"scanmw": json.RawMessage(fmt.Sprintf(
+							`{"enabled":%t,"min_points":42,"max_points":84}`,
+							enabled)),
+					})
+					require.NoError(t, err)
+				}
+				detectors, _, _, _, components := defaultCatalog().Instantiate(settings)
+				want := DefaultScanMWConfig()
+				want.MinPoints, want.MaxPoints = 42, 84
+				require.Equal(t, want, components["scanmw"].activeConfig)
+				d := components["scanmw"].instance.(*ScanMWDetector)
+				require.Equal(t, want, d.config)
+				require.Equal(t, enabled, components["scanmw"].enabled)
+				if enabled {
+					require.Contains(t, detectorNames(detectors), "scanmw")
+				} else {
+					require.NotContains(t, detectorNames(detectors), "scanmw")
+				}
+			})
+		}
+	}
 }
 
 // Every catalog detector can be enabled through anomaly_detection.detectors.*.
@@ -125,7 +168,7 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 
 	settings = ApplyTestbenchDefaults(settings)
 	require.Equal(t, 42, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
-	scanMW := settings.configs["scanmw"].(*ScanMWDetector)
+	scanMW := settings.configs["scanmw"].(ScanMWConfig)
 	require.Equal(t, 42, scanMW.MinPoints)
 	require.Equal(t, 84, scanMW.MaxPoints)
 	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
