@@ -6,8 +6,6 @@
   rules: !reference [.manual]
   stage: deps_build
   variables:
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 12Gi
     KUBERNETES_CPU_REQUEST: 4
     BUILD_VERSION: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     CC: "/opt/toolchains/${CMAKE_ARCH}/bin/${CMAKE_ARCH}-linux-gnu-gcc"

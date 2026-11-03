@@ -11,8 +11,6 @@
     - set +x
   variables:
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz

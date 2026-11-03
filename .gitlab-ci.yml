@@ -408,6 +408,10 @@ variables:
 
   SKIP_WINDOWS: "false"
 
+  # Kubernetes VPA template: Auto mode, doubles memory after an OOM kill, enforces a memory floor.
+  # Memory is sized by the VPA: only set KUBERNETES_MEMORY_* on jobs that also set DD_DISABLE_VPA.
+  DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
+
 #
 # Condition mixins for simplification of rules
 #

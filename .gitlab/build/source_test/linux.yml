@@ -10,8 +10,6 @@
     FLAVORS: '--flavor base'
     GIT_DEPTH: 0  # Full history: --only-impacted-packages and coverage cache use merge-base
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 32Gi
-    KUBERNETES_MEMORY_LIMIT: 32Gi
     TEST_OUTPUT_FILE: test_output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
@@ -95,8 +93,6 @@ go_mod_tidy_check:
     - dda inv -- -e check-mod-tidy
     - dda inv -- -e check-go-mod-replaces
   variables:
-    KUBERNETES_MEMORY_REQUEST: "16Gi"
-    KUBERNETES_MEMORY_LIMIT: "16Gi"
     KUBERNETES_CPU_REQUEST: 4
 
 new-e2e-unit-tests:
@@ -126,6 +122,10 @@ new-e2e-unit-tests:
     - !reference [.upload_junit_source]
   variables:
     KUBERNETES_CPU_REQUEST: 6
+    # Fixed resources: GOMEMLIMIT is derived from the memory limit
+    DD_DISABLE_VPA: true
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
     GOMEMLIMIT: "${KUBERNETES_MEMORY_LIMIT}B"
     GOMAXPROCS: $KUBERNETES_CPU_REQUEST
     GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache

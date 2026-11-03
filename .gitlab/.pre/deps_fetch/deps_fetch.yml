@@ -67,9 +67,6 @@
 go_deps:
   extends: .cache
   tags: ["arch:amd64", "specific:true"]
-  variables:
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
     # If the cache already contains the dependencies, don't redownload them
     # but still provide the artifact that's expected for the other jobs to run
