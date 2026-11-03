@@ -4925,6 +4925,7 @@ func TestHandleContainerImageWithoutAnnotationsSkipsContainerScan(t *testing.T) 
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+	// Leave Annotations unset to exercise the no-annotation fast path.
 	image := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imageID},
 		EntityMeta: workloadmeta.EntityMeta{
@@ -4932,6 +4933,7 @@ func TestHandleContainerImageWithoutAnnotationsSkipsContainerScan(t *testing.T) 
 		},
 	}
 	baseStore.Set(image)
+	// Keep a matching container in the store so any container scan is observable.
 	baseStore.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
 		Image:    workloadmeta.ContainerImage{ID: imageID},
@@ -4945,6 +4947,7 @@ func TestHandleContainerImageWithoutAnnotationsSkipsContainerScan(t *testing.T) 
 		Entity: image,
 	})
 
+	// The image is still tagged, but its containers are not scanned.
 	require.Zero(t, store.listContainersWithFilterCalls)
 	require.Len(t, actual, 1)
 	assert.Equal(t, types.NewEntityID(types.ContainerImageMetadata, imageID), actual[0].EntityID)
@@ -4984,6 +4987,7 @@ func TestProcessEventsCleansContainerImageAnnotationTagsWhenAnnotationsRemoved(t
 	collectorCh := make(chan []*types.TagInfo, 2)
 	collector.tagProcessor = &fakeProcessor{collectorCh}
 
+	// Propagate the annotation and record the container as a child of the image.
 	collector.processEvents(workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: image}},
 		Ch:     make(chan struct{}),
@@ -4999,6 +5003,7 @@ func TestProcessEventsCleansContainerImageAnnotationTagsWhenAnnotationsRemoved(t
 	require.NotNil(t, propagated)
 	assert.Contains(t, propagated.LowCardTags, tags.GitCommitSha+":"+commitSHA)
 
+	// Removing all annotations must clean up the tags propagated by the first event.
 	imageWithoutAnnotations := *image
 	imageWithoutAnnotations.Annotations = nil
 	store.Set(&imageWithoutAnnotations)
@@ -5396,6 +5401,7 @@ func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
 	}
 	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
 
+	// No custom mapping is configured: built-in OCI annotations still require cleanup.
 	cfg := configmock.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 
