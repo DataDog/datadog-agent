@@ -6,7 +6,6 @@
 package client
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -182,39 +181,5 @@ func canonicalizePathSegments(elems []pathElement) []string {
 }
 
 func subscribePathFromMetric(metric config.MetricConfig) (*gnmipb.Path, error) {
-	segments, err := splitProfilePath(metric.Path)
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]*gnmipb.PathElem, 0, len(segments))
-	for _, segment := range segments {
-		elem := &gnmipb.PathElem{Name: segment}
-		if keyName, ok := metric.SubscriptionKeys()[segment]; ok && keyName != "" {
-			elem.Key = map[string]string{keyName: "*"}
-		}
-		elems = append(elems, elem)
-	}
-
-	return &gnmipb.Path{Elem: elems}, nil
-}
-
-func splitProfilePath(path string) ([]string, error) {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return nil, errors.New("path must not be empty")
-	}
-
-	trimmed = strings.TrimPrefix(trimmed, "/")
-	if trimmed == "" {
-		return nil, errors.New("path must not be empty")
-	}
-
-	segments := strings.Split(trimmed, "/")
-	for _, segment := range segments {
-		if segment == "" {
-			return nil, fmt.Errorf("invalid path %q: empty segment", path)
-		}
-	}
-	return segments, nil
+	return config.CompilePath(metric.Path, metric.SubscriptionKeys())
 }

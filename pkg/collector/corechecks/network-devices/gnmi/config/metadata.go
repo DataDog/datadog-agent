@@ -382,14 +382,7 @@ func validateMetadataPath(path, field string) error {
 }
 
 func normalizeMetadataPath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return ""
-	}
-	if trimmed[0] != '/' {
-		return "/" + trimmed
-	}
-	return trimmed
+	return NormalizePath(path)
 }
 
 func copyStringMap(in map[string]string) map[string]string {
