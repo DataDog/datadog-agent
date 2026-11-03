@@ -1,0 +1,19 @@
+# vuln-hunt 2026-05-19-codex / heredoc.
+description: Quoted heredoc delimiters keep unsupported expansion syntax literal.
+input:
+  script: |+
+    X=outer
+    cat <<'EOF'
+    $((1+2))
+    <(echo hi)
+    ${X:=mutated}
+    EOF
+    echo "$X"
+expect:
+  stdout: |+
+    $((1+2))
+    <(echo hi)
+    ${X:=mutated}
+    outer
+  stderr: ""
+  exit_code: 0

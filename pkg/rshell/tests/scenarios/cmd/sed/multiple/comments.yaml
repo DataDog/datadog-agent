@@ -1,0 +1,13 @@
+description: Comments in sed scripts are ignored.
+setup:
+  files:
+    - path: input.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -e '# This is a comment' -e 's/hello/HELLO/' input.txt
+expect:
+  stdout: "HELLO\nworld\n"
+  stderr: ""
+  exit_code: 0

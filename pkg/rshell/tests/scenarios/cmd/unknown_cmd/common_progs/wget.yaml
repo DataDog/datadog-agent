@@ -1,0 +1,12 @@
+# skip: rshell reports different error format than bash for unavailable commands
+skip_assert_against_bash: true
+description: The wget command is not a builtin and is rejected as unknown.
+input:
+  script: |+
+    wget http://example.com
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: wget: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

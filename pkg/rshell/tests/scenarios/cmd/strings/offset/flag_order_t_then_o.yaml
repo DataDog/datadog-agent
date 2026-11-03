@@ -1,0 +1,13 @@
+description: strings -t d -o uses last flag wins; -o appears last so output is octal.
+setup:
+  files:
+    - path: data.bin
+      content: "hello_here\nworld_too\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -t d -o data.bin
+expect:
+  stdout: "      0 hello_here\n     13 world_too\n"
+  stderr: ""
+  exit_code: 0

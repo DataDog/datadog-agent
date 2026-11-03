@@ -1584,7 +1584,10 @@ Types:
       GoKind: 26
 MaxTypeID: 111
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x191220", TypesOffset: 296}
+GoModuledataInfo:
+    FirstModuledataAddr: "0x191220"
+    TypesOffset: 296
+    ETypesOffset: 304
 GoMapHashInfo: {UseAeshashAddr: "0x1c0ea9", AeskeyschedAddr: "0x1c1580"}
 CommonTypes:
     G: 24 StructureType runtime.g

@@ -1,0 +1,17 @@
+description: stat -f accepts .. after a directory and reports the original operand.
+setup:
+  files:
+    - path: dir/.keep
+      content: ""
+    - path: target
+      content: "target"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f dir/../target
+expect:
+  stdout_contains:
+    - "  File: \"dir/../target\"\n"
+    - "Block size:"
+  stderr: |+
+  exit_code: 0

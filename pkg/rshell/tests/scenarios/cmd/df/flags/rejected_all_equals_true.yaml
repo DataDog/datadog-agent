@@ -1,0 +1,11 @@
+description: df rejects --all=true (no-arg flags use a NUL-byte NoOptDefVal sentinel that argv cannot forge, so any explicit value is rejected). Stderr matches GNU's "doesn't allow an argument" wording byte-for-byte after the pflag-error rewriter in builtins/builtins.go.
+input:
+  script: |+
+    df --all=true; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    df: option '--all' doesn't allow an argument
+    Try 'df --help' for more information.
+  exit_code: 0

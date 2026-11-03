@@ -1,0 +1,8 @@
+description: Long line with many spaces is handled correctly.
+input:
+  script: "echo 1                                                                                                                                                                                                                                                                                                                2\n"
+expect:
+  stdout: |+
+    1 2
+  stderr: ""
+  exit_code: 0

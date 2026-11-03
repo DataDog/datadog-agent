@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package datadog.rshell.privilegedhelper;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// PrivateActionTask is the security-relevant subset of the PAR task wire
+// format. Field numbers intentionally match private_actions.proto in the
+// datadog-agent repository. Unknown fields remain covered by the backend
+// signature and are ignored when decoding.
+message PrivateActionTask {
+  reserved 7, 8, 9;
+  string action_name = 1;
+  string bundle_id = 2;
+  int64 org_id = 3;
+  string task_id = 4;
+  google.protobuf.Struct inputs = 6;
+  ConnectionInfo connection_info = 10;
+  google.protobuf.Timestamp expiration_time = 11;
+  SystemInputs system_inputs = 13;
+}
+
+message SystemInputs {
+  oneof input {
+    RemoteAction remote_action = 1;
+  }
+}
+
+message RemoteAction {
+  repeated string allowed_commands = 1;
+  repeated string allowed_paths = 2;
+  map<string, google.protobuf.ListValue> system_services = 3;
+}
+
+message ConnectionInfo {
+  string runner_id = 4;
+}

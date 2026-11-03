@@ -1,0 +1,14 @@
+description: sort on a file whose last line has no trailing newline still produces correctly sorted output with a trailing newline (GNU sort normalizes line endings).
+setup:
+  files:
+    - path: file.txt
+      content: "banana\napple"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort file.txt
+expect:
+  stdout: "apple\nbanana\n"
+  stderr: ""
+  exit_code: 0

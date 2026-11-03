@@ -1,0 +1,8 @@
+description: Printf %b interprets \n and \t escape sequences in argument.
+input:
+  script: |+
+    printf "%b" 'line1\nline2\n'
+expect:
+  stdout: "line1\nline2\n"
+  stderr: ""
+  exit_code: 0

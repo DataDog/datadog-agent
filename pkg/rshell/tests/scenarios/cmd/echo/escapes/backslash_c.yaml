@@ -1,0 +1,8 @@
+description: Echo -e with \c suppresses further output and trailing newline.
+input:
+  script: |+
+    echo -e 'hello\cworld'
+expect:
+  stdout: "hello"
+  stderr: ""
+  exit_code: 0
