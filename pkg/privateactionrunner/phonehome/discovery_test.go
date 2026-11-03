@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"testing"
 	"time"
 
@@ -23,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiscoveryRequiresEnabledPARAndSupportedPlatform(t *testing.T) {
+func TestDiscoveryRequiresEnabledPAR(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "scope-test-key")
@@ -32,7 +31,7 @@ func TestDiscoveryRequiresEnabledPARAndSupportedPlatform(t *testing.T) {
 	cfg.SetInTest("remote_configuration.rc_dd_url", "https://config.datadoghq.com")
 	rc := NewSource(cfg, &statusService{})
 	poller := NewDiscovery(cfg, rc)
-	require.Equal(t, runtime.GOOS == "windows", poller == nil)
+	require.NotNil(t, poller)
 	cfg.SetInTest("private_action_runner.enabled", false)
 	require.Nil(t, NewDiscovery(cfg, rc))
 	cfg.SetInTest("private_action_runner.enabled", true)
@@ -55,20 +54,12 @@ func TestDiscoveryRCEndpointFQDN(t *testing.T) {
 				for _, endpoint := range []string{"", "https://config." + site, "https://config." + site + "."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
 					poller := NewDiscovery(cfg, NewSource(cfg, rc))
-					if runtime.GOOS == "windows" {
-						require.Nil(t, poller)
-						continue
-					}
 					poller.SetPARDiscoveryDemand(true)
 					require.True(t, poller.gate(), endpoint)
 				}
 				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
 					poller := NewDiscovery(cfg, NewSource(cfg, rc))
-					if runtime.GOOS == "windows" {
-						require.Nil(t, poller)
-						continue
-					}
 					poller.SetPARDiscoveryDemand(true)
 					require.False(t, poller.gate(), endpoint)
 				}

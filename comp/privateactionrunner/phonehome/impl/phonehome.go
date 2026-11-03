@@ -15,6 +15,7 @@ import (
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	engine "github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -45,7 +46,9 @@ func NewComponent(r Requires) Provides {
 	discovery := engine.NewDiscovery(r.Config, rcSource)
 	source := engine.NewScopedSource(rcSource, discovery)
 	report := newTelemetryReporter(r.Telemetry)
-	ctx, cancel := context.WithCancel(context.Background())
+	// Core cancels its main context before stopping Windows dependent services.
+	mainCtx, _ := common.GetMainCtxCancel()
+	ctx, cancel := context.WithCancel(mainCtx)
 	done := make(chan struct{})
 	r.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
