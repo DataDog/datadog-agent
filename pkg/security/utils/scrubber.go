@@ -7,9 +7,11 @@
 package utils
 
 import (
+	"cmp"
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -51,22 +53,58 @@ func NewScrubber(customSensitiveWords []string, regexps []string) (*Scrubber, er
 
 // ScrubCommand scrubs the command line using the proc scrubber and the regex scrubber
 func (s *Scrubber) ScrubCommand(cmdline []string) []string {
-	// procutil only matches a key preceded by a space, and callers pass argv without argv[0]
-	args := make([]string, 1, len(cmdline)+1)
-	// before procutil, which re-splits the whole line on spaces once it changes anything
-	for _, arg := range cmdline {
-		args = append(args, scrubKeyValues(arg))
+	args := make([]string, len(cmdline))
+	// before the procutil patterns, as the line is re-split on spaces once they change anything
+	for i, arg := range cmdline {
+		args[i] = scrubKeyValues(arg)
 	}
-	scrubbed, _ := s.procScrubber.ScrubCommand(args)
-	scrubbed = scrubbed[1:]
+	// procutil patterns only match a key preceded by a space, and callers pass argv without argv[0]
+	if scrubbed, changed := maskSensitiveValues(s.procScrubber.SensitivePatterns, " "+strings.Join(args, " ")); changed {
+		args = strings.Split(scrubbed[1:], " ")
+	}
 
 	if s.regexScrubber != nil {
-		for i := range scrubbed {
-			scrubbed[i] = s.regexScrubber.ScrubLine(scrubbed[i])
+		for i := range args {
+			args[i] = s.regexScrubber.ScrubLine(args[i])
 		}
 	}
 
-	return scrubbed
+	return args
+}
+
+// maskSensitiveValues matches every pattern against the original line before masking, unlike
+// procutil which rewrites the line pattern by pattern: in `secrets.py --token abc`, masking
+// `--token` as the value of `secrets.py` would hide the `--token` key and leak `abc`
+func maskSensitiveValues(patterns []procutil.DataScrubberPattern, line string) (string, bool) {
+	lower := strings.ToLower(line)
+	var spans [][2]int
+	for _, p := range patterns {
+		if !strings.Contains(lower, p.FastCheck) {
+			continue
+		}
+		v := 2 * p.Re.SubexpIndex("value")
+		for _, m := range p.Re.FindAllStringSubmatchIndex(line, -1) {
+			spans = append(spans, [2]int{m[v], m[v+1]})
+		}
+	}
+	if len(spans) == 0 {
+		return line, false
+	}
+	slices.SortFunc(spans, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
+
+	var sb strings.Builder
+	last := 0
+	for i := 0; i < len(spans); {
+		start, end := spans[i][0], spans[i][1]
+		for i++; i < len(spans) && spans[i][0] <= end; i++ {
+			end = max(end, spans[i][1])
+		}
+		sb.WriteString(line[last:start])
+		sb.WriteString("********")
+		last = end
+	}
+	sb.WriteString(line[last:])
+	return sb.String(), true
 }
 
 // ScrubLine scrubs the line using the proc scrubber and the regex scrubber

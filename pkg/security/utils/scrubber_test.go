@@ -63,6 +63,8 @@ func TestScrubberFirstArgument(t *testing.T) {
 	assert.Equal(t, []string{"--password", "********"}, scrubber.ScrubCommand([]string{"--password", "hunter2"}))
 	assert.Equal(t, []string{"-H", "Content-Type: application/json"}, scrubber.ScrubCommand([]string{"-H", "Content-Type: application/json"}))
 	assert.Empty(t, scrubber.ScrubCommand([]string{}))
+	assert.Equal(t, []string{"secrets.py", "********", "********"}, scrubber.ScrubCommand([]string{"secrets.py", "--token", "abc123"}))
+	assert.Equal(t, []string{"-u", "secrets.py", "********", "********"}, scrubber.ScrubCommand([]string{"-u", "secrets.py", "--token", "abc123"}))
 }
 
 func TestScrubberAPIKeyValues(t *testing.T) {
