@@ -287,7 +287,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "pH6tNiYSRQr+X06uWAFcD1pf54NrkZz5Tf8pvG1RXlQ=",
+        "bzlTransitiveDigest": "MUpw9pxT5c0amvoA3uRKyQBBKcpQN+0TQa+xkAo+AZE=",
         "usagesDigest": "lBRxCKYy9X03c4jyF/C6hWEAf+24zs/m6M/bS7BVXQU=",
         "recordedInputs": [],
         "generatedRepoSpecs": {

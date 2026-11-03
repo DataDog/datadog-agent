@@ -13,8 +13,10 @@ def _get_url(s3_base, url_prefix, clang_version, arch, build_version):
     return "{}/{}-{}.{}.{}".format(s3_base, url_prefix, clang_version, arch, build_version)
 
 def _download_llvm_bpf_impl(rctx):
-    downloaded = {}
     clang_version = rctx.attr.clang_version
+    binary_attrs = ""
+    install_target = ""
+    exec_compatible_with = ""
 
     if "linux" in rctx.os.name:
         arch = rctx.os.arch
@@ -25,6 +27,7 @@ def _download_llvm_bpf_impl(rctx):
         else:
             fail("Unsupported architecture for LLVM BPF toolchain: " + arch)
 
+        downloaded = {}
         sha256s = rctx.attr.sha256s
         for binary, url_prefix in _BINARIES.items():
             url = _get_url(rctx.attr.s3_base_url, url_prefix, clang_version, arch, rctx.attr.clang_build_version)
@@ -46,10 +49,8 @@ def _download_llvm_bpf_impl(rctx):
                 fail("Failed to download {} from {}".format(binary, url))
             downloaded[binary] = output
 
-    binary_attrs = ""
-    install_target = ""
-    exec_compatible_with = ""
-    if downloaded:
+        # Stay in this block: buildifier treats arch as uninitialized if it
+        # is read after the Linux-only assignment.
         cpu_constraint = {
             "amd64": "@platforms//cpu:x86_64",
             "arm64": "@platforms//cpu:arm64",
