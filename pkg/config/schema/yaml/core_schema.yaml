@@ -10114,7 +10114,6 @@ properties:
       linux: true
       windows: true
       aix: true
-      darwin: false
       other: false
     tags:
     - full-agent-only:true
