@@ -29,7 +29,10 @@ type DynamicTable struct {
 	cfg *config.Config
 
 	// terminatedConnectionsEventsConsumer is the consumer used to receive terminated connections events from the kernel.
-	terminatedConnectionsEventsConsumer *events.BatchConsumer[netebpf.ConnTuple]
+	// It wraps either a batch or a direct consumer, matching the mode selected for the main http2 stream.
+	terminatedConnectionsEventsConsumer *events.KernelAdaptiveConsumer[netebpf.ConnTuple]
+	// useDirectConsumer indicates whether the terminated connections stream uses the direct consumer.
+	useDirectConsumer bool
 	// terminatedConnections is the list of terminated connections received from the kernel.
 	terminatedConnections []netebpf.ConnTuple
 	// terminatedConnectionMux is used to protect the terminated connections list from concurrent access.
@@ -45,6 +48,44 @@ func NewDynamicTable(cfg *config.Config) *DynamicTable {
 	}
 }
 
+// createDirectConsumer sets up the terminated connections stream to use the
+// direct consumer. It MUST be called with the same decision as the main http2
+// stream (Protocol.useDirectConsumer): both streams share the single
+// http2_use_direct_consumer eBPF constant, so the kernel output path and the
+// userspace consumer type must agree, otherwise terminated events would be
+// emitted on the direct path while a batch consumer reads them (or vice versa).
+//
+// When direct mode is not selected, this is a no-op: the batch consumer is
+// created later in preStart (after manager init), since it needs no modifier.
+// When it is selected, the direct consumer must be created here so its
+// EventHandler modifier is exposed via modifiers() before the manager is
+// initialized (right after protocol construction).
+func (dt *DynamicTable) createDirectConsumer(useDirectConsumer bool) error {
+	if !useDirectConsumer {
+		return nil
+	}
+
+	directConsumer, err := events.NewDirectConsumer(terminatedConnectionsEventStream, dt.processTerminatedConnectionDirect, dt.cfg)
+	if err != nil {
+		return err
+	}
+	dt.terminatedConnectionsEventsConsumer = events.NewKernelAdaptiveConsumer[netebpf.ConnTuple](
+		directConsumer,
+		[]ddebpf.Modifier{&directConsumer.EventHandler},
+	)
+	dt.useDirectConsumer = true
+	return nil
+}
+
+// modifiers returns the eBPF manager modifiers contributed by the terminated
+// connections consumer (the direct consumer's EventHandler, if any).
+func (dt *DynamicTable) modifiers() []ddebpf.Modifier {
+	if dt.terminatedConnectionsEventsConsumer == nil {
+		return nil
+	}
+	return dt.terminatedConnectionsEventsConsumer.Modifiers()
+}
+
 // configureOptions configures the perf handler options for the map cleaner.
 func (dt *DynamicTable) configureOptions(mgr *manager.Manager, opts *manager.Options) {
 	events.Configure(dt.cfg, terminatedConnectionsEventStream, mgr, opts)
@@ -52,15 +93,25 @@ func (dt *DynamicTable) configureOptions(mgr *manager.Manager, opts *manager.Opt
 
 // preStart sets up the terminated connections events consumer.
 func (dt *DynamicTable) preStart(mgr *manager.Manager) (err error) {
-	dt.terminatedConnectionsEventsConsumer, err = events.NewBatchConsumer(
-		terminatedConnectionsEventStream,
-		mgr,
-		dt.processTerminatedConnections,
-	)
-	if err != nil {
-		return
+	// If using the batch consumer, create it now (after manager initialization).
+	// The direct consumer, when used, was already created in NewDynamicTable so
+	// its modifier could be registered before the manager was initialized.
+	if !dt.useDirectConsumer {
+		batchConsumer, err := events.NewBatchConsumer(
+			terminatedConnectionsEventStream,
+			mgr,
+			dt.processTerminatedConnections,
+		)
+		if err != nil {
+			return err
+		}
+		dt.terminatedConnectionsEventsConsumer = events.NewKernelAdaptiveConsumer[netebpf.ConnTuple](
+			batchConsumer,
+			[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+		)
 	}
 
+	// Start the consumer (works for both direct and batch consumers).
 	dt.terminatedConnectionsEventsConsumer.Start()
 
 	return nil
@@ -71,11 +122,18 @@ func (dt *DynamicTable) postStart(mgr *manager.Manager, cfg *config.Config) erro
 	return dt.setupDynamicTableMapCleaner(mgr, cfg)
 }
 
-// processTerminatedConnections processes the terminated connections received from the kernel.
+// processTerminatedConnections processes a batch of terminated connections received from the kernel.
 func (dt *DynamicTable) processTerminatedConnections(events []netebpf.ConnTuple) {
 	dt.terminatedConnectionMux.Lock()
 	defer dt.terminatedConnectionMux.Unlock()
 	dt.terminatedConnections = append(dt.terminatedConnections, events...)
+}
+
+// processTerminatedConnectionDirect processes a single terminated connection received via the direct consumer.
+func (dt *DynamicTable) processTerminatedConnectionDirect(event *netebpf.ConnTuple) {
+	dt.terminatedConnectionMux.Lock()
+	defer dt.terminatedConnectionMux.Unlock()
+	dt.terminatedConnections = append(dt.terminatedConnections, *event)
 }
 
 // setupDynamicTableMapCleaner sets up the map cleaner used to clear entries of terminated connections from the kernel map.
