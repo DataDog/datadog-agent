@@ -1,0 +1,13 @@
+description: Group commands with braces apply multiple commands to matching lines.
+setup:
+  files:
+    - path: input.txt
+      content: "apple\nbanana\ncherry\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '/banana/{ s/banana/BANANA/; s/$/!/; }' input.txt
+expect:
+  stdout: "apple\nBANANA!\ncherry\n"
+  stderr: ""
+  exit_code: 0

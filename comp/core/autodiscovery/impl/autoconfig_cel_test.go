@@ -31,9 +31,11 @@ func TestProcessNewConfigCELCompileErrorStoredInStats(t *testing.T) {
 		},
 	}
 
-	changes := ac.processNewConfig(invalidTpl)
+	published := recordAutoConfigChanges(ac)
+	ac.processNewConfig(invalidTpl)
+	changes := published.last()
 
-	// processNewConfig should return empty changes when config cannot be initialized
+	// Invalid configs must not publish any scheduling changes.
 	assert.Empty(t, changes.Schedule)
 	assert.Empty(t, changes.Unschedule)
 

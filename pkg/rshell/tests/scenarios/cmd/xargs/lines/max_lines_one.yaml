@@ -1,0 +1,10 @@
+description: xargs -L 1 batches one input line per command.
+input:
+  script: |+
+    printf 'a b\nc d\n' | xargs -L 1 echo
+expect:
+  stdout: |+
+    a b
+    c d
+  stderr: |+
+  exit_code: 0

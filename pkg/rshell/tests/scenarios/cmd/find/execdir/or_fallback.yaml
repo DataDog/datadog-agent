@@ -1,0 +1,23 @@
+description: find OR expression — .log files get execdir echo, .txt files fall through to -print.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/app.log
+      content: "log"
+      chmod: 0644
+    - path: dir/readme.txt
+      content: "txt"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -type f \( -name '*.log' -execdir echo found {} \; -o -name '*.txt' -print \)
+expect:
+  stdout_unordered: |+
+    found ./app.log
+    dir/readme.txt
+  stderr: ""
+  exit_code: 0

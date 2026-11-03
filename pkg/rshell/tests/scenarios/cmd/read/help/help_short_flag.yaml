@@ -1,0 +1,11 @@
+description: read -h prints usage to stdout (short alias for --help, per docs/RULES.md).
+# rshell registers -h as an alias for --help; bash's read builtin doesn't
+# recognise -h and would error.
+skip_assert_against_bash: true
+input:
+  script: |+
+    read -h
+expect:
+  stdout_contains: ["Usage:", "NAME"]
+  stderr: ""
+  exit_code: 0

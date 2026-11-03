@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/ebpf-profiler/libpf"
+	"go.opentelemetry.io/ebpf-profiler/tls"
 )
 
 // TestLiveDlopenBigTLSDescResolution dlopens a TLSDESC module too large for the
@@ -56,17 +56,12 @@ func TestLiveDlopenBigTLSDescResolution(t *testing.T) {
 	require.NoError(t, err)
 	defer module.file.Close()
 
-	access, err := resolveTLSAccess(module.file, &libpf.Symbol{
-		Name:    libpf.SymbolName(sym.Name),
-		Address: libpf.SymbolValue(sym.Value),
-		Size:    sym.Size,
-	})
+	tlsVar, err := tls.Resolve(module.file, sym)
 	require.NoError(t, err)
-	require.Equal(t, accessTLSDesc, access.access)
 
-	res, err := attachOTelTLS(&target, module.loadBias, access)
+	res, err := target.locateOTelTLS(module.loadBias, tlsVar)
 	require.NoError(t, err)
-	t.Logf("module=%d tlsOffset=%#x dtv=%+v", res.moduleID, res.tlsOffset, res.dtvInfo)
+	t.Logf("var=%v module=%d tlsOffset=%#x dtv=%+v", tlsVar, res.moduleID, res.tlsOffset, res.dtvInfo)
 
 	require.NotZero(t, res.moduleID, "dlopen of _big must resolve through the DTV")
 	require.Zero(t, res.tlsOffset, "otel_thread_ctx_v1 is at offset 0 of the TLS block")

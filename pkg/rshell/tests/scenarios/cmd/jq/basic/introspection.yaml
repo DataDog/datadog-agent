@@ -1,0 +1,9 @@
+description: jq length, keys, has, not, and type follow jq value semantics.
+input:
+  script: |+
+    jq -nc '[("μ" | length), ([1,2] | length), ({"a":1} | length), (null | length), (-5 | length), ({"é":1,"e":2,"Z":3} | keys), ({"a":null} | has("a")), ([10,20][1.9]), ([1] | has(0.9)), (false | not), type]'
+expect:
+  stdout: |+
+    [1,2,1,0,5,["Z","e","é"],true,20,true,true,"null"]
+  stderr: |+
+  exit_code: 0

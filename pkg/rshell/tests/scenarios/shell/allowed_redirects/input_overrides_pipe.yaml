@@ -1,0 +1,13 @@
+description: Input redirection on the right side of a pipe overrides pipe stdin.
+setup:
+  files:
+    - path: override.txt
+      content: "from file"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo from pipe | cat < override.txt
+expect:
+  stdout: "from file"
+  stderr: ""
+  exit_code: 0

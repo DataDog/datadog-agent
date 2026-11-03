@@ -1,0 +1,11 @@
+description: With no FILE operands, tee is a pure passthrough to stdout.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "just stdout\n" | tee
+expect:
+  stdout: |+
+    just stdout
+  stderr: |+
+  exit_code: 0
