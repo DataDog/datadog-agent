@@ -8,12 +8,9 @@
 package process
 
 import (
-	"bufio"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -44,13 +41,16 @@ func TestLiveDlopenBigTLSDescResolution(t *testing.T) {
 		_ = cmd.Wait()
 	}()
 
+	// The library is mapped before dlopen applies its relocations; the process
+	// context is only published from inside it, once dlopen has returned.
 	pid := uint32(cmd.Process.Pid)
-	require.Eventually(t, func() bool {
-		return mappedObjectContains(pid, filepath.Base(so))
-	}, 5*time.Second, 20*time.Millisecond, "fixture never appeared in maps")
-
 	var target otelTargetProcess
-	target.reset(pid)
+	require.Eventually(t, func() bool {
+		target.reset(pid)
+		procCtx, err := target.processContext()
+		return err == nil && procCtx != nil
+	}, 5*time.Second, 20*time.Millisecond, "fixture never published its process context")
+
 	module, sym, err := target.findOTelTLSModule(otelTLSSymbolName)
 	require.NoError(t, err)
 	defer module.file.Close()
@@ -74,19 +74,4 @@ func otelTLSTestArtifact(t *testing.T, envName string) string {
 	path, err := runfiles.Rlocation(loc)
 	require.NoError(t, err)
 	return path
-}
-
-func mappedObjectContains(pid uint32, base string) bool {
-	f, err := os.Open(fmt.Sprintf("/proc/%d/maps", pid))
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		if strings.Contains(sc.Text(), base) {
-			return true
-		}
-	}
-	return false
 }
