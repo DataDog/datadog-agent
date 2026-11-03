@@ -142,7 +142,7 @@ minutes.
 ## Refresh
 
 After the first answer, the component sends the query of each group again at a regular interval.
-This interval is the refresh interval (6 hours by default). The refresh occurs in the background.
+This interval is the refresh interval (10 minutes by default). The refresh occurs in the background.
 It does not stop or slow the consumer.
 
 | Result of the last query | Next query |
@@ -306,7 +306,7 @@ customers, and they apply only to the full Agent.
 |---|---|---|
 | `intake_routing.enabled` | `false` | |
 | `intake_routing.startup_grace_period` | `1s` | 0s to 30s. A value outside this range is changed, with a warning. |
-| `intake_routing.refresh_interval` | `6h0m0s` | 1m minimum. A smaller value is changed, with a warning. |
+| `intake_routing.refresh_interval` | `10m` | 1m minimum. A smaller value is changed, with a warning. |
 
 ## Telemetry
 
