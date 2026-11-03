@@ -39,7 +39,10 @@ npm run dev
 Local evaluations and the interactive testbench use the latest LLMObs recording
 dataset. The default is `observer-metric-types-2026-10-26`, the updated copy of
 our 12 local fault recordings. See [AAD evaluation datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets)
-for the available datasets. A local scenario manifest is not required.
+for the available datasets. Dataset membership and recording references are managed
+in LLMObs and shared with the evaluation worker. Local commands download and cache
+those recordings for headless evaluation and testbench visualization; they do not
+maintain a separate scenario manifest.
 
 ```bash
 # Replay the default dataset headlessly and print the existing F1 results.
