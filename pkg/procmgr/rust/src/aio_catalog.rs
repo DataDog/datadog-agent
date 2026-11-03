@@ -556,6 +556,18 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     assert!(script.contains("set -euo pipefail"));
     assert!(script.contains("/etc/cont-init.d/*.sh"));
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
+    assert!(script.contains(
+        r#"DD_IPC_CERT_FILE_PATH="${DD_IPC_CERT_FILE_PATH:-$(dirname "${DD_AUTH_TOKEN_FILE_PATH:-${config_file}}")/ipc_cert.pem}""#
+    ));
+    let cont_init = script.find("/etc/cont-init.d/*.sh").expect("cont-init");
+    let cert = script.find("DD_IPC_CERT_FILE_PATH").expect("ipc cert");
+    let exec_procmgrd = script
+        .find("exec /opt/datadog-agent/embedded/bin/dd-procmgrd")
+        .expect("exec");
+    assert!(
+        cont_init < cert && cert < exec_procmgrd,
+        "derive the IPC cert after cont-init and before exec"
+    );
     assert!(script.contains("exec /opt/datadog-agent/embedded/bin/dd-procmgrd"));
     assert!(
         !script.contains("DD_PM_INHERIT_ENV"),
