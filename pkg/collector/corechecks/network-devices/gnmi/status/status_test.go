@@ -116,6 +116,34 @@ func TestStatusWithDevices(t *testing.T) {
 	}
 }
 
+func TestRejectedSubscriptionsRemainVisibleAfterRecovery(t *testing.T) {
+	provider, registry := newTestProvider()
+	registry.RegisterDevice("127.0.0.1", 57400, "test", false, nil)
+	rejections := map[string]string{"/missing": "NotFound: <script>device error</script>"}
+	registry.UpdateDevice("127.0.0.1", 57400, func(device *DeviceState) {
+		device.StreamState = "connected"
+		device.RejectedSubscriptions = rejections
+	})
+	rejections["/missing"] = "mutated"
+	devices := registry.listDevicesForDisplay()
+	require.Len(t, devices, 1)
+	require.Equal(t, statusLevelWarning, devices[0].StatusLevel)
+	require.Equal(t, "Connected (partial)", devices[0].StatusLabel)
+	require.Contains(t, devices[0].RejectedSubscriptions["/missing"], "NotFound")
+	require.Contains(t, devices[0].SearchText, "/missing")
+	devices[0].RejectedSubscriptions["/missing"] = "mutated again"
+	require.Contains(t, registry.listDevicesForDisplay()[0].RejectedSubscriptions["/missing"], "NotFound")
+	text := new(bytes.Buffer)
+	require.NoError(t, provider.Text(true, text))
+	require.Contains(t, text.String(), "Rejected subscriptions")
+	require.Contains(t, text.String(), "/missing")
+	html := new(bytes.Buffer)
+	require.NoError(t, provider.HTML(true, html))
+	require.Contains(t, html.String(), "Connected (partial)")
+	require.Contains(t, html.String(), "NotFound")
+	require.NotContains(t, html.String(), "<script>device error</script>")
+}
+
 func TestStatusWithoutDevices(t *testing.T) {
 	provider, _ := newTestProvider()
 

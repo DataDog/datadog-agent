@@ -51,6 +51,17 @@ func TestFormatCacheKey(t *testing.T) {
 	assert.Equal(t, "/interfaces/interface/state/counters/in-octets{name=eth0}", key)
 }
 
+func TestFormatRejectedSubscriptions(t *testing.T) {
+	lines := formatRejectedSubscriptions(map[string]string{
+		"/z": "device error\nsecond line",
+		"/a": "NotFound: missing",
+	})
+	require.Len(t, lines, 2)
+	require.Equal(t, `rejected_path="/a" error="NotFound: missing"`, lines[0])
+	require.Equal(t, `rejected_path="/z" error="device error\nsecond line"`, lines[1])
+	require.Empty(t, formatRejectedSubscriptions(nil))
+}
+
 func TestCommandsRegistersSubscribeAndPreviewMetrics(t *testing.T) {
 	commands := Commands(&command.GlobalParams{})
 	require.Len(t, commands, 1)
