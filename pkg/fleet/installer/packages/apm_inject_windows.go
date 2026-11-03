@@ -92,10 +92,11 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 	return nil
 }
 
-// enableSystemProbeConfig writes windows_crash_detection.enabled: true into
-// system-probe.yaml when host instrumentation is enabled. This enables the
-// crash detection module (and implicitly injector telemetry) to track the
-// ddinjector driver crashes and report its telemetry.
+// enableSystemProbeConfig writes windows_crash_detection.enabled: true and
+// injector.enable_logs: true into system-probe.yaml when host instrumentation
+// is enabled. This enables the crash detection module (and implicitly injector
+// telemetry), and the forwarding of ddinjector driver events, such as crashes,
+// as telemetry logs.
 func enableSystemProbeConfig(ctx HookContext) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "enable_system_probe_config")
 	defer func() { span.Finish(err) }()
@@ -104,8 +105,9 @@ func enableSystemProbeConfig(ctx HookContext) (err error) {
 	return enableSystemProbeConfigAt(configPath)
 }
 
-// enableSystemProbeConfigAt merges windows_crash_detection.enabled: true into
-// the given config file, preserving all existing settings. No-op if already enabled.
+// enableSystemProbeConfigAt merges windows_crash_detection.enabled: true and
+// injector.enable_logs: true into the given config file, preserving all existing
+// settings. No-op if both are already enabled.
 func enableSystemProbeConfigAt(configPath string) error {
 	existing, err := os.ReadFile(configPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -116,15 +118,20 @@ func enableSystemProbeConfigAt(configPath string) error {
 		if err := yaml.Unmarshal(existing, &cfg); err != nil {
 			return fmt.Errorf("failed to unmarshal system-probe.yaml: %w", err)
 		}
-		if cfg.WindowsCrashDetection.Enabled != nil && *cfg.WindowsCrashDetection.Enabled {
+		if isTrue(cfg.WindowsCrashDetection.Enabled) && isTrue(cfg.Injector.EnableLogs) {
 			return nil
 		}
 	}
 
 	update := config.SystemProbeConfig{
 		WindowsCrashDetection: config.WindowsCrashDetection{Enabled: config.BoolToPtr(true)},
+		Injector:              config.InjectorConfig{EnableLogs: config.BoolToPtr(true)},
 	}
 	return config.WriteConfig(configPath, update, 0640, true)
+}
+
+func isTrue(b *bool) bool {
+	return b != nil && *b
 }
 
 // preRemoveAPMInject is called before the APM inject package is removed

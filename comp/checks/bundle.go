@@ -12,6 +12,7 @@ package checks
 
 import (
 	agentcrashdetectfx "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/fx"
+	ddinjectorlogsfx "github.com/DataDog/datadog-agent/comp/checks/ddinjectorlogs/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,5 +21,7 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		agentcrashdetectfx.Module())
+		agentcrashdetectfx.Module(),
+		ddinjectorlogsfx.Module(),
+	)
 }

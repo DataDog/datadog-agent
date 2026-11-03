@@ -231,6 +231,12 @@ type SystemProbeConfig struct {
 	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
 	PrivilegedLogsConfig  PrivilegedLogsConfig  `yaml:"privileged_logs,omitempty"`
 	WindowsCrashDetection WindowsCrashDetection `yaml:"windows_crash_detection,omitempty"`
+	Injector              InjectorConfig        `yaml:"injector,omitempty"`
+}
+
+// InjectorConfig represents the configuration for the DDInjector driver integration
+type InjectorConfig struct {
+	EnableLogs *bool `yaml:"enable_logs,omitempty"`
 }
 
 // WindowsCrashDetection represents the configuration for Windows crash detection

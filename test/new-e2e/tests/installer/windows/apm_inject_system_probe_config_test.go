@@ -92,7 +92,7 @@ func (s *testSystemProbeConfig) TestStandaloneInstallDoesNotStartSystemProbe() {
 }
 
 // assertSystemProbeEnabled reads system-probe.yaml and asserts that
-// windows_crash_detection.enabled is true.
+// windows_crash_detection.enabled and injector.enable_logs are true.
 func (s *testSystemProbeConfig) assertSystemProbeEnabled() {
 	host := s.Env().RemoteHost
 	configRoot, err := windowsAgent.GetConfigRootFromRegistry(host)
@@ -108,4 +108,7 @@ func (s *testSystemProbeConfig) assertSystemProbeEnabled() {
 	wcdCfg, ok := cfg["windows_crash_detection"].(map[string]interface{})
 	s.Require().True(ok, "windows_crash_detection key missing in system-probe.yaml, got: %v", cfg)
 	s.Require().Equal(true, wcdCfg["enabled"], "windows_crash_detection.enabled should be true")
+	injectorCfg, ok := cfg["injector"].(map[string]interface{})
+	s.Require().True(ok, "injector key missing in system-probe.yaml, got: %v", cfg)
+	s.Require().Equal(true, injectorCfg["enable_logs"], "injector.enable_logs should be true")
 }
