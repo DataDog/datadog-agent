@@ -146,3 +146,63 @@ func (*bareDetectorForValidator) Ready() bool  { return true }
 func (*bareDetectorForValidator) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
+
+// JSON toggles and partial hyperparameter overrides must use the same warmup
+// as --only, while explicit values and the generic parser remain authoritative.
+func TestParseTestbenchSettingsFromJSON(t *testing.T) {
+	overrides := map[string]json.RawMessage{
+		"bocpd":          json.RawMessage(`{"enabled":true,"hazard":0.08}`),
+		"holt_residual":  json.RawMessage(`{"enabled":true,"alpha":0.4}`),
+		"tukey_biweight": json.RawMessage(`{"enabled":true,"z_threshold":6}`),
+		"scanmw":         json.RawMessage(`{"enabled":true,"max_points":96}`),
+		"scanwelch":      json.RawMessage(`{"enabled":true}`),
+		"anomaly_scorer": json.RawMessage(`{"enabled":true}`),
+	}
+	settings, err := ParseTestbenchSettingsFromJSON(overrides)
+	require.NoError(t, err)
+	bocpd := settings.configs["bocpd"].(BOCPDConfig)
+	require.Equal(t, 40, bocpd.WarmupPoints)
+	require.Equal(t, 0.08, bocpd.Hazard)
+	holt := settings.configs["holt_residual"].(HoltResidualConfig)
+	require.Equal(t, 15, holt.WarmupPoints)
+	require.Equal(t, 25, holt.ResidualWindow)
+	require.Equal(t, 0.4, holt.Alpha)
+	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
+	require.Equal(t, 40, tukey.MinPoints)
+	require.Equal(t, 40, tukey.WindowSize)
+	require.Equal(t, 6.0, tukey.ZThreshold)
+	require.Equal(t, 30, settings.configs["scanmw"].(*ScanMWDetector).MinPoints)
+	require.Equal(t, 96, settings.configs["scanmw"].(*ScanMWDetector).MaxPoints)
+	require.Equal(t, 30, settings.configs["scanwelch"].(*ScanWelchDetector).MinPoints)
+	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	require.True(t, scorer.CorrelationEvents)
+	require.Equal(t, DefaultAnomalyScorerConfig().CooldownSecs, scorer.CooldownSecs)
+
+	production, err := ParseSettingsFromJSON(overrides)
+	require.NoError(t, err)
+	require.Equal(t, 60, production.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	require.Equal(t, 24, production.configs["holt_residual"].(HoltResidualConfig).WarmupPoints)
+	require.Equal(t, 60, production.configs["holt_residual"].(HoltResidualConfig).ResidualWindow)
+	require.Equal(t, 80, production.configs["tukey_biweight"].(TukeyBiweightConfig).MinPoints)
+	require.Equal(t, 30, production.configs["scanmw"].(*ScanMWDetector).MinPoints)
+
+	explicit, err := ParseTestbenchSettingsFromJSON(map[string]json.RawMessage{
+		"bocpd":          json.RawMessage(`{"warmup_points":42}`),
+		"holt_residual":  json.RawMessage(`{"warmup_points":6,"residual_window":18}`),
+		"tukey_biweight": json.RawMessage(`{"min_points":20,"window_size":60}`),
+		"scanmw":         json.RawMessage(`{"min_points":42}`),
+		"scanwelch":      json.RawMessage(`{"min_points":36}`),
+		"anomaly_scorer": json.RawMessage(`{"enabled":false,"cooldown_secs":0,"correlation_events":false}`),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 42, explicit.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	require.Equal(t, 6, explicit.configs["holt_residual"].(HoltResidualConfig).WarmupPoints)
+	require.Equal(t, 18, explicit.configs["holt_residual"].(HoltResidualConfig).ResidualWindow)
+	require.Equal(t, 20, explicit.configs["tukey_biweight"].(TukeyBiweightConfig).MinPoints)
+	require.Equal(t, 60, explicit.configs["tukey_biweight"].(TukeyBiweightConfig).WindowSize)
+	require.Equal(t, 42, explicit.configs["scanmw"].(*ScanMWDetector).MinPoints)
+	require.Equal(t, 36, explicit.configs["scanwelch"].(*ScanWelchDetector).MinPoints)
+	require.False(t, explicit.Enabled["anomaly_scorer"])
+	require.Zero(t, explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).CooldownSecs)
+	require.False(t, explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).CorrelationEvents)
+}
