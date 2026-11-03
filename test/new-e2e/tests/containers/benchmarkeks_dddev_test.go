@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/cenkalti/backoff/v7"
+	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
@@ -100,16 +101,12 @@ func (c *dddevClient) querySeries(ctx context.Context, query string, from, to ti
 		return nil, fmt.Errorf("query %q failed: %s", query, *resp.Error)
 	}
 
-	series := make([][]benchmark.Point, 0, len(resp.Series))
-	for _, s := range resp.Series {
-		var points []benchmark.Point
-		for _, point := range s.Pointlist {
+	return lo.Map(resp.Series, func(s datadogV1.MetricsQueryMetadata, _ int) []benchmark.Point {
+		return lo.FilterMap(s.Pointlist, func(point []*float64, _ int) (benchmark.Point, bool) {
 			if len(point) != 2 || point[0] == nil || point[1] == nil {
-				continue
+				return benchmark.Point{}, false
 			}
-			points = append(points, benchmark.Point{Timestamp: time.UnixMilli(int64(*point[0])), Value: *point[1]})
-		}
-		series = append(series, points)
-	}
-	return series, nil
+			return benchmark.Point{Timestamp: time.UnixMilli(int64(*point[0])), Value: *point[1]}, true
+		})
+	}), nil
 }

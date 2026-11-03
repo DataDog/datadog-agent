@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -107,10 +108,8 @@ var (
 	untimedChecks = []string{"container", "containerd"}
 )
 
-// benchmarkComponents are the Agent workloads whose resource usage is compared, and whose
-// checks the functional tests verify. The run times of their checks with a stable set of
-// instances are compared too, but for untimedChecks (see stableChecks).
-var benchmarkComponents = []struct {
+// benchmarkComponent is one of benchmarkComponents.
+type benchmarkComponent struct {
 	name     string
 	workload func(*components.KubernetesAgent) kubeComp.KubernetesObjRefOutput
 	// role restricts the measured and checked pods to the nodes of the node pools of this
@@ -122,7 +121,12 @@ var benchmarkComponents = []struct {
 	// and the namespace of the variant.
 	scope  []string
 	checks []benchmark.CheckRequirement
-}{
+}
+
+// benchmarkComponents are the Agent workloads whose resource usage is compared, and whose
+// checks the functional tests verify. The run times of their checks with a stable set of
+// instances are compared too, but for untimedChecks (see stableChecks).
+var benchmarkComponents = []benchmarkComponent{
 	{
 		name: nodeAgentComponent,
 		workload: func(agent *components.KubernetesAgent) kubeComp.KubernetesObjRefOutput {
@@ -183,15 +187,11 @@ type stableCheck struct {
 // but for untimedChecks, run times are compared. A check is a small part of the CPU usage of
 // its container, so a large change of its cost can barely show in the container metrics.
 func stableChecks() []stableCheck {
-	var checks []stableCheck
-	for _, component := range benchmarkComponents {
-		for _, check := range component.checks {
-			if !check.AnyInstance {
-				checks = append(checks, stableCheck{component: component.name, check: check.Name})
-			}
-		}
-	}
-	return checks
+	return lo.FlatMap(benchmarkComponents, func(component benchmarkComponent, _ int) []stableCheck {
+		return lo.FilterMap(component.checks, func(check benchmark.CheckRequirement, _ int) (stableCheck, bool) {
+			return stableCheck{component: component.name, check: check.Name}, !check.AnyInstance
+		})
+	})
 }
 
 // benchmarkEKSSuite compares the resource usage of a baseline and a comparison Agent
@@ -798,10 +798,7 @@ func (s *benchmarkEKSSuite) pods(ctx context.Context, workload kubeComp.Kubernet
 	if err != nil {
 		return nil, err
 	}
-	nodeNames := make(map[string]bool, len(nodes.Items))
-	for _, node := range nodes.Items {
-		nodeNames[node.Name] = true
-	}
+	nodeNames := lo.SliceToMap(nodes.Items, func(node corev1.Node) (string, bool) { return node.Name, true })
 	return slices.DeleteFunc(pods.Items, func(pod corev1.Pod) bool { return !nodeNames[pod.Spec.NodeName] }), nil
 }
 
@@ -872,11 +869,7 @@ func (s *benchmarkEKSSuite) podRunnerStats(ctx context.Context, pod corev1.Pod, 
 // totalMetricSamples returns the metric samples the instances of check emitted in their
 // last run that emitted any, summed over the pods.
 func totalMetricSamples(stats map[string]benchmark.RunnerStats, check string) int64 {
-	var samples int64
-	for _, podStats := range stats {
-		samples += podStats.MetricSamples(check)
-	}
-	return samples
+	return lo.SumBy(lo.Values(stats), func(podStats benchmark.RunnerStats) int64 { return podStats.MetricSamples(check) })
 }
 
 // images returns the images the measured containers of the components of variant run.
