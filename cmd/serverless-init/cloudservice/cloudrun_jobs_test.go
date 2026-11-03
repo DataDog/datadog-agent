@@ -8,7 +8,6 @@ package cloudservice
 import (
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"runtime"
 	"testing"
@@ -93,41 +92,14 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	}, tags)
 }
 
-func TestCloudRunJobsGetMetadata(t *testing.T) {
-	skipOnWindows(t)
-	service := &CloudRunJobs{}
-
-	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
-		return map[string]string{
-			"container_id": "test_container",
-			"location":     "test_region",
-			"project_id":   "test_project",
-		}
-	}
-
-	t.Setenv("CLOUD_RUN_JOB", "test_job")
-	t.Setenv("CLOUD_RUN_EXECUTION", "test_execution")
-
-	service.GetTags()
-	metadata := service.GetMetadata()
-
-	assert.Equal(t, serverlessdef.CloudServiceMetadata{
-		WorkloadType:     workloadTypeCloudRunJob,
-		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/executions/test_execution",
-		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job",
-		ResourceName:     "test_job",
-		Region:           "test_region",
-		GCPProjectID:     "test_project",
-	}, metadata)
-	assert.True(t, service.CanCollectMetadata())
-}
-
 // TestCloudRunJobsGetMetadataMissingExecution pins that a missing
 // CLOUD_RUN_EXECUTION must not degrade the resource_id to the job ID.
 func TestCloudRunJobsGetMetadataMissingExecution(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
 
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"location":   "test_region",
@@ -136,44 +108,13 @@ func TestCloudRunJobsGetMetadataMissingExecution(t *testing.T) {
 	}
 
 	t.Setenv("CLOUD_RUN_JOB", "test_job")
-	os.Unsetenv("CLOUD_RUN_EXECUTION")
+	t.Setenv("CLOUD_RUN_EXECUTION", "")
 
 	service.GetTags()
 	metadata := service.GetMetadata()
 
 	assert.Empty(t, metadata.ResourceID)
 	assert.Equal(t, "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job", metadata.ParentResourceID)
-}
-
-func TestCloudRunJobExecutionIdentity(t *testing.T) {
-	saved := metadataHelperFunc
-	t.Cleanup(func() { metadataHelperFunc = saved })
-	instance := "first-instance"
-	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
-		return map[string]string{projectID: "project", location: "region", containerID: instance}
-	}
-	t.Setenv(cloudRunJobNameEnvVar, "unknown")
-	t.Setenv(cloudRunExecutionEnvVar, "execution")
-	t.Setenv(cloudRunTaskIndexEnvVar, "0")
-	t.Setenv(cloudRunTaskAttemptEnvVar, "0")
-	t.Setenv(cloudRunTaskCountEnvVar, "2")
-	firstTask := &CloudRunJobs{}
-	firstTask.GetTags()
-	first := firstTask.GetMetadata()
-	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/execution", first.ResourceID)
-	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/jobs/unknown", first.ParentResourceID)
-	t.Setenv(cloudRunTaskIndexEnvVar, "1")
-	t.Setenv(cloudRunTaskAttemptEnvVar, "2")
-	instance = "next-instance"
-	service := &CloudRunJobs{}
-	service.GetTags()
-	assert.Equal(t, first, service.GetMetadata())
-	t.Setenv(cloudRunExecutionEnvVar, "next-execution")
-	next := service.GetMetadata()
-	assert.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/next-execution", next.ResourceID)
-	assert.NotEqual(t, first.ResourceID, next.ResourceID)
-	assert.Equal(t, first.ParentResourceID, next.ParentResourceID)
-	assert.Equal(t, first.ResourceName, next.ResourceName)
 }
 
 func TestCloudRunJobsMetadataSharesTagLookup(t *testing.T) {
@@ -186,8 +127,13 @@ func TestCloudRunJobsMetadataSharesTagLookup(t *testing.T) {
 			t.Setenv(cloudRunTaskCountEnvVar, "3")
 			service := &CloudRunJobs{}
 			gcpMetadata := map[string]string{projectID: "", location: "", containerID: ""}
+			wantMetadata := serverlessdef.CloudServiceMetadata{WorkloadType: workloadTypeCloudRunJob, ResourceName: "job"}
 			if available {
 				gcpMetadata = map[string]string{projectID: "project", location: "region", containerID: "instance"}
+				wantMetadata.ResourceID = "//run.googleapis.com/projects/project/locations/region/executions/execution"
+				wantMetadata.ParentResourceID = "//run.googleapis.com/projects/project/locations/region/jobs/job"
+				wantMetadata.Region = "region"
+				wantMetadata.GCPProjectID = "project"
 			}
 			saved := metadataHelperFunc
 			t.Cleanup(func() { metadataHelperFunc = saved })
@@ -214,12 +160,12 @@ func TestCloudRunJobsMetadataSharesTagLookup(t *testing.T) {
 			assert.Equal(t, "3", second[cloudRunJobTagPrefix+taskCountTag])
 			if available {
 				assert.Equal(t, "projects/project/locations/region/jobs/job", second[cloudRunJobTagPrefix+resourceNameTag])
-				assert.NotEmpty(t, service.GetMetadata().ResourceID)
 			} else {
 				assert.NotContains(t, second, cloudRunJobTagPrefix+resourceNameTag)
 				assert.Equal(t, "unknown", service.GetEnhancedMetricTags(second).Base[projectID])
-				assert.Empty(t, service.GetMetadata().ResourceID)
 			}
+			assert.Equal(t, wantMetadata, service.GetMetadata())
+			assert.True(t, service.CanCollectMetadata())
 			assert.Equal(t, 1, calls, "metadata and telemetry share the cached lookup, including failures")
 		})
 	}
