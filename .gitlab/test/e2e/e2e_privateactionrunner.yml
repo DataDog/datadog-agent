@@ -15,6 +15,16 @@
         - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
         - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
+        - pkg/rshell/**/*
+        - pkg/config/**/*
+        - .go-version
+        - go.mod
+        - go.sum
+        - go.work
+        - MODULE.bazel*
+        - .bazelrc
+        - bazel/configs/**/*
+        - bazel/rules/go/**/*
         # The runner's control plane and executor are dd-procmgrd processes: procmgr
         # spawns them, and par-control drives the executor over the procmgr socket.
         - pkg/procmgr/**/*

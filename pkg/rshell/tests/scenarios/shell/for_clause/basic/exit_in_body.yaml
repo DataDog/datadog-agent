@@ -1,0 +1,14 @@
+description: Exit inside for loop body terminates the entire script immediately.
+input:
+  script: |+
+    for i in a b c; do
+      echo $i
+      exit 0
+      echo not reached
+    done
+    echo also not reached
+expect:
+  stdout: |+
+    a
+  stderr: ""
+  exit_code: 0

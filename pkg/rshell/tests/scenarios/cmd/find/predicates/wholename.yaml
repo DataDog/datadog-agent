@@ -1,0 +1,19 @@
+description: find -wholename is an alias for -path.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/sub/file.txt
+      content: "data"
+      chmod: 0644
+    - path: dir/other.txt
+      content: "other"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -wholename '*/sub/*'
+expect:
+  stdout: |+
+    dir/sub/file.txt
+  stderr: ""
+  exit_code: 0

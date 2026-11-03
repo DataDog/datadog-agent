@@ -1,0 +1,13 @@
+# skip: lsof is not installed by default in the debian:bookworm-slim
+# comparison image, and this builtin's flag set is a custom subset of real
+# lsof (see builtins/lsof's package doc comment).
+description: lsof rejects a non-numeric -u UID list entry
+skip_assert_against_bash: true
+input:
+  script: |+
+    lsof -u abc
+expect:
+  stdout: |+
+  stderr: |+
+    lsof: invalid UID: abc
+  exit_code: 1

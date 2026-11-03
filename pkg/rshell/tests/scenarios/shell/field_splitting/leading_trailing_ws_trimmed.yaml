@@ -1,0 +1,8 @@
+description: "Leading whitespace in IFS is trimmed during splitting"
+input:
+  script: |
+    A="  hello  world  "
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: "[hello]\n[world]\n"
+  exit_code: 0

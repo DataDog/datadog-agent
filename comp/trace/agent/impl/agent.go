@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sigdanger"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -310,6 +311,9 @@ func stop(ag component) error {
 // handleSignal closes a channel to exit cleanly from routines
 func handleSignal(shutdowner fx.Shutdowner, statsd ddgostatsd.ClientInterface) {
 	defer watchdog.LogOnPanic(statsd)
+
+	// Handle SIGDANGER (AIX paging space low); no-op on other platforms.
+	sigdanger.Init()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)

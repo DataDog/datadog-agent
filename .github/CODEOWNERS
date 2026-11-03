@@ -21,6 +21,7 @@
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
+/.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
 /.agents/*                                      @DataDog/agent-devx
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
@@ -131,7 +132,8 @@
 
 /.gitlab/.ci-linters.yml                                                  @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
-/.gitlab/.post/*                                                          @DataDog/agent-devx
+/.gitlab/aix/*                                                            @DataDog/agent-build @DataDog/agent-runtimes
+/.gitlab/.post/*                                                        @DataDog/agent-devx
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
@@ -531,6 +533,7 @@
 /comp/metadata/hostgpu @DataDog/accelerator-telemetry
 /comp/metadata/hostsysteminfo @DataDog/windows-products
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/metadata/serverlessinit @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/ebpf-platform
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/trace-telemetry @DataDog/agent-runtimes
@@ -546,6 +549,7 @@
 /comp/filterlist @DataDog/agent-metric-pipelines
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/network-device-monitoring-core
+/comp/intakerouting @DataDog/agent-data-plane
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
 /comp/metriclookback @DataDog/q-branch
@@ -597,6 +601,10 @@
 /comp/core/remoteagent/impl-systemprobe   @DataDog/agent-runtimes @DataDog/ebpf-platform
 /comp/core/remoteagent/impl-trace         @DataDog/agent-runtimes @DataDog/agent-apm
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
+
+# serverless-init metadata shares these with serverless-azure-and-gcp
+/comp/metadata/internal/agentmetadata/     @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
+/comp/metadata/internal/util/              @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
 
 # Host profiler: core profiling features are owned by profiling-full-host only;
 # the rest of comp/host-profiler is shared with opentelemetry-agent (see bundle.go)
@@ -802,6 +810,9 @@
 /pkg/procmgr/rust/src/transport/named_pipe.rs                         @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/privateactionrunner/                                             @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction/rshell                  @DataDog/action-platform @DataDog/dd-agent-mcp @DataDog/fleet-remediation
+/pkg/rshell/                                                         @DataDog/dd-agent-mcp @DataDog/fleet-remediation
+/.github/workflows/rshell-analysis.yml                               @DataDog/dd-agent-mcp @DataDog/fleet-remediation
+/.gitlab/test/rshell.yml                                             @DataDog/fleet-remediation
 /pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networkdevices          @DataDog/action-platform @DataDog/network-device-monitoring-core
 /pkg/privateactionrunner/bundles/remoteaction/networks                @DataDog/action-platform @Datadog/network-path
@@ -1000,6 +1011,7 @@
 /tasks/unit_tests/update_go_tests.py                            @DataDog/agent-runtimes
 /tasks/unit_tests/python_version_tests.py                       @DataDog/agent-integrations
 /tasks/unit_tests/kmt_tests.py                                  @DataDog/ebpf-platform
+/tasks/unit_tests/system_probe_test_programs_tests.py            @DataDog/debugger-go
 /tasks/unit_tests/macos_tests.py                                @DataDog/windows-products
 /tasks/unit_tests/winbuild_tests.py                             @DataDog/windows-products
 /tasks/cluster_agent_cloudfoundry.py                            @DataDog/agent-integrations
@@ -1010,6 +1022,7 @@
 /tasks/new_e2e_tests.py                                         @DataDog/agent-devx
 /tasks/process_agent.py                                         @DataDog/container-experiences
 /tasks/privateactionrunner.py                                   @DataDog/action-platform
+/tasks/rshell.py                                                @DataDog/fleet-remediation
 /tasks/system_probe.py                                          @DataDog/ebpf-platform
 /tasks/ebpf.py                                                  @DataDog/ebpf-platform
 /tasks/kmt.py                                                   @DataDog/ebpf-platform
@@ -1047,6 +1060,7 @@
 /tasks/libs/releasing/                                          @DataDog/agent-delivery
 /tasks/schema/                                                  @DataDog/fleet-automation
 /tasks/unit_tests/bazel_tests.py                                @DataDog/agent-build
+/tasks/unit_tests/bazel_remote_cache_tests.py                   @DataDog/agent-build
 /tasks/unit_tests/components_tests.py                           @DataDog/agent-runtimes
 /tasks/unit_tests/build_tags_tests.py                           @DataDog/agent-build
 /tasks/unit_tests/libs/build/                                   @DataDog/agent-build

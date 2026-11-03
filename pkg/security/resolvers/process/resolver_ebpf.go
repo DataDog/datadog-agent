@@ -2180,6 +2180,10 @@ func (p *EBPFResolver) UpdateMntNS(pce *model.ProcessCacheEntry, mntNS uint32) {
 	p.Lock()
 	defer p.Unlock()
 
+	// keep the namespace from fork or exec, a first resolution of an unknown one isn't a change
+	if pce.InitialMntNS == 0 {
+		pce.InitialMntNS = currMntNS
+	}
 	pce.MntNS = mntNS
 	if p.mountResolver != nil {
 		p.mountResolver.SetPidMntNs(pce.Pid, mntNS)

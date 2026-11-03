@@ -1,0 +1,13 @@
+description: cat -b overrides -n (only non-blank lines are numbered).
+setup:
+  files:
+    - path: file.txt
+      content: "a\n\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -n -b file.txt
+expect:
+  stdout: "     1\ta\n\n     2\tb\n"
+  stderr: ""
+  exit_code: 0

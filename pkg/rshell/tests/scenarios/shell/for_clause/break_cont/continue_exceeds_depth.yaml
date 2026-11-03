@@ -1,0 +1,8 @@
+description: Continue with level exceeding nesting depth continues all loops.
+input:
+  script: |+
+    for i in 1; do continue 2; echo not reached; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

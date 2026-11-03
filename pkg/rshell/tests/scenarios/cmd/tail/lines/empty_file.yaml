@@ -1,0 +1,13 @@
+description: tail on an empty file produces no output.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail empty.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

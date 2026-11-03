@@ -1,0 +1,11 @@
+description: Three levels of nested brace groups execute correctly.
+input:
+  script: |+
+    { { { echo deep; }; echo mid; }; echo outer; }
+expect:
+  stdout: |+
+    deep
+    mid
+    outer
+  stderr: ""
+  exit_code: 0

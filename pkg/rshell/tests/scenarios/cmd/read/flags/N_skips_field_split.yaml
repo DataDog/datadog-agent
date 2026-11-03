@@ -1,0 +1,9 @@
+description: read -N with multiple NAMEs assigns the entire read to the first var; others are empty (no IFS splitting).
+input:
+  script: |+
+    printf '%s' 'a b c' | { read -N 5 x y; echo "[$x][$y]"; }
+expect:
+  stdout: |+
+    [a b c][]
+  stderr: ""
+  exit_code: 0

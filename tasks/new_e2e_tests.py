@@ -598,12 +598,12 @@ def run(
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
-    _install_windows_testsuites(module_name, targets)
-
     if use_bazel_built_binaries:
         if not _build_binaries_with_bazel(ctx, targets):
             print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
             use_bazel_built_binaries = False
+
+    _install_windows_testsuites(module_name, targets)
 
     if use_bazel_built_binaries:
         bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")

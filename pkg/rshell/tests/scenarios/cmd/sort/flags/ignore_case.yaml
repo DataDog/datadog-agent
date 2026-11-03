@@ -1,0 +1,13 @@
+description: sort -f folds lowercase to uppercase for comparison.
+setup:
+  files:
+    - path: file.txt
+      content: "Banana\napple\nCherry\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -f file.txt
+expect:
+  stdout: "apple\nBanana\nCherry\n"
+  stderr: ""
+  exit_code: 0
