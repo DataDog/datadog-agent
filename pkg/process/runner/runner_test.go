@@ -315,7 +315,7 @@ func TestCollectorRunCheck(t *testing.T) {
 	c.runCheck(check)
 }
 
-func TestRunnerReadsLatestCoalescedRTStatus(t *testing.T) {
+func TestRunnerReadsLatestRTStatusAfterWakeupsCollapse(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		deps := getSubmitterDeps(t, nil, nil)
 		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
