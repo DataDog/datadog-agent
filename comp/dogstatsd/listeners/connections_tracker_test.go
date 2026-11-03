@@ -9,8 +9,55 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
+
+func TestConnectionTrackerStopsWithoutConnections(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewConnectionTracker("test", time.Hour)
+		tracker.Start()
+		start := time.Now()
+		tracker.Stop()
+		tracker.Stop()
+		synctest.Wait()
+		if !time.Now().Equal(start) {
+			t.Fatal("idle tracker waited for the connection close delay")
+		}
+	})
+}
+
+func TestConnectionTrackerPendingOperationsAtStop(t *testing.T) {
+	for _, operation := range []string{"track", "close"} {
+		t.Run(operation, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				tracker := NewConnectionTracker("test", 0)
+				a, b := net.Pipe()
+				defer b.Close()
+				done := make(chan struct{})
+				go func() {
+					if operation == "track" {
+						tracker.Track(a)
+						tracker.Close(a)
+					} else {
+						tracker.Close(a)
+					}
+					close(done)
+				}()
+				synctest.Wait()
+				stopped := make(chan struct{})
+				go func() { tracker.Stop(); close(stopped) }()
+				synctest.Wait()
+				tracker.Start()
+				<-stopped
+				<-done
+				if _, err := b.Write([]byte("closed")); err == nil {
+					t.Fatal("late connection was not closed")
+				}
+			})
+		})
+	}
+}
 
 func TestConnectionTrackerBasic(_ *testing.T) {
 	tracker := NewConnectionTracker("test", 1*time.Second)

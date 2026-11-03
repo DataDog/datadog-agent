@@ -88,8 +88,12 @@ func (s *Stats) Update(expStat *expvar.Int) {
 	for {
 		select {
 		case <-t.C:
-			last := <-s.Aggregated
-			expStat.Set(last.Val)
+			select {
+			case last := <-s.Aggregated:
+				expStat.Set(last.Val)
+			case <-s.stopped:
+				return
+			}
 		case <-s.stopped:
 			return
 		}
