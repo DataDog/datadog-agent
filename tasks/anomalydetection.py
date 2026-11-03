@@ -20,7 +20,13 @@ from pathlib import Path
 from invoke import Exit, task
 
 from tasks.libs.anomalydetection.ablation import AgentCIClient, run_ablation, write_json
-from tasks.libs.anomalydetection.datasets import DEFAULT_DATASET, prepare_dataset, read_dataset
+from tasks.libs.anomalydetection.datasets import (
+    DEFAULT_DATASET,
+    DEFAULT_PROJECT,
+    DEFAULT_SITE,
+    prepare_dataset,
+    read_dataset,
+)
 from tasks.libs.anomalydetection.ddeval import (
     ARTIFACT_BUCKET,
     ARTIFACT_REGION,
@@ -134,8 +140,8 @@ def launch_testbench(
     dataset: str = DEFAULT_DATASET,
     local: bool = False,
     scenario: str = "",
-    project: str = "observer-log-ad",
-    site: str = "datadoghq.com",
+    project: str = DEFAULT_PROJECT,
+    site: str = DEFAULT_SITE,
     aws_profile: str = "",
     only: str = "",
     api_port: int = 8080,
@@ -283,7 +289,7 @@ def launch_testbench(
 
 
 @task
-def list_datasets(ctx, project="observer-log-ad", site="datadoghq.com"):
+def list_datasets(ctx, project=DEFAULT_PROJECT, site=DEFAULT_SITE):
     """List the LLMObs datasets available for local evaluation."""
     for dataset in read_dataset(project=project, site=site):
         print(f"{dataset['name']}  ({dataset['id']})")
@@ -295,8 +301,8 @@ def download_scenarios(
     scenario: str = "",
     scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     dataset: str = DEFAULT_DATASET,
-    project: str = "observer-log-ad",
-    site: str = "datadoghq.com",
+    project: str = DEFAULT_PROJECT,
+    site: str = DEFAULT_SITE,
     aws_profile: str = "",
 ):
     """Download the latest LLMObs dataset's recordings and print the local replay directory.
@@ -318,15 +324,15 @@ def download_scenarios(
 @task(auto_shortflags=False)
 def eval_ddeval(
     ctx,
-    dataset: str = "Golden 25",
+    dataset: str = DEFAULT_DATASET,
     dataset_version: int = 0,
-    project: str = "observer-log-ad",
+    project: str = DEFAULT_PROJECT,
     service: str = "eval_worker_agent_aad",
     jobs: int = 6,
     max_attempts: int = 1,
     limit: int = 0,
     where_in: str = "",
-    data_env: str = "staging",
+    data_env: str = "",
     experiment_config: str = "",
     testbench_config: str = "",
     ddsource_dir: str = "",
@@ -335,6 +341,8 @@ def eval_ddeval(
     expires_in: int = 21600,
     build: bool = True,
     testbench_binary: str = "bin/anomalydetection-testbench",
+    config: str = "",
+    site: str = DEFAULT_SITE,
 ):
     """
     Build a local testbench and evaluate it remotely with the DDBuild DDEval worker.
@@ -347,11 +355,11 @@ def eval_ddeval(
     Examples:
         dda inv anomalydetection.eval-ddeval
         dda inv anomalydetection.eval-ddeval --where-in=metadata.record_id=scenario-a,scenario-b
-        dda inv anomalydetection.eval-ddeval --testbench-config=/tmp/observer-config.json
+        dda inv anomalydetection.eval-ddeval --config=/tmp/observer-config.json
         dda inv anomalydetection.eval-ddeval --ddeval-executable="C:\\Program Files\\DDEval\\ddeval.exe"
 
     Args:
-        dataset: LLMObs dataset to evaluate.
+        dataset: LLMObs dataset; defaults to the same recording dataset as eval-scenarios.
         dataset_version: Optional dataset version to pin (0 uses the latest).
         project: LLMObs/DDEval project name.
         service: Remote DDEval worker service.
@@ -359,9 +367,11 @@ def eval_ddeval(
         max_attempts: Maximum attempts per DDEval pipeline activity.
         limit: Optional maximum number of dataset records after filtering.
         where_in: Optional DDEval inclusion filter, such as metadata.record_id=a,b.
-        data_env: Datadog site from which the worker reads evaluation data.
+        site: LLMObs site; this DDBuild worker supports datadoghq.com only.
+        data_env: Legacy alias for site selection; only prod is supported remotely.
         experiment_config: Optional base DDEval experiment-config JSON file.
-        testbench_config: Optional Observer component-config JSON file.
+        config: Optional Observer component-config JSON file, as in eval-scenarios.
+        testbench_config: Alias for --config.
         ddsource_dir: dd-source checkout used to run DDEval with Bazel.
         ddeval_executable: Path or name of an installed DDEval executable; bypasses dd-source/Bazel discovery.
         aws_profile: Optional AWS CLI profile with write access to qbranch-gensim-recordings.
@@ -380,8 +390,15 @@ def eval_ddeval(
         raise Exit("--limit must be non-negative", code=2)
     if not 60 <= expires_in <= 604800:
         raise Exit("--expires-in must be between 60 and 604800 seconds", code=2)
-    if data_env not in {"staging", "prod", "eu1", "us3"}:
-        raise Exit("--data-env must be one of staging, prod, eu1, or us3", code=2)
+    if site != DEFAULT_SITE or data_env not in {"", "prod"}:
+        raise Exit(
+            "The DDBuild worker uses production LLMObs (--site datadoghq.com). "
+            "Other sites require a worker in that environment; --data-env cannot override a remote worker's site.",
+            code=2,
+        )
+    if config and testbench_config and config != testbench_config:
+        raise Exit("--config and --testbench-config must not specify different files", code=2)
+    testbench_config = config or testbench_config
 
     binary_path = Path(testbench_binary).expanduser().resolve()
     default_binary_path = Path("bin/anomalydetection-testbench").resolve()
@@ -486,7 +503,7 @@ def eval_ddeval(
         presigned_url = presign_result.stdout.strip()
         try:
             validate_presigned_artifact_url(presigned_url)
-            config = build_experiment_config(
+            remote_config = build_experiment_config(
                 base_config,
                 testbench_url=presigned_url,
                 testbench_sha256=digest,
@@ -497,7 +514,7 @@ def eval_ddeval(
 
         config_fd, config_path = tempfile.mkstemp(prefix="observer-ddeval-", suffix=".json")
         with os.fdopen(config_fd, "w") as config_file:
-            json.dump(config, config_file)
+            json.dump(remote_config, config_file)
 
         command = workflow_run_args(
             command_prefix,
@@ -508,7 +525,6 @@ def eval_ddeval(
             config_path=config_path,
             jobs=jobs,
             max_attempts=max_attempts,
-            data_env=data_env,
             limit=limit,
             where_in=where_in,
         )
@@ -606,8 +622,8 @@ def eval_scenarios(
     scenarios: str = "",
     _logger: StepLogger | None = None,
     dataset: str = DEFAULT_DATASET,
-    project: str = "observer-log-ad",
-    site: str = "datadoghq.com",
+    project: str = DEFAULT_PROJECT,
+    site: str = DEFAULT_SITE,
     aws_profile: str = "",
     local: bool = False,
     retain_parquet: bool = False,

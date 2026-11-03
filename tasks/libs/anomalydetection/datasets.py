@@ -16,6 +16,8 @@ from tasks.libs.anomalydetection.ddeval import sha256_file
 from tasks.libs.common.s3 import download_file_from_s3
 
 DEFAULT_DATASET = "observer-metric-types-2026-10-26"
+DEFAULT_PROJECT = "observer-log-ad"
+DEFAULT_SITE = "datadoghq.com"
 
 
 def _api_pages(path, site):
@@ -44,7 +46,7 @@ def _api_pages(path, site):
         path = query.path + "?" + urllib.parse.urlencode(params, doseq=True)
 
 
-def read_dataset(dataset="", project="observer-log-ad", site="datadoghq.com"):
+def read_dataset(dataset="", project=DEFAULT_PROJECT, site=DEFAULT_SITE):
     """Read the latest dataset using Datadog API/application keys from the environment."""
     if site not in {
         "datadoghq.com",

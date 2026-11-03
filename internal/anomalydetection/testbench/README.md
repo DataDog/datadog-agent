@@ -45,13 +45,19 @@ dda inv anomalydetection.list-datasets
 # Open a dataset in the testbench; optionally select one scenario.
 dda inv anomalydetection.launch-testbench --build --dataset "my-recordings" --scenario "my-scenario"
 
-# Evaluate all scenarios in a dataset using F1.
-dda inv anomalydetection.eval-scenarios --dataset "my-recordings"
+# Evaluate locally, or submit the same dataset and settings to the worker.
+dda inv anomalydetection.eval-scenarios --dataset "my-recordings" --config params.json
+dda inv anomalydetection.eval-ddeval --dataset "my-recordings" --config params.json
 ```
 
 `--dataset` accepts a name or UUID and reads its latest version. If omitted, it
-defaults to `observer-metric-types-2026-10-26`. Use `--project` and `--site` for
-another LLMObs project or site. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+defaults to `observer-metric-types-2026-10-26`. Both evaluators default to project
+`observer-log-ad` on `datadoghq.com`. Local replay accepts other `--site` values;
+the remote command targets the production DDBuild worker. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+
+Use local evaluation for detector iteration and visual investigation, and DDEval
+for worker execution and shared experiment results. DDEval also accepts the older
+`--testbench-config` spelling of `--config`.
 
 Each row must provide `scenario` and `recording` (`uri`, `sha256`, and optionally
 `episode_member`). ZIPs contain episode metadata and Parquet files; the loader
