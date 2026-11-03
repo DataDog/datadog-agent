@@ -264,18 +264,20 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     rm -vf /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
     rm -vf /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
 
-    # Builds that kept the root installer daemon's state in the Agent's own run directory, which
-    # the Agent's account can write to. Nothing reads these any longer: the daemon keeps its state
-    # in its own root-owned run directory, /opt/datadog-packages/run (see
-    # pkg/fleet/installer/paths/installer_paths_darwin.go). rm unlinks the names themselves, so a
-    # link planted in their place is never followed.
-    for stale in experiment-deadline installer.sock installer.pid installer_tasks.db remote-config-installer.db; do
+    # Builds that kept the root installer daemon's task state in the Agent's own run directory.
+    # Nothing reads these any longer: the daemon keeps its socket and task database in
+    # /opt/datadog-packages/run (see pkg/fleet/installer/paths/installer_paths_darwin.go). Its
+    # remote configuration database stays in the Agent's run directory, which is run_path's
+    # default, so it is not listed here. rm unlinks the names themselves.
+    for stale in experiment-deadline installer.sock installer.pid installer_tasks.db; do
         rm -vf "$INSTALL_DIR/run/$stale"
     done
 
-    # Builds that logged the installer daemon under the packages root. It now logs to $LOG_DIR,
+    # Builds that logged the installer daemon under the packages root, or kept its remote
+    # configuration database there. It now logs to $LOG_DIR and the database follows run_path,
     # and anything left under the packages root would be read as a package.
     rm -rvf /opt/datadog-packages/logs
+    rm -vf /opt/datadog-packages/run/remote-config-installer.db
 
     # Stop GUI for all logged-in users
     for logged_user in $(who | awk '{print $1}' | sort -u); do

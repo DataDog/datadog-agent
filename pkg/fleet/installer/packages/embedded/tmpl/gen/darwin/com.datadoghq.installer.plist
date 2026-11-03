@@ -15,8 +15,6 @@
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
-            <key>DD_RUN_PATH</key>
-            <string>/opt/datadog-packages/run</string>
         </dict>
         <key>ProgramArguments</key>
         <array>
