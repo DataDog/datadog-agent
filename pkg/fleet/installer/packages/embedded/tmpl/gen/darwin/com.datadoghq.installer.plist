@@ -26,9 +26,9 @@
             <string>/opt/datadog-agent/etc</string>
         </array>
         <key>StandardOutPath</key>
-        <string>/opt/datadog-packages/logs/launchd_installer.log</string>
+        <string>/opt/datadog-agent/logs/launchd_installer.log</string>
         <key>StandardErrorPath</key>
-        <string>/opt/datadog-packages/logs/launchd_installer.log</string>
+        <string>/opt/datadog-agent/logs/launchd_installer.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

@@ -194,19 +194,18 @@ func TestLaunchdAgentAndSysprobeReadTheSameConfig(t *testing.T) {
 }
 
 // TestLaunchdInstallerKeepsItsStateOutOfTheAgentsReach pins that the root installer daemon's job
-// sends its run state and its logs to its own root-owned directories, never to the install root
-// the Agent's account can write to, and that it writes no pidfile.
+// keeps its run state in its own root-owned directory, never under the install root the Agent's
+// account can write to, that it logs next to the Agent's other jobs, and that it writes no pidfile.
 func TestLaunchdInstallerKeepsItsStateOutOfTheAgentsReach(t *testing.T) {
 	content, err := GetLaunchdJob("com.datadoghq.installer")
 	require.NoError(t, err)
 	definition := string(content)
 
 	assert.Regexp(t, `<key>DD_RUN_PATH</key>\s*<string>/opt/datadog-packages/run</string>`, definition)
-	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-packages/logs/`, definition)
-	assert.Regexp(t, `<key>StandardErrorPath</key>\s*<string>/opt/datadog-packages/logs/`, definition)
+	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-agent/logs/launchd_installer.log</string>`, definition)
+	assert.Regexp(t, `<key>StandardErrorPath</key>\s*<string>/opt/datadog-agent/logs/launchd_installer.log</string>`, definition)
 	assert.Regexp(t, `<key>UserName</key>\s*<string>root</string>`, definition)
 	assert.NotContains(t, definition, "/opt/datadog-agent/run")
-	assert.NotContains(t, definition, "/opt/datadog-agent/logs")
 
 	var plist struct {
 		Args []string `xml:"dict>array>string"`

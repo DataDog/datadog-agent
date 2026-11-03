@@ -68,8 +68,16 @@ func TestThereIsOnlyOneInstallerBinary(t *testing.T) {
 func TestTheInstallerRunPathIsOutsideTheAgentsTree(t *testing.T) {
 	assert.False(t, strings.HasPrefix(RunPath, DefaultUserConfigsDir+"/"))
 	assert.True(t, strings.HasPrefix(RunPath, PackagesPath+"/"))
-	assert.False(t, strings.HasPrefix(InstallerLogPath, DefaultUserConfigsDir+"/"))
-	assert.True(t, strings.HasPrefix(InstallerLogPath, PackagesPath+"/"))
+}
+
+// TestEnsureInstallerDataDirOnlyManagesTheInstallersOwnState pins the directories made root-owned:
+// the packages root and the daemon's run directory, nothing under the install root, whose log
+// directory the Agent's account must keep writing to.
+func TestEnsureInstallerDataDirOnlyManagesTheInstallersOwnState(t *testing.T) {
+	assert.Equal(t, []string{PackagesPath, RunPath}, installerDataDirs)
+	for _, dir := range installerDataDirs {
+		assert.False(t, strings.HasPrefix(dir, DefaultUserConfigsDir+"/"), dir)
+	}
 }
 
 func testOwner() dirOwner {

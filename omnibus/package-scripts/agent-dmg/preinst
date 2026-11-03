@@ -273,6 +273,10 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
         rm -vf "$INSTALL_DIR/run/$stale"
     done
 
+    # Builds that logged the installer daemon under the packages root. It now logs to $LOG_DIR,
+    # and anything left under the packages root would be read as a package.
+    rm -rvf /opt/datadog-packages/logs
+
     # Stop GUI for all logged-in users
     for logged_user in $(who | awk '{print $1}' | sort -u); do
         logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue

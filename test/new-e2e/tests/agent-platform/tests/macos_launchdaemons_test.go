@@ -49,12 +49,11 @@ const (
 // Agent's own jobs; the postinstall script's fallback does not install it.
 const macosInstallerLaunchDaemon = "com.datadoghq.installer"
 
-// macosInstallerOwnDirs are the installer daemon's run and log directories, which must be root-owned
-// and writable by root only.
+// macosInstallerOwnDirs are the directories the installer daemon keeps its state in, which must be
+// root-owned and writable by root only.
 var macosInstallerOwnDirs = []string{
 	"/opt/datadog-packages",
 	"/opt/datadog-packages/run",
-	"/opt/datadog-packages/logs",
 }
 
 // macosStableLaunchDaemons are the Agent's stable LaunchDaemons, in load order. They are also the
@@ -194,8 +193,8 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient) {
 }
 
 // assertMacosInstallerLaunchDaemon checks the installer loaded its own daemon's job, root:wheel 644,
-// and that the directories the daemon keeps its state and logs in are root-owned and writable by
-// root only, since the daemon runs as root and trusts what they hold.
+// and that the directories the daemon keeps its state in are root-owned and writable by root only,
+// since the daemon runs as root and trusts what they hold.
 func assertMacosInstallerLaunchDaemon(t *testing.T, client *common.MacOSTestClient) {
 	plist := macosLaunchDaemonPath(macosInstallerLaunchDaemon)
 	attributes, err := client.Execute("sudo stat -f '%Su:%Sg %Lp' " + plist)
