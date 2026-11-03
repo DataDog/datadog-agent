@@ -47,7 +47,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "any(xs, {@it == 42}) && tag == \"match\"",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -75,7 +81,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "any(xs, {@it == 42}) && tag == \"match\"",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },

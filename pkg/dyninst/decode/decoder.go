@@ -378,21 +378,12 @@ func (s *message) init(
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
+	conditionErrIdx := -1
 	if header.Condition_eval_error != 0 {
-		whenDSL := probe.GetWhenDSL()
-		if whenDSL == "" {
-			whenDSL = "@when"
-		}
-		msg := "error evaluating condition"
-		if header.Condition_eval_error == 2 {
-			msg = errNilPointerEvaluating.Error()
-		}
+		conditionErrIdx = len(s.Debugger.Snapshot.EvaluationErrors)
 		s.Debugger.Snapshot.EvaluationErrors = append(
 			s.Debugger.Snapshot.EvaluationErrors,
-			evaluationError{
-				Expression: whenDSL,
-				Message:    msg,
-			},
+			conditionEvalError(probe, header.Condition_eval_error),
 		)
 	}
 	switch probeEvent.event.Kind {
@@ -450,22 +441,15 @@ func (s *message) init(
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
 		}
+		// A split condition's return-side replay is its final verdict, so it
+		// replaces the entry-side row rather than adding a second one.
 		if returnHeader.Condition_eval_error != 0 {
-			whenDSL := probe.GetWhenDSL()
-			if whenDSL == "" {
-				whenDSL = "@when"
+			row := conditionEvalError(probe, returnHeader.Condition_eval_error)
+			if conditionErrIdx >= 0 {
+				s.Debugger.Snapshot.EvaluationErrors[conditionErrIdx] = row
+			} else {
+				s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors, row)
 			}
-			msg := "error evaluating condition"
-			if returnHeader.Condition_eval_error == 2 {
-				msg = errNilPointerEvaluating.Error()
-			}
-			s.Debugger.Snapshot.EvaluationErrors = append(
-				s.Debugger.Snapshot.EvaluationErrors,
-				evaluationError{
-					Expression: whenDSL,
-					Message:    msg,
-				},
-			)
 		}
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.captures.Return = &decoder._return
@@ -600,4 +584,16 @@ func (s *message) setTraceContext(trace traceContext) {
 	if trace.parentID != 0 {
 		s.DDParentID = strconv.FormatUint(trace.parentID, 10)
 	}
+}
+
+func conditionEvalError(probe ir.ProbeDefinition, code uint8) evaluationError {
+	whenDSL := probe.GetWhenDSL()
+	if whenDSL == "" {
+		whenDSL = "@when"
+	}
+	msg := "error evaluating condition"
+	if code == 2 {
+		msg = errNilPointerEvaluating.Error()
+	}
+	return evaluationError{Expression: whenDSL, Message: msg}
 }
