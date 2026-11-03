@@ -1,0 +1,24 @@
+description: ls -l shows long format with mode, size, date, and name.
+# skip_assert_against_bash: rshell displays numeric UID/GID (sandbox safety)
+# while GNU ls resolves to usernames, so long-format output will always differ.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: hello.txt
+      content: "hello world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -l hello.txt
+expect:
+  stdout_contains:
+    - "-rw-r--r--"
+    - "11"
+    - "hello.txt"
+  stdout_contains_windows:
+    - "-rw-rw-rw-"
+    - "11"
+    - "hello.txt"
+  stderr: ""
+  exit_code: 0

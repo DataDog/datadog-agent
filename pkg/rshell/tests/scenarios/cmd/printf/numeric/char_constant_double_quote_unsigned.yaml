@@ -1,0 +1,7 @@
+description: Double-quote character constant with unsigned format gives ASCII value.
+input:
+  script: |+
+    printf "%u\n" '"A'
+expect:
+  stdout: "65\n"
+  exit_code: 0

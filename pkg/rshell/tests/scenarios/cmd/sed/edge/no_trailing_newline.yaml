@@ -1,0 +1,19 @@
+description: >-
+  Sed processes a file without a trailing newline.
+  Intentional divergence: rshell sed always adds a trailing newline for
+  consistent output for AI agent consumers. GNU sed preserves the absence
+  of a trailing newline.
+setup:
+  files:
+    - path: input.txt
+      content: "no newline at end"
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/end/END/' input.txt
+expect:
+  stdout: "no newline at END\n"
+  stderr: ""
+  exit_code: 0

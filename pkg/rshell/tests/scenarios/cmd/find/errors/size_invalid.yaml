@@ -1,0 +1,14 @@
+description: find -size with invalid value produces error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -size abc
+expect:
+  stderr_contains: ["invalid argument 'abc' to -size"]
+  exit_code: 1

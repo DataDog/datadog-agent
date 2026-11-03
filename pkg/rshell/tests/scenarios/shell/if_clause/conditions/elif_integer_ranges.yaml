@@ -1,0 +1,23 @@
+description: Elif chain classifying integer ranges with test builtin.
+input:
+  script: |+
+    for N in 0 5 15 25 100; do
+      if [ "$N" -lt 1 ]; then
+        echo "$N:zero"
+      elif [ "$N" -le 10 ]; then
+        echo "$N:low"
+      elif [ "$N" -le 20 ]; then
+        echo "$N:mid"
+      else
+        echo "$N:high"
+      fi
+    done
+expect:
+  stdout: |+
+    0:zero
+    5:low
+    15:mid
+    25:high
+    100:high
+  stderr: ""
+  exit_code: 0

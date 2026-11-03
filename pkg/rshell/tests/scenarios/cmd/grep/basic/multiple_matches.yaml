@@ -1,0 +1,20 @@
+description: grep prints all matching lines.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        bar
+        foo baz
+        qux
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep foo file.txt
+expect:
+  stdout: |+
+    foo
+    foo baz
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,20 @@
+description: Asterisk with both prefix and suffix matches files with that pattern.
+setup:
+  files:
+    - path: test_one.sh
+      content: ""
+    - path: test_two.sh
+      content: ""
+    - path: test_three.go
+      content: ""
+    - path: run_one.sh
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo test_*.sh
+expect:
+  stdout: |+
+    test_one.sh test_two.sh
+  stderr: ""
+  exit_code: 0

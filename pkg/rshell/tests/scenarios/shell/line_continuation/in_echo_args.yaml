@@ -1,0 +1,11 @@
+description: Line continuation between echo arguments continues on next line.
+input:
+  script: |+
+    echo foo \
+    bar \
+    baz
+expect:
+  stdout: |+
+    foo bar baz
+  stderr: ""
+  exit_code: 0
