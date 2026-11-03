@@ -504,7 +504,7 @@ require (
 	k8s.io/cli-runtime v0.37.1
 	k8s.io/client-go v0.37.1
 	k8s.io/component-base v0.37.1
-	k8s.io/cri-api v0.37.1
+	k8s.io/cri-api v0.37.2
 	k8s.io/cri-client v0.37.1
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.37.1
