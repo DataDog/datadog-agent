@@ -22,6 +22,8 @@ type Payload struct {
 	// TODO: gohai alternative (or fix gohai)
 }
 
+var _ marshaler.TypedJSONMarshaler = (*Payload)(nil)
+
 // PayloadType implements marshaler.TypedJSONMarshaler
 func (p *Payload) PayloadType() marshaler.PayloadType {
 	return marshaler.PayloadTypeHostV5

@@ -538,7 +538,7 @@ func TestSendMetadataPayloadTypeHeader(t *testing.T) {
 	tests := []struct {
 		name   string
 		submit string
-		send   func(s *Serializer, m marshaler.TypedJSONMarshaler) error
+		send   func(s *Serializer, m marshaler.JSONMarshaler) error
 		typ    marshaler.PayloadType
 	}{
 		{"metadata", "SubmitMetadata", (*Serializer).SendMetadata, marshaler.PayloadTypeCheckMetadata},
@@ -564,6 +564,26 @@ func TestSendMetadataPayloadTypeHeader(t *testing.T) {
 			assert.Empty(t, s.jsonExtraHeadersWithCompression.Get(payloadTypeHTTPHeader))
 		})
 	}
+}
+
+// untypedTestPayload does not implement marshaler.TypedJSONMarshaler, like payloads built outside this repository.
+type untypedTestPayload struct{}
+
+func (p *untypedTestPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
+
+func TestSendMetadataWithoutPayloadType(t *testing.T) {
+	mockConfig := configmock.New(t)
+	f := &forwarder.MockedForwarder{}
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	f.On("SubmitMetadata", mock.Anything, mock.MatchedBy(func(h http.Header) bool {
+		_, ok := h[http.CanonicalHeaderKey(payloadTypeHTTPHeader)]
+		return !ok
+	})).Return(nil).Times(1)
+
+	require.NoError(t, s.SendMetadata(&untypedTestPayload{}))
+	f.AssertExpectations(t)
 }
 
 func TestSendMetadataDoesNotLogPayload(t *testing.T) {
