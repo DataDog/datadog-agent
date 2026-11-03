@@ -6915,6 +6915,71 @@ func TestExtractTagsFromPodAutoscalers(t *testing.T) {
 	}
 }
 
+func TestHandleAutoscaledWorkloads(t *testing.T) {
+	store := fxutil.Test[workloadmetamock.Mock](
+		t,
+		fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Supply(context.Background()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		),
+	)
+	processor := &recordingProcessor{}
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, processor)
+
+	processAutoscaler := func(eventType workloadmeta.EventType, autoscaler *workloadmeta.KubernetesAutoscaler) map[string][]string {
+		processor.tagInfos = nil
+		collector.processEvents(workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{{Type: eventType, Entity: autoscaler}},
+			Ch:     make(chan struct{}),
+		})
+		return autoscaledWorkloadTagInfos(t, processor.tagInfos)
+	}
+	setAutoscaler := func(autoscaler *workloadmeta.KubernetesAutoscaler) map[string][]string {
+		return processAutoscaler(workloadmeta.EventTypeSet, autoscaler)
+	}
+	unsetAutoscaler := func(autoscaler *workloadmeta.KubernetesAutoscaler) map[string][]string {
+		return processAutoscaler(workloadmeta.EventTypeUnset, autoscaler)
+	}
+
+	// One autoscaler
+	hpa := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, "my-ns", "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	workloadTags := setAutoscaler(hpa)
+	assert.Equal(t, map[string][]string{
+		"deployment/my-ns/app-a": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+	}, workloadTags)
+
+	// Two autoscalers on the same target
+	vpa := newTestAutoscaler(workloadmeta.AutoscalerKindVPA, "my-ns", "my-vpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	workloadTags = setAutoscaler(vpa)
+	assert.Equal(t, map[string][]string{
+		"deployment/my-ns/app-a": {"kube_autoscaler_kind:horizontalpodautoscaler", "kube_autoscaler_kind:verticalpodautoscaler"},
+	}, workloadTags)
+
+	// Autoscalers in another namespace don't affect this one
+	otherNsKEDA := newTestAutoscaler(workloadmeta.AutoscalerKindKEDA, "other-ns", "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	workloadTags = setAutoscaler(otherNsKEDA)
+	assert.Equal(t, map[string][]string{
+		"deployment/other-ns/app-a": {"kube_autoscaler_kind:keda"},
+	}, workloadTags)
+
+	// Target change: the old target keeps the other autoscaler, the new one is created
+	hpa = newTestAutoscaler(workloadmeta.AutoscalerKindHPA, "my-ns", "my-hpa", workloadmeta.AutoscalerTargetStatefulSet, "app-b")
+	workloadTags = setAutoscaler(hpa)
+	assert.Equal(t, map[string][]string{
+		"deployment/my-ns/app-a":  {"kube_autoscaler_kind:verticalpodautoscaler"},
+		"statefulset/my-ns/app-b": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+	}, workloadTags)
+
+	// The last autoscaler of a target is deleted: its tags are cleared
+	workloadTags = unsetAutoscaler(vpa)
+	assert.Equal(t, map[string][]string{"deployment/my-ns/app-a": {}}, workloadTags)
+
+	workloadTags = unsetAutoscaler(hpa)
+	assert.Equal(t, map[string][]string{"statefulset/my-ns/app-b": {}}, workloadTags)
+}
+
 func TestRetagAutoscalerDependentPods(t *testing.T) {
 	const namespace = "my-ns"
 	hpaA := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, namespace, "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
@@ -7042,6 +7107,29 @@ func newTestAutoscaler(kind workloadmeta.AutoscalerKind, namespace, name string,
 		TargetKind:     targetKind,
 		TargetName:     targetName,
 	}
+}
+
+// autoscaledWorkloadTagInfos returns the tags of the autoscaled workload
+// entities in a batch of tag infos, keyed by entity ID
+func autoscaledWorkloadTagInfos(t *testing.T, tagInfos []*types.TagInfo) map[string][]string {
+	t.Helper()
+
+	workloadTags := make(map[string][]string)
+	for _, tagInfo := range tagInfos {
+		if tagInfo.EntityID.GetPrefix() != types.KubernetesAutoscaledWorkload {
+			continue
+		}
+		assert.Equal(t, autoscaledWorkloadSource, tagInfo.Source)
+		id := tagInfo.EntityID.GetID()
+		assert.False(t, tagInfo.DeleteEntity)
+		assert.True(t, tagInfo.IsComplete)
+		assert.Empty(t, tagInfo.HighCardTags)
+		assert.Empty(t, tagInfo.OrchestratorCardTags)
+		lowCardTags := append([]string{}, tagInfo.LowCardTags...)
+		sort.Strings(lowCardTags)
+		workloadTags[id] = lowCardTags
+	}
+	return workloadTags
 }
 
 type recordingProcessor struct {
