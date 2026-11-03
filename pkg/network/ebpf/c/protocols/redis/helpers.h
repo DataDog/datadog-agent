@@ -21,29 +21,39 @@ static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
     // memcmp returns
     // 0 when s1 == s2,
     // !0 when s1 != s2.
-    bool match = !(bpf_memcmp(buf, ERR, sizeof(ERR)-1)
-        && bpf_memcmp(buf, WRONGTYPE, sizeof(WRONGTYPE)-1));
-
-    return match;
+    // Each prefix is compared only if the buffer is long enough to hold it.
+    if (buf_size >= sizeof(ERR)-1 && !bpf_memcmp(buf, ERR, sizeof(ERR)-1)) {
+        return true;
+    }
+    if (buf_size >= sizeof(WRONGTYPE)-1 && !bpf_memcmp(buf, WRONGTYPE, sizeof(WRONGTYPE)-1)) {
+        return true;
+    }
+    return false;
 }
 
 // Character classes permitted between a RESP type byte and the CRLF that
 // terminates its first field. Passed as a mask so that every RESP type shares
 // one validator rather than each growing its own.
-#define RESP_CLASS_DIGIT (1 << 0) // 0-9
-#define RESP_CLASS_SIGN  (1 << 1) // '-' or '+', leading position only
-#define RESP_CLASS_DOT   (1 << 2) // '.', for RESP3 doubles
-#define RESP_CLASS_ALPHA (1 << 3) // A-Za-z, for +OK, -ERR, inf/nan
-#define RESP_CLASS_PUNCT (1 << 4) // ' ', '-', '_', for error and status text
-#define RESP_CLASS_INNER_SIGN (1 << 5) // '-' or '+' at any position, for double exponents (1e-7)
+#define RESP_CLASS_DIGIT        (1 << 0) // 0-9
+#define RESP_CLASS_SIGN         (1 << 1) // '-' or '+', leading position only, for integers and big numbers
+#define RESP_CLASS_MINUS        (1 << 2) // '-', leading position only, for the null forms $-1 and *-1
+#define RESP_CLASS_DOT          (1 << 3) // '.', for RESP3 doubles
+#define RESP_CLASS_ALPHA        (1 << 4) // A-Za-z, for +OK, -NOPE ...
+#define RESP_CLASS_PUNCT        (1 << 5) // ' ', '-', '_', for error and status text
+#define RESP_CLASS_INNER_SIGN   (1 << 6) // '-' or '+' at any position, for double signs and exponents (-1.5, 1e-7)
+#define RESP_CLASS_DOUBLE_ALPHA (1 << 7) // the letters of inf, nan and the exponent marker: i n f a e E
 
 // Is c acceptable inside a RESP field of the given classes? `first` marks the
-// byte immediately after the type prefix, the only position a sign may occupy.
+// byte immediately after the type prefix, the only position a leading sign may
+// occupy.
 static __always_inline bool resp_char_allowed(char c, __u8 allowed_classes, bool first) {
     if ((allowed_classes & RESP_CLASS_DIGIT) && '0' <= c && c <= '9') {
         return true;
     }
     if ((allowed_classes & RESP_CLASS_SIGN) && first && (c == '-' || c == '+')) {
+        return true;
+    }
+    if ((allowed_classes & RESP_CLASS_MINUS) && first && c == '-') {
         return true;
     }
     if ((allowed_classes & RESP_CLASS_DOT) && c == '.') {
@@ -56,6 +66,10 @@ static __always_inline bool resp_char_allowed(char c, __u8 allowed_classes, bool
         return true;
     }
     if ((allowed_classes & RESP_CLASS_INNER_SIGN) && (c == '-' || c == '+')) {
+        return true;
+    }
+    if ((allowed_classes & RESP_CLASS_DOUBLE_ALPHA) &&
+        (c == 'i' || c == 'n' || c == 'f' || c == 'a' || c == 'e' || c == 'E')) {
         return true;
     }
     return false;
@@ -88,18 +102,31 @@ static __always_inline bool resp_char_allowed(char c, __u8 allowed_classes, bool
 // Validates the first field of a RESP frame: the bytes between the type prefix
 // at buf[0] and the CRLF that terminates the field.
 //
-// The steps below examine buf[1] through buf[11], and the CR must be among
-// them, so a field of at most RESP_FIELD_MAX_LEN bytes is accepted. That
-// covers every bulk and array length Redis accepts by default (512 MB is nine
-// digits), integers up to ten characters, +OK, +PONG, -ERR .... A longer field
-// is rejected rather than accepted on faith — a payload we cannot positively
-// identify as RESP must not be classified as Redis. The last step reads
-// buf[12], well inside the CLASSIFICATION_MAX_BUFFER bytes every caller
-// passes. Raising the limit means adding a step, and re-checking the verifier
-// under both CO-RE and runtime compilation.
+// The steps below examine buf[1] through buf[RESP_FIELD_MAX_LEN + 1], and the
+// CR must be among them, so a field of at most RESP_FIELD_MAX_LEN bytes is
+// accepted. That covers every bulk and array length Redis accepts by default
+// (512 MB is nine digits), integers up to ten characters, +OK, +PONG,
+// -ERR .... A longer field is rejected rather than accepted on faith — a
+// payload we cannot positively identify as RESP must not be classified as
+// Redis. The last step reads buf[RESP_FIELD_MAX_LEN + 2], inside the
+// CLASSIFICATION_MAX_BUFFER bytes every caller passes (asserted below).
+//
+// Raising the limit means changing RESP_FIELD_MAX_LEN *and* adding a step —
+// the static assertions catch one without the other — and re-checking the
+// verifier and program sizes under both CO-RE and runtime compilation.
 #define RESP_FIELD_MAX_LEN 10
+_Static_assert(RESP_FIELD_MAX_LEN == 10,
+               "check_resp_field_and_crlf has explicit steps 1..10 before the final step; change both together");
+_Static_assert(RESP_FIELD_MAX_LEN + 2 < CLASSIFICATION_MAX_BUFFER,
+               "the last RESP field step must read inside the classification buffer");
 static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf_size, __u8 allowed_classes) {
     RESP_FIELD_STEP(1);
+    // A sign on its own is not a number: reject $-\r\n, :+\r\n, ,-\r\n. Step 1
+    // returned unless buf_size >= 3, so buf[2] is readable. Text is exempt —
+    // "-" is a legal (if odd) simple string or error message.
+    if (!(allowed_classes & RESP_CLASS_PUNCT) && (buf[1] == '-' || buf[1] == '+') && buf[2] == RESP_TERMINATOR_1) {
+        return false;
+    }
     RESP_FIELD_STEP(2);
     RESP_FIELD_STEP(3);
     RESP_FIELD_STEP(4);
@@ -109,14 +136,18 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
     RESP_FIELD_STEP(8);
     RESP_FIELD_STEP(9);
     RESP_FIELD_STEP(10);
-    RESP_FIELD_STEP(11);
+    RESP_FIELD_STEP(RESP_FIELD_MAX_LEN + 1);
     return false;
 }
+#undef RESP_FIELD_STEP
 
 // Text fields: simple strings and errors (A-Za-z, 0-9, '.', ' ', '-', '_').
-// RESP allows any byte but CR and LF here; digits are included because real
-// replies carry them (e.g. +FULLRESYNC <runid> <offset>), and they raise the
-// false-positive rate on random bytes only from ~1.40e-7 to ~1.48e-7.
+// RESP allows any byte but CR and LF here. Digits are included so that short
+// replies carrying numbers (a status word with a count, a short error code)
+// still classify; they raise the false-positive rate on random bytes only from
+// ~1.20e-7 to ~1.28e-7. Long replies such as +FULLRESYNC <runid> <offset>
+// (~50 bytes) exceed RESP_FIELD_MAX_LEN and are rejected by design: the
+// connection is classified from the client's request instead.
 #define RESP_CLASS_TEXT (RESP_CLASS_ALPHA | RESP_CLASS_DIGIT | RESP_CLASS_DOT | RESP_CLASS_PUNCT)
 
 // is_redis reports whether buf holds the start of a RESP frame.
@@ -131,14 +162,16 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
 //
 // So every type byte is now followed by a check on the shape of the frame's
 // first field — a decimal length or count, a signed number, or CRLF-terminated
-// text. Frames whose terminator falls outside the classification buffer are
-// rejected; giving up is the safe direction, and the caller retries on later
-// packets.
+// text. Frames whose first field is longer than RESP_FIELD_MAX_LEN, or whose
+// terminator falls outside the buffer, are rejected; giving up is the safe
+// direction, and the caller retries on later packets. On uniform random bytes
+// the false-positive rate is ~1.28e-7, about half of it from the fixed
+// three-byte RESP3 null _\r\n.
 //
 // The switch only chooses which character classes the first field may use;
 // the field itself is checked by a single call to check_resp_field_and_crlf
 // after it. That is deliberate. The validator is inlined, so every call site
-// gets its own copy of the 11-step ladder (~290 instructions), and is_redis is
+// gets its own copy of the 11-step ladder (~580 instructions), and is_redis is
 // itself inlined into several programs. Calling the validator from each switch
 // arm made the Go TLS return uprobes grow from ~2,100 to ~4,400 instructions,
 // past the 4,096 limit on pre-5.2 kernels (E2BIG on 4.14-4.19).
@@ -147,8 +180,9 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
 
     __u8 classes;
     switch (buf[0]) {
-    // Length- and count-prefixed types: <type><decimal>\r\n. The sign class also
-    // admits the null forms $-1\r\n and *-1\r\n.
+    // Length- and count-prefixed types: <type><decimal>\r\n. A leading '-' is
+    // admitted only for the null forms $-1\r\n and *-1\r\n; lengths never
+    // carry '+'.
     case RESP_ARRAY_PREFIX:            // Array
     case RESP_BULK_PREFIX:             // Bulk String
     case RESP3_BULK_ERROR_PREFIX:      // Bulk Error
@@ -156,17 +190,23 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     case RESP3_MAP_PREFIX:             // Map
     case RESP3_SET_PREFIX:             // Set
     case RESP3_PUSH_PREFIX:            // Push
-    // Integers and big numbers are the same shape. A big number longer than the
-    // classification buffer will not find its terminator and is rejected.
+        classes = RESP_CLASS_DIGIT | RESP_CLASS_MINUS;
+        break;
+
+    // Integers and big numbers may carry a leading '+' or '-'. A big number
+    // longer than RESP_FIELD_MAX_LEN will not find its terminator and is
+    // rejected.
     case RESP_INTEGER_PREFIX:          // Integer
     case RESP3_BIG_NUMBER_PREFIX:      // Big Number
         classes = RESP_CLASS_DIGIT | RESP_CLASS_SIGN;
         break;
 
-    // Doubles additionally carry '.', a signed exponent (1e-7), and the literals
-    // inf, -inf and nan. Only the character set is checked, not the grammar.
+    // Doubles additionally carry '.', a sign or signed exponent (-1.5, 1e-7),
+    // and the literals inf, -inf and nan. Only the character set is checked,
+    // not the grammar. INNER_SIGN admits a sign at every position, including
+    // the leading one.
     case RESP3_DOUBLE_PREFIX:          // Double
-        classes = RESP_CLASS_DIGIT | RESP_CLASS_SIGN | RESP_CLASS_INNER_SIGN | RESP_CLASS_DOT | RESP_CLASS_ALPHA;
+        classes = RESP_CLASS_DIGIT | RESP_CLASS_INNER_SIGN | RESP_CLASS_DOT | RESP_CLASS_DOUBLE_ALPHA;
         break;
 
     // Simple strings: +OK\r\n, +PONG\r\n.
