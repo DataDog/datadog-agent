@@ -24,6 +24,8 @@ go_library(
         "dependent_services_windows.go",
         "metriclookback.go",
         "metriclookback_nopython.go",
+        "ndmconnectivitycheck.go",
+        "ndmconnectivitycheck_nondm.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run",
     visibility = ["//visibility:public"],
