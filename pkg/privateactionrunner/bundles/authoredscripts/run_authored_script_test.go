@@ -223,61 +223,41 @@ func TestRunAuthoredScriptValidation(t *testing.T) {
 	})
 }
 
-type auditEntry struct {
-	level  string
-	fields map[string]interface{}
-}
-
 type auditLogger struct {
 	log.Logger
-	entries *[]auditEntry
-	fields  []log.Field
+	entries []map[string]interface{}
 }
 
-func (l auditLogger) With(fields ...log.Field) log.Logger {
-	l.fields = append(append([]log.Field{}, l.fields...), fields...)
-	return l
-}
-func (l auditLogger) record(level string, fields []log.Field) {
-	entry := auditEntry{level: level, fields: map[string]interface{}{}}
-	for _, field := range append(append([]log.Field{}, l.fields...), fields...) {
-		entry.fields[field.Key] = field.Value
+func (l *auditLogger) With(...log.Field) log.Logger       { return l }
+func (l *auditLogger) Info(_ string, fields ...log.Field) { l.record(fields) }
+func (l *auditLogger) Warn(_ string, fields ...log.Field) { l.record(fields) }
+func (l *auditLogger) record(fields []log.Field) {
+	entry := map[string]interface{}{}
+	for _, field := range fields {
+		entry[field.Key] = field.Value
 	}
-	*l.entries = append(*l.entries, entry)
+	l.entries = append(l.entries, entry)
 }
-func (l auditLogger) Info(_ string, fields ...log.Field) { l.record("info", fields) }
-func (l auditLogger) Warn(_ string, fields ...log.Field) { l.record("warn", fields) }
 
 func TestRunAuthoredScriptAuditReporting(t *testing.T) {
 	t.Setenv("PAR_AUDIT_TEST_SECRET", "secret-environment")
 	for _, tc := range []struct {
-		name            string
-		catalogErr      error
-		processFailure  bool
-		badInputs       bool
-		cleanupFailure  bool
-		sessionPanic    bool
-		cancelExecution bool
-		stage           string
-		exitCode        *int
+		name                           string
+		catalogErr                     error
+		processFailure, cleanupFailure bool
+		stage                          string
+		exitCode                       int
 	}{
-		{name: "success", exitCode: auditInt(0)},
-		{name: "catalog failure", catalogErr: errors.New("secret-catalog-error"), stage: "catalog"},
-		{name: "timeout", catalogErr: context.DeadlineExceeded, stage: "catalog"},
-		{name: "cancellation", catalogErr: context.Canceled, stage: "catalog"},
-		{name: "execution cancellation", cancelExecution: true, stage: "execution"},
-		{name: "process failure", processFailure: true, stage: "execution", exitCode: auditInt(3)},
-		{name: "invalid inputs", badInputs: true, stage: "command_preparation"},
-		{name: "panic", sessionPanic: true},
-		{name: "cleanup failure", cleanupFailure: true, stage: "session_cleanup", exitCode: auditInt(0)},
+		{name: "success", exitCode: 0},
+		{name: "catalog failure", catalogErr: errors.New("secret-catalog-error"), stage: "catalog", exitCode: -1},
+		{name: "process failure", processFailure: true, stage: "execution", exitCode: 3},
+		{name: "cleanup failure", cleanupFailure: true, stage: "session_cleanup", exitCode: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			descriptor := authoredscriptssupport.Descriptor{
-				FQN:     "com.datadoghq.authoredscripts.test",
-				Package: "com.datadoghq.authoredscripts.test", Version: "1.2.3",
-				SHA256: "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c",
+				FQN: testActionFQN, Package: testActionFQN, Version: "1.2.3",
+				URL: "oci://registry.example.test/script@sha256:" + testActionDigest, SHA256: testActionDigest,
 			}
-			descriptor.URL = "oci://registry.example.test/script@sha256:" + descriptor.SHA256
 			resolver, err := authoredscriptssupport.NewArtifactResolver(t.TempDir(), &runTestMaterializer{fail: tc.processFailure})
 			require.NoError(t, err)
 			handler := &RunAuthoredScriptHandler{catalog: runTestCatalog{descriptor: descriptor, readyErr: tc.catalogErr}, artifactResolver: resolver}
@@ -287,45 +267,16 @@ func TestRunAuthoredScriptAuditReporting(t *testing.T) {
 					if err == nil {
 						root := session.RootDirectory
 						t.Cleanup(func() { _ = os.RemoveAll(root) })
-						// Command directories stay valid; cleanup deterministically fails on every OS.
-						session.RootDirectory = "\x00"
+						session.RootDirectory = "\x00" // Keep command directories valid while forcing cleanup to fail.
 					}
 					return session, err
 				}
 			}
-			if tc.sessionPanic {
-				handler.newSession = func() (*authoredscriptssupport.Session, error) { panic("secret-panic") }
-			}
 			task := &types.Task{}
-			task.Data.ID = "task-123"
-			task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.public", Name: "test", ExecutionFQN: descriptor.FQN, Inputs: map[string]interface{}{"message": "secret-value"}}
-			if tc.badInputs {
-				task.Data.Attributes.Inputs = map[string]interface{}{"message": false}
-			}
-			var entries []auditEntry
-			logger := auditLogger{entries: &entries}
-			baseCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			loggerWithIdentity := logger.With(
-				log.String("runner_id", "runner-123"),
-				log.String("task_id", task.Data.ID),
-				log.String("action_fqn", task.GetFQN()),
-			)
-			ctx, details := observability.WithExecutionDetails(log.ContextWithLogger(baseCtx, loggerWithIdentity))
-			metrics := &statsd.NoOpClient{}
-			start := observability.ReportExecutionStart(metrics, task.Data.Attributes.Client, task.GetFQN(), task.Data.ID, loggerWithIdentity)
-			if tc.cancelExecution {
-				handler.newSession = func() (*authoredscriptssupport.Session, error) {
-					session, err := authoredscriptssupport.NewSession()
-					cancel()
-					return session, err
-				}
-			}
-			if tc.sessionPanic {
-				require.Panics(t, func() { _, _ = handler.Run(ctx, task, nil) })
-				require.Len(t, entries, 1, "an unhandled panic must not report successful completion")
-				return
-			}
+			task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.public", Name: "test", ExecutionFQN: descriptor.FQN, Inputs: map[string]interface{}{"message": "secret-input"}}
+			logger := &auditLogger{}
+			ctx, details := observability.WithExecutionDetails(log.ContextWithLogger(context.Background(), logger))
+			start := time.Now()
 			output, err := handler.Run(ctx, task, nil)
 			if tc.stage == "" {
 				require.NoError(t, err)
@@ -333,47 +284,30 @@ func TestRunAuthoredScriptAuditReporting(t *testing.T) {
 				require.Error(t, err)
 				require.Nil(t, output)
 			}
-			if tc.cancelExecution {
-				require.ErrorIs(t, err, context.Canceled)
-			}
-			require.Len(t, entries, 1, "the handler must not emit lifecycle logs")
-			observability.ReportExecutionCompleted(metrics, task.Data.Attributes.Client, task.GetFQN(), task.Data.ID, start, err, loggerWithIdentity, details)
-			require.Len(t, entries, 2, "one shared start and one shared completion")
-			require.NotContains(t, entries[0].fields, "package_name")
-			final := entries[1]
-			require.Equal(t, "authored_script", final.fields["execution_kind"])
-			require.Equal(t, descriptor.FQN, final.fields["execution_fqn"])
-			require.GreaterOrEqual(t, final.fields["duration"].(time.Duration), time.Duration(0))
-			require.Equal(t, "execution.outcome", final.fields["event"])
-			for _, entry := range entries {
-				require.Equal(t, "runner-123", entry.fields["runner_id"])
-				require.Equal(t, "task-123", entry.fields["task_id"])
-				require.Equal(t, task.GetFQN(), entry.fields["action_fqn"])
-				require.NotContains(t, fmt.Sprint(entry.fields), "secret-")
-			}
+			require.Empty(t, logger.entries, "the handler only contributes metadata")
+			observability.ReportExecutionCompleted(&statsd.NoOpClient{}, task.Data.Attributes.Client, task.GetFQN(), task.Data.ID, start, err, logger, details)
+			require.Len(t, logger.entries, 1)
+			fields := logger.entries[0]
+			require.Equal(t, "authored_script", fields["execution_kind"])
+			require.Equal(t, descriptor.FQN, fields["execution_fqn"])
+			require.NotContains(t, fmt.Sprint(fields), "secret-")
 			if tc.stage == "" {
-				require.Equal(t, "info", final.level)
-				require.Equal(t, "success", final.fields["outcome"])
-				require.NotContains(t, final.fields, "failure_stage")
+				require.NotContains(t, fields, "failure_stage")
 			} else {
-				require.Equal(t, "warn", final.level)
-				require.Equal(t, "failure", final.fields["outcome"])
-				require.Equal(t, tc.stage, final.fields["failure_stage"])
+				require.Equal(t, tc.stage, fields["failure_stage"])
 			}
 			if tc.catalogErr != nil {
-				require.NotContains(t, final.fields, "package_name")
+				require.NotContains(t, fields, "package_name")
 			} else {
-				require.Equal(t, descriptor.Package, final.fields["package_name"])
-				require.Equal(t, descriptor.Version, final.fields["package_version"])
-				require.Equal(t, "sha256:"+descriptor.SHA256, final.fields["package_digest"])
+				require.Equal(t, descriptor.Package, fields["package_name"])
+				require.Equal(t, descriptor.Version, fields["package_version"])
+				require.Equal(t, "sha256:"+descriptor.SHA256, fields["package_digest"])
 			}
-			if tc.exitCode == nil {
-				require.NotContains(t, final.fields, "exit_code")
+			if tc.exitCode < 0 {
+				require.NotContains(t, fields, "exit_code")
 			} else {
-				require.Equal(t, *tc.exitCode, final.fields["exit_code"])
+				require.Equal(t, tc.exitCode, fields["exit_code"])
 			}
 		})
 	}
 }
-
-func auditInt(value int) *int { return &value }

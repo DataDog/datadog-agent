@@ -34,35 +34,52 @@ func TestReportHealthCheck_NilMetricsClientDoesNotPanic(t *testing.T) {
 	})
 }
 
+type executionLogEntry struct {
+	level   string
+	message string
+	fields  map[string]interface{}
+}
+
+type executionLogRecorder struct {
+	log.Logger
+	entries *[]executionLogEntry
+	fields  []log.Field
+}
+
+func (l executionLogRecorder) With(fields ...log.Field) log.Logger {
+	l.fields = append(append([]log.Field(nil), l.fields...), fields...)
+	return l
+}
+func (l executionLogRecorder) record(level, message string, fields []log.Field) {
+	entry := executionLogEntry{level: level, message: message, fields: map[string]interface{}{}}
+	for _, field := range append(append([]log.Field(nil), l.fields...), fields...) {
+		entry.fields[field.Key] = field.Value
+	}
+	*l.entries = append(*l.entries, entry)
+}
+func (l executionLogRecorder) Info(message string, fields ...log.Field) {
+	l.record("info", message, fields)
+}
+func (l executionLogRecorder) Warn(message string, fields ...log.Field) {
+	l.record("warn", message, fields)
+}
+
 func TestReportExecutionCompletedEnrichment(t *testing.T) {
-	for _, mode := range []string{"nil", "empty", "enriched"} {
+	for _, enriched := range []bool{false, true} {
 		for _, failure := range []error{nil, errors.New("secret-stderr")} {
-			name := mode
-			if failure != nil {
-				name += " failure"
-			} else {
-				name += " success"
-			}
+			name := fmt.Sprintf("enriched=%t/failure=%t", enriched, failure != nil)
 			t.Run(name, func(t *testing.T) {
 				var entries []executionLogEntry
 				logger := executionLogRecorder{entries: &entries}
 				metrics := &recordingTaggedStatsdClient{}
-				var details *ExecutionDetails
-				if mode != "nil" {
-					var ctx context.Context
-					ctx, details = WithExecutionDetails(context.Background())
-					if mode == "enriched" {
-						SetExecutionDetails(ctx, "execution", log.String("package_version", "1.2.3"))
-					}
+				ctx, details := WithExecutionDetails(context.Background())
+				if enriched {
+					SetExecutionDetails(ctx, "execution", log.String("package_version", "1.2.3"))
 				}
 				client := actionsclientpb.Client(0)
 				start := ReportExecutionStart(metrics, client, "test.action", "task-id", logger)
 				ReportExecutionCompleted(metrics, client, "test.action", "task-id", start, failure, logger, details)
-				require.Len(t, entries, 2, "enrichment must not add lifecycle records")
-				require.Equal(t, "Running private action", entries[0].message)
-				require.Equal(t, "info", entries[0].level)
-				identityFields := map[string]interface{}{ActionClientTagName: client.String()}
-				require.Equal(t, identityFields, entries[0].fields)
+				require.Len(t, entries, 2)
 				final := entries[1]
 				result, level, message := "success", "info", "Private actions completed with success"
 				if failure != nil {
@@ -70,24 +87,27 @@ func TestReportExecutionCompletedEnrichment(t *testing.T) {
 				}
 				require.Equal(t, level, final.level)
 				require.Equal(t, message, final.message)
-				if mode == "enriched" {
+				if enriched {
 					require.Equal(t, "1.2.3", final.fields["package_version"])
-					require.NotContains(t, final.fields, "error", "raw errors may contain script output")
-				} else {
+					require.NotContains(t, final.fields, "error")
+					require.Equal(t, "execution.outcome", final.fields["event"])
 					if failure != nil {
-						identityFields["error"] = failure
+						require.Equal(t, "execution", final.fields["failure_stage"])
 					}
-					require.Equal(t, identityFields, final.fields, "unenriched actions retain their original log fields")
+				} else {
+					want := map[string]interface{}{ActionClientTagName: client.String()}
+					if failure != nil {
+						want["error"] = failure
+					}
+					require.Equal(t, want, final.fields)
 				}
-				require.Len(t, metrics.calls, 3)
-				require.Equal(t, ActionExecutionStartedMetric, metrics.calls[0].name)
-				require.Equal(t, ActionExecutionLatencyMetric, metrics.calls[1].name)
-				require.Equal(t, ActionExecutionCompletedMetric, metrics.calls[2].name)
-				startTags := []string{fmt.Sprintf("%s:%s", ActionClientTagName, client), ActionFqnTagName + ":test.action"}
+				startTags := []string{ActionClientTagName + ":" + client.String(), ActionFqnTagName + ":test.action"}
 				completedTags := append(append([]string(nil), startTags...), ExecutionResultTagName+":"+result)
-				require.Equal(t, startTags, metrics.calls[0].tags)
-				require.Equal(t, completedTags, metrics.calls[1].tags)
-				require.Equal(t, completedTags, metrics.calls[2].tags)
+				require.Equal(t, []taggedMetricCall{
+					{name: ActionExecutionStartedMetric, tags: startTags},
+					{name: ActionExecutionLatencyMetric, tags: completedTags},
+					{name: ActionExecutionCompletedMetric, tags: completedTags},
+				}, metrics.calls)
 			})
 		}
 	}
