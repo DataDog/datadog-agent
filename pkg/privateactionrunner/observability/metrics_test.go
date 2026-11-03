@@ -103,9 +103,13 @@ func TestReportExecutionCompletedEnrichment(t *testing.T) {
 				}
 				startTags := []string{ActionClientTagName + ":" + client.String(), ActionFqnTagName + ":test.action"}
 				completedTags := append(append([]string(nil), startTags...), ExecutionResultTagName+":"+result)
+				latencyTags := append([]string(nil), completedTags...)
+				if enriched && failure != nil {
+					completedTags = append(completedTags, "failure_stage:execution")
+				}
 				require.Equal(t, []taggedMetricCall{
 					{name: ActionExecutionStartedMetric, tags: startTags},
-					{name: ActionExecutionLatencyMetric, tags: completedTags},
+					{name: ActionExecutionLatencyMetric, tags: latencyTags},
 					{name: ActionExecutionCompletedMetric, tags: completedTags},
 				}, metrics.calls)
 			})

@@ -60,7 +60,11 @@ func ReportExecutionCompleted(metricsClient statsd.ClientInterface, client actio
 		tags = append(tags, fmt.Sprintf("%s:%s", ExecutionResultTagName, "success"))
 	}
 	_ = metricsClient.Timing(ActionExecutionLatencyMetric, time.Since(startTime), tags, 1.0)
-	_ = metricsClient.Incr(ActionExecutionCompletedMetric, tags, 1.0)
+	completionTags := tags
+	if err != nil && stage != "" {
+		completionTags = append(append([]string(nil), tags...), "failure_stage:"+stage)
+	}
+	_ = metricsClient.Incr(ActionExecutionCompletedMetric, completionTags, 1.0)
 }
 
 func ReportHealthCheck(metricsClient statsd.ClientInterface) {
