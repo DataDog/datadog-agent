@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-func TestEnrollmentUsesRCOverride(t *testing.T) {
+func TestEnrollmentUsesPAROverride(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	for _, apiKeyOnly := range []bool{false, true} {
 		var path atomic.Value
@@ -31,8 +31,9 @@ func TestEnrollmentUsesRCOverride(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 		cfg := configmock.New(t)
-		cfg.SetInTest("remote_configuration.rc_dd_url", server.URL+"/prefix/")
-		cfg.SetInTest("remote_configuration.no_tls", true)
+		cfg.SetInTest("private_action_runner.dd_url", server.URL+"/prefix/")
+		cfg.SetInTest("private_action_runner.enabled", true)
+		cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		id := &AgentIdentifier{Hostname: "test-host"}
 		if apiKeyOnly {

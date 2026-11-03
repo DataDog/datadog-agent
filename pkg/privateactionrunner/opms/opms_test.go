@@ -246,7 +246,7 @@ func TestDequeueTask_RetryAfterMs_OnErrorResponse(t *testing.T) {
 
 // ---------- HealthCheck ----------
 
-func TestHealthCheckUsesRCOverride(t *testing.T) {
+func TestHealthCheckUsesPAROverride(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/prefix"+healthCheckPath, r.URL.Path)
@@ -256,8 +256,9 @@ func TestHealthCheckUsesRCOverride(t *testing.T) {
 	defer srv.Close()
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 		"site":                           "datadoghq.eu",
-		"remote_configuration.rc_dd_url": srv.URL + "/prefix/",
-		"remote_configuration.no_tls":    true,
+		"private_action_runner.dd_url":   srv.URL + "/prefix/",
+		"private_action_runner.enabled":  true,
+		"remote_configuration.rc_dd_url": "https://rc-proxy.example.com",
 	})
 	runner, err := config.FromDDConfig(cfg, nil)
 	require.NoError(t, err)

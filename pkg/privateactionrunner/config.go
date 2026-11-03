@@ -10,6 +10,7 @@ package privateactionrunner
 const (
 	Enabled = "private_action_runner.enabled"
 	LogFile = "private_action_runner.log_file"
+	DDURL   = "private_action_runner.dd_url"
 
 	// Identity / enrollment configuration
 	SelfEnroll             = "private_action_runner.self_enroll"

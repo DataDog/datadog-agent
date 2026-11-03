@@ -211,6 +211,29 @@ func TestFromDDConfig(t *testing.T) {
 	}
 }
 
+func TestFromDDConfigWarnsForNonstandardRCWithoutPARURL(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest(par.Enabled, true)
+	cfg.SetInTest("site", "datad0g.com")
+	cfg.SetInTest("remote_configuration.rc_dd_url", "https://config.datadoghq.com.")
+	warnings := captureTransformWarnings(t, func() {
+		runner, err := FromDDConfig(cfg, nil)
+		require.NoError(t, err)
+		require.Equal(t, "https://api.datad0g.com", runner.APIBaseURL)
+	})
+	require.Contains(t, warnings, "[WARN]")
+	require.Contains(t, warnings, "Set private_action_runner.dd_url explicitly")
+
+	cfg.SetInTest(par.DDURL, "https://par-proxy.example.com/prefix")
+	warnings = captureTransformWarnings(t, func() {
+		runner, err := FromDDConfig(cfg, nil)
+		require.NoError(t, err)
+		require.Equal(t, "https://par-proxy.example.com/prefix", runner.APIBaseURL)
+	})
+	require.NotContains(t, warnings, "remote_configuration.rc_dd_url")
+}
+
 func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
 	t.Run("unset selects compatibility mode", func(t *testing.T) {
 		mockConfig := configmock.New(t)

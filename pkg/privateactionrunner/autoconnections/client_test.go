@@ -72,7 +72,7 @@ func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	assert.Equal(t, "test-app-key", client.appKey)
 }
 
-func TestConnectionsUseRCOverride(t *testing.T) {
+func TestConnectionsUsePAROverride(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -83,8 +83,9 @@ func TestConnectionsUseRCOverride(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := mock.New(t)
-	cfg.SetInTest("remote_configuration.rc_dd_url", server.URL+"/prefix/")
-	cfg.SetInTest("remote_configuration.no_tls", true)
+	cfg.SetInTest("private_action_runner.dd_url", server.URL+"/prefix/")
+	cfg.SetInTest("private_action_runner.enabled", true)
+	cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
 	client, err := NewConnectionsAPIClient(cfg, "datadoghq.eu", "api-key", "app-key")
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
