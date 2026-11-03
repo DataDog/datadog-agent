@@ -326,7 +326,7 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 		}
 	}()
 
-	srv, err = api.NewServer(statusComponent, settings, wmeta, ipc, secrets)
+	srv, err = api.NewServer(statusComponent, settings, wmeta, ipc, secrets, telemetry)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

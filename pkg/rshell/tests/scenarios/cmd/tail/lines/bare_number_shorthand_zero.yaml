@@ -1,0 +1,8 @@
+description: tail -0 (bare zero shorthand) produces no output, equivalent to tail -n 0.
+input:
+  script: |+
+    printf "1\n2\n3\n" | tail -0
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

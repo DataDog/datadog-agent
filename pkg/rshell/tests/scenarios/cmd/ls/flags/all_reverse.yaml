@@ -1,0 +1,25 @@
+description: ls -ar reverses all entries including . and ..
+setup:
+  files:
+    - path: f1
+      content: ""
+      chmod: 0644
+    - path: f2
+      content: ""
+      chmod: 0644
+    - path: f3
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -ar
+expect:
+  stdout: |+
+    f3
+    f2
+    f1
+    ..
+    .
+  stderr: ""
+  exit_code: 0

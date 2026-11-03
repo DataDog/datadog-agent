@@ -68,6 +68,9 @@ func newInfraTagsProcessor(
 
 // ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes.
 //
+// Called once per resource of a batch with the same tagBatch, which memoizes the tagger
+// lookups. See tagBatch.
+//
 // The promote parameter controls how tags that are NOT recognized container-tag
 // conventions are surfaced for downstream `_dd.tags.container` promotion. Known
 // DD / OTel conventions (knownConventionKeys), USM keys, and the
@@ -81,7 +84,7 @@ func newInfraTagsProcessor(
 // tags rather than log attributes. Exempted keys are always written to
 // resourceAttributes regardless of divertToDDTags, since the Datadog logs
 // intake already promotes them into tags on its own.
-func (p infraTagsProcessor) ProcessTags(
+func (b *tagBatch) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
@@ -95,32 +98,26 @@ func (p infraTagsProcessor) ProcessTags(
 	}
 	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
 		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
-		if containerID, err := p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
+		if containerID, err := b.p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
 			resourceAttributes.PutStr(string(conventions.ContainerIDKey), containerID)
 		}
 	}
 
-	entityIDs := entityIDsFromAttributes(resourceAttributes)
-	tagMap := make(map[string]string)
+	globalTags := b.globalTags(logger, cardinality)
+	// Resolved up front so tagMap can be allocated at its final size.
+	entityTags, tagCount := b.resolve(logger, entityIDsFromAttributes(resourceAttributes), cardinality)
+	tagMap := make(map[string]string, tagCount+len(globalTags))
 
-	// Get all unique tags from resource attributes and global tags
-	for _, entityID := range entityIDs {
-		entityTags, err := p.tagger.Tag(entityID, cardinality)
-		if err != nil {
-			logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
-			continue
-		}
-		for _, tag := range entityTags {
+	// Get all unique tags from resource attributes and global tags. Entity tags go first,
+	// keeping precedence over global ones.
+	for _, tags := range entityTags {
+		for _, tag := range tags {
 			k, v := splitTag(tag)
 			_, hasTag := tagMap[k]
 			if k != "" && v != "" && !hasTag {
 				tagMap[k] = v
 			}
 		}
-	}
-	globalTags, err := p.tagger.GlobalTags(cardinality)
-	if err != nil {
-		logger.Error("Cannot get global tags", zap.Error(err))
 	}
 	for _, tag := range globalTags {
 		k, v := splitTag(tag)
@@ -152,7 +149,7 @@ func (p infraTagsProcessor) ProcessTags(
 	}
 
 	if allowHostnameOverride {
-		if hostname, found := p.hostname.Get(); found {
+		if hostname, found := b.p.hostname.Get(); found {
 			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
 	}
@@ -243,7 +240,7 @@ func originInfoFromAttributes(attrs pcommon.Map, cardinality types.TagCardinalit
 // entityIDsFromAttributes gets the entity IDs from resource attributes.
 // If not found, an empty string slice is returned.
 func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
-	entityIDs := make([]types.EntityID, 0, 8)
+	entityIDs := make([]types.EntityID, 0, maxEntitiesPerResource)
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
 	if containerID, ok := attrs.Get(string(conventions.ContainerIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, containerID.AsString()))
@@ -280,9 +277,9 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 }
 
 func splitTag(tag string) (key string, value string) {
-	split := strings.SplitN(tag, ":", 2)
-	if len(split) < 2 || split[0] == "" || split[1] == "" {
+	key, value, found := strings.Cut(tag, ":")
+	if !found || key == "" || value == "" {
 		return "", ""
 	}
-	return split[0], split[1]
+	return key, value
 }

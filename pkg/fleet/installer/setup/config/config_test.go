@@ -92,6 +92,21 @@ env: "old_env"
 	}, datadog)
 }
 
+func TestMergeReplacesExistingEnv(t *testing.T) {
+	tempDir := t.TempDir()
+	writeInitialDatadogConfig(t, tempDir, "api_key: old_key\nenv: production\n")
+
+	config := Config{}
+	config.DatadogYAML.APIKey = "old_key"
+	config.DatadogYAML.Env = "staging"
+
+	require.NoError(t, WriteConfigs(config, tempDir))
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "old_key",
+		"env":     "staging",
+	}, readDatadogYAML(t, tempDir))
+}
+
 // Tests that writing a process_config toggle merges into an existing
 // process_config block rather than clobbering its other keys.
 func TestMergeProcessConfig(t *testing.T) {
@@ -619,6 +634,7 @@ func TestPrivateActionRunnerConfig(t *testing.T) {
 	cfg.DatadogYAML.AppKey = "test_app_key"
 	cfg.DatadogYAML.PrivateActionRunner.Enabled = BoolToPtr(true)
 	cfg.DatadogYAML.PrivateActionRunner.SelfEnroll = BoolToPtr(true)
+	cfg.DatadogYAML.PrivateActionRunner.SplitEnabled = BoolToPtr(true)
 	cfg.DatadogYAML.PrivateActionRunner.ActionsAllowlist = []string{
 		"com.datadoghq.script.runPredefinedScript",
 		"com.datadoghq.script.testConnection",
@@ -632,12 +648,32 @@ func TestPrivateActionRunnerConfig(t *testing.T) {
 		"api_key": "test_key",
 		"app_key": "test_app_key",
 		"private_action_runner": map[string]interface{}{
-			"enabled":     true,
-			"self_enroll": true,
+			"enabled":       true,
+			"self_enroll":   true,
+			"split_enabled": true,
 			"actions_allowlist": []interface{}{
 				"com.datadoghq.script.runPredefinedScript",
 				"com.datadoghq.script.testConnection",
 			},
+		},
+	}, datadog)
+}
+
+func TestPrivateActionRunnerSplitModeDisabled(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfg := Config{}
+	cfg.DatadogYAML.PrivateActionRunner.Enabled = BoolToPtr(true)
+	cfg.DatadogYAML.PrivateActionRunner.SplitEnabled = BoolToPtr(false)
+
+	err := WriteConfigs(cfg, tempDir)
+	require.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"private_action_runner": map[string]interface{}{
+			"enabled":       true,
+			"split_enabled": false,
 		},
 	}, datadog)
 }

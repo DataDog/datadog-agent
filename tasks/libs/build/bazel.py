@@ -87,6 +87,15 @@ def package_from_path(path: str) -> str:
     return result
 
 
+def is_bazel_workspace() -> bool:
+    """Whether the current directory is a Bazel workspace.
+
+    Branches that predate the Bazel migration (e.g. Agent 6, handled by release tasks running from main) have no
+    `MODULE.bazel`, so Bazel targets cannot be used there.
+    """
+    return os.path.exists("MODULE.bazel")
+
+
 def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
@@ -94,6 +103,7 @@ def bazel_not_found_message(color: str) -> str:
 def _run_command(
     cmd: tuple[str, ...],
     *,
+    capture_stderr: bool,
     capture_stdout: bool,
     capture_for_result: bool,
     env: dict[str, str] | None,
@@ -108,7 +118,7 @@ def _run_command(
             input=input,
             env=subprocess_env,
             tee_stdout=not capture_stdout,
-            tee_stderr=True,
+            tee_stderr=not capture_stderr,
         )
 
     return subprocess.run(
@@ -206,11 +216,11 @@ def _run_command_with_tee(
 
 def bazel(
     *args: str,
+    capture_stderr: bool = False,
     capture_output: bool = False,
     env: dict[str, str] | None = None,
     ignore_errors: bool = False,
     input: str | None = None,
-    sudo: bool = False,
 ) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
@@ -222,12 +232,13 @@ def bazel(
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise SystemExit(bazel_not_found_message("red"))
-    cmd = (("sudo",) if sudo else ()) + (bazelisk, *_insert_omnibazel_flags(args))
+    cmd = (bazelisk, *_insert_omnibazel_flags(args))
     cmdline = join_command(cmd)
     print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
 
     completed = _run_command(
         cmd,
+        capture_stderr=capture_stderr,
         capture_stdout=capture_output,
         capture_for_result=ignore_errors,
         env=env,

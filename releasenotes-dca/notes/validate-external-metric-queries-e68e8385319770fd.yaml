@@ -1,0 +1,5 @@
+---
+security:
+  - |
+    The Cluster Agent external metrics provider now validates individual
+    metric queries before batching them.

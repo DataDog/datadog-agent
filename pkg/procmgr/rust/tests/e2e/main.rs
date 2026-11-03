@@ -9,17 +9,22 @@ mod helpers;
 mod cli_contracts;
 mod config_gates;
 mod config_status;
+mod crashed_state;
 mod create;
+#[cfg(unix)]
+mod critical_exit;
 mod daemon;
 mod ddot;
 mod describe;
 mod env_files;
 mod fixtures;
-mod fleet_process_template;
 mod identity;
 mod list;
 #[cfg(windows)]
 mod privileged_allowlist;
 mod process_control;
+#[cfg(target_os = "linux")]
+mod reaper;
 mod reload;
 mod restart_burst;
+mod skipped;

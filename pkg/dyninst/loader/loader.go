@@ -603,6 +603,11 @@ func (l *Loader) loadData(
 	); err != nil {
 		return nil, fmt.Errorf("failed to set trace_context_type_id: %w", err)
 	}
+	if err := setVariable(
+		spec, "session_throttler_idx", serialized.sessionThrottlerIdx,
+	); err != nil {
+		return nil, fmt.Errorf("failed to set session_throttler_idx: %w", err)
+	}
 	// Allow a program to avoid setting common constants if it doesn't have
 	// any. This is something of a hack to allow for the rcscrape program to
 	// avoid needing constants, and corresponds to similar flexibility in the
@@ -717,6 +722,12 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 	if err := setVariable(
 		spec, "OFFSET_runtime_dot_moduledata__types",
 		serialized.goModuledataInfo.TypesOffset,
+	); err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_moduledata__etypes",
+		serialized.goModuledataInfo.ETypesOffset,
 	); err != nil {
 		return err
 	}

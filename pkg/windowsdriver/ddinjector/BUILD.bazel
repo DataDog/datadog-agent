@@ -11,12 +11,12 @@ go_library(
     cdeps = ["//pkg/windowsdriver/include:ddinjector_public"],  # keep
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core/telemetry/def",
             "//pkg/util/log",
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

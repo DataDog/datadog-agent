@@ -1,0 +1,15 @@
+# Per RULES.md: file access must be sandboxed via AllowedPaths
+description: tail is blocked from reading files outside the allowed paths sandbox.
+skip_assert_against_bash: true  # intentional sandbox restriction; bash/tail can read /etc/passwd freely
+setup:
+  files:
+    - path: local.txt
+      content: "local\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail /etc/passwd
+expect:
+  stdout: ""
+  stderr_contains: ["tail:"]
+  exit_code: 1

@@ -9,15 +9,19 @@ import (
 	"context"
 	"fmt"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -43,20 +47,34 @@ type WorkflowTaskExecutor struct {
 
 func NewWorkflowTaskExecutor(
 	configuration *config.Config,
+	coreConfig model.Reader,
+	rcClient rcclient.Client,
 	taskVerifier taskverifier.TaskVerifier,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	pcapUploader pcapuploader.Component,
+	hostname hostnameinterface.Component,
 	ipcClient ipc.HTTPClient,
 	encryptionStore *encryptioncontext.Store,
 	ha helmactions.Component,
 	ka kubeactions.Component,
-) *WorkflowTaskExecutor {
+) (*WorkflowTaskExecutor, error) {
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	registry, err := privatebundles.NewRegistry(configuration, rcClient, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
+	if err != nil {
+		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
+	}
+
 	return &WorkflowTaskExecutor{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
+		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(),
-	}
+		resolver:     credentialResolver,
+	}, nil
 }
 
 func (e *WorkflowTaskExecutor) PrepareTask(
@@ -86,7 +104,11 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
 	unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 
-	credential, err := e.resolver.ResolveConnectionInfoToCredential(ctx, unwrappedTask.Data.Attributes.ConnectionInfo, nil)
+	// Reject unknown or disabled actions before exposing any credentials.
+	if _, err := e.getAllowedAction(unwrappedTask); err != nil {
+		return nil, unwrappedTask, err
+	}
+	credential, err := e.resolver.ResolveCredentials(ctx, unwrappedTask)
 	if err != nil {
 		logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID), log.ErrorField(err))
 		return nil, unwrappedTask, err
@@ -126,26 +148,9 @@ func (e *WorkflowTaskExecutor) RunTask(
 ) (output interface{}, err error) {
 	task := preparedTask.Task
 	fqn := task.GetFQN()
-	bundleName, actionName := actions.SplitFQN(fqn)
-	bundle := e.registry.GetBundle(bundleName)
-	if bundle == nil {
-		return nil, util.NewPARError(
-			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find bundle for %s", bundleName),
-		)
-	}
-	action := bundle.GetAction(actionName)
-	if action == nil {
-		return nil, util.NewPARError(
-			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find action for %s", actionName),
-		)
-	}
-	if !e.config.IsActionAllowed(bundleName, actionName) {
-		return nil, util.DefaultActionError(fmt.Errorf(
-			"action %s is not allowlisted in the private action runner config. Update the agent config `actionsAllowlist` or the environment variable `DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST`",
-			fqn,
-		))
+	action, err := e.getAllowedAction(task)
+	if err != nil {
+		return nil, err
 	}
 
 	logger := log.FromContext(ctx)
@@ -165,4 +170,35 @@ func (e *WorkflowTaskExecutor) RunTask(
 	}
 
 	return output, nil
+}
+
+// getAllowedAction is shared by preparation and execution so both apply the
+// same dispatch and authorization rules.
+func (e *WorkflowTaskExecutor) getAllowedAction(task *types.Task) (types.Action, error) {
+	fqn := task.GetFQN()
+	bundleName, actionName := actions.SplitFQN(fqn)
+	executionFQN := task.GetExecutionFQN()
+	executionBundle, executionAction := actions.SplitFQN(executionFQN)
+	bundle := e.registry.GetBundle(executionBundle)
+	if bundle == nil {
+		return nil, util.NewPARError(
+			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
+			fmt.Errorf("could not find bundle for %s", executionBundle),
+		)
+	}
+	action := bundle.GetAction(executionAction)
+	if action == nil {
+		return nil, util.NewPARError(
+			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
+			fmt.Errorf("could not find action for %s", executionAction),
+		)
+	}
+	if !e.config.IsActionAllowed(bundleName, actionName) {
+		return nil, util.DefaultActionError(fmt.Errorf(
+			"action %s is not allowlisted in the private action runner config. Update the agent config `actionsAllowlist` or the environment variable `DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST`",
+			fqn,
+		))
+	}
+
+	return action, nil
 }

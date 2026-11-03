@@ -7,9 +7,10 @@ package setup
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
 func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
-	initMainSystemProbeConfig(cfg)
+	generatedsettings.InitMainSystemProbeConfig(cfg)
 }

@@ -4,10 +4,13 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "autoinstrumentation",
     srcs = [
+        "apm_basic_target.go",
         "apm_config.go",
         "auto_instrumentation.go",
         "config.go",
         "env_vars.go",
+        "gpu_target.go",
+        "injection_sources.go",
         "label_selectors.go",
         "language_versions.go",
         "lib_config.go",
@@ -37,9 +40,9 @@ go_library(
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/clusteragent/admission/mutate/config",
         "//pkg/clusteragent/admission/mutate/tagsfromlabels",
-        "//pkg/config/remote/client",
         "//pkg/config/structure",
         "//pkg/config/utils",
+        "//pkg/gpu/config",
         "//pkg/remoteconfig/state",
         "//pkg/ssi",
         "//pkg/util/kubernetes",
@@ -61,9 +64,12 @@ go_library(
 dd_agent_go_test(
     name = "autoinstrumentation_test",
     srcs = [
+        "apm_basic_target_test.go",
         "auto_instrumentation_test.go",
         "config_test.go",
         "env_vars_test.go",
+        "gpu_target_test.go",
+        "injection_sources_test.go",
         "label_selectors_test.go",
         "lib_config_test.go",
         "mutator_core_test.go",
@@ -84,7 +90,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [
@@ -104,6 +109,7 @@ dd_agent_go_test(
         "//pkg/clusteragent/instrumentation/handlers",
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/gpu/config",
         "//pkg/languagedetection/languagemodels",
         "//pkg/remoteconfig/state",
         "//pkg/ssi",

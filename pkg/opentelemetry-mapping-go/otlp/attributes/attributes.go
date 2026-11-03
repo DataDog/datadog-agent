@@ -25,7 +25,6 @@ import (
 	semconv1_12 "go.opentelemetry.io/otel/semconv/v1.12.0"
 	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
-	semconv1_43 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	semconv1_6_1 "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -91,16 +90,6 @@ var (
 		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
 		string(semconv1_27.K8SNodeNameKey):        "kube_node",
-	}
-
-	// AzureContainerAppsMappings is intentionally separate from ContainerMappings
-	// to avoid adding these broad attributes (e.g. service.name -> name) as
-	// tags on non-ACA workloads.
-	AzureContainerAppsMappings = map[string]string{
-		AttributeAzureContainerAppInstanceID:          "replica",
-		string(semconv1_27.ServiceNameKey):            "name",
-		string(semconv1_27.CloudAccountIDKey):         "subscription_id",
-		string(semconv1_43.AzureResourceGroupNameKey): "resource_group",
 	}
 
 	containerDDTags = (func() map[string]struct{} {
@@ -282,13 +271,31 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 			"name:"+appService.name,
 			"subscription_id:"+appService.subscriptionID,
 			"resource_group:"+appService.resourceGroup,
-			"instance:"+appService.instanceID,
 		)
+	}
+
+	if src, ok := awsLambdaSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
+	}
+
+	if src, ok := gcpCloudRunJobsSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
+	}
+
+	if src, ok := gcpServerlessSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
 	}
 
 	tags = append(tags, processAttributes.extractTags()...)
 	tags = append(tags, systemAttributes.extractTags()...)
 
+	return tags
+}
+
+func appendSourceDimensions(tags []string, src source.Source) []string {
+	for key, value := range src.SourceIdentifier.Dimensions {
+		tags = append(tags, key+":"+value)
+	}
 	return tags
 }
 
@@ -760,6 +767,9 @@ func GetSpecifiedKeysFromOTelAttributes(signalAttrs pcommon.Map, resourceAttrs p
 
 // GetHost returns the DD hostname based on OTel resource attributes.
 func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
+	if IsGCPServerless(resourceAttrs) {
+		return ""
+	}
 	src, srcok := SourceFromAttrs(resourceAttrs, nil)
 	if !srcok {
 		if v := GetOTelAttrVal(resourceAttrs, false, "_dd.hostname"); v != "" {
@@ -785,9 +795,16 @@ func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
 
 // azureResourceID holds the fields extracted from an Azure ARM resource ID.
 type azureResourceID struct {
-	SubscriptionID string
-	ResourceGroup  string
-	ResourceName   string
+	SubscriptionID    string
+	ResourceGroup     string
+	ProviderNamespace string
+	ResourceType      string
+	ResourceName      string
+}
+
+func (id azureResourceID) matches(providerNamespace, resourceType string) bool {
+	return strings.EqualFold(id.ProviderNamespace, providerNamespace) &&
+		strings.EqualFold(id.ResourceType, resourceType)
 }
 
 // parseAzureResourceID parses the cloud.resource_id string for Azure resources
@@ -810,13 +827,24 @@ func parseAzureResourceID(resourceID string) (azureResourceID, error) {
 	// parts[7] = "containerApps" (or sites)
 	// parts[8] = "site-name"
 
-	if len(parts) < 9 {
+	if len(parts) < 9 ||
+		parts[0] != "" ||
+		!strings.EqualFold(parts[1], "subscriptions") ||
+		parts[2] == "" ||
+		!strings.EqualFold(parts[3], "resourceGroups") ||
+		parts[4] == "" ||
+		!strings.EqualFold(parts[5], "providers") ||
+		parts[6] == "" ||
+		parts[7] == "" ||
+		parts[8] == "" {
 		return azureResourceID{}, errors.New("invalid Azure resource ID format: " + resourceID)
 	}
 
 	return azureResourceID{
-		SubscriptionID: parts[2],
-		ResourceGroup:  parts[4],
-		ResourceName:   parts[8],
+		SubscriptionID:    parts[2],
+		ResourceGroup:     parts[4],
+		ProviderNamespace: parts[6],
+		ResourceType:      parts[7],
+		ResourceName:      parts[8],
 	}, nil
 }

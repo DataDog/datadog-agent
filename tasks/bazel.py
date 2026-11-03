@@ -49,17 +49,19 @@ def _test_output_candidates(
 
 
 class _BepContext:
-    """Tracks the workspace/configuration state needed to resolve BEP test.xml paths.
+    """Tracks the workspace/configuration state needed to resolve BEP output paths.
 
-    The convenience symlink `bazel-testlogs` doesn't exist on CI
-    (--noexperimental_convenience_symlinks), so test.xml paths are
-    reconstructed from `localExecRoot` and each configuration's BINDIR
-    instead ("bazel-out/<config-mnemonic>/bin" -> ".../testlogs").
+    The convenience symlinks `bazel-bin` and `bazel-testlogs` don't exist on CI
+    (--noexperimental_convenience_symlinks), so paths are reconstructed from
+    `localExecRoot` and each configuration's BINDIR instead
+    ("bazel-out/<config-mnemonic>/bin" -> ".../testlogs").
     """
 
     def __init__(self):
         self.local_exec_root: str | None = None
+        self.config_bindirs: dict[str, Path] = {}
         self.config_testlogs: dict[str, Path] = {}
+        self.target_config_id: str | None = None
 
     def observe(self, eid: dict, event: dict) -> bool:
         """Update state from a workspace/configuration event. Returns True if handled."""
@@ -71,10 +73,43 @@ class _BepContext:
                 bindir = event.get("configuration", {}).get("makeVariable", {}).get("BINDIR", "")
                 bindir_path = Path(bindir)
                 if bindir_path.name == "bin":
+                    self.config_bindirs[cfg_id] = bindir_path
                     self.config_testlogs[cfg_id] = bindir_path.parent / "testlogs"
+                return True
+            case {"targetCompleted": {"configuration": {"id": cfg_id}}} if cfg_id and not self.target_config_id:
+                self.target_config_id = cfg_id
                 return True
             case _:
                 return False
+
+    def bazel_bin(self) -> Path | None:
+        if not self.local_exec_root or not self.target_config_id:
+            return None
+        bindir = self.config_bindirs.get(self.target_config_id)
+        return Path(self.local_exec_root) / bindir if bindir else None
+
+
+def bazel_build_with_bindir(subcommand: str, *args: str) -> str:
+    ctx = _BepContext()
+    with tempfile.NamedTemporaryFile(prefix="bazel-bep-", suffix=".json", delete=False) as tmp:
+        bep_path = Path(tmp.name)
+    try:
+        bazel(subcommand, f"--build_event_json_file={bep_path}", *args)
+        with bep_path.open(encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                ctx.observe(event.get("id", {}), event)
+        if bazel_bin := ctx.bazel_bin():
+            return str(bazel_bin)
+        return bazel("info", "bazel-bin", capture_output=True).strip()
+    finally:
+        bep_path.unlink(missing_ok=True)
 
 
 class BepTestArtifacts(TypedDict):

@@ -14,9 +14,9 @@ import (
 
 func TestExtractCommonTags_Overlapping(t *testing.T) {
 	members := []seriesCompact{
-		{Tags: []string{"host:web1", "env:prod", "region:us"}},
-		{Tags: []string{"host:web2", "env:prod", "region:us"}},
-		{Tags: []string{"host:web3", "env:prod", "region:us"}},
+		{Tags: testCompositeTags([]string{"host:web1", "env:prod", "region:us"})},
+		{Tags: testCompositeTags([]string{"host:web2", "env:prod", "region:us"})},
+		{Tags: testCompositeTags([]string{"host:web3", "env:prod", "region:us"})},
 	}
 	common, residuals := extractCommonTags(members)
 	assert.Equal(t, map[string]string{"env": "prod", "region": "us"}, common)
@@ -27,8 +27,8 @@ func TestExtractCommonTags_Overlapping(t *testing.T) {
 
 func TestExtractCommonTags_KeepsHostSeparate(t *testing.T) {
 	common, residuals := extractCommonTags([]seriesCompact{
-		{Host: "web-1", Tags: []string{"env:prod"}},
-		{Host: "web-2", Tags: []string{"env:prod"}},
+		{Host: "web-1", Tags: testCompositeTags([]string{"env:prod"})},
+		{Host: "web-2", Tags: testCompositeTags([]string{"env:prod"})},
 	})
 
 	assert.Equal(t, map[string]string{"env": "prod"}, common)
@@ -38,8 +38,8 @@ func TestExtractCommonTags_KeepsHostSeparate(t *testing.T) {
 
 func TestExtractCommonTags_Disjoint(t *testing.T) {
 	members := []seriesCompact{
-		{Tags: []string{"host:web1", "env:prod"}},
-		{Tags: []string{"host:web2", "region:eu"}},
+		{Tags: testCompositeTags([]string{"host:web1", "env:prod"})},
+		{Tags: testCompositeTags([]string{"host:web2", "region:eu"})},
 	}
 	common, residuals := extractCommonTags(members)
 	assert.Empty(t, common)
@@ -55,7 +55,7 @@ func TestExtractCommonTags_Empty(t *testing.T) {
 
 func TestExtractCommonTags_SingleMember(t *testing.T) {
 	members := []seriesCompact{
-		{Tags: []string{"host:web1", "env:prod"}},
+		{Tags: testCompositeTags([]string{"host:web1", "env:prod"})},
 	}
 	common, residuals := extractCommonTags(members)
 	// All tags are "common" when there's only one member
@@ -116,16 +116,16 @@ func TestCompressFromTrie_SplitAtLowPrecision(t *testing.T) {
 
 func TestCompressGroup_EndToEnd(t *testing.T) {
 	members := []seriesCompact{
-		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.user_usec:avg", Tags: []string{"container_id:abc123"}},
-		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.system_usec:avg", Tags: []string{"container_id:abc123"}},
-		{Namespace: "parquet", Name: "cgroup.v2.memory.current:avg", Tags: []string{"container_id:abc123"}},
+		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.user_usec:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
+		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.system_usec:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
+		{Namespace: "parquet", Name: "cgroup.v2.memory.current:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
 	}
 	universe := []seriesCompact{
-		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.user_usec:avg", Tags: []string{"container_id:abc123"}},
-		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.system_usec:avg", Tags: []string{"container_id:abc123"}},
-		{Namespace: "parquet", Name: "cgroup.v2.memory.current:avg", Tags: []string{"container_id:abc123"}},
-		{Namespace: "parquet", Name: "cgroup.v2.io.rbytes:avg", Tags: []string{"container_id:abc123"}},
-		{Namespace: "parquet", Name: "system.net.bytes_rcvd:avg", Tags: []string{"container_id:abc123"}},
+		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.user_usec:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
+		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.system_usec:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
+		{Namespace: "parquet", Name: "cgroup.v2.memory.current:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
+		{Namespace: "parquet", Name: "cgroup.v2.io.rbytes:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
+		{Namespace: "parquet", Name: "system.net.bytes_rcvd:avg", Tags: testCompositeTags([]string{"container_id:abc123"})},
 	}
 
 	result := CompressGroup("time_cluster", "group-0", "CPU+Memory Spike", members, universe, 0.75)
@@ -141,11 +141,11 @@ func TestCompressGroup_EndToEnd(t *testing.T) {
 
 func TestCompressGroup_SingleMember(t *testing.T) {
 	members := []seriesCompact{
-		{Namespace: "parquet", Name: "system.cpu.user:avg", Tags: nil},
+		{Namespace: "parquet", Name: "system.cpu.user:avg", Tags: testCompositeTags(nil)},
 	}
 	universe := []seriesCompact{
-		{Namespace: "parquet", Name: "system.cpu.user:avg", Tags: nil},
-		{Namespace: "parquet", Name: "system.cpu.system:avg", Tags: nil},
+		{Namespace: "parquet", Name: "system.cpu.user:avg", Tags: testCompositeTags(nil)},
+		{Namespace: "parquet", Name: "system.cpu.system:avg", Tags: testCompositeTags(nil)},
 	}
 
 	result := CompressGroup("lead_lag", "g1", "", members, universe, 0.75)
@@ -156,8 +156,8 @@ func TestCompressGroup_SingleMember(t *testing.T) {
 
 func TestCompressGroup_NoCommonTags(t *testing.T) {
 	members := []seriesCompact{
-		{Namespace: "parquet", Name: "a.b.c:avg", Tags: []string{"host:h1"}},
-		{Namespace: "parquet", Name: "a.b.d:avg", Tags: []string{"host:h2"}},
+		{Namespace: "parquet", Name: "a.b.c:avg", Tags: testCompositeTags([]string{"host:h1"})},
+		{Namespace: "parquet", Name: "a.b.d:avg", Tags: testCompositeTags([]string{"host:h2"})},
 	}
 	universe := members
 
@@ -169,8 +169,8 @@ func TestCompressGroup_NoCommonTags(t *testing.T) {
 
 func TestCompressGroup_AllIdenticalNames(t *testing.T) {
 	members := []seriesCompact{
-		{Namespace: "parquet", Name: "cpu.user:avg", Tags: []string{"host:h1"}},
-		{Namespace: "parquet", Name: "cpu.user:avg", Tags: []string{"host:h2"}},
+		{Namespace: "parquet", Name: "cpu.user:avg", Tags: testCompositeTags([]string{"host:h1"})},
+		{Namespace: "parquet", Name: "cpu.user:avg", Tags: testCompositeTags([]string{"host:h2"})},
 	}
 	universe := members
 

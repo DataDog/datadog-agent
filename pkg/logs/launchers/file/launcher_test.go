@@ -9,13 +9,16 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -43,14 +46,29 @@ type RegularTestSetupStrategy struct{}
 func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()},
 		TestOps: TestOps{
-			create: os.Create,
-			rename: os.Rename,
-			remove: os.Remove,
+			create:  os.Create,
+			rename:  os.Rename,
+			remove:  os.Remove,
+			symlink: os.Symlink,
 		}}
 }
 
 type LauncherTestSuite struct {
 	BaseLauncherTestSuite
+}
+
+type oneShotErrorFingerprinter struct {
+	filetailer.Fingerprinter
+	err error
+}
+
+func (f *oneShotErrorFingerprinter) ComputeFingerprint(file *filetailer.File) (*types.Fingerprint, error) {
+	if f.err != nil {
+		err := f.err
+		f.err = nil
+		return nil, err
+	}
+	return f.Fingerprinter.ComputeFingerprint(file)
 }
 
 func (suite *LauncherTestSuite) SetupSuite() {
@@ -116,9 +134,10 @@ type TestSetupStrategy interface {
 }
 
 type TestOps struct {
-	create func(name string) (*os.File, error)
-	rename func(oldPath, newPath string) error
-	remove func(name string) error
+	create  func(name string) (*os.File, error)
+	rename  func(oldPath, newPath string) error
+	remove  func(name string) error
+	symlink func(oldname, newname string) error
 }
 
 type TestSetupResult struct {
@@ -344,7 +363,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
 	}
 	filePath := tailer.Identifier()[5:]
-	fingerprint, err := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
+	fingerprint, err := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig, s.fileOpener)
 	suite.Nil(err, "should be able to compute fingerprint")
 	suite.NotNil(fingerprint, "fingerprint should not be nil")
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
@@ -366,7 +385,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
 	filePath = newTailer.Identifier()[5:]
-	newFingerprint, err := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
+	newFingerprint, err := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig, s.fileOpener)
 	suite.Nil(err, "should be able to compute fingerprint")
 	registryFingerprint := s.registry.GetFingerprint(newTailer.Identifier())
 	suite.NotEqual(registryFingerprint.Value, newFingerprint.Value, "The fingerprint of the new file should be different")
@@ -543,6 +562,117 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 		msg = <-outputChan
 		assert.Equal(t, "world", string(msg.GetContent()))
 	}
+}
+
+func runLauncherNoFollowSymlinkTest(t *testing.T, ops TestOps, testDir string) {
+	cfg := configmock.New(t)
+	t.Cleanup(status.Clear)
+
+	// Empty .log files avoid pipeline writes and pass the privileged-logs allow-list.
+	createEmpty := func(path string) {
+		f, err := ops.create(path)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	}
+
+	targetPath := testDir + "/target.log"
+	createEmpty(targetPath)
+
+	swapToSymlink := func(path string) {
+		require.NoError(t, ops.remove(path))
+		require.NoError(t, ops.symlink(targetPath, path))
+	}
+
+	newLauncher := func(path string, noFollow bool) *Launcher {
+		launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 2})
+		launcher.pipelineProvider = mock.NewMockProvider()
+		launcher.registry = auditorMock.NewMockRegistry()
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     path,
+			NoFollow: noFollow,
+		})
+		launcher.activeSources = append(launcher.activeSources, source)
+		status.Clear()
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+		return launcher
+	}
+	scan := func(l *Launcher) {
+		l.resolveActiveTailers(l.fileProvider.FilesToTail(context.Background(), l.validatePodContainerID, l.activeSources, l.registry))
+	}
+
+	t.Run("initial open", func(t *testing.T) {
+		realPath := testDir + "/init_real.log"
+		createEmpty(realPath)
+		l := newLauncher(realPath, true)
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(), "noFollow source should tail a real file")
+		assert.True(t, l.tailers.Contains(realPath))
+		l.cleanup()
+
+		symlinkPath := testDir + "/init_symlink.log"
+		require.NoError(t, ops.symlink(targetPath, symlinkPath))
+
+		l = newLauncher(symlinkPath, true)
+		scan(l)
+		assert.Equal(t, 0, l.tailers.Count(), "noFollow source must reject a symlinked path")
+		l.cleanup()
+
+		l = newLauncher(symlinkPath, false)
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(), "follow-symlinks source should follow a symlink")
+		assert.True(t, l.tailers.Contains(symlinkPath))
+		l.cleanup()
+	})
+
+	t.Run("rotation", func(t *testing.T) {
+		// A protected tailer must be dropped after its path becomes a symlink.
+		plPath := testDir + "/rot_pl.log"
+		createEmpty(plPath)
+		l := newLauncher(plPath, true)
+		scan(l)
+		require.Equal(t, 1, l.tailers.Count(), "noFollow tailer should start on the real file")
+		plTailer, ok := l.tailers.Get(plPath)
+		require.True(t, ok)
+
+		swapToSymlink(plPath)
+		didRotate, err := plTailer.DidRotate()
+		assert.Error(t, err, "DidRotate must fail when the path became a symlink")
+		assert.False(t, didRotate)
+
+		scan(l)
+		assert.Equal(t, 0, l.tailers.Count(),
+			"noFollow tailer must drop when the path becomes a symlink on rotation")
+		l.cleanup()
+
+		// Ordinary configured paths continue to support symlinks after rotation.
+		nplPath := testDir + "/rot_npl.log"
+		createEmpty(nplPath)
+		l = newLauncher(nplPath, false)
+		scan(l)
+		require.Equal(t, 1, l.tailers.Count(), "follow-symlinks tailer should start on the real file")
+		nplTailer, ok := l.tailers.Get(nplPath)
+		require.True(t, ok)
+
+		swapToSymlink(nplPath)
+		didRotate, err = nplTailer.DidRotate()
+		assert.NoError(t, err)
+		assert.True(t, didRotate, "follow-symlinks rotation should be detected and followed")
+
+		scan(l)
+		assert.Equal(t, 1, l.tailers.Count(),
+			"follow-symlinks tailer should follow the symlink across rotation")
+		assert.True(t, l.tailers.Contains(nplPath))
+		l.cleanup()
+	})
+}
+
+func TestLauncherNoFollowSymlink(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("NoFollow symlink rejection is only supported on Linux")
+	}
+	res := (&RegularTestSetupStrategy{}).Setup(t)
+	runLauncherNoFollowSymlinkTest(t, res.TestOps, res.TestDirs[0])
 }
 
 func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []string) {
@@ -1517,4 +1647,311 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show per-source origin")
 	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
 	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
+}
+
+func (suite *LauncherTestSuite) TestFingerprintFailureKeepsActiveTailerUntilRecovery() {
+	scanKey := getScanKey(suite.testPath, suite.source)
+	initialTailer, found := suite.s.tailers.Get(scanKey)
+	suite.Require().True(found)
+
+	mockFingerprinter := filetailer.NewFingerprinterMock()
+	mockFingerprinter.SetInvalidFingerprint(suite.testPath)
+	suite.s.fingerprinter = &oneShotErrorFingerprinter{
+		Fingerprinter: mockFingerprinter,
+		err:           errors.New("direct I/O rejected"),
+	}
+
+	files := suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
+	suite.Require().Len(files, 1)
+	suite.s.resolveScan(files)
+
+	activeTailer, found := suite.s.tailers.Get(scanKey)
+	suite.Require().True(found)
+	suite.Same(initialTailer, activeTailer, "a fingerprint failure must not replace a working tailer")
+	reported := suite.source.Messages.GetMessages()
+	suite.Require().NotEmpty(reported)
+	suite.Contains(strings.Join(reported, "\n"), "The existing tailer is still collecting logs")
+	suite.NotContains(strings.Join(reported, "\n"), "Not tailing")
+	suite.Contains(strings.Join(reported, "\n"), "direct I/O rejected")
+
+	_, err := suite.testFile.WriteString("still tailing\n")
+	suite.Require().NoError(err)
+	msg := <-suite.outputChan
+	suite.Equal("still tailing", string(msg.GetContent()))
+
+	files = suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
+	suite.s.resolveScan(files)
+
+	recoveredTailer, found := suite.s.tailers.Get(scanKey)
+	suite.Require().True(found)
+	suite.Same(initialTailer, recoveredTailer, "successful retry should keep the same tailer when no rotation occurred")
+	suite.Empty(suite.s.fingerprintRotationErrors, "the status error must clear after recovery")
+	suite.NotContains(strings.Join(suite.source.Messages.GetMessages(), "\n"), "direct I/O rejected")
+}
+
+// TestFingerprintRotationErrorClearsWhenFileDisappears covers retraction: a stale entry
+// would leave the status page reporting a problem that no longer exists. The source holding
+// the entry is deliberately not one the scan walks.
+func (suite *LauncherTestSuite) TestFingerprintRotationErrorClearsWhenFileDisappears() {
+	disappearedPath := suite.testPath + ".gone"
+	disappearedFile, err := suite.ops.create(disappearedPath)
+	suite.Require().NoError(err)
+	suite.Require().NoError(disappearedFile.Close())
+
+	disappearedSource := sources.NewLogSource("disappeared", &config.LogsConfig{Type: config.FileType, Path: disappearedPath})
+	suite.s.recordFingerprintRotationError(filetailer.NewFile(disappearedPath, disappearedSource, false), errors.New("direct I/O rejected"))
+	suite.Require().NotEmpty(disappearedSource.Messages.GetMessages())
+
+	suite.Require().NoError(suite.ops.remove(disappearedPath))
+
+	files := suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
+	suite.s.resolveScan(files)
+
+	suite.Empty(disappearedSource.Messages.GetMessages(), "a file that no longer fails must leave no stale error")
+}
+
+func (suite *LauncherTestSuite) TestFingerprintRotationErrorClearsOnSourceReplacementAndStop() {
+	activeTailer, found := suite.s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.Require().True(found)
+	readErr := errors.New("direct I/O rejected")
+	suite.s.recordFingerprintRotationError(activeTailer.File(), readErr)
+	suite.Require().NotEmpty(suite.source.Messages.GetMessages())
+
+	replacement := sources.NewLogSource("replacement", suite.source.Config)
+	suite.s.addSource(replacement)
+	suite.Empty(suite.source.Messages.GetMessages(), "source replacement must clear the original warning immediately")
+	suite.Empty(suite.s.fingerprintRotationErrors)
+
+	suite.s.recordFingerprintRotationError(activeTailer.File(), readErr)
+	suite.Contains(strings.Join(replacement.Messages.GetMessages(), "\n"), readErr.Error())
+	suite.s.cleanup()
+	suite.Empty(suite.s.fingerprintRotationErrors)
+	suite.NotContains(strings.Join(replacement.Messages.GetMessages(), "\n"), readErr.Error(), "shutdown must clear warnings on sources that outlive the launcher")
+}
+
+func (suite *LauncherTestSuite) TestMalformedOffsetDoesNotPreventTailerStartup() {
+	suite.s.cleanup()
+	fingerprint := &types.Fingerprint{
+		Value: 12345,
+		Config: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+			Count:               1,
+		},
+	}
+	fingerprinter := filetailer.NewFingerprinterMock()
+	fingerprinter.SetFingerprint(suite.testPath, fingerprint)
+	suite.s.fingerprinter = fingerprinter
+	registry := auditorMock.NewMockRegistry()
+	registry.SetOffset("file:"+suite.testPath, "invalid")
+	registry.SetTailingMode(config.TailingMode(config.Beginning).String())
+	suite.s.registry = registry
+	suite.source.SetTailingMode(config.TailingMode(config.Beginning).String())
+
+	files := suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry)
+	suite.s.resolveScan(files)
+	suite.Equal(1, suite.s.tailers.Count(), "an invalid saved offset must use the normal fallback, not block collection")
+	suite.Empty(suite.s.fingerprintRotationErrors)
+	suite.Empty(suite.s.fingerprintSkips)
+}
+
+type sequentialHandoffFixture struct {
+	t          *testing.T
+	launcher   *Launcher
+	logSources []*sources.LogSource
+	path       string
+	file       *os.File
+}
+
+// newSequentialHandoffFixture builds a launcher tailing one file through as many
+// sources as identifiers are given. The unreliable-mount profile is what turns the
+// sequential handoff on, so leaving it off exercises parallel rotation. Rotated
+// tailers drain for at least the 30s quiet period or the 60s close timeout, so they
+// stay open until each test stops them.
+func newSequentialHandoffFixture(t *testing.T, unreliableMount bool, strategy types.FingerprintStrategy, identifiers ...string) *sequentialHandoffFixture {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("logs_config.unreliable_mount.enabled", unreliableMount)
+
+	launcher := createLauncher(t, launcherTestOptions{
+		fingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: strategy,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            256,
+		},
+	})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	// The mock pipeline channel is unbuffered, so a tailer that is never read
+	// from blocks forever when it is stopped. Nothing here asserts on content.
+	outputChan := launcher.pipelineProvider.NextPipelineChan()
+	stopDraining := make(chan struct{})
+	t.Cleanup(func() { close(stopDraining) })
+	go func() {
+		for {
+			select {
+			case <-outputChan:
+			case <-stopDraining:
+				return
+			}
+		}
+	}()
+
+	path := t.TempDir() + "/launcher.log"
+	file, err := os.Create(path)
+	require.NoError(t, err)
+
+	logSources := make([]*sources.LogSource, 0, len(identifiers))
+	for _, identifier := range identifiers {
+		logSources = append(logSources, sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: identifier, Path: path}))
+	}
+	launcher.activeSources = append(launcher.activeSources, logSources...)
+
+	status.Clear()
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
+	t.Cleanup(func() {
+		launcher.cleanup()
+		file.Close()
+		status.Clear()
+	})
+
+	return &sequentialHandoffFixture{t: t, launcher: launcher, logSources: logSources, path: path, file: file}
+}
+
+func (f *sequentialHandoffFixture) scan() {
+	l := f.launcher
+	l.resolveActiveTailers(l.fileProvider.FilesToTail(context.Background(), l.validatePodContainerID, l.activeSources, l.registry))
+}
+
+func (f *sequentialHandoffFixture) write(content string) {
+	_, err := f.file.WriteString(content)
+	require.NoError(f.t, err)
+	require.NoError(f.t, f.file.Sync())
+}
+
+// rotate renames the file away and puts different content at the original path,
+// which is what the fingerprint comparison sees as a rotation.
+func (f *sequentialHandoffFixture) rotate(content string) {
+	require.NoError(f.t, os.Rename(f.path, f.path+".1"))
+
+	rotated, err := os.Create(f.path)
+	require.NoError(f.t, err)
+	f.t.Cleanup(func() { rotated.Close() })
+
+	_, err = rotated.WriteString(content)
+	require.NoError(f.t, err)
+	require.NoError(f.t, rotated.Sync())
+}
+
+func TestSequentialHandoffDefersReplacementUntilRotatedTailerFinishes(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, true, types.FingerprintStrategyLineChecksum, "")
+	launcher := fixture.launcher
+	scanKey := getScanKey(fixture.path, fixture.logSources[0])
+
+	fixture.write("hello world\n")
+	fixture.scan()
+	rotatedTailer, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "the initial tailer should be running")
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+
+	assert.Equal(t, 0, launcher.tailers.Count(), "the replacement must wait for the rotated tailer to release its descriptor")
+	require.Len(t, launcher.rotatedTailers, 1)
+	assert.Same(t, rotatedTailer, launcher.rotatedTailers[0])
+	assert.True(t, rotatedTailer.IsHandoffDrain())
+	assert.Contains(t, launcher.oldInfoMap, scanKey, "a deferred scan must keep the info the replacement inherits")
+
+	rotatedTailer.Stop()
+	fixture.scan()
+
+	replacement, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "the replacement should start once the rotated tailer is finished")
+	assert.NotSame(t, rotatedTailer, replacement)
+	assert.Same(t, rotatedTailer.GetInfo(), replacement.GetInfo(), "the replacement inherits the rotated tailer's info registry")
+}
+
+func TestSequentialHandoffDoesNotDeferWithoutUnreliableMount(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, false, types.FingerprintStrategyLineChecksum, "")
+	launcher := fixture.launcher
+	scanKey := getScanKey(fixture.path, fixture.logSources[0])
+
+	fixture.write("hello world\n")
+	fixture.scan()
+	rotatedTailer, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "the initial tailer should be running")
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+
+	replacement, found := launcher.tailers.Get(scanKey)
+	require.True(t, found, "without unreliable_mount the replacement starts in the same scan as the rotation")
+	assert.NotSame(t, rotatedTailer, replacement)
+	require.Len(t, launcher.rotatedTailers, 1)
+	assert.False(t, launcher.rotatedTailers[0].IsHandoffDrain(), "without unreliable_mount the rotated tailer drains alongside its replacement")
+}
+
+// Sources with fingerprinting disabled rotate through the parallel restart path,
+// whose rotated tailers must not hold the path for other sources.
+func TestSequentialHandoffIgnoresParallelRotations(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, true, types.FingerprintStrategyDisabled, "")
+	launcher := fixture.launcher
+
+	fixture.write("hello world\n")
+	fixture.scan()
+	fixture.rotate("hello again\n")
+	fixture.scan()
+	require.Len(t, launcher.rotatedTailers, 1)
+	require.False(t, launcher.rotatedTailers[0].IsHandoffDrain())
+	require.Equal(t, 1, launcher.tailers.Count(), "the replacement starts alongside the rotated tailer")
+
+	launcher.launchTailers(sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: "other", Path: fixture.path}))
+	assert.Equal(t, 2, launcher.tailers.Count(), "a parallel rotation does not hold the path")
+}
+
+func TestSequentialHandoffDefersLaunchTailers(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, true, types.FingerprintStrategyLineChecksum, "")
+	launcher := fixture.launcher
+
+	fixture.write("hello world\n")
+	fixture.scan()
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+	require.Len(t, launcher.rotatedTailers, 1)
+
+	// A source added or reloaded mid-drain reaches the file through launchTailers
+	// rather than a scan, so it needs the same barrier.
+	launcher.launchTailers(fixture.logSources[0])
+	assert.Equal(t, 0, launcher.tailers.Count(), "launchTailers must not reopen a path that is still draining")
+	// The barrier is per path, not per scan key: a new source on the path, such as
+	// a fresh container, waits too.
+	launcher.launchTailers(sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: "other", Path: fixture.path}))
+	assert.Equal(t, 0, launcher.tailers.Count(), "a new source on the path must also wait for the drain")
+
+	launcher.rotatedTailers[0].Stop()
+	launcher.launchTailers(fixture.logSources[0])
+	assert.Equal(t, 1, launcher.tailers.Count(), "launchTailers starts the tailer once the drain is over")
+}
+
+func TestSequentialHandoffBlocksEveryScanKeyOnPath(t *testing.T) {
+	fixture := newSequentialHandoffFixture(t, true, types.FingerprintStrategyLineChecksum, "container-1", "container-2")
+	launcher := fixture.launcher
+
+	fixture.write("hello world\n")
+	fixture.scan()
+	require.Equal(t, 2, launcher.tailers.Count(), "both containers tail the same path")
+
+	fixture.rotate("hello again\n")
+	fixture.scan()
+
+	assert.Equal(t, 0, launcher.tailers.Count(), "both scan keys are blocked by a drain on their shared path")
+	require.Len(t, launcher.rotatedTailers, 2)
+
+	for _, rotatedTailer := range launcher.rotatedTailers {
+		rotatedTailer.Stop()
+	}
+	fixture.scan()
+
+	assert.Equal(t, 2, launcher.tailers.Count(), "both replacements start once the path is free")
 }

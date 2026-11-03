@@ -1,0 +1,9 @@
+description: jq slurp mode collects all JSON inputs before evaluating the filter.
+input:
+  script: |+
+    printf '1\n2\n3\n' | jq -sc 'map(. * 2)'
+expect:
+  stdout: |+
+    [2,4,6]
+  stderr: |+
+  exit_code: 0

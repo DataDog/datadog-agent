@@ -10,6 +10,11 @@
 // that package and its subpackages;
 // "# gazelle:dd_agent_go_test on" re-enables a subtree.
 // The directive is inheritable
+//
+// "# gazelle:go_split_generated <glob>" moves the go_library sources that do not
+// match <glob> into a go_source the library embeds, so a code generator can link
+// the package without its own checked-in output. It only applies to the package
+// that declares it.
 package dd_agent_go_test
 
 import (
@@ -18,6 +23,7 @@ import (
 	"go/build/constraint"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -34,6 +40,7 @@ import (
 
 const extName = "dd_agent_go_test"
 const canonicalTagSetDirective = "go_canonical_test_tag_set"
+const splitGeneratedDirective = "go_split_generated"
 const manualTag = "manual"
 
 // Stopping at 12 tags avoids combinatorial explosion and maintains readability.
@@ -69,6 +76,11 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	}
+	kinds["go_source"] = rule.KindInfo{
+		NonEmptyAttrs:  map[string]bool{"srcs": true},
+		MergeableAttrs: map[string]bool{"srcs": true},
+		ResolveAttrs:   map[string]bool{"deps": true},
+	}
 	return kinds
 }
 
@@ -80,6 +92,11 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 	if mal, ok := l.Language.(language.ModuleAwareLanguage); ok {
 		base = mal.ApparentLoads(moduleToApparentName)
 	}
+	for i := range base {
+		if strings.HasSuffix(base[i].Name, "//go:def.bzl") {
+			base[i].Symbols = append(slices.Clone(base[i].Symbols), "go_source")
+		}
+	}
 	return append(base, rule.LoadInfo{
 		Name:    "//bazel/rules/go:dd_agent_go_test.bzl",
 		Symbols: []string{"dd_agent_go_test"},
@@ -89,7 +106,7 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 
 // KnownDirectives registers this extension's directives alongside Go's.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName, canonicalTagSetDirective)
+	return append(l.Language.KnownDirectives(), extName, canonicalTagSetDirective, splitGeneratedDirective)
 }
 
 // Configure reads the inheritable test conversion and canonical tag-set directives.
@@ -132,6 +149,53 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 			}
 		}
 		result = l.revertDdAgentGoTests(result, args.File)
+	}
+	// After the go_test conversion, which reads the library's full srcs to pick
+	// test tag sets.
+	return splitGenerated(result, splitPattern(args.File))
+}
+
+func splitPattern(f *rule.File) string {
+	if f == nil {
+		return ""
+	}
+	for _, d := range f.Directives {
+		if d.Key == splitGeneratedDirective {
+			return d.Value
+		}
+	}
+	return ""
+}
+
+// splitGenerated keeps the srcs matching pattern in each go_library and moves
+// the others, along with the library's imports, into a <name>_sources go_source
+// the library embeds. Every unsplit library gets an empty go_source candidate so
+// a stale one is deleted once the directive is dropped.
+func splitGenerated(result language.GenerateResult, pattern string) language.GenerateResult {
+	for i, r := range slices.Clone(result.Gen) {
+		if r.Kind() != "go_library" {
+			continue
+		}
+		sourcesName := r.Name() + "_sources"
+		var generated, others []string
+		for _, src := range r.AttrStrings("srcs") {
+			if ok, _ := path.Match(pattern, src); ok && pattern != "" {
+				generated = append(generated, src)
+			} else {
+				others = append(others, src)
+			}
+		}
+		if len(generated) == 0 || len(others) == 0 {
+			result.Empty = append(result.Empty, rule.NewRule("go_source", sourcesName))
+			continue
+		}
+		sources := rule.NewRule("go_source", sourcesName)
+		sources.SetAttr("srcs", others)
+		r.SetAttr("srcs", generated)
+		r.SetAttr("embed", append(r.AttrStrings("embed"), ":"+sourcesName))
+		result.Gen = append(result.Gen, sources)
+		result.Imports = append(result.Imports, result.Imports[i])
+		result.Imports[i] = rule.PlatformStrings{}
 	}
 	return result
 }
@@ -470,7 +534,18 @@ func sourceTagSets(srcs []string, pkgDir string, configuredTagSets [][]string, d
 	return includeDefault, coalesceRelatedTagSets(tagSets, expressions, baseTags)
 }
 
+// tagSetsForExpression unions the tag sets each platform assignment requires, since a variant
+// builds for a single platform: in `(linux && bpf) || (windows && npm)`, a set covering the linux
+// branch says nothing about the windows one.
 func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, configuredTagSets [][]string, deriveTagSets bool) [][]string {
+	var out [][]string
+	for _, platform := range platformAssignments(expr) {
+		out = append(out, tagSetsOn(expr, platform, baseTags, configuredTagSets, deriveTagSets)...)
+	}
+	return mergeTagSets(out)
+}
+
+func tagSetsOn(expr constraint.Expr, platform, baseTags map[string]bool, configuredTagSets [][]string, deriveTagSets bool) [][]string {
 	var matches [][]string
 	configuredTags := make(map[string]bool)
 	for _, tagSet := range configuredTagSets {
@@ -479,7 +554,7 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 			configuredTags[tag] = true
 			tagSetTags[tag] = true
 		}
-		if referencesAnyTag(expr, tagSetTags) && canSatisfy(expr, activeTagSet(baseTags, tagSet)) {
+		if referencesAnyTag(expr, tagSetTags) && satisfiesOn(expr, activeTagSet(baseTags, tagSet), platform) {
 			matches = append(matches, normalizeTagSet(tagSet))
 		}
 	}
@@ -490,9 +565,9 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 		return nil
 	}
 	if referencesAnyTag(expr, configuredTags) {
-		return canonicalizedTagSets(expr, baseTags, configuredTagSets)
+		return canonicalizedTagSets(expr, platform, baseTags, configuredTagSets)
 	}
-	return minimalTagSets(expr, baseTags)
+	return minimalTagSets(expr, platform, baseTags)
 }
 
 // canonicalizedTagSets handles constraints that pair a canonical tag with tags
@@ -504,18 +579,18 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 // share a tag, and re-scanning would chain them all together.
 //
 // A constraint that contradicts the grouping — `kubeapiserver && !kubelet`
-// against {cel, clusterchecks, kubeapiserver, kubelet, orchestrator} — survives
+// against {cel, clusterchecks, kubeapiserver, kubelet} — survives
 // no such growth and still yields nothing.
-func canonicalizedTagSets(expr constraint.Expr, baseTags map[string]bool, configuredTagSets [][]string) [][]string {
+func canonicalizedTagSets(expr constraint.Expr, platform, baseTags map[string]bool, configuredTagSets [][]string) [][]string {
 	var out [][]string
-	for _, minimal := range minimalTagSets(expr, baseTags) {
+	for _, minimal := range minimalTagSets(expr, platform, baseTags) {
 		candidate := minimal
 		for _, tagSet := range configuredTagSets {
 			if stringSetsIntersect(minimal, tagSet) {
 				candidate = normalizeTagSet(append(append([]string(nil), candidate...), tagSet...))
 			}
 		}
-		if canSatisfy(expr, activeTagSet(baseTags, candidate)) {
+		if satisfiesOn(expr, activeTagSet(baseTags, candidate), platform) {
 			out = append(out, candidate)
 		}
 	}
@@ -537,9 +612,9 @@ func referencesAnyTag(expr constraint.Expr, tags map[string]bool) bool {
 	}
 }
 
-// minimalTagSets returns every tag set that satisfies this expression and does not
+// minimalTagSets returns every tag set that satisfies this expression on this platform and does not
 // contain a smaller tag set that also satisfies this same expression.
-func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
+func minimalTagSets(expr constraint.Expr, platform, baseTags map[string]bool) [][]string {
 	var referenced []string
 	collectAutoTestTags(expr, make(map[string]bool), &referenced)
 	sort.Strings(referenced)
@@ -549,10 +624,10 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
 		collectPositiveAutoTestTags(expr, false, make(map[string]bool), &positive)
 		sort.Strings(positive)
 		active := activeTagSet(baseTags, positive)
-		if canSatisfy(expr, active) {
+		if satisfiesOn(expr, active, platform) {
 			return [][]string{normalizeTagSet(positive)}
 		}
-		if canSatisfy(expr, activeTagSet(baseTags, referenced)) {
+		if satisfiesOn(expr, activeTagSet(baseTags, referenced), platform) {
 			return [][]string{normalizeTagSet(referenced)}
 		}
 		return nil
@@ -571,7 +646,7 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
 				selected = append(selected, tag)
 			}
 		}
-		if canSatisfy(expr, active) {
+		if satisfiesOn(expr, active, platform) {
 			candidates = append(candidates, normalizeTagSet(selected))
 		}
 	}
@@ -743,30 +818,38 @@ func stringSetsIntersect(left, right []string) bool {
 // In practice constraints reference at most a handful of platform tokens, so
 // enumerating 2^N assignments is fast.
 func canSatisfy(expr constraint.Expr, activeTags map[string]bool) bool {
-	platforms := collectPlatformTokens(expr)
-	if len(platforms) == 0 {
-		return expr.Eval(func(t string) bool {
-			return activeTags[t] || goReleaseTags[t]
-		})
-	}
-	for mask := 0; mask < (1 << len(platforms)); mask++ {
-		assign := make(map[string]bool, len(platforms))
-		for i, t := range platforms {
-			if mask&(1<<i) != 0 {
-				assign[t] = true
-			}
-		}
-		ok := expr.Eval(func(t string) bool {
-			if v, present := assign[t]; present {
-				return v
-			}
-			return activeTags[t] || goReleaseTags[t]
-		})
-		if ok {
+	for _, platform := range platformAssignments(expr) {
+		if satisfiesOn(expr, activeTags, platform) {
 			return true
 		}
 	}
 	return false
+}
+
+// satisfiesOn reports whether expr evaluates to true given active tags and an assignment of the
+// platform tokens it references.
+func satisfiesOn(expr constraint.Expr, activeTags, platform map[string]bool) bool {
+	return expr.Eval(func(t string) bool {
+		if v, present := platform[t]; present {
+			return v
+		}
+		return activeTags[t] || goReleaseTags[t]
+	})
+}
+
+// platformAssignments enumerates the 2^N assignments of true/false to the platform tokens expr
+// references.
+func platformAssignments(expr constraint.Expr) []map[string]bool {
+	platforms := collectPlatformTokens(expr)
+	assignments := make([]map[string]bool, 0, 1<<len(platforms))
+	for mask := 0; mask < (1 << len(platforms)); mask++ {
+		assign := make(map[string]bool, len(platforms))
+		for i, t := range platforms {
+			assign[t] = mask&(1<<i) != 0
+		}
+		assignments = append(assignments, assign)
+	}
+	return assignments
 }
 
 // collectPlatformTokens returns the unique platform/arch tokens referenced by

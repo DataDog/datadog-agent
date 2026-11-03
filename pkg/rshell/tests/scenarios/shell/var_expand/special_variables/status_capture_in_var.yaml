@@ -1,0 +1,13 @@
+description: The $? value can be captured into a variable before it is reset.
+input:
+  script: |+
+    false
+    A=$?
+    echo $A
+    echo $?
+expect:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

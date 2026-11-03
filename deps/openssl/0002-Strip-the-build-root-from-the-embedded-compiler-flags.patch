@@ -1,0 +1,21 @@
+Subject: [PATCH] Strip the build root from the embedded compiler flags
+
+The compiler flags embedded in libcrypto for `openssl version -a` contain
+absolute sandbox paths, which makes the library non-reproducible across
+Bazel builds. Replace $EXT_BUILD_ROOT with a fixed placeholder.
+---
+ util/mkbuildinf.pl | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/util/mkbuildinf.pl b/util/mkbuildinf.pl
+--- a/util/mkbuildinf.pl
++++ b/util/mkbuildinf.pl
+@@ -11,6 +11,8 @@
+
+ my $platform = pop @ARGV;
+ my $cflags = join(' ', @ARGV);
++my $build_root = $ENV{'EXT_BUILD_ROOT'} // '';
++$cflags =~ s(\Q$build_root\E)(<EXT_BUILD_ROOT>)g if $build_root ne '';
+ $cflags =~ s(\\)(\\\\)g;
+ $cflags = "compiler: $cflags";
+

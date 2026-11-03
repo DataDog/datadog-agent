@@ -113,7 +113,7 @@ func readProfileData(client ipc.HTTPClient, seconds int) (clusterAgentFlare.Prof
 	pdata := clusterAgentFlare.ProfileData{}
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("expvar_port"))
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("metrics_port"))
 
 	for _, prof := range []struct{ name, URL string }{
 		{
@@ -141,6 +141,11 @@ func readProfileData(client ipc.HTTPClient, seconds int) (clusterAgentFlare.Prof
 			name: "datadog-cluster-agent-block.pprof",
 			URL:  pprofURL + "/block",
 		},
+		{
+			// Trace
+			name: "datadog-cluster-agent.trace",
+			URL:  fmt.Sprintf("%s/trace?seconds=%d", pprofURL, seconds),
+		},
 	} {
 		b, err := client.Get(prof.URL, ipchttp.WithLeaveConnectionOpen, ipchttp.WithoutAuthToken)
 		if err != nil {
@@ -150,6 +155,10 @@ func readProfileData(client ipc.HTTPClient, seconds int) (clusterAgentFlare.Prof
 	}
 
 	return pdata, nil
+}
+
+func newSettingsClient(client ipc.HTTPClient, cmdPort int) settings.Client {
+	return settingshttp.NewSecureClient(client, fmt.Sprintf("https://localhost:%v/config", cmdPort), "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen)
 }
 
 // resolveDCALogFile returns the log file to bundle in a cluster-agent flare.
@@ -168,12 +177,13 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 		profile clusterAgentFlare.ProfileData
 		e       error
 	)
-	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	cmdPort := pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")
+	urlstr := fmt.Sprintf("https://localhost:%v/flare", cmdPort)
 
 	logFile := resolveDCALogFile(pkgconfigsetup.Datadog())
 
 	if cliParams.profiling >= 30 {
-		settingsClient := settingshttp.NewSecureClient(ipc.GetClient(), urlstr, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen)
+		settingsClient := newSettingsClient(ipc.GetClient(), cmdPort)
 
 		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,

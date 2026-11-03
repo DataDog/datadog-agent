@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::helpers::{ProcessExpect, ReloadExpect, TestEnv, write_config};
+use crate::helpers::{ProcessExpect, ReloadExpect, TestEnv, kill_pid_force, write_config};
+use std::time::Duration;
 
 /// Writes the `datadog.yaml` that the `config_gate` fixtures point their gate at.
 fn write_agent_yaml(env: &TestEnv, process_collection_enabled: bool) {
@@ -40,14 +41,15 @@ fn config_gate_open_auto_starts_process() {
 }
 
 #[test]
-fn config_gate_closed_stays_created() {
+fn config_gate_closed_is_skipped() {
     let env = TestEnv::new();
     write_agent_yaml(&env, false);
     let procmgr = env.with_process("config_gate").start();
 
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state("config_gate", ProcessExpect::Created);
+    list.assert_process_state("config_gate", ProcessExpect::Skipped);
+    list.assert_skip_reasons("config_gate", &["config_gate"]);
     procmgr.assert_config_gate_not_met_logged("config_gate", &agent_yaml_path(&procmgr));
 }
 
@@ -72,7 +74,7 @@ fn reload_starts_created_process_when_gate_opens() {
     let procmgr = env.with_process("config_gate").start();
     procmgr
         .require_list()
-        .assert_process_state("config_gate", ProcessExpect::Created);
+        .assert_process_state("config_gate", ProcessExpect::Skipped);
 
     write_agent_yaml(&procmgr, true);
     procmgr.assert_reload_matches(ReloadExpect {
@@ -97,7 +99,7 @@ fn reload_does_not_start_no_auto_start_process_with_open_gate() {
     let procmgr = env.with_process("config_gate_no_auto_start").start();
     procmgr
         .require_list()
-        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Created);
+        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Skipped);
 
     procmgr.assert_reload_matches(ReloadExpect {
         unchanged: Some(vec!["config_gate_no_auto_start".into()]),
@@ -109,7 +111,7 @@ fn reload_does_not_start_no_auto_start_process_with_open_gate() {
 
     procmgr
         .require_list()
-        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Created);
+        .assert_process_state("config_gate_no_auto_start", ProcessExpect::Skipped);
 }
 
 /// Blast radius of the gate feature on an ordinary process: reload must not resurrect a
@@ -161,4 +163,48 @@ fn gate_closing_does_not_stop_running_process() {
     procmgr
         .require_list()
         .assert_process_state("config_gate", ProcessExpect::Running);
+}
+
+/// A gate that closes between a crash and the respawn skips the restart, which leaves
+/// the process outside `Created` with nothing queued. Reopening the gate has to bring it
+/// back, otherwise a config change overlapping a crash silently stops the process for
+/// good and only `dd-procmgr start` or a daemon restart recovers it.
+#[test]
+fn reload_restarts_process_stranded_by_gate_closing_during_restart() {
+    let env = TestEnv::new();
+    write_agent_yaml(&env, true);
+    let procmgr = env.with_process("config_gate_on_failure").start();
+    let pid = procmgr
+        .wait_for_process_running("config_gate_on_failure")
+        .expect("expected config_gate_on_failure running when the gate is open")
+        .pid;
+
+    // The gate closes first, so the crash finds no open condition to restart into.
+    // `kill_pid_force` is a SIGKILL here (this suite is Linux-only), so the child
+    // returns no value and lands in `Crashed` rather than `Failed`.
+    write_agent_yaml(&procmgr, false);
+    kill_pid_force(pid as u32);
+    procmgr
+        .wait_for_process_state(
+            "config_gate_on_failure",
+            ProcessExpect::Crashed,
+            Duration::from_secs(10),
+        )
+        .expect("expected the killed process to stay Crashed behind the closed gate");
+    procmgr
+        .require_list()
+        .assert_skip_reasons("config_gate_on_failure", &["config_gate"]);
+
+    write_agent_yaml(&procmgr, true);
+    procmgr.assert_reload_matches(ReloadExpect {
+        unchanged: Some(vec!["config_gate_on_failure".into()]),
+        added: Some(vec![]),
+        removed: Some(vec![]),
+        modified: Some(vec![]),
+        ..Default::default()
+    });
+
+    procmgr
+        .wait_for_process_running("config_gate_on_failure")
+        .expect("expected the stranded process to restart once the gate reopens");
 }

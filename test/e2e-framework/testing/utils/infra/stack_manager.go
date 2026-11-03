@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -33,6 +34,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
+
+// StacksFileName is the file, in the runner output directory, listing the Pulumi stacks used by
+// the test process in GitLab CI, one per line. CI reads it to clean up stacks left behind by canceled jobs.
+const StacksFileName = "pulumi-stacks.txt"
 
 const (
 	nameSep               = "-"
@@ -476,6 +481,16 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 
 		stack = &newStack
 		sm.stacks.Set(name, stack)
+
+		// Record the stack before it is provisioned, so the job after_script can clean it up even if the job is canceled
+		// during `up`. Only in GitLab CI: locally, `new-e2e-tests.clean` expects the output directory to only contain directories.
+		if os.Getenv("GITLAB_CI") == "true" {
+			if outputDir, err := profile.GetOutputDir(); err != nil {
+				fmt.Printf("WARNING: unable to record stack %s, err: %v\n", stackName, err)
+			} else if err := recordStackName(outputDir, stackName); err != nil {
+				fmt.Printf("WARNING: unable to record stack %s, err: %v\n", stackName, err)
+			}
+		}
 	} else {
 		stack.Workspace().SetProgram(deployFunc)
 	}
@@ -592,6 +607,19 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		auto.WorkDir(workspaceStackDir),
 		auto.EnvVars(defaultWorkspaceEnvVars),
 	)
+}
+
+// recordStackName appends stackName to the StacksFileName file in outputDir
+func recordStackName(outputDir, stackName string) error {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filepath.Join(outputDir, StacksFileName), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(f, stackName)
+	return errors.Join(err, f.Close())
 }
 
 func buildStackName(namePrefix, stackName string) string {

@@ -6,6 +6,7 @@
 package authoredscripts
 
 import (
+	"context"
 	"encoding/json"
 	"runtime"
 	"testing"
@@ -17,7 +18,7 @@ import (
 
 const (
 	testCatalogProduct = "UPDATER_CATALOG_DD"
-	testCatalogFQN     = "com.datadoghq.authoredscripts.helm.addRepo"
+	testExecutionFQN   = "com.datadoghq.authoredscripts.helm.addRepo"
 	testCatalogPackage = "com.datadoghq.authoredscripts.helm.addrepo"
 	testCatalogDigest  = "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c"
 )
@@ -45,7 +46,13 @@ func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 	require.Equal(t, 1, client.subscribeCount)
 	require.Equal(t, testCatalogProduct, client.product)
 	require.NotNil(t, client.handler)
-	_, err = catalog.Lookup(testCatalogFQN)
+	requireCatalogNotReady(t, catalog)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, catalog.WaitForReady(ctx), context.Canceled)
+
+	_, err = catalog.Lookup(testExecutionFQN)
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
 
@@ -80,17 +87,40 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 		},
 	}})
 	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+	requireCatalogReady(t, catalog)
+	require.NoError(t, catalog.WaitForReady(context.Background()))
 
-	descriptor, err := catalog.Lookup(testCatalogFQN)
+	descriptor, err := catalog.Lookup(testExecutionFQN)
 	require.NoError(t, err)
-	want := Descriptor{FQN: testCatalogFQN, Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
+	want := Descriptor{FQN: testExecutionFQN, Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
 	require.Equal(t, want, descriptor)
 	_, err = catalog.Lookup("com.datadoghq.authoredscripts.otherAction")
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 
 	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{})
 	require.Equal(t, state.ApplyStateAcknowledged, status.State)
-	_, err = catalog.Lookup(testCatalogFQN)
+	_, err = catalog.Lookup(testExecutionFQN)
+	require.ErrorIs(t, err, ErrPackageNotConfigured)
+}
+
+func TestRemoteCatalogLooksUpExecutionFQNOnly(t *testing.T) {
+	const publicFQN = "com.datadoghq.helm.addRepo"
+	client := &testCatalogRCClient{}
+	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
+	require.NoError(t, err)
+
+	publicPackage := validRemotePackage()
+	publicPackage.Name = "com.datadoghq.helm.addrepo"
+	executionPackage := validRemotePackage()
+	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{publicPackage, executionPackage}})
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+
+	descriptor, err := catalog.Lookup(testExecutionFQN)
+	require.NoError(t, err)
+	require.Equal(t, testExecutionFQN, descriptor.FQN)
+	require.Equal(t, executionPackage.Name, descriptor.Package)
+
+	_, err = catalog.Lookup(publicFQN)
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
 
@@ -99,16 +129,23 @@ func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 	valid := validRemotePackage()
-	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{valid}})
-	require.Equal(t, state.ApplyStateAcknowledged, status.State)
-
 	invalid := valid
 	invalid.URL = "oci://registry.example.test/authored-script@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{invalid}})
+	require.Equal(t, state.ApplyStateError, status.State)
+	require.NotEmpty(t, status.Error)
+	requireCatalogNotReady(t, catalog)
+
+	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{valid}})
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+	requireCatalogReady(t, catalog)
+
 	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{invalid}})
 	require.Equal(t, state.ApplyStateError, status.State)
 	require.NotEmpty(t, status.Error)
 
-	descriptor, err := catalog.Lookup(testCatalogFQN)
+	descriptor, err := catalog.Lookup(testExecutionFQN)
 	require.NoError(t, err)
 	require.Equal(t, valid.Version, descriptor.Version)
 }
@@ -148,4 +185,22 @@ func applyRemoteCatalog(t *testing.T, client *testCatalogRCClient, catalog fleet
 		func(_ string, applied state.ApplyStatus) { status = applied },
 	)
 	return status
+}
+
+func requireCatalogReady(t *testing.T, catalog Catalog) {
+	t.Helper()
+	select {
+	case <-catalog.(*remoteCatalog).ready:
+	default:
+		require.Fail(t, "catalog is not ready")
+	}
+}
+
+func requireCatalogNotReady(t *testing.T, catalog Catalog) {
+	t.Helper()
+	select {
+	case <-catalog.(*remoteCatalog).ready:
+		require.Fail(t, "catalog is ready")
+	default:
+	}
 }

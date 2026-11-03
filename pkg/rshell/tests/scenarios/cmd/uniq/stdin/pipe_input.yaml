@@ -1,0 +1,14 @@
+# Test stdin input via redirect
+description: uniq reads from stdin when no file is given.
+setup:
+  files:
+    - path: src.txt
+      content: "a\na\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq < src.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

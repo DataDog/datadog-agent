@@ -25,32 +25,38 @@ Bazel applies `patches = [...]` cumulatively in order at fetch time — patch N 
 
 ### 2. Initialise the cumulative scratch tree
 
-Once per dep. A throwaway git repo wraps the extraction just to get `git apply --3way`'s merge machinery.
+Once per dep. A throwaway git repo wraps the extraction so each applied patch can be committed and a failed one reset.
 
 ```
 cp -r /tmp/<dep-name>-new/<dep-name>-<new-version> /tmp/<dep-name>-patch-scratch/
 cd /tmp/<dep-name>-patch-scratch/
 git init -q
-git add -A && git -c user.email=skill@local -c user.name=skill commit -q -m "base"
+git add -A && git commit -q -m "base"
 ```
 
 ### 3. Walk `patches = [...]` in order
 
-For each patch:
+Apply each patch with the same tool Bazel uses, so the result matches the fetch:
 
-```
-cd /tmp/<dep-name>-patch-scratch/
-git apply --3way --whitespace=nowarn -p<N> <abs path to patch file>
-```
+- `patch_tool` set on the http_archive -> Bazel runs `<patch_tool> -p<N> < <patch>`:
+  ```
+  cd /tmp/<dep-name>-patch-scratch/
+  <patch_tool> -p<N> --forward --batch --no-backup-if-mismatch < <abs path to patch file>
+  ```
+- `patch_tool` unset -> Bazel's built-in patcher, which accepts no fuzz. Closest equivalent:
+  ```
+  cd /tmp/<dep-name>-patch-scratch/
+  git apply --whitespace=nowarn -p<N> <abs path to patch file>
+  ```
 
 Inspect:
 
-- **Exit code 0, no `<<<<<<<` markers** (`git diff --check`) → clean apply. Commit so subsequent patches see this patch's effects:
+- **Exit code 0, no `*.rej` files** -> clean apply. Report any fuzz or offset in the tool output as a warning (the patch may need a refresh). Commit so subsequent patches see this patch's effects:
   ```
-  git -c user.email=skill@local -c user.name=skill commit -aq --allow-empty -m "applied <patch-basename>"
+  git add -A && git commit -q --allow-empty -m "applied <patch-basename>"
   ```
   `--allow-empty` covers no-op patches. Continue to the next patch.
-- **Nonzero exit or conflict markers present** → failed. Document it (step 4), reset (`git reset --hard HEAD && git clean -fd`), continue walking the list.
+- **Nonzero exit or `*.rej` files present** -> failed. Document it (step 4), reset (`git reset --hard HEAD && git clean -fd`), continue walking the list.
 
 ### 4. Document each failure
 
@@ -58,8 +64,8 @@ Per failed patch:
 
 - **Leave the patch file on disk unchanged.**
 - Capture the failure to `/tmp/<dep-name>-patch-<patch-basename>-conflict.txt`:
-  - Full `git apply --3way` stderr + stdout.
-  - For each conflicted file, the `<<<<<<< / ======= / >>>>>>>` section.
+  - Full stderr + stdout of the apply command.
+  - The contents of each `*.rej` file, if any.
 - Surface a single block per failed patch:
 
 ```

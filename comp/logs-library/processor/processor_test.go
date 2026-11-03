@@ -8,17 +8,22 @@ package processor
 import (
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 type processorTestCase struct {
-	source        sources.LogSource
+	source        *sources.LogSource
 	input         []byte
 	output        []byte
 	shouldProcess bool
@@ -71,7 +76,7 @@ func TestExclusion(t *testing.T) {
 	// unstructured messages
 
 	for idx, test := range exclusionTests {
-		msg := newMessage(test.input, &test.source, "")
+		msg := newMessage(test.input, test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(test.ruleType+":"+ruleName), "match count should be equal for test %d", idx)
@@ -84,7 +89,7 @@ func TestExclusion(t *testing.T) {
 	// structured messages
 
 	for idx, test := range exclusionTests {
-		msg := newStructuredMessage(test.input, &test.source, "")
+		msg := newStructuredMessage(test.input, test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(test.ruleType+":"+ruleName), "match count should be equal for test %d", idx)
@@ -101,7 +106,7 @@ func TestExclusion(t *testing.T) {
 var inclusionRuleType = "include_at_match"
 var inclusionTests = []processorTestCase{
 	{
-		source:        *sources.NewLogSource("", &config.LogsConfig{}),
+		source:        sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("hello"),
 		output:        []byte("hello"),
 		shouldProcess: false,
@@ -109,7 +114,7 @@ var inclusionTests = []processorTestCase{
 		ruleType:      inclusionRuleType,
 	},
 	{
-		source:        *sources.NewLogSource("", &config.LogsConfig{}),
+		source:        sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("world"),
 		output:        []byte("world"),
 		shouldProcess: true,
@@ -117,7 +122,7 @@ var inclusionTests = []processorTestCase{
 		ruleType:      inclusionRuleType,
 	},
 	{
-		source:        *sources.NewLogSource("", &config.LogsConfig{}),
+		source:        sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("a brand new world"),
 		output:        []byte("a brand new world"),
 		shouldProcess: true,
@@ -139,7 +144,7 @@ func TestInclusion(t *testing.T) {
 	// unstructured messages
 
 	for idx, test := range inclusionTests {
-		msg := newMessage(test.input, &test.source, "")
+		msg := newMessage(test.input, test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(inclusionRuleType+":"+ruleName), "match count should be equal for test %d", idx)
@@ -152,7 +157,7 @@ func TestInclusion(t *testing.T) {
 	// structured messages
 
 	for idx, test := range inclusionTests {
-		msg := newStructuredMessage(test.input, &test.source, "")
+		msg := newStructuredMessage(test.input, test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(inclusionRuleType+":"+ruleName), "match count should be equal for test %d", idx)
@@ -172,7 +177,7 @@ var inclusionRule *config.ProcessingRule = newProcessingRule(inclusionRuleType, 
 
 var exclusionInclusionTests = []processorTestCase{
 	{
-		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
+		source:        sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bob@datadoghq.com"),
 		output:        []byte("bob@datadoghq.com"),
 		shouldProcess: false,
@@ -180,7 +185,7 @@ var exclusionInclusionTests = []processorTestCase{
 		ruleType:      exclusionRuleType,
 	},
 	{
-		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
+		source:        sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bill@datadoghq.com"),
 		output:        []byte("bill@datadoghq.com"),
 		shouldProcess: true,
@@ -188,7 +193,7 @@ var exclusionInclusionTests = []processorTestCase{
 		ruleType:      inclusionRuleType,
 	},
 	{
-		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
+		source:        sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bob@amail.com"),
 		output:        []byte("bob@amail.com"),
 		shouldProcess: false,
@@ -196,7 +201,7 @@ var exclusionInclusionTests = []processorTestCase{
 		ruleType:      exclusionRuleType,
 	},
 	{
-		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
+		source:        sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bill@amail.com"),
 		output:        []byte("bill@amail.com"),
 		shouldProcess: false,
@@ -212,7 +217,7 @@ func TestExclusionWithInclusion(t *testing.T) {
 	// unstructured messages
 
 	for idx, test := range exclusionInclusionTests {
-		msg := newMessage(test.input, &test.source, "")
+		msg := newMessage(test.input, test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(test.ruleType+":"+ruleName), "match count should be equal for test %d", idx)
@@ -225,7 +230,7 @@ func TestExclusionWithInclusion(t *testing.T) {
 	// structured messages
 
 	for idx, test := range exclusionInclusionTests {
-		msg := newStructuredMessage(test.input, &test.source, "")
+		msg := newStructuredMessage(test.input, test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(test.ruleType+":"+ruleName), "match count should be equal for test %d", idx)
@@ -305,7 +310,7 @@ func TestMask(t *testing.T) {
 	// unstructured messages
 
 	for idx, maskTest := range masksTests {
-		msg := newMessage(maskTest.input, &maskTest.source, "")
+		msg := newMessage(maskTest.input, maskTest.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(maskTest.shouldProcess, shouldProcess)
 		assert.Equal(maskTest.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(maskSequenceRule+":"+ruleName), "match count should be equal for test %d", idx)
@@ -318,7 +323,7 @@ func TestMask(t *testing.T) {
 	// structured messages
 
 	for idx, maskTest := range masksTests {
-		msg := newStructuredMessage(maskTest.input, &maskTest.source, "")
+		msg := newStructuredMessage(maskTest.input, maskTest.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(maskTest.shouldProcess, shouldProcess)
 		assert.Equal(maskTest.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(maskSequenceRule+":"+ruleName), "match count should be equal for test %d", idx)
@@ -346,6 +351,57 @@ func TestGetHostname(t *testing.T) {
 	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
 }
 
+func TestFailoverConfigUpdateDoesNotBlock(t *testing.T) {
+	cfg := configmock.New(t)
+	// Not started, like a processor stopped by a pipeline restart: nothing consumes its config updates.
+	p := New(cfg, make(chan *message.Message), make(chan *message.Message), nil, nil, JSONEncoder, nil, nil, metrics.NewNoopPipelineMonitor(""), "")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		cfg.Set(configMRFServiceAllowlist, []string{"web"}, pkgconfigmodel.SourceRC)
+		cfg.Set(configMRFFailoverLogs, true, pkgconfigmodel.SourceRC)
+		cfg.Set(configMRFServiceAllowlist, []string{"web", "api"}, pkgconfigmodel.SourceRC)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("config updates blocked on a processor that does not consume them")
+	}
+
+	// Only the latest failover config is pending
+	require.Len(t, p.configChan, 1)
+	conf := <-p.configChan
+	assert.True(t, conf.isFailoverActive)
+	assert.Equal(t, map[string]struct{}{"web": {}, "api": {}}, conf.failoverServiceAllowlist)
+}
+
+func TestFilterMRFMessages(t *testing.T) {
+	web := sources.NewLogSource("web", &config.LogsConfig{Service: "web"})
+	api := sources.NewLogSource("api", &config.LogsConfig{Service: "api"})
+
+	tests := []struct {
+		name      string
+		allowlist map[string]struct{}
+		wantWeb   bool
+		wantAPI   bool
+	}{
+		{name: "empty allowlist forwards every service", wantWeb: true, wantAPI: true},
+		{name: "allowlist forwards listed services only", allowlist: map[string]struct{}{"web": {}}, wantWeb: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Processor{failoverConfig: failoverConfig{isFailoverActive: true, failoverServiceAllowlist: tt.allowlist}}
+			webMsg := newMessage([]byte("hello"), web, "")
+			apiMsg := newMessage([]byte("hello"), api, "")
+			p.filterMRFMessages(webMsg)
+			p.filterMRFMessages(apiMsg)
+			assert.Equal(t, tt.wantWeb, webMsg.IsMRFAllow)
+			assert.Equal(t, tt.wantAPI, apiMsg.IsMRFAllow)
+		})
+	}
+}
+
 // helpers
 // -
 
@@ -362,8 +418,8 @@ func newProcessingRule(ruleType, replacePlaceholder, pattern string) *config.Pro
 	}
 }
 
-func newSource(ruleType, replacePlaceholder, pattern string) sources.LogSource {
-	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}})
+func newSource(ruleType, replacePlaceholder, pattern string) *sources.LogSource {
+	return sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}})
 }
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Message {
@@ -426,14 +482,14 @@ func TestExcludeTruncated(t *testing.T) {
 	source := newSource(ruleType, "", "")
 
 	// A non-truncated message should be processed
-	msg1 := newMessage([]byte("hello"), &source, "")
+	msg1 := newMessage([]byte("hello"), source, "")
 	msg1.IsTruncated = false
 	shouldProcess1 := p.applyRedactingRules(msg1)
 	assert.True(shouldProcess1)
 	assert.Equal(int64(0), msg1.Origin.LogSource.ProcessingInfo.GetCount(ruleType+":"+ruleName))
 
 	// A truncated message should not be processed
-	msg2 := newMessage([]byte("hello"), &source, "")
+	msg2 := newMessage([]byte("hello"), source, "")
 	msg2.IsTruncated = true
 	shouldProcess2 := p.applyRedactingRules(msg2)
 	assert.False(shouldProcess2)

@@ -14,9 +14,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/pypa/setuptools/archive/v{version}.tar.gz",
         package = "setuptools",
         version = VERSION,
-        download_url = "https://github.com/pypa/setuptools/archive/v{version}.tar.gz",
     ),
 )
 

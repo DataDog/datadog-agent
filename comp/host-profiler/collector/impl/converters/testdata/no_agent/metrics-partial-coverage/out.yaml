@@ -102,6 +102,7 @@ service:
                 - profiling
     telemetry:
         metrics:
+            level: normal
             readers:
                 - pull:
                     exporter:

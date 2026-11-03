@@ -1,0 +1,14 @@
+description: Cat reads file content with special characters preserved.
+setup:
+  files:
+    - path: special.txt
+      content: "tab\there\nnewline\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat special.txt
+expect:
+  stdout: "tab\there\nnewline\n"
+  stderr: ""
+  exit_code: 0

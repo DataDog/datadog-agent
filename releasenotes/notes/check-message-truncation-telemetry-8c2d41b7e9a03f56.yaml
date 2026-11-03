@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Agent now reports, through cross-org Agent telemetry, how often check error and warning messages
+    exceed the size cap of the ``agent_checks`` metadata payload (``checks.metadata_message_oversized``) and
+    their original size (``checks.metadata_message_oversized_bytes``).

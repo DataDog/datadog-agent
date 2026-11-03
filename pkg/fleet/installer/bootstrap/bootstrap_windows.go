@@ -81,7 +81,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if downloadedPackage.Name != AgentPackage {
 		return getLocalInstaller(env)
 	}
-	installerBinPath, err := extractInstallerFromAgentPackage(ctx, downloadedPackage, tmpDir)
+	installerBinPath, err := extractInstallerFromAgentPackage(ctx, downloadedPackage, tmpDir, env.FIPSMode)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func DownloadInstallerExe(ctx context.Context, env *env.Env, url string, tmpDir 
 	if downloadedPackage.Name != AgentPackage {
 		return "", fmt.Errorf("expected %s OCI package, got %s", AgentPackage, downloadedPackage.Name)
 	}
-	return extractInstallerFromAgentPackage(ctx, downloadedPackage, tmpDir)
+	return extractInstallerFromAgentPackage(ctx, downloadedPackage, tmpDir, env.FIPSMode)
 }
 
 // extractInstallerFromAgentPackage extracts a version-matched
@@ -122,10 +122,10 @@ func DownloadInstallerExe(ctx context.Context, env *env.Env, url string, tmpDir 
 // back to MSI admin-install extraction for older packages.
 // Honors the InstallerBootstrapMode registry key (`OCI` / `MSI`) to
 // force one path or the other for testing.
-func extractInstallerFromAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string) (string, error) {
+func extractInstallerFromAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string, fipsMode bool) (string, error) {
 	// Testing override: if InstallerBootstrapMode registry key is set, use test-specific flow
 	if mode := getInstallerBootstrapMode(); mode != "" {
-		return extractInstallerFromAgentPackageTestMode(ctx, pkg, tmpDir, mode)
+		return extractInstallerFromAgentPackageTestMode(ctx, pkg, tmpDir, mode, fipsMode)
 	}
 
 	// Production flow: try OCI layer, fall back to MSI extraction for older packages
@@ -136,7 +136,7 @@ func extractInstallerFromAgentPackage(ctx context.Context, pkg *oci.DownloadedPa
 	if _, err := os.Stat(installerBinPath); err != nil {
 		// Fallback to the old method if the file/layer doesn't exist.
 		// Expected for Agent versions earlier than 7.79.
-		return extractInstallerFromOldAgentPackage(ctx, pkg, tmpDir)
+		return extractInstallerFromOldAgentPackage(ctx, pkg, tmpDir, fipsMode)
 	}
 	return installerBinPath, nil
 }
@@ -144,7 +144,7 @@ func extractInstallerFromAgentPackage(ctx context.Context, pkg *oci.DownloadedPa
 // extractInstallerFromAgentPackageTestMode forces a specific extraction
 // path when the InstallerBootstrapMode registry key is set.
 // This is ONLY used for testing to force a specific bootstrap path.
-func extractInstallerFromAgentPackageTestMode(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string, mode string) (string, error) {
+func extractInstallerFromAgentPackageTestMode(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string, mode string, fipsMode bool) (string, error) {
 	switch mode {
 	case "OCI":
 		// Force OCI path - fail if installer layer is missing
@@ -158,7 +158,7 @@ func extractInstallerFromAgentPackageTestMode(ctx context.Context, pkg *oci.Down
 		return installerBinPath, nil
 	case "MSI":
 		// Force MSI fallback path
-		return extractInstallerFromOldAgentPackage(ctx, pkg, tmpDir)
+		return extractInstallerFromOldAgentPackage(ctx, pkg, tmpDir, fipsMode)
 	default:
 		return "", fmt.Errorf("unknown InstallerBootstrapMode: %s (expected OCI or MSI)", mode)
 	}
@@ -190,7 +190,7 @@ func getInstallerBootstrapMode() string {
 //
 // Should only be called for Agent versions earlier than 7.79 (where the
 // dedicated installer.exe OCI layer is absent).
-func extractInstallerFromOldAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string) (_ string, err error) {
+func extractInstallerFromOldAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string, fipsMode bool) (_ string, err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "bootstrap.download_installer_msi_fallback")
 	defer func() { span.Finish(err) }()
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
@@ -206,7 +206,7 @@ func extractInstallerFromOldAgentPackage(ctx context.Context, pkg *oci.Downloade
 		return "", fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	installPath, err := getInstallerPath(ctx, tmpDir)
+	installPath, err := getInstallerPath(ctx, tmpDir, fipsMode)
 	if err != nil {
 		return "", fmt.Errorf("failed to get installer path: %w", err)
 	}
@@ -217,8 +217,8 @@ func extractInstallerFromOldAgentPackage(ctx context.Context, pkg *oci.Downloade
 // getInstallerPath returns the path to the installer binary inside the extraced OCI package.
 //   - For package containing a MSI: extracts the installer from the MSI.
 //   - else, falls back to finding the installer in the directory.
-func getInstallerPath(ctx context.Context, tmpDir string) (string, error) {
-	installPath, msiErr := getInstallerFromMSI(ctx, tmpDir)
+func getInstallerPath(ctx context.Context, tmpDir string, fipsMode bool) (string, error) {
+	installPath, msiErr := getInstallerFromMSI(ctx, tmpDir, fipsMode)
 	if msiErr != nil {
 		var err error
 		installPath, err = getInstallerFromOCI(tmpDir)
@@ -230,20 +230,16 @@ func getInstallerPath(ctx context.Context, tmpDir string) (string, error) {
 }
 
 // getInstallerFromMSI extracts the installer from the MSI via a MSI admin install.
-func getInstallerFromMSI(ctx context.Context, tmpDir string) (string, error) {
-	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-x86_64.msi"))
+func getInstallerFromMSI(ctx context.Context, tmpDir string, fipsMode bool) (string, error) {
+	msiPath, err := msi.FindAgentMSI(tmpDir, fipsMode)
 	if err != nil {
 		return "", err
-	}
-
-	if len(msis) != 1 {
-		return "", fmt.Errorf("inncorect number of MSIs found %d in %s", len(msis), tmpDir)
 	}
 
 	adminInstallDir := path.Join(tmpDir, "datadog-installer")
 	cmd, err := msi.Cmd(
 		msi.AdministrativeInstall(),
-		msi.WithMsi(msis[0]),
+		msi.WithMsi(msiPath),
 		msi.WithProperties(map[string]string{"TARGETDIR": strings.ReplaceAll(adminInstallDir, "/", `\`)}),
 	)
 	if err != nil {

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The Go network check now applies ``excluded_interfaces`` and
+    ``excluded_interface_re`` to the ``system.net.iface.*`` metrics
+    (``mtu``, ``tx_queue_len``, ``up``, ``num_tx_queues`` and
+    ``num_rx_queues``). Previously these metrics were submitted for every
+    interface under ``/sys/class/net``, including excluded ones.

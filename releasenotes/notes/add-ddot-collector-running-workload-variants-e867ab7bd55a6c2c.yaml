@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The OTel Datadog exporter now emits ``otel.ddot_collector.metrics.running.fargate``
+    and ``otel.ddot_collector.metrics.running.azurecontainerapps`` in addition to
+    ``otel.ddot_collector.metrics.running``, identifying otel-agent standalone
+    deployments running as an ECS Fargate task or an Azure Container Apps instance
+    respectively.

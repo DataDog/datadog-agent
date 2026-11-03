@@ -1,0 +1,26 @@
+description: |+
+  sort -rh on du -sh-style input (size + path columns) is the canonical disk-space
+  remediation pipeline. Only the leading size token is parsed for sorting; the
+  trailing path is preserved in the output.
+setup:
+  files:
+    - path: du.txt
+      content: |+
+        1.2G	/var/log
+        500M	/var/cache
+        20K	/var/tmp
+        2G	/var/lib
+        4.0K	/var/empty
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -rh du.txt
+expect:
+  stdout: |+
+    2G	/var/lib
+    1.2G	/var/log
+    500M	/var/cache
+    20K	/var/tmp
+    4.0K	/var/empty
+  stderr: |+
+  exit_code: 0

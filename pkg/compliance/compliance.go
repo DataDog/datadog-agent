@@ -9,6 +9,7 @@
 package compliance
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -22,11 +23,34 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// hostCCRIDFetchTimeout bounds the cloud provider metadata queries needed to
+// resolve the host CCRID, so that we never block the agent startup for long.
+const hostCCRIDFetchTimeout = 10 * time.Second
+
+// FetchHostCCRID returns the Canonical Cloud Resource ID of the host, or an
+// empty string if the host is not running on a supported cloud provider or if
+// the CCRID collection is disabled.
+//
+// It queries the cloud provider metadata endpoints and is therefore expected to
+// be called only once, at startup. The resolved value is then handed over to
+// the compliance agent through AgentOptions.HostCCRID.
+func FetchHostCCRID(ctx context.Context, conf pkgconfigmodel.Reader) string {
+	if !conf.GetBool("collect_ccrid") {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(ctx, hostCCRIDFetchTimeout)
+	defer cancel()
+	cloudProvider, _ := cloudproviders.DetectCloudProvider(ctx, false)
+	return cloudproviders.GetHostCCRID(ctx, cloudProvider)
+}
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
 // and checks.
@@ -51,11 +75,13 @@ func StartCompliance(log log.Component,
 		return nil, nil
 	}
 
-	endpoints, context, err := common.NewLogContextCompliance()
+	hostCCRID := FetchHostCCRID(context.Background(), config)
+
+	endpoints, logContext, err := common.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
-	stopper.Add(context)
+	stopper.Add(logContext)
 
 	resolverOptions := ResolverOptions{
 		Hostname:           hostname,
@@ -75,11 +101,12 @@ func StartCompliance(log log.Component,
 		enabledConfigurationsExporters = append(enabledConfigurationsExporters, DBExporter)
 	}
 
-	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression, secretsComp)
+	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, logContext, compression, secretsComp)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
 	agent := NewAgent(telemetrySender, wmeta, filterStore, hostname, AgentOptions{
 		ResolverOptions:               resolverOptions,
+		HostCCRID:                     hostCCRID,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,
 		CheckInterval:                 checkInterval,

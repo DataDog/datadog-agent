@@ -7,6 +7,7 @@ package cspm
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,9 +37,6 @@ func testContainerizedHostBenchmarks(t *testing.T, d distro) {
 		vmOS = *d.containerOS
 	}
 	vmOpts := []ec2.VMOption{ec2.WithOS(vmOS)}
-	if d.latestAMI {
-		vmOpts = append(vmOpts, ec2.WithLatestAMI())
-	}
 	e2e.Run(t, &containerBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-container-"+d.name),
 		e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(
@@ -81,9 +79,41 @@ func (s *containerBenchmarksSuite) runHost(cmd string) string {
 	return s.Env().RemoteHost.MustExecute(cmd)
 }
 
+func (s *containerBenchmarksSuite) runAgent(cmd string) string {
+	return s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd)
+}
+
 func (s *containerBenchmarksSuite) check(args string) []event {
 	cmd := fmt.Sprintf("%s compliance check %s 2>/dev/null", securityAgent, args)
 	return parseEvents(s.T(), s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd))
+}
+
+// fipsCheck returns a check that runs compliance check with tmp as its TMPDIR,
+// libgcrypt forced into FIPS mode and a memory lock limit of zero, as on a
+// FIPS host in system-probe, whose seccomp profile denies mlock.
+func (s *containerBenchmarksSuite) fipsCheck(tmp string) func(string) []event {
+	return func(args string) []event {
+		cmd := fmt.Sprintf("ulimit -l 0 && TMPDIR=%s LIBGCRYPT_FORCE_FIPS_MODE=1 %s compliance check %s 2>/dev/null", tmp, securityAgent, args)
+		return parseEvents(s.T(), s.runAgent(cmd))
+	}
+}
+
+// TestFIPSWithoutLockedMemory checks that the probe rules give the results of a
+// normal run in libgcrypt's FIPS mode with no memory to lock, and that those
+// runs leave their TMPDIR empty. They get a TMPDIR of their own: the agent's
+// scheduled benchmarks keep their temporary directories in /tmp while they
+// run.
+func (s *containerBenchmarksSuite) TestFIPSWithoutLockedMemory() {
+	tmp := strings.TrimSpace(s.runAgent("mktemp -d /tmp/cspm-fips.XXXXXX"))
+	require.NotEmpty(s.T(), tmp, "creating the TMPDIR of the FIPS runs")
+	defer s.runAgent("rm -rf " + tmp)
+	fipsCheck := s.fipsCheck(tmp)
+	for _, p := range probesFor(s.distro, false) {
+		want := checkRule(s.T(), s.distro, s.check, p.rule).Result
+		got := checkRule(s.T(), s.distro, fipsCheck, p.rule).Result
+		assert.Equalf(s.T(), want, got, "%s in FIPS mode without locked memory", p.rule)
+	}
+	assert.Empty(s.T(), strings.Fields(s.runAgent("ls -A "+tmp)), "entries left in the TMPDIR of the FIPS runs")
 }
 
 // TestBundledContent checks the agent image ships this distro's benchmark content.
@@ -114,8 +144,11 @@ func (s *containerBenchmarksSuite) TestDeterminism() {
 // fakeintake provisioner redirects compliance_config.endpoints, and findings ride the logs
 // pipeline, so a --report run lands them in fakeintake.
 func (s *containerBenchmarksSuite) TestReporting() {
-	cmd := securityAgent + " compliance check --report 2>/dev/null"
-	s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd)
+	// Bound reporting when fakeintake is unreachable and preserve stderr for diagnosis.
+	output, err := s.Env().Docker.Client.ExecuteCommandWithErr(s.Env().Agent.ContainerName,
+		"timeout", "--kill-after=10s", "2m", securityAgent, "compliance", "check", "--report")
+	require.NoErrorf(s.T(), err,
+		"compliance reporting failed (2m deadline, forced kill after another 10s); check container-to-fakeintake connectivity; output: %s", output)
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		findings, err := s.Env().FakeIntake.Client().GetComplianceFindings()
 		require.NoError(c, err)

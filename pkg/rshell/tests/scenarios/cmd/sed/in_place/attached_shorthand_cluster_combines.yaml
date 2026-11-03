@@ -1,0 +1,37 @@
+# Deliberate, RULES.md-compliant limitation: unlike an explicit "=value"
+# form (-i=.bak, rejected), an attached suffix with no "=" inside a
+# short-option cluster (-iE) cannot be distinguished from an ordinary
+# combined-flag cluster without a hand-rolled pre-scan loop, which
+# docs/RULES.md's flag-parsing rules prohibit. So -iE parses via pflag's
+# standard short-cluster semantics as -i followed by -E, silently
+# discarding any backup-suffix intent rather than rejecting it. This shell
+# never creates the GNU-sed-style backup file either way, so no
+# destructive-without-a-backup surprise actually results: the edit still
+# happens, in place, exactly as -i alone would do it.
+description: sed -iE combines as -i plus -E (pflag's standard short-cluster parsing), not as a backup-suffix attempt.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        hello
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -iE 's/hel+o/bye/' input.txt
+    cat input.txt
+    ls
+expect:
+  stdout: |+
+    bye
+    input.txt
+  stderr: |+
+  exit_code: 0
+# skip: GNU sed treats -iE as -i with attached backup suffix "E", creating
+# a backup file named "inputE" and (since E isn't itself parsed as
+# -E/--regexp-extended here) applying the substitution as a basic regular
+# expression, not an extended one. This shell has no rename primitive to
+# create that backup, so it instead follows ordinary pflag short-cluster
+# semantics (-i plus -E, no backup) as a documented, intentional
+# divergence — see the package doc comment on the -i flag in sed.go.
+skip_assert_against_bash: true

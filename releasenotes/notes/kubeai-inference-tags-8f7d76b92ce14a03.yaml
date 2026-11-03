@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Automatically add the ``inference_workload`` and
+    ``inference_workload_component`` tags to KubeAI model pods and containers.
+    The workload tag uses the parent Model CR name from the pod's
+    ``ownerReferences`` in the ``kubeai.org`` API group.
+    The component tag is ``inference``.

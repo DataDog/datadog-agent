@@ -29,10 +29,10 @@ build_iteration 1
 description 'Datadog Monitoring Agent
  The Datadog Monitoring Agent is a lightweight process that monitors system
  processes and services, and sends information back to your Datadog account.
- .
+
  This package installs and runs the advanced Agent daemon, which queues and
  forwards metrics from your applications as well as system services.
- .
+
  See http://www.datadoghq.com/ for more information
 '
 
@@ -66,9 +66,6 @@ end
 # ------------------------------------
 # Dependencies
 # ------------------------------------
-
-# creates required build directories
-dependency 'preparation'
 
 # Datadog agent
 dependency 'trace-agent-windows-cf'

@@ -1,0 +1,9 @@
+description: read assigns a single line of stdin to a single variable.
+input:
+  script: |+
+    echo "hello" | { read X; echo "$X"; }
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

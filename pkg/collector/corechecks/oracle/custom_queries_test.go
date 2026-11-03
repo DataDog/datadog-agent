@@ -559,3 +559,15 @@ func TestGlobalCustomQueries(t *testing.T) {
 	defer c.Teardown()
 	assertCustomQuery(t, &c, s)
 }
+
+func TestTeardownResetsCustomQueriesConnection(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	dbMock.ExpectClose()
+
+	chk := Check{dbCustomQueries: sqlx.NewDb(db, "sqlmock")}
+	chk.Teardown()
+
+	assert.Nil(t, chk.dbCustomQueries)
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+}

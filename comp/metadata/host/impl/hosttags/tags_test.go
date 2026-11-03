@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 )
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
@@ -38,7 +40,7 @@ func TestGet(t *testing.T) {
 	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3"})
 	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3"})
 
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
@@ -47,9 +49,30 @@ func TestGetEmptyHostTags(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 
 	// Get should never return a nil value under System even when there are no host tags
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{}, hostTags.System)
+}
+
+func TestGetPrivateActionRunnerTag(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+		wantTag bool
+	}{
+		{name: "enabled", enabled: true, wantTag: true},
+		{name: "disabled", enabled: false, wantTag: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig, ctx := setupTest(t)
+			mockConfig.SetInTest("private_action_runner.enabled", tt.enabled)
+
+			hostTags := Get(ctx, false, mockConfig, true)
+			assert.Equal(t, tt.wantTag, slices.Contains(hostTags.System, "private_action_runner_enabled:true"))
+		})
+	}
 }
 
 func TestGetWithSplits(t *testing.T) {
@@ -57,7 +80,7 @@ func TestGetWithSplits(t *testing.T) {
 	mockConfig.SetInTest("tag_value_split_separator", map[string]string{"kafka_partition": ","})
 	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"kafka_partition:0", "kafka_partition:1", "kafka_partition:2", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
@@ -68,7 +91,7 @@ func TestGetWithoutSplits(t *testing.T) {
 	mockConfig.SetInTest("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
 	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"kafka_partition:0,1,2", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
@@ -78,7 +101,7 @@ func TestGetWithEnv(t *testing.T) {
 	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
 	mockConfig.SetInTest("env", "preprod")
 
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"env:preprod", "env:prod", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
@@ -99,7 +122,7 @@ func TestCombineExtraTags(t *testing.T) {
 	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag4"})
 	mockConfig.SetInTest("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
 
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag1:value2", "tag2", "tag3", "tag4"}, hostTags.System)
 }
@@ -108,13 +131,14 @@ func TestGetWithoutEUDM(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 	mockConfig.SetInTest("infrastructure_mode", "full")
 
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	for _, tag := range hostTags.System {
 		assert.NotContains(t, tag, "infra_mode:")
 		assert.NotContains(t, tag, "os_name:")
 		assert.NotContains(t, tag, "os_version:")
 		assert.NotContains(t, tag, "cpu_model:")
 		assert.NotContains(t, tag, "device_model:")
+		assert.NotContains(t, tag, "hostid:")
 		assert.NotContains(t, tag, "total_memory_gb:")
 	}
 }
@@ -134,10 +158,44 @@ func TestGetInfraModeTags(t *testing.T) {
 			mockConfig, ctx := setupTest(t)
 			mockConfig.SetInTest("infrastructure_mode", tt.mode)
 
-			hostTags := Get(ctx, false, mockConfig)
+			hostTags := Get(ctx, false, mockConfig, true)
 			assert.Contains(t, hostTags.System, tt.want)
 		})
 	}
+}
+
+func TestGetInfraModeTagsUnknownMode(t *testing.T) {
+	for _, mode := range []string{"typo_mode", "not_a_mode", "Cloud_Cost_Only"} {
+		t.Run(mode, func(t *testing.T) {
+			mockConfig, ctx := setupTest(t)
+			mockConfig.SetInTest("infrastructure_mode", mode)
+
+			hostTags := Get(ctx, false, mockConfig, true)
+			for _, tag := range hostTags.System {
+				assert.NotContains(t, tag, "infra_mode:")
+			}
+		})
+	}
+}
+
+func TestGetOmitsInfraModeTag(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetInTest("tags", []string{"tag1:value1"})
+	mockConfig.SetInTest("infrastructure_mode", "cloud_cost_only")
+
+	withMark := Get(ctx, false, mockConfig, true)
+	assert.Contains(t, withMark.System, "infra_mode:cloud_cost_only")
+	assert.Contains(t, withMark.System, "tag1:value1")
+
+	withoutMark := Get(ctx, true, mockConfig, false)
+	for _, tag := range withoutMark.System {
+		assert.NotContains(t, tag, "infra_mode:")
+	}
+	assert.Contains(t, withoutMark.System, "tag1:value1")
+
+	// Cached full set must still serve includeInfraMode=true callers.
+	cachedWithMark := Get(ctx, true, mockConfig, true)
+	assert.Contains(t, cachedWithMark.System, "infra_mode:cloud_cost_only")
 }
 
 func TestGetWithEUDM(t *testing.T) {
@@ -153,16 +211,38 @@ func TestGetWithEUDM(t *testing.T) {
 			"cpu_model:Apple_M1_Pro",
 			"total_memory_gb:16",
 			"device_model:MacBookPro18,3",
+			"hostid:TEST123",
 		}
 	}
 
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.Contains(t, hostTags.System, "infra_mode:end_user_device")
 	assert.Contains(t, hostTags.System, "os_name:darwin")
 	assert.Contains(t, hostTags.System, "os_version:23.5.0")
 	assert.Contains(t, hostTags.System, "cpu_model:Apple_M1_Pro")
 	assert.Contains(t, hostTags.System, "total_memory_gb:16")
 	assert.Contains(t, hostTags.System, "device_model:MacBookPro18,3")
+	assert.Contains(t, hostTags.System, "hostid:TEST123")
+}
+
+func TestGetEUDMModeTag(t *testing.T) {
+	assert.Equal(t, []string{"infra_mode:end_user_device"}, getEUDMModeTag())
+}
+
+func TestGetEUDMTagsIsModePlusHardware(t *testing.T) {
+	original := collectEUDMTagsFunc
+	t.Cleanup(func() { collectEUDMTagsFunc = original })
+
+	hardwareTags := []string{"os_name:darwin", "cpu_model:Apple_M1_Pro"}
+	collectEUDMTagsFunc = func() []string {
+		return hardwareTags
+	}
+
+	modeTag := getEUDMModeTag()
+	want := append(slices.Clone(modeTag), hardwareTags...)
+
+	assert.Equal(t, want, getEUDMTags())
+	assert.Equal(t, []string{"infra_mode:end_user_device"}, getEUDMModeTag())
 }
 
 func TestEUDMTagsOnUnsupportedOS(t *testing.T) {
@@ -236,7 +316,7 @@ func TestHostTagsCache(t *testing.T) {
 	}
 
 	// First run, all good
-	hostTags := Get(ctx, false, mockConfig)
+	hostTags := Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 1, nbCall)
@@ -245,8 +325,28 @@ func TestHostTagsCache(t *testing.T) {
 	fooErr = errors.New("fooerr")
 	nbCall = 0
 
-	hostTags = Get(ctx, false, mockConfig)
+	hostTags = Get(ctx, false, mockConfig, true)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 2, nbCall)
+}
+
+func TestEUDMSystemInfoTags(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		info *systeminfo.SystemInfo
+		want []string
+	}{
+		{name: "unavailable"},
+		{name: "empty", info: &systeminfo.SystemInfo{}},
+		{name: "model only", info: &systeminfo.SystemInfo{Identifier: "MacBookPro18,3"}, want: []string{"device_model:MacBookPro18,3"}},
+		{name: "serial without model", info: &systeminfo.SystemInfo{SerialNumber: "TEST123"}, want: []string{"hostid:TEST123"}},
+		{name: "model and serial", info: &systeminfo.SystemInfo{Identifier: "MacBookPro18,3", SerialNumber: "TEST123"}, want: []string{"device_model:MacBookPro18,3", "hostid:TEST123"}},
+		{name: "whitespace serial", info: &systeminfo.SystemInfo{SerialNumber: " \t\r\n "}},
+		{name: "sanitize serial", info: &systeminfo.SystemInfo{SerialNumber: "  TEST 123\tABC  "}, want: []string{"hostid:TEST_123_ABC"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, eudmSystemInfoTags(tc.info))
+		})
+	}
 }

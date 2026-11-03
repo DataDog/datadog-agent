@@ -284,7 +284,7 @@ func (c *CheckBase) GetRawSender() (sender.Sender, error) {
 func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.GetSender()
 	if err != nil {
-		return stats.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %w", err)
 	}
 	return sender.GetSenderStats(), nil
 }

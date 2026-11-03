@@ -381,6 +381,12 @@ func OtelSpanToDDSpan(
 	}
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
+		// Span attributes take precedence over resource attributes. Numeric span attributes
+		// are stored in Metrics rather than Meta, so skip resource attributes whose key is
+		// already present in Metrics to avoid emitting a stale duplicate in Meta.
+		if _, ok := ddspan.Metrics[GetDDKeyForOTLPAttribute(k)]; ok {
+			return true
+		}
 		value := v.AsString()
 		conditionallyMapOTLPAttributeToMeta(k, value, ddspan)
 		return true
@@ -424,6 +430,11 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(",")
 		}
 		var wrote bool
+		// Counted locally and added to DroppedAttributesCount() when the field is emitted,
+		// rather than written back with SetDroppedAttributesCount. Both forms report
+		// DroppedAttributesCount()+N, so the JSON is identical; the write-back additionally
+		// mutated events owned by the caller, which panics once they are read-only.
+		var dropped uint32
 		str.WriteString("{")
 		if v := e.Timestamp(); v != 0 {
 			str.WriteString(`"time_unix_nano":`)
@@ -466,16 +477,20 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					}
 					j++
 				} else {
+					// Unreachable: json.Marshal cannot fail on a Go string (invalid UTF-8 is
+					// coerced to U+FFFD, not rejected). Kept because json.Marshal returns an
+					// error that has to go somewhere -- discarding it would write a nil key
+					// and emit a bare ":". Unlike the value branch above, which json.Marshal
+					// does reject for NaN/Inf doubles.
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
-					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
+					dropped++
 				}
-				j++
 				return true
 			})
 			str.WriteString("}")
 			wrote = true
 		}
-		if v := e.DroppedAttributesCount(); v != 0 {
+		if v := e.DroppedAttributesCount() + dropped; v != 0 {
 			if wrote {
 				str.WriteString(",")
 			}

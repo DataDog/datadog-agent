@@ -31,7 +31,7 @@ var descNodeLabelsDefaultLabels = []string{"node"}
 // NewExtendedNodeFactory returns a new Node metric family generator factory.
 func NewExtendedNodeFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &extendedNodeFactory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 

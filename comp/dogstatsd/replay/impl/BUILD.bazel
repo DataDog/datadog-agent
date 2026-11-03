@@ -29,8 +29,6 @@ go_library(
         "//pkg/proto/pbgo/core",
         "//pkg/util/log",
         "//pkg/zstd",
-        "@com_github_h2non_filetype//:filetype",
-        "@com_github_h2non_filetype//matchers",
         "@com_github_spf13_afero//:afero",
         "@org_golang_google_protobuf//proto",
     ] + select({
@@ -98,17 +96,12 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/tagger/fx-mock",
-        "//comp/core/telemetry/def",
-        "//comp/core/telemetry/fx-noop",
         "//comp/dogstatsd/packets",
         "//comp/dogstatsd/replay/def",
-        "//pkg/proto/pbgo/core",
-        "//pkg/util/fxutil",
         "//pkg/util/sync",
         "@com_github_datadog_zstd//:zstd",
         "@com_github_spf13_afero//:afero",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_uber_go_atomic//:atomic",
     ],
 )

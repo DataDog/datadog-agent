@@ -113,12 +113,22 @@ func (sm *OnDemandProbesManager) updateProbes() {
 			Value: uint64(hookID + 1),
 		})
 
+		tailCallEditor, err := sm.probe.Manager.TailCallSpecEditor(newProbe.EBPFFuncName, newProbe.HookFuncName)
+		if err != nil {
+			seclog.Errorf("error preparing the tail calls of on-demand probe %s: %v", hookPoint.Name, err)
+			continue
+		}
+
 		editor := func(spec *ebpf.ProgramSpec) {
 			spec.AttachTo = newProbe.HookFuncName
+			if tailCallEditor != nil {
+				tailCallEditor(spec)
+			}
 		}
 
 		if err := sm.manager.CloneProgramWithSpecEditor(probes.SecurityAgentUID, newProbe, argsEditors, nil, editor); err != nil {
 			seclog.Errorf("error cloning on-demand probe: %v", err)
+			continue
 		}
 		sm.probes = append(sm.probes, newProbe)
 	}

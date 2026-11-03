@@ -1,0 +1,17 @@
+description: ls -rS sorts by size in ascending order (smallest first).
+setup:
+  files:
+    - path: small.txt
+      content: "a"
+    - path: medium.txt
+      content: "abcdef"
+    - path: large.txt
+      content: "abcdefghijklm"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -rS
+expect:
+  stdout: "small.txt\nmedium.txt\nlarge.txt\n"
+  stderr: ""
+  exit_code: 0

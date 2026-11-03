@@ -1,0 +1,149 @@
+---
+new-e2e-cleanup-on-failure:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  stage: .post
+  dependencies: [go_e2e_deps]
+  script:
+    # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
+    - export AWS_PROFILE=agent-qa-ci
+    # Now all `aws` commands target the agent-qa profile
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
+    # Use S3 backend
+    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    - STACK_REGEX="ci-init-$CI_PIPELINE_ID-.*"
+    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "$STACK_REGEX" 
+  variables:
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PIPELINE_ID: $CI_PIPELINE_ID
+    REMOTE_STACK_CLEANING: "true"
+  rules:
+    - !reference [.except_light_pipeline]
+    - when: always
+  allow_failure: true
+
+do-not-merge:
+  stage: check_merge
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.on_dev_branches]
+    - when: always
+  needs: []
+  script:
+    - |
+      if [ -n "$CI_IMAGE_BTF_GEN_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DEB_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DEB_ARMHF_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_WIN_LTSC2022_X64_SUFFIX" ]; then
+        echo "Pull request uses non-empty BUILDIMAGES_SUFFIX variable"
+        echo "This workflow fails so that the pull request cannot be merged"
+        exit 1
+      fi
+    - dda inv -- -e release.check-omnibus-branches --no-worktree || exit 1
+    - exit 0
+
+# notify stage
+# Contains jobs which send notifications depending on pipeline status.
+
+.notify_setup:
+  - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+  - dda self dep sync -f legacy-tasks -f legacy-notifications
+
+# Notify jobs are allowed to fail but are monitored by https://app.datadoghq.com/monitors/132367692
+.notify-job:
+  stage: .post
+  allow_failure: true
+
+notify-on-tagged-success:
+  extends: .notify-job
+  stage: .post
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules: !reference [.on_deploy_stable_or_beta_repo_branch]
+  dependencies: []
+  tags: ["arch:arm64", "specific:true"]
+  script: |
+    MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
+    *$CI_COMMIT_REF_NAME* is available in the staging repositories."
+    dda self dep sync -f legacy-tasks -f legacy-notifications
+    SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+    dda inv notify.post-message -c "#agent-release-sync-ops" -m "$MESSAGE_TEXT"
+
+notify:
+  extends: .notify-job
+  stage: .post
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules: !reference [.on_main_or_release_branch_or_deploy_always]
+  dependencies: []
+  tags: ["arch:arm64", "specific:true"]
+  resource_group: notification
+  timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+  script:
+    - !reference [.notify_setup]
+    - dda inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
+
+send_pipeline_stats:
+  extends: .notify-job
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  when: always
+  dependencies: []
+  script:
+    - !reference [.notify_setup]
+    - dda inv -- -e notify.send-stats
+
+notify_gitlab_ci_changes:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  extends:
+    - .notify-job
+    - .dd_octo_sts
+  needs: [compute_gitlab_ci_config]
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_light_pipeline]
+    - changes:
+        paths:
+          - .gitlab-ci.yml
+          - .gitlab/**/*.yml
+        compare_to: $COMPARE_TO_BRANCH
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - python3 -m dda self dep sync -f legacy-tasks
+    - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
+
+close_failing_tests_stale_issues:
+  extends: .notify-job
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules:
+    - !reference [.on_scheduled_main]
+  needs: []
+  tags: ["arch:arm64", "specific:true"]
+  script:
+    - weekday="$(date --utc '+%A')"
+    # Weekly on Friday
+    - |
+      if [ "$weekday" != "Friday" ]; then
+        echo "This script is run weekly on Fridays"
+        exit
+      fi
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
+    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
+    - dda self dep sync -f legacy-tasks
+    - dda inv -- -e notify.close-failing-tests-stale-issues

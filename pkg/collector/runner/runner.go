@@ -49,6 +49,7 @@ type Runner struct {
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
 	shadowWorkers       map[int]*worker.Worker        // Shadow workers currently under this Runner's management
 	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
+	minWorkers          int                           // Largest worker count requested so far, restored when workers exit
 	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
 	pendingChecksChan   chan check.Check              // The channel where checks come from
 	shadowChecksChan    chan check.Check              // The channel where shadow checks come from
@@ -105,7 +106,15 @@ func (r *Runner) ensureMinWorkers(desiredNumWorkers int) {
 	r.workersLock.Lock()
 	defer r.workersLock.Unlock()
 
+	r.minWorkers = max(r.minWorkers, desiredNumWorkers)
+	r.addMissingWorkersLocked()
+}
+
+// addMissingWorkersLocked adds workers until there are at least minWorkers.
+// It must be called with workersLock held.
+func (r *Runner) addMissingWorkersLocked() {
 	currentWorkers := len(r.workers)
+	desiredNumWorkers := r.minWorkers
 
 	if desiredNumWorkers <= currentWorkers {
 		return
@@ -191,6 +200,14 @@ func (r *Runner) removeWorker(id int, isShadowWorker bool) {
 		return
 	}
 	delete(r.workers, id)
+
+	// A worker exits after an interval-zero check. The collector added a worker
+	// for that check, but ensureMinWorkers may have counted the busy worker
+	// towards the minimum, so restore it. Workers also exit when the runner
+	// stops, and must not be replaced then.
+	if r.isRunning.Load() {
+		r.addMissingWorkersLocked()
+	}
 }
 
 // UpdateNumWorkers checks if the current number of workers is reasonable,

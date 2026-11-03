@@ -10,8 +10,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
+	"path"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -23,6 +26,29 @@ import (
 type metricsClient struct {
 	api *datadogV2.MetricsApi
 	ctx context.Context
+}
+
+const maxAPIErrorBodyLength = 4 * 1024
+
+type apiErrorWithBody interface {
+	Body() []byte
+}
+
+func includeAPIErrorBody(err error) error {
+	var apiErr apiErrorWithBody
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+
+	body := strings.TrimSpace(string(apiErr.Body()))
+	if body == "" {
+		return err
+	}
+	if len(body) > maxAPIErrorBodyLength {
+		body = body[:maxAPIErrorBodyLength] + "... (truncated)"
+	}
+
+	return fmt.Errorf("%w: API response: %s", err, body)
 }
 
 func newMetricsClient(apiKey, appKey, site string) (*metricsClient, error) {
@@ -63,6 +89,28 @@ type scalarResult struct {
 	values map[string]*float64
 }
 
+type agentVersionFilter struct {
+	metricFilter string
+	tagFilters   []string
+}
+
+var agentFilterCandidateTags = []string{
+	"datacenter",
+	"region",
+	"cloud_provider",
+	"kube_cluster_name",
+}
+
+type clusterAgentMetadata struct {
+	versions map[string]struct{}
+	tags     map[string]map[string]struct{}
+}
+
+type tagFilterCandidate struct {
+	filter string
+	cover  map[string]struct{}
+}
+
 func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS, toTS int64) ([]scalarResult, error) {
 	attrs := datadogV2.NewScalarFormulaRequestAttributes(fromTS*1000, queries, toTS*1000)
 	req := datadogV2.NewScalarFormulaRequest(*attrs, datadogV2.SCALARFORMULAREQUESTTYPE_SCALAR_REQUEST)
@@ -73,7 +121,7 @@ func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS
 		_ = httpResp.Body.Close()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query scalar data: %w", err)
+		return nil, fmt.Errorf("query scalar data: %w", includeAPIErrorBody(err))
 	}
 	if response.Errors != nil && strings.TrimSpace(*response.Errors) != "" {
 		return nil, fmt.Errorf("query scalar data returned errors: %s", strings.TrimSpace(*response.Errors))
@@ -150,6 +198,231 @@ func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, queryFilter s
 	return len(columns), nil
 }
 
+func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS int64) (agentVersionFilter, error) {
+	columns, err := c.runScalarQueries(
+		[]datadogV2.ScalarQuery{
+			buildScalarQuery(
+				"q0",
+				"avg:datadog.agent.running{*} by {kube_cluster_name,image_tag}",
+				datadogV2.METRICSAGGREGATOR_AVG,
+			),
+		},
+		fromTS,
+		toTS,
+	)
+	if err != nil {
+		return agentVersionFilter{}, fmt.Errorf("query agent versions by Kubernetes cluster: %w", err)
+	}
+
+	metadataByCluster := make(map[string]*clusterAgentMetadata)
+	for _, column := range columns {
+		cluster := column.tags["kube_cluster_name"]
+		if isNullishGroupValue(cluster) {
+			continue
+		}
+		metadata := ensureClusterAgentMetadata(metadataByCluster, cluster)
+		if imageTag := column.tags["image_tag"]; !isNullishGroupValue(imageTag) {
+			metadata.versions[imageTag] = struct{}{}
+		}
+		metadata.tags["kube_cluster_name"] = map[string]struct{}{cluster: {}}
+	}
+
+	clusters := make([]string, 0, len(metadataByCluster))
+	for cluster, metadata := range metadataByCluster {
+		if len(metadata.versions) == 0 {
+			continue
+		}
+		matchesVersion := true
+		for version := range metadata.versions {
+			matches, err := path.Match(agentVersion, version)
+			if err != nil {
+				return agentVersionFilter{}, fmt.Errorf("match agent version %q: %w", agentVersion, err)
+			}
+			if !matches {
+				matchesVersion = false
+				break
+			}
+		}
+		if matchesVersion {
+			clusters = append(clusters, cluster)
+		}
+	}
+	if len(clusters) == 0 {
+		return agentVersionFilter{}, fmt.Errorf("no Kubernetes clusters exclusively run agent version %q", agentVersion)
+	}
+
+	sort.Strings(clusters)
+	versionFilter := agentVersionFilter{
+		metricFilter: fmt.Sprintf("kube_cluster_name:(%s)", strings.Join(clusters, " OR ")),
+		tagFilters:   clusterTagFilters(clusters),
+	}
+
+	for _, tagName := range agentFilterCandidateTags {
+		if tagName == "kube_cluster_name" {
+			continue
+		}
+		tagColumns, err := c.runScalarQueries(
+			[]datadogV2.ScalarQuery{
+				buildScalarQuery(
+					"q0",
+					fmt.Sprintf("avg:datadog.agent.running{*} by {kube_cluster_name,%s}", tagName),
+					datadogV2.METRICSAGGREGATOR_AVG,
+				),
+			},
+			fromTS,
+			toTS,
+		)
+		if err != nil {
+			log.Printf("could not optimize tag inventory filters using agent %s tags: %v; falling back to exact cluster filters", tagName, err)
+			return versionFilter, nil
+		}
+		for _, column := range tagColumns {
+			cluster := column.tags["kube_cluster_name"]
+			tagValue := column.tags[tagName]
+			if isNullishGroupValue(cluster) || isNullishGroupValue(tagValue) {
+				continue
+			}
+			metadata := ensureClusterAgentMetadata(metadataByCluster, cluster)
+			if metadata.tags[tagName] == nil {
+				metadata.tags[tagName] = make(map[string]struct{})
+			}
+			metadata.tags[tagName][tagValue] = struct{}{}
+		}
+	}
+
+	versionFilter.tagFilters = minimumTagFiltersForClusters(metadataByCluster, clusters)
+	return versionFilter, nil
+}
+
+func ensureClusterAgentMetadata(metadataByCluster map[string]*clusterAgentMetadata, cluster string) *clusterAgentMetadata {
+	if metadataByCluster[cluster] == nil {
+		metadataByCluster[cluster] = &clusterAgentMetadata{
+			versions: make(map[string]struct{}),
+			tags:     make(map[string]map[string]struct{}),
+		}
+	}
+	return metadataByCluster[cluster]
+}
+
+func minimumTagFiltersForClusters(metadataByCluster map[string]*clusterAgentMetadata, targetClusters []string) []string {
+	targetClusterSet := make(map[string]struct{}, len(targetClusters))
+	for _, cluster := range targetClusters {
+		targetClusterSet[cluster] = struct{}{}
+	}
+
+	candidatesByFilter := make(map[string]map[string]struct{})
+	unsafeCandidates := make(map[string]struct{})
+	for cluster, metadata := range metadataByCluster {
+		_, isTarget := targetClusterSet[cluster]
+		for tagName, tagValues := range metadata.tags {
+			for tagValue := range tagValues {
+				filter := tagName + ":" + tagValue
+				if !isTarget {
+					// This candidate would include a cluster that does not run
+					// the requested Agent version.
+					unsafeCandidates[filter] = struct{}{}
+					continue
+				}
+				if candidatesByFilter[filter] == nil {
+					candidatesByFilter[filter] = make(map[string]struct{})
+				}
+				candidatesByFilter[filter][cluster] = struct{}{}
+			}
+		}
+	}
+
+	candidates := make([]tagFilterCandidate, 0, len(candidatesByFilter))
+	for filter, cover := range candidatesByFilter {
+		if _, unsafe := unsafeCandidates[filter]; !unsafe {
+			candidates = append(candidates, tagFilterCandidate{filter: filter, cover: cover})
+		}
+	}
+	selected := minimumTagFilterCover(candidates, targetClusterSet)
+	if len(selected) == 0 {
+		return clusterTagFilters(targetClusters)
+	}
+	return selected
+}
+
+func clusterTagFilters(clusters []string) []string {
+	filters := make([]string, 0, len(clusters))
+	for _, cluster := range clusters {
+		filters = append(filters, "kube_cluster_name:"+cluster)
+	}
+	return filters
+}
+
+func minimumTagFilterCover(candidates []tagFilterCandidate, targetClusters map[string]struct{}) []string {
+	// A candidate contained by another has no advantage when every filter has the
+	// same cost. Discarding it substantially reduces the selection space.
+	slices.SortFunc(candidates, func(a, b tagFilterCandidate) int {
+		if countDiff := len(b.cover) - len(a.cover); countDiff != 0 {
+			return countDiff
+		}
+		return strings.Compare(a.filter, b.filter)
+	})
+	filtered := make([]tagFilterCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if slices.ContainsFunc(filtered, func(other tagFilterCandidate) bool {
+			return candidateCoverIsSubset(candidate.cover, other.cover)
+		}) {
+			continue
+		}
+		filtered = append(filtered, candidate)
+	}
+
+	selected := greedyTagFilterCover(filtered, targetClusters)
+	if len(selected) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(selected))
+	for _, candidate := range selected {
+		result = append(result, candidate.filter)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func greedyTagFilterCover(candidates []tagFilterCandidate, targetClusters map[string]struct{}) []tagFilterCandidate {
+	var selected []tagFilterCandidate
+	covered := make(map[string]struct{})
+	for len(covered) < len(targetClusters) {
+		bestIndex := -1
+		for index, candidate := range candidates {
+			if bestIndex == -1 || uncoveredCoverageCount(candidate.cover, covered) > uncoveredCoverageCount(candidates[bestIndex].cover, covered) {
+				bestIndex = index
+			}
+		}
+		if bestIndex == -1 || uncoveredCoverageCount(candidates[bestIndex].cover, covered) == 0 {
+			return nil
+		}
+		selected = append(selected, candidates[bestIndex])
+		for cluster := range candidates[bestIndex].cover {
+			covered[cluster] = struct{}{}
+		}
+	}
+	return selected
+}
+
+func candidateCoverIsSubset(candidate, other map[string]struct{}) bool {
+	for cluster := range candidate {
+		if _, found := other[cluster]; !found {
+			return false
+		}
+	}
+	return true
+}
+
+func uncoveredCoverageCount(candidate, covered map[string]struct{}) int {
+	count := 0
+	for cluster := range candidate {
+		if _, isCovered := covered[cluster]; !isCovered {
+			count++
+		}
+	}
+	return count
+}
+
 func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]gpuspec.TagSpec, queryFilter string, fromTS, toTS int64, queryMinMax bool) ([]gpuspec.MetricObservation, error) {
 	baseQuery := fmt.Sprintf("%s{%s}", metricName, queryFilter)
 
@@ -211,7 +484,7 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 		_ = httpResp.Body.Close()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("list tag configurations for %+v: %w", config, err)
+		return nil, fmt.Errorf("list tag configurations for %+v: %w", config, includeAPIErrorBody(err))
 	}
 
 	for _, item := range response.Data {
@@ -230,42 +503,38 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 	return metrics, nil
 }
 
-func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTagPrefixes map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
-	var allTags []string
+func (c *metricsClient) fetchMetricUnknownTagKeys(metricName string, expectedTags map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
+	options := datadogV2.NewListTagsByMetricNameOptionalParameters().
+		WithFilterIncludeTagValues(false).
+		WithPageLimit(1000).
+		WithWindowSeconds(windowSeconds).
+		WithFilterAllowPartial(true)
+	if metricScopeFilter != "" {
+		options.WithFilterTags(metricScopeFilter)
+	}
 
-	for tagPrefix := range wantedTagPrefixes {
-		options := datadogV2.NewListTagsByMetricNameOptionalParameters().
-			WithFilterMatch(tagPrefix).
-			WithFilterIncludeTagValues(true).
-			WithPageLimit(1000).
-			WithWindowSeconds(windowSeconds).
-			WithFilterAllowPartial(true)
-		if metricScopeFilter != "" {
-			options.WithFilterTags(metricScopeFilter)
-		}
+	response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
+	if httpResp != nil && httpResp.Body != nil {
+		_ = httpResp.Body.Close()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fetch tag keys for %s: %w", metricName, includeAPIErrorBody(err))
+	}
+	if response.Data == nil || response.Data.Attributes == nil {
+		return nil, nil
+	}
 
-		response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
-		if httpResp != nil && httpResp.Body != nil {
-			_ = httpResp.Body.Close()
-		}
-		if err != nil {
-			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagPrefix, metricName, err)
-		}
-		if response.Data == nil || response.Data.Attributes == nil {
+	var unknownTagKeys []string
+	for _, tagKey := range append(response.Data.Attributes.GetTags(), response.Data.Attributes.GetIngestedTags()...) {
+		if !strings.HasPrefix(tagKey, "gpu_") {
 			continue
 		}
-
-		for _, tag := range response.Data.Attributes.GetTags() {
-			// The tag endpoint returns all tags that contain the FilterMatch
-			// value, but we're only interested in tags that start with the
-			// prefix.
-			if strings.HasPrefix(tag, tagPrefix) {
-				allTags = append(allTags, tag)
-			}
+		if _, expected := expectedTags[tagKey]; !expected {
+			unknownTagKeys = append(unknownTagKeys, tagKey)
 		}
 	}
 
-	return allTags, nil
+	return unknownTagKeys, nil
 }
 
 func isNullishGroupValue(value string) bool {

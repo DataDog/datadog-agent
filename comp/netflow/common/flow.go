@@ -9,8 +9,9 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
-	flowmessage "github.com/netsampler/goflow2/pb"
 	"hash/fnv"
+
+	flowmessage "github.com/netsampler/goflow2/pb"
 )
 
 // Flow contains flow info used for aggregation
@@ -71,6 +72,12 @@ type Flow struct {
 	Tos uint32 // FLOW KEY
 
 	NextHop []byte // FLOW KEY
+
+	// Application id reported by the exporter, resolved into an application at flush time
+	ApplicationID uint64
+
+	// Application name reported by the exporter on the flow itself (e.g. Palo Alto App-ID)
+	ApplicationName string
 
 	// Configured fields
 	AdditionalFields AdditionalFields

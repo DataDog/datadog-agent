@@ -6,8 +6,8 @@
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO(DATASEC-328): enable once the suite covers the AD provider.
-        # - comp/core/autodiscovery/providers/datasecurity/**/*
+        # Autodiscovery provider (Remote Config scan tasks)
+        - comp/core/autodiscovery/providers/datasecurity/**/*
         # Rust check, shared-library loader, and FFI
         - pkg/collector/sharedlibrary/**/*
         # SDS result event-platform pipeline

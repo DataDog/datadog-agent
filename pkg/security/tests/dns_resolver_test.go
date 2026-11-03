@@ -90,7 +90,7 @@ func TestDNSResolver(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer test.Close()
+	defer test.CloseTest()
 	p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 
 	// Injects DNS responses for a couple hostnames on and checks

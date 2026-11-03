@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -128,18 +129,13 @@ func checkYAMLSyntax(path string) (bool, []string, error) {
 	return true, warnings, nil
 }
 
-func runSchema(configPath string) ([]string, error) {
+func runSchema(configPath string) ([]configschema.Violation, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read config file %s: %w", configPath, err)
 	}
 
-	var config interface{}
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return nil, fmt.Errorf("invalid YAML for '%s': %s", configPath, err)
-	}
-	return configschema.ValidateCoreConfig(config)
+	return configschema.ValidateYAML(data, model.CoreSchema)
 }
 
 // validateAPIKey validates the format of a Datadog API key.
@@ -284,7 +280,7 @@ func runConfigCheck(_ log.Component, cfg config.Component, noAPICheck bool) erro
 		if len(schemaErrors) != 0 {
 			fmt.Fprintf(out, "[ERR]   Agent configuration is invalid:\n")
 			for _, err := range schemaErrors {
-				fmt.Fprintf(out, "\t- %s\n", err)
+				fmt.Fprintf(out, "\t- %s\n", err.Message)
 			}
 		} else {
 			fmt.Fprintf(out, "[OK]   Agent configuration is valid\n")

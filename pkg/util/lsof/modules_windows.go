@@ -6,6 +6,7 @@
 package lsof
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -37,9 +38,9 @@ type LoadedModule struct {
 }
 
 // ListLoadedModulesReportJSON returns a JSON payload describing DLLs loaded by the current agent process.
-func ListLoadedModulesReportJSON() ([]byte, error) {
+func ListLoadedModulesReportJSON(ctx context.Context) ([]byte, error) {
 	// Reuse open-file enumeration to get module file paths for the current process.
-	openFiles, err := ListOpenFilesFromSelf()
+	openFiles, err := ListOpenFilesFromSelf(ctx)
 	if err != nil {
 		return nil, err
 	}

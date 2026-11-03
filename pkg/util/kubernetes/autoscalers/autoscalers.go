@@ -15,8 +15,6 @@ import (
 	"regexp"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
-	autoscalingv2beta1 "k8s.io/api/autoscaling/v2beta1"
-	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
@@ -25,73 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var metricNamingConvention = regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_.]{0,199}$")
+
 // InspectHPA returns the list of external metrics from the hpa to use for
-// autoscaling. It can handle v2beta1, v2beta2 and v2 versions of HPA.
+// autoscaling. It can handle any HPA handed out by an informer returned by
+// HPAInformer.
 func InspectHPA(obj interface{}) []custommetrics.ExternalMetricValue {
-	switch hpa := obj.(type) {
-	case *autoscalingv2beta1.HorizontalPodAutoscaler:
-		return inspectHPAv2beta1(hpa)
-	case *autoscalingv2beta2.HorizontalPodAutoscaler:
-		return inspectHPAv2beta2(hpa)
-	case *autoscalingv2.HorizontalPodAutoscaler:
-		return inspectHPAv2(hpa)
-	default:
-		log.Errorf("object is not a HorizontalPodAutoscaler, %T instead", obj)
+	hpa, err := ToHPAv2(obj)
+	if err != nil {
+		log.Errorf("cannot inspect HorizontalPodAutoscaler: %v", err)
 		return nil
 	}
-}
 
-func inspectHPAv2beta1(hpa *autoscalingv2beta1.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
-	var emList []custommetrics.ExternalMetricValue
-	for _, metricSpec := range hpa.Spec.Metrics {
-		if metricSpec.Type != autoscalingv2beta1.ExternalMetricSourceType {
-			continue
-		}
-
-		if metricSpec.External == nil {
-			log.Errorf("missing required \"external\" section in the %s/%s Ref, skipping processing", hpa.Namespace, hpa.Name)
-			continue
-		}
-
-		external := metricSpec.External
-		em, err := buildExternalMetricValue(hpa.ObjectMeta, external.MetricName, external.MetricSelector)
-		if err != nil {
-			log.Errorf("cannot build external metric value for HPA %s/%s, skipping: %s", hpa.Namespace, hpa.Name, err)
-			continue
-		}
-
-		emList = append(emList, em)
-	}
-
-	return emList
-}
-
-func inspectHPAv2beta2(hpa *autoscalingv2beta2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
-	var emList []custommetrics.ExternalMetricValue
-	for _, metricSpec := range hpa.Spec.Metrics {
-		if metricSpec.Type != autoscalingv2beta2.ExternalMetricSourceType {
-			continue
-		}
-
-		if metricSpec.External == nil {
-			log.Errorf("missing required \"external\" section in the %s/%s Ref, skipping processing", hpa.Namespace, hpa.Name)
-			continue
-		}
-
-		external := metricSpec.External
-		em, err := buildExternalMetricValue(hpa.ObjectMeta, external.Metric.Name, external.Metric.Selector)
-		if err != nil {
-			log.Errorf("cannot build external metric value for HPA %s/%s, skipping: %s", hpa.Namespace, hpa.Name, err)
-			continue
-		}
-
-		emList = append(emList, em)
-	}
-
-	return emList
-}
-
-func inspectHPAv2(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
 	var emList []custommetrics.ExternalMetricValue
 	for _, metricSpec := range hpa.Spec.Metrics {
 		if metricSpec.Type != autoscalingv2.ExternalMetricSourceType {
@@ -222,7 +165,5 @@ func AutoscalerMetricsUpdate(new, old metav1.Object) bool {
 // IsValidMetricName will return true if the metric name follows the Datadog metric naming conventions.
 // See https://docs.datadoghq.com/developers/metrics/#naming-custom-metrics
 func IsValidMetricName(metricName string) bool {
-	metricNamingConvention := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_.]{0,199}$")
-
 	return metricNamingConvention.Match([]byte(metricName))
 }

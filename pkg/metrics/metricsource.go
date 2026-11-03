@@ -350,6 +350,11 @@ const (
 	MetricSourceKueue
 	MetricSourceExternalSecrets
 	MetricSourceCiscoCatalystCenter
+	MetricSourceAmazonVpcCni
+	MetricSourceRavendb
+	MetricSourceSglang
+	MetricSourcePanFirewall
+	MetricSourceKaiScheduler
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1173,6 +1178,16 @@ func (ms MetricSource) String() string {
 		return "external_secrets"
 	case MetricSourceCiscoCatalystCenter:
 		return "cisco_catalyst_center"
+	case MetricSourceAmazonVpcCni:
+		return "amazon_vpc_cni"
+	case MetricSourceRavendb:
+		return "ravendb"
+	case MetricSourceSglang:
+		return "sglang"
+	case MetricSourcePanFirewall:
+		return "pan_firewall"
+	case MetricSourceKaiScheduler:
+		return "kai_scheduler"
 	default:
 		return "<unknown>"
 	}
@@ -1335,7 +1350,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
-	case "gpu":
+	case "gpu", "amd_gpu":
 		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn
@@ -1883,6 +1898,16 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceExternalSecrets
 	case "cisco_catalyst_center":
 		return MetricSourceCiscoCatalystCenter
+	case "amazon_vpc_cni":
+		return MetricSourceAmazonVpcCni
+	case "ravendb":
+		return MetricSourceRavendb
+	case "sglang":
+		return MetricSourceSglang
+	case "pan_firewall":
+		return MetricSourcePanFirewall
+	case "kai_scheduler":
+		return MetricSourceKaiScheduler
 	default:
 		return MetricSourceUnknown
 	}

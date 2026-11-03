@@ -10,7 +10,7 @@ go_library(
             "//pkg/collector/corechecks/system/wincrashdetect/probe",
             "//pkg/config/setup",
             "//pkg/system-probe/api/client",
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "//pkg/util/log",
             "//pkg/util/retry",
             "@org_golang_x_sys//windows/registry",

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -58,6 +59,20 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	primaryTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
 ) []stats.Input {
+	return OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, conf, containerTagKeys, peerTagKeys, primaryTagKeys, obfuscator, nil)
+}
+
+// OTLPTracesToConcentratorInputsWithObfuscationAndFilter is OTLPTracesToConcentratorInputsWithObfuscation that also
+// excludes from stats the spans for which spanFilter, if set, returns false.
+func OTLPTracesToConcentratorInputsWithObfuscationAndFilter(
+	traces ptrace.Traces,
+	conf *config.AgentConfig,
+	containerTagKeys []string,
+	peerTagKeys []string,
+	primaryTagKeys []string,
+	obfuscator *obfuscate.Obfuscator,
+	spanFilter func(pcommon.Resource, ptrace.Span) bool,
+) []stats.Input {
 	resourceSpans := traces.ResourceSpans()
 	clientComputedResources := resourcesWithClientComputedStats(resourceSpans)
 	if resourceSpans.Len() > 0 && len(clientComputedResources) == resourceSpans.Len() {
@@ -67,15 +82,15 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	spanByID, resByID, scopeByID := transform.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	topLevelSpans := transform.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
-	ignoreResNames := make(map[string]struct{})
-	for _, resName := range conf.Ignore["resource"] {
-		ignoreResNames[resName] = struct{}{}
-	}
+	ignoreResources := filters.NewBlacklister(conf.Ignore["resource"])
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
 		if _, ok := clientComputedResources[otelres]; ok {
+			continue
+		}
+		if spanFilter != nil && !spanFilter(otelres, otelspan) {
 			continue
 		}
 		var resourceName string
@@ -84,7 +99,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		} else {
 			resourceName = transform.GetOTelResourceV1(otelspan, otelres)
 		}
-		if _, exists := ignoreResNames[resourceName]; exists {
+		if allowed, _ := ignoreResources.AllowsString(resourceName); !allowed {
 			continue
 		}
 

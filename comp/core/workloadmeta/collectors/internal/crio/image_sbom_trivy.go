@@ -129,6 +129,11 @@ func (c *collector) processScanResult(result sbom.ScanResult) {
 		log.Errorf("Scan result missing image identifier. Error: %v", result.Error)
 		return
 	}
+	// A Set event recreates an image deleted during its scan.
+	if _, err := c.store.GetImage(result.ImgMeta.ID); err != nil {
+		log.Debugf("Dropping the SBOM of image %s, deleted during its scan: %v", result.ImgMeta.ID, err)
+		return
+	}
 
 	sbom := result.ConvertScanResultToSBOM()
 	csbom, err := sbomutil.CompressSBOM(sbom)

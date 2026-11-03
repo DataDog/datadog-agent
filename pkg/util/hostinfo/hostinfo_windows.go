@@ -34,7 +34,7 @@ import (
 )
 
 var (
-	modkernel          = windows.NewLazyDLL("kernel32.dll")
+	modkernel          = windows.NewLazySystemDLL("kernel32.dll")
 	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
 )
 

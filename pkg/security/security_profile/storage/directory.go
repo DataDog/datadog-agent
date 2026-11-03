@@ -67,6 +67,47 @@ func fileHasProfileExtension(path string) bool {
 	return err == nil && format == config.Profile
 }
 
+func fileHasStorageExtension(path string) bool {
+	name := strings.TrimSuffix(filepath.Base(path), ".gz")
+	_, err := config.ParseStorageFormat(filepath.Ext(name))
+	return err == nil
+}
+
+// ClearLocalProfilesOnStart deletes every locally stored security profile in directoryPath. Unlike
+// a persisted marker it clears on every start, which is the behavior wanted for tests.
+func ClearLocalProfilesOnStart(directoryPath string) error {
+	entries, err := os.ReadDir(directoryPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("couldn't list files in [%s]: %w", directoryPath, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !fileHasStorageExtension(entry.Name()) {
+			continue
+		}
+		path := filepath.Join(directoryPath, entry.Name())
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("couldn't delete local security profile [%s]: %w", path, err)
+		}
+		seclog.Infof("deleted local security profile [%s]", path)
+	}
+
+	return nil
+}
+
+// ValidateProfileName checks that a profile name can safely be used as a filename inside the
+// storage directory. The name can come from an untrusted source (e.g. the metadata of an activity
+// dump provided to the transcoding API), so it must not be able to escape the directory.
+func ValidateProfileName(name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\\x00") {
+		return fmt.Errorf("invalid profile name %q", name)
+	}
+	return nil
+}
+
 // profileNameFromFile returns the profile name encoded in a storage filename. Persist writes
 // files as "<name>.<format>" (with an optional ".gz" suffix), so the name is the filename with
 // those extensions stripped. Used to attribute an on-disk file back to its profile selector.
@@ -172,6 +213,10 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 
 // Persist persists the provided profile to the directory
 func (d *Directory) Persist(request config.StorageRequest, p *profile.Profile, raw *bytes.Buffer) error {
+	if err := ValidateProfileName(p.Metadata.Name); err != nil {
+		return err
+	}
+
 	filename := fmt.Sprintf("%s.%s", p.Metadata.Name, request.Format.String())
 
 	if request.Compression {

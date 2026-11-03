@@ -16,7 +16,10 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -33,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 func openTestFile(test *testModule, testFile string, flags int) (int, error) {
@@ -69,7 +73,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd1, fd2 int
 	var testFile1, testFile2 string
@@ -147,7 +151,7 @@ func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd1, fd2 int
 	var testFile1, testFile2 string
@@ -215,7 +219,7 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd1, fd2 int
 	var testDir, testFile1, testFile2 string
@@ -301,7 +305,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -347,11 +351,11 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	}
 }
 
-// This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
-// This means that the event is actually forwarded to user space, but the rule should not be evaluated
-var _ = declareInlineConfig(TestFilterOpenLeafDiscarderActivityDump)
+var _ = declareInlineConfig(TestFilterOpenLeafDiscarderWorkloadProfile)
 
-func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
+// TestFilterOpenLeafDiscarderWorkloadProfile checks that an open hidden by a leaf discarder (rule without approver)
+// is still forwarded to user space, so that the workload profile learns it for each process opening the file.
+func TestFilterOpenLeafDiscarderWorkloadProfile(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -373,32 +377,23 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		Expression: `open.filename =~ "/*mp/*-no-approver-*"`,
 	}
 
-	outputDir := t.TempDir()
-	expectedFormats := []string{"json", "protobuf"}
-	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
-		// this exercises the v1 activity dump manager, which is inactive under security profile v2
-		disableSecurityProfileV2:            true,
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      model.MaxTracedCgroupsCount,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-	}))
+	// in accept mode, every open of the host goes through the sampler: the opens of the container runtime could
+	// exhaust the global open sampling rate before cat opens the discarded file.
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
-	dockerInstance, _, err := test.StartADockerGetDump()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer dockerInstance.stop()
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
 
 	cmd := dockerInstance.Command("mkdir", []string{"/tmp/test"}, []string{})
 	if _, err := cmd.CombinedOutput(); err != nil {
@@ -424,19 +419,356 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Check that we get a probe event "saved by activity dumps"
-	if err := test.GetProbeEvent(func() error {
-		cmd := dockerInstance.Command("cat", []string{testFile}, []string{})
-		_, err = cmd.CombinedOutput()
-		if err != nil {
-			t.Fatal(err)
-			return err
+	// the open that created the discarder was learned by the workload profile, under the touch process
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return profileHasFileOpenedBy(p, "touch", filepath.Base(testFile))
+	}); err != nil {
+		t.Fatalf("the open of touch should be in the workload profile: %v", err)
+	}
+
+	// another process opening the discarded file should be learned too, under its own process node. cat runs from a
+	// shell ("; true" keeps it from being exec'd in place) so that its parent, and so its sampler key, differs from touch.
+	cmd = dockerInstance.Command("sh", []string{"-c", "cat " + testFile + "; true"}, []string{})
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return profileHasFileOpenedBy(p, "cat", filepath.Base(testFile))
+	}); err != nil {
+		t.Fatalf("the open of cat should be in the workload profile despite the discarder: %v", err)
+	}
+}
+
+var _ = declareInlineConfig(TestFilterOpenNoDiscarderWorkloadProfile)
+
+// TestFilterOpenNoDiscarderWorkloadProfile checks that, with discarders disabled, every open of the file reaches
+// user space and is learned by the workload profile for each process opening it.
+func TestFilterOpenNoDiscarderWorkloadProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	// same rule as TestFilterOpenLeafDiscarderWorkloadProfile, without approver on the file path
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename =~ "/*mp/*-no-approver-*"`,
+	}
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.disableDiscarders = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+	cmd := dockerInstance.Command("mkdir", []string{"/tmp/test"}, []string{})
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile := "/tmp/test/test-obc-2"
+
+	cmd = dockerInstance.Command("touch", []string{testFile}, []string{})
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return profileHasFileOpenedBy(p, "touch", filepath.Base(testFile))
+	}); err != nil {
+		t.Fatalf("the open of touch should be in the workload profile: %v", err)
+	}
+
+	// another busybox applet opening the same file should be learned under its own process node
+	cmd = dockerInstance.Command("cat", []string{testFile}, []string{})
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return profileHasFileOpenedBy(p, "cat", filepath.Base(testFile))
+	}); err != nil {
+		t.Fatalf("the open of cat should be in the workload profile: %v", err)
+	}
+}
+
+var _ = declareInlineConfig(TestFilterOpenApproverWorkloadProfile)
+
+// TestFilterOpenApproverWorkloadProfile checks that the opens rejected by the approvers of a rule are forwarded by
+// the workload profile sampler, so that each process opening the file is learned by the workload profile.
+func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	// a rule with an approver on the file path, that the opened file doesn't match
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path == "/tmp/test/test-approved"`,
+	}
+
+	// in deny mode, every rejected open of the host goes through the sampler: the opens of the container runtime
+	// could exhaust the global open sampling rate before touch and cat open the file.
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+	cmd := dockerInstance.Command("mkdir", []string{"/tmp/test"}, []string{})
+	if _, err := cmd.CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile := "/tmp/test/test-obc-2"
+
+	// The sampler deduplicates the opens on the parent pid, the executable, the comm and the file: run both busybox
+	// applets from the same shell so that only their comm differs, whatever the container runtime does on `docker exec`.
+	// The trailing builtin keeps the shell from exec'ing cat in place of itself, which would change its parent.
+	var lock sync.Mutex
+	ppids := make(map[string]any)
+	runUntilSentinel(t, test, dockerInstance, func() error {
+		cmd := dockerInstance.Command("sh", []string{"-c", "touch " + testFile + " && cat " + testFile + " && true"}, []string{})
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("%s: %w", string(out), err)
 		}
 		return nil
-	}, func(event *model.Event) bool {
-		return event.GetType() == "open" && event.IsSavedByActivityDumps()
-	}, 3*time.Second); err != nil {
+	}, func(event *model.Event) {
+		if event.GetEventType() != model.ExecEventType {
+			return
+		}
+		argv0, _ := event.GetFieldValue("exec.argv0")
+		if argv0 != "touch" && argv0 != "cat" {
+			return
+		}
+		ppid, _ := event.GetFieldValue("process.ppid")
+		lock.Lock()
+		ppids[argv0.(string)] = ppid
+		lock.Unlock()
+	})
+	lock.Lock()
+	t.Logf("parent pid of touch: %v, parent pid of cat: %v", ppids["touch"], ppids["cat"])
+	lock.Unlock()
+
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return profileHasFileOpenedBy(p, "touch", filepath.Base(testFile))
+	}); err != nil {
+		t.Fatalf("the open of touch should be in the workload profile: %v", err)
+	}
+
+	// another busybox applet opening the same file should be learned under its own process node
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return profileHasFileOpenedBy(p, "cat", filepath.Base(testFile))
+	}); err != nil {
+		t.Fatalf("the open of cat should be in the workload profile: %v", err)
+	}
+}
+
+// In deny mode, every rejected open of the host goes through the sampler: the global open sampling rate could be
+// exhausted by the opens of the container runtime before the syscall tester runs.
+var _ = declare(TestFilterOpenSavedByWorkloadProfileSampler, testOpts{eventSamplingOpenRateUnlimited: true})
+
+// TestFilterOpenSavedByWorkloadProfileSampler checks that an event rejected by the approvers is still forwarded
+// to user space when the workload profile sampler samples it, flagged so that the rule engine doesn't evaluate it,
+// and that the sampler then rejects the same event for the same process.
+func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	// The sampler is only reached in deny mode, when the approvers of the event type reject the event: each rule
+	// needs an approver that the sampled event doesn't match.
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_sampler_open",
+			Expression: `open.file.path == "{{.Root}}/test-sampler-approved"`,
+		},
+		{
+			ID:         "test_rule_sampler_connect",
+			Expression: `connect.addr.family == AF_INET6`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
 		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+
+	// countSavedEvents runs the syscall tester in the container and counts its forwarded events flagged as saved
+	// from the approvers that match the filter. The test files are on the host and can be opened by other processes
+	// too, which are sampled under their own key.
+	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
+		var count atomic.Int32
+		runUntilSentinel(t, test, dockerInstance, func() error {
+			if out, err := dockerInstance.Command(syscallTester, args, []string{}).CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", string(out), err)
+			}
+			return nil
+		}, func(event *model.Event) {
+			if event.GetEventType() != eventType || !event.IsSavedByActivityDumps() {
+				return
+			}
+			if event.ProcessContext.FileEvent.PathnameStr != syscallTester {
+				return
+			}
+			if v, _ := event.GetFieldValue(filter.key); v == filter.value {
+				count.Add(1)
+			}
+		})
+		return int(count.Load())
+	}
+
+	t.Run("open", func(t *testing.T) {
+		testFile, _, err := test.Path("test-sampler-sampled")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		// the same process opens the same file twice: only the first open is sampled
+		count := countSavedEvents(t, model.FileOpenEventType, eventKeyValueFilter{key: "open.file.path", value: testFile}, "open", testFile, testFile)
+		assert.Equal(t, 1, count, "the first open should be saved by the sampler, the second one rejected")
+	})
+
+	t.Run("connect", func(t *testing.T) {
+		// the same process connects twice to the same address: only the first connect is sampled
+		count := countSavedEvents(t, model.ConnectEventType, eventKeyValueFilter{key: "connect.addr.port", value: 4254}, "connect", "AF_INET", "any", "udp", "4254", "2")
+		assert.Equal(t, 1, count, "the first connect should be saved by the sampler, the second one rejected")
+	})
+}
+
+var _ = declareInlineConfig(TestFilterOpenSampleRefreshWorkloadProfile)
+
+// TestFilterOpenSampleRefreshWorkloadProfile checks that a deduplicated open refreshes the last seen timestamp of the
+// file in the workload profile.
+func TestFilterOpenSampleRefreshWorkloadProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	// deny mode: the approver rejects the opened file, so its opens go through the sampler
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path == "/tmp/wp-open-approved"`,
+	}
+
+	const (
+		refreshPeriod = time.Second
+		openInterval  = 3 * time.Second
+	)
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.securityProfileSampleRefreshPeriod = refreshPeriod
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+	// the sample cookie is only registered if the profile exists when the first open is inserted
+	execType := workloadProfileEventTypeByName(t, "exec")
+	execType.trigger(t, dockerInstance, "known")
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return execType.hasNode(p, "known")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// node eviction is disabled so the sample never goes stale: only the refresh of the second open can update the profile
+	testFile := "/tmp/wp-open-refresh"
+	args := []string{"open", testFile, ";", "sleep", strconv.Itoa(int(openInterval.Seconds())), ";", "open", testFile}
+	if out, err := dockerInstance.Command(workloadProfileSyscallTester, args, []string{}).CombinedOutput(); err != nil {
+		t.Fatalf("%s: %v", string(out), err)
+	}
+
+	execBasename, fileBasename := filepath.Base(workloadProfileSyscallTester), filepath.Base(testFile)
+	p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		firstSeen, lastSeen, found := profileFileSeenTimes(p, execBasename, fileBasename, "v1")
+		return found && lastSeen.Sub(firstSeen) >= openInterval-refreshPeriod
+	})
+	if err != nil {
+		if p == nil {
+			t.Fatal(err)
+		}
+		firstSeen, lastSeen, found := profileFileSeenTimes(p, execBasename, fileBasename, "v1")
+		t.Fatalf("the second open should refresh the last seen timestamp of the file (found: %v, first seen: %s, last seen: %s): %v", found, firstSeen, lastSeen, err)
 	}
 }
 
@@ -452,7 +784,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -612,7 +944,7 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -658,7 +990,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -694,7 +1026,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -730,7 +1062,7 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -766,7 +1098,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -797,7 +1129,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("mask", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
 		var testFile string
@@ -873,7 +1205,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -959,7 +1291,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -1039,7 +1371,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -1125,7 +1457,7 @@ func TestFilterOpenRdOnlyApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	const testFile = "/dev/null"
 
@@ -1196,7 +1528,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 	if err != nil {
@@ -1257,7 +1589,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -1359,7 +1691,7 @@ func TestFilterBpfCmd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var m *ebpf.Map
 	defer func() {
@@ -1422,7 +1754,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("no-event")
 	if err != nil {
@@ -1467,7 +1799,7 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1518,6 +1850,54 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 	}
 }
 
+func TestFilterBindAddrFamily(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_bind",
+			Expression: `bind.addr.port == 4241`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = test.GetProbeEvent(func() error {
+		return runSyscallTesterFunc(
+			context.Background(),
+			t,
+			syscallTester,
+			"bind",
+			"AF_UNIX",
+		)
+	}, func(event *model.Event) bool {
+		addressFamilyIntf, err := event.GetFieldValue("bind.addr.family")
+		if !assert.NoError(t, err) {
+			return false
+		}
+		addressFamily, ok := addressFamilyIntf.(int)
+		if !assert.True(t, ok) {
+			return false
+		}
+		assert.Containsf(t, []int{unix.AF_INET, unix.AF_INET6}, addressFamily, "should not get a bind event with address family other than AF_INET or AF_INET6")
+		return false
+	}, 2*time.Second, model.BindEventType)
+	if err != nil {
+		if _, ok := err.(ErrTimeout); !ok {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestAuidDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1533,7 +1913,7 @@ func TestAuidDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("auid_discarder_test")
 	if err != nil {
