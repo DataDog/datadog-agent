@@ -34,61 +34,37 @@ npm install  # first time only
 npm run dev
 ```
 
-## Local dataset replay
+## LLMObs datasets
 
-Local evaluations and the interactive testbench use the latest LLMObs recording
-dataset. The default is `observer-metric-types-2026-10-26`, the updated copy of
-our 12 local fault recordings. See [AAD evaluation datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets)
-for the available datasets. Dataset membership and recording references are managed
-in LLMObs and shared with the evaluation worker. Local commands download and cache
-those recordings for headless evaluation and testbench visualization; they do not
-maintain a separate scenario manifest.
+Use any compatible LLMObs dataset for testbench replay or evaluation. Dataset
+membership and recording references are shared with the evaluation worker.
 
 ```bash
-# Replay the default dataset headlessly and print the existing F1 results.
-dda inv anomalydetection.eval-scenarios
-
-# Select one recording from the default dataset.
-dda inv anomalydetection.eval-scenarios --scenario redis-cpu-saturation
-
-# Open a recording from that dataset in the existing interactive testbench.
-dda inv anomalydetection.launch-testbench --build --scenario redis-cpu-saturation
-
-# Run the existing headless testbench directly through the launcher.
-dda inv anomalydetection.launch-testbench --headless-scenario redis-cpu-saturation
-
-# Discover or download other datasets; --dataset accepts a name or UUID.
 dda inv anomalydetection.list-datasets
-dda inv anomalydetection.download-scenarios --dataset observer-original-recordings-2026-09-30
 
-# Replay existing files without accessing LLMObs.
-dda inv anomalydetection.eval-scenarios --local --scenario example --scenarios-dir /path/to/scenarios
-dda inv anomalydetection.launch-testbench --local --scenarios-dir /path/to/scenarios
+# Open a dataset in the testbench; optionally select one scenario.
+dda inv anomalydetection.launch-testbench --build --dataset "my-recordings" --scenario "my-scenario"
+
+# Evaluate all scenarios in a dataset using F1.
+dda inv anomalydetection.eval-scenarios --dataset "my-recordings"
 ```
 
-`--scenario` or `--scenarios` filters evaluation rows. `--project` and `--site`
-select another LLMObs project/site; there is no dataset version selector.
-Dataset access uses `DD_API_KEY` and `DD_APP_KEY`, or cached `dd-auth-quiet`
-credentials when that helper is installed. Private S3 downloads use normal AWS
-credentials; supply `--aws-profile NAME` if needed. The worker uses its own role,
-while this download runs locally.
+`--dataset` accepts a name or UUID and reads its latest version. If omitted, it
+defaults to `observer-metric-types-2026-10-26`. Use `--project` and `--site` for
+another LLMObs project or site. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
 
-Recording ZIPs are checked against their SHA-256 and cached under
-`<scenarios-dir>/.llmobs/<dataset-id>/`. Their original Parquet bytes and episode
-metadata are preserved; changed checksums refresh cached recordings. Dataset rows
-must provide `recording` ZIP references. Native GenSim Store/archive references
-are not supported by these local commands.
+Each row must provide `scenario` and `recording` (`uri`, `sha256`, and optionally
+`episode_member`). ZIPs contain episode metadata and Parquet files; the loader
+verifies and caches them. F1 evaluation requires fault timing metadata.
 
-Each completed evaluation includes an `inspect_command` to open the same cached
-recording and component settings. `--config FILE` takes precedence over `--only`;
-headless evaluation automatically adds `anomaly_scorer` to `--only` selections.
-Replay streams by default and retries with retained sorting for unordered input.
-Reports record the replay mode: retained and streaming replay use different
-storage retention and can produce different detections. Interactive replay uses
-retained data for visualization and reruns.
+Provide `DD_API_KEY` and `DD_APP_KEY`, or prefix commands with
+`dd-auth --domain app.datadoghq.com --`. S3 uses local AWS credentials
+(`--aws-profile NAME`). Use `--local --scenarios-dir PATH` to replay existing files.
 
-The launcher runs until Ctrl-C and stops its backend on exit. If another
-instance is running, use `--api-port 8087 --ui-port 5177` to keep them separate.
+Results include an `inspect_command` to open the recording and settings. The UI
+stops with Ctrl-C; `--api-port` and `--ui-port` allow additional instances.
+Headless replay streams by default, retrying with retained sorting for unordered
+input. Interactive replay retains all data, so detections can differ.
 
 ## Evals
 

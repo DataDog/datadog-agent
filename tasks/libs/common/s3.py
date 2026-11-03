@@ -52,9 +52,9 @@ def upload_file_to_s3(file_path: str, s3_path: str) -> bool:
         raise
 
 
-def download_file_from_s3(s3_path: str, local_path: str) -> bool:
+def download_file_from_s3(s3_path: str, local_path: str, *, aws_profile: str | None = None) -> bool:
     """
-    Download a file from S3 to a specified local path.
+    Download a file from S3, optionally using a named AWS profile.
     """
     import boto3
     from botocore.exceptions import ClientError
@@ -65,7 +65,7 @@ def download_file_from_s3(s3_path: str, local_path: str) -> bool:
     s3_key = "/".join(s3_path.split("/")[1:])
 
     try:
-        s3_client = boto3.client('s3')
+        s3_client = boto3.Session(profile_name=aws_profile).client('s3') if aws_profile else boto3.client('s3')
         s3_client.download_file(s3_bucket_name, s3_key, local_path)
         return True
 

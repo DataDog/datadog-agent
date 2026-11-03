@@ -6,13 +6,14 @@ import os
 import re
 import shutil
 import stat
-import subprocess
-import sys
 import tempfile
 import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
+
+from tasks.libs.anomalydetection.ddeval import sha256_file
+from tasks.libs.common.s3 import download_file_from_s3
 
 DEFAULT_DATASET = "observer-metric-types-2026-10-26"
 
@@ -21,7 +22,7 @@ def _api_pages(path, site):
     api_key = os.environ.get("DD_API_KEY") or os.environ.get("DATADOG_API_KEY")
     app_key = os.environ.get("DD_APP_KEY") or os.environ.get("DATADOG_APP_KEY")
     if not api_key or not app_key:
-        raise ValueError("Datadog API and application keys are required to read LLMObs datasets")
+        raise ValueError("Set DD_API_KEY and DD_APP_KEY, or run this command through dd-auth, to read LLMObs datasets")
     seen = set()
     while True:
         request = urllib.request.Request(
@@ -43,7 +44,19 @@ def _api_pages(path, site):
         path = query.path + "?" + urllib.parse.urlencode(params, doseq=True)
 
 
-def _read_dataset(dataset, project, site):
+def read_dataset(dataset="", project="observer-log-ad", site="datadoghq.com"):
+    """Read the latest dataset using Datadog API/application keys from the environment."""
+    if site not in {
+        "datadoghq.com",
+        "datad0g.com",
+        "datadoghq.eu",
+        "us3.datadoghq.com",
+        "us5.datadoghq.com",
+        "ap1.datadoghq.com",
+        "ap2.datadoghq.com",
+        "uk1.datadoghq.com",
+    }:
+        raise ValueError(f"Unsupported Datadog site: {site}")
     projects = list(
         _api_pages("/api/v2/llm-obs/v1/projects?" + urllib.parse.urlencode({"filter[name]": project}), site)
     )
@@ -72,40 +85,6 @@ def _read_dataset(dataset, project, site):
     return {"id": selected["id"], "name": selected["attributes"]["name"], "records": records}
 
 
-def read_dataset(dataset="", project="observer-log-ad", site="datadoghq.com"):
-    """Read latest records, using cached local dd-auth credentials when available."""
-    if site not in {
-        "datadoghq.com",
-        "datad0g.com",
-        "datadoghq.eu",
-        "us3.datadoghq.com",
-        "us5.datadoghq.com",
-        "ap1.datadoghq.com",
-        "ap2.datadoghq.com",
-        "uk1.datadoghq.com",
-    }:
-        raise ValueError(f"Unsupported Datadog site: {site}")
-    if (os.environ.get("DD_API_KEY") or os.environ.get("DATADOG_API_KEY")) and (
-        os.environ.get("DD_APP_KEY") or os.environ.get("DATADOG_APP_KEY")
-    ):
-        return _read_dataset(dataset, project, site)
-    quiet = shutil.which("dd-auth-quiet") or str(Path.home() / ".local/bin/dd-auth-quiet")
-    if not Path(quiet).is_file():
-        raise ValueError("Authenticate with Datadog and provide DD_API_KEY and DD_APP_KEY to read LLMObs")
-    domain = "dd.datad0g.com" if site == "datad0g.com" else f"app.{site}"
-    result = subprocess.run(
-        [quiet, "--domain", domain, "--", sys.executable, str(Path(__file__).resolve()), dataset, project, site],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode:
-        if result.returncode == 78:
-            raise ValueError("Datadog sign-in needs refreshing; sign in and retry the dataset command")
-        raise ValueError(f"Could not read LLMObs: {result.stderr.strip()}")
-    return json.loads(result.stdout)
-
-
 def _download(uri, destination, aws_profile):
     parsed = urllib.parse.urlsplit(uri)
     if parsed.scheme == "file":
@@ -114,14 +93,8 @@ def _download(uri, destination, aws_profile):
         with urllib.request.urlopen(uri, timeout=120) as source, destination.open("wb") as target:
             shutil.copyfileobj(source, target)
     elif parsed.scheme == "s3":
-        import boto3
-
         try:
-            session = boto3.Session(profile_name=aws_profile or None)
-            region = session.region_name or "us-east-1"
-            session.client("s3", region_name=region).download_file(
-                parsed.netloc, parsed.path.lstrip("/"), str(destination)
-            )
+            download_file_from_s3(uri, str(destination), aws_profile=aws_profile or None)
         except Exception as error:
             raise ValueError(
                 f"Cannot download the S3 recording with AWS profile {aws_profile or 'default'}: {error}"
@@ -193,6 +166,7 @@ def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
     root = Path(scenarios_dir) / ".llmobs" / dataset["id"]
     root.mkdir(parents=True, exist_ok=True)
     selected = []
+    identities = []
     requested = {name.strip() for name in scenario.split(",") if name.strip()}
     for record in dataset["records"]:
         attrs = record.get("attributes", record)
@@ -209,7 +183,7 @@ def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
         if name in selected:
             raise ValueError(f"Dataset contains duplicate scenario name: {name}")
         if "recording" not in inputs:
-            raise ValueError(f"{name}: local dataset replay requires a recording ZIP reference")
+            raise ValueError(f"{name}: dataset replay requires a recording ZIP reference")
         spec = inputs.get("recording") or {}
         digest = str(spec.get("sha256") or "").lower()
         if not re.fullmatch(r"[0-9a-f]{64}", digest):
@@ -232,11 +206,7 @@ def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
                 staged = Path(temporary)
                 archive = staged / "recording.zip"
                 _download(spec.get("uri", ""), archive, aws_profile)
-                hasher = hashlib.sha256()
-                with archive.open("rb") as source:
-                    while chunk := source.read(1024 * 1024):
-                        hasher.update(chunk)
-                if hasher.hexdigest() != digest:
+                if sha256_file(archive) != digest:
                     raise ValueError(f"{name}: recording SHA-256 mismatch")
                 extracted = staged / "scenario"
                 extracted.mkdir()
@@ -246,16 +216,26 @@ def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
                     shutil.rmtree(target)
                 extracted.rename(target)
         selected.append(name)
+        identities.append((name, identity))
     if requested - set(selected):
         raise ValueError(f"Scenarios not found in dataset: {', '.join(sorted(requested - set(selected)))}")
     if not selected:
         raise ValueError(f"No matching scenarios in dataset {dataset['name']!r}")
-    return root, selected
-
-
-if __name__ == "__main__":
-    try:
-        print(json.dumps(_read_dataset(*sys.argv[1:])))
-    except Exception as error:
-        print(str(error), file=sys.stderr)
-        sys.exit(1)
+    # The cache can contain older/filtered recordings. Expose only this selection,
+    # using hard links so large Parquet files are not copied. Including checksums
+    # keeps existing replay/inspect paths stable when the dataset changes.
+    selection = hashlib.sha256(json.dumps(sorted(identities), sort_keys=True).encode()).hexdigest()
+    views = root / ".selections"
+    views.mkdir(exist_ok=True)
+    replay_root = views / selection
+    if not replay_root.exists():
+        with tempfile.TemporaryDirectory(dir=views) as temporary:
+            staged = Path(temporary) / "scenarios"
+            staged.mkdir()
+            for name in selected:
+                shutil.copytree(root / name, staged / name, copy_function=os.link)
+            try:
+                staged.rename(replay_root)
+            except FileExistsError:
+                pass  # Another invocation prepared the same immutable selection.
+    return replay_root, selected

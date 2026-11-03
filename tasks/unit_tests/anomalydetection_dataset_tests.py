@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import tempfile
@@ -6,7 +7,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from tasks.libs.anomalydetection.datasets import DEFAULT_DATASET, _read_dataset, prepare_dataset
+from tasks.libs.anomalydetection.datasets import DEFAULT_DATASET, _download, prepare_dataset, read_dataset
 
 EPISODE = {
     "start_time": "2026-01-01T00:00:00Z",
@@ -56,6 +57,28 @@ class TestDatasetReplay(unittest.TestCase):
             with patch("tasks.libs.anomalydetection.datasets._download", side_effect=AssertionError("cache miss")):
                 self.assertEqual(prepare_dataset(dataset, directory / "cache"), (root, names))
 
+    def test_replay_selection_excludes_removed_and_filtered_rows_but_keeps_cache(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            dataset = self.dataset(directory)
+            other = copy.deepcopy(dataset["records"][0])
+            other["attributes"]["input"]["scenario"] = "other"
+            dataset["records"].append(other)
+            all_root, _ = prepare_dataset(dataset, directory / "cache")
+            with patch("tasks.libs.anomalydetection.datasets._download", side_effect=AssertionError("cache miss")):
+                filtered_root, _ = prepare_dataset(dataset, directory / "cache", scenario="example")
+                self.assertEqual([p.name for p in filtered_root.iterdir()], ["example"])
+                removed = {**dataset, "records": dataset["records"][:1]}
+                current_root, _ = prepare_dataset(removed, directory / "cache")
+                self.assertEqual(current_root, filtered_root)
+                restored_root, _ = prepare_dataset(dataset, directory / "cache")
+                self.assertEqual(restored_root, all_root)
+            self.assertEqual({p.name for p in all_root.iterdir()}, {"example", "other"})
+            self.assertEqual(
+                (filtered_root / "example/parquet/observer-metrics-1.parquet").stat().st_ino,
+                (all_root / "example/parquet/observer-metrics-1.parquet").stat().st_ino,
+            )
+
     def test_changed_recording_is_not_hidden_by_scenario_cache(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -63,8 +86,9 @@ class TestDatasetReplay(unittest.TestCase):
             root, _ = prepare_dataset(first, directory / "cache")
             episode = {**EPISODE, "version": 2}
             changed = self.dataset(directory, episode=episode)
-            prepare_dataset(changed, directory / "cache")
-            self.assertEqual(json.loads((root / "example/episode.json").read_text())["version"], 2)
+            updated_root, _ = prepare_dataset(changed, directory / "cache")
+            self.assertEqual(json.loads((updated_root / "example/episode.json").read_text())["version"], 2)
+            self.assertEqual(json.loads((root / "example/episode.json").read_text()), EPISODE)
 
     def test_rejects_bad_checksum_without_destroying_existing_cache(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -97,23 +121,46 @@ class TestDatasetReplay(unittest.TestCase):
             )
             prepare_dataset(dataset, directory / "cache")
 
-    def test_resolves_latest_without_exposing_a_version_selector(self):
-        pages = [
-            [{"id": "project", "attributes": {"name": "observer-log-ad"}}],
-            [{"id": "dataset", "attributes": {"name": "Recordings", "current_version": 7}}],
-            [{"id": "record", "attributes": {"input": {"scenario": "example"}}}],
-        ]
-        with patch("tasks.libs.anomalydetection.datasets._api_pages", side_effect=pages) as request:
-            dataset = _read_dataset("Recordings", "observer-log-ad", "datadoghq.com")
-        self.assertEqual(dataset["records"][0]["id"], "record")
-        self.assertIn("filter%5Bversion%5D=7", request.call_args.args[0])
-        self.assertNotIn("version", dataset)
+    def test_resolves_arbitrary_dataset_by_name_or_uuid_in_another_project(self):
+        dataset_id = "1372a4b7-3809-4ffb-9ae4-f0bd716940cf"
+        for identifier in ("future-recordings", dataset_id):
+            pages = [
+                [{"id": "another-project", "attributes": {"name": "another-project"}}],
+                [{"id": dataset_id, "attributes": {"name": "future-recordings", "current_version": 7}}],
+                [{"id": "record", "attributes": {"input": {"scenario": "example"}}}],
+            ]
+            with (
+                self.subTest(identifier=identifier),
+                patch("tasks.libs.anomalydetection.datasets._api_pages", side_effect=pages) as request,
+            ):
+                dataset = read_dataset(identifier, "another-project", "datadoghq.eu")
+            self.assertEqual(dataset["id"], dataset_id)
+            self.assertEqual(dataset["records"][0]["id"], "record")
+            self.assertIn("filter%5Bname%5D=another-project", request.call_args_list[0].args[0])
+            self.assertIn(f"/another-project/datasets/{dataset_id}/records?", request.call_args.args[0])
+            self.assertIn("filter%5Bversion%5D=7", request.call_args.args[0])
+            self.assertEqual(request.call_args.args[1], "datadoghq.eu")
+            self.assertNotIn("version", dataset)
+
+    def test_s3_download_supports_named_profiles_and_default_credentials(self):
+        for profile in ("", "recording-account"):
+            with self.subTest(profile=profile), patch("boto3.Session") as session, patch("boto3.client") as client:
+                _download("s3://recordings/nested/episode.zip", Path("recording.zip"), profile)
+                if profile:
+                    session.assert_called_once_with(profile_name=profile)
+                    client.assert_not_called()
+                    s3 = session.return_value.client.return_value
+                else:
+                    session.assert_not_called()
+                    client.assert_called_once_with("s3")
+                    s3 = client.return_value
+                s3.download_file.assert_called_once_with("recordings", "nested/episode.zip", "recording.zip")
 
 
 class TestLocalEvalCommand(unittest.TestCase):
     dataset = TestDatasetReplay.dataset
 
-    def run_eval(self, directory, *, unordered=False, default=True):
+    def run_eval(self, directory, *, unordered=False, default=True, fail=False):
         import shlex
         from types import SimpleNamespace
         from unittest.mock import MagicMock
@@ -128,6 +175,8 @@ class TestLocalEvalCommand(unittest.TestCase):
             if "--headless" in args:
                 if unordered and "--retain-parquet" not in args:
                     return SimpleNamespace(failed=True, stderr="timestamps are not globally ordered")
+                if fail:
+                    return SimpleNamespace(failed=True, stderr="replay crashed")
                 output = Path(args[args.index("--output") + 1])
                 output.write_text(json.dumps({"metadata": {"scenario": "example"}}))
                 return SimpleNamespace(failed=False)
@@ -179,6 +228,16 @@ class TestLocalEvalCommand(unittest.TestCase):
         self.assertEqual(context.run.call_count, 3)
         self.assertEqual(result["metadata"]["example"]["replay_mode"], "retained")
         self.assertIn("--retain-parquet", context.run.call_args_list[1].args[0])
+
+    def test_failed_replay_aborts_without_publishing_a_partial_score(self):
+        from invoke import Exit
+
+        for unordered in (False, True):
+            with self.subTest(unordered=unordered), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                with self.assertRaisesRegex(Exit, "replay crashed"):
+                    self.run_eval(directory, unordered=unordered, fail=True)
+                self.assertFalse((directory / "report.json").exists())
 
     def test_local_eval_never_reads_llmobs(self):
         from unittest.mock import MagicMock

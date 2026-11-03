@@ -97,6 +97,20 @@ def _build_testbench(ctx, *, env: dict[str, str] | None = None):
 # --- Run ---
 
 
+def _run_headless_replay(ctx, args, *, retain_parquet=False, timeout=None):
+    """Retry unordered input once with sorting; never treat failed replay as a score."""
+    started = time.monotonic()
+    result = ctx.run(join_command(args + (["--retain-parquet"] if retain_parquet else [])), timeout=timeout, warn=True)
+    if result.failed and not retain_parquet and "not globally ordered" in result.stderr:
+        print("Recording is unordered; retrying with retained, sorted replay")
+        retain_parquet = True
+        remaining = None if timeout is None else max(0.001, timeout - (time.monotonic() - started))
+        result = ctx.run(join_command(args + ["--retain-parquet"]), timeout=remaining, warn=True)
+    if result.failed:
+        raise Exit(f"Testbench replay failed: {result.stderr}")
+    return retain_parquet
+
+
 @task
 def launch_testbench(
     ctx,
@@ -146,7 +160,7 @@ def launch_testbench(
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
         retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
         allowed_types: Comma-separated allowed metric types (passed as --allowed_types).
-        dataset: Latest LLMObs recording dataset; defaults to our 12 typed local recordings.
+        dataset: LLMObs dataset name or UUID; reads its latest version.
         local: Use existing files under scenarios_dir without reading LLMObs.
         scenario: Select and open one recording in the interactive testbench.
     """
@@ -171,7 +185,7 @@ def launch_testbench(
         raise Exit("--open-pprof supports one profile type at a time; choose --mem-profile or --cpu-profile")
 
     flags = []
-    for enabled, flag in [(verbose, "--verbose"), (logs_only, "--logs-only"), (retain_parquet, "--retain-parquet")]:
+    for enabled, flag in [(verbose, "--verbose"), (logs_only, "--logs-only")]:
         if enabled:
             flags.append(flag)
     if allowed_types:
@@ -210,18 +224,10 @@ def launch_testbench(
             headless_output,
             *flags,
         ]
-        headless_start = time.monotonic()
         try:
-            result = ctx.run(join_command(headless_args), timeout=None if timeout == 0 else timeout, warn=True)
-            if result.failed and not retain_parquet and "not globally ordered" in result.stderr:
-                print("Recording is unordered; retrying with retained, sorted replay")
-                result = ctx.run(
-                    join_command(headless_args + ["--retain-parquet"]),
-                    warn=True,
-                    timeout=None if timeout == 0 else max(1, int(timeout - (time.monotonic() - headless_start))),
-                )
-            if result.failed:
-                raise Exit(f"Testbench replay failed: {result.stderr}")
+            _run_headless_replay(
+                ctx, headless_args, retain_parquet=retain_parquet, timeout=None if timeout == 0 else timeout
+            )
         except Exception as e:
             if type(e).__name__ == "CommandTimedOut":
                 print(color_message(f"testbench timed out after {timeout}s", Color.ORANGE))
@@ -608,9 +614,9 @@ def eval_scenarios(
 ) -> dict:
     """Replay recordings from the latest LLMObs dataset and score existing fault F1.
 
-    The default dataset contains our 12 typed local recordings. --scenario or
-    --scenarios filters its rows. --local instead reads existing recordings from
-    --scenarios-dir without consulting LLMObs. There is no dataset version input.
+    --dataset accepts any recording dataset name or UUID. --scenario or
+    --scenarios filters its rows. --local reads existing recordings from
+    --scenarios-dir without consulting LLMObs.
     --only automatically includes anomaly_scorer; --config takes precedence.
     Completed results include a command to inspect the same recording/settings.
     """
@@ -681,24 +687,12 @@ def eval_scenarios(
         elif only_flag:
             command_args += ["--only", only_flag]
         try:
-            replay = ctx.run(
-                join_command(command_args + (["--retain-parquet"] if retained_replay else [])),
-                timeout=None if timeout == 0 else max(1, int(budget_remaining)),
-                warn=True,
+            retained_replay = _run_headless_replay(
+                ctx,
+                command_args,
+                retain_parquet=retain_parquet,
+                timeout=None if timeout == 0 else max(0.001, budget_remaining),
             )
-            if replay.failed and not retained_replay and "not globally ordered" in replay.stderr:
-                scenario_logger.detail("Recording is unordered; retrying with retained, sorted replay")
-                retained_replay = True
-                replay = ctx.run(
-                    join_command(command_args + ["--retain-parquet"]),
-                    warn=True,
-                    timeout=None
-                    if timeout == 0
-                    else max(1, int(budget_remaining - (time.monotonic() - scenario_start))),
-                )
-            if replay.failed:
-                scenario_logger.detail(f"Replay failed: {replay.stderr}", Color.RED)
-                continue
         except Exception as e:
             if type(e).__name__ == "CommandTimedOut":
                 scenario_logger.detail(
