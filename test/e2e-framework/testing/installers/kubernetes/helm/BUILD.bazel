@@ -18,6 +18,7 @@ go_library(
         "@sh_helm_helm_v4//pkg/action",
         "@sh_helm_helm_v4//pkg/chart/loader",
         "@sh_helm_helm_v4//pkg/cli",
+        "@sh_helm_helm_v4//pkg/kube",
         "@sh_helm_helm_v4//pkg/storage/driver",
     ],
 )

@@ -587,6 +587,17 @@ go_deps.module_override(
     path = "sigs.k8s.io/kustomize/api",
 )
 
+# kyaml's openapi package go:embeds files from its kubernetesapi and kustomizationapi subpackages, which Gazelle
+# leaves out of embedsrcs across package boundaries (bazel-contrib/bazel-gazelle#1392): excluding their unused Go
+# files keeps those directories in the openapi package.
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:exclude openapi/kubernetesapi/*.go",
+        "gazelle:exclude openapi/kustomizationapi/*.go",
+    ],
+    path = "sigs.k8s.io/kustomize/kyaml",
+)
+
 # gopacket/pcap links -lpcap, but the hermetic Linux sysroot ships neither pcap.h
 # nor libpcap. Link the vendored static @libpcap instead; other platforms keep
 # the system library (e.g. the macOS SDK).
