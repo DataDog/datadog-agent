@@ -68,3 +68,11 @@ instances:
     ## Supported values: proto, json, json_ietf
     #
     # encoding: json_ietf
+
+    ## @param path_encoding - string - optional - default: origin
+    ## Encode legacy /openconfig/... profile selectors as origin=openconfig with
+    ## elements starting at the actual schema root (interfaces, system, etc.).
+    ## Use literal-openconfig only for targets requiring the older Nokia form.
+    ## Explicit native origins (origin:/path) are not rewritten by this setting.
+    #
+    # path_encoding: origin

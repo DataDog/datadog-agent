@@ -106,6 +106,7 @@ func runPreviewMetrics(params *previewMetricsParams, config config.Component) er
 		CollectTopology:    instance.CollectTopology,
 		UseTLS:             instance.UseTLS,
 		InsecureSkipVerify: instance.InsecureSkipVerify,
+		PathEncoding:       gnmicfg.PathEncoding(instance.PathEncoding),
 		// Match the check's request; 0 (ad-hoc target) selects the client default.
 		SampleInterval: time.Duration(instance.MinCollectionInterval) * time.Second,
 		Encoding:       encoding,

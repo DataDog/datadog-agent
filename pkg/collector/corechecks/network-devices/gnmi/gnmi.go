@@ -90,6 +90,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		CollectTopology:    checkConfig.Instance.CollectTopology,
 		UseTLS:             checkConfig.Instance.UseTLS,
 		InsecureSkipVerify: checkConfig.Instance.InsecureSkipVerify,
+		PathEncoding:       config.PathEncoding(checkConfig.Instance.PathEncoding),
 		// Sample once per check run.
 		SampleInterval: time.Duration(checkConfig.Instance.MinCollectionInterval) * time.Second,
 	}

@@ -38,6 +38,7 @@ type InstanceConfig struct {
 	UseTLS                     bool     `yaml:"use_tls"`
 	InsecureSkipVerify         bool     `yaml:"insecure_skip_verify"`
 	Encoding                   string   `yaml:"encoding"`
+	PathEncoding               string   `yaml:"path_encoding"`
 }
 
 // CheckConfig combines a validated instance config with its loaded profile.
@@ -109,6 +110,9 @@ func validateInstanceConfig(instance *InstanceConfig) error {
 		return errors.New("`insecure_skip_verify` requires `use_tls: true`")
 	}
 	if _, err := ParseEncoding(instance.Encoding); err != nil {
+		return err
+	}
+	if _, err := ParsePathEncoding(instance.PathEncoding); err != nil {
 		return err
 	}
 	return nil

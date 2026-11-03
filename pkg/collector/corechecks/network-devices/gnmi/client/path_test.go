@@ -24,10 +24,11 @@ func TestSubscribePathFromMetric(t *testing.T) {
 
 	path, err := subscribePathFromMetric(metric)
 	require.NoError(t, err)
-	require.Len(t, path.GetElem(), 6)
-	require.Equal(t, "openconfig", path.GetElem()[0].GetName())
-	require.Equal(t, "interface", path.GetElem()[2].GetName())
-	require.Equal(t, map[string]string{"name": "*"}, path.GetElem()[2].GetKey())
+	require.Equal(t, "openconfig", path.GetOrigin())
+	require.Len(t, path.GetElem(), 5)
+	require.Equal(t, "interfaces", path.GetElem()[0].GetName())
+	require.Equal(t, "interface", path.GetElem()[1].GetName())
+	require.Equal(t, map[string]string{"name": "*"}, path.GetElem()[1].GetKey())
 }
 
 func TestCacheKeyFromGNMIPath(t *testing.T) {
