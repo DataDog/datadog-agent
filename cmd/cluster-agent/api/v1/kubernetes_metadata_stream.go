@@ -1022,12 +1022,14 @@ func fullStateResponse(podServices map[string]podServiceEntry, metadata metadata
 		})
 	}
 
+	if nodeState.scopesKueueWorkloads() {
+		// metadata is a copy: select the node's Workloads so the others are
+		// never converted.
+		metadata.kueueWorkloads = nodeState.kueueWorkloads
+	}
 	resp := computeMetadataDiff(newMetadataSnapshot(), metadata).response(true)
 	resp.Mappings = mappings
 	resp.KaiPodGroups = computeKAIPodGroupsDiff(nil, nodeState.kaiPodGroups)
-	if nodeState.scopesKueueWorkloads() {
-		resp.KueueWorkloads = computeKueueWorkloadDiff(nil, nodeState.kueueWorkloads)
-	}
 	return resp
 }
 
