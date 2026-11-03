@@ -222,7 +222,7 @@ func (s *Server) SendSyncResponse(streamID int) error {
 func (s *Server) SendSubscriptionError(streamID int, err error) error {
 	rpcStatus := status.Convert(err)
 	return s.sendResponse(streamID, &gnmipb.SubscribeResponse{
-		Response: &gnmipb.SubscribeResponse_Error{Error: &gnmipb.Error{
+		Response: &gnmipb.SubscribeResponse_Error{Error: &gnmipb.Error{ //nolint:staticcheck // SA1019: Simulate legacy devices that send in-band errors.
 			Code: uint32(rpcStatus.Code()), Message: rpcStatus.Message(),
 		}},
 	})

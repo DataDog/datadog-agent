@@ -53,14 +53,14 @@ func subscriptionResponseError(response *gnmipb.SubscribeResponse) error {
 	if !ok {
 		return nil
 	}
-	if payload == nil || payload.Error == nil {
+	if payload == nil || payload.Error == nil { //nolint:staticcheck // SA1019: Supported targets still send deprecated in-band errors.
 		return status.Error(codes.Unknown, "empty gNMI subscription error response")
 	}
-	code := codes.Code(payload.Error.GetCode())
+	code := codes.Code(payload.Error.GetCode()) //nolint:staticcheck // SA1019: Preserve the legacy device error code.
 	if code == codes.OK || code > codes.Unauthenticated {
 		code = codes.Unknown
 	}
-	return status.Error(code, payload.Error.GetMessage())
+	return status.Error(code, payload.Error.GetMessage()) //nolint:staticcheck // SA1019: Preserve the legacy device error message.
 }
 
 // Rejection learning uses the full wire path, not diagnostic strings or a

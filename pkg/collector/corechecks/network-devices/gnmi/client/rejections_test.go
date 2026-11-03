@@ -318,7 +318,11 @@ func TestRejectionIdentityPreservesOriginAndKeyOwnership(t *testing.T) {
 
 func TestInBandSubscriptionErrorsPreserveCodeAndMessage(t *testing.T) {
 	for _, code := range []uint32{uint32(codes.NotFound), uint32(codes.Unauthenticated), 0, 999} {
-		response := &gnmipb.SubscribeResponse{Response: &gnmipb.SubscribeResponse_Error{Error: &gnmipb.Error{Code: code, Message: "device explanation"}}}
+		response := &gnmipb.SubscribeResponse{
+			Response: &gnmipb.SubscribeResponse_Error{
+				Error: &gnmipb.Error{Code: code, Message: "device explanation"}, //nolint:staticcheck // SA1019: Exercise legacy in-band device errors.
+			},
+		}
 		_, err := (&Client{}).handleSubscribeResponse(newCache(), response)
 		require.ErrorContains(t, err, "device explanation")
 		expected := codes.Code(code)
