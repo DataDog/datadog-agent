@@ -6,6 +6,7 @@
 package pipeline
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -129,4 +130,17 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 	ctx.Stop()
 	close(sink.ch)
 	sinkDone.Wait()
+}
+
+func BenchmarkRoutedFanoutAvailableGroups(b *testing.B) {
+	a, c := make(chan *message.Message, 1), make(chan *message.Message, 1)
+	m := &message.Message{}
+	offers := []channelOffer[*message.Message]{{input: a, value: m}, {input: c, value: m}}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		offerToChannels(context.Background(), offers)
+		<-a
+		<-c
+	}
 }

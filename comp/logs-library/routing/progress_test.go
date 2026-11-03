@@ -881,3 +881,99 @@ func TestProgressNilSinkDoesNotBlockCompletion(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkProgressReserveAttachComplete(b *testing.B) {
+	for _, excluded := range []bool{false, true} {
+		name := "two groups"
+		if excluded {
+			name = "excluded"
+		}
+		b.Run(name, func(b *testing.B) {
+			p, err := NewProgress(128, &sender.NoopSink{})
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer p.Close()
+			m := progressMessage("file:benchmark", "1")
+			payload := message.NewPayload([]*message.MessageMetadata{&m.MessageMetadata}, nil, "", 0)
+			groups := []string{"a", "b"}
+			selection := Selection{Excluded: excluded}
+			if excluded {
+				groups = nil
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				token, err := p.Reserve(context.Background(), m, 1)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if err := p.Attach(token, selection, groups); err != nil {
+					b.Fatal(err)
+				}
+				if !excluded {
+					p.CompleteGroup("a", payload)
+					p.CompleteGroup("b", payload)
+				}
+			}
+			b.StopTimer()
+		})
+	}
+}
+
+func TestProgressWakesAllWaitingAdmissions(t *testing.T) {
+	for _, stopped := range []bool{false, true} {
+		name := "capacity released"
+		if stopped {
+			name = "stopped"
+		}
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				p, err := NewProgress(1, &sender.NoopSink{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer p.Close()
+				first := progressMessage("file:test", "1")
+				token, err := p.Reserve(context.Background(), first, 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				finished := make(chan error, 2)
+				for range 2 {
+					go func() {
+						token, err := p.Reserve(context.Background(), progressMessage("file:test", "later"), 1)
+						if err == nil {
+							p.CompleteLocal(token)
+						}
+						finished <- err
+					}()
+				}
+				synctest.Wait()
+				select {
+				case err := <-finished:
+					t.Fatalf("admission passed full capacity: %v", err)
+				default:
+				}
+				if stopped {
+					p.Close()
+				} else {
+					p.CompleteLocal(token)
+				}
+				for range 2 {
+					err := <-finished
+					if stopped {
+						if !errors.Is(err, ErrStopped) {
+							t.Fatalf("stopped admission = %v", err)
+						}
+					} else if err != nil {
+						t.Fatal(err)
+					}
+				}
+				if p.Pending() != 0 {
+					t.Fatal("waiting admissions retained progress capacity")
+				}
+			})
+		})
+	}
+}

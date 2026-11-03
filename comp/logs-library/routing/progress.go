@@ -39,7 +39,7 @@ type Progress struct {
 	records      map[uint64]*record
 	sources      map[string]*sourceProgress
 	histories    int
-	space        chan struct{}
+	space        chan struct{} // Allocated when admission must wait; guarded by mu.
 	ready        chan *message.Payload
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
@@ -74,8 +74,8 @@ func NewProgress(limit int, sink sender.Sink) (*Progress, error) {
 	}
 	p := &Progress{
 		limit: limit, sourceLimit: min(limit, SourcePendingLimit), records: make(map[uint64]*record),
-		sources: make(map[string]*sourceProgress), space: make(chan struct{}),
-		ready: make(chan *message.Payload, limit), shutdown: make(chan struct{}), finished: make(chan struct{}), sink: sink,
+		sources: make(map[string]*sourceProgress),
+		ready:   make(chan *message.Payload, limit), shutdown: make(chan struct{}), finished: make(chan struct{}), sink: sink,
 	}
 	go p.forward()
 	return p, nil
@@ -155,9 +155,12 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	if !pendingSelection && !selection.Excluded && len(groups) == 0 {
 		return 0, ErrInvalidSelection
 	}
-	remaining := make(map[string]struct{}, len(groups))
-	for _, id := range groups {
-		remaining[id] = struct{}{}
+	var remaining map[string]struct{}
+	if len(groups) != 0 {
+		remaining = make(map[string]struct{}, len(groups))
+		for _, id := range groups {
+			remaining[id] = struct{}{}
+		}
 	}
 	for {
 		p.mu.Lock()
@@ -181,6 +184,9 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		sourceHasRoom := identifier == "" || source == nil || len(source.queue) < p.sourceLimit
 		if len(p.records) < p.limit && sourceHasRoom && (!needsOwner || len(p.sources) < p.limit) && (!needsHistory || p.histories < p.limit) {
 			break
+		}
+		if p.space == nil {
+			p.space = make(chan struct{})
 		}
 		space := p.space
 		p.mu.Unlock()
@@ -252,9 +258,11 @@ func (p *Progress) Attach(token uint64, selection Selection, groups []string) er
 		return ErrInvalidSelection
 	}
 	r.groups = append([]string(nil), groups...)
-	r.remaining = make(map[string]struct{}, len(groups))
-	for _, group := range groups {
-		r.remaining[group] = struct{}{}
+	if len(groups) != 0 {
+		r.remaining = make(map[string]struct{}, len(groups))
+		for _, group := range groups {
+			r.remaining[group] = struct{}{}
+		}
 	}
 	r.selectionPending = false
 	if selection.Excluded {
@@ -403,8 +411,10 @@ func (p *Progress) RetireSource(identifier string, generation uint64) error {
 }
 
 func (p *Progress) notifySpace() {
-	close(p.space)
-	p.space = make(chan struct{})
+	if p.space != nil {
+		close(p.space)
+		p.space = nil
+	}
 }
 
 // Pending counts records retained for delivery or ordered checkpoint progress.
@@ -436,7 +446,7 @@ func (p *Progress) Close() {
 	p.mu.Lock()
 	if !p.stopped {
 		p.stopped = true
-		close(p.space)
+		p.notifySpace()
 		close(p.ready)
 		p.records = nil
 		p.sources = nil
