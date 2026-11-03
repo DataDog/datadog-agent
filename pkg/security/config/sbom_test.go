@@ -19,7 +19,8 @@ import (
 // TestSBOMResolverGates checks the settings that bring up the SBOM resolver
 // and its index of the host packages. CWS sets them in system-probe.yaml.
 // Runtime usage enrichment sets them in datadog.yaml, where the index of the
-// host also needs the host SBOM that takes its usage.
+// host also needs the host SBOM that takes its usage. While the setting of the
+// enrichment is unset, CWS turns it on for the SBOMs the Agent scans.
 func TestSBOMResolverGates(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -61,6 +62,19 @@ func TestSBOMResolverGates(t *testing.T) {
 		{
 			name: "host SBOM alone",
 			core: []string{"sbom.enabled", "sbom.host.enabled"},
+		},
+		{
+			name:     "CWS with the host SBOM",
+			sysprobe: []string{"runtime_security_config.enabled"},
+			core:     []string{"sbom.enabled", "sbom.host.enabled"},
+			resolver: true,
+			host:     true,
+		},
+		{
+			name:     "CWS with container image SBOMs",
+			sysprobe: []string{"runtime_security_config.enabled"},
+			core:     []string{"sbom.enabled", "sbom.container_image.enabled"},
+			resolver: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

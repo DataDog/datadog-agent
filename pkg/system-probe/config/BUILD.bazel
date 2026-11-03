@@ -24,6 +24,7 @@ go_library(
     deps = [
         "//comp/core/schema/noop-impl",
         "//pkg/config/create",
+        "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/system-probe/config/types",
@@ -53,6 +54,7 @@ dd_agent_go_test(
         "adjust_discovery_test.go",
         "adjust_npm_test.go",
         "adjust_oom_kill_test.go",
+        "adjust_security_test.go",
         "config_bpf_test.go",
         "config_darwin_test.go",
         "config_test.go",
@@ -62,6 +64,7 @@ dd_agent_go_test(
     gotags_sets = [["bpf"]],
     deps = [
         "//comp/core/schema/noop-impl",
+        "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/system-probe/config/types",
