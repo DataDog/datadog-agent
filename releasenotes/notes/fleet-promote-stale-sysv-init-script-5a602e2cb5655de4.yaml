@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Remote Agent upgrades through Fleet Automation no longer abort at the pre-promote step
-    when the previous Agent's systemd unit cannot be disabled, for example because a stale
-    ``/etc/init.d/datadog-agent`` script makes ``systemctl disable`` fail with
-    ``service datadog-agent does not support chkconfig``.
