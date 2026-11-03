@@ -28,37 +28,61 @@ func (f *fakeTaskDefinitionDeleter) DeleteTaskDefinitions(_ context.Context, inp
 }
 
 func TestECSTaskDefinitionsFromDeployment(t *testing.T) {
+	const providerURN = "urn:pulumi:test::project::pulumi:providers:aws::default"
+	const providerID = "provider-id"
+	profile, err := json.Marshal("agent-qa")
+	require.NoError(t, err)
 	deployment, err := json.Marshal(pulumiDeployment{Resources: []pulumiResource{
+		{URN: providerURN, Type: "pulumi:providers:aws", ID: providerID, Inputs: map[string]json.RawMessage{"profile": profile}},
 		{Type: "aws:s3/bucket:Bucket", ID: "bucket"},
-		{Type: ecsTaskDefinitionResourceType, ID: "arn:aws:ecs:us-east-1:123456789012:task-definition/z:1"},
-		{Type: ecsTaskDefinitionResourceType, ID: "arn:aws:ecs:us-east-1:123456789012:task-definition/a:1"},
-		{Type: ecsTaskDefinitionResourceType, ID: "arn:aws:ecs:us-east-1:123456789012:task-definition/a:1"},
+		{Type: ecsTaskDefinitionResourceType, ID: "arn:aws:ecs:us-east-1:123456789012:task-definition/z:1", Provider: providerURN + "::" + providerID},
+		{Type: ecsTaskDefinitionResourceType, ID: "arn:aws:ecs:us-east-1:123456789012:task-definition/a:1", Provider: providerURN + "::" + providerID},
+		{Type: ecsTaskDefinitionResourceType, ID: "arn:aws:ecs:us-east-1:123456789012:task-definition/a:1", Provider: providerURN + "::" + providerID},
 	}})
 	require.NoError(t, err)
 
 	arns, err := ecsTaskDefinitionsFromDeployment(deployment)
 	require.NoError(t, err)
-	assert.Equal(t, []string{
-		"arn:aws:ecs:us-east-1:123456789012:task-definition/a:1",
-		"arn:aws:ecs:us-east-1:123456789012:task-definition/z:1",
+	assert.Equal(t, []ecsTaskDefinition{
+		{ARN: "arn:aws:ecs:us-east-1:123456789012:task-definition/a:1", Profile: "agent-qa"},
+		{ARN: "arn:aws:ecs:us-east-1:123456789012:task-definition/z:1", Profile: "agent-qa"},
 	}, arns)
+}
+
+func TestECSTaskDefinitionsFromDeploymentUsesAmbientCredentialsWithoutProviderProfile(t *testing.T) {
+	const providerURN = "urn:pulumi:test::project::pulumi:providers:aws::default"
+	const providerID = "provider-id"
+	taskDefinitionARN := "arn:aws:ecs:us-east-1:123456789012:task-definition/test:1"
+	deployment, err := json.Marshal(pulumiDeployment{Resources: []pulumiResource{
+		{URN: providerURN, Type: "pulumi:providers:aws", ID: providerID},
+		{Type: ecsTaskDefinitionResourceType, ID: taskDefinitionARN, Provider: providerURN + "::" + providerID},
+	}})
+	require.NoError(t, err)
+
+	taskDefinitions, err := ecsTaskDefinitionsFromDeployment(deployment)
+	require.NoError(t, err)
+	require.Equal(t, []ecsTaskDefinition{{ARN: taskDefinitionARN}}, taskDefinitions)
 }
 
 func TestDeleteECSTaskDefinitionsBatchesByTen(t *testing.T) {
 	fake := &fakeTaskDefinitionDeleter{}
 	previousFactory := newECSTaskDefinitionDeleter
-	newECSTaskDefinitionDeleter = func(_ context.Context, region string) (ecsTaskDefinitionDeleter, error) {
+	newECSTaskDefinitionDeleter = func(_ context.Context, region, profile string) (ecsTaskDefinitionDeleter, error) {
 		assert.Equal(t, "us-east-1", region)
+		assert.Equal(t, "agent-qa", profile)
 		return fake, nil
 	}
 	t.Cleanup(func() { newECSTaskDefinitionDeleter = previousFactory })
 
-	arns := make([]string, 0, 11)
+	taskDefinitions := make([]ecsTaskDefinition, 0, 11)
 	for i := range 11 {
-		arns = append(arns, "arn:aws:ecs:us-east-1:123456789012:task-definition/test:"+string(rune('a'+i)))
+		taskDefinitions = append(taskDefinitions, ecsTaskDefinition{
+			ARN:     "arn:aws:ecs:us-east-1:123456789012:task-definition/test:" + string(rune('a'+i)),
+			Profile: "agent-qa",
+		})
 	}
 	var logs bytes.Buffer
-	deleteECSTaskDefinitions(context.Background(), arns, &logs)
+	deleteECSTaskDefinitions(context.Background(), taskDefinitions, &logs)
 
 	require.Len(t, fake.requests, 2)
 	assert.Len(t, fake.requests[0], 10)
@@ -68,6 +92,6 @@ func TestDeleteECSTaskDefinitionsBatchesByTen(t *testing.T) {
 
 func TestDeleteECSTaskDefinitionsSkipsMalformedARN(t *testing.T) {
 	var logs bytes.Buffer
-	deleteECSTaskDefinitions(context.Background(), []string{"not-an-arn"}, &logs)
+	deleteECSTaskDefinitions(context.Background(), []ecsTaskDefinition{{ARN: "not-an-arn"}}, &logs)
 	assert.Contains(t, logs.String(), "malformed ECS task definition ARN")
 }
