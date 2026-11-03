@@ -160,7 +160,8 @@ func spanConversionResource(conf *config.AgentConfig, res pcommon.Resource) pcom
 
 // rootTags returns root converted as the trace-agent's OTLP receiver does, with the tag changes that the
 // trace-agent's normalizer makes before applying apm_config.filter_tags: peer.service, _dd.base_service and env are
-// normalized, and an invalid http.status_code is removed.
+// normalized, and an invalid http.status_code is removed. Keep in sync with Agent.normalize in
+// pkg/trace/agent/normalizer.go.
 func rootTags(conf *config.AgentConfig, root scopedSpan, res pcommon.Resource) *pb.Span {
 	ddspan := transform.OtelSpanToDDSpan(root.span, res, root.scope, conf)
 	reg := semantics.DefaultRegistry()

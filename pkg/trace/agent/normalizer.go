@@ -213,6 +213,8 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	svc, _ := a.normalizeService(ts, s.Service, ts.Lang)
 	s.Service = svc
 
+	// The peer.service, _dd.base_service, env and http.status_code changes below are mirrored by rootTags in
+	// comp/otelcol/otlp/components/connector/datadogconnector/root_filter.go; keep them in sync.
 	reg := semantics.DefaultRegistry()
 	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
 	if pSvc := semantics.LookupString(reg, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
