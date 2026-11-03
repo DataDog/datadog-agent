@@ -30,6 +30,14 @@ const (
 	osPlatform        = "ubuntu"
 	osArch            = "x86_64"
 	osVersion         = "24-04-kind"
+
+	// helmChartVersion is the first chart release that mirrors
+	// DD_RUNTIME_SECURITY_CONFIG_ENABLED onto the core Agent container. Since
+	// config streaming is on by default, the security-agent takes that setting
+	// from the core Agent and ignores its own env; with an older chart it gets
+	// the default false and exits with all its components disabled.
+	// Drop this once the framework's default HelmVersion is at least this.
+	helmChartVersion = "3.264.0"
 )
 
 // Depending on the pulumi version used to run these tests, the following values may not be properly merged with the default values defined in the test-infra-definitions repository.
@@ -84,6 +92,7 @@ func TestKindSuite(t *testing.T) {
 					scenkind.WithoutFakeIntake(),
 					scenkind.WithAgentOptions(
 						kubernetesagentparams.WithHelmValues(values),
+						kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 					),
 				),
 			),
