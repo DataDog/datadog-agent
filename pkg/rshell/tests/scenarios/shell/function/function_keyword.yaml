@@ -1,0 +1,11 @@
+# skip: function declarations are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Function declaration with function keyword is blocked.
+input:
+  script: |+
+    function myfunc { echo hello; }
+expect:
+  stdout: ""
+  stderr: |+
+    function declarations are not supported
+  exit_code: 2

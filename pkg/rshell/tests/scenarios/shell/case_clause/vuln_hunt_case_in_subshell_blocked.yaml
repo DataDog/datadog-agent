@@ -1,0 +1,11 @@
+# skip: case statements are intentionally blocked in the restricted shell.
+skip_assert_against_bash: true
+description: A case statement inside a subshell must still be rejected by top-level validation.
+input:
+  script: |+
+    (case x in x) echo hidden;; esac)
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

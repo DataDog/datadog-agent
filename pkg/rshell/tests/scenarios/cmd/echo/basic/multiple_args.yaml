@@ -1,0 +1,9 @@
+description: Echo with multiple arguments outputs them separated by spaces.
+input:
+  script: |+
+    echo hello world foo
+expect:
+  stdout: |+
+    hello world foo
+  stderr: ""
+  exit_code: 0

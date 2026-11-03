@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    In the DDOT DaemonSet+Gateway setup, the converter can add the ``cumulativetodelta``
+    processor to the DaemonSet's metrics pipelines that use an ``otlp``, ``otlp_grpc``,
+    ``otlphttp``, ``otlp_http`` or ``loadbalancing`` exporter. It does so when
+    ``otelcollector.gateway.daemonset`` (``DD_OTELCOLLECTOR_GATEWAY_DAEMONSET``) is
+    ``true`` and ``cumulativetodelta`` is listed in ``otelcollector.converter.features``.
+    Converting on the DaemonSet keeps deltas correct when the Gateway runs several
+    replicas.

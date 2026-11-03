@@ -26,6 +26,8 @@ func TestSBOMKindSuite(t *testing.T) {
 	newProvisioner := func(helmValues string) provisioners.Provisioner {
 		return provkind.Provisioner(
 			provkind.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkind.WithInternetAccess(),
 				scenkind.WithVMOptions(
 					scenec2.WithInstanceType("t3.xlarge"),
 				),

@@ -768,6 +768,47 @@ properties:
               Maximum number of events sent per second to report the syscalls
               of running processes. The syscalls of a process that execs or
               exits are always reported. 0 disables the limit.
+          path_patterns:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                description: |
+                  Groups sibling files and directories that share a name shape
+                  (session IDs, PIDs, dates, random IDs) into a single typed
+                  pattern entry, such as sess-<num> or app-<date>.log.
+              max_children:
+                node_type: setting
+                type: integer
+                default: 15
+                description: |
+                  Number of entries above which a directory is grouped as
+                  entries are added, then again each time it doubles. 0
+                  disables it.
+              min_date_group_size:
+                node_type: setting
+                type: integer
+                default: 2
+                description: |
+                  Minimum number of siblings needed to group names when only
+                  their date differs. Must be at least 2.
+              min_group_size:
+                node_type: setting
+                type: integer
+                default: 3
+                description: |
+                  Minimum number of siblings sharing a name shape needed to
+                  group them when the profile is saved. Must be at least 2.
+              min_group_size_on_insert:
+                node_type: setting
+                type: integer
+                default: 5
+                description: |
+                  Minimum number of siblings sharing a name shape needed to
+                  group them as entries are added. Must be at least 2.
           profile_reporting_delay:
             node_type: section
             type: object

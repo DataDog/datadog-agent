@@ -1,0 +1,13 @@
+description: uniq rejects negative --check-chars values.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --check-chars=-1 input.txt
+expect:
+  stdout: ""
+  stderr: "uniq: -1: invalid number of bytes to compare\n"
+  exit_code: 1

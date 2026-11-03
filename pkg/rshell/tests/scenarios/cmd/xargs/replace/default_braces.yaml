@@ -1,0 +1,11 @@
+description: xargs -I {} substitutes each input line into every {} in the template.
+input:
+  script: |+
+    printf 'a\nb\nc\n' | xargs -I {} echo 'item: {}'
+expect:
+  stdout: |+
+    item: a
+    item: b
+    item: c
+  stderr: |+
+  exit_code: 0

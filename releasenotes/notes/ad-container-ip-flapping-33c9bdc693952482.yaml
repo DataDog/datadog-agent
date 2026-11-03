@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix Autodiscovery checks being unscheduled and rescheduled every few
+    minutes for containerd containers with more than one IP address, such
+    as ECS ``awsvpc`` tasks. The container IP picked by the containerd
+    collector is now deterministic and prefers non link-local addresses.

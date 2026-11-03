@@ -1,0 +1,7 @@
+description: Unsigned format wraps negative -1 to max uint64.
+input:
+  script: |+
+    printf "%u\n" -1
+expect:
+  stdout: "18446744073709551615\n"
+  exit_code: 0

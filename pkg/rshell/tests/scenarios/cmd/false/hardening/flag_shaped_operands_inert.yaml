@@ -1,0 +1,10 @@
+description: The false builtin keeps flag-shaped operands inert.
+input:
+  script: |+
+    false --help --unknown -- 999999999999999999999999999999999999999999
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

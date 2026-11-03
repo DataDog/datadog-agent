@@ -1,0 +1,15 @@
+description: head with two files prints headers and a blank-line separator between them.
+setup:
+  files:
+    - path: a.txt
+      content: "alpha\nbeta\n"
+    - path: b.txt
+      content: "gamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 2 a.txt b.txt
+expect:
+  stdout: "==> a.txt <==\nalpha\nbeta\n\n==> b.txt <==\ngamma\n"
+  stderr: ""
+  exit_code: 0
