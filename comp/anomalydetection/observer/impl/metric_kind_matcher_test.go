@@ -323,7 +323,6 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		zeros := make([]float64, 40)
 		ptsZero := makeSyntheticPoints(100, 10, zeros)
 		assert.Equal(t, observerdef.STABLE, classifyMetricKind(ptsZero, &ws))
-		assert.Equal(t, observerdef.STABLE, classifyMetricKindRobust(ptsZero, &ws))
 
 		flat := make([]float64, 40)
 		for i := range flat {
@@ -331,7 +330,6 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		}
 		ptsFlat := makeSyntheticPoints(100, 10, flat)
 		assert.Equal(t, observerdef.STABLE, classifyMetricKind(ptsFlat, &ws))
-		assert.Equal(t, observerdef.STABLE, classifyMetricKindRobust(ptsFlat, &ws))
 	})
 
 	t.Run("noisy plateau is STABLE", func(t *testing.T) {
@@ -342,7 +340,6 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		}
 		pts := makeSyntheticPoints(100, 10, vals)
 		assert.Equal(t, observerdef.STABLE, classifyMetricKind(pts, &ws))
-		assert.Equal(t, observerdef.STABLE, classifyMetricKindRobust(pts, &ws))
 	})
 
 	t.Run("positive and negative linear ramps are LINEAR", func(t *testing.T) {
@@ -356,9 +353,7 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		posPts := makeSyntheticPoints(100, 15, pos)
 		negPts := makeSyntheticPoints(100, 15, neg)
 		assert.Equal(t, observerdef.LINEAR, classifyMetricKind(posPts, &ws))
-		assert.Equal(t, observerdef.LINEAR, classifyMetricKindRobust(posPts, &ws))
 		assert.Equal(t, observerdef.LINEAR, classifyMetricKind(negPts, &ws))
-		assert.Equal(t, observerdef.LINEAR, classifyMetricKindRobust(negPts, &ws))
 	})
 
 	t.Run("irregular timestamps preserve true linear slope", func(t *testing.T) {
@@ -373,7 +368,6 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 			}
 		}
 		assert.Equal(t, observerdef.LINEAR, classifyMetricKind(pts, &ws))
-		assert.Equal(t, observerdef.LINEAR, classifyMetricKindRobust(pts, &ws))
 	})
 
 	t.Run("step jump and sawtooth reset are UNKNOWN", func(t *testing.T) {
@@ -387,7 +381,6 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		}
 		stepPts := makeSyntheticPoints(1, 10, step)
 		assert.Equal(t, observerdef.UNKNOWN, classifyMetricKind(stepPts, &ws))
-		assert.Equal(t, observerdef.UNKNOWN, classifyMetricKindRobust(stepPts, &ws))
 
 		saw := make([]float64, 40)
 		for i := range saw {
@@ -399,7 +392,6 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		}
 		sawPts := makeSyntheticPoints(1, 10, saw)
 		assert.Equal(t, observerdef.UNKNOWN, classifyMetricKind(sawPts, &ws))
-		assert.Equal(t, observerdef.UNKNOWN, classifyMetricKindRobust(sawPts, &ws))
 	})
 
 	t.Run("large oscillation is UNKNOWN", func(t *testing.T) {
@@ -409,7 +401,6 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		}
 		oscPts := makeSyntheticPoints(1, 10, osc)
 		assert.Equal(t, observerdef.UNKNOWN, classifyMetricKind(oscPts, &ws))
-		assert.Equal(t, observerdef.UNKNOWN, classifyMetricKindRobust(oscPts, &ws))
 	})
 }
 
@@ -417,14 +408,6 @@ type matcherEvalCase struct {
 	family string
 	want   observerdef.MetricKind
 	points []observerdef.Point
-}
-
-var matcherEvalClassifiers = []struct {
-	name     string
-	classify metricKindClassifierFunc
-}{
-	{"ols", classifyMetricKind},
-	{"robust", classifyMetricKindRobust},
 }
 
 // The supported families have settled shapes. Mixed-regime families test
@@ -557,173 +540,72 @@ func TestMetricKindClassifierEvaluation(t *testing.T) {
 		{"heldout", 101, 120},
 	} {
 		cases := matcherEvalCorpus(split.first, split.last)
-		for _, candidate := range matcherEvalClassifiers {
-			t.Run(split.name+"/"+candidate.name, func(t *testing.T) {
-				var ws matcherWorkspace
-				var aggregate matcherEvalMetrics
-				perFamily := make(map[string]*matcherEvalMetrics)
-				var familyOrder []string
-				for _, tc := range cases {
-					got := candidate.classify(tc.points, &ws)
-					if got < observerdef.UNKNOWN || got > observerdef.LINEAR {
-						t.Fatalf("%s: invalid classified kind %v", tc.family, got)
-					}
-					aggregate.add(tc.want, got)
-					if perFamily[tc.family] == nil {
-						perFamily[tc.family] = &matcherEvalMetrics{}
-						familyOrder = append(familyOrder, tc.family)
-					}
-					perFamily[tc.family].add(tc.want, got)
+		t.Run(split.name, func(t *testing.T) {
+			var ws matcherWorkspace
+			var aggregate matcherEvalMetrics
+			perFamily := make(map[string]*matcherEvalMetrics)
+			var familyOrder []string
+			for _, tc := range cases {
+				got := classifyMetricKind(tc.points, &ws)
+				if got < observerdef.UNKNOWN || got > observerdef.LINEAR {
+					t.Fatalf("%s: invalid classified kind %v", tc.family, got)
 				}
-				t.Log(aggregate.summary())
-				for _, family := range familyOrder {
-					t.Logf("%s %s", family, perFamily[family].summary())
+				aggregate.add(tc.want, got)
+				if perFamily[tc.family] == nil {
+					perFamily[tc.family] = &matcherEvalMetrics{}
+					familyOrder = append(familyOrder, tc.family)
 				}
-			})
-		}
+				perFamily[tc.family].add(tc.want, got)
+			}
+			t.Log(aggregate.summary())
+			for _, family := range familyOrder {
+				t.Logf("%s %s", family, perFamily[family].summary())
+			}
+		})
 	}
 }
 
 // These windows intentionally mix regimes; report them separately from settled
 // shape accuracy because the slope-change magnitude controls model suitability.
 func TestMetricKindClassifierMixedWindows(t *testing.T) {
-	for _, candidate := range matcherEvalClassifiers {
-		t.Run(candidate.name, func(t *testing.T) {
-			var ws matcherWorkspace
-			for _, position := range []float64{0.2, 0.5, 0.8} {
-				for _, ratio := range []float64{1.5, 3, 10} {
-					points := make([]observerdef.Point, 120)
-					for i := range points {
-						x := float64(i) / float64(len(points)-1)
-						points[i] = observerdef.Point{
-							Timestamp: int64(i + 1),
-							Value:     100 + 20*x + 20*(ratio-1)*math.Max(x-position, 0),
-						}
-					}
-					t.Logf("hinge position=%.1f slope_ratio=%.1f kind=%s",
-						position, ratio, candidate.classify(points, &ws))
+	var ws matcherWorkspace
+	for _, position := range []float64{0.2, 0.5, 0.8} {
+		for _, ratio := range []float64{1.5, 3, 10} {
+			points := make([]observerdef.Point, 120)
+			for i := range points {
+				x := float64(i) / float64(len(points)-1)
+				points[i] = observerdef.Point{
+					Timestamp: int64(i + 1),
+					Value:     100 + 20*x + 20*(ratio-1)*math.Max(x-position, 0),
 				}
+			}
+			t.Logf("hinge position=%.1f slope_ratio=%.1f kind=%s",
+				position, ratio, classifyMetricKind(points, &ws))
+		}
+	}
+}
+
+func BenchmarkMetricKindClassifier(b *testing.B) {
+	cases := matcherEvalCorpus(101, 101)
+	for _, n := range []int{30, 60, 120} {
+		b.Run(fmt.Sprintf("points=%d", n), func(b *testing.B) {
+			var selected []matcherEvalCase
+			for _, tc := range cases {
+				if len(tc.points) == n {
+					selected = append(selected, tc)
+				}
+			}
+			var ws matcherWorkspace
+			for _, tc := range selected {
+				classifyMetricKind(tc.points, &ws)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				classifyMetricKind(selected[i%len(selected)].points, &ws)
 			}
 		})
 	}
-}
-
-func BenchmarkMetricKindClassifiers(b *testing.B) {
-	cases := matcherEvalCorpus(101, 101)
-	for _, candidate := range matcherEvalClassifiers {
-		for _, n := range []int{30, 60, 120} {
-			b.Run(fmt.Sprintf("%s/points=%d", candidate.name, n), func(b *testing.B) {
-				var selected []matcherEvalCase
-				for _, tc := range cases {
-					if len(tc.points) == n {
-						selected = append(selected, tc)
-					}
-				}
-				var ws matcherWorkspace
-				for _, tc := range selected {
-					candidate.classify(tc.points, &ws)
-				}
-				b.ReportAllocs()
-				b.ResetTimer()
-				for i := 0; i < b.N; i++ {
-					candidate.classify(selected[i%len(selected)].points, &ws)
-				}
-			})
-		}
-	}
-}
-
-// Test-only alternative retained to reproduce the classifier comparison.
-// classifyMetricKindRobust classifies a series window using a median constant
-// model and a Huber-reweighted linear regression (capped at 5 iterations) over
-// normalized timestamps, followed by the same structural residual checks.
-func classifyMetricKindRobust(points []observerdef.Point, ws *matcherWorkspace) observerdef.MetricKind {
-	n := len(points)
-	if n < 3 {
-		return observerdef.UNKNOWN
-	}
-
-	t0 := points[0].Timestamp
-	dtTotal := float64(points[n-1].Timestamp - t0)
-	if dtTotal <= 0 {
-		return observerdef.UNKNOWN
-	}
-
-	ws.values = reuseFloat64(ws.values, n)
-	minVal := points[0].Value
-	maxVal := points[0].Value
-	var sumX, sumY, sumXX, sumXY float64
-	for i, p := range points {
-		v := p.Value
-		if math.IsNaN(v) || math.IsInf(v, 0) {
-			return observerdef.UNKNOWN
-		}
-		ws.values[i] = v
-		if v < minVal {
-			minVal = v
-		}
-		if v > maxVal {
-			maxVal = v
-		}
-		x := float64(p.Timestamp-t0) / dtTotal
-		sumX += x
-		sumY += v
-		sumXX += x * x
-		sumXY += x * v
-	}
-
-	valRange := maxVal - minVal
-	med := ws.median(ws.values)
-	scaleFloor := math.Max(math.Abs(med)*matcherNoiseFloorFrac, matcherNoiseFloorAbs)
-	if valRange <= scaleFloor {
-		return observerdef.STABLE
-	}
-
-	fn := float64(n)
-	denomX := fn*sumXX - sumX*sumX
-	if denomX <= 1e-12 {
-		return observerdef.UNKNOWN
-	}
-	// Initialize with endpoints/median-anchored slope then refine with 5 IRLS Huber steps.
-	slope := (fn*sumXY - sumX*sumY) / denomX
-	intercept := (sumY - slope*sumX) / fn
-
-	ws.residuals = reuseFloat64(ws.residuals, n)
-	for iter := 0; iter < 5; iter++ {
-		for i, p := range points {
-			x := float64(p.Timestamp-t0) / dtTotal
-			ws.residuals[i] = p.Value - (intercept + slope*x)
-		}
-		resMed := ws.median(ws.residuals)
-		resMAD := ws.mad(ws.residuals, resMed) * 1.4826
-		if resMAD < scaleFloor {
-			resMAD = scaleFloor
-		}
-		huberK := 1.345 * resMAD
-		var wSum, wxSum, wySum, wxxSum, wxySum float64
-		for i, p := range points {
-			absR := math.Abs(ws.residuals[i] - resMed)
-			w := 1.0
-			if absR > huberK {
-				w = huberK / absR
-			}
-			x := float64(p.Timestamp-t0) / dtTotal
-			y := p.Value
-			wSum += w
-			wxSum += w * x
-			wySum += w * y
-			wxxSum += w * x * x
-			wxySum += w * x * y
-		}
-		wDenom := wSum*wxxSum - wxSum*wxSum
-		if wDenom <= 1e-12 {
-			break
-		}
-		slope = (wSum*wxySum - wxSum*wySum) / wDenom
-		intercept = (wySum - slope*wxSum) / wSum
-	}
-
-	return evaluateFittedShape(points, ws, med, scaleFloor, intercept, slope, dtTotal)
 }
 
 // BenchmarkMetricKindMatcher measures a full advance across all series:
