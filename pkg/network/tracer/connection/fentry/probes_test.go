@@ -64,7 +64,8 @@ func TestEnabledProgramsTCPRecvMsgExit(t *testing.T) {
 	// (most 5.4-5.15 KMT kernels), which are the only CI kernels with the 6-arg
 	// pre-5.19 tcp_recvmsg. enabledPrograms only reads BTF and the kernel version,
 	// it doesn't load or attach anything, so it is safe to run there.
-	if _, err := ddbtf.GetKernelSpec(); err != nil {
+	spec, err := ddbtf.GetKernelSpec()
+	if err != nil {
 		t.Skipf("no usable kernel BTF, fentry is unsupported: %s", err)
 	}
 
@@ -74,7 +75,7 @@ func TestEnabledProgramsTCPRecvMsgExit(t *testing.T) {
 	cfg.CollectUDPv4Conns = false
 	cfg.CollectUDPv6Conns = false
 
-	n, err := ddbtf.GetKernelFuncArgCount("tcp_recvmsg")
+	n, err := ddbtf.GetKernelFuncArgCount(spec, "tcp_recvmsg")
 	require.NoError(t, err)
 	expected, err := selectTCPRecvMsgReturn(n)
 	require.NoError(t, err)

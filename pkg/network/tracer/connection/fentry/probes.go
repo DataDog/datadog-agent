@@ -216,7 +216,15 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 	hasSendPage := util.HasTCPSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
-		n, err := ddbtf.GetKernelFuncArgCount("tcp_recvmsg")
+		// Count from the running kernel's BTF, which the fexit program is
+		// attached to and verified against. The CO-RE KernelTypes is usually
+		// the same spec, but it is a configured btf_path when one is set,
+		// which might not match the running kernel.
+		spec, err := ddbtf.GetKernelSpec()
+		if err != nil {
+			return nil, fmt.Errorf("error loading kernel BTF: %w", err)
+		}
+		n, err := ddbtf.GetKernelFuncArgCount(spec, "tcp_recvmsg")
 		if err != nil {
 			return nil, fmt.Errorf("could not determine tcp_recvmsg signature: %w", err)
 		}

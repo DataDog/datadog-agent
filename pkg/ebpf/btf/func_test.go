@@ -16,12 +16,13 @@ import (
 )
 
 func TestGetKernelFuncProto(t *testing.T) {
-	if _, err := GetKernelSpec(); err != nil {
+	spec, err := GetKernelSpec()
+	if err != nil {
 		t.Skipf("no usable kernel BTF: %s", err)
 	}
 
 	t.Run("tcp_recvmsg", func(t *testing.T) {
-		proto, err := GetKernelFuncProto("tcp_recvmsg")
+		proto, err := GetKernelFuncProto(spec, "tcp_recvmsg")
 		require.NoError(t, err)
 		// the first parameter is sk in every known signature
 		require.NotEmpty(t, proto.Params)
@@ -29,18 +30,19 @@ func TestGetKernelFuncProto(t *testing.T) {
 	})
 
 	t.Run("unknown function", func(t *testing.T) {
-		_, err := GetKernelFuncProto("datadog_agent_no_such_kernel_function")
+		_, err := GetKernelFuncProto(spec, "datadog_agent_no_such_kernel_function")
 		require.ErrorIs(t, err, btf.ErrNotFound)
 	})
 }
 
 func TestGetKernelFuncArgCount(t *testing.T) {
-	if _, err := GetKernelSpec(); err != nil {
+	spec, err := GetKernelSpec()
+	if err != nil {
 		t.Skipf("no usable kernel BTF: %s", err)
 	}
 
 	t.Run("tcp_close", func(t *testing.T) {
-		n, err := GetKernelFuncArgCount("tcp_close")
+		n, err := GetKernelFuncArgCount(spec, "tcp_close")
 		require.NoError(t, err)
 		// tcp_close(struct sock *sk, long timeout) has kept this signature
 		// across every supported kernel
@@ -48,7 +50,7 @@ func TestGetKernelFuncArgCount(t *testing.T) {
 	})
 
 	t.Run("unknown function", func(t *testing.T) {
-		_, err := GetKernelFuncArgCount("datadog_agent_no_such_kernel_function")
+		_, err := GetKernelFuncArgCount(spec, "datadog_agent_no_such_kernel_function")
 		require.ErrorIs(t, err, btf.ErrNotFound)
 	})
 }
