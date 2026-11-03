@@ -42,7 +42,7 @@ func NewConfigMapCollectorVersions(_ tagger.Component) collectors.CollectorVersi
 // ConfigMapCollector is a collector for Kubernetes ConfigMaps.
 // It relies on a metadata-only informer so that ConfigMap data and binaryData
 // are never fetched from the API server nor held in the informer cache.
-// Helm release ConfigMaps are excluded when orchestrator_explorer.helm_releases.configmaps.enabled is set.
+// Helm release ConfigMaps are excluded when the Helm release collector reports them with their data.
 type ConfigMapCollector struct {
 	informer  informers.GenericInformer
 	lister    metadatalister.Lister

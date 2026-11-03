@@ -40,9 +40,9 @@ func NewHelmReleaseConfigMapCollectorVersions(_ tagger.Component) collectors.Col
 	)
 }
 
-// HelmReleaseConfigMapCollector collects every revision of the Helm releases stored in ConfigMaps, sent as is with their
-// data. When orchestrator_explorer.helm_releases.configmaps.enabled is set, it runs alongside the ConfigMap collector,
-// which then leaves these ConfigMaps to it.
+// HelmReleaseConfigMapCollector is a collector for Helm releases stored in Kubernetes ConfigMaps (Helm's configmap driver).
+// Every revision is collected and sent as is, as a ConfigMap. Its informer only watches ConfigMaps labeled owner=helm,
+// which the ConfigMap collector excludes, so each ConfigMap is reported by a single collector.
 type HelmReleaseConfigMapCollector struct {
 	informer  corev1Informers.ConfigMapInformer
 	lister    corev1Listers.ConfigMapLister

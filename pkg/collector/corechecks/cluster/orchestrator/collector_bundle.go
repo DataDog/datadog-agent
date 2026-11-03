@@ -868,31 +868,6 @@ func (cb *CollectorBundle) hasCRDCollector() bool {
 	return false
 }
 
-// getHelmReleaseConfigMapCollector returns the Helm release ConfigMap collector if the ConfigMap collector is present and
-// the Helm release ConfigMap collector is stable, which its setting controls.
-func (cb *CollectorBundle) getHelmReleaseConfigMapCollector() collectors.K8sCollector {
-	hasConfigMapCollector := false
-	for _, collector := range cb.collectors {
-		if collector.Metadata().Name == utilTypes.ConfigMapName {
-			hasConfigMapCollector = true
-			break
-		}
-	}
-	if !hasConfigMapCollector {
-		return nil
-	}
-
-	collector, err := cb.collectorDiscovery.VerifyForInventory(utilTypes.HelmReleaseConfigMapName, "", cb.inventory)
-	if err != nil {
-		log.Warnf("Unable to add the Helm release ConfigMap collector: %s", err)
-		return nil
-	}
-	if collector.Metadata().IsStable {
-		return collector
-	}
-	return nil
-}
-
 // getTerminatedPodCollector returns the terminated pod collector if the unassigned pod collector is present and the terminated pod collector is stable.
 func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 	hasUnassignedPodCollector := false
@@ -916,6 +891,31 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 		if terminatedPodCollector.Metadata().IsStable {
 			return terminatedPodCollector
 		}
+	}
+	return nil
+}
+
+// getHelmReleaseConfigMapCollector returns the Helm release ConfigMap collector if the ConfigMap collector is present and
+// the Helm release ConfigMap collector is stable, which its setting controls.
+func (cb *CollectorBundle) getHelmReleaseConfigMapCollector() collectors.K8sCollector {
+	hasConfigMapCollector := false
+	for _, collector := range cb.collectors {
+		if collector.Metadata().Name == utilTypes.ConfigMapName {
+			hasConfigMapCollector = true
+			break
+		}
+	}
+	if !hasConfigMapCollector {
+		return nil
+	}
+
+	collector, err := cb.collectorDiscovery.VerifyForInventory(utilTypes.HelmReleaseConfigMapName, "", cb.inventory)
+	if err != nil {
+		log.Warnf("Unable to add the Helm release ConfigMap collector: %s", err)
+		return nil
+	}
+	if collector.Metadata().IsStable {
+		return collector
 	}
 	return nil
 }
