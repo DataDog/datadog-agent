@@ -1,0 +1,11 @@
+description: When no AllowedPaths are configured, help surfaces an explicit notice that no filesystem paths are reachable, so the operator can tell this from the case where some paths are configured.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "Allowed paths:"
+    - "(no allowed paths configured — no filesystem paths are reachable)"
+  stderr: |+
+  exit_code: 0

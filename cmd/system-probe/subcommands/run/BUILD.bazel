@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "command.go",
         "command_windows.go",
+        "coreagentipc.go",
         "splite.go",
         "splite_other.go",
     ],
@@ -28,6 +29,7 @@ go_library(
         "//comp/core/fxinstrumentation/fx",
         "//comp/core/healthprobe/def",
         "//comp/core/healthprobe/fx",
+        "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/remotehostnameimpl",
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
@@ -44,8 +46,10 @@ go_library(
         "//comp/core/sysprobeconfig/fx",
         "//comp/core/sysprobeconfig/impl",
         "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-noop",
         "//comp/core/tagger/fx-remote",
         "//comp/core/telemetry/fx",
+        "//comp/core/workloadfilter/fx",
         "//comp/core/workloadfilter/fx-remote",
         "//comp/core/workloadmeta/collectors/catalog-remote",
         "//comp/core/workloadmeta/def",
@@ -70,6 +74,7 @@ go_library(
         "//pkg/ebpf/telemetry",
         "//pkg/runtime",
         "//pkg/system-probe/api/module",
+        "//pkg/system-probe/config",
         "//pkg/system-probe/utils",
         "//pkg/util/coredump",
         "//pkg/util/fxutil",
@@ -82,12 +87,10 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/discovery/module/splite",
-            "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/module/splite",
-            "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
         ],
         "//conditions:default": [],
@@ -99,6 +102,7 @@ dd_agent_go_test(
     srcs = [
         "command_test.go",
         "command_windows_test.go",
+        "coreagentipc_test.go",
         "splite_test.go",
     ],
     embed = [":run"],
@@ -109,6 +113,7 @@ dd_agent_go_test(
         "//comp/core/configstreamconsumer/testutil",
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
+        "//pkg/config/mock",
         "//pkg/configstreambootstrap",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",

@@ -64,6 +64,12 @@ class TestCompareInventory(unittest.TestCase):
         self.assertEqual(changed['/a/b/c'].current, changed_file)
         self.assertEqual(changed['/a/b/c'].previous, old_file)
 
+    def test_empty_file_growing_is_a_size_change(self):
+        empty = FileInfo(relative_path='/a/empty', size_bytes=0, is_symlink=False, chmod=0o755, owner=1000, group=1000)
+        grown = FileInfo(relative_path='/a/empty', size_bytes=10, is_symlink=False, chmod=0o755, owner=1000, group=1000)
+        _, _, changed = _compare_inventories([empty], [grown])
+        self.assertTrue(changed['/a/empty'].flags & FileChange.Flags.Size)
+
     def test_modified_filesize(self):
         changed_inventory = self.default_inventory.copy()
         changed_file_ignored = FileInfo(

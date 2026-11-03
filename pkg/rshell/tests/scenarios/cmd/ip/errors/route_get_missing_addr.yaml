@@ -1,0 +1,11 @@
+# ip route get with no address argument exits 1.
+description: ip route get with no address argument exits 1.
+input:
+  script: |+
+    ip route get
+expect:
+  stdout: |+
+  stderr: |+
+    ip: route get: missing address argument
+  exit_code: 1
+skip_assert_against_bash: true

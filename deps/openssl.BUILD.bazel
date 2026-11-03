@@ -1,6 +1,5 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
@@ -222,6 +221,11 @@ foreign_cc_shared_wrapper(
     input = ":openssl",
 )
 
+# These filtered wrappers are Unix-only. On Windows the DLLs live in
+# out_binaries (see configure_make above), which rules_foreign_cc never turns
+# into LibraryToLink entries, so lib_filter finds no dynamic library. The
+# Windows package payload is installed by :windows_pkg below, which does not
+# go through dd_cc_packaged at all.
 foreign_cc_shared_wrapper(
     name = "libssl_shared",
     input = ":openssl",
@@ -234,26 +238,6 @@ foreign_cc_shared_wrapper(
     lib_filter = "libcrypto",
 )
 
-# On Windows, lib_filter fails because DLLs live in out_binaries and
-# rules_foreign_cc leaves LibraryToLink.dynamic_library = None.
-# openssl_shared (no lib_filter) succeeds silently with empty DefaultInfo;
-# the DLLs are supplied explicitly via installed_executables instead.
-alias(
-    name = "_libssl_shared_input",
-    actual = select({
-        "@platforms//os:windows": ":openssl_shared",
-        "//conditions:default": ":libssl_shared",
-    }),
-)
-
-alias(
-    name = "_libcrypto_shared_input",
-    actual = select({
-        "@platforms//os:windows": ":openssl_shared",
-        "//conditions:default": ":libcrypto_shared",
-    }),
-)
-
 _EMBEDDED_ROOT = select({
     "@platforms//os:windows": "embedded3",
     "//conditions:default": "embedded",
@@ -262,7 +246,7 @@ _EMBEDDED_ROOT = select({
 dd_cc_packaged(
     name = "libssl_shared_pkg",
     dest_dir = "embedded/lib",
-    input = ":_libssl_shared_input",
+    input = ":libssl_shared",
     libname = "libssl",
     version = OPENSSL_VERSION,
 )
@@ -299,49 +283,22 @@ pkg_filegroup(
 
 dd_cc_packaged(
     name = "libcrypto_shared_pkg",
-    data = select({
-        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
-        # import libs and headers are only required for the FIPS cryptography source
-        # build, and copy_to_directory produces a non-existent TreeArtifact when all
-        # files are excluded, which would break the installer.
-        ":fips_windows": [":_openssl_files"],
-        "@platforms//os:windows": [],
-        "//conditions:default": [":_openssl_files"],
-    }) + select({
+    # Unix-only in practice: the Windows payload is installed by :windows_pkg
+    # below, with plain pkg_* rules.
+    data = [":_openssl_files"] + select({
         "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
         "//conditions:default": [],
     }),
     dest_dir = "embedded/lib",
-    input = ":_libcrypto_shared_input",
-    installed_executables = select({
-        "@platforms//os:windows": {":openssl_binary": "embedded3/bin"},
-        "//conditions:default": {":openssl_binary": "embedded/bin"},
-    }) | select({
-        # On FIPS Windows, DLLs are in out_binaries so LibraryToLink.dynamic_library is
-        # None; supply them explicitly so _dd_packaged_files_rule installs them.
-        # Non-FIPS Windows does not need the agent's OpenSSL DLLs at runtime.
-        ":fips_windows": {
-            ":libcrypto_shared_file": "embedded3/bin",
-            ":libssl_shared_file": "embedded3/bin",
-        },
-        "//conditions:default": {},
-    }) | select({
+    input = ":libcrypto_shared",
+    installed_executables = {
+        ":openssl_binary": "embedded/bin",
+    } | select({
         # Engines, modules, and fips provider are only installed for FIPS builds.
-        # Non-FIPS Windows has out_data_dirs = [] so the engines/modules output groups
-        # do not exist there; non-FIPS non-Windows builds don't need them either.
         "@@//packages/agent:fips_flavor": {
             ":_engines": "embedded/lib",
             ":_ossl_modules": "embedded/lib",
             "@openssl_fips//:fips_provider": "embedded/lib/ossl-modules",
-        },
-        "//conditions:default": {},
-    }) | select({
-        # fips_flavor above assumes the default (non-Windows) embedded root;
-        # override it with embedded3 when the FIPS build also targets Windows.
-        ":fips_windows": {
-            ":_engines": "embedded3/lib",
-            ":_ossl_modules": "embedded3/lib",
-            "@openssl_fips//:fips_provider": "embedded3/lib/ossl-modules",
         },
         "//conditions:default": {},
     }),
@@ -355,17 +312,54 @@ filegroup(
     output_group = "gen_dir",
 )
 
-dd_collect_dependencies(
-    name = "_windows_pkg",
-    srcs = select({
-        "@platforms//os:windows": [":libcrypto_shared_pkg"],
+# Windows package payload.
+#
+# None of dd_cc_packaged's machinery applies on Windows: the rpath rewriter
+# is a no-op toolchain, DLLs have no soname symlink chains, and nothing links
+# against OpenSSL through cc_shared_library there (python_win is built by
+# MSBuild).
+pkg_files(
+    name = "_openssl_bin_win",
+    # openssl.exe ships on every flavor; the FIPS runtime DLLs ship alongside
+    # it only on FIPS.
+    srcs = [":openssl_binary"] + select({
+        ":fips_windows": [
+            ":libcrypto_shared_file",
+            ":libssl_shared_file",
+        ],
         "//conditions:default": [],
     }),
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded3/bin",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+# FIPS-only: the engines and ossl-modules trees under embedded3/lib, plus the
+# fips provider at embedded3/lib/ossl-modules
+pkg_files(
+    name = "_openssl_lib_win",
+    srcs = [
+        ":_engines",
+        ":_ossl_modules",
+        "@openssl_fips//:fips_provider",
+    ],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded3/lib",
+    renames = {"@openssl_fips//:fips_provider": "ossl-modules/fips.dll"},
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_filegroup(
     name = "windows_pkg",
-    srcs = [":_windows_pkg"],
+    srcs = [":_openssl_bin_win"] + select({
+        ":fips_windows": [
+            ":_fips_extra_files",
+            ":_openssl_files",
+            ":_openssl_lib_win",
+        ],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
 )
 

@@ -98,7 +98,12 @@ tags:
   fabric_issue:
     regex: "^(bandwidth_degraded|route_recovery|route_unhealthy|access_timeout_recovery|misconfigured_(sysguid|chassis_sn|no_partition|insufficient_nvlinks|incompatible_gpu_fw|invalid_location))$"
   unavailable_reason:
-    regex: "^(lost)$"
+    regex: "^(lost|unhealthy|unschedulable)$"
+  unschedulable_reason:
+    # cordoned, not_ready, or <label key>:<value> / <condition type>:<status> of a
+    # matching gpu.unschedulable_nodes rule, lowercased.
+    regex: "^(cordoned|not_ready|[a-z0-9._/-]+:[a-z0-9._-]+)$"
+    optional: true
 
 tagsets:
   container:

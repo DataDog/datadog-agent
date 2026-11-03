@@ -39,7 +39,9 @@ def _compare_inventories(
         size_percent = None
         size_bytes = None
         if size_change:
-            size_percent = (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100
+            size_percent = (
+                (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100 if previous.size_bytes else 100.0
+            )
             size_bytes = current.size_bytes - previous.size_bytes
             if abs(size_percent) > 10:
                 changed_flags |= FileChange.Flags.Size

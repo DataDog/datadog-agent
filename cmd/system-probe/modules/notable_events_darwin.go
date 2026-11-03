@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/notableevents"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +46,7 @@ func init() { registerModule(NotableEvents) }
 
 // NotableEvents is the Darwin notable-events module factory.
 var NotableEvents = &module.Factory{
-	Name: config.NotableEventsModule,
+	Name: sysconfigtypes.NotableEventsModule,
 	Fn:   createNotableEventsModule,
 }
 

@@ -1,0 +1,15 @@
+description: strings --radix= with empty value prints an error and exits 1.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # GNU strings uses different error/usage format for invalid flags
+setup:
+  files:
+    - path: data.bin
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings --radix= data.bin
+expect:
+  stdout: ""
+  stderr: "strings: invalid argument \"\" for \"-t, --radix\" flag: invalid radix\nTry 'strings --help' for more information.\n"
+  exit_code: 1

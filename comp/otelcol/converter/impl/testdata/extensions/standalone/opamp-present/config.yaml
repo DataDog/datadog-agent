@@ -1,0 +1,23 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+
+extensions:
+    opamp:
+        server:
+            ws:
+                endpoint: wss://opamp.example.internal/v1/opamp
+
+service:
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

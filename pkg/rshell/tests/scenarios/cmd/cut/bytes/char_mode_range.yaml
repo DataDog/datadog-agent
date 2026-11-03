@@ -1,0 +1,8 @@
+description: Cut -c with a range selects a substring of characters.
+input:
+  script: |+
+    printf "abcdefgh\n" | cut -c2-5
+expect:
+  stdout: "bcde\n"
+  stderr: ""
+  exit_code: 0

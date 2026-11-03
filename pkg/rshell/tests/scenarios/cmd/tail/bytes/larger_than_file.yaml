@@ -1,0 +1,13 @@
+description: tail -c N when N exceeds file size outputs the whole file.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c 9999 file.txt
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

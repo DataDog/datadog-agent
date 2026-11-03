@@ -21,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -61,6 +63,58 @@ type dispatcher struct {
 	rebalancingPeriod                time.Duration
 	shardingStrategies               []shardingStrategy
 	shards                           *shardTracker
+	// checkGroup maps each check claimed by a runner group to
+	// that group; runnerGroups is the set of declared groups.
+	checkGroup   map[string]string
+	runnerGroups map[string]struct{}
+}
+
+// runnerGroup is an entry of cluster_checks.runner_groups.
+type runnerGroup struct {
+	Name   string   `mapstructure:"name"`
+	Checks []string `mapstructure:"checks"`
+}
+
+// loadRunnerGroups reads cluster_checks.runner_groups. An invalid setting
+// disables runner groups.
+func loadRunnerGroups(cfg model.Reader) (checkGroup map[string]string, runnerGroups map[string]struct{}) {
+	var groups []runnerGroup
+	if err := structure.UnmarshalKey(cfg, "cluster_checks.runner_groups", &groups, structure.ErrorUnused); err != nil {
+		log.Errorf("Ignoring invalid cluster_checks.runner_groups: %v", err)
+		return nil, nil
+	}
+	return parseRunnerGroups(groups)
+}
+
+// parseRunnerGroups maps each claimed check to its runner group. A check
+// claimed by several groups stays with the first one listed.
+func parseRunnerGroups(groups []runnerGroup) (checkGroup map[string]string, runnerGroups map[string]struct{}) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+
+	checkGroup = make(map[string]string)
+	runnerGroups = make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		if group.Name == "" {
+			log.Errorf("Ignoring cluster_checks.runner_groups entry without a name")
+			continue
+		}
+		if _, dup := runnerGroups[group.Name]; dup {
+			log.Errorf("Ignoring duplicate cluster_checks.runner_groups entry %q", group.Name)
+			continue
+		}
+		runnerGroups[group.Name] = struct{}{}
+		for _, check := range group.Checks {
+			if owner, claimed := checkGroup[check]; claimed {
+				log.Errorf("Check %q is claimed by cluster checks runner groups %q and %q: keeping %q", check, owner, group.Name, owner)
+				continue
+			}
+			checkGroup[check] = group.Name
+		}
+	}
+	log.Infof("Cluster checks runner groups: %+v", groups)
+	return checkGroup, runnerGroups
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -104,6 +158,8 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	if clusterIDTagValue != "" {
 		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
 	}
+
+	d.checkGroup, d.runnerGroups = loadRunnerGroups(pkgconfigsetup.Datadog())
 
 	// These options will almost always be empty
 	d.excludedChecks = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks"))
@@ -284,10 +340,12 @@ func (d *dispatcher) reschedule(configs []integration.Config) []string {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
-	target := d.getNodeToScheduleCheck()
+	target, anyNode := d.getNodeToScheduleCheck(config.Name)
 	if target == "" {
-		// If no node is found, store it in the danglingConfigs map for retrying later.
-		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		if anyNode {
+			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+		}
 	} else {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}

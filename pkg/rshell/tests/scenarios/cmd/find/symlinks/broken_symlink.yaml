@@ -1,0 +1,18 @@
+description: find -L with broken symlink falls back to lstat.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/good.txt
+      content: "good"
+      chmod: 0644
+    - path: dir/broken.txt
+      symlink: nonexistent.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -type f
+expect:
+  stdout: |+
+    dir/good.txt
+  stderr: ""
+  exit_code: 0

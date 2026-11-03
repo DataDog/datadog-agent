@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -4911,6 +4912,99 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Stats were not flushed to the server during shutdown")
 	}
+}
+
+// newForceFlushTestAgent returns a sync-flushing agent with a real concentrator
+// and stats writer, pointed at an intake that counts stats requests. Trace
+// writers are mocks.
+func newForceFlushTestAgent(t *testing.T) (*Agent, *atomic.Int32) {
+	var statsRequests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		if r.URL.Path == "/api/v0.2/stats" {
+			statsRequests.Add(1)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].Host = srv.URL
+	cfg.SynchronousFlushing = true
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt.TraceWriter = &mockTraceWriter{apiKey: "test"}
+	agnt.TraceWriterV1 = &mockTraceWriter{apiKey: "test"}
+	go agnt.StatsWriter.Run()
+	t.Cleanup(agnt.StatsWriter.Stop)
+	return agnt, &statsRequests
+}
+
+// TestForceFlushSyncSendsOpenStatsBuckets pins that ForceFlushSync sends the
+// concentrator's open bucket, which FlushSync holds back, before returning.
+func TestForceFlushSyncSendsOpenStatsBuckets(t *testing.T) {
+	agnt, statsRequests := newForceFlushTestAgent(t)
+	span := &pb.Span{
+		Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 1,
+		Start: time.Now().UnixNano(), Duration: int64(time.Millisecond),
+		Metrics: map[string]float64{"_top_level": 1},
+	}
+	agnt.Concentrator.Add(stats.Input{Traces: []traceutil.ProcessedTrace{{
+		TraceChunk: &pb.TraceChunk{Spans: []*pb.Span{span}},
+		Root:       span,
+	}}})
+
+	agnt.FlushSync()
+	require.Zero(t, statsRequests.Load(), "precondition: FlushSync holds back the open bucket")
+
+	agnt.ForceFlushSync()
+
+	assert.Equal(t, int32(1), statsRequests.Load(), "ForceFlushSync must send the open bucket")
+	assert.Equal(t, 2, agnt.TraceWriter.(*mockTraceWriter).flushed, "ForceFlushSync must flush the trace writer")
+	assert.Equal(t, 2, agnt.TraceWriterV1.(*mockTraceWriter).flushed, "ForceFlushSync must flush the v1 trace writer")
+}
+
+// TestForceFlushSyncWithOtherConcentrator pins that ForceFlushSync still
+// flushes the writers when the concentrator isn't a *stats.Concentrator, as
+// when a caller disables stats computation.
+func TestForceFlushSyncWithOtherConcentrator(t *testing.T) {
+	agnt, statsRequests := newForceFlushTestAgent(t)
+	agnt.Concentrator = &mockConcentrator{}
+
+	agnt.ForceFlushSync()
+
+	assert.Zero(t, statsRequests.Load())
+	assert.Equal(t, 1, agnt.TraceWriter.(*mockTraceWriter).flushed)
+	assert.Equal(t, 1, agnt.TraceWriterV1.(*mockTraceWriter).flushed)
+}
+
+// TestForceFlushSyncSendsOpenClientStatsBuckets pins that ForceFlushSync also
+// sends the ClientStatsAggregator's open bucket (tracer-computed stats), which
+// FlushSync holds back.
+func TestForceFlushSyncSendsOpenClientStatsBuckets(t *testing.T) {
+	agnt, statsRequests := newForceFlushTestAgent(t)
+	agnt.Concentrator = &mockConcentrator{}
+	agnt.ClientStatsAggregator.Start()
+	t.Cleanup(agnt.ClientStatsAggregator.Stop)
+
+	agnt.ClientStatsAggregator.In <- &pb.ClientStatsPayload{
+		Hostname: "host", Env: "env", Version: "v1", Lang: "go",
+		Stats: []*pb.ClientStatsBucket{{
+			Start:    uint64(time.Now().UnixNano()),
+			Duration: uint64(2 * time.Second),
+			Stats:    []*pb.ClientGroupedStats{{Service: "svc", Name: "op", Resource: "res", Hits: 1}},
+		}},
+	}
+	require.Never(t, func() bool {
+		agnt.FlushSync()
+		return statsRequests.Load() > 0
+	}, 300*time.Millisecond, 20*time.Millisecond, "precondition: FlushSync holds back the open client stats bucket")
+
+	agnt.ForceFlushSync()
+
+	assert.Equal(t, int32(1), statsRequests.Load(), "ForceFlushSync must send the open client stats bucket")
 }
 
 func TestWaitForStoppedTimeout(t *testing.T) {

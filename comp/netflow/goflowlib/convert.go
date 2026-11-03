@@ -70,13 +70,15 @@ func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFi
 	return flow, nil
 }
 
-// extractApplicationID moves the application id mapped by goflowlib from the additional fields to the flow
+// extractApplicationID moves the application id and name mapped by goflowlib from the additional fields to the flow
 func extractApplicationID(flow *common.Flow) {
 	if flow.AdditionalFields == nil {
 		return
 	}
 	flow.ApplicationID, _ = flow.AdditionalFields[dpi.ApplicationIDField].(uint64)
 	delete(flow.AdditionalFields, dpi.ApplicationIDField)
+	flow.ApplicationName, _ = flow.AdditionalFields[dpi.ApplicationNameField].(string)
+	delete(flow.AdditionalFields, dpi.ApplicationNameField)
 }
 
 // splitBiflow detects bidirectional flow records and splits them into two unidirectional flows.

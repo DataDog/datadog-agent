@@ -1,0 +1,12 @@
+description: The a command supports multi-line text via backslash continuation.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: "sed '1a\\\nfirst line\\\nsecond line' input.txt\n"
+expect:
+  stdout: "line1\nfirst line\nsecond line\nline2\n"
+  stderr: ""
+  exit_code: 0

@@ -1,23 +1,14 @@
 """Evaluation helpers for anomaly detection dev tasks.
 
-Contains non-@task symbols: constants, S3 helpers, StepLogger, combo helpers,
+Contains non-@task symbols: constants, StepLogger, combo helpers,
 Optuna config builders, aggregation helpers, and summary printers used by the
 @task entry points in tasks/anomalydetection.py.
-
-Note: SCENARIOS and SCENARIO_EPISODE_NAMES are loaded from
-q_branch/gensim-eval-scenarios.json at import time. That file is not
-committed to this repo — it is expected to be present in developer environments
-where the q_branch/ directory has been checked out separately, or produced by
-dda inv anomalydetection.download-scenarios.
 """
 
 import json
 import os
 import random
-import shlex
 import shutil
-import tempfile
-import zipfile
 
 from tasks.libs.common.color import Color, color_message
 
@@ -27,19 +18,6 @@ from tasks.libs.common.color import Color, color_message
 # Bayesian report reuse when the scoring contract changes.
 F1_SCORING_VERSION = "high-severity-onset-recovery-v2"
 
-_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "q_branch", "gensim-eval-scenarios.json")
-
-try:
-    with open(_MANIFEST_PATH) as _f:
-        _EVAL_MANIFEST = json.load(_f)
-    SCENARIO_EPISODE_NAMES = {entry["scenario"]: entry["episode"] for entry in _EVAL_MANIFEST}
-    SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
-except (OSError, json.JSONDecodeError, KeyError):
-    # Manifest not present in this environment; eval tasks will require --scenarios.
-    SCENARIO_EPISODE_NAMES = {}
-    SCENARIOS = []
-
-S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
 # Components included in ablation / combination search.
@@ -135,121 +113,6 @@ class StepLogger:
     def child(self, total: int, label: str) -> "StepLogger":
         """Create a nested logger one level deeper, capturing self as parent."""
         return StepLogger(total, label, depth=self.depth + 1, parent=self)
-
-
-# --- S3 parquet helpers ---
-
-
-def _resolve_zip_from_runs_jsonl(ctx, name):
-    """Resolve the latest zip key for a scenario from runs.jsonl in S3."""
-    episode_name = SCENARIO_EPISODE_NAMES.get(name)
-    if not episode_name:
-        return None
-
-    with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False, mode="w") as tmp:
-        tmp_path = tmp.name
-
-    try:
-        result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
-            warn=True,
-        )
-        if result is None or result.failed:
-            return None
-
-        with open(tmp_path) as f:
-            lines = []
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    lines.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue  # skip malformed records
-
-        # Find the latest successful entry matching this episode.
-        # parquet_count < 50 indicates a failed or truncated run. Known failures are 0 or 2.
-        # Post trace-removal, legitimate recordings on short scenarios produce ~60-90 parquets.
-        matches = [
-            entry for entry in lines if entry.get("episode") == episode_name and entry.get("parquet_count", 0) >= 50
-        ]
-        if not matches:
-            return None
-
-        # Walk newest-first, return the first zip that actually exists in S3.
-        for entry in reversed(matches):
-            zip_key = entry.get("zip")
-            if not zip_key:
-                continue
-            check = ctx.run(
-                f"aws-vault exec {AWS_PROFILE} -- aws s3api head-object --bucket {S3_BUCKET} --key {shlex.quote(zip_key)}",
-                warn=True,
-                hide=True,
-            )
-            if check is None or check.failed:
-                print(color_message(f"  '{zip_key}' not found in S3, trying previous run...", Color.BLUE))
-                continue
-            print(
-                color_message(
-                    f"Resolved '{name}' from runs.jsonl: {zip_key} "
-                    f"(image: {entry.get('image', '?')}, {entry.get('timestamp', '?')})",
-                    Color.BLUE,
-                )
-            )
-            return zip_key
-        return None
-    except (OSError, json.JSONDecodeError):
-        return None
-    finally:
-        os.unlink(tmp_path)
-
-
-def _ensure_parquets(ctx, name, parquet_dir):
-    """Download and extract parquet files from S3 via runs.jsonl."""
-    zip_key = _resolve_zip_from_runs_jsonl(ctx, name)
-    if not zip_key:
-        print(
-            color_message(
-                f"No recording found for '{name}' in runs.jsonl. Run a gensim-eks episode to produce one.",
-                Color.RED,
-            )
-        )
-        return
-
-    print(color_message(f"Downloading {zip_key} from S3...", Color.BLUE))
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
-            warn=True,
-        )
-        if result is None or result.failed:
-            print(color_message(f"Failed to download {zip_key} from S3", Color.RED))
-            return
-
-        scenario_dir = os.path.dirname(parquet_dir)
-        os.makedirs(parquet_dir, exist_ok=True)
-        try:
-            with zipfile.ZipFile(tmp_path) as zf:
-                for member in zf.namelist():
-                    if member.startswith("tmp/gensim-archive/parquet/") and not member.endswith("/"):
-                        filename = os.path.basename(member)
-                        with zf.open(member) as src, open(os.path.join(parquet_dir, filename), "wb") as dst:
-                            dst.write(src.read())
-                    elif member.startswith("tmp/gensim-archive/results/") and member.endswith(".json"):
-                        with zf.open(member) as src, open(os.path.join(scenario_dir, "episode.json"), "wb") as dst:
-                            dst.write(src.read())
-        except (zipfile.BadZipFile, OSError) as e:
-            print(color_message(f"Failed to extract {zip_key}: {e}", Color.RED))
-            shutil.rmtree(parquet_dir, ignore_errors=True)
-            return
-
-        print(color_message(f"Extracted parquet files to {parquet_dir}", Color.GREEN))
-    finally:
-        os.unlink(tmp_path)
 
 
 # --- Summary printers ---

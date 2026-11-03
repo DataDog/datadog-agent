@@ -1,0 +1,9 @@
+description: If block executes when condition is true.
+input:
+  script: |+
+    if true; then echo reached; fi
+expect:
+  stdout: |+
+    reached
+  stderr: ""
+  exit_code: 0

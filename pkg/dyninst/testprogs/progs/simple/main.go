@@ -280,7 +280,7 @@ func main() {
 	// Map index tests for different key length tiers (AES hash lanes).
 	// Each tier uses a large map (>8 entries) to exercise the full
 	// hash → table → group → slot lookup path.
-	mapIndexKeyLen8(makeLargeMapWithKeyLen(8, 1000))     // 1-16 byte tier
+	mapIndexKeyLen8(makeLargeMapWithKeyLen(8, 100))      // 1-16 byte tier, one-table directory
 	mapIndexKeyLen24(makeLargeMapWithKeyLen(24, 1000))   // 17-32 byte tier
 	mapIndexKeyLen48(makeLargeMapWithKeyLen(48, 1000))   // 33-64 byte tier
 	mapIndexKeyLen96(makeLargeMapWithKeyLen(96, 1000))   // 65-128 byte tier

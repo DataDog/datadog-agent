@@ -1,0 +1,13 @@
+description: sha256sum rejects a directory operand as non-regular.
+setup:
+  files:
+    - path: directory/placeholder
+      content: "x"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sha256sum directory
+expect:
+  stdout: |+
+  stderr_contains: ["sha256sum: directory:"]
+  exit_code: 1
