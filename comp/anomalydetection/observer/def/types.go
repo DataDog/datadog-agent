@@ -548,6 +548,73 @@ type SeriesMeta struct {
 	Tags       tagset.CompositeTags
 }
 
+// MetricKind represents the inferred shape of a metric series.
+type MetricKind uint8
+
+const (
+	// UNSET indicates the series has not been classified yet (insufficient history).
+	UNSET MetricKind = iota
+	// UNKNOWN indicates the series has enough history, but no supported shape matches.
+	UNKNOWN
+	// STABLE indicates the series hovers around a constant level.
+	STABLE
+	// LINEAR indicates the series follows a sustained linear trend.
+	LINEAR
+)
+
+// String returns a lowercase label for the metric kind.
+func (k MetricKind) String() string {
+	switch k {
+	case UNSET:
+		return "unset"
+	case UNKNOWN:
+		return "unknown"
+	case STABLE:
+		return "stable"
+	case LINEAR:
+		return "linear"
+	default:
+		return "unknown"
+	}
+}
+
+// KindTransition describes a confirmed metric kind transition for a series.
+type KindTransition struct {
+	Ref  SeriesRef
+	From MetricKind
+	To   MetricKind
+}
+
+// MetricKindMatcherConfig configures the metric kind matcher window and transition confirmation threshold.
+type MetricKindMatcherConfig struct {
+	// MinPoints is the minimum number of visible points before classification runs.
+	MinPoints int
+	// MaxPoints bounds the history window used for classification.
+	MaxPoints int
+	// TransitionConfirmations is the number of consecutive fresh-data-backed
+	// predictions required to replace an already-assigned kind.
+	TransitionConfirmations int
+}
+
+// MetricKindMatcher evaluates series windows and manages transition confirmation state.
+// The caller owns the committed kind and applies returned transitions synchronously.
+// Matcher methods are called by a single owner, not concurrently.
+type MetricKindMatcher interface {
+	// Window returns the bounded history requirement for classification.
+	Window() DetectorPointWindow
+
+	// Observe evaluates a chronological window of points up to dataTime against
+	// the series' current committed kind in storage, returning a confirmed transition
+	// when qualified. Points are borrowed and must not be retained by the matcher.
+	Observe(ref SeriesRef, currentKind MetricKind, points []Point, dataTime int64) (KindTransition, bool)
+
+	// RemoveSeries clears matcher state for evicted series.
+	RemoveSeries(refs []SeriesRef)
+
+	// Reset clears all matcher state.
+	Reset()
+}
+
 // Aggregate specifies which statistic to extract from summary stats.
 type Aggregate int
 
