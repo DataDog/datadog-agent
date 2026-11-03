@@ -643,7 +643,10 @@ func (s *packageAgentSuite) TestFleetUpgradeAndReboot() {
 	state := upgrade.getInstallerStatus().Packages.States["datadog-agent"]
 	require.Equal(s.T(), s.pipelineAgentVersion, state.Stable)
 	require.Empty(s.T(), state.Experiment)
-	remote.MustExecute("sudo datadog-agent status")
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := remote.Execute("sudo datadog-agent status")
+		require.NoError(c, err, "%s", output)
+	}, time.Minute, time.Second)
 	s.assertRuntimeLabels()
 }
 
