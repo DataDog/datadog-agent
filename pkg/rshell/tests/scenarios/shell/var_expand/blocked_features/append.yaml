@@ -1,0 +1,12 @@
+# skip: variable expansion feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: The += append operator is not supported.
+input:
+  script: |+
+    X=hello
+    X+=world
+expect:
+  stdout: ""
+  stderr: |+
+    += is not supported
+  exit_code: 2

@@ -1,0 +1,10 @@
+description: Double-quoted variable expansion prevents field splitting.
+input:
+  script: |+
+    A="hello world foo"
+    for w in "$A"; do echo "[$w]"; done
+expect:
+  stdout: |+
+    [hello world foo]
+  stderr: ""
+  exit_code: 0

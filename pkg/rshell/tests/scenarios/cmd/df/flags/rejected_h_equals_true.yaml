@@ -1,0 +1,11 @@
+description: df rejects -h=true. The error wording matches GNU getopt's shorthand-=-as-invalid behaviour after the rewriter in builtins/builtins.go detects the `-X=value` argv shape and substitutes `invalid option -- '='` for pflag's wrapped no-arg error.
+input:
+  script: |+
+    df -h=true; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    df: invalid option -- '='
+    Try 'df --help' for more information.
+  exit_code: 0

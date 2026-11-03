@@ -1,0 +1,14 @@
+# vuln-hunt 2026-05-18-initial-audit / errors.
+# Pins that the cmd-not-found stderr line participates in normal 2>/dev/null
+# redirection. A regression where the error were written to the runner's
+# stderr directly (bypassing the redirect chain) would silently leak the
+# attempted command name even when the script tried to suppress it — a
+# minor F-3 amplifier worth catching.
+description: A cmd-not-found stderr line is silenced by 2>/dev/null.
+input:
+  script: |+
+    no_such_cmd_xyz 2>/dev/null
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 127

@@ -1,0 +1,9 @@
+description: If-elif takes elif branch when first condition fails and elif succeeds.
+input:
+  script: |+
+    if false; then echo a; elif true; then echo b; fi
+expect:
+  stdout: |+
+    b
+  stderr: ""
+  exit_code: 0

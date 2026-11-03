@@ -1,0 +1,12 @@
+# skip: allow_all_commands/allowed_commands are rshell-specific with no bash equivalent.
+description: When allow_all_commands is false and no allowed_commands are set, all commands are blocked.
+skip_assert_against_bash: true
+input:
+  allow_all_commands: false
+  script: |+
+    echo hello
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: echo: command not allowed
+  exit_code: 127

@@ -1,0 +1,18 @@
+description: find . -execdir cat {} \; correctly resolves files relative to the matched entry's parent.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: file.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:cat
+  script: |+
+    find . -name 'file.txt' -execdir cat {} \;
+expect:
+  stdout: "hello"
+  stderr: ""
+  exit_code: 0

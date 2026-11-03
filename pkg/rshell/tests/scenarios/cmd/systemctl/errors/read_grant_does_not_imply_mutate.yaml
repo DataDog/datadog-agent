@@ -1,0 +1,25 @@
+# A read grant authorizes inspection only; every mutating verb needs its own action.
+skip_assert_against_bash: true
+description: a read-only grant does not authorize any systemctl mutation
+input:
+  mode: remediation
+  allowed_system_services:
+    - service: api.service
+      actions: [read]
+  script: |+
+    systemctl start api.service
+    systemctl stop api.service
+    systemctl reload api.service
+    systemctl restart api.service
+    systemctl enable api.service
+    systemctl disable api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: system service "api.service" is not allowed for action "start"
+    systemctl: system service "api.service" is not allowed for action "stop"
+    systemctl: system service "api.service" is not allowed for action "reload"
+    systemctl: system service "api.service" is not allowed for action "restart"
+    systemctl: system service "api.service" is not allowed for action "enable"
+    systemctl: system service "api.service" is not allowed for action "disable"
+  exit_code: 1

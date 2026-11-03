@@ -1,0 +1,12 @@
+description: rm on a nonexistent file fails with exit 1 (no --force to silence it).
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm missing.txt
+expect:
+  stdout: |+
+  stderr: |+
+    rm: cannot remove 'missing.txt': no such file or directory
+  exit_code: 1
+skip_assert_against_bash: true

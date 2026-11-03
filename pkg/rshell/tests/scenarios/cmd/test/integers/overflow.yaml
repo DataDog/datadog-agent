@@ -1,0 +1,17 @@
+description: "test rejects integer overflow with exit code 2 (matches bash)"
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # bash prefixes error with scriptname:line
+input:
+  script: |+
+    test 99999999999999999999 -gt 0
+    echo "pos-overflow: $?"
+    test -99999999999999999999 -lt 0
+    echo "neg-overflow: $?"
+expect:
+  stdout: |
+    pos-overflow: 2
+    neg-overflow: 2
+  stderr: |
+    test: 99999999999999999999: integer expression expected
+    test: -99999999999999999999: integer expression expected
+  exit_code: 0

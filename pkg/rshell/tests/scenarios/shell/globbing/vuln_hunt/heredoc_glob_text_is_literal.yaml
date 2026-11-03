@@ -1,0 +1,16 @@
+description: Glob-like text in heredoc bodies remains literal.
+setup:
+  files:
+    - path: a.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat <<'EOF'
+    *.txt
+    EOF
+expect:
+  stdout: |+
+    *.txt
+  stderr: ""
+  exit_code: 0

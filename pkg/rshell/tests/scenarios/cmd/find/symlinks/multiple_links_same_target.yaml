@@ -1,0 +1,20 @@
+description: -L traverses multiple symlinks to the same target without false loop errors.
+setup:
+  files:
+    - path: shared/file.txt
+      content: "hello"
+      chmod: 0644
+    - path: dir/link1
+      symlink: ../shared
+    - path: dir/link2
+      symlink: ../shared
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -type f
+expect:
+  stdout_unordered: |+
+    dir/link1/file.txt
+    dir/link2/file.txt
+  stderr: ""
+  exit_code: 0

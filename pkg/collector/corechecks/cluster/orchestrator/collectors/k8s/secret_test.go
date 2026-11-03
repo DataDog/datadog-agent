@@ -124,7 +124,7 @@ func TestSecretCollectorFailsClosed(t *testing.T) {
 	rcfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
 			OrchestratorInformerFactory: &collectors.OrchestratorInformerFactory{
-				MetadataInformerFactory: metadataInformerFactory,
+				SecretMetadataInformerFactory: metadataInformerFactory,
 			},
 		},
 	}

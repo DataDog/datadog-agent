@@ -1,0 +1,9 @@
+description: pwd --help prints usage to stdout and exits 0.
+skip_assert_against_bash: true
+input:
+  script: |+
+    pwd --help
+expect:
+  stdout_contains: ["Usage: pwd", "logical", "physical"]
+  stderr: ""
+  exit_code: 0
