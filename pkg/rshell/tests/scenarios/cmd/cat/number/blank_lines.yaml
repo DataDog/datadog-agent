@@ -1,0 +1,13 @@
+description: cat -n numbers blank lines too.
+setup:
+  files:
+    - path: file.txt
+      content: "a\n\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -n file.txt
+expect:
+  stdout: "     1\ta\n     2\t\n     3\tb\n"
+  stderr: ""
+  exit_code: 0

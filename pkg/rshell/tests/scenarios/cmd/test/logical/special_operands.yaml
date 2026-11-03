@@ -1,0 +1,23 @@
+# Edge cases where !, (, ) appear as literal operands in binary expressions
+description: "test treats !, ( as literal string operands in binary expressions"
+input:
+  script: |+
+    test '!' = '!'
+    echo "bang-eq-bang: $?"
+    test '!' != 'x'
+    echo "bang-neq-x: $?"
+    test '(' = '('
+    echo "paren-eq-paren: $?"
+    test '(' != ')'
+    echo "paren-neq-close: $?"
+    test ')' = ')'
+    echo "close-eq-close: $?"
+expect:
+  stdout: |
+    bang-eq-bang: 0
+    bang-neq-x: 0
+    paren-eq-paren: 0
+    paren-neq-close: 0
+    close-eq-close: 0
+  stderr: ""
+  exit_code: 0

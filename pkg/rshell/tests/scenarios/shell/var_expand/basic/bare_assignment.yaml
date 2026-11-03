@@ -1,0 +1,10 @@
+description: Bare assignment VAR= without quotes assigns an empty string.
+input:
+  script: |+
+    VAR=
+    echo "[$VAR]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

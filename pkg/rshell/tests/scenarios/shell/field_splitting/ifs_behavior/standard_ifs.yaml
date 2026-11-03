@@ -1,0 +1,12 @@
+description: Default IFS splits on space, tab, and newline.
+input:
+  script: |+
+    a="one two three"
+    for word in $a; do echo "[$word]"; done
+expect:
+  stdout: |+
+    [one]
+    [two]
+    [three]
+  stderr: ""
+  exit_code: 0

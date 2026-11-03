@@ -1,0 +1,12 @@
+description: Exit with non-zero code inside for loop body terminates with that code.
+input:
+  script: |+
+    for i in a b c; do
+      echo $i
+      exit 5
+    done
+expect:
+  stdout: |+
+    a
+  stderr: ""
+  exit_code: 5

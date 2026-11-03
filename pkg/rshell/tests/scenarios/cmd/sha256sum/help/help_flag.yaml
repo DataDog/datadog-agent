@@ -1,0 +1,9 @@
+description: sha256sum --help describes generation and verification modes.
+skip_assert_against_bash: true
+input:
+  script: |+
+    sha256sum --help
+expect:
+  stdout_contains: ["Usage: sha256sum", "--check", "--quiet", "--status"]
+  stderr: |+
+  exit_code: 0

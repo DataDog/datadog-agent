@@ -1,0 +1,18 @@
+description: Asterisk alone matches all non-hidden files and directories in the current directory.
+setup:
+  files:
+    - path: file1.txt
+      content: ""
+    - path: file2.log
+      content: ""
+    - path: .hidden
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *
+expect:
+  stdout: |+
+    file1.txt file2.log
+  stderr: ""
+  exit_code: 0
