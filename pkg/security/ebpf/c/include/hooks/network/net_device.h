@@ -18,27 +18,52 @@ static __always_inline int start_veth_state_machine() {
     return 0;
 }
 
-HOOK_ENTRY("rtnl_create_link")
-int hook_rtnl_create_link(ctx_t *ctx) {
-    struct rtnl_link_ops *ops = (struct rtnl_link_ops *)CTX_PARM4(ctx);
+// sized above the longest kind we match, so that a longer kind isn't truncated into a false match
+#define RTNL_LINK_KIND_LEN 8
+
+static __always_inline int get_rtnl_link_ops_kind(struct rtnl_link_ops *ops, char *kind, u32 size) {
     if (!ops) {
-        return 0;
+        return -1;
     }
 
-	u64 rtnl_link_ops_kind_offset;
+    u64 rtnl_link_ops_kind_offset;
     LOAD_CONSTANT("rtnl_link_ops_kind_offset", rtnl_link_ops_kind_offset);
 
-    char *kind_ptr;
-    if (bpf_probe_read(&kind_ptr, sizeof(char *), (void *)ops + rtnl_link_ops_kind_offset) < 0) {
-        return 0;
+    char *kind_ptr = NULL;
+    if (bpf_probe_read(&kind_ptr, sizeof(kind_ptr), (void *)ops + rtnl_link_ops_kind_offset) < 0 || !kind_ptr) {
+        return -1;
     }
 
-	if (!kind_ptr) {
-        return 0;
+    return bpf_probe_read_str(kind, size, kind_ptr);
+}
+
+static __always_inline struct rtnl_link_ops *get_rtnl_link_ops_from_net_device(struct net_device *device) {
+    u64 net_device_rtnl_link_ops_offset;
+    LOAD_CONSTANT("net_device_rtnl_link_ops_offset", net_device_rtnl_link_ops_offset);
+    // unresolved constants are pushed as 0
+    if (!net_device_rtnl_link_ops_offset) {
+        return NULL;
     }
 
-    char kind[5];
-    if (bpf_probe_read_str(kind, 5, kind_ptr) < 0) {
+    struct rtnl_link_ops *ops = NULL;
+    bpf_probe_read(&ops, sizeof(ops), (void *)device + net_device_rtnl_link_ops_offset);
+    return ops;
+}
+
+// dummy devices drop everything sent to them, there is nothing to monitor on them
+static __always_inline bool is_dummy_net_device(struct net_device *device) {
+    char kind[RTNL_LINK_KIND_LEN] = {};
+    if (get_rtnl_link_ops_kind(get_rtnl_link_ops_from_net_device(device), kind, sizeof(kind)) < 0) {
+        return false;
+    }
+
+    return kind[0] == 'd' && kind[1] == 'u' && kind[2] == 'm' && kind[3] == 'm' && kind[4] == 'y' && kind[5] == 0;
+}
+
+HOOK_ENTRY("rtnl_create_link")
+int hook_rtnl_create_link(ctx_t *ctx) {
+    char kind[RTNL_LINK_KIND_LEN] = {};
+    if (get_rtnl_link_ops_kind((struct rtnl_link_ops *)CTX_PARM4(ctx), kind, sizeof(kind)) < 0) {
         return 0;
     }
 
@@ -184,6 +209,10 @@ int rethook_register_netdevice(ctx_t *ctx) {
     struct veth_state_t *state = bpf_map_lookup_elem(&veth_state_machine, &id);
     if (state == NULL) {
         // this is a simple device registration
+        if (is_dummy_net_device(entry->device)) {
+            return 0;
+        }
+
         struct net_device_event_t *evt = SPAN_FILL_EVENT(struct net_device_event_t, EVENT_NET_DEVICE);
         if (!evt) {
             return 0;

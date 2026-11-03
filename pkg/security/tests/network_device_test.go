@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
@@ -265,6 +266,93 @@ func TestTCFilters(t *testing.T) {
 	if err := test.CheckZombieProcesses(); err != nil {
 		t.Errorf("failed checking for zombie processes: %v", err)
 	}
+}
+
+var _ = declare(TestTCFiltersSkipDummy, testOpts{networkIngressEnabled: true})
+
+func TestTCFiltersSkipDummy(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping tc filters test in docker")
+	}
+
+	if !env.IsContainerized() {
+		if out, err := loadModule("dummy"); err != nil {
+			t.Fatalf("couldn't load 'dummy' module: %s, %v", string(out), err)
+		}
+	}
+
+	// dummy rule to force the activation of netdev-related probes
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `dns.question.type == A`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	const netnsName, dummyName = "cws_dummy_netns", "cws-dummy0"
+	ipExecutable := which(t, "ip")
+	if out, err := exec.Command(ipExecutable, "netns", "add", netnsName).CombinedOutput(); err != nil {
+		t.Fatalf("couldn't create netns (out=%s): %v", string(out), err)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command(ipExecutable, "netns", "delete", netnsName).Run()
+	})
+
+	sleepCmd := exec.Command(ipExecutable, "netns", "exec", netnsName, which(t, "sleep"), "600")
+	if err := sleepCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = sleepCmd.Process.Kill()
+		_ = sleepCmd.Wait()
+	})
+	netNs := utils.NewNSPathFromPid(uint32(sleepCmd.Process.Pid), utils.NetNsType)
+
+	hasFilters := func(linkName string) bool {
+		ingress, egress, err := tcFiltersExist(netNs, linkName, "classifier_ingress", "classifier_egress")
+		return err == nil && (ingress || egress)
+	}
+
+	require.Eventually(t, func() bool { return hasFilters("lo") }, 5*time.Second, 100*time.Millisecond, "lo should be hooked")
+
+	t.Run("register_netdevice", func(t *testing.T) {
+		if out, err := exec.Command(ipExecutable, "netns", "exec", netnsName, ipExecutable, "link", "add", dummyName, "type", "dummy").CombinedOutput(); err != nil {
+			t.Fatalf("couldn't create dummy interface (out=%s): %v", string(out), err)
+		}
+
+		assert.Never(t, func() bool { return hasFilters(dummyName) }, 2*time.Second, 100*time.Millisecond, "dummy interface shouldn't be hooked")
+	})
+
+	t.Run("snapshot", func(t *testing.T) {
+		nsID, err := netNs.GetNSID()
+		require.NoError(t, err)
+
+		netns := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsID)
+		require.NotNil(t, netns)
+		p.FlushNetworkNamespace(netns)
+
+		_, isNew := p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, netNs)
+		require.True(t, isNew, "network namespace should have been snapshotted again")
+
+		assert.True(t, hasFilters("lo"), "lo should be hooked again")
+		assert.False(t, hasFilters(dummyName), "dummy interface shouldn't be hooked")
+	})
 }
 
 func tcFiltersExist(netNs *utils.NSPath, linkName string, ingressFilterNamePrefix, egressFilterNamePrefix string) (ingressExists bool, egressExists bool, err error) {
