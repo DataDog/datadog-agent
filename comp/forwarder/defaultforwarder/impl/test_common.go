@@ -62,6 +62,14 @@ func newTestTransactionWithoutClientAssert() *testTransaction {
 	return t
 }
 
+func newTestHTTPTransaction(domain string, pointCount int) *transaction.HTTPTransaction {
+	t := transaction.NewHTTPTransaction()
+	t.Domain = domain
+	t.Endpoint = transaction.Endpoint{Route: "/api/v1/test", Name: "test-endpoint"}
+	t.Payload = transaction.NewBytesPayload([]byte(`{"series":[]}`), pointCount)
+	return t
+}
+
 func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
