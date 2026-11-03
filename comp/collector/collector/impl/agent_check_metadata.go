@@ -150,6 +150,8 @@ type Payload struct {
 	ExternalhostTags externalhost.Payload   `json:"external_host_tags"`
 }
 
+var _ marshaler.TypedJSONMarshaler = (*Payload)(nil)
+
 // PayloadType implements marshaler.TypedJSONMarshaler
 func (p *Payload) PayloadType() marshaler.PayloadType {
 	return marshaler.PayloadTypeAgentChecks

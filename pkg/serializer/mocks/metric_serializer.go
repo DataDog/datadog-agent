@@ -197,7 +197,7 @@ func (_c *MetricSerializer_SendAgentShutdownEvent_Call) RunAndReturn(run func(ct
 }
 
 // SendAgentchecksMetadata provides a mock function for the type MetricSerializer
-func (_mock *MetricSerializer) SendAgentchecksMetadata(m marshaler.TypedJSONMarshaler) error {
+func (_mock *MetricSerializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 	ret := _mock.Called(m)
 
 	if len(ret) == 0 {
@@ -205,7 +205,7 @@ func (_mock *MetricSerializer) SendAgentchecksMetadata(m marshaler.TypedJSONMars
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(marshaler.TypedJSONMarshaler) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(marshaler.JSONMarshaler) error); ok {
 		r0 = returnFunc(m)
 	} else {
 		r0 = ret.Error(0)
@@ -219,16 +219,16 @@ type MetricSerializer_SendAgentchecksMetadata_Call struct {
 }
 
 // SendAgentchecksMetadata is a helper method to define mock.On call
-//   - m marshaler.TypedJSONMarshaler
+//   - m marshaler.JSONMarshaler
 func (_e *MetricSerializer_Expecter) SendAgentchecksMetadata(m any) *MetricSerializer_SendAgentchecksMetadata_Call {
 	return &MetricSerializer_SendAgentchecksMetadata_Call{Call: _e.mock.On("SendAgentchecksMetadata", m)}
 }
 
-func (_c *MetricSerializer_SendAgentchecksMetadata_Call) Run(run func(m marshaler.TypedJSONMarshaler)) *MetricSerializer_SendAgentchecksMetadata_Call {
+func (_c *MetricSerializer_SendAgentchecksMetadata_Call) Run(run func(m marshaler.JSONMarshaler)) *MetricSerializer_SendAgentchecksMetadata_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 marshaler.TypedJSONMarshaler
+		var arg0 marshaler.JSONMarshaler
 		if args[0] != nil {
-			arg0 = args[0].(marshaler.TypedJSONMarshaler)
+			arg0 = args[0].(marshaler.JSONMarshaler)
 		}
 		run(
 			arg0,
@@ -242,7 +242,7 @@ func (_c *MetricSerializer_SendAgentchecksMetadata_Call) Return(err error) *Metr
 	return _c
 }
 
-func (_c *MetricSerializer_SendAgentchecksMetadata_Call) RunAndReturn(run func(m marshaler.TypedJSONMarshaler) error) *MetricSerializer_SendAgentchecksMetadata_Call {
+func (_c *MetricSerializer_SendAgentchecksMetadata_Call) RunAndReturn(run func(m marshaler.JSONMarshaler) error) *MetricSerializer_SendAgentchecksMetadata_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -299,7 +299,7 @@ func (_c *MetricSerializer_SendEvents_Call) RunAndReturn(run func(e event.Events
 }
 
 // SendHostMetadata provides a mock function for the type MetricSerializer
-func (_mock *MetricSerializer) SendHostMetadata(m marshaler.TypedJSONMarshaler) error {
+func (_mock *MetricSerializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
 	ret := _mock.Called(m)
 
 	if len(ret) == 0 {
@@ -307,7 +307,7 @@ func (_mock *MetricSerializer) SendHostMetadata(m marshaler.TypedJSONMarshaler) 
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(marshaler.TypedJSONMarshaler) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(marshaler.JSONMarshaler) error); ok {
 		r0 = returnFunc(m)
 	} else {
 		r0 = ret.Error(0)
@@ -321,16 +321,16 @@ type MetricSerializer_SendHostMetadata_Call struct {
 }
 
 // SendHostMetadata is a helper method to define mock.On call
-//   - m marshaler.TypedJSONMarshaler
+//   - m marshaler.JSONMarshaler
 func (_e *MetricSerializer_Expecter) SendHostMetadata(m any) *MetricSerializer_SendHostMetadata_Call {
 	return &MetricSerializer_SendHostMetadata_Call{Call: _e.mock.On("SendHostMetadata", m)}
 }
 
-func (_c *MetricSerializer_SendHostMetadata_Call) Run(run func(m marshaler.TypedJSONMarshaler)) *MetricSerializer_SendHostMetadata_Call {
+func (_c *MetricSerializer_SendHostMetadata_Call) Run(run func(m marshaler.JSONMarshaler)) *MetricSerializer_SendHostMetadata_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 marshaler.TypedJSONMarshaler
+		var arg0 marshaler.JSONMarshaler
 		if args[0] != nil {
-			arg0 = args[0].(marshaler.TypedJSONMarshaler)
+			arg0 = args[0].(marshaler.JSONMarshaler)
 		}
 		run(
 			arg0,
@@ -344,7 +344,7 @@ func (_c *MetricSerializer_SendHostMetadata_Call) Return(err error) *MetricSeria
 	return _c
 }
 
-func (_c *MetricSerializer_SendHostMetadata_Call) RunAndReturn(run func(m marshaler.TypedJSONMarshaler) error) *MetricSerializer_SendHostMetadata_Call {
+func (_c *MetricSerializer_SendHostMetadata_Call) RunAndReturn(run func(m marshaler.JSONMarshaler) error) *MetricSerializer_SendHostMetadata_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -401,7 +401,7 @@ func (_c *MetricSerializer_SendIterableSeries_Call) RunAndReturn(run func(serieS
 }
 
 // SendMetadata provides a mock function for the type MetricSerializer
-func (_mock *MetricSerializer) SendMetadata(m marshaler.TypedJSONMarshaler) error {
+func (_mock *MetricSerializer) SendMetadata(m marshaler.JSONMarshaler) error {
 	ret := _mock.Called(m)
 
 	if len(ret) == 0 {
@@ -409,7 +409,7 @@ func (_mock *MetricSerializer) SendMetadata(m marshaler.TypedJSONMarshaler) erro
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(marshaler.TypedJSONMarshaler) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(marshaler.JSONMarshaler) error); ok {
 		r0 = returnFunc(m)
 	} else {
 		r0 = ret.Error(0)
@@ -423,16 +423,16 @@ type MetricSerializer_SendMetadata_Call struct {
 }
 
 // SendMetadata is a helper method to define mock.On call
-//   - m marshaler.TypedJSONMarshaler
+//   - m marshaler.JSONMarshaler
 func (_e *MetricSerializer_Expecter) SendMetadata(m any) *MetricSerializer_SendMetadata_Call {
 	return &MetricSerializer_SendMetadata_Call{Call: _e.mock.On("SendMetadata", m)}
 }
 
-func (_c *MetricSerializer_SendMetadata_Call) Run(run func(m marshaler.TypedJSONMarshaler)) *MetricSerializer_SendMetadata_Call {
+func (_c *MetricSerializer_SendMetadata_Call) Run(run func(m marshaler.JSONMarshaler)) *MetricSerializer_SendMetadata_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 marshaler.TypedJSONMarshaler
+		var arg0 marshaler.JSONMarshaler
 		if args[0] != nil {
-			arg0 = args[0].(marshaler.TypedJSONMarshaler)
+			arg0 = args[0].(marshaler.JSONMarshaler)
 		}
 		run(
 			arg0,
@@ -446,7 +446,7 @@ func (_c *MetricSerializer_SendMetadata_Call) Return(err error) *MetricSerialize
 	return _c
 }
 
-func (_c *MetricSerializer_SendMetadata_Call) RunAndReturn(run func(m marshaler.TypedJSONMarshaler) error) *MetricSerializer_SendMetadata_Call {
+func (_c *MetricSerializer_SendMetadata_Call) RunAndReturn(run func(m marshaler.JSONMarshaler) error) *MetricSerializer_SendMetadata_Call {
 	_c.Call.Return(run)
 	return _c
 }

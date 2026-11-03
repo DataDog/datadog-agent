@@ -171,7 +171,7 @@ func TestCollectStartupTime(t *testing.T) {
 
 	serializerMock.On(
 		"SendMetadata",
-		mock.MatchedBy(func(m marshaler.TypedJSONMarshaler) bool {
+		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
 			if _, ok := m.(*testPayload); !ok {
 				return false
 			}
@@ -196,7 +196,7 @@ func TestCollect(t *testing.T) {
 
 	serializerMock.On(
 		"SendMetadata",
-		mock.MatchedBy(func(m marshaler.TypedJSONMarshaler) bool {
+		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
 			if _, ok := m.(*testPayload); !ok {
 				return false
 			}
@@ -229,7 +229,7 @@ func TestCollect(t *testing.T) {
 
 	serializerMock.On(
 		"SendMetadata",
-		mock.MatchedBy(func(m marshaler.TypedJSONMarshaler) bool {
+		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
 			if _, ok := m.(*testPayload); !ok {
 				return false
 			}

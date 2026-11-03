@@ -110,7 +110,7 @@ func (p *HostMetadata) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*PayloadAlias)(p))
 }
 
-var _ marshaler.JSONMarshaler = (*HostMetadata)(nil)
+var _ marshaler.TypedJSONMarshaler = (*HostMetadata)(nil)
 
 // Clone performs a deep clone of a HostMetadata struct.
 func (p *HostMetadata) Clone() (p2 HostMetadata, err error) {

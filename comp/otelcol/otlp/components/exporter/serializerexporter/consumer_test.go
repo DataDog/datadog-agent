@@ -197,15 +197,15 @@ func (m *MockSerializer) SendEvents(_ event.Events) error { return nil }
 func (m *MockSerializer) SendAgentShutdownEvent(_ context.Context, _ *event.Event) error {
 	return nil
 }
-func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error         { return nil }
-func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error               { return nil }
-func (m *MockSerializer) AreSeriesEnabled() bool                                       { return true }
-func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error                    { return nil }
-func (m *MockSerializer) AreSketchesEnabled() bool                                     { return true }
-func (m *MockSerializer) SendMetadata(_ marshaler.TypedJSONMarshaler) error            { return nil }
-func (m *MockSerializer) SendHostMetadata(_ marshaler.TypedJSONMarshaler) error        { return nil }
-func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error                    { return nil }
-func (m *MockSerializer) SendAgentchecksMetadata(_ marshaler.TypedJSONMarshaler) error { return nil }
+func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error    { return nil }
+func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error          { return nil }
+func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }
+func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error               { return nil }
+func (m *MockSerializer) AreSketchesEnabled() bool                                { return true }
+func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler) error            { return nil }
+func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error        { return nil }
+func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }
+func (m *MockSerializer) SendAgentchecksMetadata(_ marshaler.JSONMarshaler) error { return nil }
 
 func (m *MockSerializer) SendOrchestratorMetadata(_ []types.ProcessMessageBody, _, _ string, _ int) error {
 	return nil
