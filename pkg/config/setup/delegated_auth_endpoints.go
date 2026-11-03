@@ -94,6 +94,14 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 // "DELA[org, aws]" — the region should come from the runtime environment, not default to empty.
 func providerConfigForDirective(directive delaDirective, defaultProviderConfig common.ProviderConfig) (common.ProviderConfig, error) {
 	switch directive.provider {
+	case cloudauthconfig.ProviderOIDC:
+		if directive.params["region"] != "" {
+			return nil, fmt.Errorf("region is not supported for OIDC directives")
+		}
+		if c, ok := defaultProviderConfig.(*cloudauthconfig.OIDCProviderConfig); ok {
+			return c, nil
+		}
+		return nil, fmt.Errorf("OIDC directives require delegated_auth.provider: oidc and an oidc source")
 	case cloudauthconfig.ProviderAWS:
 		region := directive.params["region"]
 		if region == "" {
