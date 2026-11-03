@@ -40,8 +40,8 @@ func (r otelRegistry) Registered(pid uint32) bool {
 }
 
 // Register implements otelthreadctx.Registry.
-func (r otelRegistry) Register(pid uint32, layout otelthreadctx.Layout) error {
-	r.cache.setOTel(int(pid), &otelState{layout: layout})
+func (r otelRegistry) Register(pid uint32, layout otelthreadctx.Layout, attributeKeys []string) error {
+	r.cache.setOTel(int(pid), &otelState{layout: layout, attributeKeys: attributeKeys})
 	return nil
 }
 

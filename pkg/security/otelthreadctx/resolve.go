@@ -17,7 +17,7 @@ import (
 // process cache.
 type Registry interface {
 	Registered(pid uint32) bool
-	Register(pid uint32, layout Layout) error
+	Register(pid uint32, layout Layout, attributeKeys []string) error
 }
 
 // Step is the step of Resolve an error comes from.
@@ -96,7 +96,7 @@ func (p *Target) Resolve(reg Registry) (Resolution, error) {
 	}
 	res.LayoutResolved = true
 
-	if err := reg.Register(p.pid, layout); err != nil {
+	if err := reg.Register(p.pid, layout, res.AttributeKeys); err != nil {
 		return res, &StepError{Step: StepLayout, Err: err}
 	}
 

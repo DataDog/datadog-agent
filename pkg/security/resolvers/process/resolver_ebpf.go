@@ -1683,7 +1683,7 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelthreadctx
 	start := time.Now()
 	target.Reset(pid)
 
-	res, err := target.Resolve(otelTLSRegistry{otelTLSMap: p.otelTLSMap})
+	res, err := target.Resolve(otelTLSRegistry{resolver: p})
 	var stepErr *otelthreadctx.StepError
 	if err != nil && !errors.As(err, &stepErr) {
 		stepErr = &otelthreadctx.StepError{Step: otelthreadctx.StepLayout, Err: err}
@@ -1718,12 +1718,12 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelthreadctx
 
 // otelTLSRegistry stores layouts in the otel_tls map.
 type otelTLSRegistry struct {
-	otelTLSMap ebpf.Map
+	resolver *EBPFResolver
 }
 
 // Registered implements otelthreadctx.Registry.
 func (r otelTLSRegistry) Registered(pid uint32) bool {
-	value, err := r.otelTLSMap.LookupBytes(pid)
+	value, err := r.resolver.otelTLSMap.LookupBytes(pid)
 	if err != nil {
 		seclog.Errorf("kernel map lookup error: %v", err)
 	}
@@ -1731,8 +1731,9 @@ func (r otelTLSRegistry) Registered(pid uint32) bool {
 }
 
 // Register implements otelthreadctx.Registry.
-func (r otelTLSRegistry) Register(pid uint32, layout otelthreadctx.Layout) error {
-	if err := r.otelTLSMap.Put(pid, layout.Serialize()); err != nil {
+func (r otelTLSRegistry) Register(pid uint32, layout otelthreadctx.Layout, attributeKeys []string) error {
+	r.resolver.attachOTelAttributeKeys(pid, attributeKeys)
+	if err := r.resolver.otelTLSMap.Put(pid, layout.Serialize()); err != nil {
 		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
 	}
 	return nil
