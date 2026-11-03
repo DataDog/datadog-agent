@@ -389,6 +389,8 @@ func TestSchemaWorkerCopiesMutableInputs(t *testing.T) {
 	c.tags = []string{"original"}
 	c.dbHostname = "original-host"
 	c.dbInstanceIdentifier = "original-instance"
+	c.config.Server, c.config.Port, c.config.ServiceName = "original-endpoint", 1522, "agent"
+	c.config.Username, c.config.Password = "monitor", "secret"
 	c.config.Schemas.IncludeSchemas = []string{"APP"}
 	views := true
 	c.config.Schemas.CollectViews = &views
@@ -401,17 +403,24 @@ func TestSchemaWorkerCopiesMutableInputs(t *testing.T) {
 	c.dbHostname = "changed"
 	c.dbInstanceIdentifier = "changed-instance"
 	c.config.Schemas.CollectionInterval = 999
+	c.config.Server, c.config.Port, c.config.ServiceName = "changed-endpoint", 1523, "changed"
 	require.Equal(t, []string{"original"}, run.tags)
 	require.Equal(t, []string{"APP"}, run.config.Schemas.IncludeSchemas)
 	require.True(t, run.config.Schemas.ViewsEnabled())
 	require.NotEqual(t, c.dbHostname, run.dbHostname)
 	require.Equal(t, int64(123), run.lastSnapshotID)
 	require.Nil(t, run.db)
+	require.Empty(t, run.config.Username)
+	require.Empty(t, run.config.Password)
 	conn, err := db.Connx(context.Background())
 	require.NoError(t, err)
 	defer conn.Close()
 	run.schemaQueryer = conn
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB"))
+	dbMock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("agent.example", 3, "PDB"))
+	dbMock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow(3, "airflow", "airflow.example"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
 	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows())
@@ -421,12 +430,14 @@ func TestSchemaWorkerCopiesMutableInputs(t *testing.T) {
 	require.NoError(t, err)
 	mockSender, ok := sender.(*mocksender.MockSender)
 	require.True(t, ok)
-	var events []schemaEvent
+	var events []schemaServicesEvent
 	for _, call := range mockSender.Calls {
 		if call.Method == "EventPlatformEvent" {
-			var event schemaEvent
+			var event schemaServicesEvent
 			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
-			events = append(events, event)
+			if event.Kind == "oracle_services" {
+				events = append(events, event)
+			}
 		}
 	}
 	require.Len(t, events, 1)
@@ -434,6 +445,8 @@ func TestSchemaWorkerCopiesMutableInputs(t *testing.T) {
 	require.Equal(t, "original-host", events[0].Host)
 	require.Equal(t, "original-instance", events[0].DatabaseInstance)
 	require.Equal(t, int64(600), events[0].CollectionInterval)
+	require.Equal(t, &schemaConnectionInfo{Host: "original-endpoint", Port: 1522, ConfiguredService: "agent", ServiceName: "agent.example", ContainerID: "3", ContainerName: c.getFullPDBName("PDB")}, events[0].Connection)
+	require.Equal(t, []schemaService{{Name: "airflow", NetworkName: "airflow.example"}}, events[0].Metadata[0].Services)
 	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 

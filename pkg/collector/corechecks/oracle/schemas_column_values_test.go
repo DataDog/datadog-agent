@@ -10,6 +10,7 @@ package oracle
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
@@ -35,6 +36,34 @@ func expectSchemaSwitch(mock sqlmock.Sqlmock, id int64, name string) {
 func expectSchemaRestore(mock sqlmock.Sqlmock) {
 	mock.ExpectExec(regexp.QuoteMeta(schemaSwitchContainerSQL("CDB$ROOT"))).WillReturnResult(sqlmock.NewResult(0, 0))
 	expectSchemaSession(mock, 1, "CDB$ROOT")
+}
+
+func TestSchemaConnectionMetadataSurvivesContainerSwitch(t *testing.T) {
+	c, pool, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	conn, err := pool.Connx(context.Background())
+	require.NoError(t, err)
+	defer conn.Close()
+	c.schemaQueryer = conn
+	c.cdbName = "sales"
+	mock.ExpectQuery(regexp.QuoteMeta(schemaConnectionQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"SERVICE_NAME", "CON_ID", "CON_NAME"}).AddRow("agent.example", 1, "CDB$ROOT"))
+	mock.ExpectQuery(regexp.QuoteMeta(schemaServicesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME", "NETWORK_NAME"}).AddRow(3, "airflow", "airflow.example"))
+	var inventory schemaServicesEvent
+	require.NoError(t, c.sendSchemaServicesMetadata(context.Background(), map[int64]string{3: "PDB1"}, func(payload []byte) {
+		require.NoError(t, json.Unmarshal(payload, &inventory))
+	}))
+	expectSchemaSwitch(mock, 3, "PDB1")
+	expectSchemaRestore(mock)
+	require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error {
+		require.Equal(t, "sales.PDB1", inventory.Metadata[0].Name)
+		require.Equal(t, "sales.CDB$ROOT", inventory.Connection.ContainerName)
+		require.Equal(t, "1", inventory.Connection.ContainerID)
+		require.Equal(t, "agent.example", inventory.Connection.ServiceName)
+		return nil
+	}))
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestSchemaContainerRestoredAfterCollection(t *testing.T) {

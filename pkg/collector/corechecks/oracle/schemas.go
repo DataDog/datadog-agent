@@ -286,6 +286,12 @@ const containerNamesQuery = `SELECT con_id, name FROM v$containers
 WHERE open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricted, 'NO') = 'NO'
 AND EXISTS (SELECT 1 FROM cdb_users u WHERE u.con_id = v$containers.con_id AND u.username = 'SYS')`
 
+const schemaServicesQuery = `SELECT con_id, name, network_name FROM cdb_services
+ORDER BY con_id, name, network_name`
+
+const schemaConnectionQuery = `SELECT SYS_CONTEXT('USERENV', 'SERVICE_NAME'),
+TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID')), SYS_CONTEXT('USERENV', 'CON_NAME') FROM dual`
+
 // ORA-01795 limits an IN list to 1000 expressions.
 const (
 	maxSchemaOwners            = 1000
@@ -470,6 +476,41 @@ type containerObject struct {
 	ID      string          `json:"id"`
 	Name    string          `json:"name"`
 	Schemas []*schemaObject `json:"schemas"`
+}
+
+type schemaService struct {
+	Name        string `json:"name"`
+	NetworkName string `json:"network_name,omitempty"`
+}
+
+type schemaServiceContainer struct {
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Services []schemaService `json:"services"`
+}
+
+type schemaConnectionInfo struct {
+	Host              string `json:"host,omitempty"`
+	Port              int    `json:"port,omitempty"`
+	ConfiguredService string `json:"configured_service,omitempty"`
+	ServiceName       string `json:"service_name"`
+	ContainerID       string `json:"container_id"`
+	ContainerName     string `json:"container_name"`
+}
+
+type schemaServicesEvent struct {
+	Host               string                   `json:"host"`
+	DatabaseInstance   string                   `json:"database_instance"`
+	AgentVersion       string                   `json:"agent_version"`
+	Dbms               string                   `json:"dbms"`
+	Kind               string                   `json:"kind"`
+	CollectionInterval int64                    `json:"collection_interval"`
+	DbmsVersion        string                   `json:"dbms_version"`
+	Tags               []string                 `json:"tags"`
+	Timestamp          float64                  `json:"timestamp"`
+	CDBName            string                   `json:"cdb_name"`
+	Connection         *schemaConnectionInfo    `json:"connection"`
+	Metadata           []schemaServiceContainer `json:"metadata"`
 }
 
 type schemaEvent struct {
@@ -1471,6 +1512,106 @@ func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	return names, nil
 }
 
+func (c *Check) containerServices(ctx context.Context, containers map[int64]string) (map[int64][]schemaService, error) {
+	services := make(map[int64][]schemaService, len(containers))
+	for id := range containers {
+		services[id] = []schemaService{}
+	}
+	err := c.queryMetadata(ctx, schemaServicesQuery, func(rows *sqlx.Rows) error {
+		var conID int64
+		var name string
+		var networkName sql.NullString
+		if err := rows.Scan(&conID, &name, &networkName); err != nil {
+			return err
+		}
+		if _, ok := containers[conID]; ok {
+			services[conID] = append(services[conID], schemaService{Name: name, NetworkName: networkName.String})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return services, nil
+}
+
+func (c *Check) schemaConnectionMetadata(ctx context.Context) (*schemaConnectionInfo, error) {
+	var connection *schemaConnectionInfo
+	err := c.queryMetadata(ctx, schemaConnectionQuery, func(rows *sqlx.Rows) error {
+		var service, name string
+		var conID int64
+		if err := rows.Scan(&service, &conID, &name); err != nil {
+			return err
+		}
+		connection = &schemaConnectionInfo{
+			ServiceName:   service,
+			ContainerID:   strconv.FormatInt(conID, 10),
+			ContainerName: c.getFullPDBName(name),
+		}
+		if c.config.TnsAlias == "" {
+			connection.Host = c.config.Server
+			connection.Port = c.config.Port
+			connection.ConfiguredService = c.config.ServiceName
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connection, nil
+}
+
+func (c *Check) sendSchemaServicesMetadata(ctx context.Context, containers map[int64]string, emit payloadEmitter) error {
+	run := c.schemaWindowCheck(c.schemaQueryer)
+	connection, err := run.schemaConnectionMetadata(ctx)
+	if err != nil {
+		return err
+	}
+	if connection == nil {
+		return errors.New("schema connection metadata is empty")
+	}
+	services, err := run.containerServices(ctx, containers)
+	if err != nil {
+		return err
+	}
+	containerIDs := make([]int64, 0, len(containers))
+	for id := range containers {
+		containerIDs = append(containerIDs, id)
+	}
+	sort.Slice(containerIDs, func(i, j int) bool { return containerIDs[i] < containerIDs[j] })
+	metadata := make([]schemaServiceContainer, 0, len(containers))
+	for _, id := range containerIDs {
+		metadata = append(metadata, schemaServiceContainer{
+			ID:       strconv.FormatInt(id, 10),
+			Name:     c.getFullPDBName(containers[id]),
+			Services: services[id],
+		})
+	}
+	event := schemaServicesEvent{
+		Host:               c.dbHostname,
+		DatabaseInstance:   c.dbInstanceIdentifier,
+		AgentVersion:       c.agentVersion,
+		Dbms:               "oracle",
+		Kind:               "oracle_services",
+		CollectionInterval: c.config.Schemas.CollectionInterval,
+		DbmsVersion:        c.dbVersion,
+		Tags:               c.tags,
+		Timestamp:          float64(c.nextSnapshotID()),
+		CDBName:            c.cdbName,
+		Connection:         connection,
+		Metadata:           metadata,
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal services metadata: %w", err)
+	}
+	if err := run.schemaContextError(ctx); err != nil {
+		return err
+	}
+	emit(payload)
+	return nil
+}
+
 func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKey]struct{}, selectedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
 	details := make(map[tableKey]*tableDetails)
 	at := func(conID int64, owner, table string) *tableDetails {
@@ -2175,6 +2316,10 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	containers, err := c.containerNames(ctx)
 	if err != nil {
 		return err
+	}
+
+	if err := c.sendSchemaServicesMetadata(ctx, containers, emit); err != nil {
+		log.Debugf("%s schema services metadata unavailable: %v", c.logPrompt, err)
 	}
 
 	owners, names, err := c.schemaOwners(ctx, containers)

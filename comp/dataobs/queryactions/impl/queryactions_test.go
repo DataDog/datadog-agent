@@ -89,6 +89,7 @@ func TestHasSupportedIntegration(t *testing.T) {
 		{name: "MySQL", integrationName: "mysql", want: true},
 		{name: "SAP HANA", integrationName: "sap_hana", want: true},
 		{name: "SQL Server", integrationName: "sqlserver", want: true},
+		{name: "Oracle", integrationName: "oracle", want: true},
 		{name: "unsupported integration", integrationName: "redisdb", want: false},
 	}
 
@@ -339,4 +340,30 @@ func TestStream_NoPanicAfterContextCancel(t *testing.T) {
 			func(string, state.ApplyStatus) {},
 		)
 	})
+}
+
+func TestOracleStreamDeliversRemoteConfig(t *testing.T) {
+	c, rc := newStreamComponent(t, []integration.Config{oracleTestConfig()})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out := c.Stream(ctx)
+	<-out
+	trigger := waitSubscribe(t, rc)
+	trigger(map[string]state.RawConfig{
+		"path": {Config: buildPayloadJSON(t, "do-oracle-test", "db:1521/sales", singleQuery)},
+	}, func(_ string, status state.ApplyStatus) { assert.Equal(t, state.ApplyStateAcknowledged, status.State) })
+	select {
+	case changes := <-out:
+		assert.Len(t, changes.Schedule, 2)
+		assert.Len(t, changes.Unschedule, 1)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Oracle configuration")
+	}
+	cancel()
+	select {
+	case _, ok := <-out:
+		assert.False(t, ok)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for stream shutdown")
+	}
 }

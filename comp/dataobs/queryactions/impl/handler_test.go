@@ -54,7 +54,7 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 }
 
 func TestIsSupportedIntegration(t *testing.T) {
-	for _, integrationName := range []string{"mysql", defaultTestIntegration, "sap_hana", "sqlserver"} {
+	for _, integrationName := range []string{"mysql", defaultTestIntegration, "sap_hana", "sqlserver", "oracle"} {
 		t.Run(integrationName, func(t *testing.T) {
 			assert.True(t, isSupportedIntegration(integrationName))
 		})
@@ -77,6 +77,7 @@ func TestIntegrationForConfigID(t *testing.T) {
 		{configID: "do-mysql-0123456789abcdef", integration: "mysql", matched: true},
 		{configID: "do-mssql-0123456789abcdef", integration: "sqlserver", matched: true},
 		{configID: "do-hana-0123456789abcdef", integration: "sap_hana", matched: true},
+		{configID: "do-oracle-0123456789abcdef", integration: "oracle", matched: true},
 		{configID: "manual-config", matched: false},
 	}
 
@@ -2046,4 +2047,209 @@ func TestOnRCUpdate_SQLServer_DisableRestoresOriginalConfig(t *testing.T) {
 	require.Len(t, changes.Schedule, 1, "should re-schedule the original base sqlserver config")
 	assert.Equal(t, sqlserverCfg, changes.Schedule[0])
 	assert.Equal(t, "sqlserver", changes.Schedule[0].Name)
+}
+
+var oracleConnectionCases = []struct {
+	name     string
+	instance string
+	target   string
+}{
+	{"default port", "server: db", "db:1521"},
+	{"zero port", "server: db\nport: 0", "db:1521"},
+	{"embedded zero port", "server: db:0", "db"},
+	{"service", "server: db\nservice_name: sales", "db:1521/sales"},
+	{"explicit port", "server: db\nport: 1522\nservice_name: sales", "db:1522/sales"},
+	{"embedded port", "server: db:1522\nservice_name: sales", "db:1522/sales"},
+	{"port override", "server: db:1522\nport: 1523", "db:1523"},
+	{"reported hostname", "server: db\nreported_hostname: production\nservice_name: sales", "db[production]:1521/sales"},
+	{"TNS alias", "tns_alias: SALES", "SALES"},
+	{"TNS precedence", "tns_alias: SALES\nserver: db\nport: 1522\nservice_name: sales\nreported_hostname: production", "SALES"},
+	{"custom identity", "server: db\ndatabase_identifier:\n  template: '$resolved_hostname/$cdb_name'", "db:1521"},
+	{"uses server", "server: db\nhost: other", "db:1521"},
+}
+
+func TestOracleConnectionHost(t *testing.T) {
+	for _, tt := range oracleConnectionCases {
+		t.Run(tt.name, func(t *testing.T) {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal([]byte(tt.instance), &instance))
+			assert.True(t, instanceMatchesIdentifier(instance, DBIdentifier{Host: tt.target}, "oracle"))
+			assert.False(t, instanceMatchesIdentifier(instance, DBIdentifier{Host: tt.target + "-other"}, "oracle"))
+		})
+	}
+	for _, tt := range []struct {
+		name, instance, target string
+	}{
+		{"bare host", "server: db\nservice_name: sales", "db"},
+		{"missing service", "server: db\nservice_name: sales", "db:1521"},
+		{"different service", "server: db\nservice_name: sales", "db:1521/hr"},
+		{"different port", "server: db\nport: 1522", "db:1521"},
+		{"empty host", "server: db", ""},
+		{"missing server", "port: 1521", ":1521"},
+		{"invalid port", "server: db\nport: invalid", "db:1521"},
+		{"invalid embedded port", "server: db:invalid", "db:1521"},
+		{"custom identifier is not the selector", "server: db\ndatabase_identifier:\n  template: custom", "custom"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal([]byte(tt.instance), &instance))
+			assert.False(t, instanceMatchesIdentifier(instance, DBIdentifier{Host: tt.target}, "oracle"))
+		})
+	}
+}
+
+func oracleTestConfig() integration.Config {
+	return integration.Config{
+		Name: "oracle", Provider: "file", Source: "file:oracle.yaml", NodeName: "node1",
+		Instances: []integration.Data{
+			integration.Data("server: db\nservice_name: sales\nusername: datadog\npassword: local-secret\n" +
+				"dbm: false\noracle_client: true\ntags: [env:test]\ndatabase_identifier:\n  template: '$resolved_hostname/$cdb_name'\n" +
+				"data_observability:\n  enabled: true\n"),
+			integration.Data("server: db\nservice_name: hr\nusername: datadog\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+}
+
+func TestOracleMatchingScopeAndOptIn(t *testing.T) {
+	base := oracleTestConfig()
+	disabled := base
+	disabled.Instances = []integration.Data{integration.Data("server: db\nservice_name: sales\ndata_observability:\n  enabled: false\n")}
+	postgres := integration.Config{
+		Name:      "postgres",
+		Instances: []integration.Data{integration.Data("host: db:1521/sales\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgres, disabled})
+	_, _, _, err := c.findMatchingConfig("do-oracle-test", &DBIdentifier{Host: "db:1521/sales"}, nil)
+	require.Error(t, err)
+
+	c.ac.(*mockAutodiscovery).configs = []integration.Config{postgres, disabled, base}
+	cfg, _, identity, err := c.findMatchingConfig("do-oracle-test", &DBIdentifier{Host: "db:1521/sales"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, base, *cfg)
+	assert.Equal(t, identifyInstanceConfig(base.Instances[0]), identity)
+
+	cfg, _, _, err = c.findMatchingConfig("do-test", &DBIdentifier{Host: "db:1521/sales"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, postgres, *cfg)
+}
+
+func applyOracleTestChanges(c *component, changes integration.ConfigChanges) {
+	ac := c.ac.(*mockAutodiscovery)
+	configs := make(map[string]integration.Config)
+	for _, cfg := range ac.configs {
+		configs[cfg.Digest()] = cfg
+	}
+	for _, cfg := range changes.Unschedule {
+		delete(configs, cfg.Digest())
+	}
+	for _, cfg := range changes.Schedule {
+		configs[cfg.Digest()] = cfg
+	}
+	ac.configs = nil
+	for _, cfg := range configs {
+		ac.configs = append(ac.configs, cfg)
+	}
+}
+
+func TestOracleRemoteConfigLifecycle(t *testing.T) {
+	for _, removeWithEmptyQueries := range []bool{false, true} {
+		name := "snapshot removal"
+		if removeWithEmptyQueries {
+			name = "empty queries removal"
+		}
+		t.Run(name, func(t *testing.T) {
+			base := oracleTestConfig()
+			originalDigest := base.Digest()
+			c := newTestComponentWithAC(t, []integration.Config{base})
+			queries := []QuerySpec{{
+				DBName: "CDB.SALES", Type: "run_query", Query: "SELECT COUNT(*) FROM orders",
+				IntervalSeconds: 60, TimeoutSeconds: 5, Entity: EntityMetadata{Platform: "oracle", Account: "custom"},
+				CustomSQLSelectFields: &CustomSQLSelectFields{MetricConfigID: 42, EntityID: "entity"},
+			}}
+			updates := map[string]state.RawConfig{
+				"path": {Config: buildPayloadJSON(t, "do-oracle-test", "db:1521/sales", queries), Metadata: state.Metadata{ID: "rc-id"}},
+			}
+			statuses, changes := collectStatuses(c, updates)
+			require.Equal(t, state.ApplyStateAcknowledged, statuses["path"].State)
+			require.Len(t, changes.Schedule, 2)
+			assert.Equal(t, []integration.Config{base}, changes.Unschedule)
+			entry := c.activeConfigs["do-oracle-test"]
+			assert.Equal(t, base.Provider, entry.checkConfig.Provider)
+			assert.Equal(t, base.NodeName, entry.checkConfig.NodeName)
+
+			var original, injected map[string]any
+			require.NoError(t, yaml.Unmarshal(base.Instances[0], &original))
+			require.NoError(t, yaml.Unmarshal(entry.checkConfig.Instances[0], &injected))
+			doFields := injected["data_observability"].(map[string]any)
+			assert.Equal(t, 10, doFields["collection_interval"])
+			assert.Equal(t, "rc-id", doFields["config_id"])
+			query := doFields["queries"].([]any)[0].(map[string]any)
+			assert.Equal(t, 5000, query["query_timeout"])
+			assert.Equal(t, "CDB.SALES", query["dbname"])
+			assert.Equal(t, 42, query["custom_sql_select_fields"].(map[string]any)["metric_config_id"])
+			delete(doFields, "queries")
+			delete(doFields, "config_id")
+			delete(doFields, "collection_interval")
+			assert.Equal(t, original, injected)
+			remainder := c.managedBases[originalDigest].remainder
+			require.NotNil(t, remainder)
+			assert.Equal(t, []integration.Data{base.Instances[1]}, remainder.Instances)
+			assert.Equal(t, base.InitConfig, remainder.InitConfig)
+			applyOracleTestChanges(c, changes)
+
+			queries[0].Query = "SELECT 2 FROM dual"
+			updates["path"] = state.RawConfig{Config: buildPayloadJSON(t, "do-oracle-test", "db:1521/sales", queries)}
+			statuses, changes = collectStatuses(c, updates)
+			require.Equal(t, state.ApplyStateAcknowledged, statuses["path"].State)
+			require.Len(t, changes.Schedule, 1)
+			assert.Equal(t, []integration.Config{entry.checkConfig}, changes.Unschedule)
+			assert.Equal(t, base, *c.activeConfigs["do-oracle-test"].baseCfg)
+			require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &injected))
+			query = injected["data_observability"].(map[string]any)["queries"].([]any)[0].(map[string]any)
+			assert.Equal(t, queries[0].Query, query["query"])
+			applyOracleTestChanges(c, changes)
+
+			updates = nil
+			if removeWithEmptyQueries {
+				updates = map[string]state.RawConfig{"path": {Config: buildPayloadJSON(t, "do-oracle-test", "db:1521/sales", nil)}}
+			}
+			_, changes = collectStatuses(c, updates)
+			assert.Equal(t, []integration.Config{base}, changes.Schedule)
+			require.Len(t, changes.Unschedule, 2)
+			applyOracleTestChanges(c, changes)
+			assert.Equal(t, []integration.Config{base}, c.ac.(*mockAutodiscovery).configs)
+			assert.Empty(t, c.activeConfigs)
+			assert.Empty(t, c.managedBases)
+			assert.Equal(t, originalDigest, base.Digest())
+		})
+	}
+}
+
+func TestOracleRemoteConfigMultipleTargets(t *testing.T) {
+	base := oracleTestConfig()
+	c := newTestComponentWithAC(t, []integration.Config{base})
+	updates := map[string]state.RawConfig{
+		"sales": {Config: buildPayloadJSON(t, "do-oracle-sales", "db:1521/sales", singleQuery)},
+		"hr":    {Config: buildPayloadJSON(t, "do-oracle-hr", "db:1521/hr", singleQuery)},
+	}
+	statuses, changes := collectStatuses(c, updates)
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["sales"].State)
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["hr"].State)
+	applyOracleTestChanges(c, changes)
+	require.Len(t, c.ac.(*mockAutodiscovery).configs, 2)
+	require.Len(t, c.managedBases, 1)
+	assert.Nil(t, c.managedBases[base.Digest()].remainder)
+	for _, entry := range c.activeConfigs {
+		assert.Equal(t, base, *entry.baseCfg)
+	}
+
+	delete(updates, "sales")
+	_, changes = collectStatuses(c, updates)
+	applyOracleTestChanges(c, changes)
+	require.Len(t, c.ac.(*mockAutodiscovery).configs, 2)
+	assert.Equal(t, []integration.Data{base.Instances[0]}, c.managedBases[base.Digest()].remainder.Instances)
+
+	_, changes = collectStatuses(c, nil)
+	applyOracleTestChanges(c, changes)
+	assert.Equal(t, []integration.Config{base}, c.ac.(*mockAutodiscovery).configs)
 }

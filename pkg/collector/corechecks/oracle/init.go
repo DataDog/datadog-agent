@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -176,6 +177,10 @@ func (c *Check) init() error {
 	c.tagsWithoutDbRole = make([]string, len(tags))
 	copy(c.tagsWithoutDbRole, tags)
 	copy(c.tags, tags)
+
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(string(c.ID()), "database_instance", c.dbInstanceIdentifier)
+	}
 
 	c.fqtEmitted = getFqtEmittedCache()
 	c.planEmitted = getPlanEmittedCache(c)

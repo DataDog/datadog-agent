@@ -150,6 +150,9 @@ func testSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T, legacy boo
 			}
 			var event schemaEvent
 			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+			if event.Kind != "oracle_databases" && event.Kind != "oracle_views" {
+				continue
+			}
 			event.Timestamp = 0
 			event.CollectionStartedAt = 0
 			events = append(events, event)

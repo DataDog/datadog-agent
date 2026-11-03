@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Oracle schema collection now reports the complete service inventory for
+    monitored database containers in one event, together with the Agent's
+    connection endpoint.

@@ -127,12 +127,14 @@ func (c *Check) stopSchemaWorker(permanent bool) {
 	}
 }
 
-// Cancel joins schema collection before the scheduler releases the sender.
+// Cancel joins background collection before the scheduler releases the sender.
 func (c *Check) Cancel() {
+	c.stopDataObservabilityWorker(true)
 	c.stopSchemaWorker(true)
 }
 
 func (c *Check) Stop() {
+	c.stopDataObservabilityWorker(true)
 	c.stopSchemaWorker(true)
 }
 
@@ -162,8 +164,14 @@ func (c *Check) newSchemaCollectionRun() (*Check, error) {
 	}
 	return &Check{
 		config: &config.CheckConfig{InstanceConfig: config.InstanceConfig{
-			Schemas:          schemas,
-			ConnectionConfig: config.ConnectionConfig{QueryTimeout: c.config.QueryTimeout},
+			Schemas: schemas,
+			ConnectionConfig: config.ConnectionConfig{
+				QueryTimeout: c.config.QueryTimeout,
+				Server:       c.config.Server,
+				Port:         c.config.Port,
+				ServiceName:  c.config.ServiceName,
+				TnsAlias:     c.config.TnsAlias,
+			},
 		}},
 		tags:                   slices.Clone(c.tags),
 		driver:                 c.driver,
@@ -329,6 +337,7 @@ func (c *Check) schemaWindowCheck(queryer schemaQueryer) *Check {
 		clock:                  c.clock,
 		schemaPayloadChunkSize: c.schemaPayloadChunkSize,
 		schemaQueryer:          queryer,
+		db:                     c.db,
 	}
 }
 

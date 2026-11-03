@@ -483,7 +483,7 @@ func TestSchemaPrefetchPreservesConnectionOptions(t *testing.T) {
 				c.config.Username, c.config.Password = "test", "test password"
 				c.config.QueryTimeout, c.config.Protocol = 42, protocol
 				c.config.Wallet = "/test wallet"
-				u, err := url.Parse(buildGoOraURL(c))
+				u, err := url.Parse(buildGoOraURL(c, c.config.QueryTimeoutString()))
 				require.NoError(t, err)
 				require.Equal(t, "localhost:1521", u.Host)
 				require.Equal(t, "/PDB", u.Path)
