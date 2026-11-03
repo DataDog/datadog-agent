@@ -72,6 +72,10 @@ entries:
   function: testCiliumLBConntracker
   status: debt
   reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/npm/istio_ambient_test.go
+  function: TestEKSIstioAmbientSuite
+  status: debt
+  reason: Restricted EKS workers fail to join; retain access pending restricted-bootstrap support. Istio images already pull through the internal Docker Hub mirror.
 - file: test/new-e2e/tests/orchestrator/k8s_api_key_test.go
   function: k8sSuite.TestZzzClusterAgentAPIKeyRefresh
   status: debt

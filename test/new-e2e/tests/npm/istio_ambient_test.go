@@ -60,7 +60,11 @@ func TestEKSIstioAmbientSuite(t *testing.T) {
 	e2e.Run(t, &istioAmbientSuite{},
 		e2e.WithStackName("stack-eks-istio-ambient"),
 		e2e.WithProvisioner(proveks.Provisioner(proveks.WithRunOptions(
-			eks.WithEKSOptions(eks.WithLinuxNodeGroup()),
+			eks.WithEKSOptions(
+				eks.WithLinuxNodeGroup(),
+				// TODO: Remove after restricted EKS bootstrap is supported.
+				eks.WithInternetAccess(),
+			),
 			eks.WithAgentOptions(
 				kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues),
 				kubernetesagentparams.WithHelmValues(istioAmbientHelmValues),
