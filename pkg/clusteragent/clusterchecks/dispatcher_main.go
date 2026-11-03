@@ -62,6 +62,8 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	rebalanceMinPercImprovement      int
+	stickiness                       stickinessConfig
 	rebalanceMu                      sync.Mutex // the ticker and the rebalance API can run concurrently
 	shardingStrategies               []shardingStrategy
 	shards                           *shardTracker
@@ -184,6 +186,13 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	d.shardingStrategies = []shardingStrategy{ksmSharding, instanceSharding}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
+	d.rebalanceMinPercImprovement = pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
+	d.stickiness = stickinessConfig{
+		enabled:    pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"),
+		factor:     pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"),
+		upperLimit: pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"),
+		lowerLimit: pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"),
+	}
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
 		return d
