@@ -162,6 +162,12 @@ dda inv test --targets=./pkg/collector/corechecks/network-devices/gnmi/...
   deltas; the first `preview-metrics` tick may omit bandwidth usage rates. Counter
   state is pruned after three check intervals without observing a series, even
   while the stream is disconnected.
+- **Rejected subscriptions**: Explicit gRPC/in-band request rejections trigger
+  bounded STREAM bisection, not one permanent stream per metric. Only singleton
+  failures with an accepted control are excluded. Keep unknown/silent paths
+  enabled; authentication, transport and resource errors must not disable paths.
+  Rejections remain visible after recovery as partial collection and are eligible
+  for retry on reconnect after five minutes or when a new client is configured.
 - **Profile selectors**: Use `config.CompilePath` for every subscription category;
   do not independently split metric, metadata or topology strings into wire paths.
   Legacy `/openconfig/...` syntax is accepted at this configuration boundary and

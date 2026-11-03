@@ -61,6 +61,12 @@
       Next reconnect: {{ formatUnixTime $device.NextReconnectAt }} ({{ formatUnixTimeSince $device.NextReconnectAt }})</br>
       {{- end }}
       {{- end }}
+      {{- if $device.RejectedSubscriptions }}
+      Rejected subscriptions (other paths continue; retry on a later reconnect or reload):</br>
+      {{- range $path, $error := $device.RejectedSubscriptions }}
+        - {{$path}}: {{$error}}</br>
+      {{- end }}
+      {{- end }}
       {{- if $device.SubscriptionPaths }}
       Subscription paths:</br>
       {{- range $path := $device.SubscriptionPaths }}

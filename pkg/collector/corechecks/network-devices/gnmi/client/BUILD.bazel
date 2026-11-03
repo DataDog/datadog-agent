@@ -9,6 +9,7 @@ go_library(
         "credentials.go",
         "json_ietf.go",
         "path.go",
+        "rejections.go",
         "subscriptions.go",
         "transport.go",
         "value.go",
@@ -22,8 +23,10 @@ go_library(
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_openconfig_gnmi//proto/gnmi",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
     ],
 )
 
@@ -34,6 +37,7 @@ dd_agent_go_test(
         "credentials_test.go",
         "json_ietf_test.go",
         "path_test.go",
+        "rejections_test.go",
         "selectors_test.go",
         "subscriptions_test.go",
     ],
@@ -45,5 +49,7 @@ dd_agent_go_test(
         "@com_github_openconfig_gnmi//proto/gnmi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )

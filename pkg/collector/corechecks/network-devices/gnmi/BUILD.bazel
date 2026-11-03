@@ -41,8 +41,11 @@ dd_agent_go_test(
         "//pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
         "//pkg/collector/corechecks/network-devices/gnmi/status",
         "//pkg/config/mock",
+        "@com_github_openconfig_gnmi//proto/gnmi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )

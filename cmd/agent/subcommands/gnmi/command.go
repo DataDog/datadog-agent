@@ -333,6 +333,9 @@ func printSnapshot(gnmiClient *client.Client) {
 		fmt.Printf(" next_reconnect=%s", connStatus.NextReconnectAt.Format(time.RFC3339))
 	}
 	fmt.Println()
+	for _, line := range formatRejectedSubscriptions(connStatus.RejectedSubscriptions) {
+		fmt.Println(line)
+	}
 
 	snapshot := gnmiClient.Snapshot()
 	sort.Slice(snapshot, func(i, j int) bool {
@@ -353,6 +356,19 @@ func printSnapshot(gnmiClient *client.Client) {
 			item.Entry.Timestamp.Format(time.RFC3339),
 		)
 	}
+}
+
+func formatRejectedSubscriptions(rejections map[string]string) []string {
+	paths := make([]string, 0, len(rejections))
+	for path := range rejections {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	lines := make([]string, 0, len(paths))
+	for _, path := range paths {
+		lines = append(lines, fmt.Sprintf("rejected_path=%q error=%q", path, rejections[path]))
+	}
+	return lines
 }
 
 func formatCacheKey(item client.CachedValue) string {
