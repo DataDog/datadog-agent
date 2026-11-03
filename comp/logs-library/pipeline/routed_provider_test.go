@@ -248,6 +248,7 @@ func TestRoutedDispatchDoesNotWaitAcrossSources(t *testing.T) {
 		NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 2)},
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{}, nil },
 		DestinationsContext:       ctx, Config: cfg,
 		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
@@ -304,6 +305,7 @@ func TestRoutedProviderExactHTTPRecipientsAndCheckpoints(t *testing.T) {
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(m *message.Message) (routing.Selection, error) {
 			content := string(m.GetContent())
 			switch content {
@@ -413,6 +415,7 @@ func TestRoutedProviderSharedStreamCompressesOnceAndSendsBothGroups(t *testing.T
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{makeGroup("a", "key-a"), makeGroup("b", "key-b")},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
 		},
@@ -492,6 +495,7 @@ func TestRoutedProviderLocalLossesReleaseOnlyTheirRecords(t *testing.T) {
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		ProcessingRules:           []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Regex: regexp.MustCompile("^excluded$")}},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
 		},
@@ -545,6 +549,7 @@ func TestRoutedProviderInvalidSelectionNeverAdvancesLaterCheckpoint(t *testing.T
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(m *message.Message) (routing.Selection, error) {
 			if string(m.GetContent()) == "invalid" {
 				return routing.Selection{Groups: []string{"unknown"}, Generation: 1}, nil
@@ -617,6 +622,7 @@ func TestRoutedProviderCancellationDoesNotAcknowledgeRetryingGroup(t *testing.T)
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
 		},
@@ -680,6 +686,7 @@ func TestRoutedProviderHealthyGroupProgressesDuringOtherGroupRetry(t *testing.T)
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
 		},
@@ -747,6 +754,7 @@ func TestRoutedProviderSaturatedSourceDoesNotBlockHealthySource(t *testing.T) {
 		NumberOfPipelines: 1, Sink: sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(m *message.Message) (routing.Selection, error) {
 			if m.Origin.Identifier == "file:y" {
 				return routing.Selection{Groups: []string{"b"}, Generation: 1}, nil
@@ -876,6 +884,7 @@ func TestRoutedProviderStopReleasesBlockedSourceAdmission(t *testing.T) {
 		NumberOfPipelines: 1, Sink: sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
 		},
@@ -934,6 +943,7 @@ func TestRoutedProviderFlushIncludesPriorRecord(t *testing.T) {
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
 		},
@@ -1025,6 +1035,7 @@ func TestRoutedProviderCredentialUnavailableKeepsGroupPending(t *testing.T) {
 				Sink:                      sink,
 				DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 				Groups:                    []routing.Group{{ID: "a", Endpoints: endpointA}, {ID: "b", Endpoints: endpointB}},
+				Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 				Resolve: func(*message.Message) (routing.Selection, error) {
 					return routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, nil
 				},
@@ -1082,6 +1093,7 @@ func TestRoutedProviderPermanentHTTPRejectionIsTerminalLoss(t *testing.T) {
 		Sink:                      sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
 		},
@@ -1121,6 +1133,12 @@ func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
 		NumberOfPipelines: 1, Sink: sink,
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation: func(m *message.Message) (uint64, error) {
+			if string(m.GetContent()) == "old" {
+				return 42, nil
+			}
+			return 7, nil
+		},
 		Resolve: func(m *message.Message) (routing.Selection, error) {
 			generation := uint64(7)
 			if string(m.GetContent()) == "old" {
@@ -1282,6 +1300,7 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 					NumberOfPipelines: 1, Sink: sink,
 					DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 					Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+					Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 					Resolve: func(m *message.Message) (routing.Selection, error) {
 						if string(m.GetContent()) == "old-first" {
 							close(resolving)
@@ -1327,16 +1346,11 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 				retired := make(chan error, 1)
 				go func() { retired <- p.RetireSource("file:test", 42) }()
 				synctest.Wait()
-				if buffered {
-					if err := <-retired; !errors.Is(err, routing.ErrSourcePending) {
-						t.Fatalf("retirement with buffered input = %v, want ErrSourcePending", err)
-					}
-				} else {
-					select {
-					case err := <-retired:
-						t.Fatalf("retirement completed before admission: %v", err)
-					default:
-					}
+				// Admission now reserves before Resolve runs in the processor.
+				// Retirement may finish its admission barrier, but must refuse
+				// to release the producer while selection remains pending.
+				if err := <-retired; !errors.Is(err, routing.ErrSourcePending) {
+					t.Fatalf("retirement during selection = %v, want ErrSourcePending", err)
 				}
 				currentInput, err := p.SourceInput("file:test", 7)
 				if err != nil {
@@ -1345,11 +1359,7 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 				currentInput <- makeRecord("current")
 				close(release)
 				synctest.Wait()
-				if buffered {
-					if err := p.RetireSource("file:test", 42); err != nil {
-						t.Fatal(err)
-					}
-				} else if err := <-retired; err != nil {
+				if err := p.RetireSource("file:test", 42); err != nil {
 					t.Fatal(err)
 				}
 				select {
@@ -1393,7 +1403,8 @@ func TestRoutedProviderStopCancelsRetryingHTTPAfterGrace(t *testing.T) {
 	sink := &routedTestSink{ch: make(chan *message.Payload, 4)}
 	p, err := NewRoutedProvider(RoutedOptions{
 		NumberOfPipelines: 1, Sink: sink, DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
-		Groups: []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Groups:     []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation: func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve: func(*message.Message) (routing.Selection, error) {
 			return routing.Selection{Groups: []string{"a"}, Generation: 1}, nil
 		},
@@ -1450,6 +1461,7 @@ func TestRoutedProviderCancelledFlushDoesNotStallHealthySource(t *testing.T) {
 			NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 4)},
 			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 			Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}, {ID: "b", Endpoints: endpoints}},
+			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 			Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{}, nil },
 			DestinationsContext:       client.NewDestinationsContext(), Config: cfg,
 			Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
@@ -1519,6 +1531,7 @@ func TestRoutedProviderRetiresSourceWhoseFirstRecordIsInvalid(t *testing.T) {
 		NumberOfPipelines: 1, Sink: &routedTestSink{ch: make(chan *message.Payload, 1)},
 		DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 		Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+		Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 		Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{Generation: 1}, nil },
 		OnError:                   func(error) {}, DestinationsContext: client.NewDestinationsContext(), Config: cfg,
 		Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
@@ -1554,4 +1567,238 @@ func TestRoutedProviderRetiresSourceWhoseFirstRecordIsInvalid(t *testing.T) {
 	if retained {
 		t.Fatal("retired producer retained its source input")
 	}
+}
+
+func TestRoutedSelectionSeesProcessedStructuredRecordBeforeRendering(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
+		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+		cfg := configmock.New(t)
+		cfg.SetInTest("logs_config.routing.max_groups", 4)
+		sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
+		selected := make(chan bool, 1)
+		p, err := NewRoutedProvider(RoutedOptions{
+			NumberOfPipelines: 1, Sink: sink,
+			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+			Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+			ProcessingRules:           []*config.ProcessingRule{{Type: config.MaskSequences, Regex: regexp.MustCompile("secret"), Placeholder: []byte("masked")}},
+			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
+			Resolve: func(m *message.Message) (routing.Selection, error) {
+				vendor, ok := m.GetStructuredAttribute("device.vendor")
+				selected <- m.State == message.StateStructured && string(m.GetContent()) == "masked" && ok && vendor == "example" && m.Origin.Source() == "mapped"
+				return routing.Selection{Excluded: true, Generation: 1}, nil
+			},
+			DestinationsContext: client.NewDestinationsContext(), Config: cfg,
+			Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, err := p.SourceInput("file:test", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Start()
+		defer p.Stop()
+		src := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{{
+			Type: config.RemapSource, Matching: []*config.SourceMatchEntry{{Attribute: "device.vendor", Value: "example", NewSource: "mapped"}},
+		}}})
+		m := message.NewStructuredMessage(&message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "secret", "device": map[string]interface{}{"vendor": "example"},
+		}}, message.NewOrigin(src), "info", 0)
+		m.Origin.Identifier, m.Origin.Offset = "file:test", "1"
+		input <- m
+		synctest.Wait()
+		select {
+		case ok := <-selected:
+			if !ok {
+				t.Error("Resolve did not see processed structured fields before rendering/encoding")
+			}
+		default:
+			t.Fatal("Resolve did not run")
+		}
+	})
+}
+
+func TestRoutedSelectionIdentityAndLocalOutcomes(t *testing.T) {
+	for _, tc := range []struct {
+		name                                                     string
+		shared, anonymous, identity, identityError, drop         bool
+		generation                                               uint64
+		selection                                                routing.Selection
+		selectionError                                           bool
+		wantSelections, wantPending, wantCheckpoints, wantErrors int
+	}{
+		{name: "bound identity", selection: routing.Selection{Excluded: true}, wantSelections: 1, wantCheckpoints: 1},
+		{name: "shared identity", shared: true, identity: true, generation: 1, selection: routing.Selection{Excluded: true}, wantSelections: 1, wantCheckpoints: 1},
+		{name: "missing shared identity", shared: true, wantPending: 1, wantErrors: 1},
+		{name: "failed shared identity", shared: true, identity: true, identityError: true, wantPending: 1, wantErrors: 1},
+		{name: "zero shared identity", shared: true, identity: true, wantPending: 1, wantErrors: 1},
+		{name: "anonymous exclusion", shared: true, anonymous: true, selection: routing.Selection{Excluded: true}, wantSelections: 1},
+		{name: "anonymous failure", shared: true, anonymous: true, selectionError: true, wantSelections: 1, wantErrors: 1},
+		{name: "selection identity mismatch", selection: routing.Selection{Excluded: true, Generation: 2}, wantSelections: 1, wantPending: 1, wantErrors: 1},
+		{name: "selection error", selectionError: true, wantSelections: 1, wantPending: 1, wantErrors: 1},
+		{name: "unknown group", selection: routing.Selection{Groups: []string{"unknown"}}, wantSelections: 1, wantPending: 1, wantErrors: 1},
+		{name: "exclusion with recipients", selection: routing.Selection{Excluded: true, Groups: []string{"a"}}, wantSelections: 1, wantPending: 1, wantErrors: 1},
+		{name: "missing recipients", wantSelections: 1, wantPending: 1, wantErrors: 1},
+		{name: "common processing drop", drop: true, wantCheckpoints: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
+				endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+				cfg := configmock.New(t)
+				cfg.SetInTest("logs_config.routing.max_groups", 4)
+				sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
+				selections, identities, reports := 0, 0, 0
+				opts := RoutedOptions{
+					NumberOfPipelines: 1, Sink: sink,
+					DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+					Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+					Resolve: func(*message.Message) (routing.Selection, error) {
+						selections++
+						if tc.selectionError {
+							return routing.Selection{}, errors.New("selection failed")
+						}
+						return tc.selection, nil
+					},
+					OnError:             func(error) { reports++ },
+					DestinationsContext: client.NewDestinationsContext(), Config: cfg,
+					Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+				}
+				if tc.identity {
+					opts.Generation = func(*message.Message) (uint64, error) {
+						identities++
+						if tc.identityError {
+							return 0, errors.New("identity failed")
+						}
+						return tc.generation, nil
+					}
+				}
+				if tc.drop {
+					opts.ProcessingRules = []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Regex: regexp.MustCompile("drop")}}
+				}
+				p, err := NewRoutedProvider(opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				input := p.NextPipelineChan()
+				if !tc.shared {
+					input, err = p.SourceInput("file:test", 1)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				p.Start()
+				defer p.Stop()
+				m := message.NewMessageWithSource([]byte("drop"), "info", sources.NewLogSource("test", &config.LogsConfig{}), 0)
+				if !tc.anonymous {
+					m.Origin.Identifier, m.Origin.Offset = "file:test", "1"
+				}
+				input <- m
+				synctest.Wait()
+				if selections != tc.wantSelections || p.progress.Pending() != tc.wantPending || len(sink.ch) != tc.wantCheckpoints || reports != tc.wantErrors {
+					t.Fatalf("selections/pending/checkpoints/errors = %d/%d/%d/%d, want %d/%d/%d/%d", selections, p.progress.Pending(), len(sink.ch), reports, tc.wantSelections, tc.wantPending, tc.wantCheckpoints, tc.wantErrors)
+				}
+				if tc.identity && !tc.anonymous && identities != 1 {
+					t.Fatalf("identity calls = %d", identities)
+				}
+				if !tc.shared {
+					if err := p.RetireSource("file:test", 1); err != nil {
+						t.Fatal(err)
+					}
+					if p.progress.OwnsSource("file:test") != (tc.wantPending != 0) {
+						t.Fatal("retirement lost source barrier or retained completed source")
+					}
+				}
+				for _, stream := range p.streams {
+					if len(stream.input) != 0 {
+						t.Fatal("excluded or invalid record entered batches")
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestRoutedPendingSelectionHoldsCheckpointsAndCancelledFlush(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
+		endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+		cfg := configmock.New(t)
+		cfg.SetInTest("logs_config.routing.max_groups", 4)
+		sink := &routedTestSink{ch: make(chan *message.Payload, 2)}
+		resolving, release := make(chan struct{}), make(chan struct{})
+		selections := 0
+		p, err := NewRoutedProvider(RoutedOptions{
+			NumberOfPipelines: 2, Sink: sink,
+			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+			Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
+			Resolve: func(m *message.Message) (routing.Selection, error) {
+				if m.Origin.Offset == "1" {
+					close(resolving)
+					<-release
+				}
+				selections++
+				return routing.Selection{Excluded: true}, nil
+			},
+			DestinationsContext: client.NewDestinationsContext(), Config: cfg,
+			Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Start()
+		defer p.Stop()
+		defer func() {
+			select {
+			case <-release:
+			default:
+				close(release)
+			}
+		}()
+		src := sources.NewLogSource("test", &config.LogsConfig{})
+		for _, offset := range []string{"1", "2"} {
+			m := message.NewMessageWithSource([]byte(offset), "info", src, 0)
+			m.Origin.Identifier, m.Origin.Offset = "file:test", offset
+			p.NextPipelineChan() <- m
+		}
+		<-resolving
+		synctest.Wait()
+		if p.progress.Pending() != 2 || len(sink.ch) != 0 || selections != 1 {
+			t.Fatal("later completion passed pending selection")
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		flushed := make(chan struct{})
+		go func() { p.Flush(ctx); close(flushed) }()
+		synctest.Wait()
+		select {
+		case <-flushed:
+			t.Fatal("flush passed blocked selector")
+		default:
+		}
+		cancel()
+		<-flushed
+		if p.progress.Pending() != 2 || len(sink.ch) != 0 {
+			t.Fatal("cancelled flush acknowledged pending selection")
+		}
+		close(release)
+		synctest.Wait()
+		p.Flush(context.Background())
+		synctest.Wait()
+		if selections != 2 || p.progress.Pending() != 0 {
+			t.Fatal("selection did not resume exactly once per record")
+		}
+		for _, want := range []string{"1", "2"} {
+			select {
+			case payload := <-sink.ch:
+				if got := payload.MessageMetas[0].Origin.Offset; got != want {
+					t.Fatalf("checkpoint=%s, want %s", got, want)
+				}
+			default:
+				t.Fatal("completed checkpoint missing")
+			}
+		}
+	})
 }

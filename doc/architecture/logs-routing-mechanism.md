@@ -41,7 +41,7 @@ caller_inputs: # Schematic representation of new Go API inputs.
   selection: # One resolved decision per record, not a routing rule.
     groups: [a, b] # Select A only, B only, or both.
     excluded: false # Use true with no groups for intentional exclusion.
-    generation: 1 # Change for a replacement source producer.
+    generation: 1 # Optional check against the identity reserved before processing.
 ```
 
 Definitions: [configuration schema](../../pkg/config/schema/yaml/logs_config.yaml), [`Group` and `Selection`](../../comp/logs-library/routing/definitions.go).
@@ -58,14 +58,28 @@ Groups with the same nonempty `stream` share batching and compressed bytes. Ever
 
 Delivery uses the existing processor, batch strategy, and HTTP sender. The routing coordinator tracks selected groups and safe source progress.
 
+Before processing, `SourceInput(identifier, generation)` supplies producer identity. Checkpointed records on shared ingress instead require the caller's local, bounded `RoutedOptions.Generation` callback. Generation changes for a replacement producer; anonymous records need none. Selection cannot establish or replace producer ownership.
+
 The caller also owns source startup, replacement, and shutdown. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
 
 ## Selection behavior
 
+```text
+Decode → reserve progress → existing common processing → Resolve
+       → attach group obligations → render/encode once
+       → group batching/compression → senders
+```
+
+Reserve source order and bounded capacity before processing. Pending selection remains unresolved, so later completed records cannot move the checkpoint past it. Existing processing drops complete through the local-loss policy without calling `Resolve`.
+
+`Resolve` runs once on each surviving record after common processing and metadata preparation, before rendering or encoding. Structured fields remain accessible. The caller receives the current processed record; selection lookup rules belong to the caller. Processing is shared, with destination-specific selection and no destination-specific transformations in this version. The callback must be local and bounded. Flush markers bypass selection.
+
+Each selected record is encoded once. Existing batchers collect encoded records without encoding them again. Explicitly identical streams retain shared batches and compressed bytes, with separate senders and delivery progress.
+
 Only selected groups receive the record. There is no fallback.
 
 - **Explicit exclusion:** set `Excluded: true` with no groups. The record completes locally. Its checkpoint can pass once earlier records finish.
-- **Missing or invalid selection:** report the error. Hold the source checkpoint without delivery or acknowledgement.
+- **Missing or invalid selection:** report the error. Convert the existing reservation into an unresolved source barrier, using one capacity slot. Hold the source checkpoint without delivery or acknowledgement. The barrier uses generation zero so it retains source ownership without permanently binding a stopped producer.
 
 Invalid cases include unknown groups or exclusion combined with recipients. No recipients without explicit exclusion is also invalid.
 

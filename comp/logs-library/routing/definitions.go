@@ -25,7 +25,9 @@ type Group struct {
 
 // Selection is a resolved, explicit set of recipients for one source record.
 // Excluded is an intentional local exclusion; it must never accompany recipients.
-// Generation changes when a source is replaced under the same checkpoint identifier.
+// Generation optionally checks the producer identity reserved before processing.
+// Zero leaves that identity unchanged; a nonzero value must match it.
+// Register callers still supply Generation when registering checkpointed records.
 type Selection struct {
 	Groups     []string
 	Excluded   bool

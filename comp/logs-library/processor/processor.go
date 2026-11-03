@@ -55,11 +55,12 @@ type Processor struct {
 	failoverConfig            failoverConfig
 
 	// Telemetry
-	pipelineMonitor metrics.PipelineMonitor
-	utilization     metrics.UtilizationMonitor
-	instanceID      string
-	terminalLoss    func(*message.Message)
-	disableMRF      bool
+	pipelineMonitor  metrics.PipelineMonitor
+	utilization      metrics.UtilizationMonitor
+	instanceID       string
+	terminalLoss     func(*message.Message)
+	disableMRF       bool
+	selectForRouting func(*message.Message) RoutingDecision
 }
 
 // New returns an initialized Processor with config support for failover notifications.
@@ -111,12 +112,27 @@ func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *mess
 	return p
 }
 
+// RoutingDecision controls the routed-only pre-render boundary. For either stop
+// decision, the callback owns the progress outcome; terminalLoss must not run.
+type RoutingDecision uint8
+
+const (
+	RoutingContinue RoutingDecision = iota
+	RoutingExcluded
+	RoutingUnresolved
+)
+
 // NewForRouting keeps processing and encoding shared while leaving MRF
 // activation and allowlist classification out of injected group routing.
+// selectForRouting runs once after common processing and metadata preparation,
+// before rendering destroys access to structured attributes. It must be local
+// and bounded; stop decisions own their progress outcome.
 func NewForRouting(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message)) *Processor {
-	return newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, false)
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), selectForRouting func(*message.Message) RoutingDecision) *Processor {
+	p := newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, false)
+	p.selectForRouting = selectForRouting
+	return p
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
@@ -250,6 +266,15 @@ func (p *Processor) processMessage(msg *message.Message) {
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
+
+		if p.selectForRouting != nil {
+			// Prepare existing metadata while structured attributes are still available.
+			p.resolveTagFilter(msg)
+			if p.selectForRouting(msg) != RoutingContinue {
+				forwarded = true // The callback owns exclusion or unresolved selection.
+				return
+			}
+		}
 
 		// render the message
 		rendered, err := msg.Render()

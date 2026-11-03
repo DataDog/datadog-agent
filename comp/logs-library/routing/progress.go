@@ -49,12 +49,13 @@ type Progress struct {
 }
 
 type record struct {
-	meta       *message.MessageMetadata
-	identifier string
-	generation uint64
-	groups     []string
-	remaining  map[string]struct{}
-	done       bool
+	meta             *message.MessageMetadata
+	identifier       string
+	generation       uint64
+	groups           []string
+	remaining        map[string]struct{}
+	selectionPending bool
+	done             bool
 }
 
 type sourceProgress struct {
@@ -131,10 +132,10 @@ func (p *Progress) RegisterSource(identifier string, generation uint64) error {
 // producers may drain without reclaiming current checkpoint ownership; retired
 // producers return ErrObsoleteGeneration.
 func (p *Progress) Register(ctx context.Context, msg *message.Message, selection Selection, groups []string) (uint64, error) {
-	return p.register(ctx, msg, selection, groups, true)
+	return p.register(ctx, msg, selection, groups, true, false)
 }
 
-func (p *Progress) register(ctx context.Context, msg *message.Message, selection Selection, groups []string, requireCompleteSource bool) (uint64, error) {
+func (p *Progress) register(ctx context.Context, msg *message.Message, selection Selection, groups []string, requireCompleteSource, pendingSelection bool) (uint64, error) {
 	if msg == nil || msg.Origin == nil {
 		return 0, fmt.Errorf("%w: missing source metadata", ErrInvalidSelection)
 	}
@@ -145,7 +146,7 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	if selection.Excluded && len(groups) != 0 {
 		return 0, ErrInvalidSelection
 	}
-	if !selection.Excluded && len(groups) == 0 {
+	if !pendingSelection && !selection.Excluded && len(groups) == 0 {
 		return 0, ErrInvalidSelection
 	}
 	remaining := make(map[string]struct{}, len(groups))
@@ -188,7 +189,7 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	meta := msg.MessageMetadata
 	meta.SetRoutingToken(token)
 	msg.SetRoutingToken(token)
-	r := &record{meta: &meta, identifier: identifier, generation: selection.Generation, groups: append([]string(nil), groups...), remaining: remaining, done: selection.Excluded}
+	r := &record{meta: &meta, identifier: identifier, generation: selection.Generation, groups: append([]string(nil), groups...), remaining: remaining, selectionPending: pendingSelection, done: selection.Excluded}
 	p.records[token] = r
 	if identifier != "" {
 		source := p.sources[identifier]
@@ -220,11 +221,63 @@ func (p *Progress) HoldInvalid(ctx context.Context, msg *message.Message) error 
 	if msg == nil || msg.Origin == nil || msg.Origin.Identifier == "" {
 		return nil
 	}
-	_, err := p.register(ctx, msg, Selection{}, []string{""}, false)
+	_, err := p.register(ctx, msg, Selection{}, []string{""}, false, false)
 	return err
 }
 
-// Recipients returns the immutable selection made before processor distribution.
+// Reserve claims capacity and source order before processing or selection. No
+// delivery or local completion is inferred while selection is pending.
+func (p *Progress) Reserve(ctx context.Context, msg *message.Message, generation uint64) (uint64, error) {
+	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true)
+}
+
+// Attach installs validated group obligations exactly once after processing.
+// A nonzero selection generation must agree with the reserved producer identity.
+// On error the caller must invalidate the pending reservation.
+func (p *Progress) Attach(token uint64, selection Selection, groups []string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	r := p.records[token]
+	if r == nil || r.done || !r.selectionPending {
+		return ErrInvalidSelection
+	}
+	if (r.identifier != "" && selection.Generation != 0 && selection.Generation != r.generation) ||
+		(selection.Excluded && len(groups) != 0) || (!selection.Excluded && len(groups) == 0) {
+		return ErrInvalidSelection
+	}
+	r.groups = append([]string(nil), groups...)
+	r.remaining = make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		r.remaining[group] = struct{}{}
+	}
+	r.selectionPending = false
+	if selection.Excluded {
+		r.done = true
+		p.advance(r)
+	}
+	return nil
+}
+
+// Invalidate turns the same pending reservation into a source-owned barrier.
+// Generation zero lets the producer retire without releasing the source barrier.
+func (p *Progress) Invalidate(token uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if r := p.records[token]; r != nil && r.selectionPending && !r.done {
+		if r.identifier == "" {
+			// Anonymous failures have no checkpoint to protect, as with HoldInvalid.
+			delete(p.records, token)
+			p.notifySpace()
+			return
+		}
+		r.generation = 0
+		r.selectionPending = false
+		r.groups = nil
+		r.remaining = map[string]struct{}{"": {}}
+	}
+}
+
+// Recipients returns the immutable selection attached after common processing.
 func (p *Progress) Recipients(token uint64) []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -259,7 +312,7 @@ func (p *Progress) CompleteGroup(group string, payload *message.Payload) {
 			continue
 		}
 		r := p.records[meta.RoutingToken()]
-		if r == nil || r.done {
+		if r == nil || r.done || r.selectionPending {
 			continue
 		}
 		if _, selected := r.remaining[group]; !selected {

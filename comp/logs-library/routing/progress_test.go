@@ -626,3 +626,199 @@ func TestRegisterSourceReservesOwnershipAndHistoryBeforeRecords(t *testing.T) {
 		t.Fatalf("retirement did not release capacity: %v", err)
 	}
 }
+
+func TestProgressReservedSelectionOutcomes(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		groups   []string
+		excluded bool
+	}{
+		{"a", []string{"a"}, false}, {"b", []string{"b"}, false},
+		{"both", []string{"a", "b"}, false}, {"repeated", []string{"a", "b", "a"}, false},
+		{"excluded", nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sink := &progressTestSink{ch: make(chan *message.Payload, 2)}
+			p, err := NewProgress(2, sink)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer p.Close()
+			first, last := progressMessage("file:test", "1"), progressMessage("file:test", "2")
+			token, err := p.Reserve(context.Background(), first, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// A later local outcome cannot pass the pending selection.
+			if _, err := p.Register(context.Background(), last, Selection{Generation: 1, Excluded: true}, nil); err != nil {
+				t.Fatal(err)
+			}
+			if p.Pending() != 2 || len(sink.ch) != 0 {
+				t.Fatal("pending selection released source order")
+			}
+			// Delivery notifications cannot complete an unselected reservation.
+			p.CompleteGroup("a", terminalPayload(first))
+			if p.Pending() != 2 {
+				t.Fatal("unselected record completed")
+			}
+			if err := p.Attach(token, Selection{Excluded: tc.excluded}, tc.groups); err != nil {
+				t.Fatal(err)
+			}
+			if err := p.Attach(token, Selection{Groups: []string{"other"}}, []string{"other"}); !errors.Is(err, ErrInvalidSelection) {
+				t.Fatalf("second attachment = %v", err)
+			}
+			seen := map[string]bool{}
+			for _, group := range tc.groups {
+				if seen[group] {
+					continue
+				}
+				seen[group] = true
+				p.CompleteGroup(group, terminalPayload(first))
+				if tc.name == "both" && group == "a" && p.Pending() != 2 {
+					t.Fatal("one group completed both obligations")
+				}
+			}
+			if got := nextCheckpoint(t, sink.ch); got != "1" {
+				t.Fatalf("first checkpoint = %s", got)
+			}
+			if got := nextCheckpoint(t, sink.ch); got != "2" {
+				t.Fatalf("second checkpoint = %s", got)
+			}
+			if p.Pending() != 0 {
+				t.Fatal("completed reservations retained")
+			}
+		})
+	}
+}
+
+func TestProgressInvalidatesSameReservationAndReleasesProducer(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 2)}
+	p, err := NewProgress(2, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	first := progressMessage("file:test", "1")
+	token, err := p.Reserve(context.Background(), first, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.RetireSource("file:test", 1); !errors.Is(err, ErrSourcePending) {
+		t.Fatalf("retiring pending selection = %v", err)
+	}
+	if err := p.Attach(token, Selection{Generation: 2, Excluded: true}, nil); !errors.Is(err, ErrInvalidSelection) {
+		t.Fatalf("identity mismatch = %v", err)
+	}
+	p.Invalidate(token)
+	p.Invalidate(token)
+	if p.Pending() != 1 || p.records[token].generation != 0 || !p.OwnsSource("file:test") {
+		t.Fatal("invalid selection did not reuse the source reservation")
+	}
+	if err := p.Attach(token, Selection{Excluded: true}, nil); !errors.Is(err, ErrInvalidSelection) {
+		t.Fatalf("attached invalid barrier = %v", err)
+	}
+	if err := p.RetireSource("file:test", 1); err != nil {
+		t.Fatal(err)
+	}
+	if !p.OwnsSource("file:test") {
+		t.Fatal("retirement removed invalid barrier")
+	}
+	later := progressMessage("file:test", "2")
+	if _, err := p.Reserve(context.Background(), later, 2); err != nil {
+		t.Fatal(err)
+	}
+	p.CompleteLocal(later.RoutingToken())
+	if p.Pending() != 2 || len(sink.ch) != 0 {
+		t.Fatal("later completion bypassed invalid selection")
+	}
+}
+
+func TestProgressPendingSelectionBoundsAdmissionAndCancellation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sink := &progressTestSink{ch: make(chan *message.Payload, 2)}
+		p, err := NewProgress(1, sink)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer p.Close()
+		first := progressMessage("file:test", "1")
+		token, err := p.Reserve(context.Background(), first, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		reserved := make(chan error, 1)
+		go func() { _, err := p.Reserve(ctx, progressMessage("file:other", "2"), 1); reserved <- err }()
+		synctest.Wait()
+		select {
+		case err := <-reserved:
+			t.Fatalf("pending selection did not consume capacity: %v", err)
+		default:
+		}
+		cancel()
+		if err := <-reserved; !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		p.Invalidate(token)
+		if p.Pending() != 1 {
+			t.Fatal("invalid selection changed capacity usage")
+		}
+	})
+}
+
+func TestProgressAnonymousSelectionFailureReleasesCapacity(t *testing.T) {
+	p, err := NewProgress(1, &progressTestSink{ch: make(chan *message.Payload, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	token, err := p.Reserve(context.Background(), progressMessage("", ""), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Invalidate(token)
+	if p.Pending() != 0 {
+		t.Fatal("anonymous failure retained a checkpoint barrier")
+	}
+}
+
+func TestProgressSelectionCompletionUnblocksCapacity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sink := &progressTestSink{ch: make(chan *message.Payload, 1)}
+		p, err := NewProgress(1, sink)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer p.Close()
+		first := progressMessage("file:test", "1")
+		token, err := p.Reserve(context.Background(), first, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reserved := make(chan error, 1)
+		later := progressMessage("file:test", "2")
+		go func() { _, err := p.Reserve(context.Background(), later, 1); reserved <- err }()
+		synctest.Wait()
+		select {
+		case err := <-reserved:
+			t.Fatalf("pending selection did not block: %v", err)
+		default:
+		}
+		if err := p.Attach(token, Selection{Excluded: true}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-reserved; err != nil {
+			t.Fatal(err)
+		}
+		if p.Pending() != 1 {
+			t.Fatal("resumed admission did not own capacity")
+		}
+		p.CompleteLocal(later.RoutingToken())
+		if got := nextCheckpoint(t, sink.ch); got != "1" {
+			t.Fatalf("first checkpoint = %s", got)
+		}
+		if got := nextCheckpoint(t, sink.ch); got != "2" {
+			t.Fatalf("second checkpoint = %s", got)
+		}
+	})
+}

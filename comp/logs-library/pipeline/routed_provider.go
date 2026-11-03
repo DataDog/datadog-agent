@@ -56,13 +56,18 @@ type RoutedOptions struct {
 	ProcessingRules           []*config.ProcessingRule
 	TagFilters                *tagfilter.Filters
 	Groups                    []routing.Group
-	Resolve                   func(*message.Message) (routing.Selection, error)
-	OnError                   func(error)
-	DestinationsContext       *client.DestinationsContext
-	Hostname                  hostnameinterface.Component
-	Config                    pkgconfigmodel.Reader
-	Compression               logscompression.Component
-	Secrets                   secrets.Component
+	// Generation identifies checkpointed records on shared ingress before processing.
+	// SourceInput supplies its bound generation instead. Anonymous records need none.
+	// The callback must be local and bounded, as must Resolve.
+	Generation func(*message.Message) (uint64, error)
+	// Resolve sees the commonly processed record before rendering or encoding.
+	Resolve             func(*message.Message) (routing.Selection, error)
+	OnError             func(error)
+	DestinationsContext *client.DestinationsContext
+	Hostname            hostnameinterface.Component
+	Config              pkgconfigmodel.Reader
+	Compression         logscompression.Component
+	Secrets             secrets.Component
 }
 
 type routedStream struct {
@@ -225,7 +230,7 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 		input := make(chan *message.Message, routedStreamCapacity)
 		proc := processor.NewForRouting(opts.Config, input, p.processed, opts.ProcessingRules, opts.TagFilters, processor.NewJSONEncoder(opts.Config.GetBool("logs_config.use_container_timestamp")), opts.DiagnosticMessageReceiver, opts.Hostname, p.monitor, fmt.Sprintf("routed-%d", i), func(msg *message.Message) {
 			p.progress.CompleteLocal(msg.RoutingToken())
-		})
+		}, p.selectProcessed)
 		p.processors = append(p.processors, proc)
 	}
 	return p, nil
@@ -298,42 +303,31 @@ func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInput
 		if p.ctx.Err() != nil {
 			continue
 		}
-		selection, err := p.opts.Resolve(msg)
+		var generation uint64
+		var err error
+		if bound != nil {
+			generation = bound.generation
+			if msg.Origin == nil || msg.Origin.Identifier != bound.identifier {
+				err = routing.ErrInvalidSelection
+			}
+		} else if msg.Origin != nil && msg.Origin.Identifier != "" {
+			if p.opts.Generation == nil {
+				err = routing.ErrInvalidSelection
+			} else {
+				generation, err = p.opts.Generation(msg)
+			}
+		}
+		if err == nil {
+			_, err = p.progress.Reserve(p.ctx, msg, generation)
+		}
 		if err != nil {
-			p.report(err)
-			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
-				p.report(holdErr)
-			}
-			continue
-		}
-		if bound != nil && (msg.Origin == nil || msg.Origin.Identifier != bound.identifier || selection.Generation != bound.generation) {
-			p.report(routing.ErrInvalidSelection)
-			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
-				p.report(holdErr)
-			}
-			continue
-		}
-		groups, err := p.defs.Resolve(selection)
-		if err != nil {
-			p.report(err)
-			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
-				p.report(holdErr)
-			}
-			continue
-		}
-		if _, err := p.progress.Register(p.ctx, msg, selection, groups); err != nil {
 			p.report(err)
 			if errors.Is(err, routing.ErrObsoleteGeneration) {
-				// Retirement promises this producer has stopped. A late record
-				// must not create a barrier for the replacement generation.
 				continue
 			}
 			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
 				p.report(holdErr)
 			}
-			continue
-		}
-		if selection.Excluded {
 			continue
 		}
 		proc := p.processors[index%uint64(len(p.processors))]
@@ -347,6 +341,27 @@ func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInput
 			// last safe checkpoint after restart.
 		}
 	}
+}
+
+// selectProcessed never waits for delivery or allocates a second reservation.
+func (p *RoutedProvider) selectProcessed(msg *message.Message) processor.RoutingDecision {
+	selection, err := p.opts.Resolve(msg)
+	var groups []string
+	if err == nil {
+		groups, err = p.defs.Resolve(selection)
+	}
+	if err == nil {
+		err = p.progress.Attach(msg.RoutingToken(), selection, groups)
+	}
+	if err != nil {
+		p.progress.Invalidate(msg.RoutingToken())
+		p.report(err)
+		return processor.RoutingUnresolved
+	}
+	if selection.Excluded {
+		return processor.RoutingExcluded
+	}
+	return processor.RoutingContinue
 }
 
 // flushPrior sends ordered markers through every processing lane and stream.
@@ -658,6 +673,7 @@ func (p *RoutedProvider) SourceInput(identifier string, generation uint64) (chan
 }
 
 // NextPipelineChan returns shared ingress without per-source admission isolation.
+// Checkpointed records require RoutedOptions.Generation for early reservation.
 // A stalled source can block other sources on this channel. Routed launchers
 // requiring independent source progress must use SourceInput instead.
 func (p *RoutedProvider) NextPipelineChan() chan *message.Message { return p.ingress }

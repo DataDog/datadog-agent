@@ -75,6 +75,7 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 			Sink:                      sink,
 			DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
 			Groups:                    []routing.Group{{ID: "main", Endpoints: endpoints}},
+			Generation:                func(*message.Message) (uint64, error) { return 1, nil },
 			Resolve: func(*message.Message) (routing.Selection, error) {
 				return routing.Selection{Groups: []string{"main"}, Generation: 1}, nil
 			},
