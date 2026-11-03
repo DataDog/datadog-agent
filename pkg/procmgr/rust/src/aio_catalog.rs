@@ -557,6 +557,9 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     assert!(script.contains("/etc/cont-init.d/*.sh"));
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
     assert!(script.contains(
+        r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
+    ));
+    assert!(script.contains(
         r#"DD_IPC_CERT_FILE_PATH="${DD_IPC_CERT_FILE_PATH:-$(dirname "${DD_AUTH_TOKEN_FILE_PATH:-${config_file}}")/ipc_cert.pem}""#
     ));
     let cont_init = script.find("/etc/cont-init.d/*.sh").expect("cont-init");
