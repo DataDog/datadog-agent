@@ -1324,6 +1324,7 @@ func TestHostSBOMWaitsForUsage(t *testing.T) {
 			hostname:              "host",
 			hostHeartbeatValidity: time.Hour,
 			usageEnrichment:       true,
+			usageStream:           &sbom.UsageStream{},
 		}, scanner
 	}
 
@@ -1385,6 +1386,43 @@ func TestHostSBOMWaitsForUsage(t *testing.T) {
 
 		p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
 		assert.Empty(t, p.queue, "the first successful scan still waits")
+	})
+
+	t.Run("the scan goes out at once while usage cannot come", func(t *testing.T) {
+		p, _ := newHostProcessor()
+		p.usageStream.Unserved()
+
+		p.processHostScanResult(newHostScan(scanned))
+		require.Len(t, p.queue, 1)
+		assert.NotNil(t, (<-p.queue).GetCyclonedx())
+	})
+
+	t.Run("the held scan goes out once usage cannot come", func(t *testing.T) {
+		p, _ := newHostProcessor()
+
+		p.processHostScanResult(newHostScan(scanned))
+		now := time.Now()
+		p.releaseExpiredHolds(now)
+		assert.Empty(t, p.queue)
+
+		// The stream has failed to open for the whole grace period.
+		p.usageStream.OpenFailed(now.Add(-usageGracePeriod))
+		p.releaseExpiredHolds(now)
+		require.Len(t, p.queue, 1, "the scan goes out before its deadline")
+		assert.NotNil(t, (<-p.queue).GetCyclonedx())
+	})
+
+	t.Run("a newer scan takes the place of the held one once usage cannot come", func(t *testing.T) {
+		p, _ := newHostProcessor()
+
+		p.processHostScanResult(newHostScan(scanned))
+		p.usageStream.Unserved()
+		p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
+		require.Len(t, p.queue, 1)
+		assert.Equal(t, scanned.Add(time.Minute).Unix(), (<-p.queue).GetGeneratedAt().AsTime().Unix())
+
+		p.releaseExpiredHolds(time.Now())
+		assert.Empty(t, p.queue, "the older scan stays behind")
 	})
 }
 
@@ -1476,6 +1514,7 @@ func newImageGraceProcessor(t *testing.T) (*processor, workloadmetamock.Mock, <-
 	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
 	require.NoError(t, err)
 	p.usageEnrichment = true
+	p.usageStream = &sbom.UsageStream{}
 	t.Cleanup(p.stop)
 
 	return p, store, sent
@@ -1652,6 +1691,33 @@ func TestImageSBOMWaitsForUsage(t *testing.T) {
 
 		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
 		assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "a rescan after the first SBOM in use goes out at once")
+	})
+
+	t.Run("an SBOM goes out at once while usage cannot come", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		p.usageStream.Unserved()
+		runGraceImage(store)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		entity := receiveSBOM(t, sent)
+		assert.True(t, entity.GetInUse())
+		assert.False(t, sbom.IsEnriched(entity.GetCyclonedx()))
+	})
+
+	t.Run("a waiting SBOM goes out once usage cannot come", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		assertNoSBOM(t, sent)
+
+		// The stream has failed to open for the whole grace period.
+		now := time.Now()
+		p.usageStream.OpenFailed(now.Add(-usageGracePeriod))
+		p.releaseExpiredHolds(now)
+		entity := receiveSBOM(t, sent)
+		assert.True(t, entity.GetInUse())
+		assert.False(t, sbom.IsEnriched(entity.GetCyclonedx()))
 	})
 
 	for _, tt := range []struct {
