@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -56,13 +57,21 @@ func (b *fakeBundle) GetAction(actionName string) types.Action {
 }
 
 type recordingAction struct {
+	err    error
+	report func(context.Context)
 	called bool
 	task   *types.Task
 }
 
-func (a *recordingAction) Run(_ context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
+func (a *recordingAction) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
 	a.called = true
 	a.task = task
+	if a.report != nil {
+		a.report(ctx)
+	}
+	if a.err != nil {
+		return nil, a.err
+	}
 	return "executed", nil
 }
 
@@ -416,5 +425,76 @@ func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
 			assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
 			assert.Nil(t, credentialResolver.gotTask)
 		})
+	}
+}
+
+// executionLogger captures the shared executor's lifecycle records.
+type executionLogger struct {
+	log.Logger
+	entries []map[string]interface{}
+}
+
+func (l *executionLogger) With(...log.Field) log.Logger       { return l }
+func (l *executionLogger) Info(_ string, fields ...log.Field) { l.record(fields) }
+func (l *executionLogger) Warn(_ string, fields ...log.Field) { l.record(fields) }
+func (l *executionLogger) record(fields []log.Field) {
+	entry := map[string]interface{}{}
+	for _, field := range fields {
+		entry[field.Key] = field.Value
+	}
+	l.entries = append(l.entries, entry)
+}
+
+func TestWorkflowTaskExecutorExecutionReporting(t *testing.T) {
+	const bundleID = "com.datadoghq.test"
+	for _, enriched := range []bool{false, true} {
+		for _, failure := range []error{nil, errors.New("action failed")} {
+			name := "native"
+			if enriched {
+				name = "enriched"
+			}
+			if failure != nil {
+				name += " failure"
+			} else {
+				name += " success"
+			}
+			t.Run(name, func(t *testing.T) {
+				action := &recordingAction{err: failure}
+				if enriched {
+					action.report = func(ctx context.Context) {
+						observability.SetExecutionDetails(ctx, "execution", log.String("package_version", "1.2.3"))
+					}
+				}
+				executor := &WorkflowTaskExecutor{
+					registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{bundleID: &fakeBundle{action: action}}},
+					config:   &config.Config{ActionsAllowlist: map[string]sets.Set[string]{bundleID: sets.New("test")}, MetricsClient: &statsd.NoOpClient{}},
+				}
+				logger := &executionLogger{}
+				ctx := log.ContextWithLogger(context.Background(), logger)
+				task := newWorkflowTask("task-id", bundleID, "test", "job-id")
+				output, err := executor.RunTask(ctx, &PreparedWorkflowTask{Task: task})
+				if failure == nil {
+					require.NoError(t, err)
+					require.Equal(t, "executed", output)
+				} else {
+					require.EqualError(t, err, "Error:action failed, ExternalMessage: action failed")
+					require.Nil(t, output)
+				}
+				require.True(t, action.called)
+				require.Len(t, logger.entries, 2, "one shared start and one completion")
+				final := logger.entries[1]
+				if enriched {
+					require.Equal(t, "execution.outcome", final["event"])
+					require.Equal(t, "1.2.3", final["package_version"])
+					require.NotContains(t, final, "error")
+				} else {
+					require.NotContains(t, final, "event")
+					require.NotContains(t, final, "package_version")
+					if failure != nil {
+						require.Equal(t, failure, final["error"])
+					}
+				}
+			})
+		}
 	}
 }
