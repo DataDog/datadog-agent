@@ -7,7 +7,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/moby/sys/mountinfo v0.7.2
+	github.com/moby/sys/mountinfo v0.7.3
 	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/stretchr/testify v1.12.1
 	github.com/vishvananda/netlink v1.3.1
