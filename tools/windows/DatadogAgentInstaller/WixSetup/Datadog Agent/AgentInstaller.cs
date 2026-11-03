@@ -308,9 +308,7 @@ namespace WixSetup.Datadog_Agent
             project.MajorUpgrade = MajorUpgrade.Default;
             // Set to true otherwise RC versions can't upgrade each other.
             project.MajorUpgrade.AllowSameVersionUpgrades = true;
-            // InstallExecute is explicitly sequenced early below: it applies only service
-            // protection, keeping old-product removal ahead of all file/component changes.
-            project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallExecute;
+            project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
             project.MajorUpgrade.DowngradeErrorMessage =
                 "Automatic downgrades are not supported.  Uninstall the current version, and then reinstall the desired version.";
             project.ReinstallMode = "amus";
@@ -422,12 +420,6 @@ namespace WixSetup.Datadog_Agent
                         value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
                                  value.StartsWith("EXAMPLECONFSLOCATION")))
                     .ForEach(c => c.SetAttributeValue("KeyPath", "yes"));
-                // Execute the service-protection script before invoking the old MSI.
-                // Merely scheduling deferred actions before RemoveExistingProducts would
-                // not run them before removal. Keep this before ProcessComponents (1600).
-                document.Select("Wix/Package/InstallExecuteSequence")
-                    .AddElement("InstallExecute", "Sequence=1550; Condition=NOT UPGRADINGPRODUCTCODE");
-
                 // WiX 5 migration: WixFailWhenDeferred was replaced with util:FailWhenDeferred element
                 document
                     .Select("Wix/Package")
