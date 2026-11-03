@@ -1,6 +1,0 @@
----
-other:
-  - |
-    Remove the internal ``trace.enabled`` and ``trace.working`` agent telemetry
-    (COAT) metrics. They were temporary observability for the lazy activation
-    of the trace-agent, which has now been rolled out.
