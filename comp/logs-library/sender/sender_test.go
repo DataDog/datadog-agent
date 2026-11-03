@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -110,6 +111,57 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.queuesCount, len(chanMap))
+		})
+	}
+}
+
+func TestPendingSendsWaitEndingEarlyDoesNotBlockAdds(t *testing.T) {
+	p := newPendingSends()
+	// Nothing is pending, so the wait returns right away
+	p.WaitPendingSends(context.Background())
+
+	p.AddPendingSend()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	// A send is pending, so the wait returns only when ctx is done
+	p.WaitPendingSends(ctx)
+
+	added := make(chan struct{})
+	go func() {
+		p.AddPendingSend()
+		close(added)
+	}()
+	select {
+	case <-added:
+	case <-time.After(time.Second):
+		assert.Fail(t, "AddPendingSend blocked after a wait ended early")
+	}
+
+	waited := make(chan struct{})
+	go func() {
+		p.WaitPendingSends(context.Background())
+		close(waited)
+	}()
+	p.PendingSendDone()
+	select {
+	case <-waited:
+		assert.Fail(t, "the wait returned while a send was still pending")
+	case <-time.After(50 * time.Millisecond):
+	}
+	p.PendingSendDone()
+	select {
+	case <-waited:
+	case <-time.After(time.Second):
+		assert.Fail(t, "the wait did not return once all sends were done")
+	}
+}
+
+func TestDisabledServerlessMetaPendingSendsAreHarmless(t *testing.T) {
+	for _, meta := range []ServerlessMeta{NewServerlessMeta(false), NewMockServerlessMeta(false)} {
+		assert.NotPanics(t, func() {
+			meta.AddPendingSend()
+			meta.PendingSendDone()
+			meta.WaitPendingSends(context.Background())
 		})
 	}
 }

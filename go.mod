@@ -410,7 +410,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.39.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.39.1
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.35
 	go.mongodb.org/mongo-driver/v2 v2.9.2
@@ -504,7 +504,7 @@ require (
 	k8s.io/cli-runtime v0.37.1
 	k8s.io/client-go v0.37.1
 	k8s.io/component-base v0.37.1
-	k8s.io/cri-api v0.37.1
+	k8s.io/cri-api v0.37.2
 	k8s.io/cri-client v0.37.1
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.37.1
