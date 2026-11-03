@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "connectivity_check.go",
         "entrypoint.go",
+        "trigger_discovery.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkdevices",
     visibility = ["//visibility:public"],
@@ -14,6 +15,7 @@ go_library(
         "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/networkdevices/connectivity",
+        "//pkg/networkdevices/discovery",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
@@ -22,12 +24,16 @@ go_library(
 
 dd_agent_go_test(
     name = "networkdevices_test",
-    srcs = ["connectivity_check_test.go"],
+    srcs = [
+        "connectivity_check_test.go",
+        "trigger_discovery_test.go",
+    ],
     embed = [":networkdevices"],
     deps = [
         "//comp/core/ipc/mock",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )
