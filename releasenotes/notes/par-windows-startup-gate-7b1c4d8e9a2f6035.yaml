@@ -1,7 +1,0 @@
----
-features:
-  - |
-    On supported Windows hosts with Private Action Runner split mode and the
-    process manager enabled, initial startup now waits for Remote Configuration
-    authorization and the API key's private_action_runner_enroll permission.
-    This does not enable Private Action Runner by default.
