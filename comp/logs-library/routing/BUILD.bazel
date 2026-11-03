@@ -26,6 +26,7 @@ dd_agent_go_test(
     ],
     embed = [":routing"],
     deps = [
+        "//comp/logs-library/sender",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",

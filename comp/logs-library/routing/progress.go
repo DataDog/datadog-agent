@@ -65,7 +65,9 @@ type sourceProgress struct {
 }
 
 // NewProgress creates bounded in-memory progress state and a bounded queue to
-// the existing auditor. Call Close after all group senders and sinks have stopped.
+// the existing auditor. A nil sink channel disables checkpoint publication, as
+// in the default sender. Start a real auditor before processing records. Call
+// Close after all group senders and sinks have stopped.
 func NewProgress(limit int, sink sender.Sink) (*Progress, error) {
 	if limit < 1 || sink == nil {
 		return nil, errors.New("invalid routing progress capacity or sink")
@@ -84,8 +86,12 @@ func (p *Progress) forward() {
 	for payload := range p.ready {
 		// The Agent constructs its provider before it starts the auditor. This
 		// channel is acquired only when terminal progress is ready to publish.
+		output := p.sink.Channel()
+		if output == nil {
+			continue // Match the default sender's no-op sink behavior.
+		}
 		select {
-		case p.sink.Channel() <- payload:
+		case output <- payload:
 		case <-p.shutdown:
 			return // A blocked sink must not prevent shutdown.
 		}

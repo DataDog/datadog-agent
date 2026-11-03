@@ -60,6 +60,8 @@ Delivery uses the existing processor, batch strategy, and HTTP sender. The routi
 
 Before processing, `SourceInput(identifier, generation)` supplies producer identity. Checkpointed records on shared ingress instead require the caller's local, bounded `RoutedOptions.Generation` callback. Generation changes for a replacement producer; anonymous records need none. Selection cannot establish or replace producer ownership.
 
+A nil sink channel disables checkpoint publication, matching the default sender. Group completion still controls progress capacity. Start a real auditor before processing records.
+
 The caller also owns source startup, replacement, and shutdown. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
 
 ## Selection behavior

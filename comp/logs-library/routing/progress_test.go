@@ -12,6 +12,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -398,7 +399,7 @@ func TestIndependentGroupKeepsPreviouslyPersistedPrefix(t *testing.T) {
 }
 
 func TestProgressCloseReleasesBlockedSink(t *testing.T) {
-	p, err := NewProgress(1, &progressTestSink{}) // No auditor consumer yet.
+	p, err := NewProgress(1, &progressTestSink{ch: make(chan *message.Payload)}) // No auditor consumer yet.
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -821,4 +822,62 @@ func TestProgressSelectionCompletionUnblocksCapacity(t *testing.T) {
 			t.Fatalf("second checkpoint = %s", got)
 		}
 	})
+}
+
+func TestProgressNilSinkDoesNotBlockCompletion(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		sink sender.Sink
+	}{
+		{"noop sink", &sender.NoopSink{}},
+		{"custom nil channel", &progressTestSink{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				p, err := NewProgress(1, tc.sink)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer p.Close()
+				finished := make(chan struct{})
+				go func() {
+					defer close(finished)
+					// Exceed both the publication queue and the single in-flight forward.
+					for i := 0; i < 4; i++ {
+						m := progressMessage("file:test", "1")
+						token, err := p.Reserve(context.Background(), m, 1)
+						if err != nil {
+							t.Error(err)
+							return
+						}
+						if err := p.Attach(token, Selection{}, []string{"a", "b"}); err != nil {
+							t.Error(err)
+							return
+						}
+						p.CompleteGroup("a", terminalPayload(m))
+						if p.Pending() != 1 {
+							t.Error("no-op sink bypassed the pending group")
+							return
+						}
+						p.CompleteGroup("b", terminalPayload(m))
+					}
+				}()
+				synctest.Wait()
+				select {
+				case <-finished:
+				default:
+					t.Error("nil sink blocked completed records after publication queue filled")
+				}
+				// Release a failing implementation so test cleanup cannot deadlock.
+				p.StopForwarding()
+				<-finished
+				if p.Pending() != 0 {
+					t.Fatal("completed records retained progress capacity")
+				}
+				if err := p.RetireSource("file:test", 1); err != nil {
+					t.Fatal(err)
+				}
+			})
+		})
+	}
 }
