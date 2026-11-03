@@ -1,0 +1,13 @@
+description: head -v prints a header even for a single file.
+setup:
+  files:
+    - path: one.txt
+      content: "only one line\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -v one.txt
+expect:
+  stdout: "==> one.txt <==\nonly one line\n"
+  stderr: ""
+  exit_code: 0

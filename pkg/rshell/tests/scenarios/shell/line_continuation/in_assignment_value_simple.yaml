@@ -1,0 +1,11 @@
+description: Line continuation in the value part of a variable assignment.
+input:
+  script: |+
+    X=hel\
+    lo
+    echo $X
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

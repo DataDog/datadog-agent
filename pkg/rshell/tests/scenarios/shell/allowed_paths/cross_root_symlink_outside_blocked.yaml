@@ -1,0 +1,18 @@
+description: Symlink pointing outside all allowed roots is still blocked
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: outside/secret.txt
+      content: "secret\n"
+    - path: dir1/escape.txt
+      symlink: ../outside/secret.txt
+input:
+  allowed_paths: ["dir1"]
+  script: |+
+    cat dir1/escape.txt
+expect:
+  stdout: |+
+  stderr_contains:
+    - "path escapes from parent"
+  exit_code: 1

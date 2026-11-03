@@ -1,0 +1,15 @@
+description: $(<dir) silently produces empty output (matches bash).
+setup:
+  files:
+    - path: subdir/placeholder.txt
+      content: "placeholder"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    x=$(<subdir)
+    echo "[$x]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: Repeated numeric occurrence flags in s/// are rejected.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/a/b/2g3' input.txt
+expect:
+  stdout: ""
+  stderr_contains: ["multiple number options"]
+  exit_code: 1

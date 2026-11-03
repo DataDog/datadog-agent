@@ -1,0 +1,20 @@
+description: Stars interspersed with literal text match correctly.
+setup:
+  files:
+    - path: abc.txt
+      content: ""
+    - path: axbxc.txt
+      content: ""
+    - path: aXXbXXc.txt
+      content: ""
+    - path: other.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo a*b*c*
+expect:
+  stdout: |+
+    aXXbXXc.txt abc.txt axbxc.txt
+  stderr: ""
+  exit_code: 0

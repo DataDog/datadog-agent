@@ -1,0 +1,19 @@
+description: grep -cv counts non-matching lines.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        apple
+        banana
+        cherry
+        avocado
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -cv a file.txt
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

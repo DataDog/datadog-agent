@@ -1,0 +1,13 @@
+description: When -c and -n are both given, the last flag wins; here -n wins.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -c 5 -n 2 file.txt
+expect:
+  stdout: "alpha\nbeta\n"
+  stderr: ""
+  exit_code: 0

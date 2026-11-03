@@ -1,0 +1,15 @@
+# skip: redirect-to-file restriction is an rshell-specific sandbox feature.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt R1 (2026-05-18-initial-audit): a write redirect attached to a while
+  loop body must be rejected by the redirect-allowlist (not silently allowed
+  because it's at the loop level rather than per-builtin).
+input:
+  script: |+
+    while true; do echo body; break; done > /tmp/loop_out.txt
+    echo unreachable
+expect:
+  stdout: |+
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

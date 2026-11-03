@@ -1,0 +1,11 @@
+description: A variable can be assigned from another variable's value.
+input:
+  script: |+
+    A=hello
+    B=$A
+    echo $B
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

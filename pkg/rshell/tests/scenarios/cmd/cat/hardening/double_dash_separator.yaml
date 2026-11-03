@@ -1,0 +1,13 @@
+description: cat -- treats flag-like filenames as files.
+setup:
+  files:
+    - path: "-n"
+      content: "flag-looking-name\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -- -n
+expect:
+  stdout: "flag-looking-name\n"
+  stderr: ""
+  exit_code: 0

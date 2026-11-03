@@ -1,0 +1,19 @@
+description: find -L -mmin uses target file mtime, not symlink mtime.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/target.txt
+      content: "target"
+      chmod: 0644
+      mod_time: "2020-06-15T00:00:00Z"
+    - path: dir/link.txt
+      symlink: target.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -maxdepth 1 -name link.txt -mmin +525600 -type f
+expect:
+  stdout: |+
+    dir/link.txt
+  stderr: ""
+  exit_code: 0
