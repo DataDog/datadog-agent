@@ -16,11 +16,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
 type setupInstallerSpy struct {
 	installer.Installer
+	installErrs      map[string]error
+	installedURLs    []string
 	installed        bool
 	isInstalledErr   error
 	state            repository.State
@@ -41,9 +44,10 @@ func (i *setupInstallerSpy) State(context.Context, string) (repository.State, er
 	return i.state, i.stateErr
 }
 
-func (i *setupInstallerSpy) Install(context.Context, string, []string) error {
+func (i *setupInstallerSpy) Install(_ context.Context, url string, _ []string) error {
 	i.installCalls++
-	return nil
+	i.installedURLs = append(i.installedURLs, url)
+	return i.installErrs[url]
 }
 
 func (i *setupInstallerSpy) ForceInstall(context.Context, string, []string) error {
@@ -249,4 +253,45 @@ func TestInstallPackageForceInstall(t *testing.T) {
 	}, "oci://example/apm-inject-package:0.69.0-1"))
 	assert.Zero(t, spy.installCalls)
 	assert.Equal(t, 1, spy.forceCalls)
+}
+
+func TestInstallPackagesOptionalFailure(t *testing.T) {
+	e := &env.Env{}
+	cURL := oci.PackageURL(e, DatadogAPMLibraryCPackage, "latest")
+	javaURL := oci.PackageURL(e, DatadogAPMLibraryJavaPackage, "1")
+	newSetup := func(spy *setupInstallerSpy) *Setup {
+		return &Setup{installer: spy, Out: &Output{}, Env: e, Ctx: context.Background()}
+	}
+
+	t.Run("optional failure is skipped", func(t *testing.T) {
+		spy := &setupInstallerSpy{installErrs: map[string]error{cURL: errors.New("not found")}}
+		err := newSetup(spy).installPackages([]packageWithVersion{
+			{name: DatadogAPMLibraryCPackage, version: "latest", optional: true},
+			{name: DatadogAPMLibraryJavaPackage, version: "1"},
+		}, false)
+		require.NoError(t, err)
+		assert.Equal(t, []string{cURL, javaURL}, spy.installedURLs)
+	})
+
+	t.Run("required failure aborts", func(t *testing.T) {
+		spy := &setupInstallerSpy{installErrs: map[string]error{cURL: errors.New("not found")}}
+		err := newSetup(spy).installPackages([]packageWithVersion{
+			{name: DatadogAPMLibraryCPackage, version: "latest"},
+			{name: DatadogAPMLibraryJavaPackage, version: "1"},
+		}, false)
+		require.ErrorContains(t, err, "failed to install package "+cURL)
+		assert.Equal(t, []string{cURL}, spy.installedURLs)
+	})
+}
+
+func TestResolvePackagesKeepsOptional(t *testing.T) {
+	packages := Packages{install: make(map[string]packageWithVersion)}
+	packages.Install(DatadogAPMLibraryJavaPackage, "1")
+	packages.InstallOptional(DatadogAPMLibraryCPackage, "latest")
+	e := &env.Env{DefaultPackagesVersionOverride: map[string]string{DatadogAPMLibraryCPackage: "0.9.0-1"}}
+
+	assert.Equal(t, []packageWithVersion{
+		{name: DatadogAPMLibraryJavaPackage, version: "1"},
+		{name: DatadogAPMLibraryCPackage, version: "0.9.0-1", optional: true},
+	}, resolvePackages(e, packages))
 }
