@@ -1,0 +1,9 @@
+description: Echo outputs numeric arguments separated by spaces.
+input:
+  script: |+
+    echo 123 456 789
+expect:
+  stdout: |+
+    123 456 789
+  stderr: ""
+  exit_code: 0

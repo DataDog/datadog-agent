@@ -1,0 +1,15 @@
+description: find -newer with a reference file outside allowed_paths is blocked.
+skip_assert_against_bash: true  # intentional: bash allows -newer /outside; rshell blocks it
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -newer /etc/hostname
+expect:
+  stdout: ""
+  stderr_contains: ["find:"]
+  exit_code: 1

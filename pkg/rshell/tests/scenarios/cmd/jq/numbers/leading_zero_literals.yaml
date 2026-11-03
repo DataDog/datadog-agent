@@ -1,0 +1,9 @@
+description: jq accepts leading zeroes in filter numeric literals.
+input:
+  script: |+
+    jq -nc '[01 == 1, 001.2 == 1.2, 001. == 1, 001.e2 == 100, 001.2e-3 == .0012, -01 == -1, 01+1 == 2, 01and true, 01e2and true]'
+expect:
+  stdout: |+
+    [true,true,true,true,true,true,true,true,true]
+  stderr: |+
+  exit_code: 0

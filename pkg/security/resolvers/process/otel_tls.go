@@ -18,15 +18,17 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"go.opentelemetry.io/ebpf-profiler/libc"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
+	"go.opentelemetry.io/ebpf-profiler/remotememory"
+	"go.opentelemetry.io/ebpf-profiler/tls"
 
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 const (
@@ -168,9 +170,7 @@ func serializeOTelTLSValue(res otelTLSResolution) []byte {
 }
 
 // otelTLSModule is the mapped ELF object exporting otel_thread_ctx_v1, with
-// the load bias needed to turn its ELF addresses into live ones. The handle is
-// a pfelf one because that is what the upstream copy of resolveTLSAccess reads
-// relocations through.
+// the load bias needed to turn its ELF addresses into live ones.
 type otelTLSModule struct {
 	path     string
 	loadBias uint64
@@ -225,11 +225,9 @@ func (p *otelTargetProcess) reset(pid uint32) {
 	p.procCtxAddr = 0
 }
 
-// resolveTLSOffsets resolves the otel_thread_ctx_v1's access model from
-// its defining ELF object (resolveTLSAccess), then read the loader-resolved
-// GOT/TLSDESC slot from the live process (attachOTelTLS). Mirrors the
-// loader/attach split of DataDog's opentelemetry-ebpf-profiler fork (PR
-// #1229).
+// resolveTLSOffsets resolves the otel_thread_ctx_v1's access model from its
+// defining ELF object (tls.Resolve), then reads the loader-resolved GOT/TLSDESC
+// slot from the live process (locateOTelTLS).
 func (p *otelTargetProcess) resolveTLSOffsets(procCtx otelprocessctx.ProcessContext) (otelTLSResolution, error) {
 	// The writer is picked from what the process itself published, not its
 	// tracer's reported language: see otelWriterFrom.
@@ -247,23 +245,12 @@ func (p *otelTargetProcess) resolveTLSOffsets(procCtx otelprocessctx.ProcessCont
 	if sym.Size != writer.symbolSize {
 		return otelTLSResolution{}, fmt.Errorf("%w: TLS export has wrong size %d", errSpanCtxMalformed, sym.Size)
 	}
-	if safeelf.ST_TYPE(sym.Info) != elf.STT_TLS {
-		return otelTLSResolution{}, errors.New("TLS export is not a TLS symbol")
-	}
-
-	// resolveTLSAccess only reads the symbol's name and value, but takes the
-	// upstream type; the checks above need safeelf's Section and Info, which
-	// libpf.Symbol has not.
-	access, err := resolveTLSAccess(module.file, &libpf.Symbol{
-		Name:    libpf.SymbolName(sym.Name),
-		Address: libpf.SymbolValue(sym.Value),
-		Size:    sym.Size,
-	})
+	tlsVar, err := tls.Resolve(module.file, sym)
 	if err != nil {
 		return otelTLSResolution{}, fmt.Errorf("%w: %w", errSpanCtxUnsupported, err)
 	}
 
-	res, err := attachOTelTLS(p, module.loadBias, access)
+	res, err := p.locateOTelTLS(module.loadBias, tlsVar)
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
@@ -427,9 +414,9 @@ func stripDeletedMapsSuffix(path string) string {
 
 // findOTelTLSModule returns the first mapped, readable ELF object exporting
 // symbolName as an STT_TLS symbol. The returned ELF file is left open for
-// resolveTLSAccess, which reads the same object's relocations; callers must
-// Close() it.
-func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule, *safeelf.Symbol, error) {
+// tls.Resolve, which reads the same object's relocations; callers must Close()
+// it.
+func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule, *libpf.Symbol, error) {
 	objects, err := p.tlsCandidateObjects()
 	if err != nil {
 		return nil, nil, err
@@ -438,14 +425,15 @@ func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule
 	var lastCandidateErr error
 	for _, obj := range objects {
 		fsPath := p.fsPath(obj.path)
-		sym := findOTelTLSSymbol(fsPath, symbolName)
-		if sym == nil {
-			continue
-		}
-
+		// An object that cannot be opened is skipped like one without the
+		// symbol: most candidates are unrelated libraries.
 		elfFile, err := pfelf.Open(fsPath)
 		if err != nil {
-			lastCandidateErr = fmt.Errorf("open %s: %w", fsPath, err)
+			continue
+		}
+		sym := findOTelTLSSymbol(elfFile, symbolName)
+		if sym == nil {
+			elfFile.Close()
 			continue
 		}
 
@@ -465,125 +453,60 @@ func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule
 	return nil, nil, fmt.Errorf("%w: TLS symbol %q not found in currently mapped readable ELF objects", errSpanCtxNotApplicable, symbolName)
 }
 
-// findOTelTLSSymbol looks up symbolName in the object at path: first in the
-// dynamic symbol table (shared libraries and PIEs), then in the full one (local
-// symbols, fully-static non-PIE executables).
-func findOTelTLSSymbol(path, symbolName string) *safeelf.Symbol {
-	ef, err := openOTelELF(path)
-	if err != nil {
-		return nil
+// findOTelTLSSymbol looks up symbolName in ef: first in the dynamic symbol
+// table (shared libraries and PIEs), then in the full one (local symbols,
+// fully-static non-PIE executables).
+func findOTelTLSSymbol(ef *pfelf.File, symbolName string) *libpf.Symbol {
+	var found *libpf.Symbol
+	visitor := func(sym libpf.Symbol) bool {
+		if string(sym.Name) == symbolName && sym.Shndx != uint16(elf.SHN_UNDEF) &&
+			elf.ST_TYPE(sym.Info) == elf.STT_TLS {
+			found = &sym
+			return false
+		}
+		return true
 	}
-	defer ef.Close()
 
-	if syms, err := ef.DynamicSymbols(); err == nil {
-		if sym := findOTelTLSSymbolByName(syms, symbolName); sym != nil {
-			return sym
-		}
+	if err := ef.VisitDynamicSymbols(visitor); err == nil && found != nil {
+		return found
 	}
-	if syms, err := ef.Symbols(); err == nil {
-		if sym := findOTelTLSSymbolByName(syms, symbolName); sym != nil {
-			return sym
-		}
+	if err := ef.VisitSymbols(visitor); err == nil && found != nil {
+		return found
 	}
 	return nil
 }
 
-func findOTelTLSSymbolByName(syms []safeelf.Symbol, symbolName string) *safeelf.Symbol {
-	for i := range syms {
-		sym := &syms[i]
-		if sym.Name == symbolName && sym.Section != elf.SHN_UNDEF &&
-			safeelf.ST_TYPE(sym.Info) == elf.STT_TLS {
-			return sym
-		}
-	}
-	return nil
-}
-
-// attachOTelTLS reads the loader-resolved GOT/TLSDESC slot out of the live
+// locateOTelTLS reads the loader-resolved GOT/TLSDESC slot out of the live
 // process and produces the final tls_offset, module_id and dtv_info handed to
 // eBPF.
-func attachOTelTLS(target *otelTargetProcess, bias uint64, d *data) (otelTLSResolution, error) {
-	// Local-exec offsets are final at link time, so this model resolves without
-	// reading the target at all.
-	if d.access == accessLocalExec {
-		return otelTLSResolution{tlsOffset: int64(d.offset)}, nil
-	}
-
-	mem, err := procfs.OpenMem(target.pid)
+func (p *otelTargetProcess) locateOTelTLS(bias uint64, tlsVar tls.Var) (otelTLSResolution, error) {
+	mem, err := procfs.OpenMem(p.pid)
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
 	defer mem.Close()
 
-	switch d.access {
-	case accessInitialExec:
-		// The GOT slot holds the variable's TP-relative offset directly.
-		v, err := mem.ReadUint64(bias + uint64(d.elfAddr))
-		if err != nil {
+	loc, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
+	if err != nil {
+		// A failed read keeps its errno for classifySpanCtxError. Anything
+		// else is a slot the loader left unapplied or holding no plausible
+		// location.
+		if errno := syscall.Errno(0); errors.As(err, &errno) {
 			return otelTLSResolution{}, err
 		}
-		return otelTLSResolution{tlsOffset: int64(v + d.offset)}, nil
-
-	case accessGlobalDynamic:
-		// The GOT holds a tls_index {module_id, offset} pair.
-		moduleID, err := mem.ReadUint64(bias + uint64(d.elfAddr))
-		if err != nil {
-			return otelTLSResolution{}, err
-		}
-		tlsOffset, err := mem.ReadUint64(bias + uint64(d.elfAddr) + 8)
-		if err != nil {
-			return otelTLSResolution{}, err
-		}
-		return newDynamicOTelTLS(target, moduleID, tlsOffset+d.offset)
-
-	case accessLocalDynamic:
-		// The GOT holds the module_id; the in-module offset is the symbol value.
-		moduleID, err := mem.ReadUint64(bias + uint64(d.elfAddr))
-		if err != nil {
-			return otelTLSResolution{}, err
-		}
-		return newDynamicOTelTLS(target, moduleID, d.offset)
-
-	case accessTLSDesc:
-		// The second word of the descriptor holds the resolved argument.
-		arg, err := mem.ReadUint64(bias + uint64(d.elfAddr) + 8)
-		if err != nil {
-			return otelTLSResolution{}, err
-		}
-
-		// For dynamic TLS, arg is a pointer to a tls_index struct. Static
-		// offsets are negative on x86_64 and small positive on aarch64, so a
-		// large positive value means dynamic.
-		if int64(arg) > 0xffffffff {
-			moduleID, err := mem.ReadUint64(arg)
-			if err != nil {
-				return otelTLSResolution{}, err
-			}
-			tlsOffset, err := mem.ReadUint64(arg + 8)
-			if err != nil {
-				return otelTLSResolution{}, err
-			}
-			return newDynamicOTelTLS(target, moduleID, tlsOffset+d.offset)
-		}
-		return otelTLSResolution{tlsOffset: int64(arg + d.offset)}, nil
-
-	default:
-		return otelTLSResolution{}, fmt.Errorf("unknown TLS access model %v", d.access)
+		return otelTLSResolution{}, fmt.Errorf("%w: locate %v: %w", errSpanCtxMalformed, tlsVar, err)
 	}
-}
 
-// newDynamicOTelTLS fills in the DTVInfo needed to walk this process's DTV.
-func newDynamicOTelTLS(target *otelTargetProcess, moduleID, tlsOffset uint64) (otelTLSResolution, error) {
-	if moduleID == 0 {
-		return otelTLSResolution{}, fmt.Errorf("%w: unexpected value 0 for moduleID in dynamic TLS", errSpanCtxMalformed)
+	if loc.ModuleID == 0 {
+		return otelTLSResolution{tlsOffset: int64(loc.Offset)}, nil
 	}
-	dtv, err := target.dtvInfo()
+	dtv, err := p.dtvInfo()
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
 	return otelTLSResolution{
-		tlsOffset: int64(tlsOffset),
-		moduleID:  uint32(moduleID),
+		tlsOffset: int64(loc.Offset),
+		moduleID:  uint32(loc.ModuleID),
 		dtvInfo:   dtv,
 	}, nil
 }
@@ -654,22 +577,6 @@ func extractDTVInfo(path string) (otelDTVInfo, bool) {
 		offset:     int64(info.DTVInfo.Offset),
 		multiplier: uint32(info.DTVInfo.Multiplier),
 	}, true
-}
-
-func openOTelELF(path string) (*safeelf.File, error) {
-	elfFile, err := safeelf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	if elfFile.Class != elf.ELFCLASS64 || elfFile.Data != elf.ELFDATA2LSB {
-		elfFile.Close()
-		return nil, fmt.Errorf("unsupported ELF class/data in %s", path)
-	}
-	if elfFile.Machine != elf.EM_X86_64 && elfFile.Machine != elf.EM_AARCH64 {
-		elfFile.Close()
-		return nil, fmt.Errorf("unsupported ELF machine %v in %s", elfFile.Machine, path)
-	}
-	return elfFile, nil
 }
 
 // elfLoadBias returns the difference between an ELF object's link-time and

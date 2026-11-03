@@ -1,0 +1,9 @@
+description: A comment-only script produces no output and exits successfully.
+input:
+  script: |+
+    # this is a comment
+    # another comment
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

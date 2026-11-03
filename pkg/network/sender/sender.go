@@ -123,7 +123,7 @@ func New(
 	if err := endpoint.CheckAPIKeysResolved(processAPIEndpoints); err != nil {
 		return nil, err
 	}
-	resolvers, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints))
+	resolvers, err := resolver.NewSingleDomainResolvers2(apicfg.EndpointDescriptors(processAPIEndpoints))
 	if err != nil {
 		return nil, err
 	}
