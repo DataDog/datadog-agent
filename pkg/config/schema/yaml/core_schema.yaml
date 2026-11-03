@@ -3663,8 +3663,16 @@ properties:
     node_type: setting
     type: array
     default:
+    - DD_APM_RECEIVER_PORT
     - DD_CLUSTER_NAME
+    - DD_DOGSTATSD_PORT
     - DD_ENV
+    - DD_HOSTNAME
+    - DD_KUBE_RESOURCES_NAMESPACE
+    - DD_KUBERNETES_KUBELET_HOST
+    - DD_KUBERNETES_KUBELET_NODENAME
+    - DD_SITE
+    - DD_TAGS
     items:
       type: string
     visibility: public
@@ -3673,8 +3681,8 @@ properties:
       to be resolved in check configurations. Other environment variables bound
       to Agent settings are not resolved because some of them hold Agent
       credentials, like `DD_API_KEY`.
-      Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
-      `DD_ENV` if you still need them.
+      Setting this list replaces the default, so include the defaults you still
+      need.
       This list only applies when `ad_allowed_env_vars` is not set or is empty,
       and `ad_disable_env_var_resolution` is set to false.
     example: |2-

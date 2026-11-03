@@ -1620,7 +1620,18 @@ func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))
 	config.BindEnvAndSetDefault("ad_tag_completeness_max_wait", 0)
 	config.BindEnvAndSetDefault("ad_allowed_env_vars", []string{})
-	config.BindEnvAndSetDefault("ad_allowed_agent_env_vars", []string{"DD_CLUSTER_NAME", "DD_ENV"})
+	config.BindEnvAndSetDefault("ad_allowed_agent_env_vars", []string{
+		"DD_APM_RECEIVER_PORT",
+		"DD_CLUSTER_NAME",
+		"DD_DOGSTATSD_PORT",
+		"DD_ENV",
+		"DD_HOSTNAME",
+		"DD_KUBE_RESOURCES_NAMESPACE",
+		"DD_KUBERNETES_KUBELET_HOST",
+		"DD_KUBERNETES_KUBELET_NODENAME",
+		"DD_SITE",
+		"DD_TAGS",
+	})
 	config.BindEnvAndSetDefault("ad_disable_env_var_resolution", false)
 	config.BindEnvAndSetDefault("podman_db_path", "")
 	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
