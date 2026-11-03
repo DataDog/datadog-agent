@@ -56,8 +56,17 @@ func (p printer) sprint(node Node) {
 		sb.WriteString("${")
 		sb.WriteString(node.Name)
 		sb.WriteString("}")
+	case *Selector:
+		p.sprint(node.Base)
+		sb.WriteString(".")
+		sb.WriteString(node.Member)
+	case *Index:
+		p.sprint(node.Base)
+		sb.WriteString("[")
+		p.sprint(node.Subscript)
+		sb.WriteString("]")
 	case *FieldRef:
-		sb.WriteString(node.Name)
+		p.sprintFieldRef(node)
 	case *Array:
 		members := make([]Node, 0, len(node.Members))
 		for _, member := range node.Members {
@@ -70,6 +79,21 @@ func (p printer) sprint(node Node) {
 		sb.WriteString("]")
 	default:
 		fmt.Fprintf(sb, "<%T>", node)
+	}
+}
+
+// sprintFieldRef prints a field reference the way it is written:
+// `process.ancestors[A].file.name`.
+func (p printer) sprintFieldRef(node *FieldRef) {
+	sb := p.sb
+	switch iter := node.Iter; {
+	case iter != nil && strings.HasPrefix(node.Name, iter.Iterator):
+		sb.WriteString(iter.Iterator + "[" + iter.Register + "]" + node.Name[len(iter.Iterator):])
+	case iter != nil:
+		// a legacy field renamed, the iterator isn't a prefix of the field
+		sb.WriteString(node.Name + "[" + iter.Register + "]")
+	default:
+		sb.WriteString(node.Name)
 	}
 }
 

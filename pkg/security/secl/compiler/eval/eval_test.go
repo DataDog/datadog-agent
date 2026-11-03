@@ -1603,6 +1603,15 @@ func TestFieldValues(t *testing.T) {
 	}
 }
 
+// A field written `%{process.name}` is the same field as written bare.
+func TestFieldReferenceFields(t *testing.T) {
+	rule, err := parseRule(`%{process.name} == "test" && process.uid == 1000`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.name", "process.uid"}, rule.GetFields())
+}
+
 func TestFieldReferenceSyntax(t *testing.T) {
 	// Test the new %{field} syntax for explicit field references
 	event := &testEvent{

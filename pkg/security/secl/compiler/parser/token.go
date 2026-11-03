@@ -26,7 +26,7 @@ const (
 
 	// literals
 
-	Ident    // process.file.name, process.ancestors[A].file.name
+	Ident    // process, O_RDONLY
 	Int      // 123
 	Duration // 10s
 	String   // "/etc/passwd"
@@ -66,6 +66,7 @@ const (
 	LBracket // [
 	RBracket // ]
 	Comma    // ,
+	Dot      // .
 )
 
 var kindNames = [...]string{
@@ -105,6 +106,7 @@ var kindNames = [...]string{
 	LBracket: "`[`",
 	RBracket: "`]`",
 	Comma:    "`,`",
+	Dot:      "`.`",
 }
 
 func (k Kind) String() string {

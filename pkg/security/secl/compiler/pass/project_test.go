@@ -6,7 +6,6 @@
 package pass
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,11 +15,6 @@ import (
 )
 
 func TestProjectField(t *testing.T) {
-	subscript := regexp.MustCompile(`\[[^\]]*\]`)
-	fieldOf := func(name string) string {
-		return subscript.ReplaceAllString(name, "")
-	}
-
 	for _, test := range []struct {
 		expr     string
 		field    string
@@ -56,7 +50,7 @@ func TestProjectField(t *testing.T) {
 			require.NoError(t, err)
 			original := ast.Sprint(rule)
 
-			projected, err := Run(rule, ResolveIdents(testLookup), ProjectFields([]string{test.field}, fieldOf), FoldBools())
+			projected, err := Run(rule, ResolveIdents(testLookup), ResolveFields(nil), ProjectFields([]string{test.field}), FoldBools())
 			require.NoError(t, err)
 			require.Equal(t, test.expected, ast.Sprint(projected))
 			require.Equal(t, original, ast.Sprint(rule), "the parsed tree is left unchanged")
@@ -65,8 +59,6 @@ func TestProjectField(t *testing.T) {
 }
 
 func TestProjectFieldSet(t *testing.T) {
-	fieldOf := func(name string) string { return name }
-
 	for _, test := range []struct {
 		expr     string
 		expected string
@@ -82,7 +74,7 @@ func TestProjectFieldSet(t *testing.T) {
 			rule, err := parser.ParseRule(test.expr)
 			require.NoError(t, err)
 
-			projected, err := Run(rule, ResolveIdents(testLookup), ProjectFields([]string{"open.file.path", "open.file.name"}, fieldOf), FoldBools())
+			projected, err := Run(rule, ResolveIdents(testLookup), ResolveFields(nil), ProjectFields([]string{"open.file.path", "open.file.name"}), FoldBools())
 			require.NoError(t, err)
 			require.Equal(t, test.expected, ast.Sprint(projected))
 		})
@@ -98,12 +90,11 @@ func TestProjectFieldMacros(t *testing.T) {
 	lookup := func(name string) (ast.Node, bool) {
 		return tree.(*ast.Macro).Root, name == "is_root"
 	}
-	fieldOf := func(name string) string { return name }
 
 	rule, err := parser.ParseRule(`is_root && process.name == "sh"`)
 	require.NoError(t, err)
 
-	projected, err := Run(rule, ResolveIdents(lookup), ProjectFields([]string{"open.file.path"}, fieldOf), FoldBools())
+	projected, err := Run(rule, ResolveIdents(lookup), ResolveFields(nil), ProjectFields([]string{"open.file.path"}), FoldBools())
 	require.NoError(t, err)
 	require.Equal(t, `{is_root (== open.file.path "/a")}`, ast.Sprint(projected))
 }

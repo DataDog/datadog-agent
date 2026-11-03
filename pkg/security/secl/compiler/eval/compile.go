@@ -138,6 +138,12 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 		}
 		return nil, pos, NewOpUnknownError(node.Pos, node.Op.String())
 
+	case *ast.Ident, *ast.Selector:
+		return nil, node.Position(), NewError(node.Position(), "unresolved name `%s`", ast.Sprint(node))
+
+	case *ast.Index:
+		return indexToEvaluator(node, opts, state)
+
 	case *ast.Literal:
 		return literalToEvaluator(node, opts, state)
 
@@ -145,13 +151,41 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 		return evaluatorFromVariable(node.Name, node.Pos, opts, state)
 
 	case *ast.FieldRef:
-		return fieldToEvaluator(node.Name, node.Pos, opts, state)
+		return fieldToEvaluator(node, state)
 
 	case *ast.Array:
 		return arrayToEvaluator(node)
 	}
 
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
+}
+
+// indexToEvaluator compiles an index in an array, `process.argv[0]`: the array
+// and the index are compiled, the index being a constant integer.
+func indexToEvaluator(node *ast.Index, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	array, pos, err := compileNode(node.Base, opts, state)
+	if err != nil {
+		return nil, pos, err
+	}
+
+	index, pos, err := compileNode(node.Subscript, opts, state)
+	if err != nil {
+		return nil, pos, err
+	}
+	indexInt, ok := index.(*IntEvaluator)
+	if !ok || indexInt.EvalFnc != nil {
+		return nil, pos, NewError(pos, "an index is a constant integer")
+	}
+
+	arrayEvaluator, ok := array.(Evaluator)
+	if !ok {
+		return nil, node.Pos, NewError(node.Pos, "`%s` isn't an array", ast.Sprint(node.Base))
+	}
+	evaluator, err := WrapEvaluatorWithArrayIndex(arrayEvaluator, indexInt.Value, arrayEvaluator.GetField())
+	if err != nil {
+		return nil, node.Pos, NewError(node.Pos, "failed to create array index accessor: %v", err)
+	}
+	return evaluator, node.Pos, nil
 }
 
 // literalToEvaluator compiles a literal.
