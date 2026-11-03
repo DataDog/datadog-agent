@@ -531,8 +531,7 @@ go_runtime_type_from_ptr(target_ptr_t type_ptr) {
   // Detect if the moduledata is up-to-date by checking if the address is
   // correct. If it is not, then we need to update the typebounds.
   if (moduledata->addr != VARIABLE_runtime_dot_firstmoduledata) {
-    moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
-    if (bpf_probe_read_user(&moduledata->types, sizeof(typebounds_t),
+    if (bpf_probe_read_user(&moduledata->types.types, sizeof(uint64_t),
                             (void*)(VARIABLE_runtime_dot_firstmoduledata +
                                     OFFSET_runtime_dot_moduledata__types))) {
       LOG(1, "go_runtime_type_from_ptr: failed to read moduledata types %llx + %d",
@@ -540,6 +539,13 @@ go_runtime_type_from_ptr(target_ptr_t type_ptr) {
           OFFSET_runtime_dot_moduledata__types);
       return -1;
     }
+    if (bpf_probe_read_user(&moduledata->types.etypes, sizeof(uint64_t),
+                            (void*)(VARIABLE_runtime_dot_firstmoduledata +
+                                    OFFSET_runtime_dot_moduledata__etypes))) {
+      LOG(1, "go_runtime_type_from_ptr: failed to read moduledata etypes");
+      return -1;
+    }
+    moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
   }
 
   typebounds_t* typebounds = &moduledata->types;
