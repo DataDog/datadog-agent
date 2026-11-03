@@ -267,7 +267,9 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
+    # Overrides .new_e2e_template: --impacted; a CI-only change must still run the full suite
+    DYNAMIC_TESTS_FLAG: ""
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5 -c ddinfra:kindVersion=v0.32.0"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
