@@ -8,6 +8,4 @@ enhancements:
     ``network_path.collector.disable_source_public_ip_collection: true`` for
     Dynamic Tests (basic, standard and NetFlow), and
     ``disable_source_public_ip_collection: true`` in the ``network_path``
-    check configuration for Scheduled Tests. The lookup can't be turned off
-    for Scheduled Tests set up through Remote Config, Network Path Synthetic
-    tests, or the Private Action Runner ``runNetworkPath`` action.
+    check configuration for Scheduled Tests.
