@@ -114,25 +114,7 @@ func operationsOfSize(t *testing.T, size int) config.Operations {
 	}
 }
 
-func TestInstallConfigExperiment_SmallOperationsArePassedAsArgument(t *testing.T) {
-	binPath, argsPath, stdinPath := writeRecordingInstaller(t)
-	operations := operationsOfSize(t, 100)
-	secrets := map[string]string{"ENC[secret]": "value"}
-
-	i := NewInstallerExec(&env.Env{}, binPath)
-	require.NoError(t, i.InstallConfigExperiment(context.Background(), "datadog-agent", operations, secrets))
-
-	operationsJSON, err := json.Marshal(operations)
-	require.NoError(t, err)
-	args, err := os.ReadFile(argsPath)
-	require.NoError(t, err)
-	assert.Equal(t, "install-config-experiment\ndatadog-agent\n"+string(operationsJSON)+"\n", string(args))
-	stdin, err := os.ReadFile(stdinPath)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"ENC[secret]":"value"}`, string(stdin))
-}
-
-func TestInstallConfigExperiment_LargeOperationsArePassedThroughStdin(t *testing.T) {
+func TestInstallConfigExperiment_PassesOperationsThenSecretsThroughStdin(t *testing.T) {
 	binPath, argsPath, stdinPath := writeRecordingInstaller(t)
 	operations := operationsOfSize(t, 64*1024)
 	secrets := map[string]string{"ENC[secret]": "value"}
@@ -142,18 +124,18 @@ func TestInstallConfigExperiment_LargeOperationsArePassedThroughStdin(t *testing
 
 	args, err := os.ReadFile(argsPath)
 	require.NoError(t, err)
-	assert.Equal(t, "install-config-experiment\ndatadog-agent\n--"+OperationsFromStdinFlag+"\n", string(args))
+	assert.Equal(t, "install-config-experiment\ndatadog-agent\n", string(args))
 
 	stdin, err := os.Open(stdinPath)
 	require.NoError(t, err)
 	defer stdin.Close()
 	decoder := json.NewDecoder(stdin)
-	var gotSecrets map[string]string
-	require.NoError(t, decoder.Decode(&gotSecrets))
-	assert.Equal(t, secrets, gotSecrets)
 	var gotOperations config.Operations
 	require.NoError(t, decoder.Decode(&gotOperations))
 	assert.Equal(t, operations, gotOperations)
+	var gotSecrets map[string]string
+	require.NoError(t, decoder.Decode(&gotSecrets))
+	assert.Equal(t, secrets, gotSecrets)
 }
 
 func TestInstallConfigExperiment_ChildExitingBeforeReadingStdinReportsItsError(t *testing.T) {

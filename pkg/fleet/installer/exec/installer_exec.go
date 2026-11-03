@@ -26,15 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-// OperationsFromStdinFlag makes install-config-experiment read its operations
-// from stdin, as a second JSON document following the secrets.
-const OperationsFromStdinFlag = "operations-from-stdin"
-
-// Windows caps the whole command line at 32,767 characters and Linux caps a
-// single argument at 128 KiB. Escaping the JSON quotes on Windows can roughly
-// double its length, hence the margin.
-const maxOperationsArgLength = 8 * 1024
-
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
 	env              *env.Env
@@ -202,17 +193,10 @@ func (i *InstallerExec) InstallConfigExperiment(
 		return fmt.Errorf("error marshalling decrypted secrets: %w", err)
 	}
 
-	stdinPayload := secretsBytes
-	var cmdLineArgs []string
-	// Installers that predate --operations-from-stdin reject the flag, so only
-	// use it when the positional argument would not fit on the command line.
-	if len(operationsBytes) > maxOperationsArgLength {
-		cmdLineArgs = []string{pkg, "--" + OperationsFromStdinFlag}
-		stdinPayload = append(append(stdinPayload, '\n'), operationsBytes...)
-	} else {
-		cmdLineArgs = []string{pkg, string(operationsBytes)}
-	}
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
+	// Operations go through stdin rather than the command line, which Windows caps
+	// at 32,767 characters.
+	stdinPayload := append(append(operationsBytes, '\n'), secretsBytes...)
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg)
 
 	// Capture stderr so a failed run surfaces the installer's error (e.g. which
 	// config file failed to parse and why) instead of a bare "exit status N".
