@@ -7,16 +7,14 @@
 
 package daemon
 
+import "github.com/DataDog/datadog-agent/pkg/config/model"
+
 // macOSFleetEnabledKey opts a macOS host into running the installer daemon. Every .dmg install
 // loads the daemon's LaunchDaemon, but the daemon only does anything once this is set.
 const macOSFleetEnabledKey = "installer.macos_fleet.enabled"
 
-type boolGetter interface {
-	GetBool(key string) bool
-}
-
 // daemonEnabledOnPlatform reports whether this platform lets the daemon run with the given
 // configuration. On macOS it has to be opted into (macOSFleetEnabledKey).
-func daemonEnabledOnPlatform(cfg boolGetter) bool {
+func daemonEnabledOnPlatform(cfg model.Reader) bool {
 	return cfg.GetBool(macOSFleetEnabledKey)
 }
