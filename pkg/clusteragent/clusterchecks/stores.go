@@ -121,7 +121,6 @@ type nodeStore struct {
 	digestToConfig   map[string]integration.Config
 	clientIP         string
 	clcRunnerStats   types.CLCRunnersStats
-	busyness         int
 	workers          int
 	nodetype         types.NodeType
 	group            string // runner group, "" for a general worker
@@ -133,7 +132,6 @@ func newNodeStore(name, clientIP string) *nodeStore {
 		clientIP:       clientIP,
 		digestToConfig: make(map[string]integration.Config),
 		clcRunnerStats: types.CLCRunnersStats{},
-		busyness:       defaultBusynessValue,
 	}
 }
 
