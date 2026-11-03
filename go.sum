@@ -20,6 +20,8 @@ code.cloudfoundry.org/bbs/format v1.18.0 h1:ks8RUPW42FKDTfPlykYRu476+zPDBB5dBHeI
 code.cloudfoundry.org/bbs/format v1.18.0/go.mod h1:hJIqvU7Fb91gnpVO06OS68CxyEhC4TwxG0yoOtK6W7s=
 code.cloudfoundry.org/bbs/models v1.24.0 h1:nTZUj9l3BXKnSJrF0dPlUG4Ds7A85jxiCdOvWSZ9MvM=
 code.cloudfoundry.org/bbs/models v1.24.0/go.mod h1:rw21FTT6rgNdWKN0u2/t6njeSnQKzjMcjDKyhUL5kFI=
+code.cloudfoundry.org/bbs/models v1.25.0 h1:qQIZ2t+DxgXBUIonDq2SJRTwhZjbcnKhJrmV1QdWwUI=
+code.cloudfoundry.org/bbs/models v1.25.0/go.mod h1:xzEgpuUfGBLMGFEvZ/sXT9cNcjWZ6t2dQdffuNzjBzs=
 code.cloudfoundry.org/cfhttp/v2 v2.99.0 h1:A2NuxCLW2MuT8Hsiiky3KE6PDvQZ8rkzPimcIs2/vCU=
 code.cloudfoundry.org/cfhttp/v2 v2.99.0/go.mod h1:xJ7XlnKyNnyR0+PGrIKARe0uBTqQK7T4BHMjVHnnb2k=
 code.cloudfoundry.org/garden v0.9.0 h1:HOkcnRZ/pV5a4WLSMFiQzYhGn7WWrvDDqj715DA8Prg=
