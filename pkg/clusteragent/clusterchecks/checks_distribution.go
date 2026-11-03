@@ -44,15 +44,21 @@ func (ns runnerStatus) utilization() float64 {
 // configsDistribution represents the placement of cluster check configs
 // across the runners of a cluster. Each entry is keyed by config digest.
 type configsDistribution struct {
-	configs              map[string]*configStatus
-	runners              map[string]*runnerStatus
-	stickinessEnabled    bool
-	stickinessFactor     float64
-	stickinessUpperLimit float64
-	stickinessLowerLimit float64
+	configs    map[string]*configStatus
+	runners    map[string]*runnerStatus
+	stickiness stickinessConfig
 }
 
-func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled bool, stickinessFactor float64, stickinessUpperLimit float64, stickinessLowerLimit float64) configsDistribution {
+// stickinessConfig holds the cluster_checks.stickiness_* settings, which bias
+// the placement of a config towards the runner it is already on.
+type stickinessConfig struct {
+	enabled    bool
+	factor     float64
+	upperLimit float64
+	lowerLimit float64
+}
+
+func newConfigsDistribution(workersPerRunner map[string]int, stickiness stickinessConfig) configsDistribution {
 	runners := map[string]*runnerStatus{}
 	for runnerName, runnerWorkers := range workersPerRunner {
 		runners[runnerName] = &runnerStatus{
@@ -63,12 +69,9 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 	}
 
 	return configsDistribution{
-		configs:              map[string]*configStatus{},
-		runners:              runners,
-		stickinessEnabled:    stickinessEnabled,
-		stickinessFactor:     stickinessFactor,
-		stickinessUpperLimit: stickinessUpperLimit,
-		stickinessLowerLimit: stickinessLowerLimit,
+		configs:    map[string]*configStatus{},
+		runners:    runners,
+		stickiness: stickiness,
 	}
 }
 
@@ -85,8 +88,8 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
-		if distribution.stickinessEnabled && runnerName == preferredRunner {
-			bias := max(min(workersNeeded*distribution.stickinessFactor, distribution.stickinessUpperLimit), distribution.stickinessLowerLimit)
+		if distribution.stickiness.enabled && runnerName == preferredRunner {
+			bias := max(min(workersNeeded*distribution.stickiness.factor, distribution.stickiness.upperLimit), distribution.stickiness.lowerLimit)
 			runnerUtilization -= bias
 		}
 

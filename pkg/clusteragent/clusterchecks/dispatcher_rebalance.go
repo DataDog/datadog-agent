@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -213,13 +212,8 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 		}
 	}
 
-	config := pkgconfigsetup.Datadog()
-	stickinessEnabled := config.GetBool("cluster_checks.stickiness_enabled")
-	stickinessFactor := config.GetFloat64("cluster_checks.stickiness_factor")
-	stickinessUpperLimit := config.GetFloat64("cluster_checks.stickiness_upper_limit")
-	stickinessLowerLimit := config.GetFloat64("cluster_checks.stickiness_lower_limit")
-	currentCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
-	proposedCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
+	currentCohort := newConfigsDistribution(runners, d.stickiness)
+	proposedCohort := newConfigsDistribution(runners, d.stickiness)
 
 	// Current: each config on its runner. Proposed: pinned configs stay, the
 	// rest go greedily to the least busy eligible runner.
@@ -238,9 +232,8 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 		proposedCohort.addToLeastBusy(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, false)
 	}
 
-	minPercImprovement := config.GetInt("cluster_checks.rebalance_min_percentage_improvement")
 	currentStdDev, proposedStdDev := currentCohort.utilizationStdDev(), proposedCohort.utilizationStdDev()
-	if !force && !rebalanceIsWorthIt(currentCohort, proposedCohort, minPercImprovement) {
+	if !force && !rebalanceIsWorthIt(currentCohort, proposedCohort, d.rebalanceMinPercImprovement) {
 		log.Debugf("Cohort rebalance not worth it (current stddev: %.3f, proposed: %.3f)", currentStdDev, proposedStdDev)
 		setPredictedUtilization(currentCohort)
 		return nil
@@ -266,7 +259,8 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 		currentWorkersPerRunner[nodeName] = nodeInfo.workers
 	}
 
-	distribution := newConfigsDistribution(currentWorkersPerRunner, pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
+	// Only records the current placement: stickiness never applies.
+	distribution := newConfigsDistribution(currentWorkersPerRunner, stickinessConfig{})
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		nodeStoreInfo.RLock()
