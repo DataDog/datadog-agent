@@ -184,7 +184,6 @@ import (
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
-	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -619,7 +618,6 @@ func getSharedFxOption() fx.Option {
 		configstreamfx.Module(),
 		logondurationfx.Module(),
 		healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
-		tracetelemetryfx.Module(),
 		dataplanepreflightmodefx.Module(),
 	)
 }

@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    Remove the internal ``datadog.trace.enabled`` and ``datadog.trace.working``
+    agent telemetry (COAT) metrics. They were temporary observability for the
+    lazy activation of the trace-agent, which has now been rolled out.
