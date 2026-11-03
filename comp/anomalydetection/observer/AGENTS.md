@@ -158,10 +158,32 @@ DogStatsD counter normalized to a rate, not the type for log event totals.
 Only `metrics.CountType` outputs enter fixed-width log count buckets.
 
 Storage also supports committed `MetricKind` metadata and optional kind/type
-filters. Kinds start as `UNSET`; classification is not activated yet.
+filters. Kinds start as `UNSET`.
 `SeriesGeneration` changes on admission/removal and actual filterable metadata
 changes, not ordinary point writes. Kind set/reset preserves observations and
 per-series write generations.
+
+### Metric kind matcher
+
+`NewMetricKindMatcher` returns transitions; the caller owns and commits storage
+kinds. It tracks pending predictions and freshness, never borrowed point buffers.
+Call `RemoveSeries` on eviction and `Reset` on analysis restart.
+
+Defaults: 30–120 visible points; immediate initial assignment; three consecutive
+fresh-data predictions for replacements, including `UNKNOWN` recovery. Matching
+the committed kind cancels pending evidence. Each batch counts at most once;
+future points and unchanged-data advances provide no evidence. Classification
+uses constant/OLS linear fits with robust residual checks.
+
+`BenchmarkMetricKindMatcher` covers cold/fresh/unchanged/transition advances at
+5/200/2,000 series and 30/120 points. Time/allocations are per advance, excluding
+input preparation and storage/engine work. Run without race instrumentation:
+
+```bash
+dda inv test --targets=./comp/anomalydetection/observer/impl \
+  --test-args='-test.run=^$ -test.bench=^BenchmarkMetricKindMatcher$ -test.benchmem -test.count=5' \
+  --bazel-args='--test_output=all --nocache_test_results'
+```
 
 ### Non-blocking ingestion
 
