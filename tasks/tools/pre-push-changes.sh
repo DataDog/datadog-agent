@@ -7,5 +7,8 @@
 ref=${PRE_COMMIT_TO_REF:-HEAD}
 base=$(git show "$ref:release.json" | sed -n 's/.*"base_branch": *"\([^"]*\)".*/\1/p') || exit 0
 [ -n "$base" ] || exit 0
+# Explicit refspec: single-branch clones would otherwise only update FETCH_HEAD.
+git rev-parse -q --verify "origin/$base" >/dev/null ||
+    git fetch -q origin "refs/heads/$base:refs/remotes/origin/$base" || exit 0
 changed=$(git diff --name-only "origin/$base...$ref") || exit 0
 grep -qE "$1" <<<"$changed"
