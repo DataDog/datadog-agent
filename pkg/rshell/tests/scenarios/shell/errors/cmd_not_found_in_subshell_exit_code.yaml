@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-18-initial-audit / errors.
+# Pins that a cmd-not-found inside a (...) subshell propagates exit 127 to
+# the parent, observable via $?. A regression where the subshell swallowed
+# the failure (e.g. via a stray r.exit reset) would let scripts mask
+# command-not-allowed errors from their callers.
+description: cmd-not-found inside a subshell propagates exit 127 to the parent.
+input:
+  script: |+
+    (no_such_cmd_xyz)
+    echo "subshell_exit=$?"
+expect:
+  stdout: |+
+    subshell_exit=127
+  stderr_contains: ["no_such_cmd_xyz"]
+  exit_code: 0

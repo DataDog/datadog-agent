@@ -17,3 +17,21 @@ var emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 	"Number of events emitted by the check",
 	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
+
+var queueLatency = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+	CheckName,
+	"subscription_queue_latency_seconds",
+	[]string{"channel"},
+	"Time an event bundle waited in a workloadmeta subscription channel before the check received it (in seconds)",
+	[]float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10},
+	telemetry.Options{NoDoubleUnderscoreSep: true},
+)
+
+var bundleSize = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+	CheckName,
+	"subscription_bundle_size",
+	[]string{"channel"},
+	"Number of events in each bundle received from a workloadmeta subscription channel",
+	[]float64{1, 5, 10, 25, 50, 100, 250, 500},
+	telemetry.Options{NoDoubleUnderscoreSep: true},
+)

@@ -1,0 +1,11 @@
+# Bare journal reads are intentionally unavailable in rshell.
+skip_assert_against_bash: true
+description: journalctl requires an exact unit or kernel scope
+input:
+  script: |+
+    journalctl
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: an exact --unit or --dmesg scope is required
+  exit_code: 1

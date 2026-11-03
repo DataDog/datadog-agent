@@ -1599,3 +1599,37 @@ func warningMessages(cb *CollectorBundle) []string {
 	}
 	return messages
 }
+
+func TestImportBuiltinHelmReleaseConfigMapCollector(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		enabled       bool
+		configured    []string
+		expectedAdded bool
+	}{
+		{name: "enabled with the ConfigMap collector", enabled: true, configured: []string{"configmaps"}, expectedAdded: true},
+		{name: "enabled without the ConfigMap collector", enabled: true, configured: []string{"pods"}, expectedAdded: false},
+		{name: "disabled with the ConfigMap collector", enabled: false, configured: []string{"configmaps"}, expectedAdded: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cb := newRetryTestBundle(t, tc.configured, false, nil, map[string]any{
+				"orchestrator_explorer.helm_releases.configmaps.enabled": tc.enabled,
+			})
+			cb.collectorDiscovery.SetCache(discovery.DiscoveryCache{
+				CollectorForVersion: map[discovery.CollectorVersion]struct{}{
+					{GroupVersion: "v1", Kind: "configmaps"}: {},
+					{GroupVersion: "v1", Kind: "pods"}:       {},
+				},
+			})
+
+			cb.importCollectorsFromCheckConfig()
+			cb.importBuiltinCollectors()
+
+			if tc.expectedAdded {
+				assert.Contains(t, collectorNames(cb), "v1/helm-releases-configmaps")
+			} else {
+				assert.NotContains(t, collectorNames(cb), "v1/helm-releases-configmaps")
+			}
+		})
+	}
+}

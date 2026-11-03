@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``configcheck``, ``tagger-list``, ``workload-list``, and ``health``
+    commands of the Agent and Cluster Agent no longer print the Agent's
+    internal logs when ``DD_LOG_LEVEL`` is set in their environment, as it is
+    in most containerized deployments. Use the new ``--log_level`` flag to
+    show them for debugging.

@@ -193,7 +193,7 @@ func TestGetGPUToContainersMapSyncsDRACDIHealthIssue(t *testing.T) {
 
 	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil, nil)
 	healthStore := healthplatformmock.New(t)
 	check.SetIssueReporter(healthStore)
 	check.hostname = testHostname
@@ -260,7 +260,7 @@ func TestRunRecordsSysprobeDataSources(t *testing.T) {
 	}
 
 	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithProcessData(nil, nvml.SUCCESS))
-	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil, nil)
 	require.NotNil(t, check.spCache)
 	require.NotNil(t, check.prmCache)
 	require.True(t, check.driverEventsEnabled)

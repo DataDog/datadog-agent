@@ -1,0 +1,14 @@
+description: Variable expansion in the redirection operand resolves the filename.
+setup:
+  files:
+    - path: data.txt
+      content: "variable resolved"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    F=data.txt
+    cat < $F
+expect:
+  stdout: "variable resolved"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: pwd rejects an unknown short flag with a stderr diagnostic and exit 1.
+skip_assert_against_bash: true
+input:
+  script: |+
+    pwd -x
+expect:
+  stdout: ""
+  stderr: |+
+    pwd: invalid option -- 'x'
+    Try 'pwd --help' for more information.
+  exit_code: 1

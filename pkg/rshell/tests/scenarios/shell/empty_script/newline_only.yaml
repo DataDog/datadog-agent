@@ -1,0 +1,7 @@
+description: A newline-only script produces no output and exits successfully.
+input:
+  script: "\n\n\n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

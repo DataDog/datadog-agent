@@ -7,7 +7,6 @@ package cspm
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -80,39 +79,41 @@ func (s *containerBenchmarksSuite) runHost(cmd string) string {
 	return s.Env().RemoteHost.MustExecute(cmd)
 }
 
+func (s *containerBenchmarksSuite) runAgent(cmd string) string {
+	return s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd)
+}
+
 func (s *containerBenchmarksSuite) check(args string) []event {
 	cmd := fmt.Sprintf("%s compliance check %s 2>/dev/null", securityAgent, args)
 	return parseEvents(s.T(), s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd))
 }
 
-// fipsCheck runs compliance check with libgcrypt forced into FIPS mode and a
-// memory lock limit of zero, as on a FIPS host in system-probe, whose seccomp
-// profile denies mlock.
-func (s *containerBenchmarksSuite) fipsCheck(args string) []event {
-	cmd := fmt.Sprintf("ulimit -l 0 && LIBGCRYPT_FORCE_FIPS_MODE=1 %s compliance check %s 2>/dev/null", securityAgent, args)
-	return parseEvents(s.T(), s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd))
-}
-
-// oscapTempDirs counts the entries of /tmp in the agent container named after
-// OpenSCAP, which an oscap-io process that dies leaves behind.
-func (s *containerBenchmarksSuite) oscapTempDirs() int {
-	out := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", "ls -A /tmp | grep -c '^oscap' || true")
-	n, err := strconv.Atoi(strings.TrimSpace(out))
-	require.NoErrorf(s.T(), err, "counting the oscap entries of /tmp: %q", out)
-	return n
+// fipsCheck returns a check that runs compliance check with tmp as its TMPDIR,
+// libgcrypt forced into FIPS mode and a memory lock limit of zero, as on a
+// FIPS host in system-probe, whose seccomp profile denies mlock.
+func (s *containerBenchmarksSuite) fipsCheck(tmp string) func(string) []event {
+	return func(args string) []event {
+		cmd := fmt.Sprintf("ulimit -l 0 && TMPDIR=%s LIBGCRYPT_FORCE_FIPS_MODE=1 %s compliance check %s 2>/dev/null", tmp, securityAgent, args)
+		return parseEvents(s.T(), s.runAgent(cmd))
+	}
 }
 
 // TestFIPSWithoutLockedMemory checks that the probe rules give the results of a
 // normal run in libgcrypt's FIPS mode with no memory to lock, and that those
-// runs leave nothing in /tmp.
+// runs leave their TMPDIR empty. They get a TMPDIR of their own: the agent's
+// scheduled benchmarks keep their temporary directories in /tmp while they
+// run.
 func (s *containerBenchmarksSuite) TestFIPSWithoutLockedMemory() {
-	before := s.oscapTempDirs()
+	tmp := strings.TrimSpace(s.runAgent("mktemp -d /tmp/cspm-fips.XXXXXX"))
+	require.NotEmpty(s.T(), tmp, "creating the TMPDIR of the FIPS runs")
+	defer s.runAgent("rm -rf " + tmp)
+	fipsCheck := s.fipsCheck(tmp)
 	for _, p := range probesFor(s.distro, false) {
 		want := checkRule(s.T(), s.distro, s.check, p.rule).Result
-		got := checkRule(s.T(), s.distro, s.fipsCheck, p.rule).Result
+		got := checkRule(s.T(), s.distro, fipsCheck, p.rule).Result
 		assert.Equalf(s.T(), want, got, "%s in FIPS mode without locked memory", p.rule)
 	}
-	assert.Equal(s.T(), before, s.oscapTempDirs(), "oscap entries in /tmp")
+	assert.Empty(s.T(), strings.Fields(s.runAgent("ls -A "+tmp)), "entries left in the TMPDIR of the FIPS runs")
 }
 
 // TestBundledContent checks the agent image ships this distro's benchmark content.

@@ -1,0 +1,8 @@
+description: Echo -e with \n escape produces a newline character.
+input:
+  script: |+
+    echo -e 'hello\nworld'
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

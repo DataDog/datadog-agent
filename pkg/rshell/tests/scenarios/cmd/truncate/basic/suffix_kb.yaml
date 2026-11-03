@@ -1,0 +1,16 @@
+description: -s 1KB uses the decimal 1000-byte multiplier.
+setup:
+  files:
+    - path: f.bin
+      content: ""
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s 1KB f.bin
+    wc -c < f.bin
+expect:
+  stdout: |+
+    1000
+  stderr: |+
+  exit_code: 0

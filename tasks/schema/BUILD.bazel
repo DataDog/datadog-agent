@@ -26,7 +26,7 @@ py_binary(
     deps = ["@py_dev_requirements//pyyaml"],
 )
 
-# Used by //pkg/config/setup:codegen_settings and
+# Used by //pkg/config/setup/generatedsettings_local:codegen_settings and
 # //pkg/config/setup/constants:codegen_constants to generate *_settings.go /
 # constants source files from the merged schema.  Mirrors what
 # `dda inv schema.codegen` does but writes to a caller-supplied output
