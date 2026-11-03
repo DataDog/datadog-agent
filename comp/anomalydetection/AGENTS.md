@@ -81,6 +81,11 @@ dda inv anomalydetection.launch-testbench
 See `internal/anomalydetection/testbench/README.md` for flags and
 headless/eval workflows.
 
+Local scenario evaluation reads latest LLMObs recording references with
+`dda inv anomalydetection.eval-scenarios`; it defaults to the typed local
+recordings dataset. `--dataset NAME` selects another dataset and `--local`
+replays existing files without LLMObs. See the testbench README for details.
+
 ## Production Safety and Review Invariants
 
 The live Agent is the primary constraint; testbench convenience must not affect

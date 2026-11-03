@@ -12,7 +12,7 @@ dda inv -- anomalydetection.launch-testbench --build
 dda inv -- anomalydetection.launch-testbench
 
 # Use a custom scenarios directory
-dda inv -- anomalydetection.launch-testbench --scenarios-dir /path/to/scenarios
+dda inv -- anomalydetection.launch-testbench --local --scenarios-dir /path/to/scenarios
 ```
 
 Then open `http://localhost:5173` in your browser.
@@ -33,6 +33,59 @@ cd internal/anomalydetection/testbench/ui
 npm install  # first time only
 npm run dev
 ```
+
+## Local dataset replay
+
+Local evaluations and the interactive testbench use the latest LLMObs recording
+dataset. The default is `observer-metric-types-2026-10-26`, the updated copy of
+our 12 local fault recordings. See [AAD evaluation datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets)
+for the available datasets. A local scenario manifest is not required.
+
+```bash
+# Replay the default dataset headlessly and print the existing F1 results.
+dda inv anomalydetection.eval-scenarios
+
+# Select one recording from the default dataset.
+dda inv anomalydetection.eval-scenarios --scenario redis-cpu-saturation
+
+# Open a recording from that dataset in the existing interactive testbench.
+dda inv anomalydetection.launch-testbench --build --scenario redis-cpu-saturation
+
+# Run the existing headless testbench directly through the launcher.
+dda inv anomalydetection.launch-testbench --headless-scenario redis-cpu-saturation
+
+# Discover or download other datasets; --dataset accepts a name or UUID.
+dda inv anomalydetection.list-datasets
+dda inv anomalydetection.download-scenarios --dataset observer-original-recordings-2026-09-30
+
+# Replay existing files without accessing LLMObs.
+dda inv anomalydetection.eval-scenarios --local --scenario example --scenarios-dir /path/to/scenarios
+dda inv anomalydetection.launch-testbench --local --scenarios-dir /path/to/scenarios
+```
+
+`--scenario` or `--scenarios` filters evaluation rows. `--project` and `--site`
+select another LLMObs project/site; there is no dataset version selector.
+Dataset access uses `DD_API_KEY` and `DD_APP_KEY`, or cached `dd-auth-quiet`
+credentials when that helper is installed. Private S3 downloads use normal AWS
+credentials; supply `--aws-profile NAME` if needed. The worker uses its own role,
+while this download runs locally.
+
+Recording ZIPs are checked against their SHA-256 and cached under
+`<scenarios-dir>/.llmobs/<dataset-id>/`. Their original Parquet bytes and episode
+metadata are preserved; changed checksums refresh cached recordings. Dataset rows
+must provide `recording` ZIP references. Native GenSim Store/archive references
+are not supported by these local commands.
+
+Each completed evaluation includes an `inspect_command` to open the same cached
+recording and component settings. `--config FILE` takes precedence over `--only`;
+headless evaluation automatically adds `anomaly_scorer` to `--only` selections.
+Replay streams by default and retries with retained sorting for unordered input.
+Reports record the replay mode: retained and streaming replay use different
+storage retention and can produce different detections. Interactive replay uses
+retained data for visualization and reruns.
+
+The launcher runs until Ctrl-C and stops its backend on exit. If another
+instance is running, use `--api-port 8087 --ui-port 5177` to keep them separate.
 
 ## Evals
 
@@ -130,7 +183,7 @@ dda inv -- anomalydetection.launch-testbench
 dda inv -- anomalydetection.launch-testbench --only bocpd,time_cluster
 
 # Run on a different port
-dda inv -- anomalydetection.launch-testbench --http :9090
+dda inv -- anomalydetection.launch-testbench --api-port 9090
 
 # Log anomaly focus: skip parquet metrics and trace stats (faster)
 dda inv -- anomalydetection.launch-testbench --logs-only
