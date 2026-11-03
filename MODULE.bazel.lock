@@ -220,6 +220,8 @@
     "https://bcr.bazel.build/modules/rules_m4/0.3.bcr.1/source.json": "0f3dffd7c11d8ae41eaf65ebcca59df6ed0b6cc44bd323129f1070ded71160f5",
     "https://bcr.bazel.build/modules/rules_multitool/1.11.1/MODULE.bazel": "f826d2d394e8d964e44ebb4a75ebcfe4e9cd4eb150e2ddcd60398ffeb939696a",
     "https://bcr.bazel.build/modules/rules_multitool/1.11.1/source.json": "201f43de1d35bd17f25a4fed3ba5a2ec500ef5e08b7d4b341bb9fd39cef0cbc6",
+    "https://bcr.bazel.build/modules/rules_perl/2.1.0/MODULE.bazel": "94f693c9a01c026c5086e8ea6ad97684612c1f93f17efb6700839b28eae10c4c",
+    "https://bcr.bazel.build/modules/rules_perl/2.1.0/source.json": "6d58bec48ea044651d5422144ffc4b191eba356a6f87936da19458d850d3c5b0",
     "https://bcr.bazel.build/modules/rules_proto/4.0.0/MODULE.bazel": "a7a7b6ce9bee418c1a760b3d84f83a299ad6952f9903c67f19e4edd964894e06",
     "https://bcr.bazel.build/modules/rules_proto/5.3.0-21.7/MODULE.bazel": "e8dff86b0971688790ae75528fe1813f71809b5afd57facb44dad9e8eca631b7",
     "https://bcr.bazel.build/modules/rules_proto/6.0.0-rc1/MODULE.bazel": "1e5b502e2e1a9e825eef74476a5a1ee524a92297085015a052510b09a1a09483",
