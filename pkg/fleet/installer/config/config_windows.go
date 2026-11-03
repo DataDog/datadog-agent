@@ -163,8 +163,6 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	).WithExpectedExitCodes(1, 2, 3, 4, 5, 6, 7)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	// A nil Stdin makes exec open the NUL device, which fails ("open NUL") on hosts where it is unavailable.
-	cmd.Stdin = bytes.NewReader(nil)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err = cmd.Run()
