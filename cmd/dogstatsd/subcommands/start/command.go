@@ -97,11 +97,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			var startFunc interface{} = start
-			if serverlessenv.IsAzureAppServicesExtension() {
-				startFunc = startAAS
-			}
-			return RunDogstatsdFct(cliParams, "", defaultLogFile, startFunc)
+			return RunDogstatsdFct(cliParams, "", defaultLogFile, start)
 		},
 	}
 
@@ -188,6 +184,7 @@ func metadataModules() fx.Option {
 		return fx.Options(
 			serverlessaasfx.Module(),
 			metadatarunnerfx.Module(),
+			fx.Invoke(func(_ serverlessaas.Component) {}),
 		)
 	}
 	return fx.Options(
@@ -199,6 +196,9 @@ func metadataModules() fx.Option {
 		// sysprobeconfig is optionally required by inventoryagent.
 		sysprobeconfig.NoneModule(),
 		inventoryhostfx.Module(),
+		// Value groups only collect instantiated providers. Activate the host
+		// components here rather than making startup depend on this context.
+		fx.Invoke(func(_ resources.Component, _ host.Component, _ inventoryagent.Component, _ inventoryhost.Component) {}),
 	)
 }
 
@@ -213,40 +213,7 @@ func start(
 	_ tagger.Component,
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
-	_ resources.Component,
-	_ host.Component,
-	_ inventoryagent.Component,
-	_ inventoryhost.Component,
 	_ healthprobe.Component,
-) error {
-	return run(cliParams, config, log, params, server, wmeta, demultiplexer)
-}
-
-func startAAS(
-	cliParams *CLIParams,
-	config config.Component,
-	log log.Component,
-	params *Params,
-	server dogstatsdServer.Component,
-	_ defaultforwarder.Component,
-	wmeta workloadmeta.Component,
-	_ tagger.Component,
-	demultiplexer demultiplexer.Component,
-	_ serverlessaas.Component,
-	_ runner.Component,
-	_ healthprobe.Component,
-) error {
-	return run(cliParams, config, log, params, server, wmeta, demultiplexer)
-}
-
-func run(
-	cliParams *CLIParams,
-	config config.Component,
-	log log.Component,
-	params *Params,
-	server dogstatsdServer.Component,
-	wmeta workloadmeta.Component,
-	demultiplexer demultiplexer.Component,
 ) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
