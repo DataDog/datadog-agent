@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"math/rand"
@@ -17,6 +18,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func makeSyntheticPoints(startTs int64, stepSec int64, vals []float64) []observerdef.Point {
@@ -146,7 +148,7 @@ func TestMetricKindMatcher_RemoveAndReset(t *testing.T) {
 }
 
 func TestMetricKindMatcher_Config(t *testing.T) {
-	defaults := observerdef.MetricKindMatcherConfig{MinPoints: 30, MaxPoints: 120, TransitionConfirmations: 3}
+	defaults := observerdef.MetricKindMatcherConfig{MinPoints: 30, MaxPoints: 30, TransitionConfirmations: 3}
 	require.Equal(t, defaults, DefaultMetricKindMatcherConfig())
 	for _, tc := range []struct {
 		name string
@@ -159,6 +161,8 @@ func TestMetricKindMatcher_Config(t *testing.T) {
 			observerdef.MetricKindMatcherConfig{MinPoints: 5, MaxPoints: 10, TransitionConfirmations: 1}},
 		{"maximum below minimum", observerdef.MetricKindMatcherConfig{MinPoints: 130, MaxPoints: 10},
 			observerdef.MetricKindMatcherConfig{MinPoints: 130, MaxPoints: 130, TransitionConfirmations: 3}},
+		{"default maximum below explicit minimum", observerdef.MetricKindMatcherConfig{MinPoints: 60},
+			observerdef.MetricKindMatcherConfig{MinPoints: 60, MaxPoints: 60, TransitionConfirmations: 3}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := NewMetricKindMatcher(tc.cfg).(*metricKindMatcher)
@@ -166,6 +170,51 @@ func TestMetricKindMatcher_Config(t *testing.T) {
 			require.Equal(t, observerdef.DetectorPointWindow{MinPoints: tc.want.MinPoints, MaxPoints: tc.want.MaxPoints}, m.Window())
 		})
 	}
+}
+
+func TestMetricKindMatcher_InvalidWindowWarning(t *testing.T) {
+	level, err := pkglog.GetLogLevelSpec()
+	require.NoError(t, err)
+	var output bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndMsgFormat(&output, pkglog.WarnLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+	t.Cleanup(func() { pkglog.SetupLogger(pkglog.Default(), level) })
+
+	m := NewMetricKindMatcher(observerdef.MetricKindMatcherConfig{MinPoints: 30, MaxPoints: 10})
+	pkglog.Flush()
+	require.Contains(t, output.String(), "[anomalydetection] MetricKindMatcher max_points=10 is below min_points=30; using 30")
+	require.Equal(t, observerdef.DetectorPointWindow{MinPoints: 30, MaxPoints: 30}, m.Window())
+
+	output.Reset()
+	NewMetricKindMatcher(DefaultMetricKindMatcherConfig())
+	pkglog.Flush()
+	require.Empty(t, output.String(), "valid windows should not warn")
+}
+
+func TestMetricKindMatcher_DefaultUsesLatestThirtyVisiblePoints(t *testing.T) {
+	var received []observerdef.Point
+	m := newMetricKindMatcherWithClassifier(observerdef.MetricKindMatcherConfig{},
+		func(points []observerdef.Point, _ *matcherWorkspace) observerdef.MetricKind {
+			received = append([]observerdef.Point(nil), points...)
+			return observerdef.STABLE
+		})
+	points := make([]observerdef.Point, 125)
+	for i := range points {
+		points[i] = observerdef.Point{Timestamp: int64(i + 1), Value: float64(i)}
+		if i >= 90 && i < 120 {
+			points[i].Value = 100
+		}
+		if i >= 120 {
+			points[i].Value = math.NaN()
+		}
+	}
+	_, changed := m.Observe(1, observerdef.UNSET, points, 120)
+	require.True(t, changed)
+	require.Equal(t, points[90:120], received, "ignore old history and future replay observations")
+	tr, changed := NewMetricKindMatcher(DefaultMetricKindMatcherConfig()).Observe(1, observerdef.UNSET, points, 120)
+	require.True(t, changed)
+	require.Equal(t, observerdef.STABLE, tr.To, "only the most recent visible shape matters")
 }
 
 func TestMetricKindMatcher_BoundedVisibleWindow(t *testing.T) {
@@ -412,6 +461,140 @@ func TestClassifyMetricKind_Shapes(t *testing.T) {
 		}
 		oscPts := makeSyntheticPoints(1, 10, osc)
 		assert.Equal(t, observerdef.UNKNOWN, classifyMetricKind(oscPts, &ws))
+	})
+}
+
+func TestMetricKindMatcher_SpikesAndPlateaus(t *testing.T) {
+	classify := func(t *testing.T, values []float64, want observerdef.MetricKind) {
+		t.Helper()
+		points := makeSyntheticPoints(1, 1, values)
+		tr, changed := NewMetricKindMatcher(DefaultMetricKindMatcherConfig()).Observe(1, observerdef.UNSET, points, 30)
+		require.True(t, changed)
+		require.Equal(t, want, tr.To)
+	}
+	for _, shape := range []struct {
+		name  string
+		slope float64
+		spike float64
+		want  observerdef.MetricKind
+	}{
+		{"plateau", 0, 40, observerdef.STABLE},
+		{"positive ramp", 8, 80, observerdef.LINEAR},
+		{"negative ramp", -8, 80, observerdef.LINEAR},
+	} {
+		for _, positions := range [][]int{{0}, {15}, {29}, {2, 27}} {
+			for _, sign := range []float64{-1, 1} {
+				t.Run(fmt.Sprintf("%s/spikes=%v/sign=%g", shape.name, positions, sign), func(t *testing.T) {
+					values := make([]float64, 30)
+					for i := range values {
+						values[i] = 100 + shape.slope*float64(i) + 0.5*float64(i%3-1)
+					}
+					for _, i := range positions {
+						values[i] += sign * shape.spike
+					}
+					classify(t, values, shape.want)
+				})
+			}
+		}
+	}
+
+	t.Run("zero-MAD plateau with isolated spikes", func(t *testing.T) {
+		for _, positions := range [][]int{{0}, {15}, {29}, {3, 14, 26}} {
+			for _, spike := range []float64{-100, 100} {
+				t.Run(fmt.Sprintf("spikes=%v/size=%g", positions, spike), func(t *testing.T) {
+					values := make([]float64, 30)
+					for i := range values {
+						values[i] = 100
+					}
+					for _, i := range positions {
+						values[i] += spike
+					}
+					// Includes the exact 29 values at 100 followed by 200 regression.
+					classify(t, values, observerdef.STABLE)
+				})
+			}
+		}
+	})
+	t.Run("noisy ramps with isolated spikes", func(t *testing.T) {
+		for _, slope := range []float64{-8, 8} {
+			for _, positions := range [][]int{{0}, {15}, {29}, {3, 14, 26}} {
+				for _, spike := range []float64{-80, 80} {
+					t.Run(fmt.Sprintf("slope=%g/spikes=%v/size=%g", slope, positions, spike), func(t *testing.T) {
+						rng := rand.New(rand.NewSource(59507))
+						values := make([]float64, 30)
+						for i := range values {
+							values[i] = 400 + slope*float64(i) + 1.5*rng.NormFloat64()
+						}
+						for _, i := range positions {
+							values[i] += spike
+						}
+						classify(t, values, observerdef.LINEAR)
+					})
+				}
+			}
+		}
+	})
+	t.Run("jagged plateau with frequent small peaks", func(t *testing.T) {
+		offsets := []float64{0, 0, 1, 0, 3, 0, 1, 3, 0, 0, 2, 1, 0, 2, 2, 0, 0, 0, 1, 0, 2, 3, 0, 3, 0, 2, 1, 1, 2, 0}
+		values := make([]float64, len(offsets))
+		for i, offset := range offsets {
+			values[i] = 100 + offset
+		}
+		classify(t, values, observerdef.STABLE)
+	})
+	t.Run("negative and zero-centered low-MAD plateaus", func(t *testing.T) {
+		for _, level := range []float64{-100, 0} {
+			values := make([]float64, 30)
+			for i := range values {
+				values[i] = level + 0.01*float64(i%3-1)
+			}
+			values[29] += 0.4
+			classify(t, values, observerdef.STABLE)
+		}
+	})
+	t.Run("irregularly sampled plateau with endpoint spikes", func(t *testing.T) {
+		points := make([]observerdef.Point, 30)
+		// Keep timestamps large to catch rounding from using absolute float times.
+		ts := int64(1 << 60)
+		for i := range points {
+			ts += int64(1 + 10*(i%4))
+			points[i] = observerdef.Point{Timestamp: ts, Value: 100 + 0.5*float64(i%3-1)}
+		}
+		points[0].Value += 40
+		points[29].Value -= 40
+		tr, changed := NewMetricKindMatcher(DefaultMetricKindMatcherConfig()).Observe(1, observerdef.UNSET, points, ts)
+		require.True(t, changed)
+		require.Equal(t, observerdef.STABLE, tr.To)
+	})
+	t.Run("low MAD does not hide a genuine trend", func(t *testing.T) {
+		values := make([]float64, 30)
+		for i := range values {
+			values[i] = 100 + float64(i)
+		}
+		classify(t, values, observerdef.LINEAR)
+	})
+	t.Run("persistent level shifts are not plateaus", func(t *testing.T) {
+		for _, start := range []int{2, 5, 15, 25, 28} {
+			for _, shift := range []float64{-10, 10} {
+				t.Run(fmt.Sprintf("start=%d/shift=%g", start, shift), func(t *testing.T) {
+					values := make([]float64, 30)
+					for i := range values {
+						values[i] = 100
+						if i >= start {
+							values[i] += shift
+						}
+					}
+					classify(t, values, observerdef.UNKNOWN)
+				})
+			}
+		}
+	})
+	t.Run("high MAD oscillation remains unsupported", func(t *testing.T) {
+		values := make([]float64, 30)
+		for i := range values {
+			values[i] = 80 + 40*float64(i%2)
+		}
+		classify(t, values, observerdef.UNKNOWN)
 	})
 }
 

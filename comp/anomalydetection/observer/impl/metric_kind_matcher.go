@@ -9,16 +9,37 @@ import (
 	"math"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 const (
 	defaultMatcherMinPoints               = 30
-	defaultMatcherMaxPoints               = 120
+	defaultMatcherMaxPoints               = 30
 	defaultMatcherTransitionConfirmations = 3
 
-	matcherNoiseFloorFrac = 0.002 // 0.2% of |level|
-	matcherNoiseFloorAbs  = 1e-6
+	matcherNoiseFloorFrac  = 0.002 // 0.2% of |level|
+	matcherNoiseFloorAbs   = 1e-6
+	matcherMADToSigma      = 1.4826
+	matcherFitDenomEpsilon = 1e-12
+	matcherVarianceEpsilon = 1e-12
+
+	// A linear model needs a strong fit and distributed, low-curvature movement.
+	matcherLinearMinRSquared          = 0.85
+	matcherLinearMaxStepFraction      = 0.45
+	matcherLinearMinDriftNoiseRatio   = 3.5
+	matcherLinearMinDriftFloorRatio   = 2.0
+	matcherLinearMaxCurvatureFraction = 0.25
+
+	// A plateau needs limited relative noise, drift and separation between halves.
+	matcherStableMaxRSquared          = 0.65
+	matcherStableMaxRelativeNoise     = 0.08
+	matcherRelativeNoiseLevelFloor    = 1.0
+	matcherStableMaxDriftNoiseRatio   = 2.5
+	matcherStableMaxDriftFloorRatio   = 2.0
+	matcherStableMaxHalfGapNoiseRatio = 3.0
+	matcherStableMaxHalfGapFloorRatio = 2.5
+	matcherStableEdgeShiftNoiseRatio  = 3.0
 )
 
 // DefaultMetricKindMatcherConfig returns the default MetricKindMatcherConfig.
@@ -75,6 +96,27 @@ func (w *matcherWorkspace) mad(vals []float64, med float64) float64 {
 	return w.sorted[n/2]
 }
 
+// medianTimeOffset uses chronological order without sorting or absolute-time rounding.
+func medianTimeOffset(points []observerdef.Point, origin int64) float64 {
+	return 0.5 * (float64(points[(len(points)-1)/2].Timestamp-origin) +
+		float64(points[len(points)/2].Timestamp-origin))
+}
+
+// Consistent edge pairs distinguish a persistent level departure from one spike.
+func hasEdgeLevelShift(values []float64, med, tolerance float64) bool {
+	for _, start := range [2]int{0, len(values) - 2} {
+		first, second := values[start], values[start+1]
+		if math.Abs(first-second) > tolerance {
+			continue
+		}
+		if (first > med+tolerance && second > med+tolerance) ||
+			(first < med-tolerance && second < med-tolerance) {
+			return true
+		}
+	}
+	return false
+}
+
 // metricKindMatcher implements observerdef.MetricKindMatcher.
 // Committed kinds live in storage; the matcher tracks per-series candidate
 // predictions and confirmation counts across fresh observation windows.
@@ -99,6 +141,7 @@ func newMetricKindMatcherWithClassifier(cfg observerdef.MetricKindMatcherConfig,
 		cfg.MaxPoints = defaults.MaxPoints
 	}
 	if cfg.MaxPoints < cfg.MinPoints {
+		logging.Warnf("MetricKindMatcher max_points=%d is below min_points=%d; using %d", cfg.MaxPoints, cfg.MinPoints, cfg.MinPoints)
 		cfg.MaxPoints = cfg.MinPoints
 	}
 	if cfg.TransitionConfirmations <= 0 {
@@ -257,7 +300,7 @@ func classifyMetricKind(points []observerdef.Point, ws *matcherWorkspace) observ
 
 	fn := float64(n)
 	denomX := fn*sumXX - sumX*sumX
-	if denomX <= 1e-12 {
+	if denomX <= matcherFitDenomEpsilon {
 		return observerdef.UNKNOWN
 	}
 	slope := (fn*sumXY - sumX*sumY) / denomX
@@ -307,7 +350,7 @@ func evaluateFittedShape(
 
 	drift := math.Abs(slope)
 	r2 := 0.0
-	if sseConst > 1e-12 {
+	if sseConst > matcherVarianceEpsilon {
 		r2 = 1.0 - sseLin/sseConst
 	}
 	maxStepFrac := 0.0
@@ -316,11 +359,11 @@ func evaluateFittedShape(
 	}
 
 	// Only compute residual statistics when a linear fit is still eligible.
-	if r2 >= 0.85 && maxStepFrac < 0.45 {
+	if r2 >= matcherLinearMinRSquared && maxStepFrac < matcherLinearMaxStepFraction {
 		resMed := ws.median(ws.residuals)
-		resMAD := ws.mad(ws.residuals, resMed) * 1.4826
+		resMAD := ws.mad(ws.residuals, resMed) * matcherMADToSigma
 		effResNoise := math.Max(resMAD, scaleFloor)
-		if drift > math.Max(3.5*effResNoise, 2.0*scaleFloor) {
+		if drift > math.Max(matcherLinearMinDriftNoiseRatio*effResNoise, matcherLinearMinDriftFloorRatio*scaleFloor) {
 			third := n / 3
 			var midResSum float64
 			if third >= 2 {
@@ -328,32 +371,43 @@ func evaluateFittedShape(
 				outerResMed := 0.5 * (ws.median(ws.residuals[:third]) + ws.median(ws.residuals[2*third:]))
 				midResSum = math.Abs(midResMed - outerResMed)
 			}
-			if midResSum <= 0.25*drift {
+			if midResSum <= matcherLinearMaxCurvatureFraction*drift {
 				return observerdef.LINEAR
 			}
 		}
 	}
 
-	// Negation also rejects NaN, unlike r2 >= 0.65.
-	if !(r2 < 0.65) {
+	// Negation also rejects NaN fit scores.
+	if !(r2 < matcherStableMaxRSquared) {
 		return observerdef.UNKNOWN
 	}
-	constMAD := ws.mad(ws.values, med) * 1.4826
+	constMAD := ws.mad(ws.values, med) * matcherMADToSigma
 	effConstNoise := math.Max(constMAD, scaleFloor)
-	relSpread := effConstNoise / math.Max(math.Abs(med), 1.0)
-	if !(drift <= math.Max(2.5*effConstNoise, scaleFloor*2.0) && relSpread <= 0.08) {
+	relSpread := effConstNoise / math.Max(math.Abs(med), matcherRelativeNoiseLevelFloor)
+	if !(relSpread <= matcherStableMaxRelativeNoise) {
+		return observerdef.UNKNOWN
+	}
+	if hasEdgeLevelShift(ws.values, med, matcherStableEdgeShiftNoiseRatio*effConstNoise) {
 		return observerdef.UNKNOWN
 	}
 
-	// Compare plateau halves only after the cheaper stable-shape checks pass.
+	// Half-window medians prevent isolated spikes from tilting a plateau's drift.
 	mid := n / 2
 	firstHalfMed := ws.median(ws.values[:mid])
 	secondHalfMed := ws.median(ws.values[mid:])
-	firstHalfMAD := ws.mad(ws.values[:mid], firstHalfMed) * 1.4826
-	secondHalfMAD := ws.mad(ws.values[mid:], secondHalfMed) * 1.4826
-	localNoise := math.Max(math.Max(firstHalfMAD, secondHalfMAD), scaleFloor)
 	halfGap := math.Abs(secondHalfMed - firstHalfMed)
-	if halfGap <= math.Max(3.0*localNoise, scaleFloor*2.5) {
+	halfTimeGap := medianTimeOffset(points[mid:], t0) - medianTimeOffset(points[:mid], t0)
+	if halfTimeGap <= 0 {
+		return observerdef.UNKNOWN
+	}
+	plateauDrift := halfGap * (dtTotal / halfTimeGap)
+	if !(plateauDrift <= math.Max(matcherStableMaxDriftNoiseRatio*effConstNoise, matcherStableMaxDriftFloorRatio*scaleFloor)) {
+		return observerdef.UNKNOWN
+	}
+	firstHalfMAD := ws.mad(ws.values[:mid], firstHalfMed) * matcherMADToSigma
+	secondHalfMAD := ws.mad(ws.values[mid:], secondHalfMed) * matcherMADToSigma
+	localNoise := math.Max(math.Max(firstHalfMAD, secondHalfMAD), scaleFloor)
+	if halfGap <= math.Max(matcherStableMaxHalfGapNoiseRatio*localNoise, matcherStableMaxHalfGapFloorRatio*scaleFloor) {
 		return observerdef.STABLE
 	}
 

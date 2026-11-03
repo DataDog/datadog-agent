@@ -169,22 +169,12 @@ per-series write generations.
 kinds. It tracks pending predictions and freshness, never borrowed point buffers.
 Call `RemoveSeries` on eviction and `Reset` on analysis restart.
 
-Defaults: 30–120 visible points; immediate initial assignment; three consecutive
-fresh-data predictions for replacements, including `UNKNOWN` recovery. Matching
-the committed kind cancels pending evidence. Each batch counts at most once;
+Defaults: exactly the latest 30 visible points; immediate initial assignment;
+three consecutive fresh-data predictions for replacements, including `UNKNOWN`
+recovery. Matching the committed kind cancels pending evidence. Each batch counts at most once;
 future points and unchanged-data advances provide no evidence. Classification
-uses constant/OLS linear fits with robust residual checks.
-
-`BenchmarkMetricKindMatcher` covers cold/fresh/unchanged/transition advances at
-5/200/2,000 series and 30/120 points with simple/noisy inputs. Time/allocations
-are per advance, excluding
-input preparation and storage/engine work. Run without race instrumentation:
-
-```bash
-dda inv test --targets=./comp/anomalydetection/observer/impl \
-  --test-args='-test.run=^$ -test.bench=^BenchmarkMetricKindMatcher$ -test.benchmem -test.count=5' \
-  --bazel-args='--test_output=all --nocache_test_results'
-```
+uses constant/OLS linear fits with robust residual checks; plateau drift uses
+half-window medians so isolated spikes do not dominate it.
 
 ### Non-blocking ingestion
 
