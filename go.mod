@@ -490,7 +490,7 @@ require (
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
 	golang.org/x/tools v0.52.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.85.0
 	google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
@@ -644,7 +644,7 @@ require (
 	github.com/elastic/lunes v0.2.2 // indirect
 	github.com/elastic/proxy-connect-dialer-go v0.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
-	github.com/envoyproxy/go-control-plane/envoy v1.39.0 // indirect
+	github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260819172001-e6e3fd93e4be // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/expr-lang/expr v1.17.8 // indirect
