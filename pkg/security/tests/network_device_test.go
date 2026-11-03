@@ -324,34 +324,45 @@ func TestTCFiltersSkipDummy(t *testing.T) {
 	})
 	netNs := utils.NewNSPathFromPid(uint32(sleepCmd.Process.Pid), utils.NetNsType)
 
-	hasFilters := func(linkName string) bool {
+	hooked := func(linkName string) (bool, error) {
 		ingress, egress, err := tcFiltersExist(netNs, linkName, "classifier_ingress", "classifier_egress")
-		return err == nil && (ingress || egress)
+		return ingress || egress, err
 	}
 
-	require.Eventually(t, func() bool { return hasFilters("lo") }, 5*time.Second, 100*time.Millisecond, "lo should be hooked")
+	require.Eventually(t, func() bool {
+		ok, err := hooked("lo")
+		return err == nil && ok
+	}, 5*time.Second, 100*time.Millisecond, "lo should be hooked")
 
 	t.Run("register_netdevice", func(t *testing.T) {
 		if out, err := exec.Command(ipExecutable, "netns", "exec", netnsName, ipExecutable, "link", "add", dummyName, "type", "dummy").CombinedOutput(); err != nil {
 			t.Fatalf("couldn't create dummy interface (out=%s): %v", string(out), err)
 		}
 
-		assert.Never(t, func() bool { return hasFilters(dummyName) }, 2*time.Second, 100*time.Millisecond, "dummy interface shouldn't be hooked")
+		assert.Never(t, func() bool {
+			ok, err := hooked(dummyName)
+			return err != nil || ok
+		}, 2*time.Second, 100*time.Millisecond, "dummy interface shouldn't be hooked (or its filters couldn't be listed)")
 	})
 
 	t.Run("snapshot", func(t *testing.T) {
 		nsID, err := netNs.GetNSID()
 		require.NoError(t, err)
 
-		netns := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsID)
-		require.NotNil(t, netns)
-		p.FlushNetworkNamespace(netns)
+		ns := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsID)
+		require.NotNil(t, ns)
+		p.FlushNetworkNamespace(ns)
 
 		_, isNew := p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, netNs)
 		require.True(t, isNew, "network namespace should have been snapshotted again")
 
-		assert.True(t, hasFilters("lo"), "lo should be hooked again")
-		assert.False(t, hasFilters(dummyName), "dummy interface shouldn't be hooked")
+		loHooked, err := hooked("lo")
+		require.NoError(t, err)
+		assert.True(t, loHooked, "lo should be hooked again")
+
+		dummyHooked, err := hooked(dummyName)
+		require.NoError(t, err)
+		assert.False(t, dummyHooked, "dummy interface shouldn't be hooked")
 	})
 }
 
