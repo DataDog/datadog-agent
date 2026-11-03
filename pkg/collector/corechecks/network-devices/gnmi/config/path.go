@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -56,7 +57,7 @@ func CompilePath(value string, bindings map[string]string) (*gnmipb.Path, error)
 		path.Origin = "openconfig"
 		segments = segments[1:]
 		if len(segments) == 0 {
-			return nil, fmt.Errorf("OpenConfig selector must name a schema node")
+			return nil, errors.New("OpenConfig selector must name a schema node")
 		}
 	}
 	bound := make(map[string]bool)
@@ -126,7 +127,7 @@ func splitPathElements(value string) ([]string, error) {
 	elements = append(elements, value[start:])
 	for _, element := range elements {
 		if element == "" {
-			return nil, fmt.Errorf("path must not contain empty elements")
+			return nil, errors.New("path must not contain empty elements")
 		}
 	}
 	return elements, nil
