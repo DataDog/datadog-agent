@@ -16,12 +16,12 @@ import (
 func TestUtilization(t *testing.T) {
 	tests := []struct {
 		name                string
-		runnerStatus        RunnerStatus
+		runnerStatus        runnerStatus
 		expectedUtilization float64
 	}{
 		{
 			name: "standard case",
-			runnerStatus: RunnerStatus{
+			runnerStatus: runnerStatus{
 				Workers:     4,
 				WorkersUsed: 1,
 				NumChecks:   1,
@@ -30,7 +30,7 @@ func TestUtilization(t *testing.T) {
 		},
 		{
 			name: "0 workers used",
-			runnerStatus: RunnerStatus{
+			runnerStatus: runnerStatus{
 				Workers:     4,
 				WorkersUsed: 0,
 				NumChecks:   0,
@@ -39,7 +39,7 @@ func TestUtilization(t *testing.T) {
 		},
 		{
 			name: "0 workers",
-			runnerStatus: RunnerStatus{
+			runnerStatus: runnerStatus{
 				Workers:     0,
 				WorkersUsed: 0,
 				NumChecks:   0,
@@ -59,7 +59,7 @@ func TestAddToLeastBusy(t *testing.T) {
 	tests := []struct {
 		name              string
 		existingRunners   map[string]int
-		existingChecks    map[string]ConfigStatus
+		existingChecks    map[string]configStatus
 		preferredRunner   string
 		expectedPlacement string
 	}{
@@ -70,7 +70,7 @@ func TestAddToLeastBusy(t *testing.T) {
 				"runner2": 4,
 				"runner3": 4,
 			},
-			existingChecks: map[string]ConfigStatus{
+			existingChecks: map[string]configStatus{
 				"check1": {WorkersNeeded: 3, Runner: "runner1"},
 				"check2": {WorkersNeeded: 1, Runner: "runner2"},
 				"check3": {WorkersNeeded: 2, Runner: "runner3"},
@@ -85,7 +85,7 @@ func TestAddToLeastBusy(t *testing.T) {
 				"runner2": 4,
 				"runner3": 4,
 			},
-			existingChecks: map[string]ConfigStatus{
+			existingChecks: map[string]configStatus{
 				"check1": {WorkersNeeded: 3, Runner: "runner1"},
 				"check2": {WorkersNeeded: 1, Runner: "runner2"},
 				"check3": {WorkersNeeded: 1, Runner: "runner3"},
@@ -100,7 +100,7 @@ func TestAddToLeastBusy(t *testing.T) {
 				"runner2": 4,
 				"runner3": 4,
 			},
-			existingChecks: map[string]ConfigStatus{
+			existingChecks: map[string]configStatus{
 				"check1": {WorkersNeeded: 3, Runner: "runner1"},
 				"check2": {WorkersNeeded: 2, Runner: "runner2"},
 				"check3": {WorkersNeeded: 1, Runner: "runner3"},
@@ -116,7 +116,7 @@ func TestAddToLeastBusy(t *testing.T) {
 				"runner2": 4,
 				"runner3": 4,
 			},
-			existingChecks: map[string]ConfigStatus{
+			existingChecks: map[string]configStatus{
 				"check1": {WorkersNeeded: 3, Runner: "runner1"}, // runner1: util 0.75, 1 check
 				"check2": {WorkersNeeded: 1, Runner: "runner2"}, // runner2: util 0.5,  2 checks
 				"check3": {WorkersNeeded: 1, Runner: "runner2"},
@@ -130,7 +130,7 @@ func TestAddToLeastBusy(t *testing.T) {
 			existingRunners: map[string]int{
 				"runner1": 4,
 			},
-			existingChecks: map[string]ConfigStatus{
+			existingChecks: map[string]configStatus{
 				"check1": {WorkersNeeded: 3, Runner: "runner1"},
 			},
 			preferredRunner:   "",
@@ -139,7 +139,7 @@ func TestAddToLeastBusy(t *testing.T) {
 		{
 			name:              "no runners",
 			existingRunners:   map[string]int{},
-			existingChecks:    map[string]ConfigStatus{},
+			existingChecks:    map[string]configStatus{},
 			preferredRunner:   "",
 			expectedPlacement: "",
 		},
@@ -167,7 +167,7 @@ func TestAddCheck(t *testing.T) {
 
 	distribution.addConfig("check1", "check1", 3, "runner1", false)
 	assert.Equal(t, "runner1", distribution.runnerForConfig("check1"))
-	assert.Equal(t, 3.0, distribution.Configs["check1"].WorkersNeeded)
+	assert.Equal(t, 3.0, distribution.configs["check1"].WorkersNeeded)
 }
 
 func TestChecksSortedByWorkersNeeded(t *testing.T) {
@@ -239,18 +239,18 @@ func TestAddConfigConflictTransfersAccumulatedWeight(t *testing.T) {
 	// Two instances of digestA are processed on runner1 first.
 	distribution.addConfig("digestA", "configA", 2.0, "runner1", false)
 	distribution.addConfig("digestA", "configA", 1.5, "runner1", false)
-	assert.InDelta(t, 3.5, distribution.Runners["runner1"].WorkersUsed, 0.001)
-	assert.InDelta(t, 0.0, distribution.Runners["runner2"].WorkersUsed, 0.001)
+	assert.InDelta(t, 3.5, distribution.runners["runner1"].WorkersUsed, 0.001)
+	assert.InDelta(t, 0.0, distribution.runners["runner2"].WorkersUsed, 0.001)
 
 	// Conflicting assignment of digestA to runner2
 	distribution.addConfig("digestA", "configA", 3.0, "runner2", false)
 
 	// All accumulated weight for digestA (3.5) must transfer from runner1 to runner2,
 	// plus the new instance weight (3.0).
-	assert.InDelta(t, 0.0, distribution.Runners["runner1"].WorkersUsed, 0.001)
-	assert.InDelta(t, 6.5, distribution.Runners["runner2"].WorkersUsed, 0.001)
-	assert.InDelta(t, 6.5, distribution.Configs["digestA"].WorkersNeeded, 0.001)
-	assert.Equal(t, "runner2", distribution.Configs["digestA"].Runner)
+	assert.InDelta(t, 0.0, distribution.runners["runner1"].WorkersUsed, 0.001)
+	assert.InDelta(t, 6.5, distribution.runners["runner2"].WorkersUsed, 0.001)
+	assert.InDelta(t, 6.5, distribution.configs["digestA"].WorkersNeeded, 0.001)
+	assert.Equal(t, "runner2", distribution.configs["digestA"].Runner)
 }
 
 func TestUtilizationStdDev(t *testing.T) {

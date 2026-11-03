@@ -203,7 +203,7 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 // each runner that reports its workers.
 func (d *dispatcher) runnerUtilization() map[string]float64 {
 	utilization := make(map[string]float64)
-	for name, runner := range d.currentDistribution().Runners {
+	for name, runner := range d.currentDistribution().runners {
 		if runner.Workers > 0 {
 			utilization[name] = runner.utilization()
 		}
