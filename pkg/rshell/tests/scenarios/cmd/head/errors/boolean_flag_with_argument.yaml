@@ -1,0 +1,17 @@
+# GNU head rejects --quiet=<value> and --verbose=<value> (options don't allow arguments).
+# Our error message differs from GNU head so bash comparison is skipped.
+description: head exits 1 when --quiet or --verbose are given an explicit argument.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head --quiet=false file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["head:"]
+  exit_code: 1

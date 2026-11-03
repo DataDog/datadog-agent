@@ -1,0 +1,9 @@
+description: Printf %c specifier outputs the first character of the argument.
+input:
+  script: |+
+    printf "%c\n" A
+expect:
+  stdout: |+
+    A
+  stderr: ""
+  exit_code: 0

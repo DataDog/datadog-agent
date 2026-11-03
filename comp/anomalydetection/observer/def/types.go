@@ -59,7 +59,7 @@ type MetricView interface {
 // LogView provides read-only access to a log message.
 //
 // This interface exists to prevent data races. Implementations must not store
-// the LogView itself. Copy any needed values synchronously.
+// the LogView itself. Snapshot needed values synchronously; Tags may be retained.
 type LogView interface {
 	// GetSource returns the original log source (for example "containerd",
 	// "nginx", "kubelet", or "datadog-agent") used by log processing rules.
@@ -67,6 +67,7 @@ type LogView interface {
 	GetSource() string
 	GetContent() string
 	GetStatus() string
+	// Tags returns tags that remain immutable and valid after ObserveLog returns.
 	Tags() []string
 	GetHostname() string
 	// GetTimestampUnixMilli returns the agent ingestion timestamp in Unix milliseconds.

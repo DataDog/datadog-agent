@@ -1,0 +1,14 @@
+description: Multiple echo calls and then exit preserves all output.
+input:
+  script: |+
+    echo line1
+    echo line2
+    echo line3
+    exit 0
+expect:
+  stdout: |+
+    line1
+    line2
+    line3
+  stderr: ""
+  exit_code: 0

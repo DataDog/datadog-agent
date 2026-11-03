@@ -1,0 +1,23 @@
+# -i must reproduce GNU sed's on-disk byte-for-byte, including a source file
+# whose last line has no trailing newline. Unlike the default streaming
+# mode (which intentionally always appends \n for consistent AI-agent-
+# facing stdout; see tests/scenarios/cmd/sed/edge/no_trailing_newline.yaml),
+# -i writes back to a real file that other tools read afterward, so
+# silently adding a byte the input never had is a correctness bug.
+description: sed -i preserves a missing trailing newline in the file it writes back.
+setup:
+  files:
+    - path: file.txt
+      content: "a\nb"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i 's/b/B/' file.txt
+    printf '%s' "$(cat file.txt)"; echo "|END"
+expect:
+  stdout: |+
+    a
+    B|END
+  stderr: |+
+  exit_code: 0
