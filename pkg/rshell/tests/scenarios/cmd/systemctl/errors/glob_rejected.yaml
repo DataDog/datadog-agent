@@ -1,0 +1,12 @@
+# Unit operands must remain exact selectors and cannot expand the capability scope.
+skip_assert_against_bash: true
+description: systemctl rejects globbed unit operands before authorization
+input:
+  mode: remediation
+  script: |+
+    systemctl status 'api*.service'
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: invalid character in exact unit name "api*.service"
+  exit_code: 1

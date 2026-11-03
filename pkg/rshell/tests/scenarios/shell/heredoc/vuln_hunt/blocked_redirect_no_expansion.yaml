@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-19-codex / heredoc.
+# skip: output redirection to regular files is intentionally blocked in rshell.
+skip_assert_against_bash: true
+description: Blocked output redirects attached to a heredoc fail before body expansion.
+input:
+  script: |+
+    cat <<EOF > out.txt
+    $(echo HEREDOC_EXPANDED >&2)
+    EOF
+    echo after
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

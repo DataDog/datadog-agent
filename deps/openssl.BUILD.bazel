@@ -132,7 +132,9 @@ configure_make(
         "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
         "//conditions:default": [],
     }),
-    env = select({
+    env = {
+        "SOURCE_DATE_EPOCH": "0",
+    } | select({
         "@platforms//os:windows": {
             # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
             # Keep both for clarity and to avoid tool lookup through PATH.

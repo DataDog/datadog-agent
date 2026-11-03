@@ -1,0 +1,20 @@
+description: cd a; cd b; cd -; cd - returns to b.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a
+    cd ../b
+    cd - >/dev/null
+    cd - >/dev/null
+    pwd
+expect:
+  stdout_contains: ["/b"]
+  stdout_contains_windows: ["\\b"]
+  stderr: ""
+  exit_code: 0

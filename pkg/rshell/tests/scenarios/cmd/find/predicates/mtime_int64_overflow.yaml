@@ -1,0 +1,16 @@
+description: "-mtime with int64-overflowing values does not panic or produce wrong results."
+setup:
+  files:
+    - path: dir/file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -mtime +99999999999999999999999 -type f
+    find dir -mtime -99999999999999999999999 -type f
+    find dir -mtime 99999999999999999999999 -type f
+expect:
+  stdout: |+
+    dir/file.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: "Invalid backreference in s/// rejected at parse time even when address doesn't match."
+input:
+  script: |+
+    echo x | sed '/y/s/a/\1/'
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+expect:
+  stdout: ""
+  stderr_contains: ["invalid reference"]
+  exit_code: 1

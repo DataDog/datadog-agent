@@ -1,0 +1,12 @@
+description: Variable names with underscores and digits work correctly.
+input:
+  script: |+
+    my_var_1=alpha
+    _leading=beta
+    A_B_C=gamma
+    echo $my_var_1 $_leading $A_B_C
+expect:
+  stdout: |+
+    alpha beta gamma
+  stderr: ""
+  exit_code: 0

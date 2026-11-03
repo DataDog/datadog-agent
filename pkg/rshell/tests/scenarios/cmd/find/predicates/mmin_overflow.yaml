@@ -1,0 +1,14 @@
+description: -mmin with extremely large value does not overflow or match everything.
+skip_assert_against_bash: true # GNU find may behave differently with overflow values
+setup:
+  files:
+    - path: dir/file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -mmin +9999999999999999 -type f
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

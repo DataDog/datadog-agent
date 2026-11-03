@@ -1,0 +1,14 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+description: When both stages of a pipeline are in the allowed list, the pipeline runs successfully.
+skip_assert_against_bash: true
+input:
+  allowed_commands:
+    - rshell:echo
+    - rshell:cat
+  script: |+
+    echo hello | cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: pwd ignores extra positional arguments to match GNU coreutils and bash.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    pwd extra arguments here
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

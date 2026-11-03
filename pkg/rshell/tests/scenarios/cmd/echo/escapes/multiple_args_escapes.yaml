@@ -1,0 +1,8 @@
+description: Echo -e interprets escapes in each argument separately.
+input:
+  script: |+
+    echo -e 'a\nb' 'c\nd'
+expect:
+  stdout: "a\nb c\nd\n"
+  stderr: ""
+  exit_code: 0

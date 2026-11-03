@@ -1,0 +1,15 @@
+description: sort -k with n modifier sorts field numerically.
+setup:
+  files:
+    - path: file.txt
+      content: "c:30\na:1\nb:20\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -t : -k 2n file.txt
+expect:
+  stdout: "a:1\nb:20\nc:30\n"
+  stderr: ""
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # -k 2n glued syntax may differ
