@@ -34,8 +34,8 @@ replace (
 
 require (
 	cel.dev/cel-go v0.32.0
-	code.cloudfoundry.org/bbs v1.26.0
-	code.cloudfoundry.org/bbs/models v1.22.0
+	code.cloudfoundry.org/bbs v1.30.0
+	code.cloudfoundry.org/bbs/models v1.24.0
 	code.cloudfoundry.org/garden v0.9.0
 	code.cloudfoundry.org/lager/v3 v3.93.0
 	dario.cat/mergo v1.0.2
@@ -302,7 +302,6 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/gosnmp/gosnmp v1.47.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
-	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api/v2 v2.0.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.7.8
@@ -527,8 +526,8 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.74.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
-	code.cloudfoundry.org/bbs/encryption v1.21.0 // indirect
-	code.cloudfoundry.org/bbs/format v1.16.0 // indirect
+	code.cloudfoundry.org/bbs/encryption v1.25.0 // indirect
+	code.cloudfoundry.org/bbs/format v1.18.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.99.0 // indirect
 	code.cloudfoundry.org/tlsconfig v0.69.0 // indirect
 	cyphar.com/go-pathrs v0.2.5 // indirect
@@ -709,6 +708,7 @@ require (
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
+	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/consul/api v1.34.4 // indirect
 	github.com/hashicorp/cronexpr v1.1.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

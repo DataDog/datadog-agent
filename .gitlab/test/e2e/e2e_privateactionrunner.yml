@@ -13,6 +13,8 @@
         - Dockerfiles/agent/par-probe.sh
         - Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml
         - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent-action-executor.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml
         - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
         - pkg/rshell/**/*
