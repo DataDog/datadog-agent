@@ -304,7 +304,7 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 	of.HelmReleaseConfigMapInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(helmReleasesTweakListOptions))
 	of.SecretMetadataInformerFactory = metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval)
 
-	// When enabled, Helm release ConfigMaps are reported by the Helm release collector, with their data.
+	// When enabled, Helm release ConfigMaps are left to the helm-releases-configmaps collector.
 	var configMapTweakListOptions metadatainformer.TweakListOptionsFunc
 	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.helm_releases.configmaps.enabled") {
 		configMapTweakListOptions = func(options *metav1.ListOptions) {

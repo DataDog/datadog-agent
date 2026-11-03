@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/redact"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -40,9 +39,9 @@ func NewHelmReleaseConfigMapCollectorVersions(_ tagger.Component) collectors.Col
 	)
 }
 
-// HelmReleaseConfigMapCollector is a collector for Helm releases stored in Kubernetes ConfigMaps (Helm's configmap driver).
-// Every revision is collected and sent as is, as a ConfigMap. Its informer only watches ConfigMaps labeled owner=helm,
-// which the ConfigMap collector excludes, so each ConfigMap is reported by a single collector.
+// HelmReleaseConfigMapCollector collects every revision of the Helm releases stored in ConfigMaps, sent as is with their
+// data. It only runs when listed, and orchestrator_explorer.helm_releases.configmaps.enabled must be set so that the
+// ConfigMap collector leaves these ConfigMaps to it.
 type HelmReleaseConfigMapCollector struct {
 	informer  corev1Informers.ConfigMapInformer
 	lister    corev1Listers.ConfigMapLister
@@ -57,7 +56,7 @@ func NewHelmReleaseConfigMapCollector() *HelmReleaseConfigMapCollector {
 			IsDefaultVersion:                     true,
 			IsManifestProducer:                   true,
 			IsMetadataProducer:                   false,
-			IsStable:                             pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.helm_releases.configmaps.enabled"),
+			IsStable:                             false,
 			SupportsManifestBuffering:            true,
 			SupportsTerminatedResourceCollection: true,
 			Group:                                utilTypes.ConfigMapGroup,

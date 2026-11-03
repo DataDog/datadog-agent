@@ -85,8 +85,8 @@ properties:
             type: boolean
             default: false
             description: |
-              Collects Helm releases stored in ConfigMaps (Helm's configmap storage driver), with their release data.
-              These ConfigMaps are then excluded from the regular ConfigMap collection.
+              Excludes Helm releases stored in ConfigMaps (Helm's configmap storage driver) from the ConfigMap
+              collector. Enable it together with the helm-releases-configmaps collector, which sends them with their data.
   kubelet_config_check:
     node_type: section
     type: object
