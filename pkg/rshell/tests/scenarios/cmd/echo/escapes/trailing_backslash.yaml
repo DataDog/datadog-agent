@@ -1,0 +1,8 @@
+description: Echo -e with trailing backslash outputs backslash literally.
+input:
+  script: |+
+    echo -e 'hello\'
+expect:
+  stdout: "hello\\\n"
+  stderr: ""
+  exit_code: 0

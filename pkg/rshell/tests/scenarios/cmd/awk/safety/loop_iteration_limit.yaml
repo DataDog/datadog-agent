@@ -1,0 +1,14 @@
+# skip: rshell intentionally bounds aggregate explicit loop iterations.
+skip_assert_against_bash: true
+description: awk bounds explicit loop iterations without relying on a context deadline.
+input:
+  script: |+
+    awk 'BEGIN { while (1); print "unreachable" }'
+    awk 'BEGIN { a[1] = 1; a[2] = 1; for (i = 0; i < 524288; i++); while (i++ < 1048576); print "at-limit"; for (k in a) seen++ }'
+expect:
+  stdout: |+
+    at-limit
+  stderr: |+
+    awk: loop iteration limit exceeded (maximum 1048576)
+    awk: loop iteration limit exceeded (maximum 1048576)
+  exit_code: 1

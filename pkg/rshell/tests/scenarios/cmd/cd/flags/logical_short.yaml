@@ -1,0 +1,16 @@
+description: cd -L is the default mode and resolves .. lexically.
+setup:
+  files:
+    - path: a/b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a/b
+    cd -L ..
+    pwd
+expect:
+  stdout_contains: ["/a"]
+  stdout_contains_windows: ["\\a"]
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,19 @@
+description: ls with no arguments lists the current directory contents.
+setup:
+  files:
+    - path: apple.txt
+      content: "hello"
+      chmod: 0644
+    - path: banana.txt
+      content: "world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls
+expect:
+  stdout: |+
+    apple.txt
+    banana.txt
+  stderr: ""
+  exit_code: 0

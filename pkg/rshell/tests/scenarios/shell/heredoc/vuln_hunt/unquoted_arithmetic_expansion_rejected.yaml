@@ -1,0 +1,14 @@
+# vuln-hunt 2026-05-19-codex / heredoc.
+# skip: arithmetic expansion is intentionally blocked in rshell.
+skip_assert_against_bash: true
+description: Arithmetic expansion inside an unquoted heredoc body is rejected.
+input:
+  script: |+
+    cat <<EOF
+    $((1+2))
+    EOF
+expect:
+  stdout: ""
+  stderr: |+
+    arithmetic expansion is not supported
+  exit_code: 2

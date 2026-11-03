@@ -109,6 +109,7 @@ use (
 	pkg/config/schema
 	pkg/config/setup
 	pkg/config/setup/constants
+	pkg/config/setup/generatedsettings_local
 	pkg/config/structure
 	pkg/config/utils
 	pkg/discovery/tracermetadata/model
@@ -140,6 +141,7 @@ use (
 	pkg/proto
 	pkg/remoteconfig/state
 	pkg/remoteflags
+	pkg/rshell
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer

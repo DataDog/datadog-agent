@@ -1,0 +1,13 @@
+description: A count larger than MaxCount is clamped; tail must not crash or hang on a small file.
+setup:
+  files:
+    - path: small.txt
+      content: "tiny\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 9999999999 small.txt
+expect:
+  stdout: "tiny\n"
+  stderr: ""
+  exit_code: 0

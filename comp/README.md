@@ -549,6 +549,12 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package securityagent is the metadata provider for security-agent process
 
+### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessinit defines the serverless-init metadata provider.
+
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
 Package systemprobe is the metadata provider for system-probe process
@@ -827,13 +833,11 @@ Package tracetelemetry sends telemetry about the trace-agent and its state
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet windows-products
+*Datadog Team*: fleet
 
 Package updater implements the updater component.
 
 ### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
-
-*Datadog Team*: fleet
 
 Package daemonchecker retrieves the running status of the installer daemon
 
@@ -846,8 +850,6 @@ Package localapi is the updater local api component.
 Package localapiclient provides the local API client component.
 
 ### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
-
-*Datadog Team*: fleet
 
 Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
 add it to the inventoryagent payload.
@@ -894,8 +896,6 @@ Package datadogclient provides a client to query the datadog API
 
 ### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
 
-*Datadog Team*: fleet
-
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
 ### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
@@ -927,8 +927,6 @@ to DataDog.
 
 ### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
 
-*Datadog Team*: fleet
-
 Package fleetstatus implements the core status component information provider interface
 
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
@@ -936,6 +934,12 @@ Package fleetstatus implements the core status component information provider in
 *Datadog Team*: network-device-monitoring-core
 
 Package haagent handles states for HA Agent feature.
+
+### [comp/intakerouting](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/intakerouting)
+
+*Datadog Team*: agent-data-plane
+
+Package intakerouting asks the Datadog backend where to send telemetry.
 
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 

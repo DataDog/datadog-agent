@@ -1,0 +1,13 @@
+description: -mtime +0 matches nothing for a fresh file (days > 0 needs > 24h).
+setup:
+  files:
+    - path: dir/file.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -maxdepth 1 -type f -mtime +0
+expect:
+  stdout: ""
+  exit_code: 0

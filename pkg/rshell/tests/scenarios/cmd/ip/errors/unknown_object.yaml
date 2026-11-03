@@ -1,0 +1,12 @@
+# ip <unknown> exits 1 with "not supported" message.
+description: ip with an unknown object exits 1.
+input:
+  script: |+
+    ip foobar
+expect:
+  stdout: |+
+  stderr: |+
+    ip: object "foobar" is not supported
+    Supported objects: addr, link, route
+  exit_code: 1
+skip_assert_against_bash: true

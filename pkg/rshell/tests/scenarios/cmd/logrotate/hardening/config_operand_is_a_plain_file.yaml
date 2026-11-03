@@ -1,0 +1,23 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: a config-looking operand is treated as an ordinary file to truncate, never parsed as a logrotate(8) configuration.
+setup:
+  files:
+    - path: logrotate.conf
+      content: "/var/log/app.log { rotate 4 }\n"
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --verbose --force logrotate.conf
+    wc -c < logrotate.conf
+    wc -c < app.log
+expect:
+  stdout: |+
+    logrotate: logrotate.conf: truncated 30 bytes
+    0
+    5
+  stderr: |+
+  exit_code: 0

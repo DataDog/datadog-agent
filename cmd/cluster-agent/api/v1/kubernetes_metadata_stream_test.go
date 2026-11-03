@@ -27,6 +27,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -796,6 +797,340 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 	}, diff)
 }
 
+func testKAIPodGroupEvent(eventType workloadmeta.EventType, namespace, name, queue string) workloadmeta.Event {
+	return workloadmeta.Event{
+		Type: eventType,
+		Entity: &workloadmeta.KubernetesKAIPodGroup{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesKAIPodGroup,
+				ID:   workloadmeta.GenerateKAIPodGroupEntityID(namespace, name),
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      name,
+				Namespace: namespace,
+				UID:       "uid-" + name,
+			},
+			QueueName: queue,
+		},
+	}
+}
+
+func testKAIPodEvent(eventType workloadmeta.EventType, uid, namespace, nodeName, podGroupName string) workloadmeta.Event {
+	annotations := map[string]string{}
+	if podGroupName != "" {
+		annotations[kubernetes.KAIPodGroupAnnotationKey] = podGroupName
+	}
+	return workloadmeta.Event{
+		Type: eventType,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: uid},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        "pod-" + uid,
+				Namespace:   namespace,
+				Annotations: annotations,
+			},
+			NodeName: nodeName,
+		},
+	}
+}
+
+func kaiPodGroupKeys(snapshot map[string]kaiPodGroupEntry) []string {
+	keys := make([]string, 0, len(snapshot))
+	for key := range snapshot {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func TestProcessKAIPodGroupEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	node1 := srv.subscribeToNamespaceEvents("node1")
+	node2 := srv.subscribeToNamespaceEvents("node2")
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeSet, "p1", "team-a", "node1", "pg")})
+	assertNotified(t, "node1", node1)
+	assertNotNotified(t, "node2", node2)
+	assert.Empty(t, srv.buildKAIPodGroupsSnapshot("node1"), "the PodGroup is not known yet")
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "pg", "queue-a")})
+	assertNotified(t, "node1", node1)
+	assertNotNotified(t, "node2", node2)
+	assert.Equal(t, map[string]kaiPodGroupEntry{
+		"team-a/pg": {namespace: "team-a", name: "pg", queueName: "queue-a", uid: "uid-pg"},
+	}, srv.buildKAIPodGroupsSnapshot("node1"))
+
+	// An unchanged PodGroup does not wake its node.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "pg", "queue-a")})
+	assertNotNotified(t, "node1", node1)
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "pg", "queue-b")})
+	assertNotified(t, "node1", node1)
+	assert.Equal(t, "queue-b", srv.buildKAIPodGroupsSnapshot("node1")["team-a/pg"].queueName)
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeUnset, "team-a", "pg", "queue-b")})
+	assertNotified(t, "node1", node1)
+	assert.Empty(t, srv.buildKAIPodGroupsSnapshot("node1"))
+
+	// PodGroups never go through the shared history.
+	_, version := srv.buildMetadataSnapshotWithVersion()
+	assert.Zero(t, version)
+}
+
+func TestKAIPodGroupsPerNode(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	node1 := srv.subscribeToNamespaceEvents("node1")
+	node2 := srv.subscribeToNamespaceEvents("node2")
+	node3 := srv.subscribeToNamespaceEvents("node3")
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "gang", "queue-a"),
+		testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "single", "queue-a"),
+		testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-b", "gang", "queue-b"),
+	})
+	assertNotNotified(t, "node1", node1)
+
+	// A gang spread over two nodes, a single-pod PodGroup, and a PodGroup with
+	// the same name in another namespace.
+	srv.processWmetaEvents([]workloadmeta.Event{
+		testKAIPodEvent(workloadmeta.EventTypeSet, "gang-0", "team-a", "node1", "gang"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "gang-1", "team-a", "node1", "gang"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "gang-2", "team-a", "node2", "gang"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "single", "team-a", "node2", "single"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "other", "team-b", "node3", "gang"),
+		// Not scheduled yet, and not assigned to a PodGroup.
+		testKAIPodEvent(workloadmeta.EventTypeSet, "pending", "team-a", "", "single"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "plain", "team-a", "node1", ""),
+	})
+	assertNotified(t, "node1", node1)
+	assertNotified(t, "node2", node2)
+	assertNotified(t, "node3", node3)
+	assert.ElementsMatch(t, []string{"team-a/gang"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node1")))
+	assert.ElementsMatch(t, []string{"team-a/gang", "team-a/single"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node2")))
+	assert.ElementsMatch(t, []string{"team-b/gang"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node3")))
+
+	// A changed PodGroup only wakes the nodes running its pods.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "single", "queue-c")})
+	assertNotified(t, "node2", node2)
+	assertNotNotified(t, "node1", node1)
+	assertNotNotified(t, "node3", node3)
+
+	// The PodGroup stays on node1 while one of its pods runs there.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeUnset, "gang-0", "team-a", "node1", "gang")})
+	assertNotified(t, "node1", node1)
+	assert.ElementsMatch(t, []string{"team-a/gang"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node1")))
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeUnset, "gang-1", "team-a", "node1", "gang")})
+	assertNotified(t, "node1", node1)
+	assert.Empty(t, srv.buildKAIPodGroupsSnapshot("node1"))
+
+	// A pod scheduled later adds its PodGroup to its node.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeSet, "pending", "team-a", "node3", "single")})
+	assertNotified(t, "node3", node3)
+	assert.ElementsMatch(t, []string{"team-a/single", "team-b/gang"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node3")))
+
+	// A pod that loses its annotation no longer pins its PodGroup to its node.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeSet, "single", "team-a", "node2", "")})
+	assertNotified(t, "node2", node2)
+	assert.ElementsMatch(t, []string{"team-a/gang"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node2")))
+
+	// A pod update that changes neither its node nor its PodGroup wakes no one.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeSet, "gang-2", "team-a", "node2", "gang")})
+	assertNotNotified(t, "node2", node2)
+
+	// Removing every pod leaves no index entries behind.
+	srv.processWmetaEvents([]workloadmeta.Event{
+		testKAIPodEvent(workloadmeta.EventTypeUnset, "gang-2", "team-a", "", ""),
+		testKAIPodEvent(workloadmeta.EventTypeUnset, "single", "team-a", "", ""),
+		testKAIPodEvent(workloadmeta.EventTypeUnset, "other", "team-b", "", ""),
+		testKAIPodEvent(workloadmeta.EventTypeUnset, "pending", "team-a", "", ""),
+		testKAIPodEvent(workloadmeta.EventTypeUnset, "plain", "team-a", "", ""),
+	})
+	assert.Empty(t, srv.kaiPods)
+	assert.Empty(t, srv.kaiNodePodGroups)
+	assert.Empty(t, srv.kaiPodGroupNodes)
+}
+
+func TestKAIMixedBundle(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	node1 := srv.subscribeToNamespaceEvents("node1")
+	node2 := srv.subscribeToNamespaceEvents("node2")
+
+	srv.processWmetaEvents(append(testNamespaceSetEvents(),
+		testKAIPodGroupEvent(workloadmeta.EventTypeSet, "ns1", "pg", "queue-a"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "p1", "ns1", "node1", "pg"),
+	))
+	// The shared change wakes every node, which also covers the PodGroup change.
+	assertNotified(t, "node1", node1)
+	assertNotified(t, "node2", node2)
+	updates, _, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok)
+	require.Len(t, updates, 1)
+	assert.Len(t, updates[0].NamespaceMetadata, 1)
+	assert.Empty(t, updates[0].KaiPodGroups)
+	assert.ElementsMatch(t, []string{"ns1/pg"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node1")))
+
+	// A pod moving to another node in one update wakes both nodes.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeSet, "p1", "ns1", "node2", "pg")})
+	assertNotified(t, "node1", node1)
+	assertNotified(t, "node2", node2)
+	assert.Empty(t, srv.buildKAIPodGroupsSnapshot("node1"))
+	assert.ElementsMatch(t, []string{"ns1/pg"}, kaiPodGroupKeys(srv.buildKAIPodGroupsSnapshot("node2")))
+}
+
+func TestKubeMetadataStreamFilter(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "p1"}}
+	podGroup := &workloadmeta.KubernetesKAIPodGroup{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKAIPodGroup, ID: "ns/pg"}}
+
+	disabled := kubeMetadataStreamFilter(false)
+	assert.False(t, disabled.MatchEntity(pod))
+	assert.False(t, disabled.MatchEntity(podGroup))
+
+	enabled := kubeMetadataStreamFilter(true)
+	assert.True(t, enabled.MatchEntity(pod))
+	assert.True(t, enabled.MatchEntity(podGroup))
+}
+
+func TestComputeKAIPodGroupsDiff(t *testing.T) {
+	old := map[string]kaiPodGroupEntry{
+		"ns/same":    {namespace: "ns", name: "same", queueName: "q"},
+		"ns/changed": {namespace: "ns", name: "changed", queueName: "q"},
+		"ns/removed": {namespace: "ns", name: "removed", queueName: "q"},
+	}
+	current := map[string]kaiPodGroupEntry{
+		"ns/same":    {namespace: "ns", name: "same", queueName: "q"},
+		"ns/changed": {namespace: "ns", name: "changed", queueName: "other"},
+		"ns/added":   {namespace: "ns", name: "added", queueName: "q"},
+	}
+
+	assert.ElementsMatch(t, []*pb.KAIPodGroup{
+		{Namespace: "ns", Name: "changed", Queue: "other", Type: pb.KubeMetadataEventType_SET},
+		{Namespace: "ns", Name: "added", Queue: "q", Type: pb.KubeMetadataEventType_SET},
+		{Namespace: "ns", Name: "removed", Queue: "q", Type: pb.KubeMetadataEventType_UNSET},
+	}, computeKAIPodGroupsDiff(old, current))
+	assert.Empty(t, computeKAIPodGroupsDiff(current, current))
+}
+
+// TestStartAutoscalers checks that the workloadmeta subscription includes
+// autoscalers. Event processing is covered by TestProcessAutoscalerEvents.
+func TestStartAutoscalers(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	ch := srv.subscribeToNamespaceEvents("node1")
+	srv.Start(ctx)
+
+	wmetaMock.Set(newTestAutoscaler("app-a"))
+	assertNotified(t, "node1", ch)
+	assert.Contains(t, srv.buildAutoscalersSnapshot(), "horizontalpodautoscaler/ns1/my-hpa")
+}
+
+func TestProcessAutoscalerEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	ch := srv.subscribeToNamespaceEvents("node1")
+
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-a")}})
+	assertNotified(t, "node1", ch)
+	assert.Equal(t, autoscalerEntry{
+		namespace:      "ns1",
+		name:           "my-hpa",
+		autoscalerKind: workloadmeta.AutoscalerKindHPA,
+		targetKind:     workloadmeta.AutoscalerTargetDeployment,
+		targetName:     "app-a",
+	}, srv.buildAutoscalersSnapshot()["horizontalpodautoscaler/ns1/my-hpa"])
+
+	// Setting the same autoscaler again doesn't produce a diff
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-a")}})
+	assertNotNotified(t, "node1", ch)
+
+	// Target change
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-b")}})
+	assertNotified(t, "node1", ch)
+	assert.Equal(t, "app-b", srv.buildAutoscalersSnapshot()["horizontalpodautoscaler/ns1/my-hpa"].targetName)
+
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: newTestAutoscaler("app-b")}})
+	assertNotified(t, "node1", ch)
+	assert.Empty(t, srv.buildAutoscalersSnapshot())
+}
+
+func TestComputeAutoscalerDiff(t *testing.T) {
+	old := map[string]autoscalerEntry{
+		"horizontalpodautoscaler/ns1/hpa-a": {
+			namespace:      "ns1",
+			name:           "hpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindHPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-a",
+		},
+		"verticalpodautoscaler/ns1/vpa-a": {
+			namespace:      "ns1",
+			name:           "vpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindVPA,
+			targetKind:     workloadmeta.AutoscalerTargetStatefulSet,
+			targetName:     "sts-a",
+		},
+		"watermarkpodautoscaler/ns1/wpa-a": {
+			namespace:      "ns1",
+			name:           "wpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindWPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-a",
+		},
+	}
+	current := map[string]autoscalerEntry{
+		"horizontalpodautoscaler/ns1/hpa-a": { // Changed
+			namespace:      "ns1",
+			name:           "hpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindHPA,
+			targetKind:     workloadmeta.AutoscalerTargetArgoRollout,
+			targetName:     "rollout-a",
+		},
+		"watermarkpodautoscaler/ns1/wpa-a": old["watermarkpodautoscaler/ns1/wpa-a"], // Same as before
+		"datadogpodautoscaler/ns1/dpa-a": { // New
+			namespace:      "ns1",
+			name:           "dpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindDPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-b",
+		},
+		// verticalpodautoscaler/ns1/vpa-a no longer exists
+	}
+
+	diff := computeAutoscalerDiff(old, current)
+
+	assert.ElementsMatch(t, []*pb.KubernetesAutoscaler{
+		{
+			Namespace:      "ns1",
+			Name:           "hpa-a",
+			AutoscalerKind: "horizontalpodautoscaler",
+			TargetKind:     "argo_rollout",
+			TargetName:     "rollout-a",
+			Type:           pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace:      "ns1",
+			Name:           "dpa-a",
+			AutoscalerKind: "datadogpodautoscaler",
+			TargetKind:     "deployment",
+			TargetName:     "app-b",
+			Type:           pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace:      "ns1",
+			Name:           "vpa-a",
+			AutoscalerKind: "verticalpodautoscaler",
+			TargetKind:     "statefulset",
+			TargetName:     "sts-a",
+			Type:           pb.KubeMetadataEventType_UNSET,
+		},
+	}, diff)
+}
+
 func TestFullStateResponse(t *testing.T) {
 	pods := map[string]podServiceEntry{
 		"ns1/pod1": {
@@ -823,8 +1158,22 @@ func TestFullStateResponse(t *testing.T) {
 			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 		},
 	}
+	kaiPodGroups := map[string]kaiPodGroupEntry{
+		"team-a/pg": {
+			namespace: "team-a",
+			name:      "pg",
+			queueName: "queue-a",
+		},
+	}
+	metadata.autoscalers["horizontalpodautoscaler/ns1/my-hpa"] = autoscalerEntry{
+		namespace:      "ns1",
+		name:           "my-hpa",
+		autoscalerKind: workloadmeta.AutoscalerKindHPA,
+		targetKind:     workloadmeta.AutoscalerTargetDeployment,
+		targetName:     "app-a",
+	}
 
-	resp := fullStateResponse(pods, metadata)
+	resp := fullStateResponse(pods, metadata, kaiPodGroups)
 
 	expected := &pb.KubeMetadataStreamResponse{
 		IsFullState: true,
@@ -862,6 +1211,24 @@ func TestFullStateResponse(t *testing.T) {
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 				},
 				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
+		KaiPodGroups: []*pb.KAIPodGroup{
+			{
+				Namespace: "team-a",
+				Name:      "pg",
+				Queue:     "queue-a",
+				Type:      pb.KubeMetadataEventType_SET,
+			},
+		},
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{
+			{
+				Namespace:      "ns1",
+				Name:           "my-hpa",
+				AutoscalerKind: "horizontalpodautoscaler",
+				TargetKind:     "deployment",
+				TargetName:     "app-a",
+				Type:           pb.KubeMetadataEventType_SET,
 			},
 		},
 	}
@@ -973,6 +1340,22 @@ func testNamespaceSetEvents() []workloadmeta.Event {
 				},
 			},
 		},
+	}
+}
+
+func newTestAutoscaler(targetName string) *workloadmeta.KubernetesAutoscaler {
+	return &workloadmeta.KubernetesAutoscaler{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesAutoscaler,
+			ID:   "horizontalpodautoscaler/ns1/my-hpa",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "my-hpa",
+			Namespace: "ns1",
+		},
+		AutoscalerKind: workloadmeta.AutoscalerKindHPA,
+		TargetKind:     workloadmeta.AutoscalerTargetDeployment,
+		TargetName:     targetName,
 	}
 }
 

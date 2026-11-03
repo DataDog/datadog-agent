@@ -1,0 +1,11 @@
+description: $? inside double-quoted string reflects last command substitution.
+input:
+  script: |+
+    false; echo "x$(true)$?"
+    true; echo "x$(false)$?"
+expect:
+  stdout: |+
+    x0
+    x1
+  stderr: ""
+  exit_code: 0

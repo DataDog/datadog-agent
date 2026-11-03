@@ -1,0 +1,11 @@
+# ip --help / ip -h should print usage to stdout and exit 0.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip --help prints usage to stdout and exits 0"
+input:
+  script: |+
+    ip --help
+expect:
+  stdout_contains: ["Usage:", "addr", "link"]
+  stderr: ""
+  exit_code: 0
+skip_assert_against_bash: true

@@ -10,6 +10,7 @@
 #include "helpers/network/stats.h"
 #include "constants/fentry_macro.h"
 #include "helpers/caps.h"
+#include "helpers/syscall_usage.h"
 
 static __always_inline int trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     // use the fist 56 bits of ktime to simulate a somewhat monotonic id
@@ -248,8 +249,8 @@ static __always_inline int sched_process_fork_common(void *ctx, u32 pid, u32 par
             child_mntns_entry = *inum;
         }
     }
+    event->process.mntns = child_mntns_entry;
     if (child_mntns_entry) {
-        event->process.mntns = child_mntns_entry;
         bpf_map_update_elem(&mntns_cache, &pid, &child_mntns_entry, BPF_ANY);
     } else {
         bpf_map_delete_elem(&mntns_cache, &pid);
@@ -379,6 +380,7 @@ static __always_inline int handle_do_exit(ctx_t *ctx) {
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
             flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
+            flush_syscall_usage(ctx, tgid, SYSCALL_MONITOR_REASON_EXIT);
         } else if (is_current_kworker_dying()) {
             goto pop_and_exit;
         }
@@ -785,6 +787,7 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     struct pid_cache_t *pid_entry = get_pid_cache(tgid);
     if (pid_entry) {
         flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
+        flush_syscall_usage(ctx, tgid, SYSCALL_MONITOR_REASON_EXECVE);
     }
 
     if (syscall->exec.args_envs_ctx.envs_offset != 0) {

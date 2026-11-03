@@ -57,6 +57,16 @@ func stringMapBytes[V any](m map[string]V) int64 {
 	return n
 }
 
+// stringMapEntryBytes is the part of stringMapBytes(m) due to key, header
+// included when key is the only entry. m must hold key.
+func stringMapEntryBytes[V any](m map[string]V, key string) int64 {
+	n := stringHeaderBytes + int64(unsafe.Sizeof(*new(V))) + mapPerEntryBytes + int64(len(key))
+	if len(m) == 1 {
+		n += mapHeaderBytes
+	}
+	return n
+}
+
 // fixedKeyMapBytes approximates the heap used by a map with a fixed-size key (struct or
 // scalar — no heap pointers in K). Used for maps keyed by e.g. model.IMDSEvent or
 // model.FiveTuple where the key has no allocated content.

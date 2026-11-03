@@ -1,0 +1,10 @@
+description: Unsupported functionality is shown in top-level help, not as a separate help topic.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help unsupported
+expect:
+  stdout: |+
+  stderr: |+
+    help: no help topics match 'unsupported'
+  exit_code: 1

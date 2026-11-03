@@ -19,8 +19,8 @@ import (
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // Requires contains the config for RC
@@ -36,16 +36,7 @@ type Provides struct {
 	RCListener rctypes.ListenerProvider
 }
 
-type localFilterListConfig struct {
-	metricNames       []string
-	matchPrefix       bool
-	metricPrefixRules []metricname.PrefixRule
-	tagFilterList     []MetricTagListEntry
-}
-
 type FilterList struct {
-	localFilterListConfig
-
 	log           log.Component
 	config        config.Component
 	telemetryComp telemetry.Component
@@ -71,36 +62,8 @@ type FilterList struct {
 // (OnUpdateMetricFilterList, OnUpdateTagFilterList) called from
 // the packages that use FilterList.
 func NewFilterList(log log.Component, config config.Component, telemetryComp telemetry.Component) *FilterList {
-	// init the metric names filterlist
-	filterlist := config.GetStringSlice("metric_filterlist")
-	filterlistPrefix := config.GetBool("metric_filterlist_match_prefix")
-	if len(filterlist) == 0 {
-		filterlist = config.GetStringSlice("statsd_metric_blocklist")
-		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
-	}
-	filterlist = normalizeMetricNames(filterlist, filterlistPrefix, log)
-
-	var metricPrefixEntries []MetricPrefixListEntry
-	if err := structure.UnmarshalKey(config, "metric_filterlist_prefix", &metricPrefixEntries); err != nil {
-		log.Errorf("error loading metric_filterlist_prefix configuration: %s", err)
-		metricPrefixEntries = nil
-	}
-	metricPrefixRules := normalizeMetricPrefixList(metricPrefixEntries, log)
-
-	// Load tag filter list from config
-	var tagFilterListEntries []MetricTagListEntry
-	err := structure.UnmarshalKey(config, "metric_tag_filterlist", &tagFilterListEntries)
-	if err != nil {
-		log.Errorf("error loading metric_tag_filterlist configuration: %s", err)
-		tagFilterListEntries = nil
-	}
-
-	localFilterListConfig := localFilterListConfig{
-		metricNames:       filterlist,
-		matchPrefix:       filterlistPrefix,
-		metricPrefixRules: metricPrefixRules,
-		tagFilterList:     tagFilterListEntries,
-	}
+	filterlist, filterlistPrefix, metricPrefixRules := loadMetricFilterListConfig(config, log)
+	tagFilterListEntries := loadMetricTagFilterListConfig(config, log)
 
 	tlmMetricFilterListUpdates := telemetryComp.NewSimpleCounter("filterlist", "updates",
 		"Incremented when a reconfiguration of the metric filterlist happened",
@@ -116,7 +79,6 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	)
 
 	fl := &FilterList{
-		localFilterListConfig:      localFilterListConfig,
 		config:                     config,
 		log:                        log,
 		telemetryComp:              telemetryComp,
@@ -125,16 +87,36 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 		tlmTagFilterListUpdates:    tlmTagFilterListUpdates,
 		tlmTagFilterListSize:       tlmTagFilterListSize,
 	}
-	compiledTag := loadTagFilterList(localFilterListConfig.tagFilterList, log)
+	compiledTag := loadTagFilterList(tagFilterListEntries, log)
 	fl.setTagFilterList(compiledTag)
 
-	fl.SetMetricFilterList(
-		localFilterListConfig.metricNames,
-		localFilterListConfig.matchPrefix,
-		localFilterListConfig.metricPrefixRules,
-	)
+	fl.SetMetricFilterList(filterlist, filterlistPrefix, metricPrefixRules)
 
 	return fl
+}
+
+func loadMetricFilterListConfig(config config.Component, log log.Component) ([]string, bool, []metricname.PrefixRule) {
+	filterlist := config.GetStringSlice("metric_filterlist")
+	filterlistPrefix := config.GetBool("metric_filterlist_match_prefix")
+	filterlist = normalizeMetricNames(filterlist, filterlistPrefix, log)
+
+	var metricPrefixEntries []MetricPrefixListEntry
+	if err := structure.UnmarshalKey(config, "metric_filterlist_prefix", &metricPrefixEntries); err != nil {
+		log.Errorf("error loading metric_filterlist_prefix configuration: %s", err)
+		metricPrefixEntries = nil
+	}
+	metricPrefixRules := normalizeMetricPrefixList(metricPrefixEntries, log)
+
+	return filterlist, filterlistPrefix, metricPrefixRules
+}
+
+func loadMetricTagFilterListConfig(config config.Component, log log.Component) []MetricTagListEntry {
+	var tagFilterListEntries []MetricTagListEntry
+	if err := structure.UnmarshalKey(config, "metric_tag_filterlist", &tagFilterListEntries); err != nil {
+		log.Errorf("error loading metric_tag_filterlist configuration: %s", err)
+		return nil
+	}
+	return tagFilterListEntries
 }
 
 // loadTagFilterList loads the tag filterlist from the provided entries.
@@ -300,20 +282,17 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 	}
 }
 
-func (fl *FilterList) restoreMetricFilterListFromLocalConfig() {
-	fl.log.Debug("Restoring metric filterlist with local config.")
+func (fl *FilterList) restoreMetricFilterListFromConfig() {
+	fl.log.Debug("Restoring metric filterlist from config.")
 
-	fl.SetMetricFilterList(
-		fl.localFilterListConfig.metricNames,
-		fl.localFilterListConfig.matchPrefix,
-		fl.localFilterListConfig.metricPrefixRules,
-	)
+	metricNames, matchPrefix, prefixRules := loadMetricFilterListConfig(fl.config, fl.log)
+	fl.SetMetricFilterList(metricNames, matchPrefix, prefixRules)
 }
 
-func (fl *FilterList) restoreTagFilterListFromLocalConfig() {
-	fl.log.Debug("Restoring tag metric filterlist with local config.")
+func (fl *FilterList) restoreTagFilterListFromConfig() {
+	fl.log.Debug("Restoring tag metric filterlist from config.")
 
-	compiled := loadTagFilterList(fl.localFilterListConfig.tagFilterList, fl.log)
+	compiled := loadTagFilterList(loadMetricTagFilterListConfig(fl.config, fl.log), fl.log)
 	fl.setTagFilterList(compiled)
 }
 

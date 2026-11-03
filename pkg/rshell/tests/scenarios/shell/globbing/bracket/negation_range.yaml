@@ -1,0 +1,22 @@
+description: Bracket negation with range - [!a-c] matches characters NOT in the range.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.txt
+      content: ""
+    - path: d.txt
+      content: ""
+    - path: z.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo [!a-c].txt
+expect:
+  stdout: |+
+    d.txt z.txt
+  stderr: ""
+  exit_code: 0
