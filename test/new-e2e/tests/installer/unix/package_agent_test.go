@@ -594,13 +594,15 @@ func (s *packageAgentSuite) TestFleetUpgradeAndReboot() {
 			"readlink -f /opt/datadog-packages/datadog-agent/stable",
 			"sudo ls -ldZ /opt/datadog-packages/datadog-agent/stable/run; sudo ls -lZ /opt/datadog-packages/datadog-agent/stable/run/",
 			"sudo datadog-installer status",
+			"sudo journalctl -b -u datadog-agent-installer-exp --no-pager -n 200",
+			"cat /tmp/start_experiment.log /tmp/promote_experiment.log",
 			"sudo ausearch -m AVC,USER_AVC -ts boot",
 		} {
 			output, err := remote.Execute(command)
 			s.T().Logf("%s: %v\n%s", command, err, output)
 		}
 	}()
-	s.RunInstallScript()
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 	baselinePath := strings.TrimSpace(remote.MustExecute("readlink -f /opt/datadog-packages/datadog-agent/stable"))
 	remote.MustExecute("sudo systemctl restart datadog-agent")
@@ -609,7 +611,11 @@ func (s *packageAgentSuite) TestFleetUpgradeAndReboot() {
 	upgrade.setCatalog(upgrade.testCatalog())
 	_, err := upgrade.startExperiment(datadogAgent, s.pipelineAgentVersion)
 	require.NoError(s.T(), err)
-	s.host.WaitForUnitActive(s.T(), agentUnitXP, traceUnitXP)
+	s.host.WaitForUnitActive(s.T(), agentUnitXP, traceUnitXP, "datadog-agent-installer-exp.service")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := remote.Execute("sudo datadog-installer daemon rc-status")
+		require.NoError(c, err)
+	}, time.Minute, time.Second)
 	_, err = upgrade.promoteExperiment(datadogAgent)
 	require.NoError(s.T(), err)
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
@@ -651,8 +657,8 @@ func (s *packageAgentSuite) assertRuntimeLabels() {
 	const run = "/opt/datadog-packages/datadog-agent/stable/run"
 	for _, dir := range []string{run, "/opt/datadog-packages/run"} {
 		require.Equal(s.T(), "dd-agent:dd-agent 755", strings.TrimSpace(remote.MustExecute("stat -Lc '%U:%G %a' "+dir)))
-		s.assertRuntimeType(dir)
 	}
+	s.assertRuntimeType(run)
 	// Socket activation starts trace-agent only after application traffic arrives.
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		_, err := remote.Execute("curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8126/info")
