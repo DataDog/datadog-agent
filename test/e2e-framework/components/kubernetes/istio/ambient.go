@@ -21,6 +21,7 @@ import (
 const (
 	// AmbientDefaultVersion is the Istio chart version installed by NewAmbientHelmInstallation
 	AmbientDefaultVersion = "1.29.8"
+	istioHub              = "gcr.io/istio-release"
 	gatewayAPIVersion     = "v1.3.0"
 	istioChartsRepo       = "https://istio-release.storage.googleapis.com/charts"
 )
@@ -63,9 +64,9 @@ func NewAmbientHelmInstallation(e config.Env, version string, opts ...pulumi.Res
 	// the cni and ztunnel charts tolerate every taint by default, which schedules them on
 	// EKS Fargate nodes, where DaemonSet pods stay Pending
 	noTolerations := pulumi.Array{}
-	// the charts pull from Docker Hub, which rate-limits anonymous pulls and has no mirror on EKS nodes;
-	// istiod's hub also sets the waypoint's proxyv2 image
-	hub := pulumi.String(e.InternalDockerhubMirror() + "/istio")
+	// Istio's own registry, not the Docker Hub pull-through cache: EKS node roles can't import a first
+	// pull into the cache. istiod's hub also sets the waypoint's proxyv2 image
+	hub := pulumi.String(istioHub)
 	releases := []struct {
 		chart, name string
 		values      pulumi.Map
