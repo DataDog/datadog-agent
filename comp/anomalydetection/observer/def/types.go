@@ -520,10 +520,12 @@ const AgentNamespace = "agent"
 
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
-	Namespace   string            // exact match (empty = any)
-	Host        string            // exact match (empty = any)
-	NamePattern string            // prefix match (empty = any)
-	TagMatchers map[string]string // required tag key=value pairs
+	MetricType  *metrics.MetricType // nil means any input type
+	MetricKind  *MetricKind         // nil means any inferred kind, including UNSET
+	Namespace   string              // exact match (empty = any)
+	Host        string              // exact match (empty = any)
+	NamePattern string              // prefix match (empty = any)
+	TagMatchers map[string]string   // required tag key=value pairs
 	// ExcludeNamespaces skips series whose namespace is in this list. It is only
 	// applied when Namespace is empty (list-all mode). An explicit Namespace match
 	// ignores ExcludeNamespaces so callers can still list internal series when needed.
@@ -541,6 +543,7 @@ func WorkloadSeriesFilter() SeriesFilter {
 type SeriesMeta struct {
 	// MetricType is the first known input type, shared by all points in the series.
 	MetricType metrics.MetricType
+	MetricKind MetricKind
 	Ref        SeriesRef
 	Namespace  string
 	Name       string
@@ -715,9 +718,9 @@ type StorageReader interface {
 	// Returns 0 if the series is not found.
 	WriteGeneration(handle SeriesRef) int64
 
-	// SeriesGeneration returns a global counter that increments only when the
-	// set of known series changes. Use this to cache ListSeries results and
-	// refresh them only when new series keys appear.
+	// SeriesGeneration changes when series are admitted/removed or filterable
+	// metadata changes (committed kind or unknown-to-known input type).
+	// Use it to cache filtered series lists. Ordinary point writes do not change it.
 	SeriesGeneration() uint64
 }
 

@@ -150,11 +150,18 @@ visiting another series so scheduled zero buckets cannot resurrect them.
 Input metric types flow through both live handles and synchronous replay into
 `SeriesMeta.MetricType`; storage retains one type per series, never per point.
 The first known type wins. An unknown type can become known later without
-changing the series identity or catalog generation. Type changes do not create new series.
+changing the series identity. This promotion invalidates filtered selections
+through `SeriesGeneration`. Type changes do not create new series.
 Log pattern frequencies and connection-error totals use `metrics.CountType`;
 numeric JSON fields use `metrics.GaugeType`. `metrics.CounterType` is the
 DogStatsD counter normalized to a rate, not the type for log event totals.
 Only `metrics.CountType` outputs enter fixed-width log count buckets.
+
+Storage also supports committed `MetricKind` metadata and optional kind/type
+filters. Kinds start as `UNSET`; classification is not activated yet.
+`SeriesGeneration` changes on admission/removal and actual filterable metadata
+changes, not ordinary point writes. Kind set/reset preserves observations and
+per-series write generations.
 
 ### Non-blocking ingestion
 
