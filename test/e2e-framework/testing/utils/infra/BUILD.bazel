@@ -4,6 +4,7 @@ go_library(
     name = "infra",
     srcs = [
         "datadog_event_sender.go",
+        "ecs_task_definition_cleanup.go",
         "retriable_errors.go",
         "stack_manager.go",
     ],
@@ -13,6 +14,8 @@ go_library(
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
         "//test/e2e-framework/testing/utils/common",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
         "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
         "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
         "@com_github_pulumi_pulumi_sdk_v3//go/auto",
@@ -28,12 +31,16 @@ go_library(
 
 go_test(
     name = "infra_test",
-    srcs = ["stack_manager_test.go"],
+    srcs = [
+        "ecs_task_definition_cleanup_test.go",
+        "stack_manager_test.go",
+    ],
     embed = [":infra"],
     gotags = ["e2eunit"],
     tags = ["manual"],
     deps = [
         "//test/e2e-framework/testing/utils/common",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
         "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
         "@com_github_pulumi_pulumi_sdk_v3//go/auto",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",

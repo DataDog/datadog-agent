@@ -369,6 +369,11 @@ func (sm *StackManager) destroyStack(ctx context.Context, stackID string, stack 
 		return fmt.Errorf("unable to find logger, skipping destruction of: %s", stackID)
 	}
 
+	taskDefinitions, err := captureECSTaskDefinitions(ctx, stack)
+	if err != nil {
+		fmt.Fprintf(logger, "[WARNING] Cannot capture ECS task definitions before stack destroy: %v\n", err)
+	}
+
 	loggingOptions, err := sm.getLoggingOptions()
 	if err != nil {
 		return err
@@ -384,6 +389,7 @@ func (sm *StackManager) destroyStack(ctx context.Context, stackID string, stack 
 		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 		cancel()
 		if destroyErr == nil {
+			deleteECSTaskDefinitions(ctx, taskDefinitions, logger)
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", "stack:" + stack.Name(), fmt.Sprintf("retries:%d", downCount)})
 			return nil
 		}

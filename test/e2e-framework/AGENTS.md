@@ -63,6 +63,12 @@ import aliases rather than package names. Azure, GCP and local provisioners take
 directly (`azurehost.WithAgentOptions(...)`) rather than nesting them inside `WithRunOptions`
 as the AWS example below does.
 
+After a successful Pulumi destroy, the stack manager best-effort deletes any
+AWS ECS task definitions that were owned by the stack. Pulumi deregisters these
+definitions but does not permanently delete them. Cleanup failures are warnings
+so they do not turn an otherwise successful test teardown into a failure; the
+scheduled infrastructure cleaner handles leftovers.
+
 ```go
 // Host on AWS EC2
 awshost.Provisioner(
