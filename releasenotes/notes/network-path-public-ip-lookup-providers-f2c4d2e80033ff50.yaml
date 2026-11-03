@@ -6,7 +6,7 @@ enhancements:
     ``api.ipify.org`` are no longer used. If you restrict outbound traffic,
     allow one of these three hosts or turn off the lookup: set
     ``network_path.collector.disable_source_public_ip_collection: true`` for
-    basic and standard Dynamic Tests, and
+    Dynamic Tests (basic, standard and NetFlow), and
     ``disable_source_public_ip_collection: true`` in the ``network_path``
     check configuration for Scheduled Tests. The lookup can't be turned off
     for Scheduled Tests set up through Remote Config, Network Path Synthetic
