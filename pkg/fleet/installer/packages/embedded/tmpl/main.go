@@ -85,11 +85,10 @@ type launchdTemplateData struct {
 	LogDir     string
 	AgentUser  string
 	AgentGroup string
-	// InstallerRunDir and InstallerLogDir are the root installer daemon's own directories. They
-	// are root-owned and outside the install root, which the Agent's account can write to (see
+	// InstallerRunDir is the root installer daemon's own run directory. It is root-owned and
+	// outside the install root, which the Agent's account can write to (see
 	// pkg/fleet/installer/paths/installer_paths_darwin.go).
 	InstallerRunDir string
-	InstallerLogDir string
 }
 
 type embeddedLayout struct {
@@ -329,7 +328,6 @@ var (
 		AgentGroup: "daemon",
 
 		InstallerRunDir: "/opt/datadog-packages/run",
-		InstallerLogDir: "/opt/datadog-packages/logs",
 	}
 
 	windowsEmbeddedLayouts = []embeddedLayout{
