@@ -28,7 +28,8 @@ import (
 
 // This reproduces the terrapin / Kata topology on a single host, which is
 // possible because two processes on one box can talk over AF_VSOCK CID 2
-// (VMADDR_CID_HOST) once vhost_vsock is loaded -- no VM required:
+// (VMADDR_CID_HOST) once vhost_vsock and vsock_loopback are loaded -- no VM
+// required:
 //
 //	core agent + fakeintake        normal install
 //	system-probe #1 (forwarder)    listens on vsock 2:5020, ships to the intake
@@ -91,13 +92,20 @@ var vsockForwarderSecurityAgentConfig string
 //go:embed config/e2e-vsock-guest.env
 var vsockGuestEnv string
 
-// vsockUserData loads vhost_vsock before the Agent is installed. It cannot wait
-// until SetupSuite: the forwarder binds vsock at startup and CWSConsumer.Start
-// returns the bind error, so an Agent that starts without the module never comes
-// up at all.
+// vsockUserData loads the vsock modules before the Agent is installed. It cannot
+// wait until SetupSuite: the forwarder binds vsock at startup and
+// CWSConsumer.Start returns the bind error, so an Agent that starts without the
+// modules never comes up at all.
+//
+// Both are needed. vhost_vsock is the host-to-guest transport, which is what
+// lets the forwarder bind CID 2. vsock_loopback is the local transport the
+// kernel picks to connect to CID 2 from the host itself: without it, and with no
+// guest-to-host transport on an EC2 instance, the guest's connect fails with
+// ENODEV ("no such device").
 const vsockUserData = `#!/bin/bash
 modprobe vhost_vsock
-echo vhost_vsock > /etc/modules-load.d/datadog-e2e-vsock.conf
+modprobe vsock_loopback
+printf 'vhost_vsock\nvsock_loopback\n' > /etc/modules-load.d/datadog-e2e-vsock.conf
 `
 
 // The guest is configured entirely through DD_* variables; this exists only so it
@@ -140,11 +148,16 @@ func (s *vsockForwardingSuite) SetupSuite() {
 	host := s.Env().RemoteHost
 
 	// Fail loudly rather than skipping: a silent skip would drop this coverage
-	// the day an AMI stops shipping the module, and nobody would notice.
-	out, err := host.Execute("lsmod | grep -c vhost_vsock || true")
-	require.NoError(s.T(), err)
-	require.NotEqual(s.T(), "0", strings.TrimSpace(out),
-		"vhost_vsock is not loaded, so no process can bind vsock CID 2 -- the user data should have loaded it")
+	// the day an AMI stops shipping a module, and nobody would notice.
+	for module, why := range map[string]string{
+		"vhost_vsock":    "no process can bind vsock CID 2",
+		"vsock_loopback": "no process on this host can connect to vsock CID 2",
+	} {
+		out, err := host.Execute(fmt.Sprintf("lsmod | grep -cw %s || true", module))
+		require.NoError(s.T(), err)
+		require.NotEqual(s.T(), "0", strings.TrimSpace(out),
+			"%s is not loaded, so %s -- the user data should have loaded it", module, why)
+	}
 
 	// SFTP rather than a heredoc over SSH: no shell quoting to get wrong, and
 	// /tmp is writable by the login user so this needs no sudo. systemd-run
