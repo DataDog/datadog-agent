@@ -25,8 +25,8 @@ import (
 // Payload handles the JSON unmarshalling of the metadata payload
 type testPayload struct{}
 
-func (p *testPayload) PayloadType() marshaler.PayloadType {
-	return marshaler.PayloadTypeAgentMetadata
+func (p *testPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
 }
 
 func (p *testPayload) MarshalJSON() ([]byte, error) {

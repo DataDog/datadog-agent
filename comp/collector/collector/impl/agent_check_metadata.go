@@ -153,8 +153,8 @@ type Payload struct {
 var _ marshaler.TypedJSONMarshaler = (*Payload)(nil)
 
 // PayloadType implements marshaler.TypedJSONMarshaler
-func (p *Payload) PayloadType() marshaler.PayloadType {
-	return marshaler.PayloadTypeAgentChecks
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgentChecks
 }
 
 // MarshalJSON serialization a Payload to JSON
