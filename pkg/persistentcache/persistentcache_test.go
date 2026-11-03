@@ -30,6 +30,25 @@ func TestWritePersistentCache(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestWriteAtomicPersistentCache(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	runDir := filepath.Join(testDir, "run")
+	mockConfig.SetInTest("run_path", runDir)
+
+	// Subsequent writes replace the value without leaving temporary files.
+	key := "my:key"
+	require.NoError(t, WriteAtomic(key, "first"))
+	require.NoError(t, WriteAtomic(key, "second"))
+	value, err := Read(key)
+	require.NoError(t, err)
+	assert.Equal(t, "second", value)
+	files, err := os.ReadDir(filepath.Join(runDir, "my"))
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Equal(t, "key", files[0].Name())
+}
+
 func TestWritePersistentCacheColons(t *testing.T) {
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)

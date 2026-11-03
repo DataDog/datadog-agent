@@ -431,7 +431,7 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	})
 
 	tt.Run("registry permissions", func(tt *testing.T) {
-		t.testInstalledRegistryPermissions(tt, ddAgentUserIdentity)
+		t.testInstalledRegistryPermissions(tt)
 	})
 
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
@@ -441,21 +441,15 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	}
 }
 
-// testInstalledRegistryPermissions inventories the entire Datadog subtree, including
-// inherited and group ACEs. Only the two crash checkpoints may have non-admin
-// write grants, and those grants must be limited to the Agent account.
-func (t *Tester) testInstalledRegistryPermissions(tt *testing.T, agentUser windows.Identity) {
+// testInstalledRegistryPermissions inventories the entire Datadog subtree,
+// including inherited and group ACEs. The Agent no longer needs registry writes.
+func (t *Tester) testInstalledRegistryPermissions(tt *testing.T) {
 	root := `HKLM:\SOFTWARE\Datadog`
 	output, err := t.host.Execute(fmt.Sprintf(`ConvertTo-Json -Compress -InputObject @((Get-Item '%s').PSPath; Get-ChildItem '%s' -Recurse | ForEach-Object { $_.PSPath })`, root, root))
 	require.NoError(tt, err)
 	var paths []string
 	require.NoError(tt, json.Unmarshal([]byte(output), &paths), output)
 
-	checkpoints := map[string]bool{
-		strings.ToLower(windowsAgent.RegistryKeyPath + `\agent_crash_reporting`):   false,
-		strings.ToLower(windowsAgent.RegistryKeyPath + `\windows_crash_reporting`): false,
-	}
-	granted := make(map[string]bool)
 	writeRights := windows.KEY_SET_VALUE | windows.KEY_CREATE_SUB_KEY | windows.KEY_CREATE_LINK |
 		windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER | windows.GENERIC_WRITE | windows.GENERIC_ALL
 	for _, path := range paths {
@@ -467,12 +461,6 @@ func (t *Tester) testInstalledRegistryPermissions(tt *testing.T, agentUser windo
 		}
 		security, err := windows.GetSecurityInfoForPath(t.host, path)
 		require.NoError(tt, err, path)
-		key := strings.ToLower(normalized)
-		_, checkpoint := checkpoints[key]
-		if checkpoint {
-			checkpoints[key] = true
-			assert.False(tt, security.AreAccessRulesProtected, "%s should retain inherited registry permissions", normalized)
-		}
 		for _, rule := range security.Access {
 			if !rule.IsAllow() || rule.Rights&writeRights == 0 {
 				continue
@@ -481,17 +469,13 @@ func (t *Tester) testInstalledRegistryPermissions(tt *testing.T, agentUser windo
 			if sid == windows.LocalSystemSID || sid == windows.AdministratorsSID {
 				continue
 			}
-			if checkpoint && sid == agentUser.SID && rule.Rights&^(windows.READ_CONTROL|windows.KEY_QUERY_VALUE|windows.KEY_SET_VALUE) == 0 {
-				granted[key] = true
+			// CREATOR OWNER is a template for descendants, not an additional
+			// non-admin principal. Only ignore it when this key's owner is
+			// SYSTEM or Administrators; a non-admin-owned key remains suspect.
+			if sid == "S-1-3-0" && (security.Owner.SID == windows.LocalSystemSID || security.Owner.SID == windows.AdministratorsSID) {
 				continue
 			}
 			assert.Failf(tt, "unexpected registry write grant", "%s: %s (%s) rights %#x inherited=%t", normalized, rule.Identity.Name, sid, rule.Rights, rule.IsInherited)
-		}
-	}
-	for path, found := range checkpoints {
-		assert.True(tt, found, "checkpoint key %s should exist", path)
-		if !windows.IsIdentityLocalSystem(agentUser) {
-			assert.True(tt, granted[path], "Agent should be able to update %s", path)
 		}
 	}
 }

@@ -114,12 +114,6 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
-	// The MSI also calls this hook for standalone installs. Keep checkpoint
-	// values across upgrades; only change their permissions.
-	if err := grantAgentRegistryPermissions(); err != nil {
-		return fmt.Errorf("failed to grant Agent registry permissions: %w", err)
-	}
-
 	// Common for both OCI and MSI: Restore extensions.
 	// For OCI fleet installs the MSI custom action fires RunPostInstallHook (PackageTypeMSI)
 	// AND the OCI hook chain also calls restoreAgentExtensions. The Install() call inside
@@ -163,141 +157,6 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
-var crashCheckpointRegistryKeys = []string{
-	`SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting`,
-	`SOFTWARE\Datadog\Datadog Agent\windows_crash_reporting`,
-}
-
-// grantAgentRegistryPermissions creates the checkpoint keys if necessary and
-// replaces any older, broader explicit Agent grant without changing their values.
-func grantAgentRegistryPermissions() error {
-	// MSI configures the service account before invoking postinst. The service
-	// SID, rather than a fleet environment value, is the account actually used.
-	sid, err := winutil.GetServiceUserSID("datadogagent")
-	if err != nil {
-		return fmt.Errorf("could not resolve Agent service account: %w", err)
-	}
-	return grantRegistryPermissions(registry.LOCAL_MACHINE, crashCheckpointRegistryKeys, sid)
-}
-
-func grantRegistryPermissions(hive registry.Key, paths []string, sid *windows.SID) error {
-	for _, path := range paths {
-		key, _, err := registry.CreateKey(hive, path, windows.READ_CONTROL|windows.WRITE_DAC)
-		if err != nil {
-			return fmt.Errorf("could not create %s: %w", path, err)
-		}
-		err = updateRegistryKeyPermissions(key, sid, windows.SET_ACCESS)
-		closeErr := key.Close()
-		if err != nil {
-			return fmt.Errorf("could not grant permissions on %s: %w", path, err)
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-	}
-	return nil
-}
-
-// removeAgentRegistryPermissions revokes the old Agent's explicit grants
-// without creating keys or deleting their saved crash checkpoints.
-func removeAgentRegistryPermissions() error {
-	sid, err := agentSIDForRegistryRemoval()
-	if err != nil {
-		return err
-	}
-	if sid == nil {
-		return nil // neither an Agent account nor checkpoint keys remain
-	}
-	return removeRegistryPermissions(registry.LOCAL_MACHINE, crashCheckpointRegistryKeys, sid)
-}
-
-func removeRegistryPermissions(hive registry.Key, paths []string, sid *windows.SID) error {
-	for _, path := range paths {
-		key, err := registry.OpenKey(hive, path, windows.READ_CONTROL|windows.WRITE_DAC)
-		if errors.Is(err, registry.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("could not open %s: %w", path, err)
-		}
-		err = updateRegistryKeyPermissions(key, sid, windows.REVOKE_ACCESS)
-		closeErr := key.Close()
-		if err != nil {
-			return fmt.Errorf("could not revoke permissions on %s: %w", path, err)
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-	}
-	return nil
-}
-
-func agentSIDForRegistryRemoval() (*windows.SID, error) {
-	// The service may already be gone at uninstall. The MSI's installed account
-	// is the fallback; getenv() might instead name the *next* fleet account.
-	sid, err := winutil.GetServiceUserSID("datadogagent")
-	if err == nil {
-		return sid, nil
-	}
-	if !errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-		return nil, fmt.Errorf("could not resolve Agent service account: %w", err)
-	}
-	user, err := windowsuser.GetAgentUserNameFromRegistry()
-	if err == nil {
-		sid, _, _, err = windows.LookupSID("", user)
-		if err != nil {
-			return nil, fmt.Errorf("could not resolve installed Agent account %q: %w", user, err)
-		}
-		return sid, nil
-	}
-	if errors.Is(err, registry.ErrNotExist) {
-		// No Agent is installed: succeed only if there are no keys with a
-		// potentially stale grant. Do not silently leave an ACE behind.
-		for _, path := range crashCheckpointRegistryKeys {
-			key, openErr := registry.OpenKey(registry.LOCAL_MACHINE, path, registry.READ)
-			if openErr == nil {
-				key.Close()
-				return nil, fmt.Errorf("could not identify Agent account to revoke permissions on %s: %w", path, err)
-			}
-			if !errors.Is(openErr, registry.ErrNotExist) {
-				return nil, openErr
-			}
-		}
-		return nil, nil
-	}
-	return nil, fmt.Errorf("could not find installed Agent account: %w", err)
-}
-
-// updateRegistryKeyPermissions edits one explicit ACE, retaining the default
-// inherited DACL and all other explicit rules.
-func updateRegistryKeyPermissions(key registry.Key, sid *windows.SID, mode windows.ACCESS_MODE) error {
-	sd, err := windows.GetSecurityInfo(windows.Handle(key), windows.SE_REGISTRY_KEY, windows.DACL_SECURITY_INFORMATION)
-	if err != nil {
-		return err
-	}
-	dacl, _, err := sd.DACL()
-	if err != nil {
-		return err
-	}
-	// READ_CONTROL | KEY_QUERY_VALUE | KEY_SET_VALUE. No subkey creation or ACL changes.
-	updated, err := windows.ACLFromEntries([]windows.EXPLICIT_ACCESS{{
-		AccessPermissions: windows.ACCESS_MASK(windows.READ_CONTROL | registry.QUERY_VALUE | registry.SET_VALUE),
-		AccessMode:        mode,
-		Inheritance:       windows.NO_INHERITANCE,
-		Trustee: windows.TRUSTEE{
-			TrusteeForm:  windows.TRUSTEE_IS_SID,
-			TrusteeType:  windows.TRUSTEE_IS_USER,
-			TrusteeValue: windows.TrusteeValueFromSID(sid),
-		},
-	}}, dacl)
-	if err != nil {
-		return err
-	}
-	return windows.SetSecurityInfo(windows.Handle(key), windows.SE_REGISTRY_KEY,
-		windows.DACL_SECURITY_INFORMATION|windows.UNPROTECTED_DACL_SECURITY_INFORMATION,
-		nil, nil, updated, nil)
-}
-
 // preRemoveDatadogAgent runs pre remove scripts for a given package.
 func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// Don't return an error if the Agent is already not installed.
@@ -312,9 +171,6 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := removeAgentExtensions(ctx, false); err != nil {
 		log.Warnf("failed to remove extensions: %s", err)
-	}
-	if err := removeAgentRegistryPermissions(); err != nil {
-		return fmt.Errorf("failed to revoke Agent registry permissions: %w", err)
 	}
 
 	if ctx.PackageType == PackageTypeMSI {

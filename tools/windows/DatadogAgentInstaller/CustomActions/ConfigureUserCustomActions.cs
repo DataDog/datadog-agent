@@ -194,8 +194,8 @@ namespace Datadog.CustomActions
             // Replace explicit rules on the installation key, including old Agent-account
             // grants (current or previous account), while leaving inheritance enabled.
             // Inherited rules from the parent remain; this does not revoke access granted
-            // through the parent or a group. The post-install hook grants checkpoint writes
-            // separately on the two crash-reporting subkeys.
+            // through the parent or a group. Crash-report checkpoints are written to
+            // the Agent's persistent file cache instead of this registry subtree.
             var key = _registryServices.CreateRegistryKey(Registries.LocalMachine,
                 Constants.DatadogAgentRegistryKey);
             if (key != null)
