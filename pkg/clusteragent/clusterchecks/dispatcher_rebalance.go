@@ -176,11 +176,11 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// own runners.
 	cohorts := make(map[string]*cohort)
 	d.store.RLock()
-	for digest, config := range currentConfigsDistribution.Configs {
+	for digest, config := range currentConfigsDistribution.configs {
 		group := d.checkGroup[config.CheckName]
 		c, ok := cohorts[group]
 		if !ok {
-			c = &cohort{group: group, runners: d.groupNodes(group), configs: make(map[string]*ConfigStatus)}
+			c = &cohort{group: group, runners: d.groupNodes(group), configs: make(map[string]*configStatus)}
 			cohorts[group] = c
 		}
 		c.configs[digest] = config
@@ -200,7 +200,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 type cohort struct {
 	group   string // "" for general workers
 	runners []string
-	configs map[string]*ConfigStatus
+	configs map[string]*configStatus
 }
 
 // rebalanceCohort rebalances one cohort's configs within its eligible runners.
@@ -208,7 +208,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	// Runners that joined after the current snapshot wait for the next rebalance.
 	runners := make(map[string]int, len(cohort.runners))
 	for _, r := range cohort.runners {
-		if runnerStatus, found := current.Runners[r]; found {
+		if runnerStatus, found := current.runners[r]; found {
 			runners[r] = runnerStatus.Workers
 		}
 	}
@@ -231,7 +231,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 		}
 	}
 	for _, digest := range currentCohort.configsSortedByWorkersNeeded() {
-		configInfo := currentCohort.Configs[digest]
+		configInfo := currentCohort.configs[digest]
 		if configInfo.Pinned {
 			continue
 		}
@@ -251,7 +251,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	if force {
 		prefix = "Forced cohort rebalance: moved"
 	}
-	log.Infof("%s %d of %d checks in runner group %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cmp.Or(cohort.group, "general"), len(proposedCohort.Runners), currentStdDev, proposedStdDev)
+	log.Infof("%s %d of %d checks in runner group %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.configs), cmp.Or(cohort.group, "general"), len(proposedCohort.runners), currentStdDev, proposedStdDev)
 	setPredictedUtilization(proposedCohort)
 	return moves
 }
@@ -316,7 +316,7 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 func (d *dispatcher) applyDistribution(proposedDistribution configsDistribution, currentDistribution configsDistribution) []types.RebalanceResponse {
 	var checksMoved []types.RebalanceResponse
 
-	for digest, config := range proposedDistribution.Configs {
+	for digest, config := range proposedDistribution.configs {
 		currentNode := currentDistribution.runnerForConfig(digest)
 		proposedNode := config.Runner
 
@@ -349,7 +349,7 @@ func (d *dispatcher) applyDistribution(proposedDistribution configsDistribution,
 }
 
 func setPredictedUtilization(distribution configsDistribution) {
-	for runnerName, runnerStatus := range distribution.Runners {
+	for runnerName, runnerStatus := range distribution.runners {
 		predictedUtilization.Set(runnerStatus.utilization(), runnerName, le.JoinLeaderValue)
 	}
 }

@@ -60,8 +60,8 @@ func (s *clusterStore) getNodeStore(nodeName string) (*nodeStore, bool) {
 	return node, ok
 }
 
-// CountNodeTypes returns the number of nodes with NodeTypeCLCRunner and NodeTypeNodeAgent.
-func (s *clusterStore) CountNodeTypes() (clcRunnerCount, nodeAgentCount int) {
+// countNodeTypes returns the number of nodes with NodeTypeCLCRunner and NodeTypeNodeAgent.
+func (s *clusterStore) countNodeTypes() (clcRunnerCount, nodeAgentCount int) {
 	s.RLock()
 	defer s.RUnlock()
 	for _, node := range s.nodes {

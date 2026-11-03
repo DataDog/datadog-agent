@@ -398,14 +398,14 @@ func (d *dispatcher) scanUnscheduledChecks() {
 
 // logWarmupSummary logs the nodes seen by the leader at the end of the warmup phase.
 func (d *dispatcher) logWarmupSummary() {
-	clcCount, nodeAgentCount := d.store.CountNodeTypes()
+	clcCount, nodeAgentCount := d.store.countNodeTypes()
 	log.Infof("Warmup summary: %d nodes registered (%d CLC runners, %d node agents)",
 		clcCount+nodeAgentCount, clcCount, nodeAgentCount)
 }
 
-// UpdateAdvancedDispatchingMode checks if any node agents are in the pool
+// updateAdvancedDispatchingMode checks if any node agents are in the pool
 // and disables advanced dispatching if found
-func (d *dispatcher) UpdateAdvancedDispatchingMode() {
+func (d *dispatcher) updateAdvancedDispatchingMode() {
 	if !d.advancedDispatching.Load() {
 		return
 	}

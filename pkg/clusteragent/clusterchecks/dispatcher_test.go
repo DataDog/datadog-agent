@@ -227,7 +227,7 @@ func TestGetNodeTypeCounts(t *testing.T) {
 	dispatcher.processNodeStatus("agent2", "10.0.0.21", types.NodeStatus{LastChange: 4, NodeType: types.NodeTypeNodeAgent})
 	dispatcher.processNodeStatus("agent3", "10.0.0.22", types.NodeStatus{LastChange: 5, NodeType: types.NodeTypeNodeAgent})
 
-	clcRunnerCount, nodeAgentCount := dispatcher.store.CountNodeTypes()
+	clcRunnerCount, nodeAgentCount := dispatcher.store.countNodeTypes()
 	assert.Equal(t, 2, clcRunnerCount)
 	assert.Equal(t, 3, nodeAgentCount)
 }

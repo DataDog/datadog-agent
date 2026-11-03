@@ -145,7 +145,7 @@ func (h *Handler) Run(ctx context.Context) {
 		h.dispatcher.logWarmupSummary()
 
 		// Initial mode determination after warmup
-		h.dispatcher.UpdateAdvancedDispatchingMode()
+		h.dispatcher.updateAdvancedDispatchingMode()
 		log.Infof("Warmup finished, advanced dispatching mode: %v", h.dispatcher.advancedDispatching.Load())
 
 		dispatchCtx, dispatchCancel := context.WithCancel(ctx)

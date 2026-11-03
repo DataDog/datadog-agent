@@ -14,18 +14,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConfigStatus is one config's entry in a distribution.
+// configStatus is one config's entry in a distribution.
 // WorkersNeeded is summed across the config's instances.
 // Pinned configs are kept on their current runner during rebalancing.
-type ConfigStatus struct {
+type configStatus struct {
 	WorkersNeeded float64
 	Runner        string
 	CheckName     string
 	Pinned        bool
 }
 
-// RunnerStatus represents the status of a check runner
-type RunnerStatus struct {
+// runnerStatus represents the status of a check runner
+type runnerStatus struct {
 	Workers     int
 	WorkersUsed float64
 	// Note: this is different from the number of configs
@@ -33,7 +33,7 @@ type RunnerStatus struct {
 	NumChecks int
 }
 
-func (ns RunnerStatus) utilization() float64 {
+func (ns runnerStatus) utilization() float64 {
 	if ns.Workers == 0 {
 		return 0
 	}
@@ -44,8 +44,8 @@ func (ns RunnerStatus) utilization() float64 {
 // configsDistribution represents the placement of cluster check configs
 // across the runners of a cluster. Each entry is keyed by config digest.
 type configsDistribution struct {
-	Configs              map[string]*ConfigStatus
-	Runners              map[string]*RunnerStatus
+	configs              map[string]*configStatus
+	runners              map[string]*runnerStatus
 	stickinessEnabled    bool
 	stickinessFactor     float64
 	stickinessUpperLimit float64
@@ -53,9 +53,9 @@ type configsDistribution struct {
 }
 
 func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled bool, stickinessFactor float64, stickinessUpperLimit float64, stickinessLowerLimit float64) configsDistribution {
-	runners := map[string]*RunnerStatus{}
+	runners := map[string]*runnerStatus{}
 	for runnerName, runnerWorkers := range workersPerRunner {
-		runners[runnerName] = &RunnerStatus{
+		runners[runnerName] = &runnerStatus{
 			Workers:     runnerWorkers,
 			WorkersUsed: 0.0,
 			NumChecks:   0,
@@ -63,8 +63,8 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 	}
 
 	return configsDistribution{
-		Configs:              map[string]*ConfigStatus{},
-		Runners:              runners,
+		configs:              map[string]*configStatus{},
+		runners:              runners,
 		stickinessEnabled:    stickinessEnabled,
 		stickinessFactor:     stickinessFactor,
 		stickinessUpperLimit: stickinessUpperLimit,
@@ -81,7 +81,7 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
 
-	for runnerName, runnerStatus := range distribution.Runners {
+	for runnerName, runnerStatus := range distribution.runners {
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
@@ -120,22 +120,22 @@ func (distribution *configsDistribution) addToLeastBusy(digest, checkName string
 // addConfig records a config instance in the distribution.
 func (distribution *configsDistribution) addConfig(digest, checkName string, workersNeeded float64, runner string, pinned bool) {
 	// Initialize the runner and attribute work
-	runnerInfo, runnerExists := distribution.Runners[runner]
+	runnerInfo, runnerExists := distribution.runners[runner]
 	if !runnerExists {
-		runnerInfo = &RunnerStatus{}
-		distribution.Runners[runner] = runnerInfo
+		runnerInfo = &runnerStatus{}
+		distribution.runners[runner] = runnerInfo
 	}
 	runnerInfo.WorkersUsed += workersNeeded
 	runnerInfo.NumChecks++
 
 	// Initialize the config and attribute work
-	configInfo, configExists := distribution.Configs[digest]
+	configInfo, configExists := distribution.configs[digest]
 	if !configExists {
-		configInfo = &ConfigStatus{
+		configInfo = &configStatus{
 			Runner:    runner,
 			CheckName: checkName,
 		}
-		distribution.Configs[digest] = configInfo
+		distribution.configs[digest] = configInfo
 	}
 
 	// Prioritize the new assigned runner over the existing one
@@ -143,7 +143,7 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 	if configInfo.Runner != runner {
 		log.Warnf("digest %s already placed on runner %q, but received conflicting assignment to %q",
 			digest, configInfo.Runner, runner)
-		distribution.Runners[configInfo.Runner].WorkersUsed -= configInfo.WorkersNeeded
+		distribution.runners[configInfo.Runner].WorkersUsed -= configInfo.WorkersNeeded
 		runnerInfo.WorkersUsed += configInfo.WorkersNeeded
 		configInfo.Runner = runner
 	}
@@ -155,7 +155,7 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 }
 
 func (distribution *configsDistribution) runnerForConfig(digest string) string {
-	if info, found := distribution.Configs[digest]; found {
+	if info, found := distribution.configs[digest]; found {
 		return info.Runner
 	}
 	return ""
@@ -169,7 +169,7 @@ func (distribution *configsDistribution) configsSortedByWorkersNeeded() []string
 		workersNeeded float64
 	}
 
-	for digest, info := range distribution.Configs {
+	for digest, info := range distribution.configs {
 		configs = append(configs, struct {
 			digest        string
 			workersNeeded float64
@@ -195,7 +195,7 @@ func (distribution *configsDistribution) configsSortedByWorkersNeeded() []string
 
 func (distribution *configsDistribution) numEmptyRunners() int {
 	empty := 0
-	for _, runnerStatus := range distribution.Runners {
+	for _, runnerStatus := range distribution.runners {
 		if runnerStatus.NumChecks == 0 {
 			empty++
 		}
@@ -205,7 +205,7 @@ func (distribution *configsDistribution) numEmptyRunners() int {
 
 func (distribution *configsDistribution) numRunnersWithHighUtilization() int {
 	withHighUtilization := 0
-	for _, runnerStatus := range distribution.Runners {
+	for _, runnerStatus := range distribution.runners {
 		if runnerStatus.utilization() > 0.8 {
 			withHighUtilization++
 		}
@@ -215,18 +215,18 @@ func (distribution *configsDistribution) numRunnersWithHighUtilization() int {
 
 func (distribution *configsDistribution) utilizationStdDev() float64 {
 	totalUtilization := 0.0
-	for _, runnerStatus := range distribution.Runners {
+	for _, runnerStatus := range distribution.runners {
 		totalUtilization += runnerStatus.utilization()
 	}
 
-	avgUtilization := totalUtilization / float64(len(distribution.Runners))
+	avgUtilization := totalUtilization / float64(len(distribution.runners))
 
 	sumSquaredDeviations := 0.0
-	for _, runnerStatus := range distribution.Runners {
+	for _, runnerStatus := range distribution.runners {
 		sumSquaredDeviations += math.Pow(runnerStatus.utilization()-avgUtilization, 2)
 	}
 
-	variance := sumSquaredDeviations / float64(len(distribution.Runners))
+	variance := sumSquaredDeviations / float64(len(distribution.runners))
 
 	return math.Sqrt(variance)
 }
