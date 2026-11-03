@@ -176,7 +176,8 @@ future points and unchanged-data advances provide no evidence. Classification
 uses constant/OLS linear fits with robust residual checks.
 
 `BenchmarkMetricKindMatcher` covers cold/fresh/unchanged/transition advances at
-5/200/2,000 series and 30/120 points. Time/allocations are per advance, excluding
+5/200/2,000 series and 30/120 points with simple/noisy inputs. Time/allocations
+are per advance, excluding
 input preparation and storage/engine work. Run without race instrumentation:
 
 ```bash

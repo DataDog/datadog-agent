@@ -308,11 +308,22 @@ func TestClassifyMetricKind_InvalidWindows(t *testing.T) {
 		{"nan", makeSyntheticPoints(1, 1, []float64{1, math.NaN(), 3})},
 		{"positive infinity", makeSyntheticPoints(1, 1, []float64{1, math.Inf(1), 3})},
 		{"negative infinity", makeSyntheticPoints(1, 1, []float64{1, math.Inf(-1), 3})},
+		{"non-finite fit score", makeSyntheticPoints(1, 1, []float64{1e200, -1e200, 1e200})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var ws matcherWorkspace
 			require.Equal(t, observerdef.UNKNOWN, classifyMetricKind(tc.points, &ws))
 		})
+	}
+}
+
+// Lazy statistics must not consume scratch left behind by another shape/window.
+func TestClassifyMetricKind_WorkspaceReuse(t *testing.T) {
+	var reused matcherWorkspace
+	for _, tc := range matcherEvalCorpus(101, 102) {
+		var fresh matcherWorkspace
+		want := classifyMetricKind(tc.points, &fresh)
+		require.Equal(t, want, classifyMetricKind(tc.points, &reused), "%s, points=%d", tc.family, len(tc.points))
 	}
 }
 
@@ -615,86 +626,92 @@ func BenchmarkMetricKindClassifier(b *testing.B) {
 func BenchmarkMetricKindMatcher(b *testing.B) {
 	for _, window := range []int{30, 120} {
 		for _, numSeries := range []int{5, 200, 2000} {
-			for _, mode := range []string{"initial_assignment", "fresh_data", "unchanged_data", "transitions"} {
-				b.Run(fmt.Sprintf("points=%d/series=%d/%s", window, numSeries, mode), func(b *testing.B) {
-					kinds := []observerdef.MetricKind{observerdef.STABLE, observerdef.LINEAR, observerdef.UNKNOWN}
-					windows := make([][]observerdef.Point, len(kinds))
-					for shape := range windows {
-						windows[shape] = make([]observerdef.Point, window+1)
-						for j := 0; j < window; j++ {
-							value := 1000.0 + float64(j%2)
-							if shape == 1 {
-								value = 100 + float64(j)
-							} else if shape == 2 {
-								value = 100
-								if j >= window/2 {
-									value = 250
+			for _, input := range []string{"simple", "noisy"} {
+				for _, mode := range []string{"initial_assignment", "fresh_data", "unchanged_data", "transitions"} {
+					b.Run(fmt.Sprintf("points=%d/series=%d/input=%s/%s", window, numSeries, input, mode), func(b *testing.B) {
+						kinds := []observerdef.MetricKind{observerdef.STABLE, observerdef.LINEAR, observerdef.UNKNOWN}
+						windows := make([][]observerdef.Point, len(kinds))
+						for shape := range windows {
+							rng := rand.New(rand.NewSource(int64(window*10 + shape)))
+							windows[shape] = make([]observerdef.Point, window+1)
+							for j := 0; j < window; j++ {
+								value := 1000.0 + float64(j%2)
+								if shape == 1 {
+									value = 100 + float64(j)
+								} else if shape == 2 {
+									value = 100
+									if j >= window/2 {
+										value = 250
+									}
 								}
-							}
-							windows[shape][j] = observerdef.Point{Timestamp: int64(j + 1), Value: value}
-						}
-						// Preloaded future data must not affect classification.
-						windows[shape][window] = observerdef.Point{Timestamp: math.MaxInt64, Value: math.NaN()}
-					}
-					cfg := DefaultMetricKindMatcherConfig()
-					cfg.MaxPoints = window
-					matcher := NewMetricKindMatcher(cfg)
-					current := make([]observerdef.MetricKind, numSeries)
-					for series := range current {
-						tr, changed := matcher.Observe(observerdef.SeriesRef(series+1), observerdef.UNSET,
-							windows[series%len(kinds)], int64(window))
-						if !changed || tr.To != kinds[series%len(kinds)] {
-							b.Fatalf("unexpected warmup assignment: %+v, changed=%v", tr, changed)
-						}
-						current[series] = tr.To
-					}
-
-					transitions := 0
-					b.ReportAllocs()
-					b.ResetTimer()
-					for advance := 0; advance < b.N; advance++ {
-						now := int64(window)
-						if mode != "unchanged_data" {
-							b.StopTimer()
-							now += int64(advance + 1)
-							for _, points := range windows {
-								for j := 0; j < window; j++ {
-									points[j].Timestamp = now - int64(window-j-1)
+								if input == "noisy" {
+									value += rng.NormFloat64()
 								}
+								windows[shape][j] = observerdef.Point{Timestamp: int64(j + 1), Value: value}
 							}
-							b.StartTimer()
+							// Preloaded future data must not affect classification.
+							windows[shape][window] = observerdef.Point{Timestamp: math.MaxInt64, Value: math.NaN()}
 						}
-						if mode == "initial_assignment" {
-							matcher.Reset()
-							clear(current)
-						}
+						cfg := DefaultMetricKindMatcherConfig()
+						cfg.MaxPoints = window
+						matcher := NewMetricKindMatcher(cfg)
+						current := make([]observerdef.MetricKind, numSeries)
 						for series := range current {
-							shape := series % len(kinds)
-							if mode == "transitions" {
-								// Each new prediction persists for three fresh advances.
-								shape = (shape + 1 + advance/cfg.TransitionConfirmations) % len(kinds)
+							tr, changed := matcher.Observe(observerdef.SeriesRef(series+1), observerdef.UNSET,
+								windows[series%len(kinds)], int64(window))
+							if !changed || tr.To != kinds[series%len(kinds)] {
+								b.Fatalf("unexpected warmup assignment: %+v, changed=%v", tr, changed)
 							}
-							tr, changed := matcher.Observe(observerdef.SeriesRef(series+1), current[series], windows[shape], now)
-							if changed {
-								current[series] = tr.To
-								transitions++
+							current[series] = tr.To
+						}
+
+						transitions := 0
+						b.ReportAllocs()
+						b.ResetTimer()
+						for advance := 0; advance < b.N; advance++ {
+							now := int64(window)
+							if mode != "unchanged_data" {
+								b.StopTimer()
+								now += int64(advance + 1)
+								for _, points := range windows {
+									for j := 0; j < window; j++ {
+										points[j].Timestamp = now - int64(window-j-1)
+									}
+								}
+								b.StartTimer()
+							}
+							if mode == "initial_assignment" {
+								matcher.Reset()
+								clear(current)
+							}
+							for series := range current {
+								shape := series % len(kinds)
+								if mode == "transitions" {
+									// Each new prediction persists for three fresh advances.
+									shape = (shape + 1 + advance/cfg.TransitionConfirmations) % len(kinds)
+								}
+								tr, changed := matcher.Observe(observerdef.SeriesRef(series+1), current[series], windows[shape], now)
+								if changed {
+									current[series] = tr.To
+									transitions++
+								}
 							}
 						}
-					}
-					b.StopTimer()
-					wantTransitions := 0
-					switch mode {
-					case "initial_assignment":
-						wantTransitions = b.N * numSeries
-					case "transitions":
-						wantTransitions = (b.N / cfg.TransitionConfirmations) * numSeries
-					}
-					if transitions != wantTransitions {
-						b.Fatalf("got %d transitions, want %d", transitions, wantTransitions)
-					}
-					b.ReportMetric(float64(numSeries), "series/op")
-					b.ReportMetric(float64(transitions)/float64(b.N), "transitions/op")
-				})
+						b.StopTimer()
+						wantTransitions := 0
+						switch mode {
+						case "initial_assignment":
+							wantTransitions = b.N * numSeries
+						case "transitions":
+							wantTransitions = (b.N / cfg.TransitionConfirmations) * numSeries
+						}
+						if transitions != wantTransitions {
+							b.Fatalf("got %d transitions, want %d", transitions, wantTransitions)
+						}
+						b.ReportMetric(float64(numSeries), "series/op")
+						b.ReportMetric(float64(transitions)/float64(b.N), "transitions/op")
+					})
+				}
 			}
 		}
 	}

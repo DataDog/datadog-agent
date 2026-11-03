@@ -305,19 +305,47 @@ func evaluateFittedShape(
 		}
 	}
 
-	constMAD := ws.mad(ws.values, med) * 1.4826
-	resMed := ws.median(ws.residuals)
-	resMAD := ws.mad(ws.residuals, resMed) * 1.4826
-	effConstNoise := math.Max(constMAD, scaleFloor)
-	effResNoise := math.Max(resMAD, scaleFloor)
-
 	drift := math.Abs(slope)
 	r2 := 0.0
 	if sseConst > 1e-12 {
 		r2 = 1.0 - sseLin/sseConst
 	}
+	maxStepFrac := 0.0
+	if totalAbsStep > 0 {
+		maxStepFrac = maxAbsStep / totalAbsStep
+	}
 
-	// Check for two-level step shift or hinge that invalidates a single plateau/line.
+	// Only compute residual statistics when a linear fit is still eligible.
+	if r2 >= 0.85 && maxStepFrac < 0.45 {
+		resMed := ws.median(ws.residuals)
+		resMAD := ws.mad(ws.residuals, resMed) * 1.4826
+		effResNoise := math.Max(resMAD, scaleFloor)
+		if drift > math.Max(3.5*effResNoise, 2.0*scaleFloor) {
+			third := n / 3
+			var midResSum float64
+			if third >= 2 {
+				midResMed := ws.median(ws.residuals[third : 2*third])
+				outerResMed := 0.5 * (ws.median(ws.residuals[:third]) + ws.median(ws.residuals[2*third:]))
+				midResSum = math.Abs(midResMed - outerResMed)
+			}
+			if midResSum <= 0.25*drift {
+				return observerdef.LINEAR
+			}
+		}
+	}
+
+	// Negation also rejects NaN, unlike r2 >= 0.65.
+	if !(r2 < 0.65) {
+		return observerdef.UNKNOWN
+	}
+	constMAD := ws.mad(ws.values, med) * 1.4826
+	effConstNoise := math.Max(constMAD, scaleFloor)
+	relSpread := effConstNoise / math.Max(math.Abs(med), 1.0)
+	if !(drift <= math.Max(2.5*effConstNoise, scaleFloor*2.0) && relSpread <= 0.08) {
+		return observerdef.UNKNOWN
+	}
+
+	// Compare plateau halves only after the cheaper stable-shape checks pass.
 	mid := n / 2
 	firstHalfMed := ws.median(ws.values[:mid])
 	secondHalfMed := ws.median(ws.values[mid:])
@@ -325,34 +353,7 @@ func evaluateFittedShape(
 	secondHalfMAD := ws.mad(ws.values[mid:], secondHalfMed) * 1.4826
 	localNoise := math.Max(math.Max(firstHalfMAD, secondHalfMAD), scaleFloor)
 	halfGap := math.Abs(secondHalfMed - firstHalfMed)
-
-	// Check residual sign runs / curvature: middle third vs outer thirds.
-	third := n / 3
-	var midResSum float64
-	if third >= 2 {
-		midResMed := ws.median(ws.residuals[third : 2*third])
-		outerResMed := 0.5 * (ws.median(ws.residuals[:third]) + ws.median(ws.residuals[2*third:]))
-		midResSum = math.Abs(midResMed - outerResMed)
-	}
-
-	// A significant slope must explain variance without a dominant step or strong curvature.
-	maxStepFrac := 0.0
-	if totalAbsStep > 0 {
-		maxStepFrac = maxAbsStep / totalAbsStep
-	}
-	if drift > math.Max(3.5*effResNoise, 2.0*scaleFloor) &&
-		r2 >= 0.85 &&
-		maxStepFrac < 0.45 &&
-		midResSum <= 0.25*drift {
-		return observerdef.LINEAR
-	}
-
-	// Flat drift, compatible halves and modest relative spread suggest a plateau.
-	relSpread := effConstNoise / math.Max(math.Abs(med), 1.0)
-	if drift <= math.Max(2.5*effConstNoise, scaleFloor*2.0) &&
-		halfGap <= math.Max(3.0*localNoise, scaleFloor*2.5) &&
-		r2 < 0.65 &&
-		relSpread <= 0.08 {
+	if halfGap <= math.Max(3.0*localNoise, scaleFloor*2.5) {
 		return observerdef.STABLE
 	}
 
