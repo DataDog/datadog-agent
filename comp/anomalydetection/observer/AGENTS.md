@@ -73,6 +73,12 @@ The catalog keeps the existing average/count defaults and exposes only min/max
 points; programmatic callers can supply their own parameters without catalog or
 global Agent settings.
 
+`Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
+restrictions and an intersection with configured aggregations. Empty means
+unrestricted workload detection; telemetry is always excluded. Filtering neither
+advances excluded state nor removes it; callers own reset/transition cleanup.
+Existing engine calls pass an empty filter.
+
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
 patterns across all tag groups (default 3,000). This includes patterns below
 the metric emission threshold. Non-positive values use the default. Capacity

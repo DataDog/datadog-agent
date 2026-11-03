@@ -69,11 +69,11 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
-	first := adapter.Detect(storage, 100)
+	first := adapter.Detect(storage, 100, observerdef.DetectionFilter{})
 	if len(first.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
 	}
-	second := adapter.Detect(storage, 101)
+	second := adapter.Detect(storage, 101, observerdef.DetectionFilter{})
 	if len(second.Anomalies) != 0 {
 		t.Fatalf("expected 0 anomalies without new data, got %d", len(second.Anomalies))
 	}
@@ -89,14 +89,14 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
-	first := adapter.Detect(storage, 100)
+	first := adapter.Detect(storage, 100, observerdef.DetectionFilter{})
 	if len(first.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
 	}
 
 	adapter.Reset()
 
-	afterReset := adapter.Detect(storage, 100)
+	afterReset := adapter.Detect(storage, 100, observerdef.DetectionFilter{})
 	if len(afterReset.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly after reset, got %d", len(afterReset.Anomalies))
 	}

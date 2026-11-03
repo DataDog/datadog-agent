@@ -71,8 +71,9 @@ type ScanWelchDetector struct {
 	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
-	cachedRefs []observer.SeriesRef
-	cachedGen  uint64
+	cachedRefs      []observer.SeriesRef
+	cachedGen       uint64
+	cachedSelection detectorSelectionKey
 }
 
 // NewScanWelchDetector creates a ScanWelch detector with default settings.
@@ -111,6 +112,7 @@ func (d *ScanWelchDetector) Reset() {
 	d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
+	d.cachedSelection = detectorSelectionKey{}
 	d.ready = false
 }
 
@@ -128,17 +130,20 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	d.cachedRefs = nil
 	d.cachedGen = 0
+	d.cachedSelection = detectorSelectionKey{}
 }
 
 // Detect implements Detector. Same iteration pattern as ScanMW and BOCPD —
 // consider dedup if more scan-based detectors are added.
-func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
 	d.ensureDefaults()
 
+	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
+	if d.cachedRefs == nil || gen != d.cachedGen || selection != d.cachedSelection {
+		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
+		d.cachedSelection = selection
 	}
 
 	// Bulk-fetch visible point counts for series activation.
@@ -150,7 +155,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			if !supportsSeriesAggregate(storage, ref, agg) {
+			if !aggregationAllowed(agg, filter.Aggregations) || !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
 			sk := scanwelchStateKey{ref: ref, agg: agg}

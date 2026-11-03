@@ -100,14 +100,14 @@ func TestStorageBackedScanDetectors_OneShotMatchesIncremental(t *testing.T) {
 			for index, value := range values {
 				batchStorage.Add("ns", tt.name, value, int64(index+1), nil)
 			}
-			batch := tt.newDetector().Detect(batchStorage, int64(len(values)))
+			batch := tt.newDetector().Detect(batchStorage, int64(len(values)), observer.DetectionFilter{})
 
 			incrementalDetector := tt.newDetector()
 			var incremental []observer.Anomaly
 			for index, value := range values {
 				timestamp := int64(index + 1)
 				incrementalStorage.Add("ns", tt.name, value, timestamp, nil)
-				incremental = append(incremental, incrementalDetector.Detect(incrementalStorage, timestamp).Anomalies...)
+				incremental = append(incremental, incrementalDetector.Detect(incrementalStorage, timestamp, observer.DetectionFilter{}).Anomalies...)
 			}
 			assert.Equal(t, anomalyTimestamps(batch.Anomalies), anomalyTimestamps(incremental))
 		})
@@ -135,7 +135,7 @@ func TestHoltResidual_WarmupSeedsFromScalarHalves(t *testing.T) {
 			for index, value := range tt.values {
 				storage.Add("ns", "metric", value, int64(index+1), nil)
 			}
-			d.Detect(storage, int64(len(tt.values)))
+			d.Detect(storage, int64(len(tt.values)), observer.DetectionFilter{})
 			state := d.series[holtStateKey{ref: 0, agg: observer.AggregateAverage}]
 			require.NotNil(t, state)
 			require.True(t, state.warmedUp)
@@ -171,13 +171,13 @@ func TestScanReplayMatchesBoundedStream(t *testing.T) {
 			for i := 1; i <= 500; i++ {
 				ts := int64(i * 30)
 				stream.Add("ns", "metric", value(i), ts, nil)
-				want := batchDetector.Detect(preloaded, ts).Anomalies
-				got := streamDetector.Detect(stream, ts).Anomalies
+				want := batchDetector.Detect(preloaded, ts, observer.DetectionFilter{}).Anomalies
+				got := streamDetector.Detect(stream, ts, observer.DetectionFilter{}).Anomalies
 				require.Equal(t, want, got, "at observation %d", i)
 				found += len(got)
 				// Repeated ticks without newly visible points must not rescan.
-				require.Empty(t, batchDetector.Detect(preloaded, ts).Anomalies)
-				require.Empty(t, streamDetector.Detect(stream, ts).Anomalies)
+				require.Empty(t, batchDetector.Detect(preloaded, ts, observer.DetectionFilter{}).Anomalies)
+				require.Empty(t, streamDetector.Detect(stream, ts, observer.DetectionFilter{}).Anomalies)
 			}
 			require.Positive(t, found)
 			require.LessOrEqual(t, stream.TotalSampleCount(""), int64(121))

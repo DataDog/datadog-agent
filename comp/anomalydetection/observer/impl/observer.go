@@ -835,9 +835,9 @@ var defaultAggregations = []observerdef.Aggregate{
 }
 
 // seriesDetectorAdapter wraps a stateless SeriesDetector to implement Detector.
-// It runs the wrapped detector on all series, handling aggregation suffixes.
+// It runs the wrapped detector on eligible series/aggregations.
 //
-// The adapter tracks the visible point count per series so it can skip
+// The adapter tracks the visible point count per series/aggregation so it can skip
 // re-running the detector when no new data has arrived. This keeps the
 // stateless detector path simple and correct even as storage internals evolve.
 type seriesDetectorAdapter struct {
@@ -849,18 +849,13 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
-	// ScanWelchDetector, and ScanMWDetector: SeriesGeneration changes on series
-	// admission/removal and filterable metadata updates, not ordinary point writes.
-	// Reuse the selection while that generation is unchanged.
-	cachedRefs []observerdef.SeriesRef
-	cachedGen  uint64
+	// Refresh on catalog/metadata changes or different kind/type restrictions.
+	cachedRefs      []observerdef.SeriesRef
+	cachedGen       uint64
+	cachedSelection detectorSelectionKey
 
-	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
-	// avoid rebuilding a string key per series per Detect call. SeriesRefs
-	// are unique and never reused, so they remain stable for the lifetime of
-	// a series.
-	lastVisibleCount map[observerdef.SeriesRef]int
+	// Freshness is independent for each configured aggregation.
+	lastVisibleCount map[observerdef.QueryHandle]int
 }
 
 func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
@@ -868,7 +863,7 @@ func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations 
 		detector:         detector,
 		aggregations:     aggregations,
 		windowSec:        defaultDetectorWindowSec,
-		lastVisibleCount: make(map[observerdef.SeriesRef]int),
+		lastVisibleCount: make(map[observerdef.QueryHandle]int),
 	}
 }
 
@@ -882,9 +877,10 @@ func (a *seriesDetectorAdapter) Ready() bool {
 
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
-	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
+	a.lastVisibleCount = make(map[observerdef.QueryHandle]int)
 	a.cachedRefs = nil
 	a.cachedGen = 0
+	a.cachedSelection = detectorSelectionKey{}
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
 		resetter.Reset()
 	}
@@ -905,36 +901,41 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	}
 	if len(a.lastVisibleCount) > 0 {
 		for _, ref := range refs {
-			delete(a.lastVisibleCount, ref)
+			for _, agg := range a.aggregations {
+				delete(a.lastVisibleCount, observerdef.QueryHandle{Ref: ref, Aggregate: agg})
+			}
 		}
 	}
 	a.cachedRefs = nil
 	a.cachedGen = 0
+	a.cachedSelection = detectorSelectionKey{}
 	if remover, ok := a.detector.(observerdef.SeriesRemover); ok {
 		remover.RemoveSeries(refs)
 	}
 }
 
-func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64, filter observerdef.DetectionFilter) observerdef.DetectionResult {
+	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if a.cachedRefs == nil || gen != a.cachedGen {
-		a.cachedRefs = workloadSeriesRefs(storage, a.cachedRefs)
+	if a.cachedRefs == nil || gen != a.cachedGen || selection != a.cachedSelection {
+		a.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), a.cachedRefs)
 		a.cachedGen = gen
+		a.cachedSelection = selection
 	}
 
 	var allAnomalies []observerdef.Anomaly
 
 	for _, ref := range a.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
-		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
-			continue
-		}
-		a.lastVisibleCount[ref] = visibleCount
-
 		for _, agg := range a.aggregations {
-			if !supportsSeriesAggregate(storage, ref, agg) {
+			if !aggregationAllowed(agg, filter.Aggregations) || !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
+			key := observerdef.QueryHandle{Ref: ref, Aggregate: agg}
+			if prev, ok := a.lastVisibleCount[key]; ok && prev == visibleCount {
+				continue
+			}
+			a.lastVisibleCount[key] = visibleCount
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec

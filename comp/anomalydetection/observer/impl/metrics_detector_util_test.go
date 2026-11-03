@@ -218,17 +218,17 @@ func TestDetectorPointWindowActivation(t *testing.T) {
 			storage := newDetectorTestStorage()
 			for timestamp := int64(1); timestamp <= 3; timestamp++ {
 				storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
-				detector.Detect(storage, timestamp)
+				detector.Detect(storage, timestamp, observer.DetectionFilter{})
 				require.False(t, detector.Ready())
 				require.Zero(t, detectorStateCount(detector))
 			}
 
 			storage.Add("ns", "metric", 4, 4, nil)
-			detector.Detect(storage, 4)
+			detector.Detect(storage, 4, observer.DetectionFilter{})
 			require.Equal(t, 1, detectorStateCount(detector))
 
 			storage.Add("ns", "metric", 5, 5, nil)
-			detector.Detect(storage, 5)
+			detector.Detect(storage, 5, observer.DetectionFilter{})
 			require.True(t, detector.Ready())
 		})
 	}

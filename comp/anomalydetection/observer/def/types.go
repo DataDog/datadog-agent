@@ -747,7 +747,8 @@ type Detector interface {
 	// The detector queries storage for whatever data it needs. Each returned
 	// anomaly must identify its source series and aggregate with SourceRef.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
-	Detect(storage StorageReader, dataTime int64) DetectionResult
+	// Excluded state is neither advanced nor removed; empty filters preserve defaults.
+	Detect(storage StorageReader, dataTime int64, filter DetectionFilter) DetectionResult
 }
 
 // DetectorPointWindow bounds a detector's raw-observation history.

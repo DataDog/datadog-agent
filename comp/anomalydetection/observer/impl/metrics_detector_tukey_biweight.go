@@ -96,8 +96,9 @@ type TukeyBiweightDetector struct {
 	scoreBuf []observer.Point
 
 	// Cache the discovered series list across Detect calls.
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
+	cachedSeries    []observer.SeriesMeta
+	cachedGen       uint64
+	cachedSelection detectorSelectionKey
 }
 
 // TukeyBiweightConfig holds catalog/testbench tunables for TukeyBiweightDetector.
@@ -166,6 +167,7 @@ func (d *TukeyBiweightDetector) Reset() {
 	d.series = make(map[tbStateKey]*tbSeriesState)
 	d.cachedSeries = nil
 	d.cachedGen = 0
+	d.cachedSelection = detectorSelectionKey{}
 	d.ready = false
 }
 
@@ -185,19 +187,22 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	d.cachedSeries = nil
 	d.cachedGen = 0
+	d.cachedSelection = detectorSelectionKey{}
 }
 
 // Detect implements observer.Detector. If storage mutates an already-processed
 // bucket via a same-bucket merge or out-of-order backfill, the per-series state
 // is rebuilt from visible storage to keep incremental processing equivalent to
 // replaying the final stored points.
-func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
 	d.ensureDefaults()
 
+	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+	if d.cachedSeries == nil || gen != d.cachedGen || selection != d.cachedSelection {
+		d.cachedSeries = storage.ListSeries(detectorSeriesFilter(filter))
 		d.cachedGen = gen
+		d.cachedSelection = selection
 	}
 
 	refs := make([]observer.SeriesRef, len(d.cachedSeries))
@@ -212,7 +217,7 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
+			if !aggregationAllowed(agg, filter.Aggregations) || !supportsSeriesAggregate(storage, meta.Ref, agg) {
 				continue
 			}
 			sk := tbStateKey{ref: meta.Ref, agg: agg}

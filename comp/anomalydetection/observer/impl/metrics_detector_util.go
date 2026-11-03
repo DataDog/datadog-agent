@@ -270,13 +270,6 @@ func supportsSeriesAggregate(storage observer.StorageReader, ref observer.Series
 	return true
 }
 
-// workloadSeriesRefs returns the workload series refs used by detector hot
-// paths. It avoids the metadata-heavy ListSeries allocation when the storage
-// implementation provides a ref-only listing.
-func workloadSeriesRefs(storage observer.StorageReader, dst []observer.SeriesRef) []observer.SeriesRef {
-	return listSeriesRefs(storage, observer.WorkloadSeriesFilter(), dst)
-}
-
 func listSeriesRefs(storage observer.StorageReader, filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {
 	if lister, ok := storage.(seriesRefLister); ok {
 		return lister.ListSeriesRefsInto(filter, dst)

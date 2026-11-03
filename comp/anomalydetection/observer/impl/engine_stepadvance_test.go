@@ -27,7 +27,7 @@ type inactiveEvictionDetector struct {
 func (*inactiveEvictionDetector) Name() string { return "inactive_eviction" }
 func (*inactiveEvictionDetector) Ready() bool  { return true }
 
-func (d *inactiveEvictionDetector) Detect(storage observer.StorageReader, _ int64) observer.DetectionResult {
+func (d *inactiveEvictionDetector) Detect(storage observer.StorageReader, _ int64, _ observer.DetectionFilter) observer.DetectionResult {
 	d.seenSeries = len(storage.ListSeries(observer.WorkloadSeriesFilter()))
 	return observer.DetectionResult{}
 }
@@ -39,7 +39,7 @@ func (d *inactiveEvictionDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *fixedDetector) Name() string { return "fixed" }
 func (*fixedDetector) Ready() bool    { return true }
 
-func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.DetectionResult {
+func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64, _ observer.DetectionFilter) observer.DetectionResult {
 	if d.fired {
 		return observer.DetectionResult{}
 	}

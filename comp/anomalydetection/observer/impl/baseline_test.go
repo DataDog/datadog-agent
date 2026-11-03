@@ -36,7 +36,7 @@ type baselineTestDetector struct {
 
 func (d *baselineTestDetector) Name() string { return d.name }
 func (d *baselineTestDetector) Ready() bool  { return d.ready }
-func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64) observerdef.DetectionResult {
+func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	if dataSec >= d.readyAtSec {
 		d.ready = true
 	}
@@ -57,7 +57,7 @@ func (d *baselineTestDetector) RemoveSeries(refs []observerdef.SeriesRef) {
 
 func (d *alwaysFiringDetector) Name() string { return "always_firing" }
 func (*alwaysFiringDetector) Ready() bool    { return true }
-func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{{
 			Source:       observerdef.SeriesDescriptor{Namespace: d.namespace, Name: d.name, Aggregate: AggregateAverage},
@@ -403,7 +403,7 @@ type storageAwareDetector struct{}
 
 func (d *storageAwareDetector) Name() string { return "storage_aware" }
 func (*storageAwareDetector) Ready() bool    { return true }
-func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	metas := sr.ListSeries(observerdef.SeriesFilter{})
 	anomalies := make([]observerdef.Anomaly, 0, len(metas))
 	for _, meta := range metas {

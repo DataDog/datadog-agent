@@ -20,7 +20,7 @@ type streamAdvanceRecorder struct {
 
 func (d *streamAdvanceRecorder) Name() string { return "stream_advance_recorder" }
 func (*streamAdvanceRecorder) Ready() bool    { return true }
-func (d *streamAdvanceRecorder) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *streamAdvanceRecorder) Detect(_ observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	d.times = append(d.times, dataTime)
 	return observerdef.DetectionResult{}
 }
@@ -75,7 +75,7 @@ func TestStreamingStorageWarmsSparseBOCPD(t *testing.T) {
 		for i := 1; i <= 1000; i++ {
 			ts := int64(i * 15)
 			storage.Add("parquet", "requests", float64(100+i%3), ts, nil)
-			detector.Detect(storage, ts)
+			detector.Detect(storage, ts, observerdef.DetectionFilter{})
 			if i == warmup {
 				require.True(t, detector.Ready(), "warmup=%d", warmup)
 			}

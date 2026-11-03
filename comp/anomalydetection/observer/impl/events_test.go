@@ -110,7 +110,7 @@ type anomalyDetector struct {
 
 func (d *anomalyDetector) Name() string { return d.name }
 func (*anomalyDetector) Ready() bool    { return true }
-func (d *anomalyDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (d *anomalyDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: d.anomalies,
 	}
@@ -138,7 +138,7 @@ type resettableDetector struct {
 
 func (d *resettableDetector) Name() string { return d.name }
 func (*resettableDetector) Ready() bool    { return true }
-func (d *resettableDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (d *resettableDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
 func (d *resettableDetector) Reset() { d.resetCount++ }

@@ -69,13 +69,13 @@ func TestTukeyBiweight_IncrementalMatchesBatch(t *testing.T) {
 		ts := int64(i + 1)
 		batchStorage.Add("ns", "metric", v, ts, nil)
 	}
-	batchResult := batch.Detect(batchStorage, end)
+	batchResult := batch.Detect(batchStorage, end, observer.DetectionFilter{})
 
 	var incrementalAnomalies []observer.Anomaly
 	for i, v := range values {
 		ts := int64(i + 1)
 		incrementalStorage.Add("ns", "metric", v, ts, nil)
-		result := incremental.Detect(incrementalStorage, ts)
+		result := incremental.Detect(incrementalStorage, ts, observer.DetectionFilter{})
 		incrementalAnomalies = append(incrementalAnomalies, result.Anomalies...)
 	}
 
@@ -95,7 +95,7 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 1, nil)
-	d.Detect(storage, 1)
+	d.Detect(storage, 1, observer.DetectionFilter{})
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, metas, 1)
@@ -111,7 +111,7 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	require.Len(t, series.Points, 1)
 	require.Equal(t, 20.0, series.Points[0].Value, "storage should expose the merged average")
 
-	d.Detect(storage, 1)
+	d.Detect(storage, 1, observer.DetectionFilter{})
 
 	state = d.series[key]
 	require.NotNil(t, state)
@@ -127,7 +127,7 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
-	d.Detect(storage, 10)
+	d.Detect(storage, 10, observer.DetectionFilter{})
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, metas, 1)
@@ -138,7 +138,7 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 5.0, 5, nil)
-	d.Detect(storage, 10)
+	d.Detect(storage, 10, observer.DetectionFilter{})
 
 	state = d.series[key]
 	require.NotNil(t, state)
@@ -154,7 +154,7 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
-	d.Detect(storage, 10)
+	d.Detect(storage, 10, observer.DetectionFilter{})
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, metas, 1)
@@ -166,7 +166,7 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
 	storage.Add("ns", "metric", 40.0, 11, nil)
-	d.Detect(storage, 11)
+	d.Detect(storage, 11, observer.DetectionFilter{})
 
 	state = d.series[key]
 	require.NotNil(t, state)
@@ -185,7 +185,7 @@ func TestTukeyBiweight_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
 		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
 	}
-	d.Detect(storage, 3)
+	d.Detect(storage, 3, observer.DetectionFilter{})
 
 	ref := storage.ListSeries(observer.WorkloadSeriesFilter())[0].Ref
 	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
@@ -194,7 +194,7 @@ func TestTukeyBiweight_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T
 	require.Equal(t, 3, state.lastProcessedCount)
 
 	storage.Add("ns", "metric", 4, 4, nil)
-	d.Detect(storage, 4)
+	d.Detect(storage, 4, observer.DetectionFilter{})
 
 	require.Same(t, state, d.series[key])
 	assert.Equal(t, int64(4), state.lastProcessedTime)
@@ -211,14 +211,14 @@ func TestTukeyBiweight_ContinuesAfterRetentionDropsBelowMinimum(t *testing.T) {
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
 		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
 	}
-	d.Detect(storage, 3)
+	d.Detect(storage, 3, observer.DetectionFilter{})
 	key := tbStateKey{ref: 0, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
 
 	storage.cfg.PointRetentionSecs = 1
 	storage.Add("ns", "metric", 4, 4, nil)
-	d.Detect(storage, 4)
+	d.Detect(storage, 4, observer.DetectionFilter{})
 	require.Same(t, state, d.series[key])
 	require.Equal(t, int64(4), state.lastProcessedTime)
 }
@@ -237,7 +237,7 @@ func TestTukeyBiweight_NoFireOnStableGaussian(t *testing.T) {
 		storage.Add("ns", "metric", v, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 200)
+	result := d.Detect(storage, 200, observer.DetectionFilter{})
 	assert.Empty(t, result.Anomalies, "stable Gaussian must not fire")
 }
 
@@ -260,7 +260,7 @@ func TestTukeyBiweight_FiresOnLevelShift(t *testing.T) {
 		storage.Add("ns", "metric", 15+0.5*rng.NormFloat64(), int64(shiftStart+i), nil)
 	}
 
-	result := d.Detect(storage, 180)
+	result := d.Detect(storage, 180, observer.DetectionFilter{})
 	require.NotEmpty(t, result.Anomalies, "level shift must produce at least one anomaly")
 
 	first := result.Anomalies[0]
@@ -324,7 +324,7 @@ func TestTukeyBiweight_RobustToHistoricalOutlier(t *testing.T) {
 		storage.Add("ns", "metric", 15+0.5*rng.NormFloat64(), int64(i), nil)
 	}
 
-	result := d.Detect(storage, int64(end))
+	result := d.Detect(storage, int64(end), observer.DetectionFilter{})
 
 	// No fire should ever be scored at or before the level-shift starts —
 	// the spike's |z| against the immunized baseline is ~180, well above
@@ -363,7 +363,7 @@ func TestTukeyBiweight_NoFireOnLinearTrend(t *testing.T) {
 		storage.Add("ns", "metric", v, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 200)
+	result := d.Detect(storage, 200, observer.DetectionFilter{})
 	assert.LessOrEqual(t, len(result.Anomalies), 1,
 		"linear trend is mannkendall's territory — biweight must not double-fire")
 }
@@ -428,7 +428,7 @@ func TestTukeyBiweight_RemoveSeries(t *testing.T) {
 		}
 	}
 
-	d.Detect(storage, 8)
+	d.Detect(storage, 8, observer.DetectionFilter{})
 	require.Len(t, d.series, 3*len(d.Aggregations),
 		"each series should have one state entry per aggregation")
 
@@ -468,7 +468,7 @@ func TestTukeyBiweight_ScoreEveryAmortization(t *testing.T) {
 	// floor(N / ScoreEvery). On a constant series (z = 0 every tick) no
 	// fire happens, so the only way ticksSinceScore can change is via that
 	// reset path.
-	r := d.Detect(storage, n)
+	r := d.Detect(storage, n, observer.DetectionFilter{})
 	assert.Empty(t, r.Anomalies, "constant series must not fire (z=0 every tick)")
 
 	require.NotEmpty(t, d.series, "expected one (series, agg) state entry after Detect")
@@ -504,7 +504,7 @@ func TestTukeyBiweight_FirstScoreAtMinimum(t *testing.T) {
 		storage.Add("ns", "metric", 7, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, int64(d.MinPoints))
+	result := d.Detect(storage, int64(d.MinPoints), observer.DetectionFilter{})
 	assert.Empty(t, result.Anomalies)
 
 	require.Len(t, d.series, 1)
@@ -526,7 +526,7 @@ func TestTukeyBiweight_NoNewDataNoWork(t *testing.T) {
 		storage.Add("ns", "metric", 10+0.5*rng.NormFloat64(), int64(i+1), nil)
 	}
 
-	r1 := d.Detect(storage, 100)
+	r1 := d.Detect(storage, 100, observer.DetectionFilter{})
 	var state *tbSeriesState
 	for _, s := range d.series {
 		state = s
@@ -535,7 +535,7 @@ func TestTukeyBiweight_NoNewDataNoWork(t *testing.T) {
 	count1 := state.lastProcessedCount
 
 	// Second call with no new data: must not advance the cursor or emit.
-	r2 := d.Detect(storage, 100)
+	r2 := d.Detect(storage, 100, observer.DetectionFilter{})
 	count2 := state.lastProcessedCount
 	assert.Equal(t, count1, count2, "no new data must not advance the cursor")
 	assert.Equal(t, len(r1.Anomalies), len(r1.Anomalies)) // sentinel
@@ -550,7 +550,7 @@ func TestTukeyBiweight_Reset(t *testing.T) {
 	for i := 0; i < 80; i++ {
 		storage.Add("ns", "metric", float64(i), int64(i+1), nil)
 	}
-	d.Detect(storage, 80)
+	d.Detect(storage, 80, observer.DetectionFilter{})
 	assert.NotEmpty(t, d.series, "should have state after detection")
 
 	d.Reset()

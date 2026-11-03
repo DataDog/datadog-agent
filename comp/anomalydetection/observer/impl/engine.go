@@ -764,7 +764,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			storageForDetect = e.instrStorage
 		}
 
-		result := detector.Detect(storageForDetect, upTo)
+		result := detector.Detect(storageForDetect, upTo, observerdef.DetectionFilter{})
 		if e.trackDetectorOutputHistory && len(result.Anomalies) > 0 {
 			e.recordDetectorOutputs(detector.Name(), result.Anomalies)
 		}

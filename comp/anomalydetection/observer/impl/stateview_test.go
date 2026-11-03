@@ -386,13 +386,13 @@ type outputDetector struct {
 
 func (d *outputDetector) Name() string { return d.name }
 func (*outputDetector) Ready() bool    { return true }
-func (d *outputDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (d *outputDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{Anomalies: d.anomalies}
 }
 
 func (d *mockDetector) Name() string { return d.name }
 func (*mockDetector) Ready() bool    { return true }
-func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
 

@@ -550,9 +550,9 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 
 	// Drive Detect() so the detectors observe the series and populate their
 	// per-series state maps. dataTime needs to be ahead of the last point.
-	bocpd.Detect(storage, 1_002)
-	scanmw.Detect(storage, 1_002)
-	scanwelch.Detect(storage, 1_002)
+	bocpd.Detect(storage, 1_002, observerdef.DetectionFilter{})
+	scanmw.Detect(storage, 1_002, observerdef.DetectionFilter{})
+	scanwelch.Detect(storage, 1_002, observerdef.DetectionFilter{})
 
 	bocpdBefore := len(bocpd.series)
 	scanmwBefore := len(scanmw.series)
@@ -617,7 +617,7 @@ type statelessTestDetector struct {
 
 func (s *statelessTestDetector) Name() string { return s.name }
 func (*statelessTestDetector) Ready() bool    { return true }
-func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
 

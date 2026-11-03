@@ -124,11 +124,12 @@ type BOCPDDetector struct {
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
 
-	// Cache discovered series refs across Detect calls. Refresh when seriesGen changes.
+	// Refresh refs on series generation or kind/type restriction changes.
 	// Holding []SeriesRef instead of []SeriesMeta avoids retaining the Tags []string
 	// backing array for every series (~5.8 MiB at 50k series).
-	cachedRefs []observer.SeriesRef
-	cachedGen  uint64
+	cachedRefs      []observer.SeriesRef
+	cachedGen       uint64
+	cachedSelection detectorSelectionKey
 }
 
 // NewBOCPDDetector creates a streaming BOCPD detector with the given config.
@@ -194,11 +195,13 @@ func (b *BOCPDDetector) DetectorPointWindow() observer.DetectorPointWindow {
 // Correctness takes priority over positional cursoring: storage may insert
 // points into existing history, so this detector gates incremental work on
 // visible point counts rather than raw slice positions.
-func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if b.cachedRefs == nil || gen != b.cachedGen {
-		b.cachedRefs = workloadSeriesRefs(storage, b.cachedRefs)
+	if b.cachedRefs == nil || gen != b.cachedGen || selection != b.cachedSelection {
+		b.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), b.cachedRefs)
 		b.cachedGen = gen
+		b.cachedSelection = selection
 	}
 
 	var allAnomalies []observer.Anomaly
@@ -206,7 +209,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 	for _, ref := range b.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
 		for _, agg := range b.config.Aggregations {
-			if !supportsSeriesAggregate(storage, ref, agg) {
+			if !aggregationAllowed(agg, filter.Aggregations) || !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
 			sk := bocpdStateKey{ref: ref, agg: agg}
@@ -257,6 +260,7 @@ func (b *BOCPDDetector) Reset() {
 	b.series = make(map[bocpdStateKey]*bocpdSeriesState)
 	b.cachedRefs = nil
 	b.cachedGen = 0
+	b.cachedSelection = detectorSelectionKey{}
 	b.ready = false
 }
 
@@ -279,6 +283,7 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 	// storage and we don't iterate over removed refs.
 	b.cachedRefs = nil
 	b.cachedGen = 0
+	b.cachedSelection = detectorSelectionKey{}
 }
 
 // processPoint handles a single new observation for a series.
