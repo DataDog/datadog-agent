@@ -18,7 +18,7 @@
 //	bitwise and     a & b
 //	additive        a + b, a - b
 //	unary           !a, not a, -a, ^a
-//	primary         literals, identifiers, arrays, (a)
+//	primary         literals, names, arrays, (a)
 //
 // Binary operators are left associative, `a - b - c` is `(a - b) - c`, but for
 // comparisons that can't be chained: `a == b == c` is an error.
@@ -396,7 +396,7 @@ func (p *parser) parseUnaryOperand(opTok Token, op ast.UnaryOp) ast.Node {
 
 // parsePrimary parses a single operand.
 //
-//	Primary → Ident | Int | String | Pattern | Regexp | ... | Array | "(" Or ")"
+//	Primary → Name | Int | String | Pattern | Regexp | ... | Array | "(" Or ")"
 func (p *parser) parsePrimary() ast.Node {
 	tok := p.tok
 	meta := ast.At(tok.Pos)
@@ -404,7 +404,7 @@ func (p *parser) parsePrimary() ast.Node {
 	switch tok.Kind {
 	case Ident:
 		p.next()
-		return &ast.Ident{Meta: meta, Name: tok.Text}
+		return p.parseName(tok)
 	case Int:
 		return p.parseInt(nil)
 	case String:
@@ -433,7 +433,7 @@ func (p *parser) parsePrimary() ast.Node {
 		return &ast.VariableRef{Meta: meta, Name: tok.Text[2 : len(tok.Text)-1]}
 	case FieldRef:
 		p.next()
-		return &ast.FieldRef{Meta: meta, Name: tok.Text[2 : len(tok.Text)-1]}
+		return p.parseFieldRef(tok)
 	case LBracket:
 		return p.parseArray()
 	case LParen:
@@ -442,6 +442,72 @@ func (p *parser) parsePrimary() ast.Node {
 
 	p.errorExpected("operand", "")
 	return nil
+}
+
+// parseName parses a name: an identifier, the token of which is already
+// consumed, and the chain of the selectors and the subscripts over it.
+//
+//	Name → Ident { "." Ident | "[" Primary "]" }
+func (p *parser) parseName(tok Token) ast.Node {
+	meta := ast.At(tok.Pos)
+	var node ast.Node = &ast.Ident{Meta: meta, Name: tok.Text}
+	for {
+		switch p.tok.Kind {
+		case Dot:
+			p.next()
+			if p.tok.Kind != Ident {
+				p.errorExpected("name after `.`", "")
+				return nil
+			}
+			node = &ast.Selector{Meta: meta, Base: node, Member: p.tok.Text}
+			p.next()
+		case LBracket:
+			open := p.tok
+			p.next()
+			index := p.parsePrimary()
+			if index == nil {
+				// already reported
+				return nil
+			}
+			if p.tok.Kind != RBracket {
+				p.errorExpected("`]`", "to close the `[` at "+open.Pos.String())
+				return nil
+			}
+			p.next()
+			node = &ast.Index{Meta: meta, Base: node, Subscript: index}
+		default:
+			return node
+		}
+	}
+}
+
+// parseFieldRef parses a field reference, `%{process.pid}`, the token of which
+// is already consumed: it is the name inside the braces, the same as written
+// bare, `process.pid`.
+//
+//	FieldRef → "%{" Name "}"
+func (p *parser) parseFieldRef(tok Token) ast.Node {
+	// the name is scanned in place, its tokens keeping their positions in the
+	// expression; the scanner checked it starts with an identifier and has no
+	// whitespace
+	inner := &parser{errs: p.errs}
+	inner.scanner = &scanner{src: p.scanner.src[:tok.End()-1], pos: tok.Pos, errs: &inner.errs}
+	defer func() { p.errs = inner.errs }()
+	inner.scanner.advance(2)
+	inner.next()
+
+	ident := inner.tok
+	inner.next()
+	name := inner.parseName(ident)
+	if name == nil {
+		// already reported
+		return nil
+	}
+	if inner.tok.Kind != EOF {
+		inner.errorExpected("`}`", "to close the `%{` at "+tok.Pos.String())
+		return nil
+	}
+	return name
 }
 
 // parseInt parses an integer literal, sign being the token of its sign, if
@@ -556,12 +622,20 @@ func (p *parser) parseArray() ast.Node {
 			return nil
 		}
 
-		switch member := p.parseMember().(type) {
-		case *ast.Literal:
+		if kind == identArray {
+			// a member is a constant, its name is kept as written
+			tok := p.tok
+			p.next()
+			name := p.parseName(tok)
+			if name == nil {
+				// already reported
+				p.skipArray()
+				return nil
+			}
+			idents = append(idents, ast.Sprint(name))
+		} else if member, ok := p.parseMember().(*ast.Literal); ok {
 			members = append(members, member)
-		case *ast.Ident:
-			idents = append(idents, member.Name)
-		default:
+		} else {
 			// already reported
 			p.skipArray()
 			return nil

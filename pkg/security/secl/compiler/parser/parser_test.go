@@ -114,6 +114,50 @@ func TestRegister(t *testing.T) {
 	printTree(t, rule)
 }
 
+// A name is an identifier and the chain of the selectors and subscripts over
+// it, all positioned at the identifier but the subscripts.
+func TestName(t *testing.T) {
+	root, err := ParseExpression(`process.ancestors[A].file.name`)
+	require.NoError(t, err)
+	require.Equal(t, `process.ancestors[A].file.name`, ast.Sprint(root))
+
+	start := ast.Position{Offset: 0, Line: 1, Column: 1}
+	name := root.(*ast.Selector)
+	require.Equal(t, "name", name.Member)
+	file := name.Base.(*ast.Selector)
+	require.Equal(t, "file", file.Member)
+	index := file.Base.(*ast.Index)
+	require.Equal(t, ast.Position{Offset: 18, Line: 1, Column: 19}, index.Subscript.Position())
+	require.Equal(t, "A", index.Subscript.(*ast.Ident).Name)
+	ancestors := index.Base.(*ast.Selector)
+	require.Equal(t, "ancestors", ancestors.Member)
+	process := ancestors.Base.(*ast.Ident)
+	require.Equal(t, "process", process.Name)
+	for _, node := range []ast.Node{name, file, index, ancestors, process} {
+		require.Equal(t, start, node.Position())
+	}
+
+	root, err = ParseExpression(`process.argv[1]`)
+	require.NoError(t, err)
+	require.Equal(t, ast.MakeInt(1), root.(*ast.Index).Subscript.(*ast.Literal).Value)
+
+	// the selectors and the subscripts are tokens of their own
+	root, err = ParseExpression("process . ancestors [ A ]\n\t.uid")
+	require.NoError(t, err)
+	require.Equal(t, `process.ancestors[A].uid`, ast.Sprint(root))
+
+	// a field reference is the name inside its braces, its tokens at their
+	// positions in the expression
+	root, err = ParseExpression(`%{process.argv}`)
+	require.NoError(t, err)
+	inner := ast.At(ast.Position{Offset: 2, Line: 1, Column: 3})
+	require.Equal(t, &ast.Selector{Meta: inner, Base: &ast.Ident{Meta: inner, Name: "process"}, Member: "argv"}, root)
+
+	root, err = ParseExpression(`%{process.ancestors[A].file.name}`)
+	require.NoError(t, err)
+	require.Equal(t, `process.ancestors[A].file.name`, ast.Sprint(root))
+}
+
 func TestIntAnd(t *testing.T) {
 	rule, err := parseRule(`3 & 3`)
 	if err != nil {
@@ -489,9 +533,40 @@ func TestSyntaxErrors(t *testing.T) {
 		{
 			// columns count characters, not bytes: `é` is two bytes
 			expr: `open.file.name == "é" process.uid == 0`,
-			expected: "1:23: expected `&&`, `||` or end of expression, found identifier `process.uid`, missing `&&` or `||`?\n" +
+			expected: "1:23: expected `&&`, `||` or end of expression, found identifier `process`, missing `&&` or `||`?\n" +
 				"open.file.name == \"é\" process.uid == 0\n" +
-				"                      ^^^^^^^^^^^",
+				"                      ^^^^^^^",
+		},
+		{
+			expr: `process..pid == 1`,
+			expected: "1:9: expected name after `.`, found `.`\n" +
+				"process..pid == 1\n" +
+				"        ^",
+		},
+		{
+			// the errors on a field reference point into its braces
+			expr: `%{process..pid} == 1`,
+			expected: "1:11: expected name after `.`, found `.`\n" +
+				"%{process..pid} == 1\n" +
+				"          ^",
+		},
+		{
+			expr: `process. == 1`,
+			expected: "1:10: expected name after `.`, found `==`\n" +
+				"process. == 1\n" +
+				"         ^^",
+		},
+		{
+			expr: `process.argv[] == "a"`,
+			expected: "1:14: expected operand, found `]`\n" +
+				"process.argv[] == \"a\"\n" +
+				"             ^",
+		},
+		{
+			expr: `process.argv[A == "a"`,
+			expected: "1:16: expected `]`, found `==`, to close the `[` at 1:13\n" +
+				"process.argv[A == \"a\"\n" +
+				"               ^^",
 		},
 	}
 

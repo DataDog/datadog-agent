@@ -33,55 +33,7 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-var (
-	arraySubscriptFindRE    = regexp.MustCompile(`\[([^\]]*)\]`)
-	arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
-	arrayIndexRE            = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
-)
-
-// extractField extracts field information and handles different subscript notations
-// Returns:
-//   - resField: the resolved field name (base field without subscript)
-//   - itField: the iterator field name (for iterator syntax only)
-//   - regID: the register ID for iterator syntax (e.g., "x" in field[x])
-//   - arrayIndex: the numeric index for array access (e.g., 0 in field[0])
-//   - isArrayAccess: true if this is a numeric array index access (field[0])
-//   - error: any parsing error
-//
-// Supported syntaxes:
-//   - field[0], field[1], etc. → numeric array index access
-//   - field[x], field[y], etc. → iterator with register variable
-//   - field → plain field access
-func extractField(field string) (Field, Field, RegisterID, int, bool, error) {
-	// First check if this is a numeric array index access like field[0]
-	if matches := arrayIndexRE.FindStringSubmatch(field); len(matches) == 3 {
-		baseField := matches[1]
-		index, err := strconv.Atoi(matches[2])
-		if err != nil {
-			return "", "", "", 0, false, fmt.Errorf("invalid array index in field: %s", field)
-		}
-		// Return base field with index information
-		return baseField, baseField, "", index, true, nil
-	}
-
-	// Otherwise, check for iterator register syntax like field[x]
-	var regID RegisterID
-	ids := arraySubscriptFindRE.FindStringSubmatch(field)
-
-	switch len(ids) {
-	case 0:
-		return field, "", "", 0, false, nil
-	case 2:
-		regID = ids[1]
-	default:
-		return "", "", "", 0, false, fmt.Errorf("wrong register format for fields: %s", field)
-	}
-
-	resField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
-	itField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
-
-	return resField, itField, regID, 0, false, nil
-}
+var arrayIndexRE = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
 
 // ExtractArrayIndexAccess extracts array index information from a field like "field[0]"
 // Returns: baseField, index, isArrayAccess, error
@@ -153,18 +105,12 @@ func WrapEvaluatorWithArrayIndex(evaluator interface{}, index int, field Field) 
 	}
 }
 
-// fieldToEvaluator resolves a field reference.
-func fieldToEvaluator(name string, pos ast.Position, opts *Opts, state *State) (interface{}, ast.Position, error) {
-	field, itField, regID, arrayIndex, isArrayAccess, err := extractField(name)
-	if err != nil {
-		return nil, pos, err
-	}
-
-	// transform extracted field to support legacy SECL fields
-	if opts.LegacyFields != nil {
-		if newField, ok := opts.LegacyFields[field]; ok {
-			field = newField
-		}
+// fieldToEvaluator compiles a reference to a field.
+func fieldToEvaluator(node *ast.FieldRef, state *State) (interface{}, ast.Position, error) {
+	pos, field := node.Pos, node.Name
+	var regID RegisterID
+	if node.Iter != nil {
+		regID = node.Iter.Register
 	}
 
 	evaluator, err := state.model.GetEvaluator(field, regID, pos.Offset)
@@ -174,16 +120,7 @@ func fieldToEvaluator(name string, pos ast.Position, opts *Opts, state *State) (
 
 	state.UpdateFields(field)
 
-	// Handle numeric array index access (e.g., field[0])
-	if isArrayAccess {
-		wrappedEvaluator, err := WrapEvaluatorWithArrayIndex(evaluator, arrayIndex, field)
-		if err != nil {
-			return nil, pos, NewError(pos, "failed to create array index accessor: %v", err)
-		}
-		return wrappedEvaluator, pos, nil
-	}
-
-	if regID != "" {
+	if node.Iter != nil {
 		// avoid wildcard register for the moment
 		if regID == "_" {
 			return nil, pos, NewError(pos, "`_` can't be used as a iterator variable name")
@@ -191,7 +128,7 @@ func fieldToEvaluator(name string, pos ast.Position, opts *Opts, state *State) (
 
 		// avoid using the same register on two different fields
 		if slices.ContainsFunc(state.registers, func(r Register) bool {
-			return r.ID == regID && r.Field != itField
+			return r.ID == regID && r.Field != node.Iter.Iterator
 		}) {
 			return nil, pos, NewError(pos, "iterator variable used by different fields '%s'", regID)
 		}
@@ -199,7 +136,7 @@ func fieldToEvaluator(name string, pos ast.Position, opts *Opts, state *State) (
 		if !slices.ContainsFunc(state.registers, func(r Register) bool {
 			return r.ID == regID
 		}) {
-			state.registers = append(state.registers, Register{ID: regID, Field: itField})
+			state.registers = append(state.registers, Register{ID: regID, Field: node.Iter.Iterator})
 		}
 	}
 

@@ -136,6 +136,8 @@ func (s *scanner) scanOperator(start ast.Position) Token {
 		return one(RBracket)
 	case ',':
 		return one(Comma)
+	case '.':
+		return one(Dot)
 	}
 
 	_, size := utf8.DecodeRuneInString(s.src[s.pos.Offset:])
@@ -167,40 +169,11 @@ func (s *scanner) scanQuoted(start ast.Position, kind Kind) Token {
 }
 
 // scanIdent scans an identifier, or a keyword.
-//
-// A `[` is only part of an identifier when it opens a subscript,
-// `ancestors[A]`, so that the identifiers of an array literal don't need
-// to be separated from the closing bracket: `[O_RDONLY, O_WRONLY]`.
 func (s *scanner) scanIdent(start ast.Position) Token {
-	for !s.eof() {
-		c := s.peek(0)
-		switch {
-		case isIdentPart(c) || c == '.':
-			s.advance(1)
-		case c == '[':
-			n := s.subscriptLen()
-			if n == 0 {
-				return s.identOrKeyword(start)
-			}
-			s.advance(n)
-		default:
-			return s.identOrKeyword(start)
-		}
+	for isIdentPart(s.peek(0)) {
+		s.advance(1)
 	}
 	return s.identOrKeyword(start)
-}
-
-// subscriptLen returns the length of the `[A]` subscript starting at the next
-// character, 0 if there is none.
-func (s *scanner) subscriptLen() int {
-	n := 1
-	for isIdentPart(s.peek(n)) {
-		n++
-	}
-	if n == 1 || s.peek(n) != ']' {
-		return 0
-	}
-	return n + 1
 }
 
 func (s *scanner) identOrKeyword(start ast.Position) Token {
