@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"sync"
 	"sync/atomic"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -37,6 +38,14 @@ const (
 )
 
 type observerTelemetry struct {
+	// Log producers and the dispatch loop share bounded per-source deltas.
+	// Publication is deferred; in-flight accounting remains immediate.
+	logFlushMu         sync.Mutex
+	pendingLogAccepted [3]atomic.Uint64
+	pendingLogBytes    [3]atomic.Uint64
+	pendingLogDropped  [3]atomic.Uint64
+	pendingLogLimited  [3][3]atomic.Uint64
+
 	observationsAccepted telemetry.Counter
 	observationsDropped  telemetry.Counter
 	logPatternCount      telemetry.Gauge
@@ -180,6 +189,12 @@ func (t *observerTelemetry) recordObservationsDropped(kind, source string, count
 	if count == 0 {
 		return
 	}
+	if kind == "logs" {
+		if i := logTelemetrySourceIndex(source); i >= 0 {
+			t.pendingLogDropped[i].Add(count)
+			return
+		}
+	}
 	t.observationsDropped.Add(float64(count), kind, source)
 }
 
@@ -188,6 +203,11 @@ func (t *observerTelemetry) setLogPatternCount(count int) {
 }
 
 func (t *observerTelemetry) recordLogAccepted(source string, sizeBytes int) {
+	if i := logTelemetrySourceIndex(source); i >= 0 {
+		t.pendingLogAccepted[i].Add(1)
+		t.pendingLogBytes[i].Add(uint64(sizeBytes))
+		return
+	}
 	t.recordObservationAccepted("logs", source)
 	t.logsAcceptedBytes.Add(float64(sizeBytes), source)
 }
@@ -205,18 +225,14 @@ func (t *observerTelemetry) recordFilteredMetric(source string) {
 }
 
 func (t *observerTelemetry) incrementLogsInFlight(logSource string) {
-	inFlight := t.inFlightCounter(logSource).Add(1)
-	t.logsInFlight.Set(float64(inFlight), logSource)
+	t.inFlightCounter(logSource).Add(1)
 }
 
 func (t *observerTelemetry) decrementLogsInFlight(logSource string) {
 	counter := t.inFlightCounter(logSource)
-	inFlight := counter.Add(-1)
-	if inFlight < 0 {
+	if counter.Add(-1) < 0 {
 		counter.Store(0)
-		inFlight = 0
 	}
-	t.logsInFlight.Set(float64(inFlight), logSource)
 }
 
 func (t *observerTelemetry) initLogsInFlight() {
@@ -252,6 +268,10 @@ func (t *observerTelemetry) recordAdvanceSkipped(reason string) {
 }
 
 func (t *observerTelemetry) recordInputRateLimiterDropped(source, priority string) {
+	if i, j := logTelemetrySourceIndex(source), logTelemetryPriorityIndex(priority); i >= 0 && j >= 0 {
+		t.pendingLogLimited[i][j].Add(1)
+		return
+	}
 	t.inputRateLimiterDrop.Add(1, source, priority)
 }
 
@@ -299,4 +319,54 @@ func classifyLogSourceByOrigin(handleSource, rawSource string) string {
 
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
 	t.processingTime.Set(durationNs, detectorTag)
+}
+
+// logTelemetrySourceIndex covers the fixed source categories returned by
+// classifyLogSource. Unknown counter labels retain the direct publication path.
+func logTelemetrySourceIndex(source string) int {
+	switch source {
+	case "internal":
+		return 0
+	case "kubelet":
+		return 1
+	case "containers":
+		return 2
+	}
+	return -1
+}
+
+func logTelemetryPriorityIndex(priority string) int {
+	switch priority {
+	case "high":
+		return 0
+	case "medium":
+		return 1
+	case "low":
+		return 2
+	}
+	return -1
+}
+
+// flushLogTelemetry drains every delta exactly once. Serialize publishers so a
+// stale in-flight snapshot cannot overwrite a newer publication.
+func (t *observerTelemetry) flushLogTelemetry() {
+	t.logFlushMu.Lock()
+	defer t.logFlushMu.Unlock()
+	for i, source := range [...]string{"internal", "kubelet", "containers"} {
+		if n := t.pendingLogAccepted[i].Swap(0); n != 0 {
+			t.observationsAccepted.Add(float64(n), "logs", source)
+		}
+		if n := t.pendingLogBytes[i].Swap(0); n != 0 {
+			t.logsAcceptedBytes.Add(float64(n), source)
+		}
+		if n := t.pendingLogDropped[i].Swap(0); n != 0 {
+			t.observationsDropped.Add(float64(n), "logs", source)
+		}
+		for j, priority := range [...]string{"high", "medium", "low"} {
+			if n := t.pendingLogLimited[i][j].Swap(0); n != 0 {
+				t.inputRateLimiterDrop.Add(float64(n), source, priority)
+			}
+		}
+		t.logsInFlight.Set(float64(t.inFlightCounter(source).Load()), source)
+	}
 }

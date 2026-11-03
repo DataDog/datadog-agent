@@ -258,6 +258,7 @@ func TestLogHandoffBackpressureDropsWithoutRecordingOrRateCharge(t *testing.T) {
 	})
 
 	assert.Equal(t, int64(1), h.dropCount.Load())
+	tel.flushLogTelemetry()
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "logs", "source": "containers"}).GetCounter().GetValue())
 	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryLogsInFlightCount, map[string]string{"log_source": "containers"}).GetGauge().GetValue())
 

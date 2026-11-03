@@ -561,11 +561,13 @@ func NewComponent(deps Requires) (Provides, error) {
 		}
 	}
 
+	obs.logTelemetryTicker = time.NewTicker(logTelemetryPublishInterval)
 	go obs.run()
 
 	if deps.Lifecycle != nil {
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(ctx context.Context) error {
+				defer obs.logTelemetryTicker.Stop()
 				return obs.flushCtx(ctx)
 			},
 		})
@@ -714,10 +716,34 @@ type observerImpl struct {
 	// agent-internal-log observer (which can post to logsCh while run() is
 	// processing) and a concurrent testbench ingest call.
 	replayMu sync.Mutex
+
+	// Set before the dispatch goroutine starts; stopped on lifecycle shutdown or worker exit.
+	logTelemetryTicker *time.Ticker
 }
+
+const logTelemetryPublishInterval = time.Second
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
+	if o.telemetry == nil {
+		o.runWithLogTelemetryTicker(nil)
+		return
+	}
+	ticker := o.logTelemetryTicker
+	if ticker == nil {
+		ticker = time.NewTicker(logTelemetryPublishInterval)
+	}
+	defer ticker.Stop()
+	o.runWithLogTelemetryTicker(ticker.C)
+}
+
+// runWithLogTelemetryTicker keeps publication independent of incoming traffic.
+// A supplied ticker lets tests drive idle publication without wall-clock waits.
+func (o *observerImpl) runWithLogTelemetryTicker(ticks <-chan time.Time) {
+	if o.telemetry != nil {
+		defer o.telemetry.flushLogTelemetry()
+	}
+
 	// One generator per dispatch goroutine; its scratch space is not thread-safe.
 	keyGenerator := NewSliceKeyGenerator()
 	// Keep one engine writer while independently buffering each telemetry kind.
@@ -727,6 +753,9 @@ func (o *observerImpl) run() {
 		var obs observation
 		var ok bool
 		select {
+		case <-ticks:
+			o.telemetry.flushLogTelemetry()
+			continue
 		case obs, ok = <-metricsCh:
 			if !ok {
 				metricsCh = nil
@@ -1135,6 +1164,9 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	if o.telemetry != nil {
+		o.telemetry.flushLogTelemetry()
 	}
 	return nil
 }

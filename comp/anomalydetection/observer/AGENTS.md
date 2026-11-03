@@ -168,6 +168,14 @@ The agent-internal log tap likewise uses a bounded non-blocking handoff before
 performing processing rules, rate limiting, allocation, and `ObserveLog` work,
 so it does not run those operations under the global Agent logger lock.
 
+### Log telemetry publication
+
+Log accepted-count/byte, queue-drop, and rate-limit-drop counters accumulate in
+fixed-size atomic arrays and publish about once per second. The in-flight log
+count stays exact locally; its gauge is sampled at publication time. Explicit
+Flush and graceful shutdown drain pending deltas, including idle producer tails.
+The publication timer must not advance detection or alter data-time scheduling.
+
 ### Metric ingestion gate
 
 When `anomaly_detection.metrics.enabled=false`, handles wrap with
