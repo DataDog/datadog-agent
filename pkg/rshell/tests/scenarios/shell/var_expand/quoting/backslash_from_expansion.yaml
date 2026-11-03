@@ -1,0 +1,12 @@
+description: Backslashes from variable expansion are literal.
+input:
+  script: |+
+    v='\a\b\c'
+    echo "$v"
+    echo $v
+expect:
+  stdout: |+
+    \a\b\c
+    \a\b\c
+  stderr: ""
+  exit_code: 0

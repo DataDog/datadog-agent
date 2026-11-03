@@ -1,0 +1,11 @@
+description: "Env option provides variables used in field splitting"
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+input:
+  interpreter_env:
+    ITEMS: "a b c"
+  script: |
+    for w in $ITEMS; do echo "$w"; done
+expect:
+  stdout: "a\nb\nc\n"
+  exit_code: 0

@@ -1,0 +1,21 @@
+description: awk prints selected whitespace-separated and dynamic fields.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        alpha beta gamma
+        one two three
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{ print $1, $3 }' input.txt
+    awk 'BEGIN { $0="2 3 4"; a[1]=2; print $+1, $$1, $a[1], $a[1]^2 }'
+    awk 'BEGIN { CONVFMT="%.2f"; OFS=ORS=1.234; print "a", "b" }'; printf '\n'
+expect:
+  stdout: |+
+    alpha gamma
+    one three
+    2 3 3 9
+    a1.23b1.23
+  stderr: |+
+  exit_code: 0

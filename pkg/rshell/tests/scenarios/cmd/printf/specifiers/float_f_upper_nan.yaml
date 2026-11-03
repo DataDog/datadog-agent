@@ -1,0 +1,7 @@
+description: "%F uppercases NaN to NAN."
+input:
+  script: |+
+    printf "%F\n" nan
+expect:
+  stdout: "NAN\n"
+  exit_code: 0

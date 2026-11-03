@@ -1,0 +1,30 @@
+description: "test -e, -f, -d on existing files and directories"
+setup:
+  files:
+    - path: regular.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    test -e regular.txt
+    echo "exists: $?"
+    test -f regular.txt
+    echo "file: $?"
+    test -d .
+    echo "dir: $?"
+    test -e nonexistent
+    echo "noexist: $?"
+    test -f nonexistent
+    echo "nofile: $?"
+expect:
+  stdout: |
+    exists: 0
+    file: 0
+    dir: 0
+    noexist: 1
+    nofile: 1
+  stderr: ""
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # uses allowed_paths which the bash harness does not support

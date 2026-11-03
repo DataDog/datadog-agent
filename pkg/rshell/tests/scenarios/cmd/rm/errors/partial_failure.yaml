@@ -1,0 +1,18 @@
+description: rm processes all operands and returns exit 1 if any of them fail.
+setup:
+  files:
+    - path: good.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm good.txt missing.txt
+    [ -f good.txt ] || echo good_removed
+expect:
+  stdout: |+
+    good_removed
+  stderr: |+
+    rm: cannot remove 'missing.txt': no such file or directory
+  exit_code: 0
+skip_assert_against_bash: true

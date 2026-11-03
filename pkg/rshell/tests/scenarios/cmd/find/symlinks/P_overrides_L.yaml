@@ -1,0 +1,17 @@
+description: -P after -L overrides symlink following (last option wins).
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/target.txt
+      content: "target"
+      chmod: 0644
+    - path: dir/link
+      symlink: target.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L -P dir -name link -type l
+expect:
+  stdout: |+
+    dir/link
+  exit_code: 0

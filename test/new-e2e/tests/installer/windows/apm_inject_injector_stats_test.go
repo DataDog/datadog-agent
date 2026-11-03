@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -117,44 +118,39 @@ func (s *testInjectorStats) TestQueryStatsAfterInjection() {
 	// Trigger injection by running a process
 	s.assertDriverInjections(true)
 
-	// Wait a bit for stats to update
-	time.Sleep(5 * time.Second)
-
-	// Get updated stats
-	updatedStats := s.queryInjectorStats(true)
-	s.verifyStatsStructure(updatedStats)
-
-	// Verify that we did trigger the Collect callback and got back stats.
-	// If last_check_timestamp is 0, check whether ddinjector is running, check system-probe.yaml,
-	// and check the telemetry scheduler's delay start amount.
-	ts, ok := updatedStats["last_check_timestamp"].(float64)
-	s.Require().True(ok, "last_check_timestamp should be in stats: %+v", updatedStats)
-	if ts == 0 {
-		s.logInjectorDiagnostics()
-		s.Require().True(ts > 0, "stats did not refresh")
-	}
-
 	// Verify that some counters have increased (at least one injection should have occurred)
 	// Note: We can't guarantee specific counters will increase in all test environments,
 	// but we can verify the stats endpoint is working and returning valid data
+	updatedStats := s.waitForInjectorStats(func(c *assert.CollectT, updatedStats map[string]interface{}) {
+		// If last_check_timestamp stays 0, the Collect callback never ran: the diagnostics
+		// logged on timeout show whether ddinjector is running and what system-probe.yaml holds.
+		ts, ok := updatedStats["last_check_timestamp"].(float64)
+		if !assert.True(c, ok, "last_check_timestamp should be in stats: %+v", updatedStats) ||
+			!assert.Greater(c, ts, float64(0), "stats did not refresh") {
+			return
+		}
+
+		diffFound := false
+		for k, v1 := range initialStats {
+			v2, ok := updatedStats[k]
+			if !assert.True(c, ok, "updated injector stats should have key: %s", k) {
+				return
+			}
+			// The driver version is not a counter; only counters are expected to move.
+			if k == "driver_version" {
+				continue
+			}
+			if v1.(float64) != v2.(float64) {
+				diffFound = true
+				break
+			}
+		}
+		assert.True(c, diffFound, "injector stats should have changed after injection")
+	}, "injector stats should refresh after injection")
+	s.verifyStatsStructure(updatedStats)
+
 	s.T().Logf("Initial stats: %+v", initialStats)
 	s.T().Logf("Updated stats: %+v", updatedStats)
-
-	diffFound := false
-	for k, v1 := range initialStats {
-		v2, ok := updatedStats[k]
-		s.Require().True(ok, "updated injector stats should have key: %s", k)
-		// The driver version is not a counter; only counters are expected to move.
-		if k == "driver_version" {
-			continue
-		}
-		if v1.(float64) != v2.(float64) {
-			diffFound = true
-			break
-		}
-	}
-
-	s.Assert().True(diffFound, "injector stats should have changed after injection")
 }
 
 // queryInjectorStats queries the system-probe for injector stats using NamedPipeCmd.exe
@@ -169,23 +165,56 @@ func (s *testInjectorStats) queryInjectorStats(forceRefresh bool) map[string]int
 		time.Sleep(10 * time.Second)
 	}
 
-	// Query system-probe's /debug/stats endpoint.
-	// We cannot use the /telemetry endpoint because it returns a compressed output.
+	stats, err := s.fetchInjectorStats()
+	s.Require().NoError(err)
+	return stats
+}
+
+// waitForInjectorStats polls system-probe until check passes on the injector stats, and returns
+// the stats it passed on.
+//
+// A single read after a fixed sleep can return stats from before the change under test, as two
+// caches sit in front of the driver: the counters move only when a Collect runs, which the
+// /telemetry query triggers at most every 5s, and system-probe rebuilds /debug/stats every 15s.
+func (s *testInjectorStats) waitForInjectorStats(check func(c *assert.CollectT, stats map[string]interface{}), msgAndArgs ...interface{}) map[string]interface{} {
+	var stats map[string]interface{}
+	ok := s.EventuallyWithT(func(c *assert.CollectT) {
+		_, _ = s.querySystemProbe("/telemetry")
+		var err error
+		stats, err = s.fetchInjectorStats()
+		if !assert.NoError(c, err) {
+			return
+		}
+		check(c, stats)
+	}, 1*time.Minute, 5*time.Second, msgAndArgs...)
+	if !ok {
+		s.logInjectorDiagnostics()
+		s.T().FailNow()
+	}
+	return stats
+}
+
+// fetchInjectorStats reads the injector stats from system-probe's /debug/stats endpoint.
+// We cannot use the /telemetry endpoint because it returns a compressed output.
+func (s *testInjectorStats) fetchInjectorStats() (map[string]interface{}, error) {
 	output, err := s.querySystemProbe("/debug/stats")
 	if output != "" {
 		s.T().Logf("system-probe output:\n\n%s\n", output)
 	}
-	s.Require().NoErrorf(err, "failed to query system-probe: %s", output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query system-probe: %w: %s", err, output)
+	}
 
-	// Parse JSON response
 	var jsonOutput map[string]interface{}
-	err = json.Unmarshal([]byte(output), &jsonOutput)
-	s.Require().NoErrorf(err, "failed to parse JSON response: %s", output)
+	if err := json.Unmarshal([]byte(output), &jsonOutput); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON response: %w: %s", err, output)
+	}
 
 	stats, ok := jsonOutput["injector"].(map[string]interface{})
-	s.Require().True(ok, "injector stats not found in JSON response")
-
-	return stats
+	if !ok {
+		return nil, fmt.Errorf("injector stats not found in JSON response: %s", output)
+	}
+	return stats, nil
 }
 
 // TestDefaultSkipListCounter tests that the V3 skip-list counters track a process skipped by the
@@ -217,14 +246,19 @@ func (s *testInjectorStats) TestDefaultSkipListCounter() {
 	s.Require().NoError(err)
 	s.Require().NotContains(output, "main executable path", "a process on the default skip list should not be injected")
 
-	after := s.queryInjectorStats(true)
-	for _, counter := range []string{"processes_skipped_default", "processes_skipped_excluded"} {
-		beforeValue, ok := before[counter].(float64)
+	counters := []string{"processes_skipped_default", "processes_skipped_excluded"}
+	for _, counter := range counters {
+		_, ok := before[counter].(float64)
 		s.Require().True(ok, "%s should be a number: %+v", counter, before)
-		afterValue, ok := after[counter].(float64)
-		s.Require().True(ok, "%s should be a number: %+v", counter, after)
-		s.Assert().Greater(afterValue, beforeValue, "%s should count the skipped process", counter)
 	}
+	s.waitForInjectorStats(func(c *assert.CollectT, after map[string]interface{}) {
+		for _, counter := range counters {
+			afterValue, ok := after[counter].(float64)
+			if assert.True(c, ok, "%s should be a number: %+v", counter, after) {
+				assert.Greater(c, afterValue, before[counter].(float64), "%s should count the skipped process", counter)
+			}
+		}
+	}, "the skip-list counters should count the skipped process")
 }
 
 // assertDriverVersion verifies that the stats report the file version of the installed driver.

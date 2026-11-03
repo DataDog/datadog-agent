@@ -121,6 +121,14 @@ var (
 		"io.rancher.container.name": tags.RancherContainer,
 	}
 
+	lowCardOrchestratorImageAnnotations = map[string]string{
+		// Automatically extract git commit sha from image for source code integration
+		"org.opencontainers.image.revision": tags.GitCommitSha,
+
+		// Automatically extract repository url from image for source code integration
+		"org.opencontainers.image.source": tags.GitRepository,
+	}
+
 	logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 	// promotableProcessTagKeys are the tracer process tags added to the
@@ -132,13 +140,15 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	var tagInfos []*types.TagInfo
 	var kaiPodGroupIDs map[string]struct{}
 
+	// Autoscaler targets with changes in this bundle
+	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
+
 	for _, ev := range evBundle.Events {
 		entity := ev.Entity
 		entityID := entity.GetID()
 
 		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-			entityID.Kind == workloadmeta.KindKubelet ||
-			entityID.Kind == workloadmeta.KindKubernetesAutoscaler {
+			entityID.Kind == workloadmeta.KindKubelet {
 			// No tags. Ignore
 			continue
 		}
@@ -151,6 +161,28 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				kaiPodGroupIDs = make(map[string]struct{})
 			}
 			kaiPodGroupIDs[entityID.ID] = struct{}{}
+			continue
+		}
+
+		if entityID.Kind == workloadmeta.KindKubernetesAutoscaler {
+			// Only the Cluster Agent has autoscaler entities, collected by
+			// the kubeapiserver collector. Node agents get the autoscaler
+			// kinds in the pod entities instead, from the kubemetadata
+			// collector, so this only runs in the Cluster Agent.
+			//
+			// Autoscalers don't have tagger entities of their own. Their tags
+			// are added to the pods of the workloads they target, so the pods
+			// of the previous and the new target need to be re-tagged.
+			autoscaler := entity.(*workloadmeta.KubernetesAutoscaler)
+			// Set events don't carry the previous target, so it comes from
+			// the index
+			if previous, found := c.autoscalers[entityID.ID]; found {
+				autoscalerTargets[previous] = struct{}{}
+			}
+			if ev.Type == workloadmeta.EventTypeSet {
+				autoscalerTargets[autoscaler.Target()] = struct{}{}
+			}
+			c.updateAutoscalerIndex(ev.Type, autoscaler)
 			continue
 		}
 
@@ -231,6 +263,9 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	}
 
 	tagInfos = append(tagInfos, c.retagKAIDependentPods(kaiPodGroupIDs)...)
+	if len(autoscalerTargets) > 0 {
+		tagInfos = append(tagInfos, c.retagAutoscalerDependentPods(autoscalerTargets)...)
+	}
 
 	if len(tagInfos) > 0 {
 		c.tagProcessor.ProcessTagInfo(tagInfos)
@@ -336,8 +371,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 // imageAnnotationTagsForContainer builds the TagInfo that maps a container's
 // image OCI annotations to tags on the container entity, or nil when the
-// feature is disabled, the image metadata is not (yet) in the store, or no
-// annotation matches the configured mapping.
+// image metadata is not (yet) in the store or no annotation produces a tag.
 //
 // The tags are published under containerImageSource (not containerSource) so
 // that they are refreshed and cleaned up together with the image entity: the
@@ -353,19 +387,13 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 // parent tags have arrived, which can affect custom-metrics billing and
 // cardinality for consumers that gate on completeness.
 func (c *WorkloadMetaCollector) imageAnnotationTagsForContainer(container *workloadmeta.Container, rawComplete bool) *types.TagInfo {
-	if len(c.containerImageAnnotationsAsTags) == 0 {
-		return nil
-	}
-
 	image, err := c.store.GetImage(container.Image.ID)
 	if err != nil || len(image.Annotations) == 0 {
 		return nil
 	}
 
 	tagList := taglist.NewTagList()
-	for annotation, value := range image.Annotations {
-		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
-	}
+	c.annotationsToTags(image.Annotations, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
@@ -566,9 +594,7 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	c.labelsToTags(image.Labels, tagList)
 
 	// image annotations as tags
-	for annotation, value := range image.Annotations {
-		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
-	}
+	c.annotationsToTags(image.Annotations, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 	tagInfos := []*types.TagInfo{
@@ -583,28 +609,42 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 		},
 	}
 
+	// Avoid scanning containers when there are no annotation tags to propagate.
+	// Previously registered children are still cleaned up by processEvents.
+	if len(image.Annotations) == 0 {
+		return tagInfos
+	}
+
 	// Re-apply the image annotation tags to every container currently using
 	// this image, so that image metadata that arrives or changes after a
 	// container has already been tagged still propagates to container.*
 	// metrics. Containers are registered as children of the image above, in
 	// imageAnnotationTagsForContainer, so the parent/children machinery cleans
 	// them up when the image is deleted.
-	if len(c.containerImageAnnotationsAsTags) > 0 {
-		containers := c.store.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
-			return container.Image.ID == image.ID
-		})
-		for _, container := range containers {
-			// entityCompleteness stores the container's raw event completeness;
-			// imageAnnotationTagsForContainer runs it through containerCompleteness
-			// to match the base container TagInfo's effective completeness.
-			rawComplete := c.entityCompleteness[container.EntityID]
-			if imageTagInfo := c.imageAnnotationTagsForContainer(container, rawComplete); imageTagInfo != nil {
-				tagInfos = append(tagInfos, imageTagInfo)
-			}
+	containers := c.store.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
+		return container.Image.ID == image.ID
+	})
+	for _, container := range containers {
+		// entityCompleteness stores the container's raw event completeness;
+		// imageAnnotationTagsForContainer runs it through containerCompleteness
+		// to match the base container TagInfo's effective completeness.
+		rawComplete := c.entityCompleteness[container.EntityID]
+		if imageTagInfo := c.imageAnnotationTagsForContainer(container, rawComplete); imageTagInfo != nil {
+			tagInfos = append(tagInfos, imageTagInfo)
 		}
 	}
 
 	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) annotationsToTags(annotations map[string]string, tags *taglist.TagList) {
+	// orchestrator tags from annotations
+	c.extractFromMapWithFn(annotations, lowCardOrchestratorImageAnnotations, tags.AddLow)
+
+	// container image annotations as tags
+	for annotation, value := range annotations {
+		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tags)
+	}
 }
 
 func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *taglist.TagList) {
@@ -664,10 +704,13 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
-	// autoscaler presence
+	// Pods patched by a DatadogPodAutoscaler have this annotation. This
+	// predates the autoscaler tags below, and it works even when
+	// cluster_agent.autoscaler_tags.enabled is off.
 	if pod.Annotations[datadogAutoscalingIDAnnotation] != "" {
-		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
+		tagList.AddLow(tags.KubeAutoscalerKind, string(workloadmeta.AutoscalerKindDPA))
 	}
+	c.extractTagsFromPodAutoscalers(pod, tagList)
 
 	kubeServiceDisabled := slices.Contains(c.cfg.GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")
 	if slices.Contains(strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ","), "kube_service") {
@@ -1660,6 +1703,61 @@ func (c *WorkloadMetaCollector) getKAIPodGroupForPod(pod *workloadmeta.Kubernete
 	return podGroup
 }
 
+func (c *WorkloadMetaCollector) updateAutoscalerIndex(eventType workloadmeta.EventType, autoscaler *workloadmeta.KubernetesAutoscaler) {
+	id := autoscaler.EntityID.ID
+
+	if previous, found := c.autoscalers[id]; found {
+		delete(c.autoscalers, id)
+		delete(c.autoscalersByTarget[previous], id)
+		if len(c.autoscalersByTarget[previous]) == 0 {
+			delete(c.autoscalersByTarget, previous)
+		}
+	}
+
+	if eventType == workloadmeta.EventTypeSet {
+		target := autoscaler.Target()
+		c.autoscalers[id] = target
+		if c.autoscalersByTarget[target] == nil {
+			c.autoscalersByTarget[target] = make(map[string]workloadmeta.AutoscalerKind)
+		}
+		c.autoscalersByTarget[target][id] = autoscaler.AutoscalerKind
+	}
+}
+
+// extractTagsFromPodAutoscalers adds the kinds of the autoscalers that target
+// the pod's workload. It works for both node agents and the DCA
+func (c *WorkloadMetaCollector) extractTagsFromPodAutoscalers(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	// The AutoscalerKinds field is set in the node agent by the kubemetadata
+	// collector
+	for _, kind := range pod.AutoscalerKinds {
+		tagList.AddLow(tags.KubeAutoscalerKind, string(kind))
+	}
+
+	target, ok := pod.AutoscalerTarget()
+	if !ok {
+		return
+	}
+
+	// The autoscalersByTarget index is only built in the DCA
+	for _, kind := range c.autoscalersByTarget[target] {
+		tagList.AddLow(tags.KubeAutoscalerKind, string(kind))
+	}
+}
+
+// retagAutoscalerDependentPods recomputes the tags of the pods of the given
+// autoscaler targets. Pod tags depend on the autoscalers, but autoscaler
+// changes don't generate pod events, so the pods need to be re-tagged here.
+func (c *WorkloadMetaCollector) retagAutoscalerDependentPods(targets map[workloadmeta.AutoscalerTarget]struct{}) []*types.TagInfo {
+	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
+		target, ok := pod.AutoscalerTarget()
+		if !ok {
+			return false
+		}
+		_, affected := targets[target]
+		return affected
+	})
+}
+
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
 	case kubernetes.KubeAIModelKind:
@@ -1800,7 +1898,7 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 	// containerImageSource (see imageAnnotationTagsForContainer). Those are not
 	// covered by the entity's own source above, so expire them explicitly here
 	// rather than waiting for the next image event to prune the stale child.
-	if entityID.Kind == workloadmeta.KindContainer && len(c.containerImageAnnotationsAsTags) > 0 {
+	if entityID.Kind == workloadmeta.KindContainer {
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:       containerImageSource,
 			EntityID:     taggerEntityID,
