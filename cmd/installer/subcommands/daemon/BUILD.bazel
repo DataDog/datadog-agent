@@ -175,10 +175,12 @@ dd_agent_go_test(
         "@rules_go//go/platform:darwin": [
             "//pkg/config/mock",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/config/mock",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/commands",
