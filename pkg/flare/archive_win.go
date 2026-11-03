@@ -35,9 +35,12 @@ var (
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
 	execTimeout = 30 * time.Second
-	// windowsCollectorFlareProviderTimeout gives each Windows collector provider a budget above execTimeout so a single external command can use its full per-command timeout before the provider deadline cuts it off.
-	windowsCollectorFlareProviderTimeout = execTimeout + 5*time.Second
+	// eventLogConfigChannels are the channels getEventLogConfig queries, one execTimeout-bounded wevtutil call each.
+	eventLogConfigChannels = []string{"Application", "System", "Security"}
 )
+
+// flareProviderTimeoutBuffer pads a collector's provider budget above the external-command execTimeout(s) it runs, so a command can use its full per-command timeout before the provider deadline cuts it off.
+const flareProviderTimeoutBuffer = 5 * time.Second
 
 // commandContextForFlare returns a context for a subprocess bounded by both the provider ctx and perCommandTimeout.
 func commandContextForFlare(parent context.Context, perCommandTimeout time.Duration) (context.Context, context.CancelFunc) {
@@ -51,10 +54,11 @@ const (
 	evtExportLogChannelPath uint32 = 0x1
 )
 
-// getCounterStrings does not accept a context because it reads the Windows
+// getCounterStrings ignores its context because it reads the Windows
 // performance counter registry directly via RegQueryValueEx (a Win32 API call),
-// which cannot be canceled through a Go context.
-func getCounterStrings(fb flaretypes.FlareBuilder) error {
+// which cannot be canceled through a Go context. The context parameter keeps it
+// a named FlareCallback so it appears by name in the flare log.
+func getCounterStrings(_ context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc("counter_strings.txt",
 		func() ([]byte, error) {
 			bufferIncrement := uint32(1024)
@@ -128,10 +132,11 @@ func getLodctrOutput(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("lodctr.txt", out.Bytes())
 }
 
-// getWindowsEventLogs exports Windows event logs. It does not accept a context
-// because it uses the EvtExportLog Win32 API directly, which cannot be canceled
-// through a Go context.
-func getWindowsEventLogs(fb flaretypes.FlareBuilder) error {
+// getWindowsEventLogs exports Windows event logs. It ignores its context because
+// it uses the EvtExportLog Win32 API directly, which cannot be canceled through a
+// Go context. The context parameter keeps it a named FlareCallback so it appears
+// by name in the flare log.
+func getWindowsEventLogs(_ context.Context, fb flaretypes.FlareBuilder) error {
 	var err error
 
 	for eventLogChannel := range eventLogChannelsToExport {
@@ -193,10 +198,11 @@ func exportWindowsEventLog(fb flaretypes.FlareBuilder, eventLogChannel, eventLog
 	return err
 }
 
-// getServiceStatus does not accept a context because it queries the Windows
-// Service Control Manager via Win32 API calls, which cannot be canceled through
-// a Go context.
-func getServiceStatus(fb flaretypes.FlareBuilder) error {
+// getServiceStatus ignores its context because it queries the Windows Service
+// Control Manager via Win32 API calls, which cannot be canceled through a Go
+// context. The context parameter keeps it a named FlareCallback so it appears by
+// name in the flare log.
+func getServiceStatus(_ context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(
 		"servicestatus.json",
 		func() ([]byte, error) {
@@ -264,9 +270,8 @@ func getEventLogConfig(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	var out bytes.Buffer
 	// creating a buffer to append all cmd outputs
 	fullOutput := &bytes.Buffer{}
-	channels := [3]string{"Application", "System", "Security"}
 
-	for _, channel := range channels {
+	for _, channel := range eventLogConfigChannels {
 		chCtx, chCancel := commandContextForFlare(ctx, execTimeout)
 		cmd := exec.CommandContext(chCtx, "wevtutil", "gl", channel)
 		cmd.Stdout = &out
@@ -326,22 +331,29 @@ func getIISData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("iis_application_pools.txt", out.Bytes())
 }
 
-// windowsCollectorFlareTimeout reports the per-provider timeout budget for every Windows collector provider.
-func windowsCollectorFlareTimeout(flaretypes.FlareBuilder) time.Duration {
-	return windowsCollectorFlareProviderTimeout
+// singleCommandFlareTimeout budgets a collector that execs one external command bounded by execTimeout.
+func singleCommandFlareTimeout(flaretypes.FlareBuilder) time.Duration {
+	return execTimeout + flareProviderTimeoutBuffer
+}
+
+// eventLogConfigFlareTimeout budgets getEventLogConfig, which runs one execTimeout-bounded wevtutil call per channel in sequence, so its worst case scales with the channel count.
+func eventLogConfigFlareTimeout(flaretypes.FlareBuilder) time.Duration {
+	return time.Duration(len(eventLogConfigChannels))*execTimeout + flareProviderTimeoutBuffer
 }
 
 // windowsFlareProviders returns one flare provider per Windows collector. Registering them separately (instead of one provider running them in series) gives each its own timeout budget, so a slow collector can no longer starve the others — the root cause of the flaky missing datadog.reg.
+//
+// Collectors that exec a context-bounded external command get a budget sized to that command's execTimeout. The counter-strings, event-log and service-status collectors call uncancellable Win32 APIs, so a larger budget cannot help them finish earlier — only lengthen how long the flare waits on a stuck call — so they keep the default timeout.
 func windowsFlareProviders() []*flaretypes.FlareFiller {
 	return []*flaretypes.FlareFiller{
-		{Callback: getTypeperfData, Timeout: windowsCollectorFlareTimeout},
-		{Callback: getLodctrOutput, Timeout: windowsCollectorFlareTimeout},
-		{Callback: func(_ context.Context, fb flaretypes.FlareBuilder) error { return getCounterStrings(fb) }, Timeout: windowsCollectorFlareTimeout},
-		{Callback: func(_ context.Context, fb flaretypes.FlareBuilder) error { return getWindowsEventLogs(fb) }, Timeout: windowsCollectorFlareTimeout},
-		{Callback: func(_ context.Context, fb flaretypes.FlareBuilder) error { return getServiceStatus(fb) }, Timeout: windowsCollectorFlareTimeout},
-		{Callback: getDatadogRegistry, Timeout: windowsCollectorFlareTimeout},
-		{Callback: getEventLogConfig, Timeout: windowsCollectorFlareTimeout},
-		{Callback: getIISData, Timeout: windowsCollectorFlareTimeout},
+		{Callback: getTypeperfData, Timeout: singleCommandFlareTimeout},
+		{Callback: getLodctrOutput, Timeout: singleCommandFlareTimeout},
+		{Callback: getDatadogRegistry, Timeout: singleCommandFlareTimeout},
+		{Callback: getIISData, Timeout: singleCommandFlareTimeout},
+		{Callback: getEventLogConfig, Timeout: eventLogConfigFlareTimeout},
+		flaretypes.NewFiller(getCounterStrings),
+		flaretypes.NewFiller(getWindowsEventLogs),
+		flaretypes.NewFiller(getServiceStatus),
 	}
 }
 
