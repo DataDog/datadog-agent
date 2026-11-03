@@ -481,14 +481,13 @@ func (p *EBPFLessProbe) Init() error {
 // Stop the probe
 func (p *EBPFLessProbe) Stop() {
 	p.server.GracefulStop()
+	p.cancelFnc()
 
 	p.Lock()
 	for conn := range p.clients {
 		conn.Close()
 	}
 	p.Unlock()
-
-	p.cancelFnc()
 
 	p.wg.Wait()
 }
@@ -552,6 +551,11 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 	}
 
 	p.Lock()
+	if p.ctx.Err() != nil {
+		p.Unlock()
+		conn.Close()
+		return
+	}
 	p.clients[conn] = client
 	p.Unlock()
 
@@ -580,12 +584,19 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 				conn.Close()
 
 				msg.Type = ebpfless.MessageTypeGoodbye
-				ch <- msg
+				select {
+				case ch <- msg:
+				case <-p.ctx.Done():
+				}
 
 				return
 			}
 
-			ch <- msg
+			select {
+			case ch <- msg:
+			case <-p.ctx.Done():
+				return
+			}
 		}
 	}()
 }
