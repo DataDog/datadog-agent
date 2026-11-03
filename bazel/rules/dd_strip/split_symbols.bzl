@@ -46,7 +46,7 @@ _collect_dd_strip_aspect = aspect(
 )
 
 def _get_debug_symbols_impl(ctx):
-    """Find the targets in the pacakge with DdStripInfo and build a pkg_filegroup of the debug parts.
+    """Find the targets in the package with DdStripInfo and build a pkg_filegroup of the debug parts.
 
     The algorithm is subtle:
     - all_strip_info <= The list of all DdStripInfo providers.
