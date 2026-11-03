@@ -11,9 +11,9 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -157,25 +157,32 @@ func TestMicroVM_Run_InitMode_ThreadsChildLiveness(t *testing.T) {
 	}
 	saved := os.Args
 	defer func() { os.Args = saved }()
-	os.Args = []string{"datadog-init", "sh", "-c", "sleep 0.3"}
+	releaseFile := filepath.Join(t.TempDir(), "release")
+	os.Args = []string{"datadog-init", "sh", "-c", `while [ ! -f "$1" ]; do sleep 0.01; done`, "sh", releaseFile}
 
 	child := lifecycle.NewChild()
 	m := &MicroVM{child: child}
 
-	var midRunAlive atomic.Bool
-	probeDone := make(chan struct{})
+	result := make(chan error, 1)
+	// Release and join the subprocess even if the liveness assertion fails,
+	// before restoring os.Args or removing the temporary directory.
+	defer func() {
+		assert.NoError(t, os.WriteFile(releaseFile, nil, 0600))
+		select {
+		case err := <-result:
+			assert.NoError(t, err)
+			assert.False(t, child.IsAlive(), "child must be dead after Run returns")
+		case <-time.After(10 * time.Second):
+			t.Error("timed out waiting for Run to return")
+		}
+	}()
 	go func() {
-		defer close(probeDone)
-		time.Sleep(100 * time.Millisecond)
-		midRunAlive.Store(child.IsAlive())
+		result <- m.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})
 	}()
 
-	err := m.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})
-	<-probeDone
-
-	require.NoError(t, err)
-	assert.True(t, midRunAlive.Load(), "child must be alive while Run is blocked on the subprocess")
-	assert.False(t, child.IsAlive(), "child must be dead after Run returns")
+	// The child stays alive until released, so polling cannot miss its lifetime.
+	require.Eventually(t, child.IsAlive, 10*time.Second, 10*time.Millisecond,
+		"child must be alive while Run is blocked on the subprocess")
 }
 
 func TestParseMicroVMARNWithColonInName(t *testing.T) {
