@@ -28,14 +28,14 @@ func Site(cfg model.Reader) string {
 
 // APIBaseURL resolves the PAR API endpoint independently of the RC endpoint and runner identity.
 func APIBaseURL(cfg model.Reader, site string) (string, error) {
-	if endpoint := cfg.GetString(DDURL); endpoint != "" {
+	if endpoint := cfg.GetString(PARDDURL); endpoint != "" {
 		u, err := url.Parse(endpoint)
 		if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") {
-			return "", errors.New("invalid private_action_runner.dd_url: expected an HTTP(S) URL with a host")
+			return "", errors.New("invalid private_action_runner.par_dd_url: expected an HTTP(S) URL with a host")
 		}
 		// Match the split-mode client's URL restrictions; never log credentials.
 		if u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(endpoint, "#") {
-			return "", errors.New("private_action_runner.dd_url must not contain credentials, a query, or a fragment")
+			return "", errors.New("private_action_runner.par_dd_url must not contain credentials, a query, or a fragment")
 		}
 		return endpoint, nil
 	}
@@ -48,7 +48,7 @@ func APIBaseURL(cfg model.Reader, site string) (string, error) {
 // ShouldWarnAboutRCOverride reports nonstandard RC routing without an explicit PAR URL.
 func ShouldWarnAboutRCOverride(cfg model.Reader) bool {
 	rcURL := cfg.GetString("remote_configuration.rc_dd_url")
-	return cfg.GetBool(Enabled) && cfg.GetString(DDURL) == "" &&
+	return cfg.GetBool(Enabled) && cfg.GetString(PARDDURL) == "" &&
 		os.Getenv(constants.InternalUseDDURLForOPMSEnvVar) != "true" &&
 		rcURL != "" && !isDefaultRCURL(rcURL, Site(cfg))
 }

@@ -46,8 +46,8 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 			}
 			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 				"site": "us3.datadoghq.com", "dd_url": tc.ddURL,
-				"remote_configuration.rc_dd_url": tc.rcURL,
-				"private_action_runner.dd_url":   tc.parURL, "private_action_runner.enabled": true,
+				"remote_configuration.rc_dd_url":   tc.rcURL,
+				"private_action_runner.par_dd_url": tc.parURL, "private_action_runner.enabled": true,
 				"private_action_runner.task_concurrency":   9,
 				"private_action_runner.opms_extra_headers": map[string]string{"X-PAR-Only": "header"},
 				"proxy.http": "http://user:password@proxy:3128", "proxy.https": "http://user:password@proxy:3128",

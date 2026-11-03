@@ -81,7 +81,7 @@ func newScopeFixture(t *testing.T) *scopeFixture {
 	cfg := configmock.New(t)
 	cfg.SetInTest("remote_configuration.no_tls", true)
 	f.cfg = cfg
-	for k, v := range map[string]any{"api_key": "scope-test-key", "site": "datadoghq.com", "remote_configuration.enabled": true, "private_action_runner.enabled": true, "dd_url": server.URL, "remote_configuration.rc_dd_url": server.URL + "/rc", "private_action_runner.dd_url": server.URL + "/par", "run_path": t.TempDir()} {
+	for k, v := range map[string]any{"api_key": "scope-test-key", "site": "datadoghq.com", "remote_configuration.enabled": true, "private_action_runner.enabled": true, "dd_url": server.URL, "remote_configuration.rc_dd_url": server.URL + "/rc", "private_action_runner.par_dd_url": server.URL + "/par", "run_path": t.TempDir()} {
 		cfg.SetInTest(k, v)
 	}
 	s, err := remote.NewService(cfg, "test", server.URL+"/rc", "host", func() []string { return nil }, nil, "test", remote.WithAPIKey("scope-test-key"))
@@ -199,7 +199,7 @@ func TestPARDiscoveryRejectsConfigMismatchAndLocalDisable(t *testing.T) {
 			case "endpoint":
 				f.cfg.SetInTest("remote_configuration.rc_dd_url", "http://127.0.0.1:1")
 			case "par-endpoint":
-				f.cfg.SetInTest("private_action_runner.dd_url", "http://127.0.0.1:1")
+				f.cfg.SetInTest("private_action_runner.par_dd_url", "http://127.0.0.1:1")
 			case "local-off":
 				f.cfg.SetInTest("remote_configuration.enabled", false)
 			case "par-off":

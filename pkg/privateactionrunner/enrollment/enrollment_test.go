@@ -31,7 +31,7 @@ func TestEnrollmentUsesPAROverride(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 		cfg := configmock.New(t)
-		cfg.SetInTest("private_action_runner.dd_url", server.URL+"/prefix/")
+		cfg.SetInTest("private_action_runner.par_dd_url", server.URL+"/prefix/")
 		cfg.SetInTest("private_action_runner.enabled", true)
 		cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

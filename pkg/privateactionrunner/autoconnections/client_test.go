@@ -83,7 +83,7 @@ func TestConnectionsUsePAROverride(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := mock.New(t)
-	cfg.SetInTest("private_action_runner.dd_url", server.URL+"/prefix/")
+	cfg.SetInTest("private_action_runner.par_dd_url", server.URL+"/prefix/")
 	cfg.SetInTest("private_action_runner.enabled", true)
 	cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
 	client, err := NewConnectionsAPIClient(cfg, "datadoghq.eu", "api-key", "app-key")

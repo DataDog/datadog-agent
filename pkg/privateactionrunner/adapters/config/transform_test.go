@@ -223,9 +223,9 @@ func TestFromDDConfigWarnsForNonstandardRCWithoutPARURL(t *testing.T) {
 		require.Equal(t, "https://api.datad0g.com", runner.APIBaseURL)
 	})
 	require.Contains(t, warnings, "[WARN]")
-	require.Contains(t, warnings, "Set private_action_runner.dd_url explicitly")
+	require.Contains(t, warnings, "Set private_action_runner.par_dd_url explicitly")
 
-	cfg.SetInTest(par.DDURL, "https://par-proxy.example.com/prefix")
+	cfg.SetInTest(par.PARDDURL, "https://par-proxy.example.com/prefix")
 	warnings = captureTransformWarnings(t, func() {
 		runner, err := FromDDConfig(cfg, nil)
 		require.NoError(t, err)

@@ -59,7 +59,7 @@ func TestAPIBaseURLPAROverride(t *testing.T) {
 				"https://par-proxy.example.com:8443/prefix/",
 				"http://localhost:8080",
 			} {
-				cfg.SetInTest(DDURL, endpoint)
+				cfg.SetInTest(PARDDURL, endpoint)
 				actual, err := APIBaseURL(cfg, Site(cfg))
 				require.NoError(t, err)
 				assert.Equal(t, endpoint, actual)
@@ -101,7 +101,7 @@ func TestNonstandardRCURLWarnsWithoutChangingPAR(t *testing.T) {
 			cfg.SetInTest(Enabled, true)
 			cfg.SetInTest("site", "datadoghq.eu")
 			cfg.SetInTest("remote_configuration.rc_dd_url", rcURL)
-			cfg.SetInTest(DDURL, "")
+			cfg.SetInTest(PARDDURL, "")
 			endpoint, err := APIBaseURL(cfg, Site(cfg))
 			require.NoError(t, err)
 			assert.Equal(t, "https://api.datadoghq.eu", endpoint)
@@ -122,7 +122,7 @@ func TestAPIBaseURLRejectsInvalidOverride(t *testing.T) {
 		"https://user:secret@proxy.example.com", "https://proxy.example.com?secret=value", "https://proxy.example.com#fragment",
 	} {
 		cfg := configmock.New(t)
-		cfg.SetInTest(DDURL, endpoint)
+		cfg.SetInTest(PARDDURL, endpoint)
 		actual, err := APIBaseURL(cfg, "datadoghq.com")
 		require.Error(t, err, endpoint)
 		assert.Empty(t, actual)
@@ -131,12 +131,24 @@ func TestAPIBaseURLRejectsInvalidOverride(t *testing.T) {
 }
 
 func TestAPIBaseURLFromEnvironment(t *testing.T) {
-	t.Setenv("DD_PRIVATE_ACTION_RUNNER_DD_URL", "https://par-proxy.example.com/prefix")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_PAR_DD_URL", "https://par-proxy.example.com/prefix")
 	cfg := configmock.New(t)
-	assert.Equal(t, "https://par-proxy.example.com/prefix", cfg.GetString(DDURL))
+	assert.Equal(t, "https://par-proxy.example.com/prefix", cfg.GetString(PARDDURL))
 	endpoint, err := APIBaseURL(cfg, Site(cfg))
 	require.NoError(t, err)
 	assert.Equal(t, "https://par-proxy.example.com/prefix", endpoint)
+}
+
+func TestAPIBaseURLDoesNotAliasOldSetting(t *testing.T) {
+	t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, "false")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_PAR_DD_URL", "")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_DD_URL", "https://old-env.example.com")
+	cfg := configmock.New(t)
+	cfg.SetInTest("site", "datadoghq.eu")
+	cfg.SetInTest("private_action_runner.dd_url", "https://old-setting.example.com")
+	endpoint, err := APIBaseURL(cfg, Site(cfg))
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.datadoghq.eu", endpoint)
 }
 
 func TestAPIBaseURLFakeIntake(t *testing.T) {

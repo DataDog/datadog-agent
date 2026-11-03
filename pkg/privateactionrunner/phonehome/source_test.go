@@ -43,7 +43,7 @@ func TestReaderRetainsLastSuccessfulRCStatus(t *testing.T) {
 	require.Equal(t, phonehomedef.ReasonRCUnchecked, source.Read(time.Now()).Reason)
 	rc.rc = &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}
 	require.True(t, source.Read(time.Now().Add(time.Hour)).Ready, "RC last success has no expiry")
-	for _, setting := range []string{"api_key", "remote_configuration.api_key", "remote_configuration.key", "remote_configuration.rc_dd_url", "private_action_runner.dd_url"} {
+	for _, setting := range []string{"api_key", "remote_configuration.api_key", "remote_configuration.key", "remote_configuration.rc_dd_url", "private_action_runner.par_dd_url"} {
 		old := cfg.Get(setting)
 		cfg.SetInTest(setting, "different")
 		require.False(t, source.Read(time.Now()).Ready)
@@ -75,10 +75,10 @@ func TestReaderRCEndpointFQDN(t *testing.T) {
 				}
 				for _, endpoint := range []string{"https://rc-proxy.example.com:8443/prefix", "https://rc-proxy.example.com:8443/prefix/", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					cfg.SetInTest("private_action_runner.dd_url", "")
+					cfg.SetInTest("private_action_runner.par_dd_url", "")
 					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, "custom RC routing alone must not block PAR")
 					require.Equal(t, "https://api."+site, enrollmentEndpoint(cfg))
-					cfg.SetInTest("private_action_runner.dd_url", "https://par-proxy.example.com/api-prefix")
+					cfg.SetInTest("private_action_runner.par_dd_url", "https://par-proxy.example.com/api-prefix")
 					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, endpoint)
 					require.Equal(t, "https://par-proxy.example.com/api-prefix", enrollmentEndpoint(cfg))
 				}
@@ -92,7 +92,7 @@ func TestReaderRejectsInvalidPAROverride(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetInTest("api_key", "key")
 		cfg.SetInTest("remote_configuration.enabled", true)
-		cfg.SetInTest("private_action_runner.dd_url", endpoint)
+		cfg.SetInTest("private_action_runner.par_dd_url", endpoint)
 		rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
 		require.Equal(t, phonehomedef.ReasonInvalidEndpoint, NewSource(cfg, rc).Read(time.Now()).Reason)
 	}

@@ -255,10 +255,10 @@ func TestHealthCheckUsesPAROverride(t *testing.T) {
 	}))
 	defer srv.Close()
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		"site":                           "datadoghq.eu",
-		"private_action_runner.dd_url":   srv.URL + "/prefix/",
-		"private_action_runner.enabled":  true,
-		"remote_configuration.rc_dd_url": "https://rc-proxy.example.com",
+		"site":                             "datadoghq.eu",
+		"private_action_runner.par_dd_url": srv.URL + "/prefix/",
+		"private_action_runner.enabled":    true,
+		"remote_configuration.rc_dd_url":   "https://rc-proxy.example.com",
 	})
 	runner, err := config.FromDDConfig(cfg, nil)
 	require.NoError(t, err)

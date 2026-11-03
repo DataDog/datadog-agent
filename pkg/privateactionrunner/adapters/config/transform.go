@@ -42,7 +42,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		return nil, err
 	}
 	if par.ShouldWarnAboutRCOverride(config) {
-		log.Warn("PAR is enabled with a nonstandard remote_configuration.rc_dd_url but private_action_runner.dd_url is unset; PAR still uses the default API endpoint for site. Set private_action_runner.dd_url explicitly if PAR requires custom routing.")
+		log.Warn("PAR is enabled with a nonstandard remote_configuration.rc_dd_url but private_action_runner.par_dd_url is unset; PAR still uses the default API endpoint for site. Set private_action_runner.par_dd_url explicitly if PAR requires custom routing.")
 	}
 	encodedPrivateKey := config.GetString(par.PrivateKey)
 	urn := config.GetString(par.URN)
