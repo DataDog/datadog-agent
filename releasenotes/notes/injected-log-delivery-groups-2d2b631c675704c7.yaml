@@ -2,5 +2,4 @@
 features:
   - |
     Add a log delivery mechanism for integrations that selectively send logs
-    to multiple Datadog organizations. This change does not enable
-    user-configurable log routing in the Agent.
+    to multiple endpoints.
