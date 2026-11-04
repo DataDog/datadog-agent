@@ -1228,8 +1228,24 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 		// builtin's status (e.g. `read -t`'s 142) instead of the
 		// underlying context.DeadlineExceeded that cmd/rshell main checks
 		// for to print "execution timed out".
+		//
+		// A builtin may also turn the run's deadline into its own timeout
+		// (`read` installs it as a kernel read deadline) and return just
+		// before the context's timer sets ctx.Err(). A deadline that has
+		// passed counts as expired, so the run still ends with the
+		// deadline error instead of the script carrying on.
 		if err := ctx.Err(); err != nil {
 			r.exit.fatal(err)
+		} else if dl, ok := ctx.Deadline(); ok && !time.Now().Before(dl) {
+			// Give the timer a moment to publish ctx.Err() so callers
+			// that check it after Run returns see a cancelled context.
+			graceCtx, cancelGrace := context.WithDeadline(context.Background(), time.Now().Add(deadlineGrace))
+			select {
+			case <-ctx.Done():
+			case <-graceCtx.Done():
+			}
+			cancelGrace()
+			r.exit.fatal(context.DeadlineExceeded)
 		}
 		return
 	}
@@ -1237,6 +1253,9 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 	// reject with exit 127. unknownCount was already incremented above.
 	r.exec(ctx, pos, args)
 }
+
+// deadlineGrace bounds how long a passed deadline waits for its context timer.
+const deadlineGrace = time.Second / 10
 
 func (r *Runner) exec(ctx context.Context, pos syntax.Pos, args []string) {
 	r.exit.fromHandlerError(r.execHandler(r.handlerCtx(ctx, pos), args))
