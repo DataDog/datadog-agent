@@ -365,7 +365,7 @@ func TestRoutedProviderExactHTTPRecipientsAndCheckpoints(t *testing.T) {
 			t.Fatalf("checkpoint %d did not arrive", i)
 		}
 	}
-	if err := provider.RetireSource("file:test", 1); err != nil {
+	if err := provider.RetireSource(context.Background(), "file:test", 1); err != nil {
 		t.Fatal(err)
 	}
 	provider.sourceDispatchMu.Lock()
@@ -834,7 +834,7 @@ func TestRoutedProviderSaturatedSourceDoesNotBlockHealthySource(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Y checkpoint did not advance independently")
 	}
-	if err := provider.RetireSource("file:y", 1); err != nil {
+	if err := provider.RetireSource(context.Background(), "file:y", 1); err != nil {
 		t.Fatal(err)
 	}
 	provider.lifecycle.RLock()
@@ -1185,7 +1185,7 @@ func TestRoutedProviderRetiredRecordDoesNotBlockReplacement(t *testing.T) {
 	}
 	currentInput <- makeRecord("current", "new-1")
 	checkpoint("new-1")
-	if err := p.RetireSource("file:test", 42); err != nil {
+	if err := p.RetireSource(context.Background(), "file:test", 42); err != nil {
 		t.Fatal(err)
 	}
 	// A caller violating retirement must not poison the replacement source.
@@ -1221,14 +1221,14 @@ func TestRoutedProviderRetirementKeepsBufferedInputBeforeStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	input <- &message.Message{}
-	if err := p.RetireSource("file:test", 42); !errors.Is(err, routing.ErrSourcePending) {
+	if err := p.RetireSource(context.Background(), "file:test", 42); !errors.Is(err, routing.ErrSourcePending) {
 		t.Fatalf("retirement before admission = %v, want ErrSourcePending", err)
 	}
 	if !progress.OwnsSource("file:test") {
 		t.Fatal("buffered input lost its source ownership")
 	}
 	<-input
-	if err := p.RetireSource("file:test", 42); err != nil {
+	if err := p.RetireSource(context.Background(), "file:test", 42); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -1258,7 +1258,7 @@ func TestRoutedProviderRetirementWaitCancels(t *testing.T) {
 				}
 				p.started = true
 				retired := make(chan error, 1)
-				go func() { retired <- p.RetireSource("file:test", 42) }()
+				go func() { retired <- p.RetireSource(context.Background(), "file:test", 42) }()
 				synctest.Wait()
 				select {
 				case err := <-retired:
@@ -1344,7 +1344,7 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 					oldInput <- makeRecord("old-last")
 				}
 				retired := make(chan error, 1)
-				go func() { retired <- p.RetireSource("file:test", 42) }()
+				go func() { retired <- p.RetireSource(context.Background(), "file:test", 42) }()
 				synctest.Wait()
 				// Admission now reserves before Resolve runs in the processor.
 				// Retirement may finish its admission barrier, but must refuse
@@ -1359,7 +1359,7 @@ func TestRoutedProviderRetirementWaitsForAdmission(t *testing.T) {
 				currentInput <- makeRecord("current")
 				close(release)
 				synctest.Wait()
-				if err := p.RetireSource("file:test", 42); err != nil {
+				if err := p.RetireSource(context.Background(), "file:test", 42); err != nil {
 					t.Fatal(err)
 				}
 				select {
@@ -1555,7 +1555,7 @@ func TestRoutedProviderRetiresSourceWhoseFirstRecordIsInvalid(t *testing.T) {
 	if err := ctx.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.RetireSource("file:invalid-first", 1); err != nil {
+	if err := p.RetireSource(context.Background(), "file:invalid-first", 1); err != nil {
 		t.Fatalf("could not retire producer after initial invalid selection: %v", err)
 	}
 	if !p.progress.OwnsSource("file:invalid-first") || p.progress.Pending() != 1 {
@@ -1704,7 +1704,7 @@ func TestRoutedSelectionIdentityAndLocalOutcomes(t *testing.T) {
 					t.Fatalf("identity calls = %d", identities)
 				}
 				if !tc.shared {
-					if err := p.RetireSource("file:test", 1); err != nil {
+					if err := p.RetireSource(context.Background(), "file:test", 1); err != nil {
 						t.Fatal(err)
 					}
 					if p.progress.OwnsSource("file:test") != (tc.wantPending != 0) {
@@ -1801,4 +1801,147 @@ func TestRoutedPendingSelectionHoldsCheckpointsAndCancelledFlush(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestRoutedProviderRetirementCancelsSaturatedAdmission(t *testing.T) {
+	for _, outcome := range []string{"cancel", "deadline", "stop"} {
+		t.Run(outcome, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				endpoint := config.NewEndpoint("test-key", "", "localhost", 12345, "", false)
+				endpoints := config.NewEndpointsWithBatchSettings(endpoint, nil, false, true, time.Second, 1, 1, 1024, 2)
+				cfg := configmock.New(t)
+				cfg.SetInTest("logs_config.routing.max_groups", 4)
+				sink := &routedTestSink{ch: make(chan *message.Payload, 2)}
+				p, err := NewRoutedProvider(RoutedOptions{
+					NumberOfPipelines: 1, Sink: sink,
+					DiagnosticMessageReceiver: &diagnostic.BufferedMessageReceiver{},
+					Groups:                    []routing.Group{{ID: "a", Endpoints: endpoints}},
+					Resolve:                   func(*message.Message) (routing.Selection, error) { return routing.Selection{Excluded: true}, nil },
+					DestinationsContext:       client.NewDestinationsContext(), Config: cfg,
+					Compression: compressionfx.NewMockCompressor(), Secrets: secretsnoopimpl.NewComponent().Comp,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				input, err := p.SourceInput("file:test", 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				p.Start()
+				defer p.Stop()
+				source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
+				makeRecord := func(offset string) *message.Message {
+					m := message.NewMessageWithSource([]byte("pending"), "info", source, 0)
+					m.Origin.Identifier, m.Origin.Offset = "file:test", offset
+					return m
+				}
+				var pending []*message.Message
+				for range routing.SourcePendingLimit {
+					m := makeRecord("old")
+					if _, err := p.progress.Register(context.Background(), m, routing.Selection{Generation: 1}, []string{"a"}); err != nil {
+						t.Fatal(err)
+					}
+					pending = append(pending, m)
+				}
+				input <- makeRecord("old-last")
+				synctest.Wait()
+				if len(input) != 0 || p.progress.Pending() != routing.SourcePendingLimit {
+					t.Fatal("admission is not blocked in Reserve")
+				}
+				var ctx context.Context
+				var cancel context.CancelFunc
+				if outcome == "deadline" {
+					ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+				} else {
+					ctx, cancel = context.WithCancel(context.Background())
+				}
+				defer cancel()
+				retired := make(chan error, 1)
+				go func() { retired <- p.RetireSource(ctx, "file:test", 1) }()
+				synctest.Wait()
+				select {
+				case err := <-retired:
+					t.Fatalf("retirement passed blocked admission: %v", err)
+				default:
+				}
+				if outcome == "stop" {
+					stopped := make(chan struct{})
+					go func() { p.Stop(); close(stopped) }()
+					if err := <-retired; !errors.Is(err, routing.ErrStopped) {
+						t.Fatal(err)
+					}
+					<-stopped
+					select {
+					case <-sink.ch:
+						t.Fatal("shutdown acknowledged pending records")
+					default:
+					}
+					return
+				}
+				if outcome == "deadline" {
+					<-ctx.Done()
+				} else {
+					cancel()
+				}
+				if err := <-retired; !errors.Is(err, ctx.Err()) {
+					t.Fatalf("retirement = %v, want %v", err, ctx.Err())
+				}
+				if p.progress.Pending() != routing.SourcePendingLimit || !p.progress.OwnsSource("file:test") {
+					t.Fatal("cancelled retirement released unresolved progress or ownership")
+				}
+				select {
+				case <-sink.ch:
+					t.Fatal("cancelled retirement acknowledged pending records")
+				default:
+				}
+				// An already-cancelled call must return without inserting another marker.
+				if err := p.RetireSource(ctx, "file:test", 1); !errors.Is(err, ctx.Err()) {
+					t.Fatal(err)
+				}
+				p.lifecycle.RLock()
+				retained := p.sourceInputs[sourceInputKey{"file:test", 1}] == input
+				p.lifecycle.RUnlock()
+				if !retained {
+					t.Fatal("cancelled retirement closed the producer input")
+				}
+				replacement, err := p.SourceInput("file:test", 2)
+				if err != nil {
+					t.Fatal(err)
+				}
+				replacement <- makeRecord("replacement")
+				for _, m := range pending {
+					meta := m.MessageMetadata
+					p.progress.CompleteGroup("a", message.NewPayload([]*message.MessageMetadata{&meta}, nil, "", 0))
+				}
+				synctest.Wait()
+				retryCtx, retryCancel := context.WithTimeout(context.Background(), time.Second)
+				defer retryCancel()
+				if err := p.RetireSource(retryCtx, "file:test", 1); err != nil {
+					t.Fatal(err)
+				}
+				if !p.progress.OwnsSource("file:test") {
+					t.Fatal("old producer retirement released replacement ownership")
+				}
+				select {
+				case payload := <-sink.ch:
+					if got := payload.MessageMetas[0].Origin.Offset; got != "replacement" {
+						t.Fatalf("obsolete checkpoint %q", got)
+					}
+				default:
+					t.Fatal("replacement checkpoint did not arrive")
+				}
+				select {
+				case <-sink.ch:
+					t.Fatal("obsolete producer published another checkpoint")
+				default:
+				}
+				if p.progress.Pending() != 0 {
+					t.Fatal("recovery retained completed progress")
+				}
+				if err := p.RetireSource(retryCtx, "file:test", 2); err != nil {
+					t.Fatal(err)
+				}
+			})
+		})
+	}
 }

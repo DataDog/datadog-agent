@@ -685,8 +685,13 @@ func (p *RoutedProvider) GuardRegistry(registry routing.Registry) routing.Regist
 }
 
 // RetireSource waits for admission before releasing a stopped producer's ownership.
-// Callers must stop sending first. Full input queues return ErrSourcePending.
-func (p *RoutedProvider) RetireSource(identifier string, generation uint64) error {
+// Callers must stop sending first and provide a shutdown-cancelled context or
+// deadline. Full input queues return ErrSourcePending. Cancelling the admission
+// wait leaves ownership and unresolved progress intact for a later retry or Stop.
+func (p *RoutedProvider) RetireSource(ctx context.Context, identifier string, generation uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	key := sourceInputKey{identifier, generation}
 	p.lifecycle.RLock()
 	if p.stopped {
@@ -715,6 +720,8 @@ func (p *RoutedProvider) RetireSource(identifier string, generation uint64) erro
 	if admitted != nil {
 		select {
 		case <-admitted:
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-p.ctx.Done():
 			return routing.ErrStopped
 		case <-p.stopRequested:
@@ -722,6 +729,10 @@ func (p *RoutedProvider) RetireSource(identifier string, generation uint64) erro
 		}
 	}
 	p.sourceDispatchMu.Lock()
+	if err := ctx.Err(); err != nil {
+		p.sourceDispatchMu.Unlock()
+		return err
+	}
 	if err := p.progress.RetireSource(identifier, generation); err != nil {
 		p.sourceDispatchMu.Unlock()
 		return err

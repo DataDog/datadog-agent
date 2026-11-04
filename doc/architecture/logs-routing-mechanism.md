@@ -62,7 +62,7 @@ Before processing, `SourceInput(identifier, generation)` supplies producer ident
 
 A nil sink channel disables checkpoint publication, matching the default sender. Group completion still controls progress capacity. Start a real auditor before processing records.
 
-The caller also owns source startup, replacement, and shutdown. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
+The caller also owns source startup, replacement, and shutdown. Stop producer sends before calling `RetireSource(ctx, identifier, generation)` and supply a shutdown-cancelled context or deadline. Cancelling its admission wait retains ownership and unresolved progress, allowing retirement to be retried or provider shutdown to proceed. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
 
 ## Selection behavior
 

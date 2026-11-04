@@ -122,7 +122,7 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 	runtime.ReadMemStats(&after)
 	b.ReportMetric(float64(int64(after.HeapAlloc)-int64(before.HeapAlloc))/1024, "KiB/live-delta")
 	if routed {
-		if err := provider.(*RoutedProvider).RetireSource("file:benchmark", 1); err != nil {
+		if err := provider.(*RoutedProvider).RetireSource(context.Background(), "file:benchmark", 1); err != nil {
 			b.Fatal(err)
 		}
 	}
