@@ -136,6 +136,24 @@ func (s *Share) Mkdir(dir string) {
 	s.addDirs(dir)
 }
 
+// Rmdir removes dir, and every directory and file under it.
+func (s *Share) Rmdir(dir string) {
+	dir = mustClean(dir)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prefix := dir + "/"
+	for p := range s.files {
+		if p == dir || strings.HasPrefix(p, prefix) {
+			delete(s.files, p)
+		}
+	}
+	for d := range s.dirs {
+		if d == dir || strings.HasPrefix(d, prefix) {
+			delete(s.dirs, d)
+		}
+	}
+}
+
 // Write replaces the content of p, creating it (and its parent directories)
 // with a new FileID if needed, and returns the FileID.
 func (s *Share) Write(p string, data []byte) uint64 {
@@ -223,6 +241,19 @@ func (s *Share) Recreate(p string, reuseID uint64) uint64 {
 		f.id = reuseID
 	}
 	return f.id
+}
+
+// SetModTime sets the last write time p's listing reports, which Write and
+// Append otherwise set to the real time. It panics if p does not exist.
+func (s *Share) SetModTime(p string, t time.Time) {
+	p = mustClean(p)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, ok := s.files[p]
+	if !ok {
+		panic("fake: SetModTime of missing file " + p)
+	}
+	f.mtime = t
 }
 
 // Stat returns the current, never stale, entry for p.

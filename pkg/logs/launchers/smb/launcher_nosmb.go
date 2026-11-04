@@ -48,7 +48,7 @@ type Launcher struct {
 
 // NewLauncher returns a Launcher. It takes the arguments of the full Agent's
 // launcher, which it does not use.
-func NewLauncher(_ time.Duration) *Launcher {
+func NewLauncher(_ time.Duration, _ ...Option) *Launcher {
 	return &Launcher{
 		builtForFIPS: fips.BuiltForFIPS,
 		done:         make(chan struct{}),

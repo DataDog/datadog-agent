@@ -1335,6 +1335,8 @@ api_key:
 #   # The maximum number of files that can be tailed in parallel.
 #   # Note: the default for Mac OS is 200. The default for
 #   # all other systems is 500.
+#   # All `type: smb` sources together get their own budget of this many
+#   # tailers, and another for the rotated files they drain.
 #
 #   open_files_limit: 500
 
