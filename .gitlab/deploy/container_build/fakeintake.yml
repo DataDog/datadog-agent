@@ -71,4 +71,5 @@ docker_sign_fakeintake:
   variables:
     TARGET: !reference [docker_build_fakeintake, variables, TARGET]
   script:
-    - ddsign sign ${TARGET}@$(crane digest ${TARGET})
+    - DIGEST=$(crane digest ${TARGET})
+    - ddsign sign ${TARGET}@${DIGEST}
