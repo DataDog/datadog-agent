@@ -35,6 +35,11 @@ func CompressLevel(dst, src []byte, level Level) ([]byte, error) {
 	return ddzstd.CompressLevel(dst, src, level)
 }
 
+// NewCtx returns a reusable compression context backed by a native ZSTD_CCtx.
+func NewCtx() Ctx {
+	return ddzstd.NewCtx()
+}
+
 // Decompress decompresses src. If dst is large enough it is reused, otherwise
 // a new buffer is allocated.
 func Decompress(dst, src []byte) ([]byte, error) {

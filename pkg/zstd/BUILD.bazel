@@ -18,7 +18,10 @@ go_library(
 
 dd_agent_go_test(
     name = "zstd_test",
-    srcs = ["zstd_cross_test.go"],
+    srcs = [
+        "zstd_cross_test.go",
+        "zstd_ctx_test.go",
+    ],
     embed = [":zstd"],
     deps = [
         "@com_github_klauspost_compress//zstd",
