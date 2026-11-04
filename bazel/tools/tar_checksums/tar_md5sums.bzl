@@ -2,13 +2,14 @@
 
 def _tar_md5sums_impl(ctx):
     output = ctx.outputs.md5sums
+    size_output = ctx.outputs.installed_size
     ctx.actions.run(
         inputs = [ctx.file.src],
-        outputs = [output],
+        outputs = [output, size_output],
         executable = ctx.executable._tool,
-        arguments = [ctx.file.src.path, output.path],
+        arguments = [ctx.file.src.path, output.path, size_output.path],
     )
-    return [DefaultInfo(files = depset([output]))]
+    return [DefaultInfo(files = depset([output, size_output]))]
 
 tar_md5sums = rule(
     implementation = _tar_md5sums_impl,
@@ -18,6 +19,9 @@ tar_md5sums = rule(
             allow_single_file = True,
         ),
         "md5sums": attr.output(
+            mandatory = True,
+        ),
+        "installed_size": attr.output(
             mandatory = True,
         ),
         "_tool": attr.label(

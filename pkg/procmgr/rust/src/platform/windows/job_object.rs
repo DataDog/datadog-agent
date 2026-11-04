@@ -6,14 +6,30 @@
 use anyhow::Result;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, TerminateJobObject,
+    CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 };
-use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
 
 pub struct JobObject {
     handle: HANDLE,
+    #[cfg(test)]
+    pub(crate) faults: std::sync::Arc<TestFaults>,
+}
+
+#[cfg(test)]
+pub(crate) struct TestFaults {
+    pub(crate) terminate_error: std::sync::atomic::AtomicBool,
+    pub(crate) terminate_calls: std::sync::atomic::AtomicUsize,
+}
+
+#[cfg(test)]
+impl Default for TestFaults {
+    fn default() -> Self {
+        Self {
+            terminate_error: false.into(),
+            terminate_calls: 0.into(),
+        }
+    }
 }
 
 // SAFETY: Win32 HANDLE is a plain pointer-sized value; the kernel serialises use per handle.
@@ -36,32 +52,31 @@ impl JobObject {
                 return Err(err);
             }
 
-            Ok(Self { handle })
+            Ok(Self {
+                handle,
+                #[cfg(test)]
+                faults: TestFaults::default().into(),
+            })
         }
     }
 
-    pub fn assign_process(&self, pid: u32) -> Result<()> {
-        unsafe {
-            let proc_handle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
-            if proc_handle.is_null() {
-                anyhow::bail!(
-                    "OpenProcess({pid}) for job assignment failed: {}",
-                    std::io::Error::last_os_error()
-                );
-            }
-            let ok = AssignProcessToJobObject(self.handle, proc_handle);
-            CloseHandle(proc_handle);
-            if ok == 0 {
-                anyhow::bail!(
-                    "AssignProcessToJobObject({pid}) failed: {}",
-                    std::io::Error::last_os_error()
-                );
-            }
-        }
-        Ok(())
+    pub(crate) fn raw_handle(&self) -> HANDLE {
+        self.handle
     }
 
     pub fn terminate(&self) -> Result<()> {
+        #[cfg(test)]
+        self.faults
+            .terminate_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        #[cfg(test)]
+        anyhow::ensure!(
+            !self
+                .faults
+                .terminate_error
+                .load(std::sync::atomic::Ordering::SeqCst),
+            "injected job termination failure"
+        );
         unsafe {
             let ok = TerminateJobObject(self.handle, 1);
             if ok == 0 {

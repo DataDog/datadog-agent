@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add a Private Action Runner action that creates a compressed DogStatsD
+    context dump in the Agent's runtime directory and returns its path for
+    subsequent remote diagnostics.

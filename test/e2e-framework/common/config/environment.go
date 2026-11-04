@@ -68,6 +68,7 @@ const (
 	DDAgentDualShipping                  = "dualshipping"
 	DDAGentFakeintakeRetentionPeriod     = "fakeintakeRetentionPeriod"
 	DDAgentSite                          = "site"
+	DDAgentTags                          = "tags"
 	DDAgentMajorVersion                  = "majorVersion"
 	DDAgentExtraEnvVars                  = "extraEnvVars" // extraEnvVars is expected in the format: <key1>=<value1>,<key2>=<value2>,...
 	DDAgentJMX                           = "jmx"
@@ -165,6 +166,8 @@ type CloudEnv interface {
 	InternalDockerhubMirror() string
 	// InternalRegistry returns the internal registry.
 	InternalRegistry() string
+	// DatadogPublicRegistry returns the registry prefix for publicly released Datadog images.
+	DatadogPublicRegistry() string
 	// InternalRegistryImageTagExists returns true if the image tag exists in the internal registry.
 	InternalRegistryImageTagExists(image, tag string) (bool, error)
 	// InternalRegistryFullImagePathExists returns true if the image and tag exists in the internal registry.
@@ -233,7 +236,7 @@ func (e *CommonEnvironment) InfraOSImageIDUseLatest() bool {
 }
 
 func (e *CommonEnvironment) KubernetesVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.34")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.37")
 }
 
 func (e *CommonEnvironment) KindVersion() string {
@@ -326,9 +329,11 @@ func (e *CommonEnvironment) AgentFlavor() string {
 func (e *CommonEnvironment) AgentLocalPackage() string {
 	return e.AgentConfig.Get(DDAgentLocalPackage)
 }
+
 func (e *CommonEnvironment) AgentLocalChartPath() string {
 	return e.AgentConfig.Get(DDAgentLocalChartPath)
 }
+
 func (e *CommonEnvironment) PipelineID() string {
 	return e.AgentConfig.Get(DDAgentPipelineID)
 }
@@ -356,9 +361,11 @@ func (e *CommonEnvironment) OperatorVersion() string {
 func (e *CommonEnvironment) OperatorFullImagePath() string {
 	return e.OperatorConfig.Get(DDOperatorFullImagePathParamName)
 }
+
 func (e *CommonEnvironment) OperatorLocalChartPath() string {
 	return e.OperatorConfig.Get(DDOperatorLocalChartPath)
 }
+
 func (e *CommonEnvironment) ImagePullRegistry() string {
 	return e.AgentConfig.Get(DDImagePullRegistryParamName)
 }
@@ -395,6 +402,16 @@ func (e *CommonEnvironment) Site() string {
 	return e.AgentConfig.Get(DDAgentSite)
 }
 
+// Tags returns the comma-separated agent tags configured via ddagent:tags, split into a slice.
+// Returns nil when the config key is absent.
+func (e *CommonEnvironment) Tags() []string {
+	csv := e.AgentConfig.Get(DDAgentTags)
+	if csv == "" {
+		return nil
+	}
+	return strings.Split(csv, ",")
+}
+
 func (e *CommonEnvironment) MajorVersion() string {
 	return e.GetStringWithDefault(e.AgentConfig, DDAgentMajorVersion, DefaultMajorVersion)
 }
@@ -402,7 +419,6 @@ func (e *CommonEnvironment) MajorVersion() string {
 func (e *CommonEnvironment) AgentExtraEnvVars() map[string]string {
 	result := make(map[string]string)
 	envVars, err := e.AgentConfig.Try(DDAgentExtraEnvVars)
-
 	// If not found
 	if err != nil {
 		return result

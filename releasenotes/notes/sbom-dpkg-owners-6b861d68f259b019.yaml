@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe attributes each dpkg file to the
+    package that installed it. It follows dpkg diversions, drops the files a
+    package handed over to another, and reads the md5sums paths that nfpm
+    prefixes with ``./``.

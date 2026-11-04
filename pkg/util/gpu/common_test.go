@@ -103,9 +103,9 @@ func TestExtractGPUType(t *testing.T) {
 		// instances: NVadsA10_v5 family
 		{deviceName: "NVIDIA A10-4Q", expected: "a10"},
 		// instances: g5.12xlarge, g5.16xlarge, g5.24xlarge, g5.2xlarge, g5.48xlarge, g5.4xlarge, g5.8xlarge, g5.xlarge
-		{deviceName: "NVIDIA A10G", expected: "a10g"},
+		{deviceName: "NVIDIA A10G", expected: "a10"},
 		// instances: g5.12xlarge, g5.16xlarge, g5.24xlarge, g5.2xlarge, g5.48xlarge, g5.4xlarge, g5.8xlarge, g5.xlarge
-		{deviceName: "NVIDIA_A10G", expected: "a10g"},
+		{deviceName: "NVIDIA_A10G", expected: "a10"},
 		// instances: a2-highgpu-1g, a2-highgpu-2g, a2-highgpu-4g, a2-highgpu-8g, a2-megagpu-16g, a2-ultragpu-1g, a2-ultragpu-2g, a2-ultragpu-4g, a2-ultragpu-8g, p4d.24xlarge, p4de.24xlarge, standard_nc24ads_a100_v4, standard_nc48ads_a100_v4, standard_nc96ads_a100_v4, standard_nd96amsr_a100_v4, standard_nd96asr_v4
 		{deviceName: "NVIDIA A100-SXM4-40GB", expected: "a100"},
 		// instances: a2-highgpu-1g, a2-highgpu-2g, a2-highgpu-4g, a2-highgpu-8g, a2-megagpu-16g, a2-ultragpu-1g, a2-ultragpu-2g, a2-ultragpu-4g, a2-ultragpu-8g, p4d.24xlarge, p4de.24xlarge, standard_nc24ads_a100_v4, standard_nc48ads_a100_v4, standard_nc96ads_a100_v4, standard_nd96amsr_a100_v4, standard_nd96asr_v4
@@ -149,9 +149,9 @@ func TestExtractGPUType(t *testing.T) {
 		{deviceName: "NVIDIA GeForce RTX_3090", expected: "rtx_3090"},
 		{deviceName: "NVIDIA GeForce   RTX 3090", expected: "rtx_3090"},
 		// instances: g6e.12xlarge, g6e.16xlarge, g6e.24xlarge, g6e.2xlarge, g6e.48xlarge, g6e.4xlarge, g6e.8xlarge, g6e.xlarge
-		{deviceName: "NVIDIA L40S", expected: "l40s"},
+		{deviceName: "NVIDIA L40S", expected: "l40"},
 		// instances: g6e.12xlarge, g6e.16xlarge, g6e.24xlarge, g6e.2xlarge, g6e.48xlarge, g6e.4xlarge, g6e.8xlarge, g6e.xlarge
-		{deviceName: "NVIDIA_L40S", expected: "l40s"},
+		{deviceName: "NVIDIA_L40S", expected: "l40"},
 		// instances: standard_nv12s_v2, standard_nv12s_v3, standard_nv24s_v2, standard_nv24s_v3, standard_nv48s_v3, standard_nv6s_v2
 		{deviceName: "Tesla M60", expected: "m60"},
 		// instances: standard_nv12s_v2, standard_nv12s_v3, standard_nv24s_v2, standard_nv24s_v3, standard_nv48s_v3, standard_nv6s_v2
@@ -176,6 +176,17 @@ func TestExtractGPUType(t *testing.T) {
 		{deviceName: "Unknown GPU", expected: ""},
 		{deviceName: "Unknown_GPU", expected: ""},
 		{deviceName: "nViDiA a100", expected: "a100"},
+		// AMD Instinct names of libdrm's amdgpu.ids; the "VF" and "HF" suffixes are not part of the type.
+		{deviceName: "AMD Instinct MI350X", expected: "mi350x"},
+		{deviceName: "AMD Instinct MI350X VF", expected: "mi350x"},
+		{deviceName: "AMD Instinct MI300X HF", expected: "mi300x"},
+		{deviceName: "AMD Instinct MI300A", expected: "mi300a"},
+		{deviceName: "AMD Instinct MI250X MI250", expected: "mi250x"},
+		{deviceName: "AMD Radeon Instinct MI25", expected: "mi25"},
+		// Kubernetes node label of the AMD labeller (amd.com/gpu.product-name), same device as above.
+		{deviceName: "AMD_Instinct_MI350X_VF", expected: "mi350x"},
+		{deviceName: "AMD Radeon Pro W7900", expected: ""},
+		{deviceName: "AMD GPU 0x75b0", expected: ""},
 	}
 
 	for _, tt := range tests {

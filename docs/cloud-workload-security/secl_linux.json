@@ -103,9 +103,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.ancestors.cgroup.created_at",
@@ -143,9 +153,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.ancestors.container.tags",
@@ -683,9 +703,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.cgroup.created_at",
@@ -723,9 +753,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.container.tags",
@@ -1148,9 +1188,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.parent.cgroup.created_at",
@@ -1188,9 +1238,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -1909,9 +1969,19 @@
           "property_doc_link": "capabilities-attempted-doc"
         },
         {
+          "name": "capabilities.attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace",
+          "property_doc_link": "capabilities-attempted_host_userns-doc"
+        },
+        {
           "name": "capabilities.used",
           "definition": "Bitmask of the capabilities that the process successfully used since it started running",
           "property_doc_link": "capabilities-used-doc"
+        },
+        {
+          "name": "capabilities.used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace",
+          "property_doc_link": "capabilities-used_host_userns-doc"
         }
       ]
     },
@@ -2846,9 +2916,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exec.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exec.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exec.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exec.cgroup.created_at",
@@ -2886,9 +2966,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exec.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exec.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exec.container.tags",
@@ -3475,9 +3565,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exit.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exit.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exit.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exit.cause",
@@ -3525,9 +3625,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exit.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exit.container.tags",
@@ -4022,6 +4132,11 @@
           "name": "imds.cloud_provider",
           "definition": "the intended cloud provider of the IMDS event",
           "property_doc_link": "imds-cloud_provider-doc"
+        },
+        {
+          "name": "imds.credential_source",
+          "definition": "the credential endpoint that served the IMDS event",
+          "property_doc_link": "imds-credential_source-doc"
         },
         {
           "name": "imds.host",
@@ -4924,6 +5039,11 @@
           "property_doc_link": "mount-detached-doc"
         },
         {
+          "name": "mount.flags",
+          "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
+          "property_doc_link": "mount-flags-doc"
+        },
+        {
           "name": "mount.fs_type",
           "definition": "Type of the mounted file system",
           "property_doc_link": "mount-fs_type-doc"
@@ -4965,7 +5085,7 @@
         },
         {
           "name": "mount.visible",
-          "definition": "Mount is not visible in the VFS",
+          "definition": "Mount is visible in the VFS",
           "property_doc_link": "mount-visible-doc"
         }
       ]
@@ -5498,9 +5618,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.created_at",
@@ -5538,9 +5668,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.container.tags",
@@ -6078,9 +6218,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.created_at",
@@ -6118,9 +6268,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.container.tags",
@@ -6543,9 +6703,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.created_at",
@@ -6583,9 +6753,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.parent.container.tags",
@@ -7825,6 +8005,115 @@
       ]
     },
     {
+      "name": "setns",
+      "definition": "A thread joined an existing namespace",
+      "type": "Kernel",
+      "from_agent_version": "7.86",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setns.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
+          "name": "setns.mntns",
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
+        },
+        {
+          "name": "setns.mntns_host",
+          "definition": "Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved",
+          "property_doc_link": "setns-mntns_host-doc"
+        },
+        {
+          "name": "setns.mntns_outside_base",
+          "definition": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved",
+          "property_doc_link": "setns-mntns_outside_base-doc"
+        },
+        {
+          "name": "setns.netns",
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
+        },
+        {
+          "name": "setns.nstype",
+          "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
+          "property_doc_link": "setns-nstype-doc"
+        },
+        {
+          "name": "setns.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.previous.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
+          "name": "setns.previous.mntns",
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
+        },
+        {
+          "name": "setns.previous.netns",
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
+        },
+        {
+          "name": "setns.previous.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.previous.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.previous.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
+        },
+        {
+          "name": "setns.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setns.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
+        }
+      ]
+    },
+    {
       "name": "setrlimit",
       "definition": "A setrlimit command was executed",
       "type": "Process",
@@ -7902,9 +8191,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.ancestors.cgroup.created_at",
@@ -7942,9 +8241,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.container.tags",
@@ -8482,9 +8791,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.cgroup.created_at",
@@ -8522,9 +8841,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.container.tags",
@@ -8947,9 +9276,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.created_at",
@@ -8987,9 +9326,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.parent.container.tags",
@@ -9883,9 +10232,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.created_at",
@@ -9923,9 +10282,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.ancestors.container.tags",
@@ -10463,9 +10832,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.cgroup.created_at",
@@ -10503,9 +10882,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.container.tags",
@@ -10928,9 +11317,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.parent.cgroup.created_at",
@@ -10968,9 +11367,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.parent.container.tags",
@@ -12432,6 +12841,31 @@
       "examples": []
     },
     {
+      "name": "*.caps_attempted_host_userns",
+      "link": "common-process-caps_attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.caps_used",
       "link": "common-process-caps_used-doc",
       "type": "int",
@@ -12454,6 +12888,44 @@
       ],
       "constants": "Kernel Capability constants",
       "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_used_host_userns",
+      "link": "common-process-caps_used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.cgroupns",
+      "link": "common-namespaceids-cgroupns-doc",
+      "type": "int",
+      "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -12621,6 +13093,31 @@
       "prefixes": [
         "network_flow_monitor.flows.egress",
         "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ecs_task_id",
+      "link": "common-containercontext-ecs_task_id-doc",
+      "type": "string",
+      "definition": "ECS task ID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -13525,6 +14022,19 @@
       "examples": []
     },
     {
+      "name": "*.ipcns",
+      "link": "common-namespaceids-ipcns-doc",
+      "type": "int",
+      "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.is_exec",
       "link": "common-process-is_exec-doc",
       "type": "bool",
@@ -13857,6 +14367,19 @@
         "unlink.file.path",
         "utimes.file.name",
         "utimes.file.path"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.mntns",
+      "link": "common-namespaceids-mntns-doc",
+      "type": "int",
+      "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -14247,6 +14770,19 @@
           "description": "Matches the execution of any file named apt."
         }
       ]
+    },
+    {
+      "name": "*.netns",
+      "link": "common-namespaceids-netns-doc",
+      "type": "int",
+      "definition": "Network namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
     },
     {
       "name": "*.netns",
@@ -14804,6 +15340,44 @@
       "examples": []
     },
     {
+      "name": "*.pidns",
+      "link": "common-namespaceids-pidns-doc",
+      "type": "int",
+      "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.pod_uid",
+      "link": "common-containercontext-pod_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes pod UID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.port",
       "link": "common-ipportcontext-port-doc",
       "type": "int",
@@ -14873,6 +15447,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setns",
         "setrlimit",
         "setsockopt",
         "setxattr",
@@ -15198,6 +15773,19 @@
       "examples": []
     },
     {
+      "name": "*.timens",
+      "link": "common-namespaceids-timens-doc",
+      "type": "int",
+      "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.tty_name",
       "link": "common-process-tty_name-doc",
       "type": "string",
@@ -15423,6 +16011,32 @@
       "examples": []
     },
     {
+      "name": "*.userns",
+      "link": "common-namespaceids-userns-doc",
+      "type": "int",
+      "definition": "User namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.utsns",
+      "link": "common-namespaceids-utsns-doc",
+      "type": "int",
+      "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.version",
       "link": "common-cgroupcontext-version-doc",
       "type": "int",
@@ -15604,10 +16218,34 @@
       "examples": []
     },
     {
+      "name": "capabilities.attempted_host_userns",
+      "link": "capabilities-attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "capabilities.used",
       "link": "capabilities-used-doc",
       "type": "int",
       "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "capabilities.used_host_userns",
+      "link": "capabilities-used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace",
       "prefixes": [
         "capabilities"
       ],
@@ -16204,6 +16842,18 @@
       "examples": []
     },
     {
+      "name": "imds.credential_source",
+      "link": "imds-credential_source-doc",
+      "type": "int",
+      "definition": "the credential endpoint that served the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "Credential sources",
+      "constants_link": "credential-sources",
+      "examples": []
+    },
+    {
       "name": "imds.host",
       "link": "imds-host-doc",
       "type": "string",
@@ -16432,6 +17082,18 @@
       "examples": []
     },
     {
+      "name": "mount.flags",
+      "link": "mount-flags-doc",
+      "type": "int",
+      "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mount.fs_type",
       "link": "mount-fs_type-doc",
       "type": "string",
@@ -16519,7 +17181,7 @@
       "name": "mount.visible",
       "link": "mount-visible-doc",
       "type": "bool",
-      "definition": "Mount is not visible in the VFS",
+      "definition": "Mount is visible in the VFS",
       "prefixes": [
         "mount"
       ],
@@ -16861,6 +17523,42 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns_host",
+      "link": "setns-mntns_host-doc",
+      "type": "bool",
+      "definition": "Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns_outside_base",
+      "link": "setns-mntns_outside_base-doc",
+      "type": "bool",
+      "definition": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.nstype",
+      "link": "setns-nstype-doc",
+      "type": "int",
+      "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {
@@ -18759,6 +19457,25 @@
         },
         {
           "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
           "architecture": "all"
         }
       ]

@@ -5,9 +5,11 @@
 #include "helpers/syscalls.h"
 
 static int __attribute__((always_inline)) sys_set_sid_ret(void *ctx, int retval) {
-    if (pop_syscall(EVENT_SETSID) == NULL) {
+    if (peek_syscall(EVENT_SETSID) == NULL) {
         return 0;
     }
+    pop_syscall(EVENT_SETSID);
+
     if (retval < 0) {
         return 0;
     }

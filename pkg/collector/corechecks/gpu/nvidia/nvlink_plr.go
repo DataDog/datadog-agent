@@ -31,8 +31,8 @@ type nvlinkPLRCollector struct {
 }
 
 func newNVLinkPLRCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
-	if deps == nil || deps.PRMCache == nil {
-		return nil, fmt.Errorf("%w: PRM cache is required for NVLink PLR collector", errUnsupportedDevice)
+	if deps.PRMCache == nil {
+		return nil, errors.New("PRM cache is required for NVLink PLR collector")
 	}
 
 	c := &nvlinkPLRCollector{

@@ -30,6 +30,8 @@ const (
 	TracerTypeEbpfless
 	// TracerTypeDarwin is the TracerType for the Darwin tracer (uses ebpfless implementation)
 	TracerTypeDarwin
+	// TracerTypeNStat is the TracerType for the Darwin NStat tracer
+	TracerTypeNStat
 	// TracerTypeSK is the TracerType for the SK-based tracer
 	TracerTypeSK
 )

@@ -104,4 +104,3 @@ func TestExtractTar_DirectoryWithoutTrailingSlash(t *testing.T) {
 	_, err = os.Stat(filepath.Join(destPath, "mydir"))
 	assert.True(t, os.IsNotExist(err))
 }
-

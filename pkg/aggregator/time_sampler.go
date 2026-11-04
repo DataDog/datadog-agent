@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
@@ -92,10 +92,6 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList filterlist.TagMatcher) {
-	if s.observerHandle != nil {
-		s.observerHandle.ObserveMetric(metricSample)
-	}
-
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp
@@ -103,6 +99,14 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), filterList)
+	if s.observerHandle != nil {
+		context, _ := s.contextResolver.get(contextKey)
+		s.observerHandle.ObserveMetric(resolvedMetricView{
+			sample: metricSample,
+			host:   context.Host,
+			tags:   context.Tags(),
+		}, uint64(contextKey))
+	}
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
@@ -118,7 +122,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			s.metricsByTimestamp[bucketStart] = bucketMetrics
 		}
 		// Add sample to bucket
-		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, pkgconfigsetup.Datadog()); err != nil {
+		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, dogstatsdAddSampleTelemetry, pkgconfigsetup.Datadog()); err != nil {
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 			return
 		}

@@ -25,7 +25,7 @@ func TestEnableOTelCollectorConfigInDatadogYAML(t *testing.T) {
 		{
 			name:          "adds otelcollector.enabled and agent_ipc defaults when datadog.yaml is present",
 			datadogYAML:   "initial_configuration: present\n",
-			expectContent: []string{"otelcollector:\n  enabled: true", "agent_ipc:\n", "  port: 5009\n", "  config_refresh_interval: 60\n"},
+			expectContent: []string{"otelcollector:\n    enabled: true", "agent_ipc:\n", "    port: 5009\n", "    config_refresh_interval: 60\n"},
 			isDatadogYAML: true,
 		},
 		{

@@ -13,10 +13,10 @@ scenario_name = "gcp/openshiftvm"
     help={
         "config_path": doc.config_path,
         "stack_name": doc.stack_name,
+        "pipeline_id": doc.pipeline_id,
         "pull_secret_path": doc.pull_secret_path,
         "install_agent": doc.install_agent,
         "install_workload": doc.install_workload,
-        "pipeline_id": doc.pipeline_id,
         "use_fakeintake": doc.fakeintake,
         "use_loadBalancer": doc.use_loadBalancer,
         "agent_version": doc.agent_version,
@@ -32,7 +32,6 @@ def create_openshift(
     stack_name: str | None = None,
     pipeline_id: str | None = None,
     pull_secret_path: str | None = None,
-    use_nested_virtualization: bool | None = True,
     install_agent: bool | None = True,
     install_workload: bool | None = True,
     use_fakeintake: bool | None = False,
@@ -68,7 +67,7 @@ def create_openshift(
         "scenario": scenario_name,
         "ddinfra:env": f"gcp/{cfg.get_gcp().account}",
         "ddinfra:gcp/openshift/pullSecretPath": pull_secret_path,
-        "ddinfra:gcp/enableNestedVirtualization": use_nested_virtualization,
+        "ddinfra:gcp/enableNestedVirtualization": True,
         "ddinfra:gcp/defaultInstanceType": "n2-standard-8",
         "ddinfra:gcp/fakeintakeWithLB": use_loadBalancer,
     }

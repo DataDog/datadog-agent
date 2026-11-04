@@ -10,6 +10,7 @@ package catalog
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/amdgpu"
 	cfcontainer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
 	cfvm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
@@ -39,6 +40,7 @@ func getCollectorOptions() []fx.Option {
 		remoteprocesscollector.GetFxOptions(),
 		remotesbomcollector.GetFxOptions(),
 		nvml.GetFxOptions(),
+		amdgpu.GetFxOptions(),
 		process.GetFxOptions(),
 	}
 }

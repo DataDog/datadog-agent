@@ -1,10 +1,26 @@
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
-package(default_package_metadata = [":license"])
+package(default_package_metadata = [":package_metadata"])
+
+VERSION = "1.16.2"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://dbus.freedesktop.org/releases/dbus/dbus-{version}.tar.xz",
+        package = "dbus",
+        version = VERSION,
+    ),
+)
 
 license(
     name = "license",
@@ -52,7 +68,6 @@ PUBLIC_HEADERS = [
 
 expand_template(
     name = "dbus_arch_deps_h",
-    template = "dbus/dbus-arch-deps.h.in",
     out = "dbus/dbus-arch-deps.h",
     substitutions = {
         "@DBUS_INT64_TYPE@": "long",
@@ -65,6 +80,7 @@ expand_template(
         "@DBUS_MINOR_VERSION@": "16",
         "@DBUS_MICRO_VERSION@": "2",
     },
+    template = "dbus/dbus-arch-deps.h.in",
 )
 
 cc_library(
@@ -75,56 +91,54 @@ cc_library(
         "dbus/dbus-bus.c",
         "dbus/dbus-connection.c",
         "dbus/dbus-credentials.c",
+        "dbus/dbus-dataslot.c",
         "dbus/dbus-errors.c",
+        "dbus/dbus-file.c",
+        "dbus/dbus-file-unix.c",
+        "dbus/dbus-hash.c",
+        "dbus/dbus-internals.c",
         "dbus/dbus-keyring.c",
+        "dbus/dbus-list.c",
+        "dbus/dbus-marshal-basic.c",
         "dbus/dbus-marshal-byteswap.c",
         "dbus/dbus-marshal-header.c",
         "dbus/dbus-marshal-recursive.c",
         "dbus/dbus-marshal-validate.c",
+        "dbus/dbus-memory.c",
+        "dbus/dbus-mempool.c",
         "dbus/dbus-message.c",
         "dbus/dbus-misc.c",
         "dbus/dbus-nonce.c",
         "dbus/dbus-object-tree.c",
         "dbus/dbus-pending-call.c",
+        "dbus/dbus-pipe.c",
+        "dbus/dbus-pipe-unix.c",
         "dbus/dbus-resources.c",
+        "dbus/dbus-server.c",
         "dbus/dbus-server-debug-pipe.c",
         "dbus/dbus-server-socket.c",
-        "dbus/dbus-server.c",
+        "dbus/dbus-server-unix.c",
         "dbus/dbus-sha.c",
         "dbus/dbus-signature.c",
-        "dbus/dbus-syntax.c",
-        "dbus/dbus-threads.c",
-        "dbus/dbus-timeout.c",
-        "dbus/dbus-transport-socket.c",
-        "dbus/dbus-transport.c",
-        "dbus/dbus-watch.c",
-        "dbus/dbus-dataslot.c",
-        "dbus/dbus-file.c",
-        "dbus/dbus-hash.c",
-        "dbus/dbus-internals.c",
-        "dbus/dbus-list.c",
-        "dbus/dbus-marshal-basic.c",
-        "dbus/dbus-memory.c",
-        "dbus/dbus-mempool.c",
-        "dbus/dbus-pipe.c",
         "dbus/dbus-string.c",
+        "dbus/dbus-syntax.c",
         "dbus/dbus-sysdeps.c",
-        "dbus/dbus-uuidgen.c",
-        "dbus/dbus-server-unix.c",
-        "dbus/dbus-file-unix.c",
-        "dbus/dbus-pipe-unix.c",
         "dbus/dbus-sysdeps-pthread.c",
         "dbus/dbus-sysdeps-unix.c",
+        "dbus/dbus-threads.c",
+        "dbus/dbus-timeout.c",
+        "dbus/dbus-transport.c",
+        "dbus/dbus-transport-socket.c",
         "dbus/dbus-transport-unix.c",
         "dbus/dbus-userdb.c",
+        "dbus/dbus-uuidgen.c",
+        "dbus/dbus-watch.c",
         ":dbus_arch_deps_h",
-    ] + glob(["dbus/*.h"], exclude = PUBLIC_HEADERS),
+    ] + glob(
+        ["dbus/*.h"],
+        exclude = PUBLIC_HEADERS,
+    ),
     hdrs = PUBLIC_HEADERS,
-    local_defines = [
-        "_GNU_SOURCE",
-        "__USE_MINGW_ANSI_STDIO=0",
-        "dbus_1_EXPORTS",
-    ],
     copts = [
         "-O2",
         "-fno-strict-aliasing",
@@ -135,6 +149,11 @@ cc_library(
     ],
     includes = ["."],
     linkstatic = True,
+    local_defines = [
+        "_GNU_SOURCE",
+        "__USE_MINGW_ANSI_STDIO=0",
+        "dbus_1_EXPORTS",
+    ],
     visibility = ["//visibility:public"],
 )
 
@@ -160,10 +179,13 @@ pkg_files(
 pkg_filegroup(
     name = "all_files",
     srcs = [
+        ":dbus_arch_deps_install",
         ":headers",
         ":lib_files",
-        ":dbus_arch_deps_install",
     ],
     prefix = "embedded",
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )

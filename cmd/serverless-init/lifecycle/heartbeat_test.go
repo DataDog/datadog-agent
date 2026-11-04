@@ -79,6 +79,10 @@ func TestNewHeartbeat_NonPositiveIntervalFallsBackToDefault(t *testing.T) {
 	}
 }
 
+func TestHeartbeatMetricName(t *testing.T) {
+	assert.Equal(t, "aws.lambda.microvm.enhanced.active_instances", activeInstancesMetricName)
+}
+
 // TestHeartbeat_EmitsImmediatelyOnStart verifies that a heartbeat metric is
 // recorded as soon as the goroutine starts, before the first ticker interval
 // elapses. This guarantees at least one emission for very short-lived instances.

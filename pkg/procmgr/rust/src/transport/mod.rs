@@ -3,6 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+// Only the pipe transport uses this, but it is built for tests everywhere so its policy
+// is covered on hosts that cannot run the Windows transport.
+#[cfg(any(windows, test))]
+mod accept_backoff;
+
 #[cfg(unix)]
 mod uds;
 #[cfg(unix)]

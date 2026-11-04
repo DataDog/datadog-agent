@@ -149,9 +149,8 @@ func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
 }
 
 func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
-	// Every call fails. The optimizer halves down to 1 and then has nowhere
-	// further to go, so OnFailure returns false and gatherPDUsWithBulk
-	// surfaces the error.
+	// Every call fails. Exhaust the optimizer's retries at each root before
+	// surfacing the error.
 	timeoutErr := errors.New("request timeout")
 	fake := &fakeBulkGetter{
 		responses: []bulkResponse{
@@ -159,15 +158,22 @@ func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
 			{err: timeoutErr},
 			{err: timeoutErr},
 			{err: timeoutErr},
-			{err: timeoutErr}, // floor at 1
+			{err: timeoutErr},
+			{err: timeoutErr},
 		},
 	}
 
 	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 4)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "request timeout")
-	// 4 → 2 → 1 → still 1 (OnFailure returns false): 3 calls.
-	assert.GreaterOrEqual(t, len(fake.calls), 2)
+	require.ErrorIs(t, err, timeoutErr)
+	assert.IsType(t, &gosnmplib.ConnectionError{}, err)
+	assert.Equal(t, []bulkCall{
+		{oid: ".0.0", maxRep: 4},
+		{oid: ".0.0", maxRep: 2},
+		{oid: ".0.0", maxRep: 1},
+		{oid: ".1.0", maxRep: 4},
+		{oid: ".1.0", maxRep: 2},
+		{oid: ".1.0", maxRep: 1},
+	}, fake.calls)
 }
 
 func TestColumnFilteringLogic(t *testing.T) {

@@ -7,15 +7,12 @@ package daemon
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net/url"
-	"strings"
 	"sync"
 
-	"github.com/google/go-containerregistry/pkg/name"
-
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
+	fleetcatalogrc "github.com/DataDog/datadog-agent/pkg/fleet/catalog/remoteconfig"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -164,92 +161,23 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 }
 
 // Package represents a downloadable package.
-type Package struct {
-	Name     string `json:"package"`
-	Version  string `json:"version"`
-	SHA256   string `json:"sha256"`
-	URL      string `json:"url"`
-	Size     int64  `json:"size"`
-	Platform string `json:"platform"`
-	Arch     string `json:"arch"`
-}
+type Package = fleetcatalog.Package
 
-type catalog struct {
-	Packages []Package `json:"packages"`
-}
-
-func (c *catalog) getPackage(pkg string, version string, arch string, platform string) (Package, bool) {
-	for _, p := range c.Packages {
-		if p.Name == pkg && p.Version == version && (p.Arch == "" || p.Arch == arch) && (p.Platform == "" || p.Platform == platform) {
-			return p, true
-		}
-	}
-	return Package{}, false
-}
+type catalog = fleetcatalog.Catalog
 
 type handleCatalogUpdate func(catalog catalog) error
 
 func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied func()) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var catalogOnce sync.Once
-	return func(catalogConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		var mergedCatalog catalog
-		for configPath, config := range catalogConfigs {
-			var catalog catalog
-			err := json.Unmarshal(config.Config, &catalog)
-			if err != nil {
-				log.Errorf("could not unmarshal installer catalog: %s", err)
-				applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				return
-			}
-			for _, p := range catalog.Packages {
-				err := validatePackage(p)
-				if err != nil {
-					log.Errorf("invalid package in catalog: %s", err)
-					applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-					return
-				}
-			}
-			mergedCatalog.Packages = append(mergedCatalog.Packages, catalog.Packages...)
-		}
-		err := h(mergedCatalog)
+	apply := func(catalog fleetcatalog.Catalog) error {
+		err := h(catalog)
 		if err != nil {
-			log.Errorf("could not update catalog: %s", err)
-			for configPath := range catalogConfigs {
-				applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			}
-			return
+			return err
 		}
 		catalogOnce.Do(firstCatalogApplied)
-		for configPath := range catalogConfigs {
-			applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		}
+		return nil
 	}
-}
-
-func validatePackage(pkg Package) error {
-	if pkg.Name == "" {
-		return errors.New("package name is empty")
-	}
-	if pkg.Version == "" {
-		return errors.New("package version is empty")
-	}
-	if pkg.URL == "" {
-		return errors.New("package URL is empty")
-	}
-	url, err := url.Parse(pkg.URL)
-	if err != nil {
-		return fmt.Errorf("could not parse package URL: %w", err)
-	}
-	if url.Scheme == "oci" {
-		ociURL := strings.TrimPrefix(pkg.URL, "oci://")
-		// Check if the URL is a valid *digest* URL.
-		// We do not allow referencing images by tag when sent over RC.
-		_, err := name.NewDigest(ociURL)
-		if err != nil {
-			return fmt.Errorf("could not parse oci digest URL: %w", err)
-		}
-	}
-	return nil
+	return fleetcatalogrc.NewUpdateHandler(apply)
 }
 
 const (

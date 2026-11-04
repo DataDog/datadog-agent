@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build usm_debugger
+//go:build usm_debugger && linux && bpf
 
 package main
 
@@ -23,6 +23,7 @@ import (
 //go:embed usm-debug.o
 var usmProgram []byte
 
+//nolint:typecheck
 //go:embed shared-libraries-debug.o
 var sharedLibrariesProgram []byte
 

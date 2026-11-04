@@ -105,8 +105,9 @@ log "Deps to install ($(wc -l < "$DEPS_FILE") packages, ddtrace skipped):"
 cat "$DEPS_FILE"
 
 log "Installing datadog-checks-base [deps] (excluding ddtrace)"
+# ARFLAGS="" prevents the cc-rs "ar -cru cq" double-operation conflict.
 PATH="/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin:$PATH" \
-  xargs "$PIP" install --no-cache-dir < "$DEPS_FILE"
+  ARFLAGS="" xargs "$PIP" install --no-cache-dir < "$DEPS_FILE"
 log "datadog-checks-base [deps] installed successfully"
 
 # ─── Step 2: Freeze installed state to constraints file ───────────────────────

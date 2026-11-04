@@ -15,12 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
 )
 
 func NewVMInstance(e gcp.Environment, option ...Option) (*fakeintake.Fakeintake, error) {
-	params, paramsErr := NewParams(option...)
+	params, paramsErr := NewParams(&e, option...)
 	if paramsErr != nil {
 		return nil, paramsErr
 	}
@@ -31,15 +32,11 @@ func NewVMInstance(e gcp.Environment, option ...Option) (*fakeintake.Fakeintake,
 		if err != nil {
 			return err
 		}
-		dockerInstall, err := docker.InstallDocker(vm, pulumi.Parent(vm))
+		dockerInstall, err := vm.OS.PackageManager().RuntimeInstallDocker(os.WithPulumiResourceOptions(pulumi.Parent(vm)))
 		if err != nil {
 			return err
 		}
-		composeInstall, err := docker.InstallCompose(vm, pulumi.Parent(vm))
-		if err != nil {
-			return err
-		}
-		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall, composeInstall))
+		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall))
 		if err != nil {
 			return err
 		}

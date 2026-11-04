@@ -29,6 +29,10 @@ type InstanceParams struct {
 	// RefreshInterval in minutes. Defaults to 60 if not specified.
 	RefreshInterval int
 
+	// AllowAsyncStartup retries timed-out provider initialization and failed initial key fetches
+	// in the background until the first key is available.
+	AllowAsyncStartup bool
+
 	// APIKeyConfigKey is where to write the API key (e.g. "api_key",
 	// "logs_config.api_key"). Required. In additional-endpoints mode it serves
 	// as an internal bookkeeping/status key; the key itself is written elsewhere.
@@ -36,7 +40,7 @@ type InstanceParams struct {
 
 	// AdditionalEndpointDomain, if set, routes the fetched key into the map-shape
 	// config at AdditionalEndpointsConfigKey under this domain, replacing the
-	// DELA(...) directive. Mutually exclusive with AdditionalEndpointsListConfigKey.
+	// DELA[...] directive. Mutually exclusive with AdditionalEndpointsListConfigKey.
 	// Requires AdditionalEndpointsConfigKey and AdditionalEndpointDirective.
 	AdditionalEndpointDomain string
 
@@ -55,7 +59,7 @@ type InstanceParams struct {
 
 	// AdditionalEndpointsListConfigKey, if set, routes the fetched key into the
 	// list-shape config at this path, replacing the entry whose api_key holds the
-	// DELA(...) directive. Mutually exclusive with AdditionalEndpointDomain.
+	// DELA[...] directive. Mutually exclusive with AdditionalEndpointDomain.
 	// Requires AdditionalEndpointDirective and ListEntryIndex.
 	AdditionalEndpointsListConfigKey string
 
@@ -63,7 +67,11 @@ type InstanceParams struct {
 	// AdditionalEndpointsListConfigKey. Required when that field is set.
 	ListEntryIndex int
 
-	// AdditionalEndpointDirective is the literal DELA(...) directive text to
+	// AdditionalEndpointIdentity fingerprints the list entry without its API key.
+	// Writeback is refused if the endpoint route changes.
+	AdditionalEndpointIdentity string
+
+	// AdditionalEndpointDirective is the literal DELA[...] directive text to
 	// replace with the real key once fetched. Used only when
 	// AdditionalEndpointDomain or AdditionalEndpointsListConfigKey is set.
 	AdditionalEndpointDirective string
@@ -74,21 +82,24 @@ type InstanceParams struct {
 
 	// FallbackAPIKey, if set, is written when no delegated-auth key can be
 	// obtained so dual-shipping still works. A later successful fetch replaces it.
-	// Parsed from a DELA(...) directive's fallback=<api_key> param.
+	// Current DELA[...] discovery does not populate this field.
 	FallbackAPIKey string
 
 	// ProviderConfig contains provider-specific configuration.
-	// If nil, auto-detects from the environment (only used on first call).
+	// A non-nil value overrides the detected configuration for this instance.
 	ProviderConfig common.ProviderConfig
 }
 
 // Component manages cloud-based delegated authentication.
 // Call AddInstance for each API key to manage; the first call initializes the
-// component and each instance starts a background refresh goroutine. Thread-safe.
+// component. Successfully initialized instances refresh in the background;
+// callers can opt into background recovery from startup failures. Thread-safe.
 type Component interface {
 	// AddInstance configures a specific API key instance.
 	// The context is used for the initial fetch and provider detection;
 	// background refresh uses its own cancellable context.
-	// Returns an error if Config or OrgUUID is empty.
+	// Returns an error for invalid parameters, provider initialization failures,
+	// or key exchange failures when AllowAsyncStartup is false. An unavailable
+	// auto-detected provider leaves the static key in place and returns nil.
 	AddInstance(ctx context.Context, params InstanceParams) error
 }

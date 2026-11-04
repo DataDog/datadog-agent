@@ -26,6 +26,7 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -47,7 +48,7 @@ type probeTestSuite struct {
 }
 
 func TestProbe(t *testing.T) {
-	if err := config.CheckGPUSupported(); err != nil {
+	if err := checkGPUSupported(); err != nil {
 		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
@@ -60,6 +61,7 @@ func (s *probeTestSuite) getProbe() *Probe {
 	t := s.T()
 
 	cfg := config.New()
+	ebpfCfg := ddebpf.NewConfig()
 
 	// Avoid waiting for the initial sync to finish in tests, we don't need it
 	cfg.InitialProcessSync = false
@@ -75,6 +77,7 @@ func (s *probeTestSuite) getProbe() *Probe {
 
 	nvmltestutil.SetupMockNVML(t)
 	deps := ProbeDependencies{
+		EBPFConfig:     ebpfCfg,
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
 		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
 		Telemetry:      testutil.GetTelemetryMock(t),
@@ -362,7 +365,7 @@ func getCPUPercent(start, end cpuUsage, elapsed time.Duration) float64 {
 }
 
 func BenchmarkProbeEventProcessing(b *testing.B) {
-	if err := config.CheckGPUSupported(); err != nil {
+	if err := checkGPUSupported(); err != nil {
 		b.Skipf("minimum kernel version not met, %v", err)
 	}
 
@@ -372,12 +375,14 @@ func BenchmarkProbeEventProcessing(b *testing.B) {
 	}
 
 	cfg := config.New()
+	ebpfCfg := ddebpf.NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.EnableFatbinParsing = false
 	cfg.AttacherDetailedLogs = false
 
 	nvmltestutil.SetupMockNVML(b)
 	deps := ProbeDependencies{
+		EBPFConfig:     ebpfCfg,
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(b),
 		WorkloadMeta:   testutil.GetWorkloadMetaMock(b),
 		Telemetry:      testutil.GetTelemetryMock(b),

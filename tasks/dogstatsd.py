@@ -37,6 +37,7 @@ def build(
     build_exclude=None,
     go_mod="readonly",
     enable_bazel=False,
+    strip_binary=False,
 ):
     """
     Build Dogstatsd
@@ -46,11 +47,16 @@ def build(
     if enable_bazel:
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
-        if static:
-            raise NotImplementedError("--enable-bazel does not support --static.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
-        build_binary_with_bazel("//cmd/dogstatsd:dogstatsd", bin_path=os.path.join(bin_path, bin_name("dogstatsd")))
+        if static:
+            if not sys.platform.startswith("linux"):
+                raise NotImplementedError("--enable-bazel --static is only supported on Linux.")
+            bin_path = STATIC_BIN_PATH
+        build_binary_with_bazel(
+            "//cmd/dogstatsd:dogstatsd_static" if static else "//cmd/dogstatsd:dogstatsd",
+            bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
+        )
     else:
         if static:
             bin_path = STATIC_BIN_PATH
@@ -58,6 +64,10 @@ def build(
             build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
         )
         ldflags, gcflags, env = get_build_flags(ctx, static=static)
+
+        # static builds already get `-s -w` from get_build_flags
+        if strip_binary and not static:
+            ldflags += " -s -w"
 
         # generate windows resources
         if sys.platform == 'win32':

@@ -10,77 +10,65 @@
 //   - CheckScheduler.getChecks calls sender.SetInfraTagger after a successful loader.Load.
 //   - DogStatsD server enriches JMX metrics (dd.internal.jmx_check_name) when the JMX check
 //     is eligible; custom checks (custom_*) and plain DogStatsD metrics are not tagged.
+//
+// The tag value comes from configutils.MarkedInfraMode (same allowlist as payload marks).
+// Metrics eligibility stays here: tagger.Component has no check name and must not gate series.
 package infratags
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-// InfraModeCloudCostTag is the tag appended to eligible integration metrics in cloud_cost_only mode.
+// InfraModeCloudCostTag is the historical constant for the CCM metrics mark.
+// Prefer building the tag from configutils.InfraModeTagKey and MarkedInfraMode.
 const InfraModeCloudCostTag = "infra_mode:cloud_cost_only"
 
-// tagsForMode returns the infra_mode tags for the given infrastructure_mode value,
-// or (nil, false) if the mode does not trigger metric tagging.
-func tagsForMode(infraMode string) (tags []string, ok bool) {
-	switch infraMode {
-	case "cloud_cost_only":
-		return []string{InfraModeCloudCostTag}, true
-	default:
-		return nil, false
-	}
-}
-
-// Tagger holds the pre-resolved infra mode tagging state.
-// A nil *Tagger disables tagging.
-type Tagger struct {
+// MetricTagger holds the pre-resolved infra mode tagging state for Agent integration metrics.
+// A nil *MetricTagger disables tagging.
+//
+// This is not tagger.Component: eligibility is check-name based and stays on the metrics path.
+type MetricTagger struct {
 	infraModeTags []string
-	taggedChecks  map[string]struct{} // nil = all non-custom checks eligible
 }
 
-// NewTagger resolves the infra mode tagging configuration from cfg.
+// NewMetricTagger resolves the infra mode tagging configuration from cfg.
 // Returns nil if the active infrastructure_mode does not trigger tagging.
-func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
-	infraMode := cfg.GetString("infrastructure_mode")
-	tags, ok := tagsForMode(infraMode)
-	if !ok {
+// Marked modes tag all non-custom checks; there is no per-mode check allowlist.
+func NewMetricTagger(cfg pkgconfigmodel.Reader) *MetricTagger {
+	mode := configutils.MarkedInfraMode(cfg)
+	if mode == "" {
 		return nil
 	}
-	checks := cfg.GetStringSlice("integration." + infraMode + ".tagged")
-	if len(checks) == 0 {
-		return &Tagger{infraModeTags: tags}
+	return &MetricTagger{
+		infraModeTags: []string{fmt.Sprintf("%s:%s", configutils.InfraModeTagKey, mode)},
 	}
-	taggedChecks := make(map[string]struct{}, len(checks))
-	for _, c := range checks {
-		taggedChecks[c] = struct{}{}
-	}
-	return &Tagger{infraModeTags: tags, taggedChecks: taggedChecks}
 }
 
 // IsCheckEligible reports whether the given check should receive infra mode tags.
-func (t *Tagger) IsCheckEligible(checkName string) bool {
-	// nil = no infra mode tagging
+func (t *MetricTagger) IsCheckEligible(checkName string) bool {
 	if t == nil {
 		return false
 	}
-	// empty check name or custom check = never eligible
 	if checkName == "" || strings.HasPrefix(checkName, "custom_") {
 		return false
 	}
-	// empty taggedChecks = all non-custom checks eligible
-	if t.taggedChecks == nil {
-		return true
-	}
-	_, ok := t.taggedChecks[checkName]
-	return ok
+	return true
 }
 
-// AppendTags appends the pre-resolved infra_mode tags.
-func (t *Tagger) AppendTags(tags []string) []string {
+// AppendTags appends the pre-resolved infra_mode tags, skipping values already present.
+func (t *MetricTagger) AppendTags(tags []string) []string {
 	if t == nil || len(t.infraModeTags) == 0 {
 		return tags
 	}
-
-	return append(tags, t.infraModeTags...)
+	for _, infraTag := range t.infraModeTags {
+		if !slices.Contains(tags, infraTag) {
+			tags = append(tags, infraTag)
+		}
+	}
+	return tags
 }

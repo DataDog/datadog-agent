@@ -55,3 +55,14 @@ schema_template_config(
 
 # TODO: Add targets for each package, as needed: dca, dcacf.
 # That would get easier if we auto-pick the schema based on the build type.
+
+# Static example configs, checked in rather than schema-rendered.
+filegroup(
+    name = "security_agent_example_config_src",
+    srcs = ["example/security-agent.yaml.example"],
+)
+
+filegroup(
+    name = "application_monitoring_example_config_src",
+    srcs = ["example/application_monitoring.yaml.example"],
+)

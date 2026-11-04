@@ -39,7 +39,7 @@ func (h *ApproveUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.ApproveUser(inputs.UserId)
+	_, err = git.Users.ApproveUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

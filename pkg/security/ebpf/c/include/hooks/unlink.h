@@ -9,7 +9,7 @@
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_unlink(void *ctx, u8 async, int dirfd, const char *filename, int flags) {
+static __always_inline int trace__sys_unlink(void *ctx, u8 async, int dirfd, const char *filename, int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
@@ -124,14 +124,14 @@ TAIL_CALL_FNC(dr_unlink_callback, ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_unlink_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
+static __always_inline int sys_unlink_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     if (retval >= 0) {
@@ -142,17 +142,19 @@ int __attribute__((always_inline)) sys_unlink_ret_impl(void *ctx, int retval, en
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             if (is_auid_discarder(EVENT_RMDIR)) {
                 monitor_discarded(EVENT_RMDIR);
-                return 0;
+                goto pop_and_exit;
             }
 
             struct rmdir_event_t *event = SPAN_FILL_EVENT(struct rmdir_event_t, EVENT_RMDIR);
             if (!event) {
-                return 0;
+                goto pop_and_exit;
             }
             event->syscall.retval = retval;
             event->event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
                                  (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0);
             event->file = syscall->unlink.file;
+
+            pop_syscall(EVENT_UNLINK);
 
             struct proc_cache_t *entry = fill_process_context(&event->process);
             fill_cgroup_context(entry, &event->cgroup);
@@ -162,17 +164,17 @@ int __attribute__((always_inline)) sys_unlink_ret_impl(void *ctx, int retval, en
             // INTERNAL here means a cgroupfs unlink on a non-directory; the userspace
             // cgroup resolver only consumes directory events, so drop these.
             if (syscall->state == INTERNAL) {
-                return 0;
+                goto pop_and_exit;
             }
 
             if (is_auid_discarder(EVENT_UNLINK)) {
                 monitor_discarded(EVENT_UNLINK);
-                return 0;
+                goto pop_and_exit;
             }
 
             struct unlink_event_t *event = SPAN_FILL_EVENT(struct unlink_event_t, EVENT_UNLINK);
             if (!event) {
-                return 0;
+                goto pop_and_exit;
             }
             event->syscall.retval = retval;
             event->syscall_ctx.id = syscall->ctx_id;
@@ -181,6 +183,8 @@ int __attribute__((always_inline)) sys_unlink_ret_impl(void *ctx, int retval, en
             event->file = syscall->unlink.file;
             event->flags = syscall->unlink.flags;
 
+            pop_syscall(EVENT_UNLINK);
+
             struct proc_cache_t *entry = fill_process_context(&event->process);
             fill_cgroup_context(entry, &event->cgroup);
 
@@ -188,10 +192,12 @@ int __attribute__((always_inline)) sys_unlink_ret_impl(void *ctx, int retval, en
         }
     }
 
+pop_and_exit:
+    pop_syscall(EVENT_UNLINK);
     return 0;
 }
 
-int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
+static __always_inline int sys_unlink_ret(void *ctx, int retval) {
     return sys_unlink_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

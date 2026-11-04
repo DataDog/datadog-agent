@@ -596,6 +596,32 @@ class StaticQualityGate:
         return violations
 
 
+def load_merged_gate_config(config_path: str | list[str]) -> dict:
+    """
+    Load and merge one or more gate config YAML files into a single dict keyed by gate name.
+
+    Args:
+        config_path: Path (or list of paths) to YAML configuration file(s)
+
+    Raises:
+        FileNotFoundError: If a config file doesn't exist
+        yaml.YAMLError: If a config file is malformed
+        ValueError: If the same gate is defined in more than one config file
+    """
+    config_paths = [config_path] if isinstance(config_path, str) else config_path
+
+    config: dict = {}
+    for path in config_paths:
+        with open(path) as file:
+            file_config = yaml.safe_load(file)
+        duplicate_gates = config.keys() & file_config.keys()
+        if duplicate_gates:
+            raise ValueError(f"Gate(s) {duplicate_gates} defined in more than one config file (found in {path})")
+        config.update(file_config)
+
+    return config
+
+
 class QualityGateFactory:
     """
     Factory for creating quality gates with appropriate measurement strategies.
@@ -650,23 +676,23 @@ class QualityGateFactory:
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
 
     @staticmethod
-    def create_gates_from_config(config_path: str) -> list[StaticQualityGate]:
+    def create_gates_from_config(config_path: str | list[str]) -> list[StaticQualityGate]:
         """
-        Create all quality gates from a configuration file.
+        Create all quality gates from one or more configuration files.
 
         Args:
-            config_path: Path to YAML configuration file
+            config_path: Path (or list of paths) to YAML configuration file(s)
 
         Returns:
             List of configured quality gates
 
         Raises:
-            FileNotFoundError: If config file doesn't exist
-            yaml.YAMLError: If config file is malformed
-            ValueError: If any gate configuration is invalid
+            FileNotFoundError: If a config file doesn't exist
+            yaml.YAMLError: If a config file is malformed
+            ValueError: If any gate configuration is invalid, or if the same gate
+                is defined in more than one config file
         """
-        with open(config_path) as file:
-            config = yaml.safe_load(file)
+        config = load_merged_gate_config(config_path)
 
         gates = []
         for gate_name in config:

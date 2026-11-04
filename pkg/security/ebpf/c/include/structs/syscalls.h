@@ -13,6 +13,22 @@ struct syscall_monitor_key_t {
     u32 pid;
 };
 
+// syscall_usage_t is the per-process (tgid) state of the v2 syscall sampler. Each flag gets its
+// own field: the hot path and the ticker write them concurrently without atomics.
+// 200 bytes, so that a map element (with its 56 bytes header and key) fills 4 cache lines.
+struct syscall_usage_t {
+    u32 excluded;
+    u32 padding;
+    u8 period[SYSCALL_ENCODING_TABLE_SIZE];
+    u8 seen[SYSCALL_ENCODING_TABLE_SIZE];
+    u64 cookie;
+    u64 last_sent;
+    u32 new_syscalls;
+    u8 pad[44];
+};
+
+_Static_assert(sizeof(struct syscall_usage_t) == 200, "syscall_usage_t must stay 200 bytes");
+
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
     u64 last_sent;
@@ -38,7 +54,8 @@ struct syscall_cache_t {
     struct dentry_resolver_input_t resolver;
     s64 retval;
     enum TAIL_CALL_PROG_TYPE prog_type;
-    u32 sample_cookie;
+    u32 sample_padding;
+    u64 sample_cookie;
 
     union {
         struct {
@@ -85,6 +102,12 @@ struct syscall_cache_t {
         } setrlimit;
 
         struct {
+            s32 nstype;
+            struct namespace_ids_t before;
+            u32 effective_nstype;
+        } setns;
+
+        struct {
             struct dentry *dentry;
             struct path *path;
             struct file_t file;
@@ -120,6 +143,7 @@ struct syscall_cache_t {
             int source;
             u64 ns_inum;
             u64 unshare_flags;
+            u32 mnt_flags;
         } mount;
 
         struct {
@@ -156,6 +180,7 @@ struct syscall_cache_t {
 
         struct {
             u64 flags;
+            struct mount *newmnt;
             u32 is_thread: 1;
             u32 is_kthread : 1;
             u32 parent_pid;
@@ -271,6 +296,10 @@ struct syscall_cache_t {
         } login_uid;
 
         struct {
+            u32 pid;
+        } cgroup_write;
+
+        struct {
             u8 in_flight;
         } stat;
 
@@ -287,12 +316,13 @@ struct syscall_cache_t {
             int level;
             int optname;
             u32 truncated;
-            struct sock_fprog *fprog;
+            struct sock_filter *filter;
         } setsockopt;
         struct {
             int option;
             u32 name_size_to_send;
             u32 name_truncated;
+            u32 flags;
             char name[MAX_PRCTL_NAME_LEN + 1];
         } prctl;
 
@@ -300,6 +330,12 @@ struct syscall_cache_t {
             char suffix[TRACER_MEMFD_SUFFIX_LEN];
         } tracer_memfd_create;
     };
+};
+
+// Recovers the syscall cache key of a task whose pid numbers changed mid-execve.
+struct exec_pid_transfer_t {
+    u64 pid_tgid;
+    u64 task; // de_thread swaps the pid numbers, not the task
 };
 
 #endif

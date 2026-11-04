@@ -197,7 +197,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		var err error
 		pauseContainers, err = s.pauseContainersIDs()
 		if err != nil {
-			return fmt.Errorf("can't get pause containers: %v", err)
+			return fmt.Errorf("can't get pause containers: %w", err)
 		}
 	}
 

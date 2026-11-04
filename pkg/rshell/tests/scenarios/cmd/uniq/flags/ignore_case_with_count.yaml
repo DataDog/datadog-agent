@@ -1,0 +1,13 @@
+description: uniq -ic counts duplicates case-insensitively.
+setup:
+  files:
+    - path: input.txt
+      content: "Hello\nhello\nHELLO\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -ic input.txt
+expect:
+  stdout: "      3 Hello\n      1 world\n"
+  stderr: ""
+  exit_code: 0

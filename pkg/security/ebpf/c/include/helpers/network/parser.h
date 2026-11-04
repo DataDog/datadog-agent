@@ -5,7 +5,7 @@
 #include "constants/macros.h"
 #include "maps.h"
 
-__attribute__((always_inline)) void tc_cursor_init(struct cursor *c, struct __sk_buff *skb) {
+static __always_inline void tc_cursor_init(struct cursor *c, struct __sk_buff *skb) {
     c->end = (void *)(long)skb->data_end;
     c->pos = (void *)(long)skb->data;
 }
@@ -18,12 +18,12 @@ PARSE_FUNC(tcphdr)
 PARSE_FUNC(icmphdr)
 PARSE_FUNC(icmp6hdr)
 
-__attribute__((always_inline)) struct packet_t *get_packet() {
+static __always_inline struct packet_t *get_packet() {
     u32 key = PACKET_KEY;
     return bpf_map_lookup_elem(&packets, &key);
 }
 
-__attribute__((always_inline)) struct packet_t *reset_packet() {
+static __always_inline struct packet_t *reset_packet() {
     u32 key = PACKET_KEY;
     struct packet_t new_pkt = {
         .ns_flow = {
@@ -34,7 +34,7 @@ __attribute__((always_inline)) struct packet_t *reset_packet() {
     return get_packet();
 }
 
-__attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
+static __always_inline void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
     flow->tcp_udp.sport = tuple->src.u.all;
     flow->tcp_udp.dport = tuple->dst.u.all;
 
@@ -49,7 +49,7 @@ __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple
     flow->l3_protocol = (tuple->src.l3num == AF_INET6) ? ETH_P_IPV6 : ETH_P_IP;
 }
 
-__attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *skb, int direction) {
+static __always_inline struct packet_t *parse_packet(struct __sk_buff *skb, int direction) {
     struct cursor c = {};
     tc_cursor_init(&c, skb);
 
@@ -115,9 +115,6 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         // adjust cursor with variable tcp options
         c.pos += (pkt->l4.tcp.doff << 2) - sizeof(struct tcphdr);
 
-        // save current offset within the packet
-        pkt->offset = ((u32)(long)c.pos - skb->data);
-        pkt->payload_len = skb->len - pkt->offset;
         pkt->ns_flow.flow.tcp_udp.sport = pkt->l4.tcp.source;
         pkt->ns_flow.flow.tcp_udp.dport = pkt->l4.tcp.dest;
         break;
@@ -128,9 +125,6 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
             return NULL;
         }
 
-        // save current offset within the packet
-        pkt->offset = ((u32)(long)c.pos - skb->data);
-        pkt->payload_len = skb->len - pkt->offset;
         pkt->ns_flow.flow.tcp_udp.sport = pkt->l4.udp.source;
         pkt->ns_flow.flow.tcp_udp.dport = pkt->l4.udp.dest;
         break;
@@ -146,30 +140,35 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
             if (pkt->l4.icmp.type == ICMP_ECHO || pkt->l4.icmp.type == ICMP_ECHOREPLY) {
                 pkt->ns_flow.flow.icmp.id = htons(pkt->l4.icmp.un.echo.id);
             }
-        } else if (pkt->ns_flow.flow.l3_protocol == ETH_P_IPV6) {
+        } else {
+            return NULL;
+        }
+        break;
+
+    case IPPROTO_ICMPV6:
+        if (pkt->ns_flow.flow.l3_protocol == ETH_P_IPV6) {
             if (!(parse_icmp6hdr(skb, &c, &pkt->l4.icmp6))) {
                 return NULL;
             }
 
             pkt->ns_flow.flow.icmp.type = pkt->l4.icmp6.icmp6_type;
             pkt->ns_flow.flow.icmp.code = pkt->l4.icmp6.icmp6_code;
-            if (pkt->l4.icmp6.icmp6_type == ICMP_ECHO || pkt->l4.icmp6.icmp6_type == ICMP_ECHOREPLY) {
+            if (pkt->l4.icmp6.icmp6_type == ICMPV6_ECHO_REQUEST || pkt->l4.icmp6.icmp6_type == ICMPV6_ECHO_REPLY) {
                 pkt->ns_flow.flow.icmp.id = htons(pkt->l4.icmp6.icmp6_dataun.u_echo.identifier);
             }
         } else {
             return NULL;
         }
-
-        // save current offset within the packet
-        pkt->offset = ((u32)(long)c.pos - skb->data);
-        pkt->payload_len = skb->len - pkt->offset;
-
         break;
 
     default:
         // TODO: handle SCTP, etc ...
         return NULL;
     }
+
+    // save current offset within the packet
+    pkt->offset = ((u32)(long)c.pos - skb->data);
+    pkt->payload_len = skb->len - pkt->offset;
 
     struct namespaced_flow_t tmp_ns_flow = pkt->ns_flow; // for compatibility with older kernels
     pkt->translated_ns_flow = pkt->ns_flow;

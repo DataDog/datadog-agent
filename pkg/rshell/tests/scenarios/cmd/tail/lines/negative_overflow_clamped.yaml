@@ -1,0 +1,13 @@
+description: tail -n with a large negative value that overflows int64 is clamped and succeeds (GNU tail behavior).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n -9223372036854775809 file.txt
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

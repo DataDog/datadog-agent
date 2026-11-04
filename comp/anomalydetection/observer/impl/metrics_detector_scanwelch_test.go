@@ -62,8 +62,30 @@ func TestScanWelch_DetectsStepChange(t *testing.T) {
 	result := d.Detect(storage, 40)
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
-	assert.Contains(t, result.Anomalies[0].Title, "ScanWelch")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "ScanWelch changepoint: metric:avg", title)
+	assert.Contains(t, description, "increased")
+	require.NotNil(t, result.Anomalies[0].DebugInfo)
+	assert.Positive(t, result.Anomalies[0].DebugInfo.PValue)
+	assert.NotZero(t, result.Anomalies[0].DebugInfo.EffectSize)
+	assert.Positive(t, result.Anomalies[0].DebugInfo.TestStatistic)
 	assert.InDelta(t, 21, result.Anomalies[0].Timestamp, 3)
+}
+
+func TestScanWelch_DetectsDownwardStepChange(t *testing.T) {
+	d := testScanWelchDetector()
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "metric", 200, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "metric", 50, int64(i+1), nil)
+	}
+	result := d.Detect(storage, 40)
+	require.NotEmpty(t, result.Anomalies)
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "ScanWelch changepoint: metric:avg", title)
+	assert.Contains(t, description, "decreased")
 }
 
 func TestScanWelch_IncrementalAdvance(t *testing.T) {

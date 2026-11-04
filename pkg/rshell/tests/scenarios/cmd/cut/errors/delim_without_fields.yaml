@@ -1,0 +1,8 @@
+description: Cut rejects -d delimiter option when used with byte mode.
+input:
+  script: |+
+    cut -d: -b1
+expect:
+  stdout: ""
+  stderr_contains: ["cut:"]
+  exit_code: 1

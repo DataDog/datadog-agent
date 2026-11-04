@@ -9,6 +9,7 @@ dd_agent_go_test(
     ],
     data = ["long_line_log.txt"],
     embedsrcs = ["long_line_log.txt"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",

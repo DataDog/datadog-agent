@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 // Package podtagprovider implements a provider that supplies pod tags for cluster checks
 package podtagprovider

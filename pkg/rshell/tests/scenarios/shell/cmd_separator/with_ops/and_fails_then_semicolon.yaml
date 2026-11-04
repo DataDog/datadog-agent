@@ -1,0 +1,9 @@
+description: Failed && skips the right side but semicolon starts a fresh statement.
+input:
+  script: |+
+    false && echo skipped; echo runs
+expect:
+  stdout: |+
+    runs
+  stderr: ""
+  exit_code: 0

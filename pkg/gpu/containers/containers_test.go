@@ -655,18 +655,96 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		assert.Equal(t, devices[1], filteredDevices[0])
 	})
 
-	t.Run("GPUDeviceIDsTakesPrecedenceOverResolvedAllocatedResources", func(t *testing.T) {
-		// GPUDeviceIDs should be used even if ResolvedAllocatedResources is set
+	t.Run("DockerRuntimeWithKubernetesResourcesUnionsBoth", func(t *testing.T) {
+		// ResolvedAllocatedResources is a Kubernetes field, so a container
+		// carrying it on the Docker runtime is a cri-dockerd node, not ECS.
+		// There GPUDeviceIDs holds only the DRA devices the NVML collector
+		// resolved, and treating it as the whole allocation would silently drop
+		// the device-plugin GPU the same container also holds.
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
-				ID:   "test-precedence-container",
+				ID:   "test-mixed-allocation-container",
 			},
-			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // Should use this
+			Runtime:      workloadmeta.ContainerRuntimeDocker,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
 			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 				{
 					Name: string(gpuutil.GpuNvidiaGeneric),
-					ID:   testutil.GPUUUIDs[2], // Should NOT use this
+					ID:   testutil.GPUUUIDs[2],
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 2, "both the DRA device and the device-plugin device must be matched")
+		assert.Contains(t, filteredDevices, devices[0])
+		assert.Contains(t, filteredDevices, devices[2])
+	})
+
+	t.Run("ECSKeepsGPUDeviceIDsAuthoritative", func(t *testing.T) {
+		// The real ECS shape: Docker runtime, GPUDeviceIDs populated by the
+		// Docker collector, and no Kubernetes allocated resources at all. This
+		// must keep short-circuiting rather than falling through to the env-var
+		// inspection, which is what the union above must not disturb.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-ecs-precedence-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeDocker,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[0], filteredDevices[0])
+	})
+
+	t.Run("KubernetesUnionsTheMappingWithAllocatedResources", func(t *testing.T) {
+		// A Kubernetes container can hold a DRA device and a device-plugin
+		// device at once: only the DRA half reaches GPUDeviceIDs (the nvml
+		// collector resolves CDI device names), so treating the mapping as
+		// authoritative would drop the device-plugin card entirely.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-mixed-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // resolved from a DRA claim
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[2], // handed out by the device plugin
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 2)
+		assert.Equal(t, devices[0], filteredDevices[0])
+		assert.Equal(t, devices[2], filteredDevices[1])
+	})
+
+	t.Run("KubernetesDoesNotDuplicateADeviceResolvedByBothPaths", func(t *testing.T) {
+		// A whole-card DRA claim resolves through the mapping and, on a node
+		// with no MIG devices, through the legacy index guess as well. It is
+		// one device and must be reported once.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-dedup-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[1]},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaDRA),
+					ID:   "gpu-1",
 				},
 			},
 		}
@@ -674,7 +752,32 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
-		assert.Equal(t, devices[0], filteredDevices[0]) // Should be device 0, not device 2
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("KubernetesReportsAnUnresolvableResourceEvenWhenTheMappingIsPresent", func(t *testing.T) {
+		// Error suppression must be scoped to the resources the mapping can
+		// account for. A DRA resource the mapping did not resolve has to keep
+		// surfacing, otherwise a half-attributed pod looks healthy.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-partial-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "GPU-does-not-exist",
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.Error(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[0], filteredDevices[0])
 	})
 }
 
@@ -875,6 +978,82 @@ func TestIsDatadogAgentContainer(t *testing.T) {
 			tt.setup(wmetaMock)
 			result := IsDatadogAgentContainer(wmetaMock, tt.container)
 			assert.Equal(t, tt.expectedResult, result, tt.expectedErrorMsg)
+		})
+	}
+}
+
+func TestIsKAIReservationContainer(t *testing.T) {
+	const (
+		reservationPodName = "gpu-reservation-6d8e72c077c10ec9"
+		gpuGroup           = "c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8"
+		reservedGPU        = "GPU-0b5693b2-d023-de74-f5c9-bb2c1cad110d"
+	)
+
+	tests := []struct {
+		name     string
+		pod      *workloadmeta.KubernetesPod
+		expected bool
+	}{
+		{
+			// The annotation alone is enough: name and label are only the
+			// fallback for the window before it is written.
+			name: "pod with the reservation annotation only",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:        "renamed-reservation",
+				Namespace:   "kai-resource-reservation",
+				Annotations: map[string]string{kaiReservationGPUAnnotation: reservedGPU},
+			}},
+			expected: true,
+		},
+		{
+			name: "reservation pod that has not written its annotation yet",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:      reservationPodName,
+				Namespace: "kai-resource-reservation",
+				Labels:    map[string]string{kaiGPUGroupLabel: gpuGroup},
+			}},
+			expected: true,
+		},
+		{
+			name: "fractional pod sharing the reserved GPU",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:        "frac-a",
+				Namespace:   "kai-test",
+				Labels:      map[string]string{kaiGPUGroupLabel: gpuGroup},
+				Annotations: map[string]string{"gpu-fraction": "0.5"},
+			}},
+			expected: false,
+		},
+		{
+			name: "pod named like a reservation pod but without a GPU group",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:      "gpu-reservation-report",
+				Namespace: "default",
+			}},
+			expected: false,
+		},
+		{
+			name: "regular GPU pod",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:      "training-job",
+				Namespace: "default",
+			}},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wmetaMock := testutil.GetWorkloadMetaMock(t)
+			tt.pod.EntityID = workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"}
+			wmetaMock.Set(tt.pod)
+			container := &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-id"},
+				Owner:    &tt.pod.EntityID,
+			}
+			wmetaMock.Set(container)
+
+			assert.Equal(t, tt.expected, IsKAIReservationContainer(wmetaMock, container))
 		})
 	}
 }

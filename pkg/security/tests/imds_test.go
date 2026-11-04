@@ -74,7 +74,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v1_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -151,7 +151,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v1_response", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -231,7 +231,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v2_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -308,7 +308,7 @@ func TestAWSIMDSv2Response(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v2_response", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -387,7 +387,7 @@ func TestGCPIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("gcp_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -464,7 +464,7 @@ func TestAzureIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("azure_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -541,7 +541,7 @@ func TestIBMIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("ibm_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -618,7 +618,7 @@ func TestOracleIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("oracle_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -700,7 +700,7 @@ func TestIMDSProcessContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
@@ -740,4 +740,110 @@ func TestIMDSProcessContext(t *testing.T) {
 			test.validateOpenSchema(t, event)
 		}, "test_imds_process_context")
 	}))
+}
+
+var _ = declare(TestEKSPodIdentityResponse, testOpts{networkIngressEnabled: true})
+
+func TestEKSPodIdentityResponse(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkNetworkCompatibility(t)
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_eks_pod_identity_request",
+			Expression: fmt.Sprintf(`imds.credential_source == EKS_POD_IDENTITY && imds.type == "request" && process.file.name == "%s"`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_eks_pod_identity_response",
+			Expression: fmt.Sprintf(`imds.credential_source == EKS_POD_IDENTITY && imds.type == "response" && imds.aws.security_credentials.access_key_id == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, path.Base(executable)),
+		},
+	}
+
+	// create a dummy interface holding the EKS Pod Identity Agent address
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMPodIdentityDummyInterface, testutils.EKSPodIdentityTestServerCIDR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// create fake EKS Pod Identity Agent
+	podIdentityAddr := testutils.EKSPodIdentityTestServerIP + ":" + strconv.Itoa(testutils.EKSPodIdentityTestServerPort)
+	podIdentityServer := testutils.CreateEKSPodIdentityServer(podIdentityAddr)
+	defer func() {
+		if err = testutils.StopIMDSserver(podIdentityServer); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	queryPodIdentity := func() error {
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", podIdentityAddr, testutils.EKSPodIdentityCredentialsURL), nil)
+		if err != nil {
+			return fmt.Errorf("failed to instantiate request: %v", err)
+		}
+		// the AWS SDK authenticates to the agent with the pod service account token
+		req.Header.Set("Authorization", "Bearer my_service_account_token")
+
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to query EKS Pod Identity Agent: %v", err)
+		}
+		defer response.Body.Close()
+
+		return nil
+	}
+
+	t.Run("eks_pod_identity_request", func(t *testing.T) {
+		test.WaitSignalFromRule(t, queryPodIdentity, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_eks_pod_identity_request")
+			assert.Equal(t, "request", event.IMDS.Type, "wrong event type")
+			assert.Equal(t, uint32(model.CredentialSourceEKSPodIdentity), event.IMDS.CredentialSource, "wrong credential source")
+			assert.Equal(t, podIdentityAddr, event.IMDS.Host, "wrong Host")
+			assert.Equal(t, testutils.EKSPodIdentityCredentialsURL, event.IMDS.URL, "wrong URL")
+			// the Pod Identity Agent has no v1/v2 notion
+			assert.False(t, event.IMDS.AWS.IsIMDSv2, "is_imds_v2 should not be set for EKS Pod Identity")
+
+			test.validateIMDSSchema(t, event)
+		}, "test_rule_eks_pod_identity_request")
+	})
+
+	t.Run("eks_pod_identity_response", func(t *testing.T) {
+		test.WaitSignalFromRule(t, queryPodIdentity, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_eks_pod_identity_response")
+			assert.Equal(t, "response", event.IMDS.Type, "wrong event type")
+			assert.Equal(t, uint32(model.CredentialSourceEKSPodIdentity), event.IMDS.CredentialSource, "wrong credential source")
+			// the endpoint sends no identifying header, so it is resolved as AWS
+			assert.Equal(t, model.IMDSAWSCloudProvider, event.IMDS.CloudProvider, "wrong cloud provider")
+			assert.Equal(t, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, event.IMDS.AWS.SecurityCredentials.AccessKeyID, "wrong AccessKeyID")
+			assert.Equal(t, testutils.AWSSecurityCredentialsExpirationTestValue, event.IMDS.AWS.SecurityCredentials.ExpirationRaw, "wrong ExpirationRaw")
+			// fields that only IMDS sends are absent from a Pod Identity response
+			assert.Empty(t, event.IMDS.AWS.SecurityCredentials.Code, "Code should be empty")
+			assert.Empty(t, event.IMDS.AWS.SecurityCredentials.Type, "Type should be empty")
+			assert.Empty(t, event.IMDS.AWS.SecurityCredentials.LastUpdated, "LastUpdated should be empty")
+			assert.False(t, event.IMDS.AWS.IsIMDSv2, "is_imds_v2 should not be set for EKS Pod Identity")
+
+			test.validateIMDSSchema(t, event)
+		}, "test_rule_eks_pod_identity_response")
+	})
 }

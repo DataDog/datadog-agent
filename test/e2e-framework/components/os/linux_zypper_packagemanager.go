@@ -29,7 +29,22 @@ type ZypperPackageManager struct {
 	pulumiOpts []pulumi.ResourceOption
 }
 
-func (m *ZypperPackageManager) Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+func (m *ZypperPackageManager) RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error) {
+	if err := failIfAWS(m.runner.Environment()); err != nil {
+		return nil, err
+	}
+	dockerInstall, err := m.install("docker", nil, "docker", opts...)
+	if err != nil {
+		return nil, err
+	}
+	return runtimeInstallCompose(m.runner, dockerInstall, opts...)
+}
+
+func (m *ZypperPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {
+	return m.install(packagePath, nil, "", append([]PackageManagerOption{AllowUnsignedPackages(true)}, opts...)...)
+}
+
+func (m *ZypperPackageManager) install(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
 	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
 	if err != nil {
 		return nil, err
@@ -61,6 +76,23 @@ func (m *ZypperPackageManager) Ensure(packageRef string, transform command.Trans
 	}
 
 	cmd, err := m.runner.Command(cmdName, cmdArgs, pulumiOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure the package manager isn't running in parallel
+	m.pulumiOpts = append(m.pulumiOpts, utils.PulumiDependsOn(cmd))
+	return cmd, nil
+}
+
+func (m *ZypperPackageManager) AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	pulumiOpts := append(params.PulumiResourceOptions, m.pulumiOpts...)
+
+	cmd, err := assertInstalledCommand(m.runner, m.namer, checkBinary, pulumiOpts)
 	if err != nil {
 		return nil, err
 	}

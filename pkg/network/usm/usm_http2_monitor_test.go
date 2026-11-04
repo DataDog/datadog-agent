@@ -10,7 +10,6 @@ package usm
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type pathType uint8
@@ -87,6 +88,9 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 func TestHTTP2Scenarios(t *testing.T) {
 	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
+		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled && runtime.GOARCH == "arm64" {
+			flake.MarkOnJobName(t, "ubuntu_26.04")
+		}
 		for _, tc := range []struct {
 			name  string
 			isTLS bool
@@ -1969,10 +1973,12 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
 	res := make([]*http.Client, size)
 	for i := 0; i < size; i++ {
+		protocols := new(http.Protocols)
+		protocols.SetUnencryptedHTTP2(true)
 		res[i] = &http.Client{
-			Transport: &http2.Transport{
-				AllowHTTP: true,
-				DialTLSContext: func(context.Context, string, string, *tls.Config) (net.Conn, error) {
+			Transport: &http.Transport{
+				Protocols: protocols,
+				DialContext: func(context.Context, string, string) (net.Conn, error) {
 					return net.Dial("unix", unixPath)
 				},
 			},

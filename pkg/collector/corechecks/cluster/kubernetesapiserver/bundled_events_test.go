@@ -10,10 +10,12 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -301,5 +303,148 @@ func TestBundledEventsTransform(t *testing.T) {
 				assert.ElementsMatch(t, tt.expected[i].Tags, events[i].Tags)
 			}
 		})
+	}
+}
+
+// TestBundledEventsTransformOversizedEvent tests that a single event too long
+// to fit in any bundle is truncated and still exported. Only an event whose
+// reason alone busts the budget cannot be truncated and is dropped.
+func TestBundledEventsTransformOversizedEvent(t *testing.T) {
+	oversizedMessage := strings.Repeat("a", 4000)
+	oversizedEscapedMessage := strings.Repeat("~", 4000)
+	oversizedReason := strings.Repeat("r", 3500)
+
+	tests := []struct {
+		name          string
+		events        []*v1.Event
+		wantDDEvents  int
+		wantErrs      int
+		wantTruncated bool
+	}{
+		{
+			name:          "oversized message is truncated and exported",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-oversized", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600)},
+			wantDDEvents:  1,
+			wantErrs:      0,
+			wantTruncated: true,
+		},
+		{
+			name:          "escape-heavy oversized message is truncated and exported",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-escape-heavy", "kubelet", "kubelet", "", "Failed", oversizedEscapedMessage, "Warning", 709662600)},
+			wantDDEvents:  1,
+			wantErrs:      0,
+			wantTruncated: true,
+		},
+		{
+			name:          "normal event is exported as is",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-normal", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Warning", 709662600)},
+			wantDDEvents:  1,
+			wantErrs:      0,
+			wantTruncated: false,
+		},
+		{
+			name:          "reason alone over the budget is dropped",
+			events:        []*v1.Event{createEvent(1, "default", "pod", "Pod", "uid-degenerate", "kubelet", "kubelet", "", oversizedReason, "message", "Warning", 709662600)},
+			wantDDEvents:  0,
+			wantErrs:      1,
+			wantTruncated: false,
+		},
+	}
+
+	transformer := newBundledTransformer("test-cluster", taggerfxmock.SetupFakeTagger(t), []collectedEventType{}, false)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ddEvents, errs := transformer.Transform(tt.events)
+
+			require.Len(t, ddEvents, tt.wantDDEvents)
+			require.Len(t, errs, tt.wantErrs)
+			if tt.wantTruncated {
+				assert.Contains(t, ddEvents[0].Text, truncatedMessageMarker)
+				assert.Contains(t, ddEvents[0].Text, "**Failed**")
+				// The events API rejects event text over 4000 characters.
+				assert.LessOrEqual(t, len(ddEvents[0].Text), 4000)
+			}
+			if tt.wantErrs > 0 {
+				assert.ErrorIs(t, errs[0], errEventTextTooLong)
+				assert.Contains(t, errs[0].Error(), "reason: ")
+			}
+		})
+	}
+}
+
+// TestBundledEventsTransformOversizedEventNoEmptyBundle tests that oversized
+// events never leave an empty registered bundle behind ("no event to export")
+// and that repeated identical oversized messages aggregate into one bundle.
+func TestBundledEventsTransformOversizedEventNoEmptyBundle(t *testing.T) {
+	oversizedMessage := strings.Repeat("a", 4000)
+
+	tests := []struct {
+		name         string
+		events       []*v1.Event
+		wantDDEvents int
+	}{
+		{
+			name: "oversized first event for object",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantDDEvents: 1,
+		},
+		{
+			name: "oversized event after fitting event",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Killing", "Stopping container pod", "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantDDEvents: 2,
+		},
+		{
+			name: "repeated oversized events for one object",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+				createEvent(1, "default", "pod", "Pod", "uid-leak", "kubelet", "kubelet", "", "Failed", oversizedMessage, "Warning", 709662600),
+			},
+			wantDDEvents: 1,
+		},
+	}
+
+	transformer := newBundledTransformer("test-cluster", taggerfxmock.SetupFakeTagger(t), []collectedEventType{}, false)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ddEvents, errs := transformer.Transform(tt.events)
+
+			// No errors at all: no drop error, and no "no event to export" from
+			// an empty bundle.
+			assert.Empty(t, errs)
+			require.Len(t, ddEvents, tt.wantDDEvents)
+		})
+	}
+}
+
+// TestBundledEventsTransformEscapeHeavyBundleAdmission tests that a truncated
+// event starts its own bundle when the last bundle for the object cannot hold
+// it, and that both exported events stay under the events API text limit.
+func TestBundledEventsTransformEscapeHeavyBundleAdmission(t *testing.T) {
+	events := []*v1.Event{
+		// Tilde-heavy message that fits an empty bundle on its escaped size.
+		createEvent(1, "default", "pod", "Pod", "uid-escape-admission", "kubelet", "kubelet", "", "Failed", strings.Repeat("~", 1700), "Warning", 709662600),
+		// Oversized on its escaped size; must not join the first event's bundle.
+		createEvent(1, "default", "pod", "Pod", "uid-escape-admission", "kubelet", "kubelet", "", "Failed", strings.Repeat("~", 4000), "Warning", 709662600),
+	}
+
+	transformer := newBundledTransformer("test-cluster", taggerfxmock.SetupFakeTagger(t), []collectedEventType{}, false)
+
+	ddEvents, errs := transformer.Transform(events)
+
+	assert.Empty(t, errs)
+	require.Len(t, ddEvents, 2)
+	// The second bundle holds the truncated message.
+	assert.Contains(t, ddEvents[1].Text, truncatedMessageMarker)
+	assert.NotContains(t, ddEvents[0].Text, truncatedMessageMarker)
+	for _, ddEvent := range ddEvents {
+		assert.LessOrEqual(t, len(ddEvent.Text), 4000)
 	}
 }

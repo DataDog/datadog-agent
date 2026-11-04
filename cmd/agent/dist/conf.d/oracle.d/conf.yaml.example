@@ -22,6 +22,7 @@ init_config:
   #   - query: <QUERY>
   #     columns: <COLUMNS>
   #     tags: <TAGS>
+  #     collection_interval: <COLLECTION_INTERVAL>
   #
   ## @param service - string - optional
   ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
@@ -347,7 +348,7 @@ instances:
     # use_global_custom_queries: 'true'
 
     ## @param custom_queries - list of mappings - optional
-    ## Each query must have 2 fields, and can have a third optional field:
+    ## Each query must define `query` and `columns`. The other fields are optional:
     ##
     ## 1. metric_prefix - Each metric starts with the chosen prefix. The default is `oracle`.
     ## 2. query - The SQL to execute. It can be a simple statement or a multi-line script.
@@ -370,6 +371,11 @@ instances:
     ## 5. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
     ##                     The parameter can be defined on a self-managed instance, which
     ##                     connects to CDB.
+    ## 6. collection_interval (optional) - The frequency, in seconds, at which to run the query.
+    ##                     If omitted, the query runs on every check run. If the interval is shorter
+    ##                     than the check interval, the query runs on every check run. Longer intervals
+    ##                     are evaluated on each check run, so execution occurs on the first run after
+    ##                     the configured interval has elapsed.
     #
     ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
     #
@@ -384,6 +390,7 @@ instances:
     #     tags:
     #     - test:tag_value_1
     #     pdb: <MYPDB>
+    #     collection_interval: 60
 
     ## Start an SQL trace for Agent queries. This feature is only meant for Agent troubleshooting, and
     ## should normally be switched off.

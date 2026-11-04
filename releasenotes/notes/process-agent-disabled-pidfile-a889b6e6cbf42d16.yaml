@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The process-agent no longer writes its PID file when it exits because it
+    has nothing to run, for example when process checks run in the core Agent.
+    Previously the PID file was left behind, which could make later starts of
+    the process-agent service fail with ``Pidfile already exists`` and, under
+    SELinux Enforcing, caused ``unlink`` denials when systemd tried to remove it.

@@ -71,7 +71,10 @@ func eksHttpbinEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFu
 
 		provisionerOpts := []eks.RunOption{
 			eks.WithEKSOptions(eks.WithLinuxNodeGroup()),
-			eks.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
+			eks.WithAgentOptions(
+				kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues),
+				kubernetesagentparams.WithTimeout(600),
+			),
 			eks.WithWorkloadApp(npmToolsWorkload),
 		}
 		provisionerOpts = append(provisionerOpts, opts...)

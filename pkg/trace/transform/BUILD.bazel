@@ -46,6 +46,7 @@ dd_agent_go_test(
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/config",
+        "//pkg/trace/traceutil/normalize",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",

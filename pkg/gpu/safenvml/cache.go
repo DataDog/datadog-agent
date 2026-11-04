@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +41,10 @@ type DeviceCache interface {
 	AllMigDevices() ([]Device, error)
 	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	Cores(uuid string) (uint64, error)
+	// Invalidate marks the cache uninitialized and drops all cached device
+	// handles (called when NVML is deliberately released: the handles are
+	// dead once nvmlShutdown runs).
+	Invalidate()
 }
 
 // DeviceCacheOption customizes DeviceCache
@@ -55,6 +58,7 @@ type deviceCache struct {
 	allMigDevices      []Device
 	uuidToDevice       map[string]Device
 	pciBusIDToDevice   map[string]Device
+	indexToDevice      map[int]Device
 	smVersionSet       map[uint32]struct{}
 	lib                SafeNVML
 	initialized        bool
@@ -89,19 +93,26 @@ func (c *deviceCache) ensureInit() error {
 }
 
 func (c *deviceCache) Refresh() error {
+	// Register as an NVML user for the whole enumeration: a deliberate
+	// release waits for in-flight refreshes and blocks new ones.
+	if err := BeginNVMLUse(); err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("error getting NVML library: %v", err)
+		}
+		return err
+	}
+	defer EndNVMLUse()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// automatically acquire the library singleton if one is not provided
+	// automatically acquire the library singleton if one is not provided.
+	// BeginNVMLUse above has already ensured the library is initialized, so
+	// taking the singleton directly preserves the init-on-first-use
+	// semantics of the previous GetSafeNvmlLib call.
 	lib := c.lib
 	if lib == nil {
-		var err error
-		if lib, err = GetSafeNvmlLib(); err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("error getting NVML library: %v", err)
-			}
-			return err
-		}
+		lib = &singleton
 	}
 
 	count, err := lib.DeviceGetCount()
@@ -115,10 +126,20 @@ func (c *deviceCache) Refresh() error {
 	uuidToDevice := make(map[string]Device)
 	pciBusIDToDevice := make(map[string]Device)
 	smVersionSet := make(map[uint32]struct{})
+	indexToDevice := make(map[int]Device)
 
 	for i := range count {
 		nvmlDev, err := lib.DeviceGetHandleByIndex(i)
-		if err != nil {
+		if IsGPULost(err) {
+			// lost GPUs are included in the previous cache, so grab it from there and rely on
+			// the DeviceInfo caches
+			var ok bool
+			nvmlDev, ok = c.indexToDevice[i]
+			if !ok {
+				log.Warnf("lost GPU at index %d not found in previous cache", i)
+				continue
+			}
+		} else if err != nil {
 			log.Warnf("error getting device by index %d: %s", i, err)
 			continue
 		}
@@ -132,11 +153,9 @@ func (c *deviceCache) Refresh() error {
 		}
 
 		uuidToDevice[dev.UUID] = dev
-		pciInfo, err := dev.GetPciInfo()
-		if err != nil {
-			log.Warnf("error getting PCI information for device %s: %s", dev.UUID, err)
-		} else {
-			pciBusIDToDevice[gpuutil.PCIInfoToBusID(pciInfo)] = dev
+		indexToDevice[i] = dev
+		if dev.PCIBusID != "" {
+			pciBusIDToDevice[dev.PCIBusID] = dev
 		}
 		allDevices = append(allDevices, dev)
 		allPhysicalDevices = append(allPhysicalDevices, dev)
@@ -149,12 +168,30 @@ func (c *deviceCache) Refresh() error {
 		}
 	}
 
+	// Devices reported but none enumerated is a transient fault (release
+	// window, driver reload, permissions), not "the GPUs are gone". Publishing
+	// zero would make the workloadmeta pull unset every known GPU and drop the
+	// pod tags from GPU metrics, so keep the old contents and let the caller
+	// retry.
+	// A release armed while this refresh was in flight truncates it: the drain
+	// waits for our Begin count before shutting NVML down, but the flag goes up
+	// first, and every NewPhysicalDevice from then on fails with
+	// ErrNVMLReleased. Committing that prefix would make the workloadmeta pull
+	// unset the devices that never got built.
+	//
+	// Only an NVML release aborts the refresh. Other per-device errors skip
+	// the affected device and keep the rest.
+	if nvmlReleased.Load() {
+		return fmt.Errorf("NVML was released while refreshing; keeping the previous cache: %w", ErrNVMLReleased)
+	}
+
 	// on success, set the new data in the cache
 	c.allDevices = allDevices
 	c.allPhysicalDevices = allPhysicalDevices
 	c.allMigDevices = allMigDevices
 	c.uuidToDevice = uuidToDevice
 	c.pciBusIDToDevice = pciBusIDToDevice
+	c.indexToDevice = indexToDevice
 	c.smVersionSet = smVersionSet
 	c.initialized = true
 	c.lib = lib
@@ -186,11 +223,11 @@ func (c *deviceCache) GetByIndex(index int) (Device, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if index < 0 || index >= len(c.allDevices) {
-		return nil, fmt.Errorf("index %d out of range", index)
+	device, found := c.indexToDevice[index]
+	if !found {
+		return nil, fmt.Errorf("device at index %d not found", index)
 	}
-
-	return c.allDevices[index], nil
+	return device, nil
 }
 
 func (c *deviceCache) GetByPCIBusID(pciBusID string) (Device, error) {
@@ -253,6 +290,27 @@ func (c *deviceCache) AllPhysicalDevices() ([]Device, error) {
 	defer c.mu.RUnlock()
 
 	return c.allPhysicalDevices, nil
+}
+
+// Invalidate marks the cache uninitialized and drops all cached handles,
+// so the next accessor re-enumerates instead of serving handles that died
+// with the nvmlShutdown of the session that populated them.
+func (c *deviceCache) Invalidate() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.initialized = false
+	c.allDevices = nil
+	c.allPhysicalDevices = nil
+	c.allMigDevices = nil
+	c.uuidToDevice = nil
+	c.pciBusIDToDevice = nil
+	c.indexToDevice = nil
+	c.smVersionSet = nil
+	// Drop the captured library too: after a deliberate NVML shutdown the
+	// captured wrapper wraps a nil library, and Refresh must re-acquire the
+	// re-initialized singleton instead of reusing it.
+	c.lib = nil
 }
 
 // AllMigDevices returns all MIG children in the cache

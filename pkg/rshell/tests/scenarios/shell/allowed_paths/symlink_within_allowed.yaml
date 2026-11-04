@@ -1,0 +1,17 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: Symlink pointing to another file inside the same allowed dir works
+setup:
+  files:
+    - path: allowed/real.txt
+      content: "real content\n"
+    - path: allowed/link.txt
+      symlink: real.txt
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cat allowed/link.txt
+expect:
+  stdout: "real content\n"
+  stderr: ""
+  exit_code: 0

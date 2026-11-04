@@ -17,6 +17,7 @@ dd_agent_go_test(
         "fixtures/valid.yaml",
         "fixtures/where_injection.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",

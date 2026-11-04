@@ -20,6 +20,7 @@ go_library(
         "//test/fakeintake/client",
         "@com_github_davecgh_go_spew//spew",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )
@@ -31,6 +32,7 @@ dd_agent_go_test(
         "vm_test.go",
     ],
     embed = [":apm"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/apps",

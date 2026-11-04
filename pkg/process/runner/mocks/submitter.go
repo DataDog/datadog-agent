@@ -17,10 +17,19 @@ func NewSubmitter(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *Submitter {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &Submitter{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -39,8 +48,8 @@ func (_m *Submitter) EXPECT() *Submitter_Expecter {
 }
 
 // Submit provides a mock function for the type Submitter
-func (_mock *Submitter) Submit(start time.Time, name string, messages *types.Payload) {
-	_mock.Called(start, name, messages)
+func (_mock *Submitter) Submit(start time.Time, name string, payload *types.Payload) {
+	_mock.Called(start, name, payload)
 	return
 }
 
@@ -52,12 +61,12 @@ type Submitter_Submit_Call struct {
 // Submit is a helper method to define mock.On call
 //   - start time.Time
 //   - name string
-//   - messages *types.Payload
-func (_e *Submitter_Expecter) Submit(start any, name any, messages any) *Submitter_Submit_Call {
-	return &Submitter_Submit_Call{Call: _e.mock.On("Submit", start, name, messages)}
+//   - payload *types.Payload
+func (_e *Submitter_Expecter) Submit(start any, name any, payload any) *Submitter_Submit_Call {
+	return &Submitter_Submit_Call{Call: _e.mock.On("Submit", start, name, payload)}
 }
 
-func (_c *Submitter_Submit_Call) Run(run func(start time.Time, name string, messages *types.Payload)) *Submitter_Submit_Call {
+func (_c *Submitter_Submit_Call) Run(run func(start time.Time, name string, payload *types.Payload)) *Submitter_Submit_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 time.Time
 		if args[0] != nil {
@@ -85,7 +94,7 @@ func (_c *Submitter_Submit_Call) Return() *Submitter_Submit_Call {
 	return _c
 }
 
-func (_c *Submitter_Submit_Call) RunAndReturn(run func(start time.Time, name string, messages *types.Payload)) *Submitter_Submit_Call {
+func (_c *Submitter_Submit_Call) RunAndReturn(run func(start time.Time, name string, payload *types.Payload)) *Submitter_Submit_Call {
 	_c.Run(run)
 	return _c
 }

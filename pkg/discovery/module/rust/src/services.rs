@@ -21,6 +21,16 @@ use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
 use crate::{service_name, tracer_metadata};
 
+/// Limits for strings derived from process data, matching the core agent
+/// normalization: service names to 100 bytes, tag values to 200 chars (<= 4 bytes each).
+pub(crate) const MAX_NAME_LEN: usize = 100;
+pub(crate) const MAX_TAG_LEN: usize = 200 * 4;
+
+/// Copies at most `max` bytes of `s`, cut on a UTF-8 char boundary.
+pub(crate) fn truncated(s: &str, max: usize) -> String {
+    s.get(..s.floor_char_boundary(max)).unwrap_or(s).to_owned()
+}
+
 #[derive(Debug, Serialize)]
 pub struct ServicesResponse {
     pub services: Vec<Service>,
@@ -143,16 +153,18 @@ fn get_service(
     open_files_info: &OpenFilesInfo,
     maps_info: &MapsInfo,
 ) -> Option<Service> {
-    let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
+    let log_files: Vec<String> = open_files_info
+        .logs
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
-
-    let has_log_candidates = !open_files_info.logs.is_empty();
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
         && open_files_info.tracer_memfds.is_empty()
-        && !has_log_candidates
+        && log_files.is_empty()
     {
         return None;
     }
@@ -183,7 +195,9 @@ fn get_service(
 
     Some(Service {
         pid,
-        generated_name: name_metadata.as_ref().map(|meta| meta.name.clone()),
+        generated_name: name_metadata
+            .as_ref()
+            .map(|meta| truncated(&meta.name, MAX_NAME_LEN)),
         generated_name_source: name_metadata.as_ref().map(|meta| meta.source.clone()),
         additional_generated_names: name_metadata
             .map(|meta| meta.additional_names)
@@ -202,14 +216,18 @@ fn get_service(
 fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 
-    let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
+    let log_files: Vec<String> = open_files_info
+        .logs
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
         && open_files_info.tracer_memfds.is_empty()
-        && open_files_info.logs.is_empty()
+        && log_files.is_empty()
     {
         return None;
     }
@@ -253,19 +271,15 @@ mod tests {
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
 
-            let has_log_candidate = open_files_info.logs.iter().any(|fd_path| {
-                fd_path
-                    .path
-                    .to_str()
-                    .is_some_and(|p| p.contains("test-service-only-logs.log"))
+            let has_log_candidate = open_files_info.logs.iter().any(|path| {
+                path.to_string_lossy()
+                    .contains("test-service-only-logs.log")
             });
 
             assert!(
                 has_log_candidate,
                 "Expected to find self-generated log candidate"
             );
-
-            let _validated_logs = procfs::fd::get_log_files(pid, &open_files_info.logs);
 
             assert!(
                 !open_files_info.logs.is_empty(),
@@ -296,28 +310,15 @@ mod tests {
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
 
-            let candidates: Vec<_> = open_files_info
+            let contains_invalid = open_files_info
                 .logs
                 .iter()
-                .filter(|fd_path| {
-                    fd_path
-                        .path
-                        .to_str()
-                        .is_some_and(|p| p.contains("test-invalid-logs.log"))
-                })
-                .collect();
+                .any(|path| path.to_string_lossy().contains("test-invalid-logs.log"));
 
-            if !candidates.is_empty() {
-                let validated_logs = procfs::fd::get_log_files(pid, &open_files_info.logs);
-                let contains_invalid = validated_logs
-                    .iter()
-                    .any(|p| p.contains("test-invalid-logs.log"));
-
-                assert!(
-                    !contains_invalid,
-                    "Read-only log files should be filtered out by flag validation"
-                );
-            }
+            assert!(
+                !contains_invalid,
+                "Read-only log files should be filtered out by flag validation"
+            );
         }
 
         #[test]
@@ -347,31 +348,13 @@ mod tests {
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
 
-            let candidates: Vec<_> = open_files_info
+            let count = open_files_info
                 .logs
                 .iter()
-                .filter(|fd_path| {
-                    fd_path
-                        .path
-                        .to_str()
-                        .is_some_and(|p| p.contains("test-dedup.log"))
-                })
-                .collect();
+                .filter(|path| path.to_string_lossy().contains("test-dedup.log"))
+                .count();
 
-            if !candidates.is_empty() {
-                let validated_logs = procfs::fd::get_log_files(pid, &open_files_info.logs);
-
-                let count = validated_logs
-                    .iter()
-                    .filter(|p| p.contains("test-dedup.log"))
-                    .count();
-
-                assert!(
-                    count <= 1,
-                    "Same log file should be deduplicated to single entry, found {} entries",
-                    count
-                );
-            }
+            assert_eq!(count, 1, "Same log file should be collected once");
         }
     }
 

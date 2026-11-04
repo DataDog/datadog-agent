@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Drop a container image SBOM scan as unsupported when the overlayfs direct
+    scan finds a different number of layer paths than the image has layers.
+    The view of a nydus image merges its layers into one directory, so the
+    scan was retried every hour and failed the same way each time.

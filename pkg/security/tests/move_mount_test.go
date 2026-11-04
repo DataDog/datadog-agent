@@ -68,16 +68,11 @@ func TestMoveMount(t *testing.T) {
 	}
 	defer unix.Close(fsmountfd)
 
-	mountid, err := getMountID(mountDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	test, err := newTestModule(t, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("move-detached-no-propagation", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
@@ -89,7 +84,7 @@ func TestMoveMount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "move_mount" && event.Mount.MountID != uint32(mountid) {
+			if event.GetType() != "move_mount" || event.ProcessContext.Pid != testSuitePid {
 				return false
 			}
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
@@ -238,7 +233,7 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("moved-attached-recursive-no-propagation", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
@@ -290,7 +285,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("moved-recursive-with-propagation", func(t *testing.T) {
 		// allMounts is written from the probe event handler goroutine and read
@@ -312,12 +307,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 		}
 		defer unix.Close(fd)
 
-		// Drain any pending probe events (across all types)
-		if err := test.GetProbeEvent(nil, func(_ *model.Event) bool { return false }, 1000*time.Millisecond); err != nil {
-			if _, ok := err.(ErrTimeout); !ok {
-				t.Fatal(err)
-			}
-		}
+		test.DrainProbeEvents()
 
 		err = test.GetProbeEvent(func() error {
 			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)

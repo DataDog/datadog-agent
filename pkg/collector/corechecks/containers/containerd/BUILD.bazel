@@ -39,7 +39,7 @@ go_library(
         "@com_github_containerd_containerd_api//events",
         "@com_github_containerd_containerd_v2//client",
         "@com_github_containerd_containerd_v2//core/events",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//proto",
     ],
 )

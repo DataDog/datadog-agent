@@ -198,6 +198,7 @@ dd_agent_go_test(
     name = "system-probe_test",
     srcs = ["errors_test.go"],
     embed = [":system-probe"],
+    tags = ["go_link:enormous"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//require",

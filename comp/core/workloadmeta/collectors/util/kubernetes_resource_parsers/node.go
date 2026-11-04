@@ -22,6 +22,15 @@ func NewNodeParser() ObjectParser {
 
 func (p nodeParser) Parse(obj interface{}) workloadmeta.Entity {
 	node := obj.(*corev1.Node)
+
+	var conditions []workloadmeta.KubernetesNodeCondition
+	for _, c := range node.Status.Conditions {
+		conditions = append(conditions, workloadmeta.KubernetesNodeCondition{
+			Type:   string(c.Type),
+			Status: string(c.Status),
+		})
+	}
+
 	return &workloadmeta.KubernetesNode{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesNode,
@@ -41,5 +50,7 @@ func (p nodeParser) Parse(obj interface{}) workloadmeta.Entity {
 			Architecture:            node.Status.NodeInfo.Architecture,
 			OperatingSystem:         node.Status.NodeInfo.OperatingSystem,
 		},
+		Conditions:    conditions,
+		Unschedulable: node.Spec.Unschedulable,
 	}
 }

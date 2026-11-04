@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 	"sort"
 
@@ -499,25 +498,16 @@ func (d *HoltResidualDetector) processPoint(
 
 	// 7. Build the anomaly using the common metric-detector anomaly shape.
 	score := math.Abs(z)
-	seriesName := series.Name + ":" + aggSuffix(agg)
-	var tags []string
-	if len(series.Tags) > 0 {
-		tags = append([]string(nil), series.Tags...)
-	}
 	anomaly := observer.Anomaly{
 		Type: observer.AnomalyTypeMetric,
 		Source: observer.SeriesDescriptor{
 			Namespace: series.Namespace,
 			Name:      series.Name,
-			Tags:      tags,
+			Host:      series.Host,
+			Tags:      series.Tags,
 			Aggregate: agg,
 		},
-		DetectorName: d.Name(),
-		Title:        "Holt residual: " + seriesName,
-		Description: fmt.Sprintf(
-			"%s deviated from forecast (observed=%.4f, forecast=%.4f, residual=%.4f, |z|=%.2f, level=%.4f, trend=%.4f, %.1f valueMADs)",
-			seriesName, p.Value, forecast, residual, math.Abs(z), state.level, state.trend, devMAD,
-		),
+		DetectorName:        d.Name(),
 		Timestamp:           state.lastSeenTimestamp,
 		Score:               &score,
 		SamplingIntervalSec: medianTimestampInterval(state.recentTimestamps),
@@ -527,6 +517,11 @@ func (d *HoltResidualDetector) processPoint(
 			CurrentValue:   p.Value,
 			DeviationSigma: math.Abs(z),
 			Threshold:      d.ZThreshold,
+			Forecast:       forecast,
+			Residual:       residual,
+			HoltLevel:      state.level,
+			HoltTrend:      state.trend,
+			ValueMADs:      devMAD,
 		},
 	}
 

@@ -15,7 +15,7 @@ void noop_run(char *check_id, char *init_config, char *instance_config, const ag
 	// do nothing
 }
 
-const char *noop_version(const char **error) {
+const char *noop_version(void) {
 	// do nothing
 	return NULL;
 }

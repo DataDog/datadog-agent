@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 //nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
@@ -93,6 +93,13 @@ func (tb *TerminatedResourceBundle) Disable() {
 
 	tb.flush(false)
 	tb.enabled = false
+}
+
+// withLock runs fn while no terminated resource flush is in progress.
+func (tb *TerminatedResourceBundle) withLock(fn func()) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	fn()
 }
 
 // flush processes and sends all buffered terminated resources.

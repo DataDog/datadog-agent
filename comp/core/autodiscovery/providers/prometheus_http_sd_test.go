@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -915,7 +915,6 @@ func TestRenameLabelsAppliedToSDTags(t *testing.T) {
 	assert.Contains(t, tags, "service:node", "unmapped SD labels should be untouched")
 
 	// rename_labels stays in the instance so the OpenMetrics check still renames
-	// scraped labels of the same name. (YAML v2 decodes nested maps with
-	// interface{} keys.)
-	assert.Equal(t, map[interface{}]interface{}{"experiment": "appXYZ.experiment"}, instance["rename_labels"])
+	// scraped labels of the same name.
+	assert.Equal(t, map[string]interface{}{"experiment": "appXYZ.experiment"}, instance["rename_labels"])
 }

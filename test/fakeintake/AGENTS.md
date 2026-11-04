@@ -24,8 +24,11 @@ test/fakeintake/
 
 | Route | Aggregator | Client method |
 |-------|-----------|---------------|
+| `/api/v1/series` | MetricAggregator (V1 parser) | `FilterMetrics()` |
 | `/api/v2/series` | MetricAggregator | `FilterMetrics()` |
+| `/api/intake/metrics/v3/series` | MetricAggregator (V3 parser) | `FilterMetrics()` |
 | `/api/beta/sketches` | SketchAggregator | `FilterSketches()` |
+| `/api/intake/metrics/v3/sketches` | SketchAggregator (V3 parser), HistogramAggregator | `FilterSketches()`, `FilterHistograms()` |
 | `/api/v1/check_run` | CheckRunAggregator | `FilterCheckRuns()` |
 | `/api/v2/logs` | LogAggregator | `FilterLogs()` |
 | `/api/v2/compliance` | (raw store) | `GetComplianceFindings()` |
@@ -36,12 +39,13 @@ test/fakeintake/
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
 | `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
+| `/api/v2/sdsresult` | SDSResultAggregator | `GetSDSResults()` |
 | `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImageNames()` / `FilterContainerImages()` |
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMIDs()` / `FilterSBOMs()` |
 | `/api/v2/orch` | OrchestratorAggregator | `GetOrchestratorResources()` |
 | `/api/v2/ndmflow` | NDMFlowAggregator | GetNDMFlows() |
-| `/api/v2/netpath` | NetpathAggregator | `GetLatestNetpathEvents()` |
+| `/api/v2/netpath` | NetpathAggregator | `GetNetpathEvents()` / `GetLatestNetpathEvents()` |
 | `/api/v2/agenthealth` | AgentHealthAggregator | GetAgentHealth() |
 | `/support/flare` | Flare parser | `GetLatestFlare()` |
 | `/api/v0.1/configurations` | (TUF-signed RC) | `RCStats()` (poll counter) |
@@ -190,14 +194,20 @@ FAKEINTAKECTL=test/fakeintake/build/fakeintakectl
 $FAKEINTAKECTL --url http://127.0.0.1:8080 \
     filter metrics --name my.count.metric --tags env:prod
 
-# Filter sketches at /api/beta/sketches (distributions) — JSON list of
+# Filter DDSketch series at /api/beta/sketches and /api/intake/metrics/v3/sketches — JSON list of
 # aggregator.Sketch, each with .metric, .tags, .dogsketches[].sum/.cnt/.min/...
 $FAKEINTAKECTL --url http://127.0.0.1:8080 \
     filter sketches --name my.distribution
 
+# Filter OTel histograms at /api/intake/metrics/v3/sketches — JSON list of
+# aggregator.Histogram, each with .metric, .tags, and .explicit[] or .exponential[] points.
+$FAKEINTAKECTL --url http://127.0.0.1:8080 \
+    filter histograms --name my.histogram
+
 # Discovery: what did the agent actually send?
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get metric names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get sketch names
+$FAKEINTAKECTL --url http://127.0.0.1:8080 get histogram names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 route-stats
 
 # Reset state between assertions:
@@ -268,7 +278,8 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   merge queue, so two PRs bumping to the same value can never collide.
 - **On your PR**, e2e suites don't need the bump to see a server change: CI sets
   `E2E_FAKEINTAKE_IMAGE_OVERRIDE` to the freshly built `v<sha>` image for server
-  changes, and every suite honors that override globally. A client/CLI change
+  changes (main-targeting pipelines only — see the release-branch bullet below),
+  and every suite honors that override globally. A client/CLI change
   runs e2e against the pinned image (no override, no rebuild) so it is still
   exercised.
 - **On merge to main**, `publish_fakeintake_pinned` publishes the image under
@@ -279,6 +290,15 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   new pin. On the main pipeline, e2e waits for `publish_fakeintake_pinned` (via
   the optional need in `.needs_fakeintake_publish`) so it never runs against a
   not-yet-published tag.
+- **Release branches never build or publish fakeintake.** The build/publish jobs
+  are skipped on release branches (`7.*.x`) and PRs targeting them
+  (`.except_fakeintake_off_main` in `.gitlab-ci.yml`): a fakeintake change there
+  is ignored — no rebuild, no publish, no e2e override; e2e runs against the
+  branch's pinned image. **`version/VERSION` must never exceed main's** on such
+  branches: the pinned tag is published from main only, so a greater value
+  references an image that will never exist and breaks e2e on the branch.
+  `fakeintake_check_version_bump` enforces this — values already published from
+  main (e.g. carried by a fix backport) are fine.
 - **Known limitation — cross-pipeline publish window.** Because the pinned tag
   is published only after the bump merges to main, there is a window (the main
   pipeline's fakeintake build + publish, up to ~10-20 min) during which the new

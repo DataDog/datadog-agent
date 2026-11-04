@@ -32,42 +32,51 @@
     sudo ln -fs "$NEWTMPDIR" $TMPDIR
     echo "Temporary folder created, TMPDIR=$TMPDIR -> $NEWTMPDIR"
 
+# Installation must precede .macos_runner_maintenance so it derives the same per-job root as
+# after_script, which starts with the runner's original TMPDIR.
+.macos_dda_root:
+  - export DDA_ROOT="$TMPDIR/dda-${CI_JOB_ID}"
+
 .install_python_dependencies:
-  # Create custom temporary folder to isolate jobs from each other
-  # We have to symlink it to /tmp/gitlabci to avoid some path length issues (sockets should be <= 104 characters on MacOS)
   - |
     if [ -z "$TMPDIR" ]; then
       echo "TMPDIR must be set" >& 2
       exit 1
     fi
-  - export DDA_DIR="$TMPDIR/dda-${CI_JOB_ID}"
-  - export PATH="$DDA_DIR:$PATH"
+  - !reference [.macos_dda_root]
+  # Concurrent jobs share uv and use separate virtual environments to prevent dependency conflicts.
+  # Export these settings on every invocation because after_script runs in a fresh shell.
+  - export PATH="$DDA_ROOT/dda/bin:$DDA_ROOT/awscli/bin:$PATH"
   - export DDA_NO_DYNAMIC_DEPS=1
   - |
-    # Perform installation only if the directory does not exist
-    if [ ! -d "$DDA_DIR" ]; then
-      robust_curl="curl -fsSL --retry 4"  # recommended flags + resist transient errors like `Connection reset by peer`
-      # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
-      export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-      export DDA_VERSION="$($robust_curl https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
-      # Detect architecture and download appropriate binary
-      if [ "$(uname -m)" = "arm64" ]; then
-        dda_target_triple="aarch64-apple-darwin"
-      else
-        dda_target_triple="x86_64-apple-darwin"
-      fi
-      $robust_curl -o dda.tar.gz https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${dda_target_triple}.tar.gz
-      tar -xzf dda.tar.gz
-      mkdir -p "$DDA_DIR"
-      sudo mv dda $DDA_DIR
-      rm -f dda.tar.gz
-      # Explicitly bootstrap dda's managed environment. The stable mirror
-      # (UV_DEFAULT_INDEX) lags new dda releases by a publish waiting period, so
-      # let this install also resolve dda from the testing index already present
-      # in UV_INDEX. Scoped to the bootstrap only.
-      UV_INDEX_STRATEGY=unsafe-best-match dda self restore
+    # The completion marker prevents after_script from reusing a partially installed environment.
+    if [ ! -f "$DDA_ROOT/.installed" ]; then
+      rm -rf "$DDA_ROOT"
+      robust_curl="curl -fsSL --retry 4 --fail-early"
+      # Build image tags have the form vPIPELINE_ID-COMMIT.
+      buildimages_raw="https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${CI_IMAGE_LINUX#*-}"
+      # Fetching both pins together lets curl reuse its connection.
+      buildimages_pins="$($robust_curl "${buildimages_raw}/dda.env" "${buildimages_raw}/python-packages-versions.txt")"
+      dda_version="$(echo "$buildimages_pins" | awk -F= '/^DDA_VERSION=/ {print $2}')"
+      uv_version="$(echo "$buildimages_pins" | awk -F= '/^DD_UV_VERSION=/ {print $2}')"
+      uv="$(python3 "$CI_PROJECT_DIR/tools/ci/install-uv.py" "$uv_version")"
+      "$uv" venv --python "$(cat "$CI_PROJECT_DIR/.python-version")" "$DDA_ROOT/dda"
+      # Installing dda from its Git tag avoids Depot's 48-hour delay for newly published packages.
+      "$uv" pip install --python "$DDA_ROOT/dda/bin/python" "git+https://github.com/DataDog/datadog-agent-dev.git@${dda_version}"
+      # Separate virtual environments allow awscli and dda to require incompatible botocore versions.
+      "$uv" venv --python "$DDA_ROOT/dda/bin/python" "$DDA_ROOT/awscli"
+      "$uv" pip install --python "$DDA_ROOT/awscli/bin/python" awscli==1.29.45
       dda self dep sync -f legacy-tasks
-      dda self pip install awscli==1.29.45
+      touch "$DDA_ROOT/.installed"
+    fi
+
+.macos_cleanup_python_dependencies:
+  - !reference [.macos_dda_root]
+  - |
+    # Defer cleanup until shell exit so reporting can use dda and failures still trigger cleanup.
+    # Ignore removal failures to preserve the after_script's exit status.
+    if [ -n "${TMPDIR:-}" ]; then
+      trap 'rm -rf "$DDA_ROOT" || true' EXIT
     fi
 
 .aws_retry_config:
@@ -105,6 +114,8 @@
     - ci-identities-gitlab-job-client assume-role
     - export GOCACHE="$TMPDIR/go-build"
     - dda inv -- -e install-tools --verbose
+  after_script:
+    - !reference [.macos_cleanup_python_dependencies]
 
 .macos_runner_make_workspace_writable:
   - |

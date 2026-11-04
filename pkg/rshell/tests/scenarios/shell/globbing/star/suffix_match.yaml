@@ -1,0 +1,18 @@
+description: Asterisk with suffix pattern matches files ending with the suffix.
+setup:
+  files:
+    - path: readme.md
+      content: ""
+    - path: notes.md
+      content: ""
+    - path: code.go
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *.md
+expect:
+  stdout: |+
+    notes.md readme.md
+  stderr: ""
+  exit_code: 0

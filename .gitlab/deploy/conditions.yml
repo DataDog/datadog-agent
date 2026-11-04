@@ -33,6 +33,7 @@
     variables:
       AGENT_REPOSITORY: agent-dev
       OTEL_AGENT_REPOSITORY: ddot-collector-dev
+      DDOT_EBPF_REPOSITORY: ddot-ebpf-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - <<: *if_rc_tag_on_beta_repo_branch
@@ -40,6 +41,7 @@
     variables:
       AGENT_REPOSITORY: agent
       OTEL_AGENT_REPOSITORY: ddot-collector
+      DDOT_EBPF_REPOSITORY: ddot-ebpf
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - when: manual
@@ -47,6 +49,7 @@
     variables:
       AGENT_REPOSITORY: agent
       OTEL_AGENT_REPOSITORY: ddot-collector
+      DDOT_EBPF_REPOSITORY: ddot-ebpf
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -57,6 +60,7 @@
       AGENT_REPOSITORY: agent
       CLUSTER_AGENT_REPOSITORY: cluster-agent
       OTEL_AGENT_REPOSITORY: ddot-collector
+      DDOT_EBPF_REPOSITORY: ddot-ebpf
       DSD_REPOSITORY: dogstatsd
       CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
       SECRET_GENERIC_CONNECTOR_REPOSITORY: secret-generic-connector
@@ -73,6 +77,7 @@
     variables:
       AGENT_REPOSITORY: agent-dev
       OTEL_AGENT_REPOSITORY: ddot-collector-dev
+      DDOT_EBPF_REPOSITORY: ddot-ebpf-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - when: manual
@@ -81,6 +86,7 @@
       AGENT_REPOSITORY: agent
       CLUSTER_AGENT_REPOSITORY: cluster-agent
       OTEL_AGENT_REPOSITORY: ddot-collector
+      DDOT_EBPF_REPOSITORY: ddot-ebpf
       DSD_REPOSITORY: dogstatsd
       CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
       SECRET_GENERIC_CONNECTOR_REPOSITORY: secret-generic-connector
@@ -98,10 +104,11 @@
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
+      DDOT_EBPF_REPOSITORY: ci/datadog-agent/ddot-ebpf-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
       SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
+      IMG_REGISTRIES: ddbuild
 
 # Same as on_deploy_manual_final, except the job is used to publish images
 # to our internal registries.
@@ -115,11 +122,12 @@
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
+      DDOT_EBPF_REPOSITORY: ci/datadog-agent/ddot-ebpf-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
       SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
-      IMG_REGISTRIES: internal-aws-ddbuild
+      IMG_REGISTRIES: ddbuild
 
 .on_deploy_stable_or_beta_repo_branch_manual:
   - <<: *if_not_stable_or_beta_repo_branch
@@ -220,3 +228,5 @@
 # Current default: Windows Server 2022
 .windows_docker_default:
   extends: .windows_docker_v2_2022
+  variables:
+    DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: C:\devtools\ci-identities-gitlab-job-client.exe secrets read feature-flags-client token

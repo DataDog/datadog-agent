@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add the ``submit_histogram_bucket_multi`` function to the ``aggregator`` module
+    that Python checks use. It takes the same arguments as ``submit_histogram_bucket``,
+    but the Agent tracks each bucket by its bounds as well as its tags, so the buckets
+    of a histogram can share the same tags. This lets OpenMetrics checks send histogram
+    buckets as distributions without the ``upper_bound`` and ``lower_bound`` tags.

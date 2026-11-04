@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CWS: ``system-probe`` no longer starts a goroutine for
+    every kernel event to track network namespaces, which
+    caused goroutine and memory spikes on busy hosts.

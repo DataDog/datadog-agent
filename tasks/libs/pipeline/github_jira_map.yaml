@@ -59,7 +59,8 @@
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
 '@datadog/fleet-remediation': FLREM
+'@datadog/dd-agent-mcp': FLREM
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': AAD
 '@datadog/agent-anomaly-detection': AAD
-'@datadog/gpu-monitoring-agent': EBPF
+'@datadog/accelerator-telemetry': AXT

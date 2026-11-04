@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test
+//go:build kubeapiserver && test
 
 package orchestrator
 
@@ -13,22 +13,25 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/fx"
-	kscheme "k8s.io/client-go/kubernetes/scheme"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	crd "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
 	cr "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
+	metafake "k8s.io/client-go/metadata/fake"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -66,9 +69,11 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
 		},
-		stopCh:              chk.stopCh,
-		manifestBuffer:      NewManifestBuffer(chk),
-		activatedCollectors: map[string]struct{}{},
+		stopCh:                chk.stopCh,
+		manifestBuffer:        NewManifestBuffer(chk),
+		activatedCollectors:   map[string]struct{}{},
+		initializedCollectors: map[string]struct{}{},
+		startedInformers:      map[cache.Store]struct{}{},
 	}
 	bundle.importCollectorsFromInventory()
 	bundle.prepareExtraSyncTimeout()
@@ -110,7 +115,8 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 
 	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle.stopCh = make(chan struct{})
-	bundle.initializeOnce = sync.Once{}
+	bundle.initializedCollectors = map[string]struct{}{}
+	bundle.startedInformers = map[cache.Store]struct{}{}
 	bundle.Initialize()
 
 	_, err := bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
@@ -196,6 +202,69 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		assert.ElementsMatch(t, []string{"init_tag1:value1", "init_tag2:value2", "instance_tag1:value1", "instance_tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
+	t.Run("with a marked infrastructure mode", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "cloud_cost_only",
+		})
+		fakeTagger.SetGlobalTags([]string{"tag1:value1"}, nil, nil, nil)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+		assert.ElementsMatch(t, []string{"tag1:value1", "infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	// On a Cluster Check Runner the dispatched check configuration can already
+	// carry the mark, because the Cluster Agent writes its global tags into it.
+	t.Run("with a mark already present in the check configuration", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "cloud_cost_only",
+		})
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		initConfigData := integration.Data(`{}`)
+		err := initConfigData.MergeAdditionalTags([]string{"infra_mode:cloud_cost_only"})
+		assert.NoError(t, err)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, integration.Data{}, "test", "provider")
+		assert.Equal(t, []string{"infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	t.Run("with an unmarked infrastructure mode", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "full",
+		})
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+		assert.Empty(t, orchCheck.orchestratorConfig.ExtraTags)
+	})
+}
+
+// On a Cluster Check Runner the infrastructure mode tag comes from the Cluster
+// Agent's tagger stream, which can connect after the check is configured.
+func TestOrchCheckInfraTagsArrivingAfterConfigure(t *testing.T) {
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetGlobalTags([]string{"tag1:value1"}, nil, nil, nil)
+	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+	assert.Equal(t, []string{"tag1:value1"}, orchCheck.orchestratorConfig.ExtraTags)
+
+	orchCheck.refreshInfraTags()
+	assert.Equal(t, []string{"tag1:value1"}, orchCheck.orchestratorConfig.ExtraTags)
+
+	fakeTagger.SetTags(taggertypes.GetInfraTagsEntityID(), "remote", []string{"infra_mode:cloud_cost_only"}, nil, nil, nil)
+	orchCheck.refreshInfraTags()
+	assert.Equal(t, []string{"tag1:value1", "infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+
+	orchCheck.refreshInfraTags()
+	assert.Equal(t, []string{"tag1:value1", "infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
 }
 
 func TestOrchestratorCheckConfigure(t *testing.T) {
@@ -434,4 +503,42 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		assert.True(t, isLeader)
 		assert.NoError(t, err)
 	})
+}
+
+func TestGetOrchestratorInformerFactoryHelmReleaseConfigMaps(t *testing.T) {
+	configMap := func(name string, labels map[string]string) *metav1.PartialObjectMetadata {
+		return &metav1.PartialObjectMetadata{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default", Labels: labels},
+		}
+	}
+	scheme := runtime.NewScheme()
+	require.NoError(t, metav1.AddMetaToScheme(scheme))
+	metadataClient := metafake.NewSimpleMetadataClient(scheme,
+		configMap("regular", nil),
+		configMap("sh.helm.release.v1.app.v1", map[string]string{"owner": "helm"}),
+	)
+
+	listConfigMaps := func(t *testing.T) []string {
+		of := getOrchestratorInformerFactory(&apiserver.APIClient{MetadataInformerCl: metadataClient})
+		informer := of.ConfigMapMetadataInformerFactory.ForResource(corev1.SchemeGroupVersion.WithResource("configmaps")).Informer()
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		of.ConfigMapMetadataInformerFactory.Start(stopCh)
+		require.True(t, cache.WaitForCacheSync(stopCh, informer.HasSynced))
+		names := []string{}
+		for _, obj := range informer.GetStore().List() {
+			names = append(names, obj.(*metav1.PartialObjectMetadata).Name)
+		}
+		return names
+	}
+
+	cfg := mockconfig.New(t)
+
+	// Disabled: the ConfigMap collector watches every ConfigMap, as before.
+	assert.ElementsMatch(t, []string{"regular", "sh.helm.release.v1.app.v1"}, listConfigMaps(t))
+
+	// Enabled: Helm release ConfigMaps are left to the Helm release collector.
+	cfg.SetInTest("orchestrator_explorer.helm_releases.configmaps.enabled", true)
+	assert.ElementsMatch(t, []string{"regular"}, listConfigMaps(t))
 }

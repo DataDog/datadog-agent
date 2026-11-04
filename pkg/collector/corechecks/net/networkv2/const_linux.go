@@ -309,6 +309,89 @@ var (
 	}
 )
 
+// The RoCE allowlists below are kept separate from ethtoolMetricNames and
+// ethtoolGlobalMetricNames rather than merged into them, for two reasons:
+//
+//   - They are only consulted when RoCE collection is enabled (gpu.enabled), so the
+//     emitted set on a host without GPU monitoring is provably byte-for-byte unchanged.
+//   - The base maps are package-level and read concurrently by getEthtoolMetrics.
+//     Merging the RoCE entries in at Configure time would mutate shared state.
+var (
+	// ethtoolRoceMetricNames holds post-strip base names for the per-priority
+	// (802.1Qbb PFC) counters mlx5 emits as rx_prio<N>_* / tx_prio<N>_*.
+	// Pause durations are in microseconds. Per kernel en_stats.c, pause_transition
+	// is emitted on rx only, so there is deliberately no tx_pause_transition.
+	//
+	// Note rx_packets/rx_bytes/tx_packets/tx_bytes also make the unprefixed_queue
+	// parser's post-strip names allowlisted, which enables per-ring traffic
+	// accounting (queue.rx_packets and friends) as a gated side effect.
+	ethtoolRoceMetricNames = map[string][]string{
+		"mlx5_core": {
+			"rx_packets",
+			"rx_bytes",
+			"rx_discards",
+			"rx_pause",
+			"rx_pause_duration",
+			"rx_pause_transition",
+			"rx_buf_discard",
+			"rx_cong_discard",
+			"rx_marked",
+			"tx_packets",
+			"tx_bytes",
+			"tx_pause",
+			"tx_pause_duration",
+		},
+	}
+
+	// ethtoolRoceGlobalMetricNames holds device-wide counters relevant to RoCE
+	// health: link-level (802.3x) pause, PCIe health, pause storm, FEC/cable, and
+	// module/recovery indicators.
+	//
+	// The percentage-style outbound_pci_stalled_rd / outbound_pci_stalled_wr gauges
+	// are intentionally excluded: the submission path emits every ethtool stat as
+	// monotonic_count, which produces nonsense deltas on values that can decrease.
+	// Their *_events counterparts below carry the same signal as real counts.
+	ethtoolRoceGlobalMetricNames = map[string][]string{
+		"mlx5_core": {
+			// Link-level pause. The kernel fills the same format strings with a
+			// literal "global" infix instead of prio<N>; semantically distinct from PFC.
+			"rx_global_pause",
+			"rx_global_pause_duration",
+			"rx_global_pause_transition",
+			"tx_global_pause",
+			"tx_global_pause_duration",
+			// PCIe health.
+			"rx_pci_signal_integrity",
+			"tx_pci_signal_integrity",
+			"outbound_pci_buffer_overflow",
+			"outbound_pci_stalled_rd_events",
+			"outbound_pci_stalled_wr_events",
+			"pci_bw_inbound_high",
+			"pci_bw_inbound_low",
+			"pci_bw_outbound_high",
+			"pci_bw_outbound_low",
+			"pci_bw_stale_event",
+			"dev_out_of_buffer",
+			// Pause storm and link-level pause activity.
+			"tx_pause_storm_warning_events",
+			"tx_pause_storm_error_events",
+			"rx_pause_ctrl_phy",
+			"tx_pause_ctrl_phy",
+			// FEC and cable health. rx_bits_phy is the denominator for interpreting
+			// rx_pcs_symbol_err_phy and rx_corrected_bits_phy.
+			"rx_pcs_symbol_err_phy",
+			"rx_corrected_bits_phy",
+			"rx_bits_phy",
+			// Module and link recovery.
+			"module_unplug",
+			"rx_buffer_passed_thres_phy",
+			"total_success_recovery_phy",
+			// Drop indicator.
+			"rx_if_down_packets",
+		},
+	}
+)
+
 var (
 	ethtoolGlobalMetricNames = map[string][]string{
 		"ena": {

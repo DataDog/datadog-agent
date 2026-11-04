@@ -40,8 +40,10 @@ When calling a provider we always:
    about non canonical hostname.
 3. If running on **Fargate**: we set an empty hostname as the idea of a host doesn't exist. We **DO NOT** set hostname
    provider in `goexpvar` and `inventories`
-4. **GCE**: if we can fetch a hostname from the GCE metadata API we use it.
-5. **Azure**: if we can fetch a hostname from the Azure metadata API we use it.
+4. **EUDM**: on macOS and Windows in end-user-device mode, use device name with an optional serial suffix (see below).
+   Continue resolution so cloud, FQDN and container providers can replace this initial name.
+5. **GCE**: if we can fetch a hostname from the GCE metadata API we use it.
+6. **Azure**: if we can fetch a hostname from the Azure metadata API we use it.
 
 **The following providers behavior are linked to each other**
 
@@ -60,18 +62,19 @@ The notion of `isOSHostnameUsable` means:
 - Else if we're on k8s and running inside a container without `hostNetwork` set to true -> False
 - Else -> True
 
-6. **FQDN**
+7. **FQDN**
    1. If `isOSHostnameUsable` is false we return an error
    2. If `hostname_fqdn` config setting is set to true we fetch the FQDN:
-      1. On Linux we use `/bin/hostname -f`
-      2. On Windows we use `golang.org/x/sys/windows:GetHostByName`
+      1. On Linux and macOS we use `/bin/hostname -f`
+      2. On AIX we do a CNAME lookup
+      3. On Windows we use `golang.org/x/sys/windows:GetHostByName`
    3. Else we return an error
-7. **CONTAINER**
+8. **CONTAINER**
    1. If we're running in a containerized environment we try to get the hostname from, in order: `kube_apiserver`,
       `docker` and `kubelet`.
-8. **OS**
+9. **OS**
    1. If `isOSHostnameUsable` is true and previous providers didn't detect a hostname we use `os.Hostname()`
-9. **EC2**
+10. **EC2**
    1. We try to fetch the EC2 instance ID if one of the following condition is met:
       - we're running on a ECS instance.
       - `ec2_prioritize_instance_id_as_hostname` config setting is set to `true`.
@@ -82,6 +85,46 @@ The notion of `isOSHostnameUsable` means:
       1. If the previously detected hostname is a Windows default hostname for EC2:
          1. We fetch the instance ID and log a message about using `ec2_use_windows_prefix_detection` if it's
             different than the previously detected hostname.
+
+## End-user-device hostnames
+
+On macOS and Windows, `infrastructure_mode: end_user_device` supplies an initial device name before cloud
+discovery. GCE, Azure, FQDN (when enabled) and container providers can replace it, and EC2 gets the final
+opportunity to select its instance ID under its existing rules. OS discovery only supplies a fallback if no
+name has been found, preserving macOS LocalHostName when no higher-priority provider succeeds.
+Explicit `hostname` and `hostname_file` settings still take precedence, and sidecar hostname handling is
+unchanged. Other operating systems and modes keep the existing resolution order.
+
+Set `hostname_use_serial: true` (or `DD_HOSTNAME_USE_SERIAL=true`) to append the device serial number.
+The default is `false`; macOS still uses LocalHostName when serial appending is disabled.
+
+With serial appending enabled, EUDM combines the device name and serial on both platforms:
+
+- **Windows:** `<OS-hostname>-<serial-number>`, using `os.Hostname()` and `Win32_BIOS.SerialNumber`.
+- **macOS:** `<LocalHostName>-<serial-number>`, using the current LocalHostName from SystemConfiguration and
+  the device serial number from IOKit.
+
+The serial suffix is lowercased, with runs of non-ASCII-alphanumeric characters replaced by a hyphen
+and leading/trailing hyphens removed. Device-name casing is preserved.
+
+This also applies to VMs. On macOS, LocalHostName is read directly through
+`SCDynamicStoreCopyLocalHostName`, independently of system-info collection. It excludes `.local` and
+network-specific DNS suffixes. Apple's casing, normalization and conflict-resolution suffixes (such as `-2`)
+are preserved. The name is validated without trimming, normalization or truncation; unavailable or invalid
+names cause resolution to continue through the existing providers.
+
+The result is cached until restart. LocalHostName avoids network-derived DNS hostname changes, but it can
+still change when a user renames the Mac or Bonjour resolves a naming conflict. Those changes, and changes
+to `hostname_use_serial`, take effect after restart. The selected name is the primary
+Agent hostname and is sent as `internalHostname` in host metadata. Existing OS/cloud metadata and configured/cloud aliases remain available.
+Previously collected telemetry remains associated with the previous hostname when the hostname changes.
+Devices sharing both a device name and serial can still collide,
+and, when serial appending is enabled, failed serial collection across restarts can switch a host back to its legacy identity.
+Changing `hostname_use_serial` changes the device identity in Datadog.
+
+Process-agent and trace-agent obtain the selected hostname through core-agent RPC or the Agent CLI. If both fail,
+they retain their existing OS hostname fallback behavior, including trace-agent’s environment checks. This fallback
+can report a different hostname from the core Agent.
 
 # Hostnames and Aliases on EC2
 

@@ -1,6 +1,11 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+exports_files(
+    ["user.go"],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
 go_library(
     name = "windows",
     srcs = [
@@ -31,6 +36,11 @@ dd_agent_go_test(
         "user_test.go",
     ],
     embed = [":windows"],
+    env_inherit = [
+        "CI",
+        "COMPUTERNAME",
+        "DD_TEST_AGENT_USERNAME",
+    ],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [

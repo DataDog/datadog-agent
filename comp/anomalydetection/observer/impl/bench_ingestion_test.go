@@ -10,7 +10,11 @@ import (
 	"math/rand"
 	"testing"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // buildSyntheticStorage creates a storage pre-populated with numSeries series,
@@ -45,6 +49,7 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 					value:     100.0 + rng.Float64()*10,
 					timestamp: 0,
 				}
+				obs[s].storageKey = testStorageKeyForMetric("ns", obs[s])
 			}
 
 			for i := 0; i < b.N; i++ {
@@ -59,6 +64,59 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// BenchmarkCompositeTagsStorage isolates the two hot storage cases for the
+// CompositeTags contract: existing-series writes must not inspect tags, while
+// new series may hash once to join the bounded composite interner.
+func BenchmarkCompositeTagsStorage(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		tags tagset.CompositeTags
+	}{
+		{name: "existing_one_segment", tags: tagset.CompositeTagsFromSlice([]string{"env:prod", "service:api"})},
+		{name: "existing_two_segments", tags: tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api"})},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			key := storageKeyForCompositeIdentity("ns", "metric", "", tc.tags)
+			storage := newTimeSeriesStorage()
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, 0, tc.tags, key, metrics.GaugeType)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i+1), tc.tags, key, metrics.GaugeType)
+			}
+		})
+	}
+
+	b.Run("new_series_interner_hit", func(b *testing.B) {
+		tags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api"})
+		anchorKey := storageKeyForCompositeIdentity("ns", "anchor", "", tags)
+		key := storageKeyForCompositeIdentity("ns", "metric", "", tags)
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			storage := newTimeSeriesStorage()
+			storage.AddWithKeyAndHostComposite("ns", "anchor", "", 1, 0, tags, anchorKey, metrics.GaugeType)
+			b.StartTimer()
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i), tags, key, metrics.GaugeType)
+		}
+	})
+}
+
+func BenchmarkMetricFilterV1RulesCompositeSegments(b *testing.B) {
+	filter := newV1MetricFilter(b)
+	metric := highLoadMetric("system.cpu.user")
+	first, _ := metric.tags.UnsafeGet()
+	metric.tags = tagset.NewCompositeTags(first[:8], first[8:])
+	contextKey := testContextKeyFor(metric)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if decision := prepareMetricIngest("check", contextKey, metric, filter); decision.metric == nil {
+			b.Fatal("expected metric to be accepted")
+		}
 	}
 }
 
@@ -108,10 +166,11 @@ func BenchmarkMetricFilterV1Rules(b *testing.B) {
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			sample := highLoadMetric(tc.metricName)
+			contextKey := testContextKeyFor(sample)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				decision := prepareMetricIngest("check", sample, filter)
+				decision := prepareMetricIngest("check", contextKey, sample, filter)
 				if gotRejected := decision.metric == nil; gotRejected != tc.wantRejected {
 					b.Fatalf("rejected=%t, want %t", gotRejected, tc.wantRejected)
 				}
@@ -129,7 +188,8 @@ func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
 		telemetry: newObserverTelemetry(telemetryComp),
 	}
 	sample := highLoadMetric("kubernetes.pod.count")
-	if h.ObserveMetricAndReportDrop(sample) {
+	contextKey := testContextKeyFor(sample)
+	if h.observeMetricAndReportDrop(sample, contextKey) {
 		b.Fatal("expected metric to be rejected by processing rules")
 	}
 
@@ -138,11 +198,156 @@ func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if h.ObserveMetricAndReportDrop(sample) {
+			if h.observeMetricAndReportDrop(sample, contextKey) {
 				panic("expected metric to be rejected by processing rules")
 			}
 		}
 	})
+}
+
+type rejectedMetricTelemetryCase struct {
+	name      string
+	warmName  string
+	hotName   string
+	alternate bool
+}
+
+func rejectedMetricTelemetryCases() []rejectedMetricTelemetryCase {
+	return []rejectedMetricTelemetryCase{
+		{name: "warm_handle_source/hot_handle_source", warmName: "kubernetes.pod.count", hotName: "kubernetes.pod.count"},
+		{name: "warm_handle_source/hot_agent_source", warmName: "kubernetes.pod.count", hotName: "datadog.agent.running"},
+		{name: "warm_agent_source/hot_handle_source", warmName: "datadog.agent.running", hotName: "kubernetes.pod.count"},
+		{name: "warm_handle_source/alternate_sources", warmName: "kubernetes.pod.count", alternate: true},
+		{name: "warm_handle_source/alternate_sources_no_telemetry", warmName: "kubernetes.pod.count", alternate: true},
+	}
+}
+
+// rejectedMetricNameForIteration selects the timed sample, alternating locally per parallel worker.
+func rejectedMetricNameForIteration(_ rejectedMetricTelemetryCase, iteration int) string {
+	if iteration%2 == 0 {
+		return "datadog.agent.running"
+	}
+	return "kubernetes.pod.count"
+}
+
+func BenchmarkHandleObserveMetricRejectedTelemetry(b *testing.B) {
+	for _, tc := range rejectedMetricTelemetryCases() {
+		tc := tc
+		b.Run(tc.name, func(b *testing.B) {
+			var telemetryComp telemetry.Component
+			withTelemetry := tc.name != "warm_handle_source/alternate_sources_no_telemetry"
+			if withTelemetry {
+				telemetryComp = telemetryimpl.NewMock(b)
+			}
+
+			h := &handle{
+				source: "check",
+				filter: newV1MetricFilter(b),
+			}
+			if withTelemetry {
+				h.telemetry = newObserverTelemetry(telemetryComp)
+			}
+			checkSample := highLoadMetric("kubernetes.pod.count")
+			agentSample := highLoadMetric("datadog.agent.running")
+			checkContextKey := testContextKeyFor(checkSample)
+			agentContextKey := testContextKeyFor(agentSample)
+
+			sampleFor := func(name string) (observerdef.MetricView, uint64) {
+				if name == "datadog.agent.running" {
+					return agentSample, agentContextKey
+				}
+				return checkSample, checkContextKey
+			}
+			warmName := tc.warmName
+			warmSample, warmContextKey := sampleFor(warmName)
+
+			// Initialize the cache and its first counter before timing.
+			if h.observeMetricAndReportDrop(warmSample, warmContextKey) {
+				b.Fatal("expected warm-up metric to be rejected by processing rules")
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			if !tc.alternate {
+				sample, contextKey := sampleFor(tc.hotName)
+				b.RunParallel(func(pb *testing.PB) {
+					for pb.Next() {
+						if h.observeMetricAndReportDrop(sample, contextKey) {
+							panic("expected metric to be rejected by processing rules")
+						}
+					}
+				})
+			} else {
+				b.RunParallel(func(pb *testing.PB) {
+					localIteration := 0
+					for pb.Next() {
+						name := rejectedMetricNameForIteration(tc, localIteration)
+						sample, contextKey := sampleFor(name)
+						if h.observeMetricAndReportDrop(sample, contextKey) {
+							panic("expected metric to be rejected by processing rules")
+						}
+						localIteration++
+					}
+				})
+			}
+			b.StopTimer()
+			// Drain any interval tail so all variants assert the same totals.
+			publishFilteredMetricsForTest(h)
+
+			if telemetryComp == nil {
+				return
+			}
+
+			checkCount := 0
+			agentCount := 0
+			if tc.warmName == "kubernetes.pod.count" {
+				checkCount++
+			} else {
+				agentCount++
+			}
+			if tc.hotName == "kubernetes.pod.count" {
+				checkCount += b.N
+			} else {
+				agentCount += b.N
+			}
+			if tc.alternate {
+				// Per-source splits vary by scheduling; verify the exact total.
+				requireFilteredMetricCounterTotal(b, 1+float64(b.N), telemetryComp)
+				return
+			}
+			// Verify only sources with traffic; unused series may be absent or zero.
+			requireCounterMetricValueBySource(b, "check", float64(checkCount), telemetryComp)
+			requireCounterMetricValueBySource(b, observerdef.AgentNamespace, float64(agentCount), telemetryComp)
+		})
+	}
+}
+
+func requireFilteredMetricCounterTotal(b testing.TB, want float64, telemetryComp telemetry.Component) {
+	b.Helper()
+
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	metricName := "observer__" + telemetryFilteredMetrics
+	var total float64
+	var found bool
+	for _, family := range metricFamilies {
+		if family.GetName() != metricName {
+			continue
+		}
+		found = true
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+	}
+	if !found {
+		b.Fatalf("counter %q not found", metricName)
+	}
+	if total != want {
+		b.Fatalf("filtered metric counter total %v, want %v", total, want)
+	}
 }
 
 func newV1MetricFilter(b *testing.B) *metricsFilterRules {
@@ -189,11 +394,11 @@ func highLoadMetric(name string) *metricObs {
 	return &metricObs{
 		name:      name,
 		timestamp: 1000,
-		tags: []string{
+		tags: testCompositeTags([]string{
 			"pod_name:api-123", "container_id:abc", "env:staging", "service:api",
 			"kube_namespace:default", "kube_deployment:api", "image_name:api", "image_tag:v1",
 			"cluster_name:stormeagle", "region:us-east-1", "team:agent", "version:7.84.0",
 			"orchestrator:ecs", "container_name:api", "kube_replica_set:api-123", "short_image:api",
-		},
+		}),
 	}
 }

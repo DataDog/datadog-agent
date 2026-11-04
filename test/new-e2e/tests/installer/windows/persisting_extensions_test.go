@@ -9,7 +9,6 @@ package installer
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +20,7 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -103,19 +103,14 @@ func (s *testExtensionsSuite) verifyDDOTRunningSCM(expectedVersion string) {
 func (s *testExtensionsSuite) verifyDDOTRunningProcmgr(expectedVersion string) {
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	s.assertManagedByProcmgr(ddotProcmgrProcess)
 	if expectedVersion == "" {
 		return
 	}
-	installRoot, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
-	s.Require().NoError(err)
-	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
+	cli := s.procmgrCLIPath()
 	assert.Eventually(s.T(), func() bool {
-		cmdLine, err := WindowsDescribeDDOTCommandLine(s.Env().RemoteHost, cli)
-		if err != nil || cmdLine == "" {
-			return false
-		}
-		return strings.Contains(cmdLine, expectedVersion)
+		cmdLine, err := windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, cli, ddotProcmgrProcess, "Command")
+		return err == nil && strings.Contains(cmdLine, expectedVersion)
 	}, 2*time.Minute, 2*time.Second, "dd-procmgr describe Command should contain version %s", expectedVersion)
 }
 

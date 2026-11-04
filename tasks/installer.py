@@ -6,6 +6,7 @@ import glob
 import hashlib
 import sys
 from os import getenv, makedirs, path
+from pathlib import PurePosixPath
 
 from invoke import task
 
@@ -58,9 +59,9 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --output-bin.")
         if not no_strip_binary:
             raise NotImplementedError("--enable-bazel does not support --no-strip-binary=False.")
-
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=INSTALLER_BIN)
+        if fips_mode:
+            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=INSTALLER_BIN)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
@@ -86,8 +87,14 @@ def build(
     if output_bin:
         installer_bin = output_bin
 
-    if no_cgo and not fips_mode:
+    if no_cgo:
         env["CGO_ENABLED"] = "0"
+        if fips_mode and install_path:
+            rpath = [f"{install_path}/embedded/lib"]  # OpenSSL is dlopen'ed from there at runtime
+            package_path = PurePosixPath(install_path).parent
+            if package_path.parent.name == "datadog-packages":
+                rpath.append(f"{package_path}/stable/embedded/lib")  # OpenSSL is dlopen'ed from there at upgrade time
+            ldflags += f" -r {':'.join(rpath)}"
     else:
         env["CGO_ENABLED"] = "1"
 

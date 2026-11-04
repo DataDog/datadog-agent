@@ -1,0 +1,13 @@
+description: test -h returns false for a regular file (not a symlink).
+setup:
+  files:
+    - path: regular.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    if [ -h regular.txt ]; then echo yes; else echo no; fi
+expect:
+  stdout: "no\n"
+  stderr: ""
+  exit_code: 0

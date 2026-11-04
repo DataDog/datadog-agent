@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   dogstatsd-udp:
-    image: ghcr.io/datadog/apps-dogstatsd:{APPS_VERSION}
+    image: ${DD_APPS_REGISTRY:-ghcr.io/datadog}/apps-dogstatsd:{APPS_VERSION}
     container_name: metric-sender-udp
     network_mode: host
     pid: "host"
@@ -10,7 +10,7 @@ services:
     depends_on:
       - agent
   dogstatsd-uds:
-    image: ghcr.io/datadog/apps-dogstatsd:{APPS_VERSION}
+    image: ${DD_APPS_REGISTRY:-ghcr.io/datadog}/apps-dogstatsd:{APPS_VERSION}
     container_name: metric-sender-uds
     volumes:
       - /var/run/datadog:/var/run/datadog:ro

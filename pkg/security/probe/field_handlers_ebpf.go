@@ -427,7 +427,7 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
-	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext, f); pkg != nil {
+	if pkg := fh.resolvers.SBOMResolver.LookupPackage(ev.ProcessContext, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
 		f.PkgEpoch = pkg.Epoch
@@ -773,7 +773,7 @@ func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanCont
 func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 	// nothing to do once the lookup ran, when the kernel already filled the ids
 	// in, or when it captured no labels snapshot for this event
-	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 {
+	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 || fh.resolvers.GoLabelsCtxResolver == nil {
 		return
 	}
 	ev.GoLabels.Resolved = true
@@ -796,6 +796,9 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 		return
 	}
 	ev.SpanContext.HasExtraAttrs = false
+	if fh.resolvers.OTelAttrsResolver == nil {
+		return
+	}
 
 	rawAttrs, err := fh.resolvers.OTelAttrsResolver.Resolve(ev.SpanContext.ExtraAttrsID)
 	fh.resolvers.ProcessResolver.CountOTelAttrsLookup(err)
@@ -1070,6 +1073,24 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 	usedCapabilities := int(ce.Used)
 	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
 		usedCapabilities |= int(pce.CapsUsed)
+	}
+	return usedCapabilities
+}
+
+// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities that were checked against the initial/host user namespace
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	attemptedCapabilities := int(ce.AttemptedHostUserNS)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		attemptedCapabilities |= int(pce.CapsAttemptedHostUserNS)
+	}
+	return attemptedCapabilities
+}
+
+// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities that were obtained from the initial/host user namespace
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsedHostUserNS(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	usedCapabilities := int(ce.UsedHostUserNS)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		usedCapabilities |= int(pce.CapsUsedHostUserNS)
 	}
 	return usedCapabilities
 }

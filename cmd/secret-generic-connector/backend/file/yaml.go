@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/mitchellh/mapstructure"
 

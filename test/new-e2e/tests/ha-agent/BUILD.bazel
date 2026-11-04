@@ -4,7 +4,6 @@ dd_agent_go_test(
     name = "ha-agent_test",
     srcs = [
         "haagent_failover_test.go",
-        "haagent_metadata_test.go",
         "haagent_test.go",
     ],
     data = [
@@ -15,6 +14,7 @@ dd_agent_go_test(
         "fixtures/cisco_aci_conf.yaml",
         "fixtures/snmp_conf.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//pkg/remoteconfig/state",
         "//test/e2e-framework/components/datadog/agent",

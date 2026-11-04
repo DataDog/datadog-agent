@@ -85,7 +85,7 @@ func TestSysctlEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("test_sysctl_write", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {

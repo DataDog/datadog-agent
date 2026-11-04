@@ -21,7 +21,7 @@ def _impl(name, build_tags, linecomment, output, src, trimprefix, types, visibil
         tool = "@go_stringer",
     )
     native.exports_files([output], visibility)
-    write_source_file(name = name, in_file = ":{}".format(gen), out_file = output, check_that_out_file_exists = False)
+    write_source_file(name = name, in_file = ":{}".format(gen), out_file = output, check_that_out_file_exists = False, visibility = visibility)
 
 go_stringer = macro(
     implementation = _impl,

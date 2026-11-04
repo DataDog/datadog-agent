@@ -23,7 +23,6 @@ const (
 	nvlinkFECNoErrorsMetricName         = "nvlink.errors.fec.none"
 	nvlinkFECLightErrorsMetricName      = "nvlink.errors.fec.light"
 	nvlinkFECHeavyErrorsMetricName      = "nvlink.errors.fec.heavy"
-	nvlinkFECLightErrorThresholdConfig  = "gpu.nvlink.fec_light_error_threshold"
 	defaultNVLinkFECLightErrorThreshold = 3
 )
 
@@ -54,10 +53,8 @@ type nvlinkFECCollector struct {
 
 func newNVLinkFECCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
 	lightErrorBucketThreshold := defaultNVLinkFECLightErrorThreshold
-	if deps != nil && deps.Config != nil && deps.Config.GetInt(nvlinkFECLightErrorThresholdConfig) > 0 {
-		if v := deps.Config.GetInt(nvlinkFECLightErrorThresholdConfig); v > 0 {
-			lightErrorBucketThreshold = v
-		}
+	if deps.Config.NVLinkFECLightErrorThreshold > 0 {
+		lightErrorBucketThreshold = deps.Config.NVLinkFECLightErrorThreshold
 	}
 
 	c := &nvlinkFECCollector{

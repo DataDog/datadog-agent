@@ -5,10 +5,28 @@
 
 #[cfg(unix)]
 mod unix;
+#[cfg(windows)]
+mod windows;
+
 #[cfg(unix)]
 pub use self::unix::*;
 
 #[cfg(windows)]
-mod windows;
-#[cfg(windows)]
 pub use self::windows::*;
+
+use crate::spawn::SpawnProfile;
+
+/// Initial status user for a managed process. On Windows, also returns a cached agent
+/// spawn credential when the profile needs one.
+#[cfg(unix)]
+pub(crate) fn initial_spawn_identity(process_name: &str, profile: SpawnProfile) -> String {
+    unix::intended_spawn_user(process_name, profile)
+}
+
+#[cfg(windows)]
+pub(crate) fn initial_spawn_identity(
+    process_name: &str,
+    profile: SpawnProfile,
+) -> (String, Option<windows::SpawnCredential>) {
+    windows::resolve_initial_spawn_identity(process_name, profile)
+}

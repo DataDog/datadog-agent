@@ -108,6 +108,14 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_ENV")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_SYSTEM_PROBE_NETWORK_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
@@ -161,6 +169,10 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "Secure=yes"
                 },
                 new Property("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -694,8 +706,8 @@ namespace WixSetup.Datadog_Agent
                 Constants.ProcmgrServiceName,
                 "Datadog Process Manager",
                 "Manage Datadog agent processes",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                "[DDAGENTUSER_PROCESSED_PASSWORD]");
+                "LocalSystem",
+                null);
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {

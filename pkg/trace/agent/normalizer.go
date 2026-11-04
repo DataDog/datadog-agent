@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -28,11 +27,6 @@ const (
 	// tagOrigin specifies the origin of the trace.
 	// DEPRECATED: Origin is now specified as a TraceChunk field.
 	tagOrigin = "_dd.origin"
-)
-
-var (
-	// Year2000NanosecTS is an arbitrary cutoff to spot weird-looking values
-	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 )
 
 // normalizeService handles service normalization for both pb.Span and idx.InternalSpan
@@ -107,32 +101,22 @@ func (a *Agent) normalizeName(ts *info.TagStats, name string) (string, error) {
 
 // validateAndFixDuration handles duration validation for both pb.Span and idx.InternalSpan
 func (a *Agent) validateAndFixDuration(ts *info.TagStats, start int64, duration int64) int64 {
-	if duration < 0 {
+	fixed, invalid := normalizeutil.FixDuration(start, duration)
+	if invalid {
 		ts.SpansMalformed.InvalidDuration.Inc()
 		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0")
-		return 0
 	}
-	if duration > math.MaxInt64-start {
-		ts.SpansMalformed.InvalidDuration.Inc()
-		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0")
-		return 0
-	}
-	return duration
+	return fixed
 }
 
 // validateAndFixStartTime handles start time validation for both pb.Span and idx.InternalSpan
 func (a *Agent) validateAndFixStartTime(ts *info.TagStats, start int64, duration int64) int64 {
-	if start < Year2000NanosecTS {
+	fixed, invalid := normalizeutil.FixStartTime(start, duration)
+	if invalid {
 		ts.SpansMalformed.InvalidStartDate.Inc()
 		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now()")
-		now := time.Now().UnixNano()
-		newStart := now - duration
-		if newStart < 0 {
-			return now
-		}
-		return newStart
 	}
-	return start
+	return fixed
 }
 
 // validateAndFixType handles type validation for both pb.Span and idx.InternalSpan
@@ -147,7 +131,7 @@ func (a *Agent) validateAndFixType(ts *info.TagStats, spanType string) string {
 
 // validateAndFixHTTPStatusCode handles HTTP status code validation for both pb.Span and idx.InternalSpan
 func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (string, bool) {
-	if !isValidStatusCode(sc) {
+	if !normalizeutil.IsValidStatusCode(sc) {
 		ts.SpansMalformed.InvalidHTTPStatusCode.Inc()
 		log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s", sc)
 		return "", false
@@ -184,7 +168,7 @@ func (a *Agent) validateAndFixDurationV1(ts *info.TagStats, start uint64, durati
 
 // validateAndFixStartTimeV1 handles start time validation for idx.InternalSpan
 func (a *Agent) validateAndFixStartTimeV1(ts *info.TagStats, start uint64, duration uint64) uint64 {
-	if start < uint64(Year2000NanosecTS) {
+	if start < uint64(normalizeutil.Year2000NanosecTS) {
 		ts.SpansMalformed.InvalidStartDate.Inc()
 		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now()")
 		now := uint64(time.Now().UnixNano())
@@ -229,6 +213,8 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	svc, _ := a.normalizeService(ts, s.Service, ts.Lang)
 	s.Service = svc
 
+	// The peer.service, _dd.base_service, env and http.status_code changes below are mirrored by rootTags in
+	// comp/otelcol/otlp/components/connector/datadogconnector/root_filter.go; keep them in sync.
 	reg := semantics.DefaultRegistry()
 	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
 	if pSvc := semantics.LookupString(reg, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
@@ -477,11 +463,4 @@ func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
 	if b.Resource == "" {
 		b.Resource = b.Name
 	}
-}
-
-func isValidStatusCode(sc string) bool {
-	if code, err := strconv.ParseUint(sc, 10, 64); err == nil {
-		return 100 <= code && code < 600
-	}
-	return false
 }

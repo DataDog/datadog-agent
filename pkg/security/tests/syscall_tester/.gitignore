@@ -6,3 +6,5 @@ bin/syscall_x86_tester
 bin/syscall_tester.d
 bin/otel_tls_*
 bin/libotel_tls_*
+bin/otel_nodejs_*
+bin/libotel_nodejs_*

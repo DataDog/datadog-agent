@@ -10,7 +10,10 @@ package process
 import (
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
 	"syscall"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -43,7 +46,9 @@ type spanCtxStatus int
 
 const (
 	spanCtxOK spanCtxStatus = iota
-	// spanCtxNotApplicable: instrumented, but not through this reader
+	// spanCtxNotApplicable: instrumented, but not through this reader -- a
+	// different mechanism, or a shape (e.g. OTEP 4719's v1 header) this
+	// reader was never meant to support.
 	spanCtxNotApplicable
 	// spanCtxUnsupported: a shape we know and can't handle
 	spanCtxUnsupported
@@ -110,15 +115,22 @@ func (s spanCtxStatus) Tag() string {
 	return "status:" + s.String()
 }
 
-// expected reports whether s is an outcome we can't act on -- it drives the log
-// level in reportSpanCtxError.
-func (s spanCtxStatus) expected() bool {
+// warn reports whether s is worth surfacing at warn level
+func (s spanCtxStatus) warn() bool {
 	switch s {
-	case spanCtxOK, spanCtxNotApplicable, spanCtxUnpublished, spanCtxGone, spanCtxNoProcessEntry, spanCtxStaleID:
+	case spanCtxUnsupported, spanCtxMalformed, spanCtxTorn, spanCtxUnreadable, spanCtxQueueFull, spanCtxMapError, spanCtxUnknown:
 		return true
 	default:
 		return false
 	}
+}
+
+// isVanishedTargetError reports whether err is how a target that stopped
+// existing mid-resolution surfaces: a /proc entry or a mapped file that is gone
+// by the time we open it, or a memory read against a dead process.
+func isVanishedTargetError(err error) bool {
+	return errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.ENOENT) ||
+		errors.Is(err, syscall.EIO) || errors.Is(err, io.EOF)
 }
 
 // classifySpanCtxError maps an error to a status
@@ -126,14 +138,14 @@ func classifySpanCtxError(err error) spanCtxStatus {
 	switch {
 	case err == nil:
 		return spanCtxOK
-	case errors.Is(err, errSpanCtxNotApplicable):
+	case errors.Is(err, errSpanCtxGone), isVanishedTargetError(err):
+		return spanCtxGone
+	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
 	case errors.Is(err, errSpanCtxUnsupported):
 		return spanCtxUnsupported
 	case errors.Is(err, errSpanCtxMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, errSpanCtxGone):
-		return spanCtxGone
 	case errors.Is(err, errSpanCtxMapError):
 		return spanCtxMapError
 	case errors.Is(err, otelprocessctx.ErrUnpublished):
@@ -150,8 +162,6 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxStaleID
 	case errors.Is(err, otelattrs.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, syscall.ESRCH), errors.Is(err, syscall.ENOENT), errors.Is(err, syscall.EIO):
-		return spanCtxGone
 	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
 		return spanCtxUnreadable
 	default:
@@ -274,6 +284,20 @@ func (p *EBPFResolver) sendSpanCtxStats() error {
 	return nil
 }
 
+func (p *EBPFResolver) reportOTelProcCtxQueueLatency(queuedAt time.Time) {
+	p.reportLatency(metrics.MetricSpanContextProcessCtxQueueLatency, queuedAt, nil)
+}
+
+func (p *EBPFResolver) reportOTelTLSLatency(start time.Time, readELF bool) {
+	p.reportLatency(metrics.MetricSpanContextResolutionLatency, start, []string{"elf:" + strconv.FormatBool(readELF)})
+}
+
+func (p *EBPFResolver) reportLatency(metric string, since time.Time, tags []string) {
+	if err := p.statsdClient.Distribution(metric, time.Since(since).Seconds(), tags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metric, err)
+	}
+}
+
 // reportSpanCtx classifies and counts the outcome of step for pid, logging a
 // success line on nil and delegating to reportSpanCtxError otherwise.
 func (p *EBPFResolver) reportSpanCtx(step spanCtxStep, pid uint32, err error) {
@@ -291,10 +315,10 @@ func (p *EBPFResolver) reportSpanCtxError(step spanCtxStep, pid uint32, err erro
 	status := classifySpanCtxError(err)
 	p.countSpanCtx(step, status)
 
-	if status.expected() {
-		seclog.Debugf("%s for pid %d: %s [%s]", step, pid, err, status)
-	} else {
+	if status.warn() {
 		seclog.Warnf("%s for pid %d: %s [%s]", step, pid, err, status)
+	} else {
+		seclog.Debugf("%s for pid %d: %s [%s]", step, pid, err, status)
 	}
 }
 
@@ -306,10 +330,10 @@ func (p *EBPFResolver) countLookup(step spanCtxStep, err error) {
 	if err == nil {
 		return
 	}
-	if status.expected() {
-		seclog.Debugf("%s: %s [%s]", step, err, status)
-	} else {
+	if status.warn() {
 		seclog.Warnf("%s: %s [%s]", step, err, status)
+	} else {
+		seclog.Debugf("%s: %s [%s]", step, err, status)
 	}
 }
 

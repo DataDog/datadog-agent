@@ -1,0 +1,13 @@
+description: uniq on empty file produces no output.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq empty.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

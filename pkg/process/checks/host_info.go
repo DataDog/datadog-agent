@@ -66,7 +66,7 @@ func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterfac
 	if flavor.GetFlavor() != flavor.ProcessAgent && !fargate.IsSidecar() {
 		hostName, err := hostnameComp.Get(context.TODO())
 		if err != nil {
-			return "", fmt.Errorf("error while getting hostname: %v", err)
+			return "", fmt.Errorf("error while getting hostname: %w", err)
 		}
 		return hostName, nil
 	}

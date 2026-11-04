@@ -17,6 +17,7 @@ from tasks.static_quality_gates.experimental_gates import (
     DockerImageInfo,
     DockerLayerInfo,
     FileInfo,
+    FileUtilities,
     InPlaceArtifactReport,
     InPlaceDockerMeasurer,
     InPlacePackageMeasurer,
@@ -72,6 +73,26 @@ class TestFileInfo(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             FileInfo(relative_path="opt/bin/python3", size_bytes=9, is_symlink=True, symlink_target=None)
         self.assertIn("symlink_target must be provided when is_symlink is True", str(cm.exception))
+
+
+class TestWalkFiles(unittest.TestCase):
+    def test_directories_are_only_listed_on_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = os.path.realpath(tmp)
+            os.makedirs(os.path.join(root, 'opt/agent/empty'))
+            os.chmod(os.path.join(root, 'opt/agent/empty'), 0o750)
+            os.symlink('agent', os.path.join(root, 'opt/stable'))
+            open(os.path.join(root, 'opt/agent/file'), 'w').close()
+            default = {info.relative_path for info in FileUtilities.walk_files(root, False)}
+            entries = {
+                info.relative_path: info for info in FileUtilities.walk_files(root, False, include_directories=True)
+            }
+        self.assertEqual(default, {'opt/agent/file'})
+        self.assertEqual(set(entries), {'opt', 'opt/agent', 'opt/agent/empty', 'opt/agent/file', 'opt/stable'})
+        self.assertEqual(entries['opt/agent/empty'].chmod, 0o750)
+        self.assertFalse(entries['opt/agent/empty'].is_symlink)
+        self.assertTrue(entries['opt/stable'].is_symlink)
+        self.assertEqual(entries['opt/stable'].symlink_target, 'opt/agent')
 
 
 class TestInPlaceArtifactReport(unittest.TestCase):
@@ -195,6 +216,29 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             self.assertIn("Invalid YAML configuration", str(cm.exception))
         finally:
             os.unlink(invalid_config_file.name)
+
+    def test_init_finds_gate_defined_in_second_config_file(self):
+        """A gate only present in the second of several config files must still be found."""
+        cluster_agent_config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)
+        yaml.dump(
+            {
+                "static_quality_gate_docker_cluster_agent_amd64": {
+                    "max_on_wire_size": "75 MiB",
+                    "max_on_disk_size": "214 MiB",
+                }
+            },
+            cluster_agent_config_file,
+        )
+        cluster_agent_config_file.close()
+
+        try:
+            measurer = InPlacePackageMeasurer(config_path=[self.temp_config_file.name, cluster_agent_config_file.name])
+            gate_config = measurer._measurer.config_manager.get_gate_config(
+                "static_quality_gate_docker_cluster_agent_amd64"
+            )
+            self.assertEqual(gate_config.gate_name, "static_quality_gate_docker_cluster_agent_amd64")
+        finally:
+            os.unlink(cluster_agent_config_file.name)
 
     @patch.dict(os.environ, {"CI_PIPELINE_ID": "12345", "CI_COMMIT_SHA": "abc123def456"})
     @patch('os.path.exists')
@@ -480,6 +524,7 @@ class TestInvokeTask(unittest.TestCase):
     def test_measure_package_local_success(self, mock_print, mock_exists, mock_measurer_class):
         """Test successful local package measurement task."""
         from tasks.static_quality_gates.experimental_gates import measure_package_local
+        from tasks.static_quality_gates.thresholds import ALL_GATE_CONFIG_PATHS
 
         # Setup mocks
         mock_exists.return_value = True
@@ -518,7 +563,7 @@ class TestInvokeTask(unittest.TestCase):
         )
 
         # Verify measurer was initialized and called
-        mock_measurer_class.assert_called_once_with(config_path="test/static/static_quality_gates.yml")
+        mock_measurer_class.assert_called_once_with(config_path=ALL_GATE_CONFIG_PATHS)
         mock_measurer.measure_package.assert_called_once()
         mock_measurer.save_report_to_yaml.assert_called_once()
 

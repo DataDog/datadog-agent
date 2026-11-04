@@ -14,20 +14,20 @@ Tests live in `test/new-e2e/tests/` and import this framework.
 test/e2e-framework/
 ├── testing/
 │   ├── e2e/              # Test harness: BaseSuite, Run(), SuiteOption
-│   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS
+│   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS, BenchmarkEKS
 │   ├── provisioners/     # Provisioner interfaces + cloud-specific implementations
-│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm, kubeadm)
+│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm, kubeadm, benchmarkeks)
 │   │   ├── azure/        # host (linux, windows), kubernetes (aks)
 │   │   ├── gcp/          # host (linux), kubernetes (gke, openshiftvm)
 │   │   └── local/        # host (podman), kubernetes (kind)
 │   └── components/       # Test-side wrappers: RemoteHost, Agent, FakeIntake
 ├── scenarios/
-│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm, kubeadm
+│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm, kubeadm, benchmarkeks
 ├── components/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
 │   │   └── fakeintake/   # Fakeintake deployment component
-│   ├── os/               # OS descriptors (Ubuntu2204E2E, WindowsServer2025, etc.)
+│   ├── os/               # OS descriptors (Ubuntu2204, WindowsServer2025, etc.)
 │   ├── kubernetes/       # K8s components (KinD, OpenShift, Helm addons)
 │   ├── docker/           # Docker compose components
 │   └── remote/           # Remote host SSH management
@@ -51,13 +51,14 @@ An environment defines what infrastructure a test needs:
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
 | `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
 | `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
+| `environments.BenchmarkEKS` | EKS cluster + two Agent installations (variants a and b) on node pools of their own, no FakeIntake | `aws/kubernetes/benchmarkeks.Provisioner()` | Comparing the resource usage of two Agent versions |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
 
 Provisioners create the environment's infrastructure. Built-in provisioners
 live in `testing/provisioners/` organized by cloud provider (aws, azure, gcp, local).
-The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm}`;
+The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm,benchmarkeks}`;
 tests commonly alias the kind one as `awskubernetes`, and the ECS one as `awsecs`, which are
 import aliases rather than package names. Azure, GCP and local provisioners take their options
 directly (`azurehost.WithAgentOptions(...)`) rather than nesting them inside `WithRunOptions`
@@ -67,7 +68,7 @@ as the AWS example below does.
 // Host on AWS EC2
 awshost.Provisioner(
     awshost.WithRunOptions(
-        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E)),
+        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204)),
         ec2.WithAgentOptions(
             agentparams.WithAgentConfig(config),
             agentparams.WithIntegration("check.d", checkConfig),
@@ -76,13 +77,33 @@ awshost.Provisioner(
 )
 ```
 
-Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve to
-Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
-so a test never installs them at runtime. They are already the Linux defaults
-(`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
+Every `platforms.json` image is a Packer-built AMI with Docker, the AWS CLI, `jq`,
+`ansible` and friends prebaked, so a test never installs them at runtime. Keys and
+descriptors carry no `-e2e` suffix: that distinction only exists in ami-builder, whose
+`platforms_key` maps its `-e2e` builds to our keys. Passing no OS at all is also
+correct (`UbuntuDefault = Ubuntu2204`, `WindowsServerDefault = WindowsServer2025`).
+There is no generic runtime install: `PackageManager.RuntimeInstallDocker` 
+(Docker and docker-compose) is the only one, for GCP, Azure and local VMs, 
+and it fails on AWS. Add new dependencies to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
-`docs/public/how-to/test/e2e/custom-amis.md` and
-`docs/public/how-to/test/e2e/dependencies.md`.
+`doc/how-to/test/e2e/custom-amis.md` and
+`doc/how-to/test/e2e/dependencies.md`.
+
+### Kubernetes internet access
+
+AWS Kubernetes test provisioners (`kindvm`, `kubeadm`, and `eks`) default to
+no internet access. Override with `WithRunOptions(kindvm.WithInternetAccess())`,
+the equivalent kubeadm option, or
+`WithRunOptions(eks.WithEKSOptions(eks.WithInternetAccess()))` for EKS.
+Register explicit opt-outs in `test/new-e2e/internet-access.yaml`. Direct scenario
+callers do not inherit these provisioner defaults. EKS Auto Mode requires an
+explicit opt-out; EKS Fargate pods are not covered by the egress restriction.
+
+EKS private networking must allow all IPv4 CIDRs associated with the VPC, not
+just its primary CIDR: nodes and custom-CNI pods can use secondary networks.
+The restricted security groups also allow HTTPS to regional S3 through its
+gateway endpoint, which ECR needs for image layers. Keep the node, pod, and
+control-plane egress rules aligned through `eks.NoInternetEgressRules`.
 
 ### Kubernetes resource ownership
 
@@ -113,6 +134,20 @@ Key helpers on BaseSuite:
 - `s.EventuallyWithT(fn, timeout, interval)` — retry assertions until they pass;
   use `require` (not `assert`) inside the callback so failures short-circuit the
   current retry iteration instead of accumulating silently
+- `s.Env().WaitForAgentReady(ctx, options...)` — for Kubernetes environments,
+  wait for selected Node Agent, Cluster Agent, Cluster Checks Runner, or auxiliary
+  DaemonSet pods to be ready without duplicating a `Test00UpAndRunning` loop. Call
+  it from `SetupSuite` when readiness is a prerequisite for every test; use
+  `WithAgentReadinessStableFor` when asynchronous Agent subsystems need warm-up time.
+  `environments.WaitForKubernetesAgentReady(ctx, cluster, agent, options...)` does the same
+  for an Agent that isn't the one of a `Kubernetes` environment, e.g. one of the two
+  installations of `environments.BenchmarkEKS`, looking up each workload in the namespace it
+  was installed in; pair it with `WithLinuxNodeAgentNodeSelector` for an installation pinned to
+  a subset of the nodes. Auxiliary workloads that must be ready
+  alongside the Agent use `WithPodsReadyForNodes` (one pod per selected node, e.g. a
+  DaemonSet) or `WithPodsReady` (a minimum number of pods, all ready, e.g. a Deployment).
+  `WithAgentRestartsAllowed` accepts Agent pods that restarted, e.g. once at a node's cold
+  start, as long as they are ready; auxiliary workloads must still never restart.
 
 ## Agent configuration
 
@@ -150,6 +185,14 @@ and the standalone driver — keep them in sync.
 
 Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
 retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
+
+## GCP authentication
+
+GCP provisioning uses ADC, while generated GKE kubeconfigs use the active gcloud
+CLI account through `gke-gcloud-auth-plugin`. Local GKE creation checks CLI credentials
+before provisioning because they can expire independently of ADC. When
+`GOOGLE_APPLICATION_CREDENTIALS` is supplied, preserve the existing service account
+activation path and skip the local CLI check.
 
 ## Agent installers outside Pulumi
 
@@ -190,6 +233,9 @@ When that's not enough, common advanced patterns:
 - **`s.UpdateEnv(provisioner)`** — re-provision the agent mid-suite (e.g., change
   config, toggle features) without destroying the underlying infra. Widely used
   but error-prone; may be removed in the future.
+- **`kindvm.WithPreAgentWorkloadApp(app)`** — deploy Kubernetes resources such
+  as CRDs before the Agent. Use it when Agent startup discovery must observe the
+  resource; it cannot be combined with a standalone OTel Agent deployment.
 
 ### Useful suite options
 
@@ -240,6 +286,33 @@ constraints shape how a macOS suite must be wired into CI:
 Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
 (installs by hand, `ec2.WithoutAgent()`) and
 `tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
+
+## Default image registry
+
+Two `config.Env` accessors decide where an image comes from; never hardcode a registry
+host in a component or scenario.
+
+| Accessor | Use for | AWS | GCP / Azure / local |
+|----------|---------|-----|---------------------|
+| `DatadogPublicRegistry()` | publicly released Datadog images (agent, cluster-agent, ddot-collector, operator, dogstatsd, fakeintake) | `<internal ECR>/ecr-public/datadog` | `gcr.io/datadoghq` |
+| `InternalDockerhubMirror()` | anything published to Docker Hub, including the unstable `agent-dev` images behind the FIPS and OTel variants | `<internal ECR>/dockerhub` | `registry-1.docker.io` |
+
+On AWS both are pull-through cache prefixes, so the pull stays inside the account. The AWS
+value is per-environment (`resources/aws/environmentDefaults.go`) and overridable through
+`ddinfra:aws/defaultDatadogPublicRegistry`; a test asserts every AWS environment sets it.
+
+`components/datadog/agent/docker_image.go` owns the resolution order: an explicit image tag
+> `ddagent:fullImagePath` > pipeline + SHA (`<InternalRegistry()>/agent-qa:<id>-<sha>`) >
+the OTel/FIPS dev repository > the default repository above. Only the last branch is
+registry-dependent, so a test targeting a pipeline is unaffected by any of this.
+
+Two deliberate exceptions, commented where they occur:
+
+- **Fargate** (`components/datadog/agent/ecsFargate.go`, `scenarios/aws/fakeintake/`) pins
+  `public.ecr.aws`. The ECS control plane pulls the image with the task execution role as
+  part of the service definition, so there is no host to authenticate against the cache on.
+- **`injector-dev`** (used by `tests/ssi`) is not published to public ECR, so those images
+  stay on `registry.datadoghq.com`/`gcr.io` and remain internet-dependent on AWS.
 
 ## Fakeintake image version
 

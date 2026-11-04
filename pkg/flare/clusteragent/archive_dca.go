@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	autoscalingrc "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/remoteconfig"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -107,12 +108,20 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                               //nolint:errcheck
 	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })         //nolint:errcheck
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return flarecommon.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
-	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return remote.GetGoRoutineDump() })
+	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) {
+		return remote.GetGoRoutineDump(pkgconfigsetup.Datadog().GetInt("metrics_port"))
+	})
 	getPerformanceProfileDCA(fb, pdata)
 	getProfilingDataDCA(fb)
 
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(ctx, fb) //nolint:errcheck
+	}
+
+	// No-op unless autoscaling reads its configuration from its own endpoint.
+	if err := autoscalingrc.AddFlareFiles(fb, pkgconfigsetup.Datadog()); err != nil {
+		// Debug is fine since the file does not always exist
+		log.Debugf("Could not add the autoscaling remote configuration cache to the flare: %v", err)
 	}
 }
 

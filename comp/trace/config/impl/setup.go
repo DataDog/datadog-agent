@@ -223,6 +223,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("dogstatsd_port") {
 		c.StatsdPort = core.GetInt("dogstatsd_port")
 	}
+	// Not guarded by IsConfigured, so the schema default applies too.
+	if size := core.GetInt("dogstatsd_buffer_size"); size > 0 {
+		c.StatsdBufferSize = size
+	}
 
 	obsPipelineEnabled, prefix := isObsPipelineEnabled(core)
 	if obsPipelineEnabled {
@@ -252,6 +256,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
+
+	// Traces/stats sibling of apm_config.profiling_send_to_main_endpoint: when
+	// false, the trace and stats writers skip the main endpoint and only send to
+	// additional_endpoints. Endpoints[0] is kept so APIKey() is unchanged.
+	// SkipMainEndpoint is the inverse of the config key so the Go zero value
+	// keeps sending to the main endpoint.
+	if !core.GetBool("apm_config.traces_send_to_main_endpoint") {
+		c.SkipMainEndpoint = true
+	}
 
 	if core.IsConfigured("proxy.no_proxy") {
 		proxyList := core.GetStringSlice("proxy.no_proxy")
@@ -741,6 +754,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.OTelGateway = core.GetBool("otelcollector.gateway.mode")
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.DebugServerHost = pkgconfighelper.APMDebugHost(core)
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 	c.AdditionalProfileTags = core.GetStringMapString("apm_config.additional_profile_tags")
 	return nil
@@ -899,6 +913,11 @@ func splitTagRegex(tag string) *config.TagRegex {
 func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
 		return config.ErrMissingAPIKey
+	}
+	// Fail closed: skipping the main endpoint must never leave the trace and
+	// stats writers without a destination.
+	if c.SkipMainEndpoint && !c.HasWriterDestination() {
+		return config.ErrNoWriterEndpoint
 	}
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")

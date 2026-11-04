@@ -1,14 +1,21 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//test/new-e2e:tests/windows_testsuites.bzl", "install_windows_testsuites")
 
 dd_agent_go_test(
     name = "sysprobe-functional_test",
     srcs = [
         "apmtags_test.go",
         "apmtags_testdefs_test.go",
+        "assets_test.go",
         "sysprobe_test.go",
     ],
     data = ["fixtures/system-probe.yaml"],
-    embedsrcs = ["fixtures/system-probe.yaml"],
+    embedsrcs = [
+        "assets/iisstart.htm",
+        "assets/iisstart.png",
+        "fixtures/system-probe.yaml",
+    ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2/windows",
@@ -21,4 +28,43 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+# Left out:
+# - //pkg/ebpf/cgo:genpost_test: compiles the same sources as :cgo_test,
+# - //pkg/ebpf/verifier:verifier_log_parser_test: compiles the same tests as :verifier_test on Windows.
+install_windows_testsuites(
+    name = "install_windows_testsuites",
+    files = {
+        "//cmd/system-probe/modules:modules_test_npm": "cmd/system-probe/modules/testsuite.exe",
+        "//comp/metadata/inventoryagent/impl:impl_test": "comp/metadata/inventoryagent/impl/testsuite.exe",
+        "//pkg/dyninst/ebpf/stackbudget:stackbudget_test": "pkg/dyninst/ebpf/stackbudget/testsuite.exe",
+        "//pkg/dyninst/gosymname:gosymname_test": "pkg/dyninst/gosymname/testsuite.exe",
+        "//pkg/ebpf/cgo:cgo_test": "pkg/ebpf/cgo/testsuite.exe",
+        "//pkg/ebpf/ksyms:ksyms_test": "pkg/ebpf/ksyms/testsuite.exe",
+        "//pkg/ebpf/verifier:verifier_test": "pkg/ebpf/verifier/testsuite.exe",
+        "//pkg/gpu/config:config_test": "pkg/gpu/config/testsuite.exe",
+        "//pkg/logs/launchers/file:file_test": "pkg/logs/launchers/file/testsuite.exe",
+        "//pkg/network/config:config_test": "pkg/network/config/testsuite.exe",
+        "//pkg/network/dns:dns_test_npm": "pkg/network/dns/testsuite.exe",
+        "//pkg/network/encoding/marshal:marshal_test_npm": "pkg/network/encoding/marshal/testsuite.exe",
+        "//pkg/network/encoding:encoding_test_npm": "pkg/network/encoding/testsuite.exe",
+        "//pkg/network/filter:filter_test": "pkg/network/filter/testsuite.exe",
+        "//pkg/network/netlink:netlink_test": "pkg/network/netlink/testsuite.exe",
+        "//pkg/network/protocols/http:http_test_npm": "pkg/network/protocols/http/testsuite.exe",
+        "//pkg/network/protocols/telemetry:telemetry_test": "pkg/network/protocols/telemetry/testsuite.exe",
+        "//pkg/network/protocols/tls/gotls:gotls_test": "pkg/network/protocols/tls/gotls/testsuite.exe",
+        "//pkg/network/protocols/tls:tls_test": "pkg/network/protocols/tls/testsuite.exe",
+        "//pkg/network/protocols:protocols_test": "pkg/network/protocols/testsuite.exe",
+        "//pkg/network/remoteservice:remoteservice_test": "pkg/network/remoteservice/testsuite.exe",
+        "//pkg/network/sender:sender_test_npm": "pkg/network/sender/testsuite.exe",
+        "//pkg/network/tracer/networkfilter:networkfilter_test": "pkg/network/tracer/networkfilter/testsuite.exe",
+        "//pkg/network/tracer:tracer_test_npm": "pkg/network/tracer/testsuite.exe",
+        "//pkg/network/usm/tests:tests_test_npm": "pkg/network/usm/tests/testsuite.exe",
+        "//pkg/network/usm/utils:utils_test_npm": "pkg/network/usm/utils/testsuite.exe",
+        "//pkg/network/usm:usm_test_npm": "pkg/network/usm/testsuite.exe",
+        "//pkg/network:network_test_npm": "pkg/network/testsuite.exe",
+        "//pkg/system-probe/config:config_test": "pkg/system-probe/config/testsuite.exe",
+    },
+    tags = ["manual"],
 )

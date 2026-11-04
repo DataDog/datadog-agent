@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	googleGrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
@@ -75,6 +76,13 @@ type serverSecure struct {
 // (registration and refresh) and the reporting of operational events back to the Core Agent.
 type remoteAgentServer struct {
 	pb.UnimplementedRemoteAgentServer
+	remoteAgentRegistry remoteagentregistry.Component
+}
+
+// remoteCommandProviderServer implements the RemoteCommandProvider gRPC service, which allows the Core Agent CLI
+// to discover and execute commands exposed by registered remote agents.
+type remoteCommandProviderServer struct {
+	pb.UnimplementedRemoteCommandProviderServer
 	remoteAgentRegistry remoteagentregistry.Component
 }
 
@@ -281,11 +289,12 @@ func registerRemoteAgent(registry remoteagentregistry.Component, in *pb.Register
 	}
 
 	registration := &remoteagentregistry.RegistrationData{
-		AgentPID:         in.Pid,
-		AgentFlavor:      in.Flavor,
-		AgentDisplayName: in.DisplayName,
-		APIEndpointURI:   in.ApiEndpointUri,
-		Services:         in.Services,
+		AgentPID:          in.Pid,
+		ProcessInstanceID: in.ProcessInstanceId,
+		AgentFlavor:       in.Flavor,
+		AgentDisplayName:  in.DisplayName,
+		APIEndpointURI:    in.ApiEndpointUri,
+		Services:          in.Services,
 	}
 	sessionID, recommendedRefreshIntervalSecs, err := registry.RegisterRemoteAgent(registration)
 	if err != nil {
@@ -364,7 +373,7 @@ func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentS
 }
 
 func (s *serverSecure) GetHostTags(ctx context.Context, _ *pb.HostTagRequest) (*pb.HostTagReply, error) {
-	tags := hosttags.Get(ctx, true, s.configComp)
+	tags := hosttags.Get(ctx, true, s.configComp, true)
 	return &pb.HostTagReply{System: tags.System, GoogleCloudPlatform: tags.GoogleCloudPlatform}, nil
 }
 
@@ -799,4 +808,26 @@ func remoteQueryExecuteStreamErrorAt(code string, message string, stream pb.Agen
 		return err
 	}
 	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex + 1, Final: true})
+}
+
+// ListCommands returns all commands exposed by registered remote agents that advertise the command provider service.
+func (s *remoteCommandProviderServer) ListCommands(ctx context.Context, _ *pb.ListCommandsRequest) (*pb.ListCommandsResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	return &pb.ListCommandsResponse{Providers: s.remoteAgentRegistry.ListCommands(ctx)}, nil
+}
+
+// ExecuteCommand routes a command execution request to the selected remote provider and forwards its output frames.
+func (s *remoteCommandProviderServer) ExecuteCommand(in *pb.ExecuteCommandRequest, stream googleGrpc.ServerStreamingServer[pb.ExecuteCommandResponse]) error {
+	if s.remoteAgentRegistry == nil {
+		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	if len(in.GetCommandPath()) == 0 {
+		return status.Error(codes.InvalidArgument, "command_path is required")
+	}
+
+	return s.remoteAgentRegistry.ExecuteCommand(stream.Context(), in, stream.Send)
 }

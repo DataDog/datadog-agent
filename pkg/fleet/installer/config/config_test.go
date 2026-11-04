@@ -15,7 +15,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.yaml.in/yaml/v2"
+	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
 func TestOperationApply_Patch(t *testing.T) {
@@ -217,6 +218,32 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 	err = op.apply(context.Background(), root)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
+}
+
+func TestOperationApply_SNMPCredentialsFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	root, err := os.OpenRoot(tmpDir)
+	require.NoError(t, err)
+	defer root.Close()
+
+	// The credentials directory does not exist yet: writing the first file under it
+	// relies on the operation creating it.
+	op := &FileOperation{
+		FileOperationType: FileOperationMergePatch,
+		FilePath:          "/conf.d/snmp.d/credentials/snmp_credentials.yaml",
+		Patch:             []byte(`{"foo": "bar"}`),
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	written, err := os.ReadFile(filepath.Join(tmpDir, "conf.d", "snmp.d", "credentials", "snmp_credentials.yaml"))
+	require.NoError(t, err)
+	var writtenMap map[string]any
+	err = yaml.Unmarshal(written, &writtenMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "bar", writtenMap["foo"])
 }
 
 func TestOperationApply_NestedConfigFile(t *testing.T) {
@@ -1415,4 +1442,84 @@ func TestOperationApply_JQDeleteTag(t *testing.T) {
 	const transform = `.tags -= ["env:staging"]`
 	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, transform)
 	assert.Equal(t, []any{"team:fleet"}, got)
+}
+
+func TestOperationsApply_Restore(t *testing.T) {
+	setup := func(t *testing.T) string {
+		tmpDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "datadog.yaml"), []byte(`
+log_level: info
+logs_config:
+  enabled: true
+  tags: [a, b]
+`), 0644))
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "conf.d", "nginx.d"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "conf.d", "nginx.d", "conf.yaml"), []byte(`
+init_config:
+  timeout: 10
+`), 0644))
+		return tmpDir
+	}
+	readYAML := func(t *testing.T, path string) map[string]any {
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		var m map[string]any
+		require.NoError(t, yaml.Unmarshal(content, &m))
+		return convertYAML2UnmarshalToJSONMarshallable(m).(map[string]any)
+	}
+
+	t.Run("restores original values after earlier operations", func(t *testing.T) {
+		tmpDir := setup(t)
+		ops := Operations{FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug", "logs_config": {"enabled": false}}`)},
+			// Must see the original values, not the ones written by the operation above.
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "RES[log_level]", "logs_config": "RES[logs_config]", "timeout": "RES[/conf.d/nginx.d/conf.yaml:init_config.timeout]"}`)},
+		}}
+		require.NoError(t, ops.Apply(context.Background(), tmpDir))
+		got := readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))
+		assert.Equal(t, "info", got["log_level"])
+		assert.Equal(t, map[string]any{"enabled": true, "tags": []any{"a", "b"}}, got["logs_config"])
+		assert.Equal(t, 10, got["timeout"])
+	})
+
+	t.Run("missing value removes key", func(t *testing.T) {
+		tmpDir := setup(t)
+		ops := Operations{FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "RES[does.not.exist]", "foo": "RES[/conf.d/missing.d/conf.yaml:foo]"}`)},
+		}}
+		require.NoError(t, ops.Apply(context.Background(), tmpDir))
+		got := readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))
+		assert.NotContains(t, got, "log_level")
+		assert.NotContains(t, got, "foo")
+	})
+
+	t.Run("restore in jq arguments", func(t *testing.T) {
+		tmpDir := setup(t)
+		ops := Operations{FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"logs_config": null}`)},
+			{FileOperationType: FileOperationJQ, FilePath: "/datadog.yaml", Transform: `.logs_config = $logs`, Arguments: json.RawMessage(`{"logs": "RES[logs_config]"}`)},
+		}}
+		require.NoError(t, ops.Apply(context.Background(), tmpDir))
+		got := readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))
+		assert.Equal(t, map[string]any{"enabled": true, "tags": []any{"a", "b"}}, got["logs_config"])
+	})
+
+	for name, op := range map[string]FileOperation{
+		"restore in jq transform": {FileOperationType: FileOperationJQ, FilePath: "/datadog.yaml", Transform: `.log_level = "RES[log_level]"`},
+		"disallowed file":         {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "RES[/etc/passwd:root]"}`)},
+		"missing key separator":   {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "RES[/datadog.yaml]"}`)},
+		"empty key":               {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "RES[]"}`)},
+		"restore inside a value":  {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"a": "level=RES[log_level]"}`)},
+		"unquoted restore":        {FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`log_level: RES[log_level]`)},
+	} {
+		t.Run(name+" fails before applying anything", func(t *testing.T) {
+			tmpDir := setup(t)
+			ops := Operations{FileOperations: []FileOperation{
+				{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+				op,
+			}}
+			require.Error(t, ops.Apply(context.Background(), tmpDir))
+			assert.Equal(t, "info", readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))["log_level"])
+		})
+	}
 }

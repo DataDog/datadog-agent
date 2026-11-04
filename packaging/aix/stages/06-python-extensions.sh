@@ -190,11 +190,11 @@ log "lxml==$LXML_VERSION installed successfully"
 # ─── Step 4: cryptography (Rust/PyO3 extension) ───────────────────────────────
 #
 # cryptography requires a Rust build. The wheel cache (keyed by version) avoids
-# the ~15-minute Rust compilation on subsequent builds.
+# recompiling on subsequent builds.
 #
 # AIX-specific Rust flags:
-#   CARGO_PROFILE_RELEASE_STRIP=none  — IBM Rust 1.92 bug: stripping .info section
-#                                       from proc-macro artifacts breaks rustc
+#   CARGO_PROFILE_RELEASE_STRIP=none  — Rust SDK bug (1.92): stripped .info
+#                                       sections break proc-macro artifacts
 #   CARGO_PROFILE_RELEASE_LTO=off     — LLVM fat LTO uses .ipa bitcode sections
 #                                       that do not exist in AIX XCOFF format
 #   CC=/opt/freeware/bin/gcc          — cc-rs defaults to IBM xlc which rejects GCC
@@ -214,7 +214,6 @@ log "Installing cryptography==$CRYPTOGRAPHY_VERSION (Rust/PyO3 extension)"
 log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:..."
 # $EMBEDDED_DESTDIR/bin must come before the rest of PATH to ensure we use the maturin binary built below
 export PATH="/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:$EMBEDDED_DESTDIR/bin:$PATH"
-export CARGO_HOME=/opt/cargo
 
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
 CRYPTO_CACHE_DIR="$WHEEL_CACHE/cryptography-$CRYPTOGRAPHY_VERSION"
@@ -240,11 +239,16 @@ else
         $PIP install "maturin>=1,<2"
     log "maturin installed"
 
+    # Throwaway pip cache: the default one may hold a wheel built by an older
+    # Rust SDK, skipping the fresh build. Scraped below, then removed.
+    PIP_CACHE_DIR="$BUILD_DIR/buildtmp/pip-cache-$STAGE_NAME"
+
     OPENSSL_DIR=$EMBEDDED_DESTDIR \
     CARGO_PROFILE_RELEASE_STRIP=none \
     CARGO_PROFILE_RELEASE_LTO=off \
     RUSTFLAGS="-C link-arg=-bbigtoc" \
     ARFLAGS="" \
+    PIP_CACHE_DIR="$PIP_CACHE_DIR" \
         $PIP install --no-build-isolation --no-binary cryptography "cryptography==$CRYPTOGRAPHY_VERSION"
     log "cryptography==$CRYPTOGRAPHY_VERSION build complete"
 
@@ -253,7 +257,7 @@ else
 
     # Cache the built wheel for subsequent builds. maturin (with $EMBEDDED_DESTDIR/bin
     # ahead of PATH above) tags it correctly for this host, so no renaming is needed.
-    BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
+    BUILT_WHEEL=$(find "$PIP_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
         CACHE_NAME=$(basename "$BUILT_WHEEL")
         cp "$BUILT_WHEEL" "$CRYPTO_CACHE_DIR/$CACHE_NAME"
@@ -261,6 +265,7 @@ else
     else
         log "WARNING: could not locate built cryptography wheel — next build will rebuild from source"
     fi
+    rm -rf "$PIP_CACHE_DIR"
 fi
 
 log "cryptography==$CRYPTOGRAPHY_VERSION installed successfully"

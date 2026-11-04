@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )

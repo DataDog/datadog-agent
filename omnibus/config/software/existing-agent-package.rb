@@ -34,5 +34,8 @@ build do
       FileUtils.mkdir_p(install_dir)
       FileUtils.cp_r("#{staged_install_dir}/.", install_dir)
     end
+    block "Ensuring systemd is available" do
+      command "bazel run -- @systemd//:install --destdir=#{install_dir}"
+   end
   end
 end

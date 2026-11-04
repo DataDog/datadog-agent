@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    OTel: Align serverless source identity resolution with backend-supported
+    resource attributes and provider resource IDs for AWS Lambda and Fargate,
+    Azure Functions, GCP Cloud Run services, functions and jobs, and GKE
+    Autopilot. Complete serverless identities no longer fall back to the
+    Collector hostname when individual identity attributes can be derived from
+    the provider resource ID.

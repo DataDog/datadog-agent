@@ -1,0 +1,12 @@
+description: The c command with a range outputs replacement text only once.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '1,3c\REPLACED' input.txt
+expect:
+  stdout: "REPLACED\n"
+  exit_code: 0

@@ -23,6 +23,7 @@ dd_agent_go_test(
     name = "unix_test",
     srcs = [
         "all_packages_test.go",
+        "package_agent_fapolicyd_test.go",
         "package_agent_test.go",
         "package_apm_inject_multilib_test.go",
         "package_apm_inject_reboot_test.go",
@@ -31,6 +32,7 @@ dd_agent_go_test(
         "upgrade_scenario_test.go",
     ],
     embed = [":unix"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",

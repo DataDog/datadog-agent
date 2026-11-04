@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -215,6 +216,42 @@ func (s *spotSchedulingSuite) TestStatefulSetScaleUpPreservesRatio() {
 	})
 }
 
+// TestStatefulSetDuplicateAdmission: a duplicate create of an existing StatefulSet pod, rejected by the
+// API server, must not skew the placement of the pods created afterwards.
+//
+// The StatefulSet controller occasionally tries to create a pod that already exists. The admission webhook
+// runs before the API server rejects such a request with AlreadyExists, so the webhook has already counted
+// the pod as an in-flight admission although no pod ever appears for it.
+// The test reproduces this by creating a pod with the name of an existing StatefulSet pod.
+func (s *spotSchedulingSuite) TestStatefulSetDuplicateAdmission() {
+	s.createStatefulSet("redis", 6, &spotConfig{spotPercentage: 60, minOnDemandReplicas: 2})
+
+	// 6 replicas, created one at a time: the first two are on-demand (minOnDemand=2), the next three are spot
+	// and the last one is on-demand because 3 spot pods are already 60% of 6 → 3 spot, 3 on-demand.
+	s.eventually(func(c *assert.CollectT) {
+		pods := s.listPods("statefulset=redis")
+		require.Len(c, pods, 6)
+		s.expectRunningSpot(c, pods, 3)
+		s.expectRunningOnDemand(c, pods, 3)
+	})
+
+	// The next pod would be admitted as spot: 60% of 7 pods is 4 spot pods and there are 3.
+	// The duplicate below goes through the webhook as that next pod, so the webhook counts an in-flight
+	// spot admission, which is the case seen in CI, and the API server then rejects the request
+	// so that no pod ever appears for it.
+	s.createDuplicateStatefulSetPod("redis", "redis-0")
+
+	// Scale up to 10 replicas: the pods created next must still end up as 6 spot, 4 on-demand.
+	s.scaleStatefulSet("redis", 10)
+
+	s.eventually(func(c *assert.CollectT) {
+		pods := s.listPods("statefulset=redis")
+		require.Len(c, pods, 10)
+		s.expectRunningSpot(c, pods, 6)
+		s.expectRunningOnDemand(c, pods, 4)
+	})
+}
+
 // TestStatefulSetOptOut: remove the spot-enabled label and restart the StatefulSet;
 // all replacement pods must land on the on-demand node with no spot-assigned label.
 func (s *spotSchedulingSuite) TestStatefulSetOptOut() {
@@ -339,4 +376,27 @@ func (s *spotSchedulingSuite) removeStatefulSetLabel(name, key string) {
 
 	_, err := s.kubeClient.AppsV1().StatefulSets(s.testNamespace).Patch(ctx, name, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
 	s.Require().NoError(err)
+}
+
+// createDuplicateStatefulSetPod creates a pod with the name of an existing pod of the StatefulSet,
+// owned by the StatefulSet, and requires the API server to reject it with AlreadyExists.
+// The request still goes through the admission webhook before it is rejected.
+func (s *spotSchedulingSuite) createDuplicateStatefulSetPod(stsName, podName string) {
+	s.T().Helper()
+	ctx := s.T().Context()
+
+	sts, err := s.kubeClient.AppsV1().StatefulSets(s.testNamespace).Get(ctx, stsName, metav1.GetOptions{})
+	s.Require().NoError(err)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            podName,
+			Namespace:       s.testNamespace,
+			Labels:          sts.Spec.Template.Labels,
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(sts, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))},
+		},
+		Spec: *sts.Spec.Template.Spec.DeepCopy(),
+	}
+	_, err = s.kubeClient.CoreV1().Pods(s.testNamespace).Create(ctx, pod, metav1.CreateOptions{})
+	s.Require().True(apierrors.IsAlreadyExists(err), "expected AlreadyExists creating a duplicate of pod %s, got: %v", podName, err)
 }

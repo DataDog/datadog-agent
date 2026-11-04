@@ -7,20 +7,36 @@ py_binary(
     visibility = ["//deps:__subpackages__"],
 )
 
-# @llvm_toolchain_llvm//:install-name-tool is only defined for macos and linux.
-# This acts as a replacement to avoid analysis-time failures on windows.
+# Nothing needs install_name_tool on windows, where this empty replacement avoids fetching LLVM.
 write_file(
     name = "_empty_install_name_tool",
     out = "empty_install_name_tool",
     is_executable = True,
 )
 
-alias(
+filegroup(
     name = "install_name_tool",
-    actual = select({
-        "@platforms//os:linux": "@llvm_toolchain_llvm//:install-name-tool",
-        "@platforms//os:macos": "@llvm_toolchain_llvm//:install-name-tool",
-        "//conditions:default": ":_empty_install_name_tool",
+    srcs = select({
+        "@platforms//os:linux": ["@llvm//tools:llvm-install-name-tool"],
+        "@platforms//os:macos": ["@llvm//tools:llvm-install-name-tool"],
+        "//conditions:default": [":_empty_install_name_tool"],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# Nothing needs readelf on windows, where this empty replacement avoids fetching LLVM.
+write_file(
+    name = "_empty_readelf",
+    out = "empty_readelf",
+    is_executable = True,
+)
+
+filegroup(
+    name = "readelf",
+    srcs = select({
+        "@platforms//os:linux": ["@llvm//tools:llvm-readelf"],
+        "@platforms//os:macos": ["@llvm//tools:llvm-readelf"],
+        "//conditions:default": [":_empty_readelf"],
     }),
     visibility = ["//visibility:public"],
 )

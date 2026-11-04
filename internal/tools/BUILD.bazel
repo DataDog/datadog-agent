@@ -13,6 +13,26 @@ go_shim(
     tool = "@tools_gotest_gotestsum//:gotestsum",
 )
 
+go_shim(
+    name = "license-detector",
+    tool = "@com_github_go_enry_go_license_detector_v4//cmd/license-detector",
+)
+
+go_shim(
+    name = "mockery",
+    tool = "@com_github_vektra_mockery_v3//:v3",
+)
+
+go_shim(
+    name = "modvendor",
+    tool = "@com_github_goware_modvendor//:modvendor",
+)
+
+go_shim(
+    name = "wwhrd",
+    tool = "@com_github_frapposelli_wwhrd//:wwhrd",
+)
+
 pkg_files(
     name = "gotestsum_exe",
     srcs = ["@tools_gotest_gotestsum//:gotestsum"],

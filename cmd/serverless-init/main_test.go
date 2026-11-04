@@ -71,7 +71,40 @@ func TestTagsSetup(t *testing.T) {
 
 	assert.ElementsMatch(t, slices.Concat(tagConfig.ConfiguredTags, baseTags, serverlessTag.MapToArray(cloudServiceTags), []string{versionTag}), serverlessTag.MapToArray(tagConfig.Tags))
 	assert.ElementsMatch(t, slices.Concat(tagConfig.ConfiguredTags, baseTags, serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(tagConfig.EnhancedMetricTags))
-	assert.ElementsMatch(t, slices.Concat(serverlessTag.MapToArray(cloudServiceEnhancedUsageMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(tagConfig.EnhancedUsageMetricTags))
+	// The usage metric gets env, service, and version, but not other configured tags.
+	assert.ElementsMatch(t, slices.Concat(baseTags, serverlessTag.MapToArray(cloudServiceEnhancedUsageMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(tagConfig.EnhancedUsageMetricTags))
+}
+
+// TestApplyCloudServiceOverrides verifies that AWS Lambda MicroVM keeps the 1ms
+// DogStatsD packet buffer flush timeout while other cloud services use the default.
+func TestApplyCloudServiceOverrides(t *testing.T) {
+	const key = "dogstatsd_packet_buffer_flush_timeout"
+
+	tests := []struct {
+		name         string
+		cloudService cloudservice.CloudService
+		keepsDefault bool
+	}{
+		{name: "MicroVM keeps 1ms", cloudService: &cloudservice.MicroVM{}, keepsDefault: false},
+		{name: "LocalService uses the default", cloudService: &cloudservice.LocalService{}, keepsDefault: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			defaultTimeout := cfg.GetDuration(key)
+			// The test is only meaningful if the default differs from the override.
+			assert.NotEqual(t, time.Millisecond, defaultTimeout)
+
+			applyCloudServiceOverrides(tt.cloudService)
+
+			if tt.keepsDefault {
+				assert.Equal(t, defaultTimeout, cfg.GetDuration(key))
+			} else {
+				assert.Equal(t, time.Millisecond, cfg.GetDuration(key))
+			}
+		})
+	}
 }
 
 func TestFxApp(t *testing.T) {
@@ -156,7 +189,7 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
 
 	configmock.New(t)
-	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t))
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	bundle := metricstest.New(t, fakeTagger)
 	metricAgent := metrics.New(bundle.Demux, metrics.Tags{})
