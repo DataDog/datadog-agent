@@ -31,10 +31,12 @@
 //!    software inventory at `SourceInfraMode`.
 //! 6. The Agent's schema default.
 //!
-//! Two keys do not follow that ladder directly. `system_probe_config.enabled` is
+//! Three keys do not follow that ladder directly. `system_probe_config.enabled` is
 //! module-derived at runtime, so it resolves through [`system_probe::derived_enabled`]
 //! instead. `process_config.enabled` is normalized by the transform to the resulting
-//! process-collection value.
+//! process-collection value. `private_action_runner.split_enabled` reads only
+//! `DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`, as containerized PAR does in
+//! `pkg/privateactionrunner/deployment`.
 //!
 //! # Keeping parity with Go
 //!
@@ -147,6 +149,7 @@ const COMPLIANCE_CONFIG_KEY: &str = "compliance_config.enabled";
 const OTELCOLLECTOR_ENABLED_KEY: &str = "otelcollector.enabled";
 const PRIVATE_ACTION_RUNNER_ENABLED_KEY: &str = "private_action_runner.enabled";
 const PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY: &str = "private_action_runner.split_enabled";
+const PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_ENV: &str = "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -368,6 +371,11 @@ pub fn condition_config_summary(conditions: &[ConditionConfigFile]) -> String {
 impl GatedKeySpec {
     /// Resolves this key against `base_path`, following the order documented on the module.
     fn enabled(&self, base_path: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
+        if self.kind == GatedKey::PrivateActionRunnerSplitEnabled {
+            // Containerized PAR reads only this variable and matches "true" exactly.
+            return env_bindings::env_var_value(PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_ENV).as_deref()
+                == Some("true");
+        }
         if let Some(enabled) = self.legacy_transform_value(base_path, yaml) {
             return enabled;
         }
@@ -2172,14 +2180,97 @@ process_config:
     }
 
     #[test]
-    fn private_action_runner_split_true_enabled_false_starts_control() {
+    fn private_action_runner_split_yaml_alone_starts_monolith() {
         let fx = Gate::new();
-        let agent = fx.agent("private_action_runner:\n  enabled: false\n  split_enabled: true\n");
-        assert!(par_control_would_start(&fx, &agent));
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n  split_enabled: true\n");
         assert!(
-            !par_monolith_would_start(&fx, &agent),
-            "split true vetoes the monolith even when that is the accepted split-without-enabled case"
+            !par_control_would_start(&fx, &agent),
+            "containerized PAR ignores split_enabled in YAML"
         );
+        assert!(par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_fleet_alone_starts_monolith() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n");
+        fx.fleet(
+            AGENT_POLICY,
+            "private_action_runner:\n  split_enabled: true\n",
+        );
+        assert!(
+            !par_control_would_start(&fx, &agent),
+            "containerized PAR ignores split_enabled in fleet policy"
+        );
+        assert!(par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_env_beats_fleet_false() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.fleet(
+            AGENT_POLICY,
+            "private_action_runner:\n  split_enabled: false\n",
+        );
+        fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+        assert!(par_control_would_start(&fx, &agent));
+        assert!(!par_monolith_would_start(&fx, &agent));
+    }
+
+    /// Host PAR also reads `split_enabled` from YAML and fleet policy, which this gate
+    /// ignores, so a host catalog must not gate on it.
+    #[test]
+    fn private_action_runner_split_gate_is_not_used_by_host_catalogs() {
+        let host_templates = [
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-data-plane-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-process-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-security-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-sysprobe-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-trace-windows.yaml.tmpl"
+            ),
+        ];
+        for template in host_templates {
+            assert!(!template.contains(PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY));
+        }
+    }
+
+    #[test]
+    fn private_action_runner_split_env_must_be_exactly_true() {
+        for value in ["TRUE", "True", "1", "yes", " true"] {
+            let fx = Gate::new();
+            let agent = fx.agent("private_action_runner:\n  enabled: true\n");
+            fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", value);
+            assert!(
+                !par_control_would_start(&fx, &agent),
+                "{value:?} is not split for containerized PAR"
+            );
+            assert!(par_monolith_would_start(&fx, &agent), "{value:?}");
+        }
     }
 
     #[test]
