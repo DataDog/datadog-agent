@@ -1323,7 +1323,7 @@ Probes:
           events:
             - Kind: Line
               Type: 3098 EventRootType Probe[main.genericContains[go.shape.int]]Line
-              InjectionPoints: [{PC: "0x812890", Frameless: true}]
+              InjectionPoints: [{PC: "0x812884", Frameless: true}]
               Condition: null
           probeTemplate:
             TemplateString: v={v}

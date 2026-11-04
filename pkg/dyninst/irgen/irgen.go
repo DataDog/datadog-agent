@@ -8638,7 +8638,8 @@ func followLineJump(arch object.Architecture, addr, injectionPC uint64, body []b
 		}
 		if target > pc && target-addr < uint64(len(body)) {
 			dest := lineAt(target)
-			if !dest.endSequence && dest.file == source.file && dest.line == source.line {
+			if !dest.endSequence && dest.file == source.file && dest.line == source.line &&
+				!lineJumpEntersLoop(arch, addr, injectionPC, target, body) {
 				return target
 			}
 		}
@@ -8649,6 +8650,53 @@ func followLineJump(arch object.Architecture, addr, injectionPC uint64, body []b
 		pc += uint64(size)
 	}
 	return injectionPC
+}
+
+// Keep loops from reaching the new probe more often than the old one.
+func lineJumpEntersLoop(arch object.Architecture, addr, injectionPC, target uint64, body []byte) bool {
+	for pc := target; pc-addr < uint64(len(body)); {
+		var size int
+		var dest uint64
+		switch arch {
+		case "amd64":
+			inst, err := x86asm.Decode(body[pc-addr:], 64)
+			if err != nil {
+				return true
+			}
+			size = inst.Len
+			if inst.Op != x86asm.CALL {
+				if rel, ok := inst.Args[0].(x86asm.Rel); ok {
+					dest = uint64(int64(pc) + int64(size) + int64(rel))
+				}
+			}
+		case "arm64":
+			if len(body[pc-addr:]) >= Arm64InstructionByteLength &&
+				binary.LittleEndian.Uint32(body[pc-addr:]) == 0 {
+				pc += Arm64InstructionByteLength
+				continue
+			}
+			inst, err := arm64asm.Decode(body[pc-addr:])
+			if err != nil {
+				return true
+			}
+			size = Arm64InstructionByteLength
+			switch inst.Op {
+			case arm64asm.B, arm64asm.CBZ, arm64asm.CBNZ, arm64asm.TBZ, arm64asm.TBNZ:
+				for _, arg := range inst.Args {
+					if rel, ok := arg.(arm64asm.PCRel); ok {
+						dest = uint64(int64(pc) + int64(rel))
+					}
+				}
+			}
+		default:
+			return true
+		}
+		if dest > injectionPC && dest <= target {
+			return true
+		}
+		pc += uint64(size)
+	}
+	return false
 }
 
 type injectionPoint struct {
