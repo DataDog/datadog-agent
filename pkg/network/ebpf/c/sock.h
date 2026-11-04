@@ -115,7 +115,6 @@ static u16 read_dport(struct sock *skp) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&dport, sizeof(dport), ((char*)skp) + offset_dport());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    bpf_probe_read_kernel(&dport, sizeof(dport), &skp->sk_dport);
     BPF_CORE_READ_INTO(&dport, skp, sk_dport);
     if (dport == 0) {
         BPF_CORE_READ_INTO(&dport, inet_sk(skp), inet_dport);
