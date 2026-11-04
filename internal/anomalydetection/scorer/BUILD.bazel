@@ -7,8 +7,10 @@ go_library(
         "main.go",
         "output_types.go",
         "score.go",
+        "score_no_faults.go",
         "score_tp.go",
     ],
+    deps = ["//internal/anomalydetection/scorer/scoring"],
     importpath = "github.com/DataDog/datadog-agent/internal/anomalydetection/scorer",
     visibility = ["//visibility:private"],
 )
@@ -194,6 +196,9 @@ go_binary(
 
 dd_agent_go_test(
     name = "scorer_test",
-    srcs = ["score_test.go"],
+    srcs = [
+        "score_no_faults_test.go",
+        "score_test.go",
+    ],
     embed = [":scorer_lib"],
 )
