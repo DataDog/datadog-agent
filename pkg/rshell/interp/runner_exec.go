@@ -918,8 +918,9 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 				r.errf("%s", msg)
 				return 1, nil
 			}
+			childOut := builtins.NewWriteGuard(r.stdout)
 			child := &builtins.CallContext{
-				Stdout:  r.stdout,
+				Stdout:  childOut,
 				Stderr:  r.stderr,
 				WorkDir: func() string { return dir },
 				Env:     envEach,
@@ -1061,13 +1062,20 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 				child.Stdin = r.stdin
 			}
 			result := cmdFn(ctx, child, cmdArgs)
+			if result.Code == 0 {
+				if msg := builtins.WriteErrorMessage(cmdName, childOut.Err()); msg != "" {
+					r.errf("%s", msg)
+					result.Code = 1
+				}
+			}
 			return result.Code, nil
 		}
 		runCmd := func(ctx context.Context, dir string, cmdName string, cmdArgs []string) (uint8, error) {
 			return runCmdWithStdin(ctx, dir, cmdName, cmdArgs, nil)
 		}
+		callOut := builtins.NewWriteGuard(r.stdout)
 		call := &builtins.CallContext{
-			Stdout:       r.stdout,
+			Stdout:       callOut,
 			Stderr:       r.stderr,
 			InLoop:       r.inLoop,
 			LastExitCode: r.lastExit.code,
@@ -1214,6 +1222,15 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 			}
 		} else {
 			result = fn(ctx, call, args[1:])
+		}
+		// Builtins print through CallContext.Out, which cannot fail; report a
+		// failed write (ENOSPC, EIO, EFBIG) here once, unless the builtin
+		// already failed and said why.
+		if result.Code == 0 {
+			if msg := builtins.WriteErrorMessage(name, callOut.Err()); msg != "" {
+				r.errf("%s", msg)
+				result.Code = 1
+			}
 		}
 		r.exit.code = result.Code
 		r.exit.exiting = result.Exiting

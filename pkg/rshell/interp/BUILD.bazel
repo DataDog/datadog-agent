@@ -109,6 +109,7 @@ dd_agent_go_test(
         "builtin_tee_pentest_windows_test.go",
         "builtin_truncate_fifo_pentest_test.go",
         "builtin_truncate_pentest_test.go",
+        "builtin_write_error_test.go",
         "case_clause_vuln_hunt_test.go",
         "cd_support_test.go",
         "check_remote_linux_test.go",
