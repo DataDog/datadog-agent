@@ -15,30 +15,40 @@ import (
 // builtin waiting on an idle stdin pipe cannot outlive MaxExecutionTime or a
 // caller cancellation. When ctx finishes, a watchdog sets an already-expired
 // read deadline on f, which wakes every blocked and future Read with
-// [os.ErrDeadlineExceeded]. The returned function stops the watchdog and
-// clears the deadline so the caller's file is left as it was found.
+// [os.ErrDeadlineExceeded]. The returned function stops the watchdog and, only
+// if the watchdog set that deadline, clears it again.
+//
+// A run that finishes before ctx is done never touches f's deadline, so a read
+// deadline the caller configured is preserved. A run that is cancelled or
+// times out replaces it: Go cannot read back an existing deadline, so it is
+// reset to none on return.
 //
 // f is never closed and no extra Read is issued, so no bytes are consumed on
-// the caller's behalf. Files that do not support deadlines (regular files,
-// /dev/null, and anonymous pipes on Windows) are left alone: regular files do
-// not block, and on Windows a blocked pipe Read cannot be interrupted.
+// the caller's behalf. Only files Go registered with its poller support
+// deadlines: those from [os.Pipe], or opened with [os.Open] on a FIFO, socket
+// or terminal. Regular files, /dev/null, a blocking descriptor wrapped with
+// [os.NewFile] (such as a process's inherited os.Stdin), and anonymous pipes
+// on Windows reject the deadline and are left alone.
 func bindStdinToContext(ctx context.Context, f *os.File) (release func()) {
-	if f == nil || ctx.Done() == nil || f.SetReadDeadline(time.Time{}) != nil {
+	if f == nil || ctx.Done() == nil {
 		return func() {}
 	}
 	stop := make(chan struct{})
 	done := make(chan struct{})
+	armed := false
 	go func() {
 		defer close(done)
 		select {
 		case <-ctx.Done():
-			_ = f.SetReadDeadline(time.Now())
+			armed = f.SetReadDeadline(time.Now()) == nil
 		case <-stop:
 		}
 	}()
 	return func() {
 		close(stop)
 		<-done
-		_ = f.SetReadDeadline(time.Time{})
+		if armed {
+			_ = f.SetReadDeadline(time.Time{})
+		}
 	}
 }

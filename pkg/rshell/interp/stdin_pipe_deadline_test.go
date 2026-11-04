@@ -82,12 +82,68 @@ func TestStdinPipeDeadlineDoesNotLeakOrStealBytes(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, r.Run(context.Background(), parseScript(t, "read x")))
 
-	// The deadline must have been cleared after Run.
 	_, err = pw.WriteString("two\n")
 	require.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
 	buf := make([]byte, 16)
 	n, err := pr.Read(buf)
 	require.NoError(t, err)
 	assert.Equal(t, "two\n", string(buf[:n]))
+}
+
+// TestStdinPipeDeadlineClearedAfterTimeout verifies that after a run times out
+// with a builtin blocked on stdin, the expired deadline the watchdog set is
+// cleared and bytes written afterwards are still readable by the caller.
+func TestStdinPipeDeadlineClearedAfterTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("anonymous pipes on Windows have no read deadlines")
+	}
+	pr, pw, err := os.Pipe()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pr.Close(); _ = pw.Close() })
+
+	r, err := New(allowAllCommandsOpt(), StdIO(pr, io.Discard, io.Discard), MaxExecutionTime(100*time.Millisecond))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+
+	require.ErrorIs(t, r.Run(context.Background(), parseScript(t, "cat")), context.DeadlineExceeded)
+
+	_, err = pw.WriteString("after\n")
+	require.NoError(t, err)
+	buf := make([]byte, 16)
+	n, err := pr.Read(buf)
+	require.NoError(t, err, "the watchdog's expired deadline must be cleared when Run returns")
+	assert.Equal(t, "after\n", string(buf[:n]))
+}
+
+// TestStdinPipeDeadlinePreservesCallerDeadline verifies that a run which
+// finishes before its deadline leaves a read deadline the caller set on stdin
+// in place.
+func TestStdinPipeDeadlinePreservesCallerDeadline(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("anonymous pipes on Windows have no read deadlines")
+	}
+	pr, pw, err := os.Pipe()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pr.Close(); _ = pw.Close() })
+	require.NoError(t, pr.SetReadDeadline(time.Now().Add(200*time.Millisecond)))
+
+	r, err := New(allowAllCommandsOpt(), StdIO(pr, io.Discard, io.Discard), MaxExecutionTime(5*time.Second))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = r.Close() })
+	require.NoError(t, r.Run(context.Background(), parseScript(t, "echo hi")))
+
+	// With the caller's deadline intact, a Read on the idle pipe times out
+	// instead of blocking forever.
+	done := make(chan error, 1)
+	go func() {
+		_, err := pr.Read(make([]byte, 1))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		assert.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	case <-time.After(5 * time.Second):
+		_ = pw.Close()
+		t.Fatal("caller's read deadline was removed by Run")
+	}
 }
