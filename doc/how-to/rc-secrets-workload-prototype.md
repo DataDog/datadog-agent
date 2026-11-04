@@ -67,3 +67,13 @@ bazelisk test //comp/remote-config/rcx509client/impl:impl_test \
 These tests cover the component wiring and preparation/decryption lifecycle with
 an injected token provider. They do not establish that the deployed RC tunnel,
 ETS, and product backend interoperate. A live staging round trip remains required.
+
+## Combined proof-exchange and delivery scenario
+
+The opt-in `TestRCWorkloadScenarioAgent` runs this component with the actual
+configured OIDC provider against ETS and RC fixtures from dd-source. It covers
+an invalid proof, a token for the wrong organization, successful decryption and
+single-use key consumption. See the [three-process scenario guide](https://github.com/ddoghq/dd-source/blob/devin.andrews/rc-secrets-combined-scenario/domains/remote-config/apps/apis/rc-secrets/SCENARIO.md)
+for exact build/run commands and the boundary between real code and fixtures.
+The bridge substitutes for Magic Tunnel and product delivery; live staging
+integration remains separate verification.

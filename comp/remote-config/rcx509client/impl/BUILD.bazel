@@ -45,6 +45,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "rcx509client_test.go",
+        "scenario_test.go",
         "secret_delivery_test.go",
     ],
     embed = [":impl"],
@@ -55,7 +56,10 @@ dd_agent_go_test(
     }),
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/common",
+        "//comp/core/delegatedauth/def",
+        "//comp/core/delegatedauth/impl",
         "//comp/core/delegatedauth/mock",
         "//comp/core/log/mock",
         "//comp/def",
