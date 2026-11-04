@@ -154,6 +154,7 @@ func (e *WorkflowTaskExecutor) RunTask(
 	}
 
 	logger := log.FromContext(ctx)
+	ctx, executionDetails := observability.WithExecutionDetails(ctx)
 
 	ctx = telemetry.WithService(ctx, observability.ParService)
 	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
@@ -163,7 +164,7 @@ func (e *WorkflowTaskExecutor) RunTask(
 
 	startTime := observability.ReportExecutionStart(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
 	output, err = action.Run(ctx, task, preparedTask.Credential)
-	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
+	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger, executionDetails)
 
 	if err != nil {
 		return nil, util.DefaultActionError(err)

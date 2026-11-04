@@ -54,22 +54,21 @@ func (s *Mock) Stop() {
 func NewMockServerlessMeta(isEnabled bool) *MockServerlessMeta {
 	if isEnabled {
 		return &MockServerlessMeta{
-			wg:        &sync.WaitGroup{},
-			doneChan:  make(chan *sync.WaitGroup),
-			isEnabled: isEnabled,
+			pendingSends: newPendingSends(),
+			doneChan:     make(chan *sync.WaitGroup),
+			isEnabled:    isEnabled,
 		}
 	}
 	return &MockServerlessMeta{
-		wg:        nil,
-		doneChan:  nil,
-		isEnabled: isEnabled,
+		pendingSends: newPendingSends(),
+		isEnabled:    isEnabled,
 	}
 }
 
 // MockServerlessMeta is a struct that contains essential control structures for serverless mode.
 // Do not access any methods on this struct without checking IsEnabled first.
 type MockServerlessMeta struct {
-	wg        *sync.WaitGroup
+	*pendingSends
 	doneChan  chan *sync.WaitGroup
 	isEnabled bool
 }
@@ -77,19 +76,6 @@ type MockServerlessMeta struct {
 // IsEnabled returns true if the serverless mode is enabled.
 func (s *MockServerlessMeta) IsEnabled() bool {
 	return s.isEnabled
-}
-
-// Lock is a no-op for the mock serverless meta.
-func (s *MockServerlessMeta) Lock() {
-}
-
-// Unlock is a no-op for the mock serverless meta.
-func (s *MockServerlessMeta) Unlock() {
-}
-
-// WaitGroup returns the wait group for the serverless mode.
-func (s *MockServerlessMeta) WaitGroup() *sync.WaitGroup {
-	return s.wg
 }
 
 // SenderDoneChan returns the channel is used to transfer wait groups from the sync_destination to the sender.
