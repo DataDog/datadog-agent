@@ -46,6 +46,8 @@ config still matches the Helm and Operator auth volumes. The resolved value is
 not exported to the process, so it cannot override `ipc_cert_file_path` in the
 YAML. `dd-procmgrd` does not resolve `ENC[...]` secret handles or Fleet policy
 overrides: set `DD_IPC_CERT_FILE_PATH` to the certificate path in those cases.
+When the path cannot be resolved (an `ENC[...]` handle or a `datadog.yaml` that
+does not parse), the process fails to start instead of receiving a placeholder.
 
 ```bash
 par-control \

@@ -21,25 +21,53 @@ const IPC_CERT_FILE_NAME: &str = "ipc_cert.pem";
 static IPC_CERT_FILE_PATH: OnceLock<String> = OnceLock::new();
 
 fn lookup_env(name: &str) -> Option<String> {
-    let value = std::env::var(name).ok();
     if name != IPC_CERT_FILE_PATH_VAR {
-        return value;
+        return std::env::var(name).ok();
     }
-    if let Some(value) = value.filter(|value| !value.is_empty()) {
-        return Some(value);
+    ipc_cert_file_path()
+        .inspect_err(|e| warn!("could not resolve the Agent IPC certificate path: {e:#}"))
+        .ok()
+}
+
+fn ipc_cert_file_path() -> Result<String> {
+    if let Some(value) = std::env::var(IPC_CERT_FILE_PATH_VAR)
+        .ok()
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(value);
     }
-    if let Some(cached) = IPC_CERT_FILE_PATH.get() {
-        return Some(cached.clone());
+    cached_ipc_cert_file_path(&IPC_CERT_FILE_PATH, || {
+        resolve_ipc_cert_file_path(Path::new(AGENT_CONFIG_PATH), |name| {
+            std::env::var(name).ok()
+        })
+    })
+}
+
+/// Only a success is cached, so a failure is retried on the next spawn.
+fn cached_ipc_cert_file_path(
+    cache: &OnceLock<String>,
+    resolve: impl FnOnce() -> Result<String>,
+) -> Result<String> {
+    if let Some(cached) = cache.get() {
+        return Ok(cached.clone());
     }
-    match resolve_ipc_cert_file_path(Path::new(AGENT_CONFIG_PATH), |name| {
-        std::env::var(name).ok()
-    }) {
-        Ok(path) => Some(IPC_CERT_FILE_PATH.get_or_init(|| path).clone()),
-        Err(e) => {
-            warn!("could not resolve the Agent IPC certificate path: {e:#}");
-            None
-        }
+    let path = resolve()?;
+    Ok(cache.get_or_init(|| path).clone())
+}
+
+/// Expands like [`expand_env_vars`], but fails when the input references the IPC
+/// certificate path and it cannot be resolved. Without this the placeholder stays
+/// literal, and `run-executor` would treat it as a path and create a certificate there.
+pub(crate) fn expand_env_vars_checked(input: &str) -> Result<String> {
+    require_ipc_cert_file_path(input, ipc_cert_file_path)?;
+    Ok(expand_env_vars(input))
+}
+
+fn require_ipc_cert_file_path(input: &str, resolve: impl FnOnce() -> Result<String>) -> Result<()> {
+    if input.contains(&format!("${{{IPC_CERT_FILE_PATH_VAR}}}")) {
+        resolve().context("resolving the Agent IPC certificate path")?;
     }
+    Ok(())
 }
 
 /// Resolves the IPC certificate path in the order the Agent uses.
@@ -397,6 +425,55 @@ LANG=en_US.UTF-8
             &[],
         );
         assert_eq!(path.unwrap(), "/yaml/cert.pem");
+    }
+
+    #[test]
+    fn ipc_cert_failure_is_not_cached() {
+        let cache = OnceLock::new();
+        let err = cached_ipc_cert_file_path(&cache, || {
+            anyhow::bail!("ipc_cert_file_path is a secret handle")
+        })
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("secret handle"));
+        assert!(cache.get().is_none(), "a failure must be retried");
+
+        assert_eq!(
+            cached_ipc_cert_file_path(&cache, || Ok("/etc/cert.pem".to_string())).unwrap(),
+            "/etc/cert.pem"
+        );
+    }
+
+    #[test]
+    fn ipc_cert_success_is_cached() {
+        let cache = OnceLock::new();
+        assert_eq!(
+            cached_ipc_cert_file_path(&cache, || Ok("/etc/cert.pem".to_string())).unwrap(),
+            "/etc/cert.pem"
+        );
+        assert_eq!(
+            cached_ipc_cert_file_path(&cache, || anyhow::bail!("must not run once cached"))
+                .unwrap(),
+            "/etc/cert.pem"
+        );
+    }
+
+    #[test]
+    fn unresolvable_ipc_cert_fails_only_where_the_placeholder_appears() {
+        let fail = || anyhow::bail!("ipc_cert_file_path is a secret handle");
+        let err = require_ipc_cert_file_path("${DD_PM_IPC_CERT_FILE_PATH}", fail).unwrap_err();
+        assert!(format!("{err:#}").contains("secret handle"));
+        let err =
+            require_ipc_cert_file_path("--cert=${DD_PM_IPC_CERT_FILE_PATH}", fail).unwrap_err();
+        assert!(format!("{err:#}").contains("resolving the Agent IPC certificate path"));
+
+        // Unrelated input never asks for the path.
+        for input in [
+            "--executor-socket",
+            "${DD_CONF_DIR}/x",
+            "${DD_IPC_CERT_FILE_PATH}",
+        ] {
+            require_ipc_cert_file_path(input, || panic!("must not resolve for {input}")).unwrap();
+        }
     }
 
     #[test]
