@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // TestTheMacOSDaemonIsOptIn pins that the installer daemon does nothing on macOS until the host
@@ -78,4 +79,13 @@ installer:
 			assert.Equal(t, tc.enabled, enabled)
 		})
 	}
+}
+
+// TestDaemonEnabledBeforeStartFxDependencies checks that the pre-start check's Fx graph builds: the
+// components it asks for are all provided.
+func TestDaemonEnabledBeforeStartFxDependencies(t *testing.T) {
+	fxutil.TestOneShot(t, func() {
+		_, err := daemonEnabledBeforeStart(&command.GlobalParams{})
+		require.NoError(t, err)
+	})
 }
