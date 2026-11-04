@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -132,5 +134,8 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		checks = append(checks, c)
 	}
 
+	slices.SortFunc(checks, func(a integration.Config, b integration.Config) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 	return checks, nil
 }
