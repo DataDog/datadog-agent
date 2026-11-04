@@ -8,7 +8,7 @@ go_library(
         "ddinjector_testutil.go",
         "types.go",
     ],
-    cdeps = ["//pkg/windowsdriver/include:ddinjector_public"],  # keep
+    cdeps = ["//pkg/windowsdriver/include:ddinjector_public"],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector",
     visibility = ["//visibility:public"],
