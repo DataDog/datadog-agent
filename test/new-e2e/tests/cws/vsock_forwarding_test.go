@@ -162,7 +162,7 @@ func (s *vsockForwardingSuite) SetupSuite() {
 	// SFTP rather than a heredoc over SSH: no shell quoting to get wrong, and
 	// /tmp is writable by the login user so this needs no sudo. systemd-run
 	// still reads them as root, which 0644 allows.
-	_, err = host.WriteFile(guestEnvPath, []byte(vsockGuestEnv))
+	_, err := host.WriteFile(guestEnvPath, []byte(vsockGuestEnv))
 	require.NoError(s.T(), err, "could not write the guest env file")
 	_, err = host.WriteFile(guestConfigPath, []byte(guestConfigYAML))
 	require.NoError(s.T(), err, "could not write the guest config file")
