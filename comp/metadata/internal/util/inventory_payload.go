@@ -77,7 +77,7 @@ var (
 	defaultMaxInterval = 10 * time.Minute
 
 	// scheduledJitter is the largest fraction of MaxInterval a scheduled payload comes early by.
-	scheduledJitter = 0.1
+	scheduledJitter = 0.2
 
 	// For testing purposes
 	timeSince = time.Since
