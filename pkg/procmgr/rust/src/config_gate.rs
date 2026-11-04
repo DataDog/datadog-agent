@@ -34,9 +34,8 @@
 //! Three keys do not follow that ladder directly. `system_probe_config.enabled` is
 //! module-derived at runtime, so it resolves through [`system_probe::derived_enabled`]
 //! instead. `process_config.enabled` is normalized by the transform to the resulting
-//! process-collection value. `private_action_runner.split_enabled` reads only
-//! `DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`, as containerized PAR does in
-//! `pkg/privateactionrunner/deployment`.
+//! process-collection value. `private_action_runner.split_enabled` reads only its env var,
+//! as containerized PAR does in `pkg/privateactionrunner/deployment`.
 //!
 //! # Keeping parity with Go
 //!
@@ -260,16 +259,13 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
-    // All-in-one Private Action Runner. Schema default is false. No platform override.
     GatedKeySpec {
         kind: GatedKey::PrivateActionRunnerEnabled,
         key: PRIVATE_ACTION_RUNNER_ENABLED_KEY,
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
-    // Schema platform_default is container false, linux true, windows true, other false.
-    // GatedKeySpec.default is a single bool and HostOs has no container variant.
-    // This catalog is the container entrypoint. Use false so a missing key does not read as true.
+    // Container-only: `enabled` reads the env var, so `default` and `fleet_policy_file` are unused.
     GatedKeySpec {
         kind: GatedKey::PrivateActionRunnerSplitEnabled,
         key: PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY,
@@ -372,7 +368,7 @@ impl GatedKeySpec {
     /// Resolves this key against `base_path`, following the order documented on the module.
     fn enabled(&self, base_path: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
         if self.kind == GatedKey::PrivateActionRunnerSplitEnabled {
-            // Containerized PAR reads only this variable and matches "true" exactly.
+            // Exact match, as containerized PAR does in Go.
             return env_bindings::env_var_value(PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_ENV).as_deref()
                 == Some("true");
         }
@@ -2143,8 +2139,6 @@ process_config:
         fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, true);
     }
 
-    // -------------------------------- Private Action Runner process gates
-
     fn par_key(path: &str, key: &str) -> ConditionConfigFile {
         ConditionConfigFile {
             path: path.to_owned(),
@@ -2152,12 +2146,10 @@ process_config:
         }
     }
 
-    /// par-control starts when `private_action_runner.split_enabled` is true.
     fn par_control_would_start(fx: &Gate, agent: &str) -> bool {
         fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY)])
     }
 
-    /// The monolith starts when `enabled` is true and `split_enabled` does not veto it.
     fn par_monolith_would_start(fx: &Gate, agent: &str) -> bool {
         fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_ENABLED_KEY)])
             && fx.veto_clear(&[par_key(agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY)])

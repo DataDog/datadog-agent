@@ -27,13 +27,11 @@ import (
 const (
 	aioDockerContainer = "datadog-agent"
 	aioDockerCLI       = "/opt/datadog-agent/embedded/bin/dd-procmgr"
-	// The default procmgr-all-in-one exports. docker exec does not see that export.
 	aioDockerSocket    = "/opt/datadog-agent/run/dd-procmgrd.sock"
 	aioMonolithProcess = "datadog-agent-par"
 )
 
-// procmgr-all-in-one supervises the image. DD_PM_SOCKET_PATH stays unset so the
-// entrypoint default is what the supervised processes inherit.
+// DD_PM_SOCKET_PATH stays unset so the entrypoint default applies.
 func aioDockerOptions(split bool, urn, privateKey string) []func(*dockeragentparams.Params) error {
 	options := []func(*dockeragentparams.Params) error{
 		dockeragentparams.WithAgentServiceEnvVariable("ENTRYPOINT", pulumi.String("procmgr-all-in-one")),
@@ -151,9 +149,8 @@ func runAIODockerTask(s aioDockerTaskSuite, process string, split bool) {
 	if split {
 		publishKey()
 	}
-	// The runner can still hold a key from an earlier attempt on this stack, and a new
-	// key reaches it on the next Remote Config poll. Each tick signs a fresh task so
-	// a rejection before delivery does not fail the whole wait.
+	// The runner can hold a key from an earlier attempt. Each tick signs a fresh task,
+	// so one early rejection does not fail the wait.
 	marker := "par-aio-" + process
 	s.eventually(func(c *assert.CollectT) {
 		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, key.id, key.id, key.config))

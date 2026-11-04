@@ -23,11 +23,9 @@ import (
 
 const (
 	aioAgentContainer = "datadog-agent"
-	// The default the procmgr-all-in-one entrypoint exports. `docker exec` does not see
-	// that export, so the CLI is pointed at the socket explicitly.
+	// docker exec does not see the entrypoint's socket export, so the CLI gets it explicitly.
 	aioSocket = "/opt/datadog-agent/run/dd-procmgrd.sock"
-	// Above the 90s default stop_timeout of the supervised Agent, so a SIGKILL means a hung
-	// shutdown rather than a slow one.
+	// Above the 90s default stop_timeout, so a SIGKILL means a hung shutdown.
 	aioStopTimeoutSec = "120"
 )
 
@@ -36,7 +34,7 @@ type procmgrAIODockerSuite struct {
 }
 
 // TestProcmgrAIODockerSuite runs the image with ENTRYPOINT=procmgr-all-in-one, so dd-procmgrd
-// supervises the Agent in place of s6. DD_PM_SOCKET_PATH is left unset to cover the default.
+// supervises the Agent instead of s6.
 func TestProcmgrAIODockerSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &procmgrAIODockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(

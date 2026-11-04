@@ -5,9 +5,7 @@
 
 //! Parse tests for the all-in-one `processes.d/aio` catalog.
 //!
-//! Directory membership is staged from runfiles under Bazel and from the
-//! checkout under Cargo, then asserted the same way. Bazel does not preserve
-//! symlink identity or git file mode, so those are not part of this test.
+//! Bazel does not keep symlink identity or git file mode, so the test does not check them.
 
 use crate::config::{ProcessConfig, RestartPolicy, load_configs};
 use std::collections::HashMap;
@@ -384,15 +382,6 @@ fn aio_commands_match_s6_run_scripts() {
     );
 }
 
-/// YAML paths for the catalog membership test.
-///
-/// Bazel passes each file's rlocation path. A runfiles directory is not a
-/// reliable input, and source symlinks may arrive as regular files, so the
-/// test compares bytes instead of `read_link`. On Windows that regular file
-/// holds the link text (`aio/<name>.yaml`) rather than the target contents.
-/// Cargo reads the checkout. `CARGO_MANIFEST_DIR` stays in the non-Bazel
-/// branch: rules_rust rejects that absolute path when it appears under
-/// `--cfg=bazel`.
 fn catalog_yaml_files() -> (Vec<PathBuf>, Vec<PathBuf>) {
     #[cfg(bazel)]
     {
@@ -413,6 +402,7 @@ fn catalog_yaml_files() -> (Vec<PathBuf>, Vec<PathBuf>) {
     }
     #[cfg(not(bazel))]
     {
+        // rules_rust rejects CARGO_MANIFEST_DIR under --cfg=bazel, so it stays here.
         let processes_d = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../../Dockerfiles/agent/processes.d");
         fn yaml_files(dir: &PathBuf) -> Vec<PathBuf> {
@@ -467,9 +457,7 @@ fn read_by_name(files: &[PathBuf]) -> HashMap<String, Vec<u8>> {
         .collect()
 }
 
-/// A symlink checked out as a regular file is the relative target path.
-/// Follow that to the aio bytes when the text is `aio/<name>`. Real YAML
-/// contains a colon, so it is left unchanged.
+/// Windows checks a symlink out as a file holding its target path, `aio/<name>`.
 fn symlink_checkout_bytes(
     bytes: &[u8],
     name: &str,
@@ -605,8 +593,7 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
         "action-executor stays on demand"
     );
 
-    // Both PAR processes take the certificate path dd-procmgrd resolves. The Agent
-    // setting name would only be set by an export that overrides datadog.yaml.
+    // Both read the cert path from DD_PM_IPC_CERT_FILE_PATH, not the Agent setting.
     for name in ["datadog-agent-par-control", "datadog-agent-action-executor"] {
         let process = catalog
             .processes

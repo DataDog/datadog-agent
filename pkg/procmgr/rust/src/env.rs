@@ -11,10 +11,8 @@ use std::sync::OnceLock;
 
 use crate::agent_yaml;
 
-/// Supervisor-private name for the Agent IPC certificate path. A process config can
-/// reference it in an argument, and `dd-procmgrd` derives it the way the Agent does. The
-/// `DD_PM_` prefix keeps it out of same-user children, so it cannot override
-/// `ipc_cert_file_path` in the YAML the way an exported `DD_IPC_CERT_FILE_PATH` would.
+/// Supervisor-private IPC cert path. The `DD_PM_` prefix keeps it out of same-user
+/// children, so it cannot override `ipc_cert_file_path` the way `DD_IPC_CERT_FILE_PATH` would.
 pub const IPC_CERT_FILE_PATH_VAR: &str = "DD_PM_IPC_CERT_FILE_PATH";
 
 const AGENT_CONFIG_PATH: &str = "/etc/datadog-agent/datadog.yaml";
@@ -52,9 +50,8 @@ fn lookup_env(name: &str) -> Option<String> {
 /// 4. the directory of `config_path`
 ///
 /// The last two join `ipc_cert.pem`, like `getCertFilepath` in `pkg/api/security/cert`.
-/// A missing config file reads as empty. A file that does not parse is an error, so the
-/// caller never guesses a path from a config it could not read. So is an `ENC[...]`
-/// secret handle in any of these settings: only the Agent's secret backend resolves it.
+/// A missing config reads as empty. A parse error or an `ENC[...]` handle is an error,
+/// so the path is never guessed.
 pub(crate) fn resolve_ipc_cert_file_path(
     config_path: &Path,
     env: impl Fn(&str) -> Option<String>,
@@ -274,8 +271,7 @@ LANG=en_US.UTF-8
         );
     }
 
-    /// Resolves against a config file in a temp directory. Returns the result and that
-    /// directory, so expectations are built with `Path::join` rather than a `/` literal.
+    /// Returns the result and the temp dir, so expectations use `Path::join`.
     fn resolve(yaml: Option<&str>, env: &[(&str, &str)]) -> (Result<String>, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let config_dir = dir.path().join("etc");
