@@ -6317,6 +6317,22 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      experimental:
+        node_type: section
+        type: object
+        properties:
+          apm:
+            node_type: section
+            type: object
+            properties:
+              trace_agent_receiver_port:
+                node_type: setting
+                type: integer
+                default: 0
+                comment: |-
+                  Temporary, experimental, internal. When > 0, overrides apm_config.receiver_port
+                  for the trace-agent's own TCP listener only, so ADP's APM relay can take that port.
+                  Must match the port in ADP's data_plane.experimental.apm.proxy_destination. Will be removed.
       log_file:
         node_type: setting
         type: string
