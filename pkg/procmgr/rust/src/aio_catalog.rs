@@ -675,8 +675,7 @@ fn procmgr_all_in_one_entrypoint_is_installed_executable() {
     );
     assert!(
         AGENT_DOCKERFILE.lines().any(|line| {
-            line.trim()
-                == r#"VOLUME ["/var/run/s6", "/opt/datadog-agent/run", "/var/log/datadog"]"#
+            line.trim() == r#"VOLUME ["/var/run/s6", "/opt/datadog-agent/run", "/var/log/datadog"]"#
         }),
         "Docker --read-only only writes VOLUME paths, and the all-in-one socket lives in /opt/datadog-agent/run"
     );
