@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Optimize cgroups stat and PSI (Pressure Stall Information) parsing to eliminate intermediate heap allocations on high-frequency collection intervals.
