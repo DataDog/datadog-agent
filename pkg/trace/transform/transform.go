@@ -441,8 +441,8 @@ func OTelSpanEventsToDD(events ptrace.SpanEventSlice) []*pb.SpanEvent {
 }
 
 // setEventAttribute sets the OTel attribute k=v in the Datadog span event attributes. Scalars
-// and slices of scalars of a single type are kept typed, bytes are base64 encoded and empty
-// values are dropped. Other slices are flattened into "k.0", "k.1", ... and maps into
+// and slices of scalars of a single type (or empty slices) are kept typed, bytes are base64
+// encoded and empty values are dropped. Other slices are flattened into "k.0", "k.1", ... and maps into
 // "k.<key>", as for span links, since the Datadog span event can't represent them.
 func setEventAttribute(attrs map[string]*pb.AttributeAnyValue, k string, v pcommon.Value) {
 	switch v.Type() {
@@ -473,12 +473,12 @@ func setEventAttribute(attrs map[string]*pb.AttributeAnyValue, k string, v pcomm
 	}
 }
 
-// eventAttributeArray converts s into a Datadog span event array attribute. It reports false
-// when s is empty or its values aren't all scalars of the same type, which a Datadog array
-// can't represent.
+// eventAttributeArray converts s into a Datadog span event array attribute, empty when s is
+// empty. It reports false when the values of s aren't all scalars of the same type, which a
+// Datadog array can't represent.
 func eventAttributeArray(s pcommon.Slice) (*pb.AttributeArray, bool) {
 	if s.Len() == 0 {
-		return nil, false
+		return &pb.AttributeArray{}, true
 	}
 	typ := s.At(0).Type()
 	for i := 1; i < s.Len(); i++ {

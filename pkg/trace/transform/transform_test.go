@@ -1839,6 +1839,7 @@ func TestOTelSpanEventsToDD(t *testing.T) {
 				i.AppendEmpty().SetInt(2)
 				d := attrs.PutEmptySlice("doubles")
 				d.AppendEmpty().SetDouble(1.5)
+				attrs.PutEmptySlice("empty")
 			},
 			want: []*pb.SpanEvent{{Attributes: map[string]*pb.AttributeAnyValue{
 				"strs": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
@@ -1856,6 +1857,7 @@ func TestOTelSpanEventsToDD(t *testing.T) {
 				"doubles": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
 					{Type: pb.AttributeArrayValue_DOUBLE_VALUE, DoubleValue: 1.5},
 				}}},
+				"empty": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{}},
 			}}},
 		},
 		{
@@ -1872,7 +1874,10 @@ func TestOTelSpanEventsToDD(t *testing.T) {
 				nested.AppendEmpty().SetEmptyMap().PutBool("flag", true)
 				bytesSlice := attrs.PutEmptySlice("bytes")
 				bytesSlice.AppendEmpty().SetEmptyBytes().FromRaw([]byte{0xde, 0xad})
-				attrs.PutEmptySlice("empty.slice")
+				withEmpty := attrs.PutEmptySlice("with.empty")
+				withEmpty.AppendEmpty().SetEmptySlice()
+				withEmpty.AppendEmpty().SetStr("x")
+				attrs.PutEmptyMap("empty.map")
 				m := attrs.PutEmptyMap("map")
 				m.PutStr("inner", "value")
 				m.PutEmptyMap("deeper").PutInt("n", 7)
@@ -1886,6 +1891,8 @@ func TestOTelSpanEventsToDD(t *testing.T) {
 				}}},
 				"nested.1.flag": {Type: pb.AttributeAnyValue_BOOL_VALUE, BoolValue: true},
 				"bytes.0":       str("3q0="),
+				"with.empty.0":  {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{}},
+				"with.empty.1":  str("x"),
 				"map.inner":     str("value"),
 				"map.deeper.n":  {Type: pb.AttributeAnyValue_INT_VALUE, IntValue: 7},
 			}}},
