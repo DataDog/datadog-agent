@@ -76,6 +76,10 @@ HOOK_SYSCALL_EXIT(execveat) {
     return handle_execve_exit();
 }
 
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_exec_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return handle_execve_exit();
+}
+
 static __always_inline int handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
@@ -441,6 +445,11 @@ int hook_do_exit(ctx_t *ctx) {
 
     // every thread has its own capability context, not just the group leader
     cleanup_capabilities_context(pid);
+
+    struct exec_pid_transfer_t *transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    if (transfer && transfer->task == bpf_get_current_task()) {
+        bpf_map_delete_elem(&exec_pid_transfer, &tgid);
+    }
 
     u32 exit_code = (u32)(u64)CTX_PARM1(ctx);
     u64 coredump_key = ((u64)tgid << 32) | tgid;

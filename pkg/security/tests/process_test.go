@@ -1840,7 +1840,7 @@ func TestProcessExit(t *testing.T) {
 		},
 		{
 			ID:         "test_exit_leader_exited",
-			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.file.name == "syscall_tester" && process.envp in ["%s"]`, envpExitSleep),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.file.name == "syscall_tester" && process.argv in ["leader-exit-pthread-exec"] && process.envp in ["%s"]`, envpExitSleep),
 		},
 	}
 
@@ -2000,6 +2000,18 @@ func TestProcessExit(t *testing.T) {
 			}
 
 			ebpfProbe := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			resolveProcessCacheEntry := func() *model.ProcessCacheEntry {
+				if entry := ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)); entry != nil {
+					return entry
+				}
+				var matched *model.ProcessCacheEntry
+				ebpfProbe.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+					if entry.ArgsEntry != nil && slices.Contains(entry.ArgsEntry.Values, "leader-exit-pthread-exec") {
+						matched = entry
+					}
+				})
+				return matched
+			}
 			statusPath := fmt.Sprintf("/proc/%d/status", cmd.Process.Pid)
 			deadline := time.Now().Add(2 * time.Second)
 			leaderZombie := false
@@ -2008,13 +2020,13 @@ func TestProcessExit(t *testing.T) {
 				if readErr == nil && strings.Contains(string(statusBytes), "State:\tZ") {
 					leaderZombie = true
 				}
-				if leaderZombie && ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)) != nil {
+				if leaderZombie && resolveProcessCacheEntry() != nil {
 					break
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
 			time.Sleep(50 * time.Millisecond)
-			assert.NotNil(t, ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)), "process cache entry should remain alive while worker thread is running")
+			assert.NotNil(t, resolveProcessCacheEntry(), "process cache entry should remain alive while worker thread is running")
 
 			stdinClosed.Store(true)
 			_ = stdinPipe.Close()
