@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/user"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -61,7 +62,25 @@ func stubLaunchd(t *testing.T) *[][]string {
 		return client
 	}
 	t.Cleanup(func() { launchdClient = original })
+	stubUninstall(t)
 	return &calls
+}
+
+// stubUninstall points the uninstall at nothing on the host: an empty layout and a command runner
+// that runs nothing. Every pre-remove test goes through stubLaunchd, so none can reach the real
+// install.
+func stubUninstall(t *testing.T) *[][]string {
+	t.Helper()
+
+	var commands [][]string
+	originalLayout, originalCommand := defaultUninstallLayout, uninstallCommand
+	defaultUninstallLayout = uninstallLayout{}
+	uninstallCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		commands = append(commands, append([]string{name}, args...))
+		return nil, nil
+	}
+	t.Cleanup(func() { defaultUninstallLayout, uninstallCommand = originalLayout, originalCommand })
+	return &commands
 }
 
 // stubJobDir points the hooks at a temporary directory instead of /Library/LaunchDaemons.
@@ -562,4 +581,93 @@ func TestRegisterPackageRepositoryMovesThePlaceholderForwardOnUpgrade(t *testing
 		names = append(names, entry.Name())
 	}
 	assert.ElementsMatch(t, []string{"7.99.0-devel.git.1.deadbee", "stable", "experiment"}, names)
+}
+
+// TestUninstallRemovesTheInstall pins what a real uninstall removes besides the LaunchDaemons: the
+// GUI for every logged-in user, its processes, and every path in the layout, links included, as
+// cmd/agent/macos/uninstall_mac_os.sh does for versions without the installer.
+func TestUninstallRemovesTheInstall(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	commands := stubUninstall(t)
+	current, err := user.Current()
+	require.NoError(t, err)
+	uninstallCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		*commands = append(*commands, append([]string{name}, args...))
+		if name == "who" {
+			return []byte(current.Username + " console  Nov  4 09:00\n" + current.Username + " ttys000  Nov  4 09:01\n"), nil
+		}
+		return nil, nil
+	}
+
+	root := t.TempDir()
+	installRoot := filepath.Join(root, "opt", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(installRoot, "embedded", "bin"), 0o755))
+	app := filepath.Join(root, "Applications", "Datadog Agent.app")
+	require.NoError(t, os.MkdirAll(app, 0o755))
+	agentPlist := filepath.Join(root, "LaunchAgents", "com.datadoghq.gui.plist")
+	require.NoError(t, os.MkdirAll(filepath.Dir(agentPlist), 0o755))
+	require.NoError(t, os.WriteFile(agentPlist, nil, 0o644))
+	link := filepath.Join(root, "bin", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	require.NoError(t, os.Symlink(installRoot, link))
+	outside := filepath.Join(root, "outside")
+	require.NoError(t, os.WriteFile(outside, []byte("kept"), 0o644))
+	defaultUninstallLayout = uninstallLayout{
+		guiLabels:       []string{"com.datadoghq.gui"},
+		processPatterns: []string{"Datadog Agent.app"},
+		paths:           []string{agentPlist, app, link, filepath.Join(root, "missing"), installRoot},
+	}
+
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+	require.NoError(t, preRemoveDatadogAgent(ctx))
+
+	for _, path := range []string{agentPlist, app, link, installRoot} {
+		_, err := os.Lstat(path)
+		assert.True(t, os.IsNotExist(err), "%s was not removed", path)
+	}
+	assert.FileExists(t, outside, "a path outside the layout was removed")
+	assert.Contains(t, *commands, []string{"launchctl", "bootout", "gui/" + current.Uid + "/com.datadoghq.gui"})
+	assert.Contains(t, *commands, []string{"pkill", "-f", "Datadog Agent.app"})
+	bootouts := 0
+	for _, command := range *commands {
+		if command[0] == "launchctl" {
+			bootouts++
+		}
+	}
+	assert.Equal(t, 1, bootouts, "a user logged in twice must be handled once")
+}
+
+// TestUpgradeLeavesTheInstall pins that the pre-remove an upgrade runs only takes down the
+// LaunchDaemons: the next version's payload replaces the rest in place.
+func TestUpgradeLeavesTheInstall(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	commands := stubUninstall(t)
+	installRoot := filepath.Join(t.TempDir(), "datadog-agent")
+	require.NoError(t, os.MkdirAll(installRoot, 0o755))
+	defaultUninstallLayout = uninstallLayout{
+		guiLabels:       []string{"com.datadoghq.gui"},
+		processPatterns: []string{"Datadog Agent.app"},
+		paths:           []string{installRoot},
+	}
+
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+	ctx.Upgrade = true
+	require.NoError(t, preRemoveDatadogAgent(ctx))
+
+	assert.DirExists(t, installRoot)
+	assert.Empty(t, *commands)
+}
+
+// TestTheUninstallLayoutMatchesTheInstall pins the default layout against the install: the install
+// root goes last, since the installer running the uninstall lives in it.
+func TestTheUninstallLayoutMatchesTheInstall(t *testing.T) {
+	require.NotEmpty(t, defaultUninstallLayout.paths)
+	assert.Equal(t, "/opt/datadog-agent", defaultUninstallLayout.paths[len(defaultUninstallLayout.paths)-1])
+	assert.Contains(t, defaultUninstallLayout.paths, "/opt/datadog-packages")
+	assert.Contains(t, defaultUninstallLayout.paths, "/Applications/Datadog Agent.app")
+	assert.Contains(t, defaultUninstallLayout.paths, "/usr/local/bin/datadog-installer")
 }

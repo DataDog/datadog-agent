@@ -12,12 +12,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -254,8 +258,10 @@ func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (boo
 // version no longer knows about, whose definitions launchd would otherwise load again at boot.
 //
 // The definitions are removed on an upgrade too: both install paths write every definition from
-// scratch, so nothing is lost. Neither the package type nor ctx.Upgrade changes anything: tearing
-// down the jobs is the same whichever way the Agent was installed and whatever replaces it.
+// scratch, so nothing is lost.
+//
+// When the Agent is uninstalled rather than upgraded, as cmd/agent/macos/uninstall_mac_os.sh does
+// through `installer prerm datadog-agent dmg`, the rest of the install goes too (uninstallAgent).
 //
 // Every step is allowed to fail: a job that is already gone is the desired outcome, and an error
 // here would only stop the next version from installing.
@@ -272,5 +278,96 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to remove job definition %s: %v", label, err)
 		}
 	}
+	if !ctx.Upgrade {
+		uninstallAgent(ctx, defaultUninstallLayout)
+	}
 	return nil
+}
+
+// uninstallLayout is everything an uninstall removes besides the LaunchDaemons. It is the same
+// list cmd/agent/macos/uninstall_mac_os.sh removes for versions without the installer.
+//
+// It is parameterised on its paths so the tests can run against temporary directories.
+type uninstallLayout struct {
+	// guiLabels are the per-user LaunchAgents, booted out for every logged-in user.
+	guiLabels []string
+	// processPatterns are the pkill -f patterns of the GUI processes left behind.
+	processPatterns []string
+	// paths are removed in order, recursively. The install root, which holds the installer that is
+	// running this, goes last.
+	paths []string
+}
+
+var defaultUninstallLayout = uninstallLayout{
+	guiLabels: []string{
+		"com.datadoghq.gui",
+		"com.datadoghq.ai-usage-agent.desktop-monitor",
+		"com.datadoghq.ai-prompt-logger.desktop-monitor",
+	},
+	processPatterns: []string{
+		"Datadog Agent.app",
+		"ai-usage-agent-native-host.*--desktop-monitor",
+		"ai-prompt-logger-native-host.*--desktop-monitor",
+	},
+	paths: []string{
+		"/Library/LaunchAgents/com.datadoghq.gui.plist",
+		"/Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist",
+		"/Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist",
+		"/Applications/Datadog Agent.app",
+		"/usr/local/bin/datadog-agent",
+		"/usr/local/bin/datadog-installer",
+		"/var/log/datadog",
+		"/private/var/root/datadog-install",
+		paths.PackagesPath,
+		filepath.Dir(paths.AgentConfigDir),
+	},
+}
+
+// uninstallCommand runs the launchctl, pkill and who commands the uninstall needs. Indirected so the
+// hook tests can run without them.
+var uninstallCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return telemetry.CommandContext(ctx, name, args...).Output()
+}
+
+// uninstallAgent stops the GUI for every logged-in user and removes what the install left besides
+// the LaunchDaemons: the LaunchAgents, the application, the links and the install root. Every step
+// is allowed to fail, so one missing piece doesn't stop the rest from going.
+func uninstallAgent(ctx context.Context, layout uninstallLayout) {
+	for _, uid := range loggedInUIDs(ctx) {
+		for _, label := range layout.guiLabels {
+			_, _ = uninstallCommand(ctx, "launchctl", "bootout", "gui/"+uid+"/"+label)
+		}
+	}
+	for _, pattern := range layout.processPatterns {
+		_, _ = uninstallCommand(ctx, "pkill", "-f", pattern)
+	}
+	// os.RemoveAll removes a link itself rather than what it points to.
+	for _, path := range layout.paths {
+		if err := os.RemoveAll(path); err != nil {
+			log.Warnf("failed to remove %s: %v", path, err)
+		}
+	}
+}
+
+// loggedInUIDs returns the uids of the users with a login session, whose GUI domains hold the
+// Agent's LaunchAgents.
+func loggedInUIDs(ctx context.Context) []string {
+	out, err := uninstallCommand(ctx, "who")
+	if err != nil {
+		log.Warnf("could not list logged-in users: %v", err)
+		return nil
+	}
+	var uids []string
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		u, err := user.Lookup(fields[0])
+		if err != nil || slices.Contains(uids, u.Uid) {
+			continue
+		}
+		uids = append(uids, u.Uid)
+	}
+	return uids
 }
