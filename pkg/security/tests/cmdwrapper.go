@@ -117,15 +117,8 @@ func (d *dockerCmdWrapper) CommandContext(ctx context.Context, bin string, args 
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = "docker-wrapper-" + utils.RandString(6)
-<<<<<<< HEAD
 	args := []string{"run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--security-opt", "apparmor=unconfined", "--rm", "--cap-add", "NET_ADMIN", "-d", "--name", d.containerName, "-v", d.mountSrc + ":" + d.mountDest}
-	args = append(args, d.runArgs...)
-	args = append(args, d.image, "sleep", "1200")
-=======
-	args := []string{"run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--security-opt", "apparmor=unconfined", "--rm", "--cap-add", "NET_ADMIN"}
-	args = append(args, d.extraRunArgs...)
 	args = append(args, "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
->>>>>>> c69e76e9122 ([WP] Test the anomaly detection event cooldown)
 	cmd := exec.Command(d.executable, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
