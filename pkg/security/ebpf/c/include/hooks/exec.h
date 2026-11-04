@@ -78,6 +78,10 @@ HOOK_SYSCALL_EXIT(execveat) {
     return handle_execve_exit();
 }
 
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_exec_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return handle_execve_exit();
+}
+
 // The cpu_vfs_cap_data layout varies across kernels. Read only the fields we
 // need at the resolved field offsets, without assuming a
 // particular layout or reading rootid. Linux 4.14's object is only 20 bytes.
@@ -530,6 +534,11 @@ int hook_do_exit(ctx_t *ctx) {
 
     // every thread has its own capability context, not just the group leader
     cleanup_capabilities_context(pid);
+
+    struct exec_pid_transfer_t *transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    if (transfer && transfer->task == bpf_get_current_task()) {
+        bpf_map_delete_elem(&exec_pid_transfer, &tgid);
+    }
 
     u32 exit_code = (u32)(u64)CTX_PARM1(ctx);
     u64 coredump_key = ((u64)tgid << 32) | tgid;

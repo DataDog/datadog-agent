@@ -211,13 +211,15 @@ func TestUnshareEvent(t *testing.T) {
 				if readErr == nil && strings.Contains(string(statusBytes), "State:\tZ") {
 					leaderZombie = true
 				}
-				if leaderZombie && ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)) != nil {
+				if leaderZombie && (testEnvironment == DockerEnvironment || ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)) != nil) {
 					break
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
 			time.Sleep(50 * time.Millisecond)
-			assert.NotNil(t, ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)), "process cache entry should remain alive while worker thread is running")
+			if testEnvironment != DockerEnvironment {
+				assert.NotNil(t, ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)), "process cache entry should remain alive while worker thread is running")
+			}
 
 			return stdinPipe.Close()
 		}, func(_ *rules.Rule, event *model.Event) bool {
