@@ -4,7 +4,7 @@ args:
   - --executor-socket
   - /opt/datadog-agent/run/par-executor.sock
   - --ipc-cert-file
-  - ${DD_IPC_CERT_FILE_PATH}
+  - ${DD_PM_IPC_CERT_FILE_PATH}
 auto_start: true
 # FIPS images omit this binary. Skip the process when it is not installed.
 condition_path_exists: /opt/datadog-agent/embedded/bin/par-control

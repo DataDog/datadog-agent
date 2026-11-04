@@ -29,6 +29,8 @@ const PRIVATE_ACTION_RUNNER: &str = "/opt/datadog-agent/embedded/bin/privateacti
 
 const ENTRYPOINT_DEFAULT: &str =
     include_str!("../../../../Dockerfiles/agent/entrypoint.d/_default");
+const ENTRYPOINT_PRIVATE_ACTION_RUNNER: &str =
+    include_str!("../../../../Dockerfiles/agent/entrypoint.d/privateactionrunner");
 const ENTRYPOINT_PROCMGR_ALL_IN_ONE: &str =
     include_str!("../../../../Dockerfiles/agent/entrypoint.d/procmgr-all-in-one");
 const AGENT_DOCKERFILE: &str = include_str!("../../../../Dockerfiles/agent/Dockerfile");
@@ -548,6 +550,33 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
         !executor.config.auto_start,
         "action-executor stays on demand"
     );
+
+    // Both PAR processes take the certificate path dd-procmgrd resolves. The Agent
+    // setting name would only be set by an export that overrides datadog.yaml.
+    for name in ["datadog-agent-par-control", "datadog-agent-action-executor"] {
+        let process = catalog
+            .processes
+            .iter()
+            .find(|process| process.name == name)
+            .unwrap_or_else(|| panic!("{name}"));
+        let flag = process
+            .config
+            .args
+            .iter()
+            .position(|arg| arg == "--ipc-cert-file")
+            .unwrap_or_else(|| panic!("{name} has no --ipc-cert-file"));
+        assert_eq!(
+            process.config.args.get(flag + 1).map(String::as_str),
+            Some("${DD_PM_IPC_CERT_FILE_PATH}"),
+            "{name} ipc cert argument"
+        );
+    }
+    for (name, body) in &aio_bytes {
+        assert!(
+            !String::from_utf8_lossy(body).contains("${DD_IPC_CERT_FILE_PATH}"),
+            "{name} must not read the Agent setting name"
+        );
+    }
 }
 
 #[test]
@@ -559,23 +588,28 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     assert!(script.contains(
         r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
     ));
-    assert!(script.contains(
-        r#"DD_IPC_CERT_FILE_PATH="${DD_IPC_CERT_FILE_PATH:-$(dirname "${DD_AUTH_TOKEN_FILE_PATH:-${config_file}}")/ipc_cert.pem}""#
-    ));
-    let cont_init = script.find("/etc/cont-init.d/*.sh").expect("cont-init");
-    let cert = script.find("DD_IPC_CERT_FILE_PATH").expect("ipc cert");
-    let exec_procmgrd = script
-        .find("exec /opt/datadog-agent/embedded/bin/dd-procmgrd")
-        .expect("exec");
     assert!(
-        cont_init < cert && cert < exec_procmgrd,
-        "derive the IPC cert after cont-init and before exec"
+        !script.contains("IPC_CERT_FILE_PATH"),
+        "an exported DD_IPC_CERT_FILE_PATH would override ipc_cert_file_path in datadog.yaml, \
+         dd-procmgrd resolves the certificate path itself"
     );
     assert!(script.contains("exec /opt/datadog-agent/embedded/bin/dd-procmgrd"));
     assert!(
         !script.contains("DD_PM_INHERIT_ENV"),
         "the entrypoint must not set DD_PM_INHERIT_ENV"
     );
+}
+
+#[test]
+fn split_entrypoint_leaves_the_ipc_cert_path_to_dd_procmgrd() {
+    let script = ENTRYPOINT_PRIVATE_ACTION_RUNNER;
+    assert!(
+        !script.contains("IPC_CERT_FILE_PATH"),
+        "an exported DD_IPC_CERT_FILE_PATH would override ipc_cert_file_path in datadog.yaml, \
+         dd-procmgrd resolves the certificate path itself"
+    );
+    assert!(script.contains(r#"export DD_PM_CONFIG_DIR="${processes_dir}""#));
+    assert!(script.contains(r#"exec "${procmgrd}""#));
 }
 
 #[test]

@@ -3,8 +3,6 @@
 # Cont-init stays in this shell so a failing script exits before dd-procmgrd starts.
 set -euo pipefail
 
-readonly config_file="/etc/datadog-agent/datadog.yaml"
-
 for init in /etc/cont-init.d/*.sh; do
     if [[ -e $init ]]; then
         printf '===== RUNNING %s =====\n' "$init"
@@ -16,7 +14,5 @@ export DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio
 # Kubernetes does not mount the default socket VOLUME. The agent container already
 # mounts this directory, and the image VOLUME keeps it writable under Docker --read-only.
 export DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}"
-# par-control and the executor pass this path through. Same derivation as entrypoint.d/privateactionrunner.
-export DD_IPC_CERT_FILE_PATH="${DD_IPC_CERT_FILE_PATH:-$(dirname "${DD_AUTH_TOKEN_FILE_PATH:-${config_file}}")/ipc_cert.pem}"
 printf '===== STARTING dd-procmgrd =====\n'
 exec /opt/datadog-agent/embedded/bin/dd-procmgrd

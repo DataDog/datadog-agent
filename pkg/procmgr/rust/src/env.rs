@@ -5,13 +5,97 @@
 
 use anyhow::{Context, Result};
 use log::warn;
+use std::io::ErrorKind;
+use std::path::Path;
+use std::sync::OnceLock;
+
+use crate::agent_yaml;
+
+/// Supervisor-private name for the Agent IPC certificate path. A process config can
+/// reference it in an argument, and `dd-procmgrd` derives it the way the Agent does. The
+/// `DD_PM_` prefix keeps it out of same-user children, so it cannot override
+/// `ipc_cert_file_path` in the YAML the way an exported `DD_IPC_CERT_FILE_PATH` would.
+pub const IPC_CERT_FILE_PATH_VAR: &str = "DD_PM_IPC_CERT_FILE_PATH";
+
+const AGENT_CONFIG_PATH: &str = "/etc/datadog-agent/datadog.yaml";
+const IPC_CERT_FILE_NAME: &str = "ipc_cert.pem";
+
+static IPC_CERT_FILE_PATH: OnceLock<String> = OnceLock::new();
+
+fn lookup_env(name: &str) -> Option<String> {
+    let value = std::env::var(name).ok();
+    if name != IPC_CERT_FILE_PATH_VAR {
+        return value;
+    }
+    if let Some(value) = value.filter(|value| !value.is_empty()) {
+        return Some(value);
+    }
+    if let Some(cached) = IPC_CERT_FILE_PATH.get() {
+        return Some(cached.clone());
+    }
+    match resolve_ipc_cert_file_path(Path::new(AGENT_CONFIG_PATH), |name| {
+        std::env::var(name).ok()
+    }) {
+        Ok(path) => Some(IPC_CERT_FILE_PATH.get_or_init(|| path).clone()),
+        Err(e) => {
+            warn!("could not resolve the Agent IPC certificate path: {e:#}");
+            None
+        }
+    }
+}
+
+/// Resolves the IPC certificate path in the order the Agent uses.
+///
+/// 1. `DD_IPC_CERT_FILE_PATH`
+/// 2. `ipc_cert_file_path` in `config_path`
+/// 3. the directory of `DD_AUTH_TOKEN_FILE_PATH`, else of `auth_token_file_path`
+/// 4. the directory of `config_path`
+///
+/// The last two join `ipc_cert.pem`, like `getCertFilepath` in `pkg/api/security/cert`.
+/// A missing config file reads as empty. A file that does not parse is an error, so the
+/// caller never guesses a path from a config it could not read.
+pub(crate) fn resolve_ipc_cert_file_path(
+    config_path: &Path,
+    env: impl Fn(&str) -> Option<String>,
+) -> Result<String> {
+    let non_empty_env = |name: &str| env(name).filter(|value| !value.is_empty());
+    if let Some(path) = non_empty_env("DD_IPC_CERT_FILE_PATH") {
+        return Ok(path);
+    }
+
+    let root = match std::fs::read_to_string(config_path) {
+        Ok(contents) => agent_yaml::load(&contents)
+            .with_context(|| format!("parsing {}", config_path.display()))?,
+        Err(e) if e.kind() == ErrorKind::NotFound => serde_yaml::Value::Null,
+        Err(e) => {
+            return Err(e).with_context(|| format!("reading {}", config_path.display()));
+        }
+    };
+    let yaml_string = |key: &str| {
+        agent_yaml::lookup_dotted_key(&root, key)
+            .and_then(agent_yaml::scalar_as_string)
+            .filter(|value| !value.is_empty())
+    };
+
+    if let Some(path) = yaml_string("ipc_cert_file_path") {
+        return Ok(path);
+    }
+    let token_path =
+        non_empty_env("DD_AUTH_TOKEN_FILE_PATH").or_else(|| yaml_string("auth_token_file_path"));
+    let dir = match token_path.as_deref().map(Path::new) {
+        Some(token) => token.parent(),
+        None => config_path.parent(),
+    }
+    .unwrap_or_else(|| Path::new("/"));
+    Ok(dir.join(IPC_CERT_FILE_NAME).to_string_lossy().into_owned())
+}
 
 pub(crate) fn expand_env_vars(input: &str) -> String {
-    expand_vars_with(input, |name| std::env::var(name).ok())
+    expand_vars_with(input, lookup_env)
 }
 
 pub(crate) fn try_expand_env_vars(input: &str) -> Option<String> {
-    try_expand_vars_with(input, |name| std::env::var(name).ok())
+    try_expand_vars_with(input, lookup_env)
 }
 
 pub(crate) fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
@@ -87,6 +171,7 @@ pub fn parse_environment_file(path: &str) -> Result<Vec<(String, String)>> {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use std::path::PathBuf;
 
     #[test]
     fn test_parse_full() {
@@ -169,6 +254,95 @@ LANG=en_US.UTF-8
             None,
             "an unset optional variable must yield None so the caller can omit the env var"
         );
+    }
+
+    /// Resolves against a config file in a temp directory. Returns the result and that
+    /// directory, so expectations are built with `Path::join` rather than a `/` literal.
+    fn resolve(yaml: Option<&str>, env: &[(&str, &str)]) -> (Result<String>, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let config_dir = dir.path().join("etc");
+        let config = config_dir.join("datadog.yaml");
+        if let Some(yaml) = yaml {
+            std::fs::create_dir_all(&config_dir).unwrap();
+            std::fs::write(&config, yaml).unwrap();
+        }
+        let env: HashMap<String, String> = env
+            .iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect();
+        let resolved = resolve_ipc_cert_file_path(&config, |name| env.get(name).cloned());
+        (resolved, config_dir)
+    }
+
+    fn cert_in(dir: impl AsRef<Path>) -> String {
+        dir.as_ref()
+            .join(IPC_CERT_FILE_NAME)
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    #[test]
+    fn ipc_cert_env_outranks_the_yaml() {
+        let (path, _) = resolve(
+            Some("ipc_cert_file_path: /yaml/cert.pem\n"),
+            &[("DD_IPC_CERT_FILE_PATH", "/env/cert.pem")],
+        );
+        assert_eq!(path.unwrap(), "/env/cert.pem");
+    }
+
+    #[test]
+    fn ipc_cert_yaml_setting_is_kept() {
+        let (path, _) = resolve(
+            Some("ipc_cert_file_path: /yaml/cert.pem\nauth_token_file_path: /token/auth\n"),
+            &[("DD_AUTH_TOKEN_FILE_PATH", "/env/token/auth")],
+        );
+        assert_eq!(path.unwrap(), "/yaml/cert.pem");
+    }
+
+    #[test]
+    fn ipc_cert_follows_the_auth_token_directory() {
+        let (path, _) = resolve(
+            Some("auth_token_file_path: /yaml/token/auth\n"),
+            &[("DD_AUTH_TOKEN_FILE_PATH", "/env/token/auth")],
+        );
+        assert_eq!(
+            path.unwrap(),
+            cert_in("/env/token"),
+            "the auth token env outranks the YAML key"
+        );
+        let (path, _) = resolve(Some("auth_token_file_path: /yaml/token/auth\n"), &[]);
+        assert_eq!(path.unwrap(), cert_in("/yaml/token"));
+    }
+
+    #[test]
+    fn ipc_cert_defaults_next_to_the_config_file() {
+        let (path, config_dir) = resolve(Some("api_key: abc\n"), &[]);
+        assert_eq!(path.unwrap(), cert_in(&config_dir));
+        let (path, config_dir) = resolve(None, &[]);
+        assert_eq!(
+            path.unwrap(),
+            cert_in(&config_dir),
+            "a missing config file reads as empty"
+        );
+    }
+
+    #[test]
+    fn ipc_cert_ignores_empty_values() {
+        let (path, config_dir) = resolve(
+            Some("ipc_cert_file_path: ''\nauth_token_file_path: ''\n"),
+            &[
+                ("DD_IPC_CERT_FILE_PATH", ""),
+                ("DD_AUTH_TOKEN_FILE_PATH", ""),
+            ],
+        );
+        assert_eq!(path.unwrap(), cert_in(&config_dir));
+    }
+
+    #[test]
+    fn ipc_cert_refuses_to_guess_from_an_unparsable_config() {
+        let (path, _) = resolve(Some("ipc_cert_file_path: [unterminated\n"), &[]);
+        let err = path.unwrap_err();
+        assert!(format!("{err:#}").contains("parsing"), "{err:#}");
     }
 
     #[test]

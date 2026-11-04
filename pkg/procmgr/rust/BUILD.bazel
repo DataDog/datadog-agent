@@ -192,6 +192,7 @@ rust_test(
         "//Dockerfiles/agent:Dockerfile",
         "//Dockerfiles/agent:entrypoint.sh",
         "//Dockerfiles/agent:entrypoint.d/_default",
+        "//Dockerfiles/agent:entrypoint.d/privateactionrunner",
         "//Dockerfiles/agent:entrypoint.d/procmgr-all-in-one",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-data-plane.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-otel.yaml",
