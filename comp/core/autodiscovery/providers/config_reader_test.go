@@ -464,3 +464,27 @@ instances:
 	require.Equal(t, 0, len(configs))
 	require.Equal(t, 0, len(errors))
 }
+
+func TestIntegrationMetadataSecretReferences(t *testing.T) {
+	configmock.New(t)
+	file := filepath.Join(t.TempDir(), "http_check.yaml")
+	read := func(password string) ConfigFormatWrapper {
+		t.Helper()
+		content := fmt.Sprintf("init_config: {}\ninstances:\n  - name: secret-fixture\n    url: http://localhost/health\n    password: %q\n", password)
+		require.NoError(t, os.WriteFile(file, []byte(content), 0o600))
+		_, format, err := GetIntegrationConfigFromFile("http_check", file)
+		require.NoError(t, err)
+		return format
+	}
+	first := read("ENC[first]")
+	assert.Contains(t, first.ConfigFormat, "ENC[first]")
+	assert.Equal(t, first.Hash, read("ENC[first]").Hash)
+	second := read("ENC[second]")
+	assert.Contains(t, second.ConfigFormat, "ENC[second]")
+	assert.NotEqual(t, first.Hash, second.Hash, "reference-only drift must be visible")
+	for _, secret := range []string{"plain-private-password", "prefix ENC[handle] private-suffix", "ENC[incomplete"} {
+		scrubbed := read(secret)
+		assert.NotContains(t, scrubbed.ConfigFormat, secret)
+		assert.Contains(t, scrubbed.ConfigFormat, "********")
+	}
+}

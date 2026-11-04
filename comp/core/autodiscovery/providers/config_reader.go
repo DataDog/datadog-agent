@@ -564,10 +564,14 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
-		scrubbedConfigFormat, err = scrubber.ScrubYamlString(string(serializedConfigFormat))
+		// Preserve secret-backend references as structured values. ScrubYamlString
+		// applies a final text pass that redacts ENC[...] under password keys,
+		// preventing inventory consumers from detecting reference-only changes.
+		scrubbed, err := scrubber.ScrubYamlPreserveStructure(serializedConfigFormat)
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
+		scrubbedConfigFormat = string(scrubbed)
 	}
 
 	// If no valid instances were found & this is neither a metrics file, a logs file,
