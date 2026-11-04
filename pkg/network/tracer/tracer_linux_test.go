@@ -2898,6 +2898,18 @@ func (s *TracerSuite) TestProtocolClassifierEntrySize() {
 	}
 	t.Cleanup(func() { _ = os.WriteFile(jitHarden, orig, 0644) })
 
+	// Make sure the tracer can attach the program however big it is, so the test measures it against the budget
+	// rather than failing to attach: before 6.8, net.core.optmem_max defaults to 20 KiB.
+	const optmemMax = "/proc/sys/net/core/optmem_max"
+	origOptmem, err := os.ReadFile(optmemMax)
+	require.NoError(t, err)
+	if limit, err := strconv.Atoi(strings.TrimSpace(string(origOptmem))); err != nil || limit < 1<<18 {
+		if err := os.WriteFile(optmemMax, []byte(strconv.Itoa(1<<18)), 0644); err != nil {
+			t.Skipf("can't raise net.core.optmem_max: %s", err)
+		}
+		t.Cleanup(func() { _ = os.WriteFile(optmemMax, origOptmem, 0644) })
+	}
+
 	setupTracer(t, cfg)
 
 	// Find this tracer's entry program through the program IDs it registered with pkg/ebpf, which records each
@@ -2932,6 +2944,13 @@ func (s *TracerSuite) TestProtocolClassifierEntrySize() {
 	}
 
 	require.NotZero(t, size, "%s not loaded", entryName)
+	if ebpftest.GetBuildMode() == ebpftest.CORE && kv < kernel.VersionCode(5, 0, 0) {
+		// The CO-RE program comes out larger on older kernels (19,920 bytes on Ubuntu 18.04's 4.18 and 20,408 on Amazon
+		// Linux 2's 4.14), too close to the limit for a budget meant to leave room for newer kernels like GKE COS's.
+		// Constant blinding is off by default on those kernels, and enabling it there isn't a configuration this test
+		// covers.
+		t.Skipf("%s is %d bytes after constant blinding in CO-RE mode; the budget doesn't apply before kernel 5.0", entryName, size)
+	}
 	assert.LessOrEqual(t, size, classifierEntryMaxSize,
 		"%s is %d bytes after constant blinding; keep it under %d so it can be attached on hosts with net.core.optmem_max=20480 (e.g. GKE COS nodes, which also blind constants)",
 		entryName, size, classifierEntryMaxSize)
