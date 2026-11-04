@@ -143,18 +143,22 @@ func TestEnsureLogLink(t *testing.T) {
 }
 
 // TestRemoveOldInstallFiles pins the cleanup of what earlier versions left, and that the installer
-// daemon's remote config database in the Agent's run directory is kept.
+// daemon's live state in the Agent's run directory is kept.
 func TestRemoveOldInstallFiles(t *testing.T) {
 	layout := stubDmgLayout(t)
 	stale := []string{
 		filepath.Join(layout.installDir, "agent", "f"),
-		filepath.Join(layout.runDir(), "installer.sock"),
-		filepath.Join(layout.runDir(), "installer_tasks.db"),
 		filepath.Join(layout.packagesDir, "logs", "updater.log"),
+		filepath.Join(layout.packagesRunDir, "installer.sock"),
+		filepath.Join(layout.packagesRunDir, "installer_tasks.db"),
 		filepath.Join(layout.packagesRunDir, "remote-config-installer.db"),
 	}
-	kept := filepath.Join(layout.runDir(), "remote-config-installer.db")
-	for _, path := range append(stale, kept) {
+	kept := []string{
+		filepath.Join(layout.runDir(), "remote-config-installer.db"),
+		filepath.Join(layout.runDir(), "installer.sock"),
+		filepath.Join(layout.runDir(), "installer_tasks.db"),
+	}
+	for _, path := range append(stale, kept...) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 		require.NoError(t, os.WriteFile(path, nil, 0o644))
 	}
@@ -165,7 +169,9 @@ func TestRemoveOldInstallFiles(t *testing.T) {
 		assert.NoFileExists(t, path)
 	}
 	assert.NoDirExists(t, filepath.Join(layout.packagesDir, "logs"))
-	assert.FileExists(t, kept)
+	for _, path := range kept {
+		assert.FileExists(t, path)
+	}
 }
 
 // TestInstallLinks pins the user-facing commands, replacing whatever was there.

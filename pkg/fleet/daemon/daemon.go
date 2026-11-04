@@ -127,8 +127,8 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
 	}
 	if runtime.GOOS == "darwin" {
-		// The daemon runs as root on macOS: make sure the run directory it keeps its socket and
-		// task database in is root-owned before opening anything in it.
+		// The daemon runs as root on macOS: make sure the packages root it reads the Agent's package
+		// entry from is root-owned before reading anything in it.
 		if err := paths.EnsureInstallerDataDir(); err != nil {
 			return nil, fmt.Errorf("could not secure the installer run directory: %w", err)
 		}
