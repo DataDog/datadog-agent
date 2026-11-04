@@ -45,9 +45,9 @@ const maxAcceptedInterval = 14400 // 4h
 
 const providerName = "host"
 
-// intervalJitter is the backoff's randomization factor: each collection interval varies by up to 10%, and
+// intervalJitter is the backoff's randomization factor: each collection interval varies by up to 20%, and
 // nextInterval caps it at the configured interval.
-const intervalJitter = 0.1
+const intervalJitter = 0.2
 
 type host struct {
 	log          log.Component
