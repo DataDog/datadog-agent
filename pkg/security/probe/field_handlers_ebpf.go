@@ -131,8 +131,8 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 			f.Filesystem = model.TmpFS
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
-			if err != nil {
-				ev.SetPathResolutionError(f, err)
+			if err != nil && f.PathResolutionError == nil {
+				ev.SetPathResolutionError(f, fmt.Errorf("filesystem resolution failed (mount_id=%d, pid=%d): %w", f.FileFields.MountID, ev.PIDContext.Pid, err))
 			}
 			f.Filesystem = fs
 		}

@@ -1113,6 +1113,7 @@ func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
+		fileEvent.PathResolutionError = err
 
 		p.pathErrStats.Inc()
 
@@ -1202,12 +1203,12 @@ func (p *EBPFResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.Pr
 // resolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *EBPFResolver) resolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
 	if _, err := p.setProcessPath(&entry.FileEvent, entry); err != nil {
-		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
+		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path (pid=%d, comm=%q): %w", entry.Pid, entry.Comm, err)}
 	}
 
 	if entry.HasInterpreter() {
 		if _, err := p.setProcessPath(&entry.LinuxBinprm.FileEvent, entry); err != nil {
-			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
+			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path (pid=%d, comm=%q, exe=%q): %w", entry.Pid, entry.Comm, entry.FileEvent.PathnameStr, err)}
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
