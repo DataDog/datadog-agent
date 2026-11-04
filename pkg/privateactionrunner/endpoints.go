@@ -10,14 +10,18 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configconstants "github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
 
-// Site returns the logical Datadog site, retaining the Agent's dd_url precedence.
-// An unrecognized endpoint has no site; callers retain their existing fallback policy.
+// Site returns the logical Datadog site independently of intake URL overrides.
 func Site(cfg model.Reader) string {
-	return configutils.ExtractSiteFromURL(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"))
+	site := strings.TrimRight(strings.ToLower(strings.TrimSpace(cfg.GetString("site"))), ".")
+	if site == "" {
+		return configconstants.DefaultSite
+	}
+	return site
 }
 
 // APIBaseURL resolves the PAR API endpoint independently of the runner's identity.
