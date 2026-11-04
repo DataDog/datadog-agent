@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Observer anomaly scorer now weights BOCPD detections by their deviation
+    from recent noise. Detections without enough reference history retain a
+    medium contribution.

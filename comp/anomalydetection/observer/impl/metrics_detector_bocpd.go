@@ -129,6 +129,8 @@ type BOCPDDetector struct {
 	// backing array for every series (~5.8 MiB at 50k series).
 	cachedRefs []observer.SeriesRef
 	cachedGen  uint64
+
+	scoreWorkspace *bocpdScoreWorkspace
 }
 
 // NewBOCPDDetector creates a streaming BOCPD detector with the given config.
@@ -242,6 +244,11 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			// Set SourceRef on any anomalies produced in this iteration.
 			for k := prevLen; k < len(allAnomalies); k++ {
 				allAnomalies[k].SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
+				if b.scoreWorkspace == nil {
+					b.scoreWorkspace = &bocpdScoreWorkspace{}
+				}
+				a := &allAnomalies[k]
+				a.Score = b.scoreWorkspace.score(storage, ref, agg, a.Timestamp, a.DebugInfo.CurrentValue, math.Sqrt(b.config.MinVariance))
 			}
 			// Always advance cursors regardless of whether ForEachPoint found points.
 			state.lastProcessedCount = visibleCount

@@ -92,9 +92,14 @@ func anomalySeverityLabel(level int) string {
 
 // anomalyLevel assigns a 0–4 level to an anomaly.
 // If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
-// compared against its four boundaries. Detectors without an entry (including
-// unscored detectors such as bocpd) default to Medium (level 2).
+// compared against its four boundaries. Detectors without an entry default to
+// Medium (level 2).
 func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	// BOCPD can emit before 60 reference observations are available. Preserve
+	// its existing medium contribution even when custom thresholds are present.
+	if a.DetectorName == "bocpd" && (a.Score == nil || !finiteBOCPDScore(*a.Score)) {
+		return 2
+	}
 	if thresholds, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
@@ -114,6 +119,9 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 // calibrated levelWeights. It is used only to rank retained top anomalies; the
 // scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
+	if a.DetectorName == "bocpd" && (a.Score == nil || !finiteBOCPDScore(*a.Score)) {
+		return levelWeights[2]
+	}
 	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
 	if !ok {
 		return levelWeights[2] // uncalibrated detectors retain Medium's weight
@@ -360,9 +368,9 @@ type AnomalyScorerConfig struct {
 	MaxReportedItems int `json:"max_reported_items"`
 }
 
-// DefaultAnomalyScorerConfig returns calibrated defaults.
-// Per-detector thresholds are set based on empirical score distributions across
-// kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
+// DefaultAnomalyScorerConfig returns scorer defaults. BOCPD boundaries are
+// provisional; the other detector thresholds were calibrated using empirical
+// distributions across kafka-partition-saturation, postmark, and dns-upstream-outage.
 func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 	const window = 15
 	return AnomalyScorerConfig{
@@ -375,6 +383,9 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 			MarginPct:     0.20,
 			// MaxBuckets intentionally left at zero: the trim logic defaults to WindowSecs.
 			DetectorThresholds: map[string][4]float64{
+				// Provisional rolling MAD boundaries; recorded-scenario F1 was
+				// mixed. Missing or invalid BOCPD scores retain Medium.
+				"bocpd": {2, 3, 6, 10},
 				// tukey_biweight scores cap hard at ~50 across all scenarios.
 				// Calibrated: p25≈6, p50≈9, p75≈15, p90≈27, p99≈45 (3-scenario avg).
 				"tukey_biweight": {5, 8, 15, 30},

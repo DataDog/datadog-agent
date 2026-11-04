@@ -146,8 +146,8 @@ func TestAnomalyLevel(t *testing.T) {
 		{"holt_residual", scorePtr(35), 4}, // XHigh
 		{"holt_residual", scorePtr(100), 4},
 		{"holt_residual", nil, 0},          // nil score → VeryLow
-		{"bocpd", nil, 2},                  // fixed Medium
-		{"bocpd", scorePtr(99), 2},         // score ignored for bocpd
+		{"bocpd", nil, 2},                  // unavailable MAD → Medium
+		{"bocpd", scorePtr(99), 4},         // MAD ≥ 10 → XHigh
 		{"unknown_detector", nil, 2},       // default Medium
 		{"tukey_biweight", scorePtr(7), 1}, // Low (per-detector threshold)
 	}
