@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Enable ``forwarder_stop_wait_for_inflight`` by default so forwarder shutdown
+    allows in-flight HTTP transactions to finish instead of canceling them
+    immediately. Set ``forwarder_stop_wait_for_inflight: false`` to restore the
+    previous behavior. The ``forwarder_stop_timeout`` setting remains unchanged.

@@ -8042,11 +8042,12 @@ properties:
   forwarder_stop_wait_for_inflight:
     node_type: setting
     type: boolean
-    default: false
+    default: true
     comment: |-
       forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
       in-flight HTTP transactions to finish before returning (true) or cancels
       them immediately (false).
+      Set to false to restore immediate cancellation during shutdown.
   forwarder_storage_path:
     node_type: setting
     type: string
