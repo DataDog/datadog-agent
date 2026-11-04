@@ -10,9 +10,9 @@ go_library(
         "score_no_faults.go",
         "score_tp.go",
     ],
-    deps = ["//internal/anomalydetection/scorer/scoring"],
     importpath = "github.com/DataDog/datadog-agent/internal/anomalydetection/scorer",
     visibility = ["//visibility:private"],
+    deps = ["//internal/anomalydetection/scorer/scoring"],
 )
 
 go_binary(
