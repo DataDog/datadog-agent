@@ -29,13 +29,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-func BenchmarkDefaultHTTPDelivery(b *testing.B) { benchmarkHTTPDelivery(b, false) }
-func BenchmarkRoutedHTTPDelivery(b *testing.B)  { benchmarkHTTPDelivery(b, true) }
+func BenchmarkDefaultHTTPDelivery(b *testing.B) { benchmarkHTTPDelivery(b, false, 1) }
+func BenchmarkRoutedHTTPDelivery(b *testing.B)  { benchmarkHTTPDelivery(b, true, 1) }
 
-func benchmarkHTTPDelivery(b *testing.B, routed bool) {
+func BenchmarkDefaultHTTPBatchedDelivery(b *testing.B) { benchmarkHTTPDelivery(b, false, 1000) }
+func BenchmarkRoutedHTTPBatchedDelivery(b *testing.B)  { benchmarkHTTPDelivery(b, true, 1000) }
+
+func benchmarkHTTPDelivery(b *testing.B, routed bool, batchSize int) {
+	var requests atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)
 		_ = r.Body.Close()
+		requests.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -48,7 +53,11 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 		b.Fatal(err)
 	}
 	main := config.NewEndpoint("benchmark-key", "", parsed.Hostname(), port, "", false)
-	endpoints := config.NewEndpointsWithBatchSettings(main, nil, false, true, 10*time.Millisecond, 1, 1, 1024*1024, 2)
+	batchWait := 10 * time.Millisecond
+	if batchSize > 1 {
+		batchWait = 100 * time.Millisecond
+	}
+	endpoints := config.NewEndpointsWithBatchSettings(main, nil, false, true, batchWait, 1, batchSize, 1024*1024, 2)
 	cfg := configmock.New(b)
 	cfg.SetInTest("logs_config.routing.max_groups", 4)
 	cfg.SetInTest("logs_config.payload_channel_size", 64)
@@ -117,6 +126,7 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 		b.Fatal("delivery benchmark timed out")
 	}
 	b.StopTimer()
+	b.ReportMetric(float64(b.N)/float64(requests.Load()), "records/request")
 	runtime.GC()
 	var after runtime.MemStats
 	runtime.ReadMemStats(&after)

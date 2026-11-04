@@ -71,20 +71,23 @@ type RoutedOptions struct {
 }
 
 type routedStream struct {
-	groups   []string
-	input    chan *message.Message
-	output   chan *message.Payload
-	flush    chan struct{}
-	strategy sender.Strategy
+	pressureFlush bool // Single-record batches already flush immediately.
+	groups        []string
+	input         chan *message.Message
+	output        chan *message.Payload
+	flush         chan struct{}
+	strategy      sender.Strategy
 }
 
 // routedSourceDispatch tracks batching-stage progress without putting flush
 // markers in the bounded data queue. Cancelled flushes leave no queue entries.
 type routedSourceDispatch struct {
-	input     chan *message.Message
-	submitted uint64 // Accessed only by dispatchProcessed.
-	completed atomic.Uint64
-	advanced  chan struct{} // Coalesced notifications for the single dispatcher.
+	input          chan *message.Message
+	submitted      uint64 // Accessed only by dispatchProcessed.
+	completed      atomic.Uint64
+	advanced       chan struct{} // Coalesced notifications for the single dispatcher.
+	flushAfter     atomic.Uint64
+	flushRequested chan struct{} // Coalesced pressure boundaries, outside the data queue.
 }
 
 func (s *routedSourceDispatch) wait(ctx, providerCtx context.Context, target uint64) {
@@ -134,6 +137,7 @@ type RoutedProvider struct {
 	stopRequested    chan struct{}
 	started          bool
 	stopped          bool
+	pressureFlush    bool
 }
 
 // NewRoutedProvider validates injected groups before constructing workers. It
@@ -205,7 +209,8 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 		}
 		stream := p.streams[key]
 		if stream == nil {
-			stream = &routedStream{input: make(chan *message.Message, routedStreamCapacity), output: make(chan *message.Payload, routedPayloadCapacity), flush: make(chan struct{})}
+			stream = &routedStream{input: make(chan *message.Message, routedStreamCapacity), output: make(chan *message.Payload, routedPayloadCapacity), flush: make(chan struct{}), pressureFlush: group.Endpoints.BatchMaxSize > 1}
+			p.pressureFlush = p.pressureFlush || stream.pressureFlush
 			p.streams[key] = stream
 		}
 		stream.groups = append(stream.groups, group.ID)
@@ -327,6 +332,8 @@ func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInput
 			}
 			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
 				p.report(holdErr)
+			} else if msg.Origin != nil {
+				p.flushAtCapacity(msg.Origin.Identifier, nil)
 			}
 			continue
 		}
@@ -336,11 +343,102 @@ func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInput
 		}
 		select {
 		case proc.InputChan() <- msg:
+			if bound != nil {
+				p.flushAtCapacity(msg.Origin.Identifier, proc)
+			} else {
+				p.flushAtCapacity(msg.Origin.Identifier, nil)
+			}
 		case <-p.ctx.Done():
 			// The reservation remains unresolved and will be replayed from the
 			// last safe checkpoint after restart.
 		}
 	}
+}
+
+// flushAtCapacity orders a pressure boundary behind the admitted window.
+// Bound sources use one processing lane. Shared ingress and aggregate pressure
+// require markers on every lane so slow processing cannot miss the boundary.
+func (p *RoutedProvider) flushAtCapacity(identifier string, proc *processor.Processor) {
+	if !p.pressureFlush {
+		return
+	}
+	sourceFull, aggregateFull := p.progress.AtCapacity(identifier)
+	if !sourceFull && !aggregateFull {
+		return
+	}
+	if aggregateFull {
+		identifier = "" // Flush each source independently, without waiting across sources.
+		proc = nil
+	}
+	targets := p.processors
+	if proc != nil {
+		targets = []*processor.Processor{proc}
+	}
+	for _, target := range targets {
+		marker := &message.Message{}
+		marker.Origin = &message.Origin{Identifier: identifier}
+		marker.SetRoutingBarrier(make(chan struct{}))
+		select {
+		case target.InputChan() <- marker:
+		case <-p.ctx.Done():
+			return
+		}
+	}
+}
+
+// requestSourceFlush runs only in dispatchProcessed. A pressure marker has an
+// origin; ordinary Flush markers do not. Record sequence numbers keep pressure
+// notifications out of the bounded per-source data queue.
+func (p *RoutedProvider) requestSourceFlush(identifier string) {
+	p.sourceDispatchMu.Lock()
+	defer p.sourceDispatchMu.Unlock()
+	request := func(lane *routedSourceDispatch) {
+		if lane.flushAfter.Load() >= lane.submitted {
+			return
+		}
+		lane.flushAfter.Store(lane.submitted)
+		select {
+		case lane.flushRequested <- struct{}{}:
+		default:
+		}
+	}
+	if identifier != "" {
+		if lane := p.sourceDispatch["\x01"+identifier]; lane != nil {
+			request(lane)
+		}
+		return
+	}
+	for _, lane := range p.sourceDispatch {
+		request(lane)
+	}
+}
+
+// flushSource sends one ordered marker per pending stream. A shared stream gets
+// one marker, and a blocked stream cannot prevent offering markers to healthy
+// streams. Checkpoints still depend exclusively on terminal outcomes.
+func (p *RoutedProvider) flushSource(identifier string) {
+	groups := p.progress.PendingGroups(identifier)
+	seen := make(map[*routedStream]struct{}, len(groups))
+	offers := make([]channelOffer[*message.Message], 0, len(groups))
+	for _, id := range groups {
+		group, _ := p.defs.Group(id)
+		key := "group:" + id
+		if group.Stream != "" {
+			key = "stream:" + group.Stream
+		}
+		stream := p.streams[key]
+		if !stream.pressureFlush {
+			continue
+		}
+		if _, duplicate := seen[stream]; duplicate {
+			continue
+		}
+		seen[stream] = struct{}{}
+		marker := &message.Message{}
+		marker.SetRoutingBarrier(make(chan struct{}))
+		offers = append(offers, channelOffer[*message.Message]{input: stream.input, value: marker})
+	}
+	offerToChannels(p.ctx, offers)
 }
 
 // selectProcessed never waits for delivery or allocates a second reservation.
@@ -430,6 +528,11 @@ func (p *RoutedProvider) dispatchProcessed() {
 	defer close(p.processedDone)
 	for msg := range p.processed {
 		if done := msg.RoutingBarrier(); done != nil {
+			if msg.Origin != nil {
+				p.requestSourceFlush(msg.Origin.Identifier)
+				close(done)
+				continue
+			}
 			ctx := msg.RoutingBarrierContext()
 			if ctx == nil {
 				ctx = context.Background()
@@ -454,6 +557,7 @@ func (p *RoutedProvider) dispatchProcessed() {
 		if msg.Origin != nil {
 			identifier = msg.Origin.Identifier
 		}
+		sourceIdentifier := identifier
 		// Anonymous records have no source checkpoint and share one bounded lane.
 		if identifier == "" {
 			identifier = "\x00"
@@ -463,10 +567,16 @@ func (p *RoutedProvider) dispatchProcessed() {
 		p.sourceDispatchMu.Lock()
 		lane := p.sourceDispatch[identifier]
 		if lane == nil {
-			lane = &routedSourceDispatch{input: make(chan *message.Message, routing.SourcePendingLimit), advanced: make(chan struct{}, 1)}
+			capacity := routing.SourcePendingLimit
+			if sourceIdentifier == "" {
+				// Anonymous admission uses the aggregate budget. Its shared lane
+				// must hold that window without blocking other source dispatch.
+				capacity = routedProgressCapacity
+			}
+			lane = &routedSourceDispatch{input: make(chan *message.Message, capacity), advanced: make(chan struct{}, 1), flushRequested: make(chan struct{}, 1)}
 			p.sourceDispatch[identifier] = lane
 			p.sourceDone.Add(1)
-			go p.dispatchSource(lane)
+			go p.dispatchSource(sourceIdentifier, lane)
 		}
 		lane.submitted++
 		p.sourceDispatchMu.Unlock()
@@ -484,31 +594,51 @@ func (p *RoutedProvider) dispatchProcessed() {
 	p.sourceDone.Wait()
 }
 
-func (p *RoutedProvider) dispatchSource(lane *routedSourceDispatch) {
+func (p *RoutedProvider) dispatchSource(identifier string, lane *routedSourceDispatch) {
 	defer p.sourceDone.Done()
-	for msg := range lane.input {
-		groups := p.progress.Recipients(msg.RoutingToken())
-		seen := make(map[string]struct{}, len(groups))
-		offers := make([]channelOffer[*message.Message], 0, len(groups))
-		for _, id := range groups {
-			group, _ := p.defs.Group(id)
-			key := group.Stream
-			if key == "" {
-				key = "group:" + id
-			} else {
-				key = "stream:" + key
-			}
-			if _, duplicate := seen[key]; duplicate {
-				continue
-			}
-			seen[key] = struct{}{}
-			offers = append(offers, channelOffer[*message.Message]{input: p.streams[key].input, value: msg})
+	var flushed, stalled uint64
+	flushWhileStalled := func() {
+		// Only a blocked fanout needs an early partial flush. Healthy windows
+		// reach their sequence boundary and flush together.
+		if target := lane.flushAfter.Load(); target > flushed && target > stalled {
+			p.flushSource(identifier)
+			stalled = target
 		}
-		offerToChannels(p.ctx, offers)
-		lane.completed.Add(1)
+	}
+	for {
 		select {
-		case lane.advanced <- struct{}{}:
-		default:
+		case msg, open := <-lane.input:
+			if !open {
+				return
+			}
+			groups := p.progress.Recipients(msg.RoutingToken())
+			seen := make(map[string]struct{}, len(groups))
+			offers := make([]channelOffer[*message.Message], 0, len(groups))
+			for _, id := range groups {
+				group, _ := p.defs.Group(id)
+				key := group.Stream
+				if key == "" {
+					key = "group:" + id
+				} else {
+					key = "stream:" + key
+				}
+				if _, duplicate := seen[key]; duplicate {
+					continue
+				}
+				seen[key] = struct{}{}
+				offers = append(offers, channelOffer[*message.Message]{input: p.streams[key].input, value: msg})
+			}
+			offerToChannelsWithFlush(p.ctx, offers, lane.flushRequested, flushWhileStalled)
+			lane.completed.Add(1)
+			select {
+			case lane.advanced <- struct{}{}:
+			default:
+			}
+		case <-lane.flushRequested:
+		}
+		if target := lane.flushAfter.Load(); target > flushed && lane.completed.Load() >= target {
+			p.flushSource(identifier)
+			flushed = target
 		}
 	}
 }
@@ -540,6 +670,12 @@ type channelOffer[T any] struct {
 // then waits for whichever pending queue has room. Removing a successful send
 // from pending prevents duplicate admission without per-record goroutines.
 func offerToChannels[T any](ctx context.Context, offers []channelOffer[T]) {
+	offerToChannelsWithFlush(ctx, offers, nil, nil)
+}
+
+// offerToChannelsWithFlush permits a source pressure request to flush the
+// available streams while fanout is blocked on a different selected stream.
+func offerToChannelsWithFlush[T any](ctx context.Context, offers []channelOffer[T], pressure <-chan struct{}, flush func()) {
 	pending := make([]channelOffer[T], 0, len(offers))
 	for _, offer := range offers {
 		if ctx.Err() != nil {
@@ -551,9 +687,13 @@ func offerToChannels[T any](ctx context.Context, offers []channelOffer[T]) {
 			pending = append(pending, offer)
 		}
 	}
+	if len(pending) != 0 && flush != nil {
+		flush()
+	}
 	for len(pending) != 0 {
-		cases := make([]reflect.SelectCase, 1, len(pending)+1)
+		cases := make([]reflect.SelectCase, 2, len(pending)+2)
 		cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Done())}
+		cases[1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(pressure)}
 		for _, offer := range pending {
 			cases = append(cases, reflect.SelectCase{Dir: reflect.SelectSend, Chan: reflect.ValueOf(offer.input), Send: reflect.ValueOf(offer.value)})
 		}
@@ -561,7 +701,11 @@ func offerToChannels[T any](ctx context.Context, offers []channelOffer[T]) {
 		if chosen == 0 {
 			return // Every unsent group remains unresolved on cancellation.
 		}
-		index := chosen - 1
+		if chosen == 1 {
+			flush()
+			continue
+		}
+		index := chosen - 2
 		pending[index] = pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
 	}
@@ -686,14 +830,17 @@ func (p *RoutedProvider) GuardRegistry(registry routing.Registry) routing.Regist
 
 // RetireSource waits for admission before releasing a stopped producer's ownership.
 // Callers must stop sending first and provide a shutdown-cancelled context or
-// deadline. Full input queues return ErrSourcePending. Cancelling the admission
-// wait leaves ownership and unresolved progress intact for a later retry or Stop.
+// deadline. Full input queues or busy coordinator locks return ErrSourcePending.
+// Cancelling the admission wait leaves ownership and unresolved progress intact
+// for a later retry or Stop.
 func (p *RoutedProvider) RetireSource(ctx context.Context, identifier string, generation uint64) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	key := sourceInputKey{identifier, generation}
-	p.lifecycle.RLock()
+	if !p.lifecycle.TryRLock() {
+		return routing.ErrSourcePending
+	}
 	if p.stopped {
 		p.lifecycle.RUnlock()
 		return routing.ErrStopped
@@ -728,25 +875,34 @@ func (p *RoutedProvider) RetireSource(ctx context.Context, identifier string, ge
 			return routing.ErrStopped
 		}
 	}
-	p.sourceDispatchMu.Lock()
+	// Acquire every cleanup lock before changing ownership. A busy coordinator
+	// must remain retryable, including when its auditor queue is backpressured.
+	if !p.lifecycle.TryLock() {
+		return routing.ErrSourcePending
+	}
+	defer p.lifecycle.Unlock()
+	if p.stopped {
+		return routing.ErrStopped
+	}
+	if !p.sourceDispatchMu.TryLock() {
+		return routing.ErrSourcePending
+	}
+	defer p.sourceDispatchMu.Unlock()
 	if err := ctx.Err(); err != nil {
-		p.sourceDispatchMu.Unlock()
 		return err
 	}
-	if err := p.progress.RetireSource(identifier, generation); err != nil {
-		p.sourceDispatchMu.Unlock()
+	owned, err := p.progress.TryRetireSource(identifier, generation)
+	if err != nil {
 		return err
 	}
-	if !p.progress.OwnsSource(identifier) {
+	if !owned {
 		key := "\x01" + identifier
 		if lane := p.sourceDispatch[key]; lane != nil {
 			close(lane.input)
 			delete(p.sourceDispatch, key)
 		}
 	}
-	p.sourceDispatchMu.Unlock()
-	p.lifecycle.Lock()
-	if input := p.sourceInputs[key]; input != nil && !p.stopped {
+	if input := p.sourceInputs[key]; input != nil {
 		close(input)
 		delete(p.sourceInputs, key)
 		delete(p.inputKeys, input)
@@ -758,7 +914,6 @@ func (p *RoutedProvider) RetireSource(ctx context.Context, identifier string, ge
 			}
 		}
 	}
-	p.lifecycle.Unlock()
 	return nil
 }
 

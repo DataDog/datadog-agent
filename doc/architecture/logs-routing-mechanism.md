@@ -62,7 +62,7 @@ Before processing, `SourceInput(identifier, generation)` supplies producer ident
 
 A nil sink channel disables checkpoint publication, matching the default sender. Group completion still controls progress capacity. Start a real auditor before processing records.
 
-The caller also owns source startup, replacement, and shutdown. Stop producer sends before calling `RetireSource(ctx, identifier, generation)` and supply a shutdown-cancelled context or deadline. Cancelling its admission wait retains ownership and unresolved progress, allowing retirement to be retried or provider shutdown to proceed. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
+The caller also owns source startup, replacement, and shutdown. Stop producer sends before calling `RetireSource(ctx, identifier, generation)` and supply a shutdown-cancelled context or deadline. Cancelling its admission wait retains ownership and unresolved progress, allowing retirement to be retried or provider shutdown to proceed. A full input queue or busy coordinator returns `ErrSourcePending` for retry; retirement does not wait behind blocked checkpoint publication. See the [provider API](../../comp/logs-library/pipeline/routed_provider.go) for integration details.
 
 ## Selection behavior
 
@@ -116,12 +116,14 @@ These bounds apply only to routed delivery. They do not change the default path.
 
 - **Configurable groups:** `logs_config.routing.max_groups` defaults to 4.
 - **Retained records per checkpointed source:** 64.
-- **Aggregate progress:** 4096 records, 4096 source owners, and 4096 generation-history entries.
+- **Aggregate progress:** 4096 records, 4096 source owners, and 4096 generation-history entries. Anonymous records share a dispatch lane sized to this record budget so its queue cannot block unrelated source dispatch before aggregate admission fills.
 - **Endpoints, including extras:** 32.
 - **Processing lanes:** 16.
 - **Concurrent HTTP requests across all endpoints:** 64.
 
 Only the group limit is customer-configurable. The other bounds are code constants.
+
+When a source window or the aggregate record budget fills, an ordered processing marker requests a flush at the admitted window boundary. Each source flushes only its pending streams, using coalesced sequence notifications outside the data queues. Healthy windows flush together; a blocked fanout can flush the available streams early. These requests do not complete progress; terminal outcomes still release capacity.
 
 Capacity exhaustion applies backpressure, not new selected-group drops. These bounds count references and concurrent work, not total memory in bytes.
 

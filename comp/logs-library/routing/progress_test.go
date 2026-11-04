@@ -977,3 +977,73 @@ func TestProgressWakesAllWaitingAdmissions(t *testing.T) {
 		})
 	}
 }
+
+func TestTryRetireSourcePreservesOwnershipWhenBusy(t *testing.T) {
+	p, err := NewProgress(2, &sender.NoopSink{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if err := p.RegisterSource("file", 1); err != nil {
+		t.Fatal(err)
+	}
+	p.mu.Lock()
+	_, err = p.TryRetireSource("file", 1)
+	p.mu.Unlock()
+	if !errors.Is(err, ErrSourcePending) {
+		t.Fatalf("busy retirement = %v", err)
+	}
+	if !p.OwnsSource("file") {
+		t.Fatal("busy retirement released ownership")
+	}
+	// Registering a replacement must not let retirement release its ownership.
+	if err := p.RegisterSource("file", 2); err != nil {
+		t.Fatal(err)
+	}
+	if owned, err := p.TryRetireSource("file", 1); err != nil || !owned {
+		t.Fatalf("old producer retirement: owned=%v err=%v", owned, err)
+	}
+	if owned, err := p.TryRetireSource("file", 2); err != nil || owned {
+		t.Fatalf("last producer retirement: owned=%v err=%v", owned, err)
+	}
+}
+
+func TestPendingGroupsOnlyIncludesUnresolvedSourceRecipients(t *testing.T) {
+	p, err := NewProgress(8, &progressTestSink{ch: make(chan *message.Payload, 8)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	register := func(identifier, offset string, groups []string) *message.Message {
+		m := progressMessage(identifier, offset)
+		if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, groups); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	first := register("file:test", "1", []string{"a", "b"})
+	if _, err := p.Reserve(context.Background(), progressMessage("file:test", "2"), 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.HoldInvalid(context.Background(), progressMessage("file:test", "3")); err != nil {
+		t.Fatal(err)
+	}
+	completed := register("file:test", "4", []string{"d"})
+	p.CompleteGroup("d", terminalPayload(completed)) // Retained behind pending selection.
+	register("file:other", "1", []string{"c"})
+	register("", "", []string{"anonymous"})
+	p.CompleteGroup("a", terminalPayload(first))
+	if groups := p.PendingGroups("file:test"); len(groups) != 1 || groups[0] != "b" {
+		t.Fatalf("pending source groups=%v, want [b]", groups)
+	}
+	p.CompleteGroup("b", terminalPayload(first))
+	if groups := p.PendingGroups("file:test"); len(groups) != 0 {
+		t.Fatalf("pending selection, invalid barrier or completed record inferred recipients: %v", groups)
+	}
+	if groups := p.PendingGroups("file:other"); len(groups) != 1 || groups[0] != "c" {
+		t.Fatalf("other source groups=%v, want [c]", groups)
+	}
+	if groups := p.PendingGroups(""); len(groups) != 1 || groups[0] != "anonymous" {
+		t.Fatalf("anonymous groups=%v, want [anonymous]", groups)
+	}
+}

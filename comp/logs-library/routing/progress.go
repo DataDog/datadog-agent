@@ -243,6 +243,55 @@ func (p *Progress) Reserve(ctx context.Context, msg *message.Message, generation
 	return p.register(ctx, msg, Selection{Generation: generation}, nil, true, true)
 }
 
+// AtCapacity reports pressure on the source window and aggregate record budget.
+// Only terminal outcomes can release reservations.
+func (p *Progress) AtCapacity(identifier string) (sourceFull, aggregateFull bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped {
+		return false, false
+	}
+	source := p.sources[identifier]
+	return identifier != "" && source != nil && len(source.queue) == p.sourceLimit, len(p.records) == p.limit
+}
+
+// PendingGroups returns this source's unresolved recipients for a pressure
+// flush. Pending selection and invalid barriers do not imply recipients.
+func (p *Progress) PendingGroups(identifier string) []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	seen := make(map[string]struct{})
+	var groups []string
+	add := func(r *record) {
+		if r.done || r.selectionPending {
+			return
+		}
+		for id := range r.remaining {
+			if id == "" {
+				continue // Invalid-selection sentinel.
+			}
+			if _, duplicate := seen[id]; !duplicate {
+				seen[id] = struct{}{}
+				groups = append(groups, id)
+			}
+		}
+	}
+	if identifier != "" {
+		if source := p.sources[identifier]; source != nil {
+			for _, r := range source.queue {
+				add(r)
+			}
+		}
+	} else {
+		for _, r := range p.records {
+			if r.identifier == "" {
+				add(r)
+			}
+		}
+	}
+	return groups
+}
+
 // Attach installs validated group obligations exactly once after processing.
 // A nonzero selection generation must agree with the reserved producer identity.
 // On error the caller must invalidate the pending reservation.
@@ -376,6 +425,27 @@ func (p *Progress) RetireSource(identifier string, generation uint64) error {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	return p.retireSource(identifier, generation)
+}
+
+// TryRetireSource retires a producer without waiting for checkpoint publication
+// to release the progress lock. ErrSourcePending means the caller should retry.
+// On success, owned reports whether another producer or barrier still owns the
+// identifier. Both retirement and the ownership check happen under the same lock.
+func (p *Progress) TryRetireSource(identifier string, generation uint64) (owned bool, err error) {
+	if identifier == "" {
+		return false, nil
+	}
+	if !p.mu.TryLock() {
+		return true, ErrSourcePending
+	}
+	defer p.mu.Unlock()
+	err = p.retireSource(identifier, generation)
+	return p.sources[identifier] != nil, err
+}
+
+// retireSource requires p.mu to be held.
+func (p *Progress) retireSource(identifier string, generation uint64) error {
 	if p.stopped {
 		return ErrStopped
 	}
