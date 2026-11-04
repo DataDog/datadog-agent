@@ -1,0 +1,18 @@
+description: Bracket glob matches any single character in the set.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo [ab].txt
+expect:
+  stdout: |+
+    a.txt b.txt
+  stderr: ""
+  exit_code: 0

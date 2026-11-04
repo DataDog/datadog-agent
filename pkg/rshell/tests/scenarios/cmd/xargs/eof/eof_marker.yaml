@@ -1,0 +1,9 @@
+description: xargs -E STOP treats an unquoted STOP token as logical end-of-input.
+input:
+  script: |+
+    echo 'a b STOP c d' | xargs -E STOP echo
+expect:
+  stdout: |+
+    a b
+  stderr: |+
+  exit_code: 0

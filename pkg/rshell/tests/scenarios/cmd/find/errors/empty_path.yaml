@@ -1,0 +1,14 @@
+description: find rejects empty string path operand.
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find "" -maxdepth 0
+expect:
+  stderr: |+
+    find: '': No such file or directory
+  exit_code: 1

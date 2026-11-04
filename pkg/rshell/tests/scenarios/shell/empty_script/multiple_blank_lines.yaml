@@ -1,0 +1,10 @@
+description: Script with multiple blank lines exits successfully.
+input:
+  script: |+
+
+
+
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

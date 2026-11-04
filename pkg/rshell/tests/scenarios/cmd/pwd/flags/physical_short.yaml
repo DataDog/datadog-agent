@@ -1,0 +1,10 @@
+description: pwd -P prints the physical working directory inside the sandbox.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    pwd -P
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

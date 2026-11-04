@@ -120,6 +120,11 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 	// Read by pkg/config/utils.GetMultipleEndpoints and served by comp/forwarder/defaultforwarder,
 	// which covers metrics, events, service checks and everything else on the main forwarder.
 	"additional_endpoints",
+	// Read by pkg/process/runner/endpoint.GetAPIEndpoints and served by the process forwarders
+	// (process, rt-process, connections). Pending directives keep the domain alive with no key
+	// until the writeback lands. System-probe shares the helper but rejects pending directives
+	// at startup via CheckAPIKeysResolved, since it cannot resolve them.
+	"process_config.additional_endpoints",
 }
 
 // listShapeDelegatedAuthEndpointKeys lists the list-shaped settings enabled for write-back.

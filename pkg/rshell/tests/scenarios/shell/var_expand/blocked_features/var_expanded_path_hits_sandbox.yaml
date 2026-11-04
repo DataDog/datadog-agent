@@ -1,0 +1,20 @@
+# vuln-hunt 2026-05-18-initial-audit / var_expand H2.
+# A variable expansion that produces an absolute path outside AllowedPaths
+# must be rejected at the sandbox, not silently resolved. This replaces the
+# original audit's "manual" verdict line with a checked-in artifact.
+skip_assert_against_bash: true
+description: Variable-expanded path outside AllowedPaths is denied by the sandbox.
+setup:
+  files:
+    - path: ok.txt
+      content: "in-sandbox"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    FOO=/etc/passwd
+    cat $FOO
+expect:
+  stdout: ""
+  exit_code: 1
+  stderr_contains:
+    - "/etc/passwd"
