@@ -214,7 +214,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer)
+	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer, mgrOpts.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}

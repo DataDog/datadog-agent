@@ -8,6 +8,7 @@
 #include "tracer/tracer.h"
 #include "tracer/maps.h"
 #include "tracer/stats.h"
+#include "tracer/nat.h"
 #include "tracer/telemetry.h"
 #include "cookie.h"
 #include "ip.h"
@@ -25,12 +26,11 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&tls_enhanced_tags, &conn_tuple);
 
-    conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
-    if (skb_tup_ptr == NULL) {
+    conn_tuple_t skb_tup;
+    if (!get_skb_tuple(tup, &conn_tuple, &skb_tup)) {
         return;
     }
 
-    conn_tuple_t skb_tup = *skb_tup_ptr;
     delete_protocol_stack(&skb_tup, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&tls_enhanced_tags, &skb_tup);
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);

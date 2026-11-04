@@ -17,7 +17,7 @@ import (
 )
 
 func TestFailedConnectionTelemetryMapLoads(t *testing.T) {
-	tr, err := newEbpfTracer(config.New(), nil)
+	tr, err := newEbpfTracer(config.New(), nil, options{})
 	require.NoError(t, err, "could not load tracer")
 	t.Cleanup(tr.Stop)
 

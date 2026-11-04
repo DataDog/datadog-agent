@@ -127,7 +127,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
+	enabledProbes, err := enabledPrograms(config, isClassificationSupported, o.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}

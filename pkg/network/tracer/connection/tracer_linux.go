@@ -8,6 +8,8 @@
 package connection
 
 import (
+	"github.com/cilium/ebpf"
+
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
@@ -18,11 +20,29 @@ const (
 	maxActive = 512
 )
 
+// Option configures the eBPF connection tracer
+type Option func(*options)
+
+type options struct {
+	conntrackNATMap *ebpf.Map
+}
+
+// WithConntrackNATMap shares the eBPF conntracker's map of NAT'd connections with the tracer. Protocol
+// classification then maps a socket's tuple to its packets' tuple from it, and the per-packet net_dev_queue
+// probe isn't attached.
+func WithConntrackNATMap(m *ebpf.Map) Option {
+	return func(o *options) { o.conntrackNATMap = m }
+}
+
 // NewTracer returns a new Tracer
-func NewTracer(cfg *config.Config, telemetryComp telemetry.Component) (Tracer, error) {
+func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, opts ...Option) (Tracer, error) {
 	if cfg.EnableEbpfless {
 		return newEbpfLessTracer(cfg)
 	}
 
-	return newEbpfTracer(cfg, telemetryComp)
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return newEbpfTracer(cfg, telemetryComp, o)
 }

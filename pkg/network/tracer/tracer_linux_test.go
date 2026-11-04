@@ -2854,6 +2854,43 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
 	assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
 }
 
+func (s *TracerSuite) TestNATFromEbpfConntracker() {
+	t := s.T()
+	cfg := testConfig()
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	skbMapSize := func(t *testing.T, cfg *config.Config) (uint32, bool) {
+		tr := setupTracer(t, cfg)
+		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
+		}
+		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+		require.NoError(t, err)
+		return m.MaxEntries(), ebpfConntrackerMap(tr.conntracker) != nil
+	}
+
+	t.Run("ebpf conntracker", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableEbpfConntracker = true
+		size, shared := skbMapSize(t, cfg)
+		if !shared {
+			t.Skip("ebpf conntracker not loaded")
+		}
+		// net_dev_queue isn't attached, so its map is left at one entry
+		assert.Equal(t, uint32(1), size)
+	})
+
+	t.Run("netlink conntracker", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableEbpfConntracker = false
+		size, shared := skbMapSize(t, cfg)
+		require.False(t, shared)
+		assert.Equal(t, cfg.MaxTrackedConnections, size)
+	})
+}
+
 func setupDropTrafficRule(tb testing.TB) (ns string) {
 	state := testutil.IptablesSave(tb)
 	tb.Cleanup(func() {

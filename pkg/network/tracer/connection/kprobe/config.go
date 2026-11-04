@@ -34,7 +34,9 @@ func enableProbe(enabled map[manager.ProbeIdentificationPair]struct{}, name prob
 
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manager.ProbeIdentificationPair]struct{}, error) {
+// enabledProbes returns the probes to attach. With natFromConntrack, the eBPF conntracker's map supplies NAT'd
+// connections' packet tuples, so the net_dev_queue probe isn't needed.
+func enabledProbes(c *config.Config, runtimeTracer, coreTracer, natFromConntrack bool) (map[manager.ProbeIdentificationPair]struct{}, error) {
 	enabled := make(map[manager.ProbeIdentificationPair]struct{}, 0)
 
 	kv410 := kernel.VersionCode(4, 1, 0)
@@ -72,7 +74,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
-			enableProbe(enabled, netDevQueue)
+			if !natFromConntrack {
+				enableProbe(enabled, netDevQueue)
+			}
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))

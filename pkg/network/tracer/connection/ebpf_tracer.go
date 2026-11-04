@@ -175,7 +175,7 @@ type ebpfTracer struct {
 }
 
 // NewTracer creates a new tracer
-func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, error) {
+func newEbpfTracer(config *config.Config, _ telemetryComponent.Component, opts options) (Tracer, error) {
 	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("eBPF based network tracer unsupported: %s", err)
 	}
@@ -247,6 +247,21 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		mgrOptions.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPOngoingConnectPid] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPRecvMsgArgsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries}
+		if opts.conntrackNATMap != nil {
+			if mgrOptions.MapEditors == nil {
+				mgrOptions.MapEditors = make(map[string]*ebpf.Map)
+			}
+			mgrOptions.MapEditors[probes.ConntrackMap] = opts.conntrackNATMap
+			// a replacement must match the placeholder's spec
+			mgrOptions.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{
+				Type:       opts.conntrackNATMap.Type(),
+				MaxEntries: opts.conntrackNATMap.MaxEntries(),
+				Flags:      opts.conntrackNATMap.Flags(),
+				EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditFlags,
+			}
+			// only net_dev_queue fills it, and that isn't attached
+			mgrOptions.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: 1, EditorFlag: manager.EditMaxEntries}
+		}
 
 		tracerType = TracerTypeFentry
 		m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
