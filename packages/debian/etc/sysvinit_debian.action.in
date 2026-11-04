@@ -52,6 +52,22 @@ runner_status()
 	agent_start_stop_daemon --status --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
 }
 
+# Same precedence as the procmgr job. The subshell keeps the admin file out of this environment.
+procmgr_enabled()
+{
+	[ -x "$INSTALL_DIR/embedded/bin/dd-procmgrd" ] || return 1
+	(
+		DATADOG_ENABLED=
+		if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+			DATADOG_ENABLED=no
+		fi
+		if [ -r /etc/default/datadog-agent-procmgr ]; then
+			. /etc/default/datadog-agent-procmgr
+		fi
+		[ "$DATADOG_ENABLED" != "no" ]
+	)
+}
+
 # A pid file can exist before dd-procmgrd is listening.
 procmgr_running()
 {
@@ -111,7 +127,7 @@ do_start()
 #
 start_and_wait()
 {
-	if procmgr_running; then
+	if procmgr_enabled && procmgr_running; then
 		log_daemon_msg "Starting $DESC (split mode from config)" "$NAME"
 	else
 		log_daemon_msg "Starting $DESC (monolithic mode)" "$NAME"

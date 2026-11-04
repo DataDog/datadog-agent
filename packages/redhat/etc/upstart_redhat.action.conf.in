@@ -10,27 +10,43 @@ normal exit 0
 console output
 
 script
+  # Same precedence as the procmgr job. The subshell keeps the admin file out of this environment.
+  procmgr_enabled() {
+    [ -x {install_dir}/embedded/bin/dd-procmgrd ] || return 1
+    (
+      DATADOG_ENABLED=
+      if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+        DATADOG_ENABLED=no
+      fi
+      if [ -r /etc/default/datadog-agent-procmgr ]; then
+        . /etc/default/datadog-agent-procmgr
+      fi
+      [ "$DATADOG_ENABLED" != "no" ]
+    )
+  }
   # start/running is only the procmgr shell. Wait until dd-procmgrd is listening.
   # Without that socket, fall back to the monolithic runner.
   procmgr_running=false
-  attempt=0
-  while [ "$attempt" -lt 10 ]; do
-    # 00010000: listening. 0001: stream socket. 01: listener state.
-    if awk '
-      $4 == "00010000" &&
-      $5 == "0001" &&
-      $6 == "01" &&
-      $NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
-        ready = 1
-      }
-      END { exit !ready }
-    ' /proc/net/unix; then
-      procmgr_running=true
-      break
-    fi
-    attempt=$((attempt + 1))
-    sleep 1
-  done
+  if procmgr_enabled; then
+    attempt=0
+    while [ "$attempt" -lt 10 ]; do
+      # 00010000: listening. 0001: stream socket. 01: listener state.
+      if awk '
+        $4 == "00010000" &&
+        $5 == "0001" &&
+        $6 == "01" &&
+        $NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
+          ready = 1
+        }
+        END { exit !ready }
+      ' /proc/net/unix; then
+        procmgr_running=true
+        break
+      fi
+      attempt=$((attempt + 1))
+      sleep 1
+    done
+  fi
   if [ "$procmgr_running" = true ]; then
     echo "Starting Datadog Private Action Runner (split mode from config)"
     runner_env='DD_LOG_TO_CONSOLE=false'

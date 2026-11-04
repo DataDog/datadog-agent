@@ -74,6 +74,23 @@ if [ -r "/etc/default/${NAME}" ]; then
 fi
 
 
+# Container root may not read another user's /proc/PID/exe without CAP_SYS_PTRACE.
+agent_start_stop_daemon()
+{
+	if command -v setpriv > /dev/null 2>&1; then
+		agent_gid=$(id -g "$AGENT_USER") || return 4
+		setpriv --reuid "$AGENT_USER" --regid "$agent_gid" --init-groups /sbin/start-stop-daemon "$@"
+	else
+		# Older util-linux lacks setpriv; keep all su options before the username.
+		su -s /bin/sh -c 'exec "$@"' -- "$AGENT_USER" sh /sbin/start-stop-daemon "$@"
+	fi
+}
+
+procmgr_status()
+{
+	agent_start_stop_daemon --status --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
+}
+
 #
 # Function that starts the daemon/service
 #
@@ -86,12 +103,17 @@ do_start()
 
 	# dd-agent cannot create this directory under root-owned /var/run.
 	/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2
-	start-stop-daemon --start --test --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH" > /dev/null \
-		|| return 1
+	procmgr_status
+	case "$?" in
+		0) return 1 ;;
+		1|3) ;;
+		*) return 2 ;;
+	esac
+	# start-stop-daemon runs the child from /, so load-env needs the absolute script path.
 	start-stop-daemon --start --background --make-pidfile --chuid "$AGENT_USER" --quiet \
 		--pidfile "$PIDFILE" --user "$AGENT_USER" \
 		--exec "$AGENTPATH" --startas /bin/sh -- \
-		"$0" load-env "$ETC_DIR" "$INSTALL_DIR" "$AGENTPATH" \
+		"/etc/init.d/$NAME" load-env "$ETC_DIR" "$INSTALL_DIR" "$AGENTPATH" \
 		|| return 2
 }
 
@@ -110,14 +132,18 @@ start_and_wait()
 			# check if the process manager is running once per second for 5 seconds
 			retries=5
 			while [ $retries -gt 1 ]; do
-				start-stop-daemon --start --test --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
-				if [ "$?" -eq "1" ]; then
-					log_end_msg 0
-					return 0
-				else
-					retries=$(($retries - 1))
-					sleep 1
-				fi
+				procmgr_status
+				case "$?" in
+					0)
+						log_end_msg 0
+						return 0
+						;;
+					1|3)
+						retries=$(($retries - 1))
+						sleep 1
+						;;
+					*) break ;;
+				esac
 			done
 			log_end_msg 1
 
@@ -135,7 +161,7 @@ do_stop()
 	#   1 if daemon was already stopped
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
-	start-stop-daemon --stop --quiet --retry=TERM/200/KILL/5 --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
+	agent_start_stop_daemon --stop --quiet --retry=TERM/200/KILL/5 --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
 	RETVAL="$?"
 	# A failed stop can leave the daemon running. The pid file is what stops the next start from launching another one.
 	if [ "$RETVAL" -eq 0 ] || [ "$RETVAL" -eq 1 ]; then
@@ -164,7 +190,7 @@ case "$1" in
 			exit 1
 		fi
 		if [ "$DATADOG_ENABLED" = "no" ]; then
-			echo "Disabled via /etc/default/$NAME. Exiting."
+			echo "Disabled via process manager configuration. Exiting."
 			exit 0
 		fi
 
@@ -193,6 +219,10 @@ case "$1" in
 		echo "Restarting $DESC"
 
 		stop_and_wait || exit 1
+		if [ "$DATADOG_ENABLED" = "no" ]; then
+			echo "Disabled via process manager configuration. Exiting."
+			exit 0
+		fi
 		start_and_wait
 
 		;;

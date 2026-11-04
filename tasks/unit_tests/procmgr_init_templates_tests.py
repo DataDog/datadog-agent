@@ -55,6 +55,27 @@ def write_executable(path, content):
     path.chmod(0o755)
 
 
+def write_agent_commands(commands):
+    """Fake setpriv, su and id that mark the start-stop-daemon checks as run by dd-agent."""
+    write_executable(commands / 'id', '[ "${ID_RC:-0}" = 0 ] || exit "$ID_RC"\necho 1234\n')
+    write_executable(
+        commands / 'setpriv',
+        '''[ "$1" = --reuid ] && [ "$2" = dd-agent ] && [ "$3" = --regid ] && [ "$4" = 1234 ] && [ "$5" = --init-groups ] || exit 88
+shift 5
+AS_AGENT=yes exec "$@"
+''',
+    )
+    write_executable(
+        commands / 'su',
+        '''[ "$1" = -s ] && [ "$3" = -c ] && [ "$5" = -- ] && [ "$6" = dd-agent ] || exit 87
+shell=$2
+command=$4
+shift 6
+AS_AGENT=yes exec "$shell" -c "$command" "$@"
+''',
+    )
+
+
 class Layout:
     def __init__(self, root):
         self.root = Path(root)
@@ -100,7 +121,7 @@ class TestProcmgrInitTemplates(unittest.TestCase):
         self.assertNotIn('. "$ETC_DIR/environment"', source)
         self.assertIn('--startas /bin/sh', source)
         self.assertIn('--exec "$AGENTPATH"', source)
-        self.assertIn('"$0" load-env', source)
+        self.assertIn('"/etc/init.d/$NAME" load-env', source)
 
         layout = Layout(self.root)
         commands = self.root / 'commands'
@@ -115,15 +136,16 @@ class TestProcmgrInitTemplates(unittest.TestCase):
             'log_success_msg() { :; }\n'
             'log_failure_msg() { :; }\n'
         )
-        # --test reports the daemon running once the pid marker exists. The real start
+        # --status reports the daemon running once the pid marker exists. The real start
         # executes the child shell, which is where the environment file is applied.
+        write_agent_commands(commands)
         write_executable(
             commands / 'start-stop-daemon',
             f'''case " $* " in
-  *" --test "*) [ -f "{started}" ] && exit 1 || exit 0 ;;
+  *" --status "*) [ "${{AS_AGENT:-}}" = yes ] || exit 91; [ -f "{started}" ] && exit 0 || exit 3 ;;
 esac
 case " $* " in
-  *" --start "*) ;;
+  *" --start "*) [ -z "${{AS_AGENT:-}}" ] || exit 89 ;;
   *) exit 90 ;;
 esac
 case " $* " in *" --background "*) ;; *) exit 91 ;; esac
@@ -156,7 +178,10 @@ exit 93
             f'touch {marker}\n'
         )
         runtime = self.root / 'var-run' / 'datadog-procmgrd'
+        rendered = self.root / 'init-script'
         script = render(source, layout.install, layout.etc)
+        script = script.replace('/sbin/start-stop-daemon', str(commands / 'start-stop-daemon'))
+        script = script.replace('"/etc/init.d/$NAME" load-env', f'"{rendered}" load-env')
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
         script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(self.root / 'datadog-agent-procmgr'))
@@ -165,7 +190,6 @@ exit 93
             SYSV_RUNTIME_DIR,
             f'/usr/bin/install -d -o {os.getuid()} -g {os.getgid()} -m 0755 {runtime} || return 2',
         )
-        rendered = self.root / 'init-script'
         rendered.write_text(script)
 
         env = self.base_env(f'{commands}:/usr/bin:/bin')
@@ -481,61 +505,114 @@ exec "$@"
         self.assertIn(UPSTART_RUNTIME_DIR, redhat_pre_start)
         self.assertNotIn(UPSTART_RUNTIME_DIR, upstart_main_block(UPSTART_REDHAT))
 
-    def test_sysv_failed_stop_keeps_the_pidfile_and_blocks_restart(self):
-        layout = Layout(self.root)
-        commands = self.root / 'commands'
-        started = self.root / 'started'
+    def sysv_harness(self, installer_defaults=None, setpriv=True):
+        """Render the procmgr SysV script with a fake start-stop-daemon that records its calls."""
+        root = Path(tempfile.mkdtemp(dir=self.root))
+        layout = Layout(root)
+        commands = root / 'commands'
+        started = root / 'started'
+        calls = root / 'calls'
         pidfile = layout.install / 'run' / 'dd-procmgrd.pid'
-        init_functions = self.root / 'init-functions'
+        init_functions = root / 'init-functions'
         init_functions.write_text(
             'init_is_upstart() { return 1; }\n' 'log_daemon_msg() { :; }\n' 'log_end_msg() { return "$1"; }\n'
         )
+        write_agent_commands(commands)
         write_executable(
             commands / 'start-stop-daemon',
-            f'''case " $* " in
-  *" --stop "*) exit "$STOP_RC" ;;
+            f'''echo "$1 as_agent=${{AS_AGENT:-no}}" >> "{calls}"
+case "$1" in
+  --status) [ "${{AS_AGENT:-}}" = yes ] || exit 91; [ -f "{started}" ] && exit 0 || exit 3 ;;
+  --stop) [ "${{AS_AGENT:-}}" = yes ] || exit 91; exit "$STOP_RC" ;;
+  --start) [ -z "${{AS_AGENT:-}}" ] || exit 89; touch "{started}"; exit 0 ;;
 esac
-touch "{started}"
-exit 0
+exit 90
 ''',
         )
+        installer = root / 'datadog-agent-procmgr'
+        if installer_defaults is not None:
+            installer.write_text(installer_defaults)
+        runtime = root / 'var-run' / 'datadog-procmgrd'
         script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
-        script = script.replace('/etc/default/', f'{self.root}/default/')
-        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(self.root / 'datadog-agent-procmgr'))
-        rendered = self.root / 'init-script'
+        script = script.replace('/etc/default/', f'{root}/default/')
+        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
+        script = script.replace('/sbin/start-stop-daemon', str(commands / 'start-stop-daemon'))
+        script = script.replace(
+            SYSV_RUNTIME_DIR,
+            f'/usr/bin/install -d -o {os.getuid()} -g {os.getgid()} -m 0755 {runtime} || return 2',
+        )
+        if not setpriv:
+            script = script.replace('command -v setpriv > /dev/null 2>&1', 'false')
+        rendered = root / 'init-script'
         rendered.write_text(script)
         env = self.base_env(f'{commands}:/usr/bin:/bin')
 
-        def run(action, stop_rc):
+        def run(action, stop_rc=0, **extra):
+            calls.unlink(missing_ok=True)
             started.unlink(missing_ok=True)
-            pidfile.write_text('4242\n')
             result = subprocess.run(
                 ['/bin/sh', str(rendered), action],
-                env={**env, 'STOP_RC': str(stop_rc)},
+                env={**env, 'STOP_RC': str(stop_rc), **extra},
                 text=True,
                 capture_output=True,
                 check=False,
                 timeout=30,
             )
-            return result
+            return result, calls.read_text().splitlines() if calls.exists() else []
 
-        failed_stop = run('stop', 2)
+        return run, started, pidfile
+
+    def test_sysv_failed_stop_keeps_the_pidfile_and_blocks_restart(self):
+        run, started, pidfile = self.sysv_harness()
+
+        pidfile.write_text('4242\n')
+        failed_stop, _ = run('stop', 2)
         self.assertNotEqual(failed_stop.returncode, 0, failed_stop.stdout + failed_stop.stderr)
         self.assertEqual(pidfile.read_text(), '4242\n')
         self.assertFalse(started.exists())
 
-        failed_restart = run('restart', 2)
+        failed_restart, _ = run('restart', 2)
         self.assertNotEqual(failed_restart.returncode, 0, failed_restart.stdout + failed_restart.stderr)
         self.assertEqual(pidfile.read_text(), '4242\n')
         self.assertFalse(started.exists())
 
         for stop_rc in (0, 1):
             with self.subTest(stop_rc=stop_rc):
-                stopped = run('stop', stop_rc)
+                pidfile.write_text('4242\n')
+                stopped, _ = run('stop', stop_rc)
                 self.assertEqual(stopped.returncode, 0, stopped.stdout + stopped.stderr)
                 self.assertFalse(pidfile.exists())
                 self.assertFalse(started.exists())
+
+    def test_sysv_checks_the_daemon_as_the_agent_user(self):
+        for setpriv in (True, False):
+            with self.subTest(setpriv=setpriv):
+                run, started, _ = self.sysv_harness(setpriv=setpriv)
+                result, calls = run('start')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertTrue(started.exists())
+                self.assertEqual(calls, ['--status as_agent=yes', '--start as_agent=no', '--status as_agent=yes'])
+                result, calls = run('stop')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(calls, ['--stop as_agent=yes'])
+
+    def test_sysv_start_fails_when_the_agent_user_cannot_be_resolved(self):
+        run, started, _ = self.sysv_harness()
+        result, calls = run('start', ID_RC='1')
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(started.exists())
+        self.assertEqual(calls, [])
+
+    def test_sysv_restart_stops_but_does_not_start_when_disabled(self):
+        run, started, pidfile = self.sysv_harness(installer_defaults='DATADOG_ENABLED=no\n')
+        pidfile.write_text('4242\n')
+        result, calls = run('restart')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Disabled via process manager configuration', result.stdout)
+        self.assertEqual(calls, ['--stop as_agent=yes'])
+        self.assertFalse(pidfile.exists())
+        self.assertFalse(started.exists())
 
     def test_sysv_start_fails_when_runtime_dir_cannot_be_created(self):
         layout = Layout(self.root)

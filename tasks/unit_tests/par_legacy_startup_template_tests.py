@@ -20,6 +20,16 @@ UPSTART_TEMPLATES = (
     REPO_ROOT / 'packages/debian/etc/upstart_debian.action.conf.in',
     REPO_ROOT / 'packages/redhat/etc/upstart_redhat.action.conf.in',
 )
+INSTALLER_PROCMGR_DEFAULTS = '/etc/datadog-agent/datadog-agent-procmgr'
+ADMIN_PROCMGR_DEFAULTS = '/etc/default/datadog-agent-procmgr'
+SOCKET = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
+LISTENING = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {SOCKET}\n'
+# Each case disables procmgr, so the action job must not wait for its socket.
+PROCMGR_DISABLED = (
+    ('not installed', {'procmgr_installed': False}),
+    ('installer opt-out', {'installer_defaults': 'DATADOG_ENABLED=no\n'}),
+    ('admin opt-out', {'admin_defaults': 'DATADOG_ENABLED=no\n'}),
+)
 
 
 @unittest.skipUnless(os.name == 'posix', 'init template tests require POSIX')
@@ -28,8 +38,31 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
         path.write_text('#!/bin/sh\nset -eu\n' + content)
         path.chmod(0o755)
 
+    def write_procmgr_files(self, root, procmgr_installed, installer_defaults, admin_defaults):
+        if procmgr_installed:
+            self.executable(root / 'embedded/bin/dd-procmgrd', 'exit 0\n')
+        installer = root / 'datadog-agent-procmgr'
+        if installer_defaults is not None:
+            installer.write_text(installer_defaults)
+        admin = root / 'default/datadog-agent-procmgr'
+        if admin_defaults is not None:
+            admin.parent.mkdir(exist_ok=True)
+            admin.write_text(admin_defaults)
+        return installer, admin
+
     def run_sysv(
-        self, action='start', statuses='', running=False, setpriv=True, unix_row=None, socket_after=None, **env
+        self,
+        action='start',
+        statuses='',
+        running=False,
+        setpriv=True,
+        unix_row=None,
+        socket_after=None,
+        procmgr_installed=True,
+        installer_defaults=None,
+        admin_defaults=None,
+        polls=10,
+        **env,
     ):
         import fcntl
 
@@ -38,6 +71,7 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
             binary = root / 'embedded/bin/privateactionrunner'
             binary.parent.mkdir(parents=True)
             self.executable(binary, 'exit 0\n')
+            installer, _ = self.write_procmgr_files(root, procmgr_installed, installer_defaults, admin_defaults)
             (root / 'run').mkdir()
             pidfile = root / 'run/privateactionrunner.pid'
             if running:
@@ -45,6 +79,7 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
             commands = root / 'commands'
             commands.mkdir()
             (commands / 'awk').symlink_to(shutil.which('awk'))
+            (commands / 'cat').symlink_to(shutil.which('cat'))
             self.executable(
                 commands / 'rm',
                 f'[ "${{REMOVE_ERROR:-0}}" = 0 ] || exit "$REMOVE_ERROR"\nexec "{shutil.which("rm")}" "$@"\n',
@@ -90,7 +125,7 @@ table = unix.read_text() if unix.exists() else ''
 listening = '00010000' in table and 'dd-procmgrd.sock' in table
 # The socket poll runs before the runner exists. Later sleeps still wait for it.
 polls = len(sleeps.read_text().splitlines())
-if not listening and polls <= 10 and not child.exists():
+if not listening and polls <= int(os.environ['POLLS']) and not child.exists():
     # Publish the listener after this failed poll, so the next read can succeed.
     if os.environ.get('SOCKET_AFTER') == str(polls):
         unix.write_text(os.environ['SOCKET_ROW'])
@@ -101,7 +136,7 @@ while not child.exists():
     time.sleep(0.005)
 pid = int(child.read_text())
 lines = sleeps.read_text().splitlines()
-liveness = len(lines) - (0 if listening else 10)
+liveness = len(lines) - (0 if listening else int(os.environ['POLLS']))
 should_exit = os.environ['RUNNER_EXIT'] != 'running' and liveness > int(os.environ['EXIT_AFTER'])
 if should_exit and os.environ['SPAWN_ERROR'] == '0':
     os.kill(pid, signal.SIGKILL if os.environ['RUNNER_EXIT'] == 'signal' else signal.SIGUSR1)
@@ -183,6 +218,7 @@ log_warning_msg() { echo "WARNING: $*"; }
             script = script.replace('. /lib/lsb/init-functions', f'. "{functions}"')
             script = script.replace('/etc/default/', f'{tmp}/default/')
             script = script.replace('/sbin/start-stop-daemon', str(daemon))
+            script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
             unix_table = root / 'unix'
             if unix_row is not None:
                 unix_table.write_text('Num       RefCount Protocol Flags    Type St Inode Path\n' + unix_row)
@@ -211,6 +247,7 @@ log_warning_msg() { echo "WARNING: $*"; }
                 '0000000000000000: 00000002 00000000 00010000 0001 01 12345 '
                 '/var/run/datadog-procmgrd/dd-procmgrd.sock\n',
                 'SLEEPS': str(sleeps),
+                'POLLS': str(polls),
                 'COUNT': str(root / 'count'),
                 'STATUSES': statuses,
                 'CHECK_ERROR': '0',
@@ -276,6 +313,26 @@ log_warning_msg() { echo "WARNING: $*"; }
         self.assertNotIn('monolithic', result.stdout)
         # Three failed polls, then the listener appears, then two live samples of the runner.
         self.assertEqual(sleeps, ['1'] * 5)
+
+    def test_sysv_skips_the_socket_wait_when_procmgr_is_disabled(self):
+        for name, procmgr in PROCMGR_DISABLED:
+            with self.subTest(name):
+                result, calls, sleeps, _ = self.run_sysv(unix_row=LISTENING, polls=0, **procmgr)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+                self.assertIn('monolithic mode', result.stdout)
+                self.assertEqual(sleeps, ['1', '1'])
+
+    def test_sysv_admin_procmgr_defaults_override_the_installer_opt_out(self):
+        result, calls, sleeps, _ = self.run_sysv(
+            unix_row=LISTENING,
+            installer_defaults='DATADOG_ENABLED=no\n',
+            admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+        self.assertNotIn('leaked', calls)
+        self.assertEqual(sleeps, ['1', '1'])
 
     def test_sysv_split_follows_the_listening_socket(self):
         socket = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
@@ -426,6 +483,11 @@ sys.exit(int(sys.argv[1]))
             script = SYSV_TEMPLATE.read_text().replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
             script = script.replace('AGENT_USER="dd-agent"', 'AGENT_USER="root"')
             script = script.replace('/etc/default/', f'{tmp}/default/')
+            script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(root / 'datadog-agent-procmgr'))
+            # Keep a host dd-procmgrd socket from switching this test to split mode.
+            unix_table = root / 'unix'
+            unix_table.touch()
+            script = script.replace('/proc/net/unix', str(unix_table))
             script = script.replace(
                 '. /lib/lsb/init-functions',
                 '''init_is_upstart() { return 1; }
@@ -460,73 +522,42 @@ log_failure_msg() { echo "$*"; }''',
                     finally:
                         service('stop')
 
-    def test_upstart_script_forces_monolithic_only_without_procmgr(self):
-        socket = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
-        # Flags 00010000, type 0001, state 01: a listening stream socket in /proc/net/unix.
-        listening = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {socket}\n'
-        cases = (
-            ('absent', None, False, 'false', 'monolithic mode'),
-            ('listening', listening, True, 'true', 'split mode from config'),
-            (
-                'connected',
-                f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {socket}\n',
-                False,
-                'false',
-                'monolithic mode',
-            ),
-            (
-                'other-path',
-                '0000000000000000: 00000002 00000000 00010000 0001 01 12345 /tmp/other.sock\n',
-                False,
-                'false',
-                'monolithic mode',
-            ),
-            (
-                'not-listening',
-                f'0000000000000000: 00000002 00000000 00000000 0001 01 12345 {socket}\n',
-                False,
-                'false',
-                'monolithic mode',
-            ),
-        )
-        for template in UPSTART_TEMPLATES:
-            for name, row, ready, split, mode in cases:
-                with self.subTest(template=template.name, socket=name), tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp)
-                    binary = root / 'embedded/bin/privateactionrunner'
-                    binary.parent.mkdir(parents=True)
-                    self.executable(binary, 'echo "split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED-}"\n')
-                    # Upstart's script/end script delimiters are syntax, not layout comments.
-                    text = template.read_text()
-                    self.assertIn(socket, text)
-                    self.assertIn('$4 == "00010000"', text)
-                    self.assertNotIn('initctl', text)
-                    if template.name.startswith('upstart_debian'):
-                        self.assertNotIn('\nsetuid ', f'\n{text}')
-                        command = text.split('exec start-stop-daemon', 1)[1].split('end script', 1)[0]
-                        self.assertIn('--chuid dd-agent', command)
-                        self.assertNotIn('--background', command)
-                    blocks = re.findall(r'^script\n(.*?)^end script$', text, re.MULTILINE | re.DOTALL)
-                    self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
-                    script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
-                    logfile = root / 'errors.log'
-                    unix_table = root / 'unix'
-                    if row is not None:
-                        unix_table.write_text('Num       RefCount Protocol Flags    Type St Inode Path\n' + row)
-                    script = script.replace('/proc/net/unix', str(unix_table))
-                    script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
-                    self.executable(
-                        root / 'su',
-                        '''shell=$2
+    def run_upstart(self, template, row, procmgr_installed=True, installer_defaults=None, admin_defaults=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / 'embedded/bin/privateactionrunner'
+            binary.parent.mkdir(parents=True)
+            self.executable(binary, 'echo "split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED-}"\n')
+            installer, admin = self.write_procmgr_files(root, procmgr_installed, installer_defaults, admin_defaults)
+            # Upstart's script/end script delimiters are syntax, not layout comments.
+            text = template.read_text()
+            blocks = re.findall(r'^script\n(.*?)^end script$', text, re.MULTILINE | re.DOTALL)
+            self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
+            script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
+            logfile = root / 'errors.log'
+            unix_table = root / 'unix'
+            if row is not None:
+                unix_table.write_text('Num       RefCount Protocol Flags    Type St Inode Path\n' + row)
+            script = script.replace('/proc/net/unix', str(unix_table))
+            script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
+            script = script.replace(ADMIN_PROCMGR_DEFAULTS, str(admin))
+            script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
+            su_env = root / 'su.env'
+            # Record the environment su receives, then clear it. Real su does not pass it on.
+            self.executable(
+                root / 'su',
+                '''env > "$SU_ENV"
+shell=$2
 command=$4
 shift 6
 exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
 ''',
-                    )
-                    self.executable(
-                        root / 'start-stop-daemon',
-                        '''case " $* " in *" --background "*) exit 96 ;; esac
+            )
+            self.executable(
+                root / 'start-stop-daemon',
+                '''case " $* " in *" --background "*) exit 96 ;; esac
 case " $* " in *" --chuid dd-agent "*) ;; *) exit 97 ;; esac
+case " $* " in *" --pidfile /nonexistent "*) ;; *) exit 95 ;; esac
 exec_path=
 while [ $# -gt 0 ]; do
   if [ "$1" = --exec ]; then
@@ -542,21 +573,67 @@ while [ $# -gt 0 ]; do
 done
 exit 98
 ''',
-                    )
-                    self.executable(root / 'sleep', 'exit 0\n')
-                    result = subprocess.run(
-                        [shutil.which('bash'), '-c', script],
-                        env={
-                            **os.environ,
-                            'PATH': f'{tmp}:/usr/bin:/bin',
-                            'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
-                        },
-                        text=True,
-                        capture_output=True,
-                        check=False,
-                    )
+            )
+            sleeps = root / 'sleeps'
+            self.executable(root / 'sleep', f'echo "$1" >> "{sleeps}"\n')
+            # Upstart runs script blocks with sh -e.
+            result = subprocess.run(
+                [shutil.which('bash'), '-e', '-c', script],
+                env={
+                    **os.environ,
+                    'PATH': f'{tmp}:/usr/bin:/bin',
+                    'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
+                    'SU_ENV': str(su_env),
+                },
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            output = result.stdout + (logfile.read_text() if logfile.exists() else '')
+            received = su_env.read_text() if su_env.exists() else ''
+            return result, output, sleeps.read_text().splitlines() if sleeps.exists() else [], received
+
+    def test_upstart_script_forces_monolithic_only_without_procmgr(self):
+        cases = (
+            ('absent', None, False, 'false', 'monolithic mode'),
+            ('listening', LISTENING, True, 'true', 'split mode from config'),
+            (
+                'connected',
+                f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {SOCKET}\n',
+                False,
+                'false',
+                'monolithic mode',
+            ),
+            (
+                'other-path',
+                '0000000000000000: 00000002 00000000 00010000 0001 01 12345 /tmp/other.sock\n',
+                False,
+                'false',
+                'monolithic mode',
+            ),
+            (
+                'not-listening',
+                f'0000000000000000: 00000002 00000000 00000000 0001 01 12345 {SOCKET}\n',
+                False,
+                'false',
+                'monolithic mode',
+            ),
+        )
+        for template in UPSTART_TEMPLATES:
+            text = template.read_text()
+            self.assertIn(SOCKET, text)
+            self.assertIn('$4 == "00010000"', text)
+            self.assertNotIn('initctl', text)
+            if template.name.startswith('upstart_debian'):
+                self.assertNotIn('\nsetuid ', f'\n{text}')
+                command = text.split('exec start-stop-daemon', 1)[1].split('end script', 1)[0]
+                self.assertIn('--chuid dd-agent', command)
+                self.assertIn('--pidfile /nonexistent', command)
+                self.assertNotIn('--background', command)
+            for name, row, ready, split, mode in cases:
+                with self.subTest(template=template.name, socket=name):
+                    result, output, _, _ = self.run_upstart(template, row)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    output = result.stdout + (logfile.read_text() if logfile.exists() else '')
                     self.assertIn(mode, output)
                     # Red Hat su clears the environment, so an inherited true does not reach the runner.
                     if template.name.startswith('upstart_redhat') and ready:
@@ -564,3 +641,31 @@ exit 98
                     else:
                         self.assertIn(f'split={split}', output)
                     self.assertNotIn('not supported', output)
+
+    def test_upstart_skips_the_socket_wait_when_procmgr_is_disabled(self):
+        for template in UPSTART_TEMPLATES:
+            for name, procmgr in PROCMGR_DISABLED:
+                with self.subTest(template=template.name, procmgr=name):
+                    result, output, sleeps, _ = self.run_upstart(template, LISTENING, **procmgr)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('monolithic mode', output)
+                    self.assertIn('split=false', output)
+                    self.assertEqual(sleeps, [])
+
+    def test_upstart_admin_procmgr_defaults_override_the_installer_opt_out(self):
+        for template in UPSTART_TEMPLATES:
+            with self.subTest(template=template.name):
+                result, output, sleeps, su_env = self.run_upstart(
+                    template,
+                    LISTENING,
+                    installer_defaults='DATADOG_ENABLED=no\n',
+                    admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('split mode from config', output)
+                self.assertNotIn('leaked', output)
+                self.assertEqual(sleeps, [])
+                # su clears the environment before the runner, so the runner output cannot show this leak.
+                if template.name.startswith('upstart_redhat'):
+                    self.assertIn('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=true', su_env)
+                    self.assertNotIn('leaked', su_env)
