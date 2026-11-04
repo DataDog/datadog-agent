@@ -57,7 +57,7 @@ struct pid_cache_t {
     u64 user_session_id;
     u64 fork_flags;
     u32 sid;
-    u32 padding_sid;
+    u32 exit_code;
     struct credentials_t credentials;
 };
 
