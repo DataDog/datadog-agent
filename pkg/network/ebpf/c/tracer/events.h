@@ -18,19 +18,32 @@
 #define MSG_PEEK 2
 #endif
 
-static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
-    conn_tuple_t conn_tuple = *tup;
+// store_tcp_close_args saves what the tcp_close return hook needs to clean up protocol classification. The packets'
+// tuple is resolved now, because userspace deletes a NAT'd connection's conntrack entry once it sees the close event.
+static __always_inline void store_tcp_close_args(__u64 pid_tgid, conn_tuple_t *t) {
+    tcp_close_args_t args = {};
+    args.tup = *t;
+    conn_tuple_t norm = *t;
+    norm.pid = 0;
+    norm.netns = 0;
+    normalize_tuple(&norm);
+    args.has_skb_tup = get_skb_tuple(t, &norm, &args.skb_tup);
+    bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &args, BPF_ANY);
+}
+
+static __always_inline void clean_protocol_classification(tcp_close_args_t *args) {
+    conn_tuple_t conn_tuple = args->tup;
     conn_tuple.pid = 0;
     conn_tuple.netns = 0;
     normalize_tuple(&conn_tuple);
     delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&tls_enhanced_tags, &conn_tuple);
 
-    conn_tuple_t skb_tup;
-    if (!get_skb_tuple(tup, &conn_tuple, &skb_tup)) {
+    if (!args->has_skb_tup) {
         return;
     }
 
+    conn_tuple_t skb_tup = args->skb_tup;
     delete_protocol_stack(&skb_tup, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&tls_enhanced_tags, &skb_tup);
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);

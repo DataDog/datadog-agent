@@ -176,6 +176,13 @@ typedef struct {
     conn_tuple_t tup;
 } skp_conn_tuple_t;
 
+// A closing TCP socket's tuple, and the tuple its packets carry if they're NAT'd in its namespace.
+typedef struct {
+    conn_tuple_t tup;
+    conn_tuple_t skb_tup;
+    __u8 has_skb_tup;
+} tcp_close_args_t;
+
 typedef struct {
     __u64 pid_tgid;
     __u64 timestamp;

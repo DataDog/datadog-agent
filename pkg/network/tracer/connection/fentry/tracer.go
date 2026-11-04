@@ -55,6 +55,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
+		o.MapEditors = mgrOpts.MapEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod

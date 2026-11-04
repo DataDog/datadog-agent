@@ -2856,38 +2856,86 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
 
 func (s *TracerSuite) TestNATFromEbpfConntracker() {
 	t := s.T()
-	cfg := testConfig()
-	if !kprobe.ClassificationSupported(cfg) {
+	if !kprobe.ClassificationSupported(testConfig()) {
 		t.Skip("protocol classification not supported")
-	}
-
-	skbMapSize := func(t *testing.T, cfg *config.Config) (uint32, bool) {
-		tr := setupTracer(t, cfg)
-		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
-			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
-		}
-		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
-		require.NoError(t, err)
-		return m.MaxEntries(), ebpfConntrackerMap(tr.conntracker) != nil
 	}
 
 	t.Run("ebpf conntracker", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableEbpfConntracker = true
-		size, shared := skbMapSize(t, cfg)
-		if !shared {
+		tr := setupTracer(t, cfg)
+		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+			t.Skip("the sk tracer doesn't classify with the conntrack map")
+		}
+		if ebpfConntrackerMap(tr.conntracker) == nil {
 			t.Skip("ebpf conntracker not loaded")
 		}
 		// net_dev_queue isn't attached, so its map is left at one entry
-		assert.Equal(t, uint32(1), size)
+		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+		require.NoError(t, err)
+		assert.Equal(t, uint32(1), m.MaxEntries())
+
+		netlinktestutil.SetupSNAT(t)
+		request := []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+		response := []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+		// Only one side sends, so the other side's socket only sees classified traffic under the NAT'd tuple.
+		for _, serverSends := range []bool{false, true} {
+			t.Run(fmt.Sprintf("server sends %v", serverSends), func(t *testing.T) {
+				done := make(chan struct{})
+				srv := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(c net.Conn) {
+					defer c.Close()
+					if serverSends {
+						_, _ = c.Write(response)
+					} else {
+						_, _ = io.ReadFull(c, make([]byte, len(request)))
+					}
+					<-done
+				})
+				require.NoError(t, srv.Run())
+				t.Cleanup(srv.Shutdown)
+
+				d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+				c, err := d.Dial("tcp", srv.Address())
+				require.NoError(t, err)
+				defer c.Close()
+				defer close(done)
+				if serverSends {
+					_, err = io.ReadFull(c, make([]byte, len(response)))
+				} else {
+					_, err = c.Write(request)
+				}
+				require.NoError(t, err)
+
+				require.EventuallyWithT(t, func(collect *assert.CollectT) {
+					conns, cleanup := getConnections(collect, tr)
+					defer cleanup()
+					client, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+					if assert.NotNil(collect, client, "client connection not found") {
+						assert.True(collect, client.ProtocolStack.Contains(protocols.HTTP), "client not classified")
+					}
+					// the server's socket sees the SNAT'd source
+					server := network.FirstConnection(conns, func(cs network.ConnectionStats) bool {
+						return cs.Direction == network.INCOMING && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == srv.Address() && cs.Dest.String() == "7.7.7.7"
+					})
+					if assert.NotNil(collect, server, "server connection not found") {
+						assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified")
+					}
+				}, 5*time.Second, 100*time.Millisecond)
+			})
+		}
 	})
 
 	t.Run("netlink conntracker", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableEbpfConntracker = false
-		size, shared := skbMapSize(t, cfg)
-		require.False(t, shared)
-		assert.Equal(t, cfg.MaxTrackedConnections, size)
+		tr := setupTracer(t, cfg)
+		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
+		}
+		require.Nil(t, ebpfConntrackerMap(tr.conntracker))
+		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+		require.NoError(t, err)
+		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
 	})
 }
 
