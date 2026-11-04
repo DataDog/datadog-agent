@@ -12,8 +12,9 @@ import (
 	"net"
 )
 
-// rootOnlyChanges is unset outside macOS: on Linux the socket stays owned by root, which the
-// daemon runs as, and on Windows the named pipe carries its own access control.
+// rootOnlyChanges is unset outside macOS: on Linux the daemon runs with dd-agent as its
+// effective user and owns its socket, and on Windows the named pipe carries its own access
+// control.
 const rootOnlyChanges = false
 
 // connContext is nil outside macOS: requests carry no caller uid, since nothing checks it.
