@@ -56,9 +56,9 @@ require (
 	helm.sh/helm/v4 v4.3.1
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
-	k8s.io/cli-runtime v0.37.1
+	k8s.io/cli-runtime v0.37.2
 	k8s.io/client-go v0.37.2
-	k8s.io/kubectl v0.37.1
+	k8s.io/kubectl v0.37.2
 )
 
 require (
