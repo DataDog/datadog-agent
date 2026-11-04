@@ -433,6 +433,20 @@ func TestPrecedence(t *testing.T) {
 			expected: `(> (| open.flags (& O_CREAT O_TRUNC)) 0)`,
 		},
 		{
+			// `^` binds tighter than `|`, and looser than `&`
+			expr:     `open.flags | O_CREAT ^ O_TRUNC & O_EXCL > 0`,
+			expected: `(> (| open.flags (^ O_CREAT (& O_TRUNC O_EXCL))) 0)`,
+		},
+		{
+			// arithmetic binds tighter than bitwise
+			expr:     `1 + 1 | 2 == 4`,
+			expected: `(== (| (+ 1 1) 2) 4)`,
+		},
+		{
+			expr:     `open.flags & 4 - 1 > 0`,
+			expected: `(> (& open.flags (- 4 1)) 0)`,
+		},
+		{
 			// a unary operator binds tighter than any binary one
 			expr:     `^open.flags == 0`,
 			expected: `(== (^ open.flags) 0)`,

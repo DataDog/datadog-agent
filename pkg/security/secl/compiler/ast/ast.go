@@ -24,9 +24,6 @@ func (p Position) String() string {
 type Node interface {
 	// Position returns the position of the first token of the node.
 	Position() Position
-
-	// node closes the union.
-	node()
 }
 
 // Meta is embedded in every node of the tree.
@@ -43,8 +40,6 @@ func At(pos Position) Meta {
 func (m Meta) Position() Position {
 	return m.Pos
 }
-
-func (Meta) node() {}
 
 // Rule is the root of a rule. Its expression evaluates to a boolean.
 type Rule struct {

@@ -6,14 +6,17 @@
 // Package parser holds a hand written parser of the SECL language.
 //
 // It is a recursive descent parser, one function per precedence level, from
-// the loosest to the tightest binding:
+// the loosest to the tightest binding. The bitwise and arithmetic levels share
+// parseOperation:
 //
 //	or              a || b, a or b
 //	and             a && b, a and b
 //	comparison      a == b, a != b, a < b, a <= b, a > b, a >= b, a =~ b, a !~ b,
 //	                a in b, a not in b, a allin b
-//	additive        a + b, a - b, a | b, a ^ b
-//	multiplicative  a & b
+//	bitwise or      a | b
+//	bitwise xor     a ^ b
+//	bitwise and     a & b
+//	additive        a + b, a - b
 //	unary           !a, not a, -a, ^a
 //	primary         literals, identifiers, arrays, (a)
 //
@@ -27,6 +30,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -115,7 +119,7 @@ func (p *parser) parseOr() ast.Node {
 
 	left := p.parseAnd()
 
-	for p.tok.Kind == OrOr {
+	for p.tok.Kind == LOr {
 		op := p.tok
 		p.next()
 
@@ -141,7 +145,7 @@ func (p *parser) parseAnd() ast.Node {
 	left := p.parseComparison()
 	p.expectLogicalOpOrEnd(left)
 
-	for p.tok.Kind == AndAnd {
+	for p.tok.Kind == LAnd {
 		op := p.tok
 		p.next()
 
@@ -159,7 +163,7 @@ func (p *parser) parseAnd() ast.Node {
 // operation when it is neither a logical operator nor the end of the
 // expression, and skips to the next logical operator.
 func (p *parser) expectLogicalOpOrEnd(operand ast.Node) {
-	if p.tok.Kind == AndAnd || p.tok.Kind == OrOr || p.atEndOfExpr() {
+	if p.tok.Kind == LAnd || p.tok.Kind == LOr || p.atEndOfExpr() {
 		return
 	}
 
@@ -187,7 +191,7 @@ func (p *parser) sync() {
 		switch p.tok.Kind {
 		case EOF:
 			return
-		case AndAnd, OrOr:
+		case LAnd, LOr:
 			if nested == 0 {
 				return
 			}
@@ -232,8 +236,8 @@ func (p *parser) startsComparison() bool {
 
 // parseComparison parses a comparison.
 //
-//	Comparison → Additive [ ScalarOp Additive ]
-//	Comparison → Additive [ ArrayOp Additive ]
+//	Comparison → Operation(0) [ ScalarOp Operation(0) ]
+//	Comparison → Operation(0) [ ArrayOp Operation(0) ]
 //
 //	ArrayOp → "in" | "not" "in" | "allin"
 //
@@ -242,7 +246,7 @@ func (p *parser) startsComparison() bool {
 func (p *parser) parseComparison() ast.Node {
 	start := p.tok.Pos
 
-	left := p.parseAdditive()
+	left := p.parseOperation(0)
 	if !p.startsComparison() {
 		return left
 	}
@@ -255,7 +259,7 @@ func (p *parser) parseComparison() ast.Node {
 		if !p.expectOperand(opTok) {
 			return nil
 		}
-		right := p.parseAdditive()
+		right := p.parseOperation(0)
 
 		node = &ast.ScalarCompareExpr{Meta: ast.At(start), Op: op, Left: left, Right: right}
 	} else {
@@ -280,7 +284,7 @@ func (p *parser) parseComparison() ast.Node {
 		if !p.expectOperand(opTok) {
 			return nil
 		}
-		right := p.parseAdditive()
+		right := p.parseOperation(0)
 
 		node = &ast.ArrayCompareExpr{Meta: ast.At(start), Op: op, Left: left, Right: right}
 	}
@@ -293,69 +297,55 @@ func (p *parser) parseComparison() ast.Node {
 	return node
 }
 
-// parseAdditive parses an additive operation, arithmetic or bitwise.
-//
-//	Additive → Multiplicative { ( "+" | "-" | "|" | "^" ) Multiplicative }
-func (p *parser) parseAdditive() ast.Node {
-	start := p.tok.Pos
-
-	left := p.parseMultiplicative()
-
-	for {
-		var build func(right ast.Node) ast.Node
-		switch p.tok.Kind {
-		case Plus:
-			build = arith(start, ast.ArithAdd, left)
-		case Minus:
-			build = arith(start, ast.ArithSub, left)
-		case Pipe:
-			build = bit(start, ast.BitOr, left)
-		case Caret:
-			build = bit(start, ast.BitXor, left)
-		default:
-			return left
-		}
-
-		op := p.tok
-		p.next()
-
-		if !p.expectOperand(op) {
-			return nil
-		}
-		left = build(p.parseMultiplicative())
-	}
+// operatorLevels are the precedence levels of the bitwise and arithmetic
+// operators, from the loosest to the tightest binding, as in Python and Rust.
+var operatorLevels = [][]Kind{
+	{BOr},
+	{BXor},
+	{BAnd},
+	{Plus, Minus},
 }
 
-// parseMultiplicative parses a multiplicative operation.
+// parseOperation parses the operations of a precedence level of
+// operatorLevels, the level past the last one being the unary operations.
 //
-//	Multiplicative → Unary { "&" Unary }
-func (p *parser) parseMultiplicative() ast.Node {
+//	Operation(n) → Operation(n+1) { Operator(n) Operation(n+1) }
+func (p *parser) parseOperation(level int) ast.Node {
+	if level == len(operatorLevels) {
+		return p.parseUnary()
+	}
+
 	start := p.tok.Pos
 
-	left := p.parseUnary()
+	left := p.parseOperation(level + 1)
 
-	for p.tok.Kind == Amp {
+	for slices.Contains(operatorLevels[level], p.tok.Kind) {
 		op := p.tok
 		p.next()
 
 		if !p.expectOperand(op) {
 			return nil
 		}
-		left = bit(start, ast.BitAnd, left)(p.parseUnary())
+		right := p.parseOperation(level + 1)
+
+		left = operation(ast.At(start), op.Kind, left, right)
 	}
 
 	return left
 }
 
-func arith(start ast.Position, op ast.ArithOp, left ast.Node) func(ast.Node) ast.Node {
-	return func(right ast.Node) ast.Node {
-		return &ast.ArithExpr{Meta: ast.At(start), Op: op, Left: left, Right: right}
-	}
-}
-
-func bit(start ast.Position, op ast.BitOp, left ast.Node) func(ast.Node) ast.Node {
-	return func(right ast.Node) ast.Node {
-		return &ast.BitExpr{Meta: ast.At(start), Op: op, Left: left, Right: right}
+func operation(meta ast.Meta, kind Kind, left, right ast.Node) ast.Node {
+	switch kind {
+	case Plus:
+		return &ast.ArithExpr{Meta: meta, Op: ast.ArithAdd, Left: left, Right: right}
+	case Minus:
+		return &ast.ArithExpr{Meta: meta, Op: ast.ArithSub, Left: left, Right: right}
+	case BAnd:
+		return &ast.BitExpr{Meta: meta, Op: ast.BitAnd, Left: left, Right: right}
+	case BOr:
+		return &ast.BitExpr{Meta: meta, Op: ast.BitOr, Left: left, Right: right}
+	default:
+		return &ast.BitExpr{Meta: meta, Op: ast.BitXor, Left: left, Right: right}
 	}
 }
 
@@ -373,7 +363,7 @@ func (p *parser) parseUnary() ast.Node {
 	switch tok.Kind {
 	case Bang, Not:
 		op = ast.UnaryNot
-	case Caret:
+	case BXor:
 		op = ast.UnaryBitNot
 	case Minus, Plus:
 		p.next()
@@ -609,7 +599,7 @@ func (p *parser) parseArray() ast.Node {
 // skipArray skips the rest of an array literal after an error: the tokens up
 // to its closing bracket, unless the expression ends first.
 func (p *parser) skipArray() {
-	for !p.atEndOfExpr() && p.tok.Kind != AndAnd && p.tok.Kind != OrOr {
+	for !p.atEndOfExpr() && p.tok.Kind != LAnd && p.tok.Kind != LOr {
 		if p.tok.Kind == RBracket {
 			p.next()
 			return
@@ -637,7 +627,7 @@ func (p *parser) parseMember() ast.Node {
 func (p *parser) startsOperand() bool {
 	switch p.tok.Kind {
 	case Ident, Int, Duration, String, Pattern, Regexp, IP, CIDR, Variable, FieldRef,
-		LParen, LBracket, Bang, Not, Minus, Plus, Caret:
+		LParen, LBracket, Bang, Not, Minus, Plus, BXor:
 		return true
 	}
 	return false

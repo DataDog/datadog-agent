@@ -14,8 +14,8 @@ source ──parse──▶ AST ──compile──▶ evaluators
   optional hint (`errors.go`). `ParsingContext.BuildRule`, `BuildMacro` and
   `BuildExpression` are the entry points of the compiler; the context caches the
   trees of the rules.
-- `ast` — the AST. One type per construct of the language, all members of the
-  closed `ast.Node` union, and the `ast.Position` of the nodes. No dependency on
+- `ast` — the AST. One type per construct of the language, all implementing
+  `ast.Node`, and the `ast.Position` of the nodes. No dependency on
   the parser, no dependency on the evaluators.
 - `eval` — the evaluators, and their construction from the AST (`compile.go`).
   `eval.Compile` walks the AST, type checks it against a `Model`, and returns a

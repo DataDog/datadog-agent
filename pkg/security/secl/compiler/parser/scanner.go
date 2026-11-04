@@ -85,14 +85,14 @@ func (s *scanner) scanOperator(start ast.Position) Token {
 	switch c {
 	case '&':
 		if c1 == '&' {
-			return two(AndAnd)
+			return two(LAnd)
 		}
-		return one(Amp)
+		return one(BAnd)
 	case '|':
 		if c1 == '|' {
-			return two(OrOr)
+			return two(LOr)
 		}
-		return one(Pipe)
+		return one(BOr)
 	case '=':
 		switch c1 {
 		case '=':
@@ -121,7 +121,7 @@ func (s *scanner) scanOperator(start ast.Position) Token {
 		}
 		return one(Gt)
 	case '^':
-		return one(Caret)
+		return one(BXor)
 	case '+':
 		return one(Plus)
 	case '-':

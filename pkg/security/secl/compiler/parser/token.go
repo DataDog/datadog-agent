@@ -45,8 +45,8 @@ const (
 
 	// operators and punctuation
 
-	AndAnd   // &&, also spelled `and`
-	OrOr     // ||, also spelled `or`
+	LAnd     // &&, also spelled `and`
+	LOr      // ||, also spelled `or`
 	Bang     // !
 	Eq       // ==
 	NotEq    // !=
@@ -56,9 +56,9 @@ const (
 	Ge       // >=
 	Match    // =~
 	NotMatch // !~
-	Amp      // &
-	Pipe     // |
-	Caret    // ^
+	BAnd     // &
+	BOr      // |
+	BXor     // ^, also the unary bitwise not
 	Plus     // +
 	Minus    // -
 	LParen   // (
@@ -84,8 +84,8 @@ var kindNames = [...]string{
 	Not:      "`not`",
 	In:       "`in`",
 	AllIn:    "`allin`",
-	AndAnd:   "`&&`",
-	OrOr:     "`||`",
+	LAnd:     "`&&`",
+	LOr:      "`||`",
 	Bang:     "`!`",
 	Eq:       "`==`",
 	NotEq:    "`!=`",
@@ -95,9 +95,9 @@ var kindNames = [...]string{
 	Ge:       "`>=`",
 	Match:    "`=~`",
 	NotMatch: "`!~`",
-	Amp:      "`&`",
-	Pipe:     "`|`",
-	Caret:    "`^`",
+	BAnd:     "`&`",
+	BOr:      "`|`",
+	BXor:     "`^`",
 	Plus:     "`+`",
 	Minus:    "`-`",
 	LParen:   "`(`",
@@ -117,8 +117,8 @@ func (k Kind) String() string {
 // keywords maps the keywords to their kind. An operator has a single kind
 // whatever its spelling, the text of its token telling which one was written.
 var keywords = map[string]Kind{
-	"and":   AndAnd,
-	"or":    OrOr,
+	"and":   LAnd,
+	"or":    LOr,
 	"not":   Not,
 	"in":    In,
 	"allin": AllIn,
