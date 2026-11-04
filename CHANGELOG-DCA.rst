@@ -2,6 +2,31 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.1:
+
+7.85.1
+======
+
+.. _Release Notes_7.85.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-04
+Pinned to datadog-agent v7.85.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7851>`_.
+
+
+.. _Release Notes_7.85.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Private Action Runner Helm rollback action now detects the namespace
+  and service account of its rollback Job, so you no longer need to provide
+  them. It also tracks the rollback Job until it ends, and reports Jobs that
+  fail, get stuck, or time out, with the reason.
+
+
 .. _Release Notes_7.85.0:
 
 7.85.0

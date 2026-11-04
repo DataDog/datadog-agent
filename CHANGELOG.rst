@@ -2,6 +2,40 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.1:
+
+7.85.1
+======
+
+.. _Release Notes_7.85.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-04
+
+- Please refer to the `7.85.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7851>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- CSPM: On hosts in FIPS mode, ``oscap-io`` aborted before its first rule
+  with "out of core in secure memory" wherever it could not lock memory,
+  as in system-probe, whose seccomp profile denies ``mlock``. It now
+  evaluates the XCCDF rules there.
+
+- CSPM: The Agent removes the temporary files of each ``oscap-io``
+  process once it exits. An ``oscap-io`` process that crashed or was
+  killed left an ``oscap.*`` directory in ``/tmp``, which on FIPS hosts
+  filled ``/tmp``.
+
+- Fix a crash on startup of the 32-bit ARM IoT Agent when logs collection
+  is enabled (``unaligned 64-bit atomic operation``). See #59066.
+
+
 .. _Release Notes_7.85.0:
 
 7.85.0
