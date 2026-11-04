@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestPrintCheckExecutionStatus_ExactMatch(t *testing.T) {
@@ -337,4 +338,16 @@ func TestRenderClusterChecksInstancesAlignedWithColors(t *testing.T) {
 	column := strings.Index(lines[header], "Avg exec")
 	assert.Equal(t, column, strings.Index(lines[header+1], "1.2s"))
 	assert.Equal(t, column, strings.Index(lines[header+2], "0s"))
+}
+
+func TestGetClusterChecksDisabled(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.enabled", false)
+
+	var text bytes.Buffer
+	require.NoError(t, GetClusterChecks(&text, ClusterChecksOptions{}, nil))
+	assert.Equal(t, "Cluster-checks are not enabled\n", text.String())
+
+	var jsonOut bytes.Buffer
+	require.NoError(t, GetClusterChecks(&jsonOut, ClusterChecksOptions{JSON: true}, nil))
+	assert.Empty(t, jsonOut.String())
 }

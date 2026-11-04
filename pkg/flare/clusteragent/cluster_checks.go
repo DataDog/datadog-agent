@@ -50,7 +50,10 @@ func GetClusterChecks(w io.Writer, opts ClusterChecksOptions, c ipc.HTTPClient) 
 	}
 
 	if !pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
-		fmt.Fprintln(w, "Cluster-checks are not enabled")
+		// Print nothing rather than prose that JSON consumers would fail to parse.
+		if !opts.JSON {
+			fmt.Fprintln(w, "Cluster-checks are not enabled")
+		}
 		return nil
 	}
 
