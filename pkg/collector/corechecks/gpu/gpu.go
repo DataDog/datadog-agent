@@ -757,8 +757,8 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 			continue
 		}
 
-		if containers.IsNonComputeGPUContainer(container) {
-			log.Debugf("Container %s declares NVIDIA driver capabilities without compute, skipping for device assignment", container.Name)
+		if containers.IsUtilityOnlyContainer(container) {
+			log.Debugf("Container %s declares utility-only NVIDIA driver capabilities, skipping for device assignment", container.Name)
 			continue
 		}
 

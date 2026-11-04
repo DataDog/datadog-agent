@@ -423,14 +423,14 @@ func TestGPUToContainersMapSkipsKAIReservationPods(t *testing.T) {
 	assert.Equal(t, workloadContainer.EntityID, gpuToContainers[testutil.GPUUUIDs[1]][0].EntityID)
 }
 
-func TestGPUToContainersMapSkipsNonComputeContainers(t *testing.T) {
+func TestGPUToContainersMapSkipsUtilityOnlyContainers(t *testing.T) {
 	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil, nil)
 	require.NoError(t, check.deviceCache.Refresh())
 
 	// A GPU monitoring sidecar that only requests the utility capability: it
-	// holds the GPU but cannot run compute workloads on it.
+	// holds the GPU only to monitor it and cannot run workloads on it.
 	wmetaMock.Set(&workloadmeta.Container{
 		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "utility-only-container"},
 		EntityMeta: workloadmeta.EntityMeta{Name: "gpu-exporter"},
@@ -439,6 +439,32 @@ func TestGPUToContainersMapSkipsNonComputeContainers(t *testing.T) {
 			{Name: "nvidia.com/gpu", ID: testutil.GPUUUIDs[0]},
 		},
 	})
+
+	// A DRA-provisioned container also declaring utility-only capabilities:
+	// the environment variable does not restrict what the CDI spec injects
+	// (the container can still run compute), but the declaration is trusted
+	// anyway — known limitation, accepted on AXT-73.
+	draContainer := &workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "dra-container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "dra-workload"},
+		EnvVars:    map[string]string{"NVIDIA_DRIVER_CAPABILITIES": "utility"},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{Name: "gpu.nvidia.com", ID: "gpu-0", CdiDevices: []string{"nvidia.com/gpu=0"}},
+		},
+	}
+	wmetaMock.Set(draContainer)
+
+	// A rendering workload: it does not use compute, but graphics/video
+	// containers use the GPU for real workloads and are kept.
+	graphicsContainer := &workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "graphics-container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "rendering-workload"},
+		EnvVars:    map[string]string{"NVIDIA_DRIVER_CAPABILITIES": "graphics,video,utility"},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: testutil.GPUUUIDs[2]},
+		},
+	}
+	wmetaMock.Set(graphicsContainer)
 
 	workloadContainer := &workloadmeta.Container{
 		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "workload-container"},
@@ -452,9 +478,14 @@ func TestGPUToContainersMapSkipsNonComputeContainers(t *testing.T) {
 
 	gpuToContainers := check.getGPUToContainersMap(time.Now())
 
-	assert.Empty(t, gpuToContainers[testutil.GPUUUIDs[0]], "the utility-only container must not be reported as the GPU's user")
+	// The utility-only container is excluded from the device it was allocated,
+	// and so is the DRA-provisioned one, whose utility-only declaration is
+	// trusted despite not restricting what the CDI spec injects.
+	assert.Empty(t, gpuToContainers[testutil.GPUUUIDs[0]])
 	require.Len(t, gpuToContainers[testutil.GPUUUIDs[1]], 1)
 	assert.Equal(t, workloadContainer.EntityID, gpuToContainers[testutil.GPUUUIDs[1]][0].EntityID)
+	require.Len(t, gpuToContainers[testutil.GPUUUIDs[2]], 1)
+	assert.Equal(t, graphicsContainer.EntityID, gpuToContainers[testutil.GPUUUIDs[2]][0].EntityID)
 }
 
 func initReadiness(t *testing.T) *Readiness {

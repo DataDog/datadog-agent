@@ -1058,14 +1058,15 @@ func TestIsKAIReservationContainer(t *testing.T) {
 	}
 }
 
-func TestIsNonComputeGPUContainer(t *testing.T) {
+func TestIsUtilityOnlyContainer(t *testing.T) {
 	tests := []struct {
-		name     string
-		envVars  map[string]string
-		expected bool
+		name        string
+		envVars     map[string]string
+		allocations []workloadmeta.ContainerAllocatedResource
+		expected    bool
 	}{
 		{
-			name:     "unset: the NVIDIA toolkit default (utility, compute) includes compute",
+			name:     "unset: the NVIDIA toolkit default (utility, compute) is not utility-only",
 			envVars:  nil,
 			expected: false,
 		},
@@ -1077,6 +1078,13 @@ func TestIsNonComputeGPUContainer(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "utility only with whitespace and case",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: " Utility ",
+			},
+			expected: true,
+		},
+		{
 			name: "compute and utility",
 			envVars: map[string]string{
 				nvidiaDriverCapabilitiesEnvVar: "compute,utility",
@@ -1084,30 +1092,37 @@ func TestIsNonComputeGPUContainer(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "all capabilities include compute",
+			name: "all capabilities",
 			envVars: map[string]string{
 				nvidiaDriverCapabilitiesEnvVar: "all",
 			},
 			expected: false,
 		},
 		{
-			name: "capabilities list containing all includes compute",
+			name: "utility together with all",
 			envVars: map[string]string{
 				nvidiaDriverCapabilitiesEnvVar: "utility,all",
 			},
 			expected: false,
 		},
 		{
-			name: "video and graphics without compute",
+			name: "video and graphics containers can use the GPU for workloads",
 			envVars: map[string]string{
 				nvidiaDriverCapabilitiesEnvVar: "video,graphics,utility",
 			},
-			expected: true,
+			expected: false,
 		},
 		{
-			name: "whitespace and case are normalized",
+			name: "graphics only",
 			envVars: map[string]string{
-				nvidiaDriverCapabilitiesEnvVar: " Utility , Compute ",
+				nvidiaDriverCapabilitiesEnvVar: "graphics",
+			},
+			expected: false,
+		},
+		{
+			name: "compute only",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "compute",
 			},
 			expected: false,
 		},
@@ -1118,16 +1133,31 @@ func TestIsNonComputeGPUContainer(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			// Known limitation, accepted on AXT-73: for CDI-provisioned containers
+			// the environment variable does not restrict what the CDI spec
+			// injects, so the container can still run compute. The declaration
+			// is trusted anyway.
+			name: "utility-only container with a NVIDIA DRA claim is still excluded",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "utility",
+			},
+			allocations: []workloadmeta.ContainerAllocatedResource{
+				{Name: string(gpuutil.GpuNvidiaDRA), ID: "gpu-0", CdiDevices: []string{"nvidia.com/gpu=0"}},
+			},
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			container := &workloadmeta.Container{
-				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-id"},
-				EnvVars:  tt.envVars,
+				EntityID:                   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-id"},
+				EnvVars:                    tt.envVars,
+				ResolvedAllocatedResources: tt.allocations,
 			}
 
-			assert.Equal(t, tt.expected, IsNonComputeGPUContainer(container))
+			assert.Equal(t, tt.expected, IsUtilityOnlyContainer(container))
 		})
 	}
 }
