@@ -67,11 +67,9 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
-Construct ScanMW with `NewScanMWDetector(cfg)` using `DefaultScanMWConfig()`.
-Statistical configuration and aggregation slices are copied at construction.
-The catalog keeps the existing average/count defaults and exposes only min/max
-points; programmatic callers can supply their own parameters without catalog or
-global Agent settings.
+Keep detector configuration separate from runtime state. Normalize defaults and
+copy mutable inputs at construction; reset only runtime state. Keep programmatic
+parameters independent of user-facing catalog settings.
 
 `Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
 restrictions and an intersection with configured aggregations. Kind/type values

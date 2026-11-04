@@ -724,13 +724,11 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 }
 
-// DetectionFilter borrows per-call restrictions; zero allows all workload series.
-// Telemetry is excluded; kind and type are independent.
-// Kind/type restrictions (including nil versus explicit values) must stay constant
-// for an instance's lifetime, including resets. Pointer identity may change when
-// values are equal; changing selection values is unsupported and can reuse stale
-// cached membership. Aggregations may vary per call without changing membership.
-// Detectors must not mutate borrowed filters or retain their pointers/slices.
+// DetectionFilter borrows independent kind/type restrictions; zero selects all
+// workload series, never telemetry. Kind/type values and nil presence must remain
+// constant across calls and resets to avoid stale caches; equal-valued pointers
+// may differ. Aggregations may vary per call. Detectors must not mutate filters
+// or retain borrowed pointers/slices.
 type DetectionFilter struct {
 	MetricKind *MetricKind         // nil: any committed kind, including UNSET
 	MetricType *metrics.MetricType // nil: any input type, including UnknownType

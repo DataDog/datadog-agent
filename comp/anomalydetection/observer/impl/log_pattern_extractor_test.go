@@ -508,9 +508,10 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	scanmwConfig := DefaultScanMWConfig()
 	scanmwConfig.MinPoints, scanmwConfig.MinSegment = 2, 1
 	scanmw := NewScanMWDetector(scanmwConfig)
-	scanwelch := NewScanWelchDetector()
-	scanwelch.MinPoints = 2
-	scanwelch.MinSegment = 1
+	scanwelchCfg := DefaultScanWelchConfig()
+	scanwelchCfg.MinPoints = 2
+	scanwelchCfg.MinSegment = 1
+	scanwelch := NewScanWelchDetector(scanwelchCfg)
 
 	// Stateless detector that does NOT implement SeriesRemover. Registering it
 	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
@@ -595,7 +596,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 		"ScanMW per-series map must not exceed live series × aggregations")
 	require.Less(t, len(scanwelch.series), scanwelchBefore,
 		"ScanWelch per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanwelchBefore)
-	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.Aggregations),
+	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.config.Aggregations),
 		"ScanWelch per-series map must not exceed live series \u00d7 aggregations")
 
 	// Sanity check the stateless detector: registering it alongside the

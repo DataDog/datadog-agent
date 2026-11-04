@@ -80,10 +80,10 @@ func TestMaxDetectorPoints(t *testing.T) {
 	bocpdConfig.WarmupPoints = 40
 	detectors := []observerdef.Detector{
 		NewBOCPDDetector(bocpdConfig),
-		NewHoltResidualDetector(),
-		NewTukeyBiweightDetector(),
+		NewHoltResidualDetector(DefaultHoltResidualConfig()),
+		NewTukeyBiweightDetector(DefaultTukeyBiweightConfig()),
 		NewScanMWDetector(DefaultScanMWConfig()),
-		NewScanWelchDetector(),
+		NewScanWelchDetector(DefaultScanWelchConfig()),
 	}
 	require.Equal(t, 120, maxDetectorPoints(detectors))
 }

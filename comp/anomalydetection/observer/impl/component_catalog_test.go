@@ -32,43 +32,55 @@ func TestDefaultCatalog_EnabledDetectors(t *testing.T) {
 	require.Equal(t, []string{"bocpd"}, detectorNames(detectors))
 }
 
-func TestScanMW_CatalogConfiguration(t *testing.T) {
-	for _, source := range []string{"agent", "json"} {
-		for _, enabled := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/enabled=%t", source, enabled), func(t *testing.T) {
-				var settings ComponentSettings
-				if source == "agent" {
-					cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+func TestScanDetectors_CatalogConfiguration(t *testing.T) {
+	for _, name := range []string{"scanmw", "scanwelch"} {
+		for _, source := range []string{"agent", "json"} {
+			for _, enabled := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/enabled=%t", name, source, enabled), func(t *testing.T) {
+					var settings ComponentSettings
+					if source == "agent" {
+						cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
 anomaly_detection:
   detectors:
-    scanmw:
+    %s:
       enabled: %t
       min_points: 42
       max_points: 84
-`, enabled))
-					settings = settingsFromAgentConfig(defaultCatalog(), cfg)
-				} else {
-					var err error
-					settings, err = ParseSettingsFromJSON(map[string]json.RawMessage{
-						"scanmw": json.RawMessage(fmt.Sprintf(
-							`{"enabled":%t,"min_points":42,"max_points":84}`,
-							enabled)),
-					})
-					require.NoError(t, err)
-				}
-				detectors, _, _, _, components := defaultCatalog().Instantiate(settings)
-				want := DefaultScanMWConfig()
-				want.MinPoints, want.MaxPoints = 42, 84
-				require.Equal(t, want, components["scanmw"].activeConfig)
-				d := components["scanmw"].instance.(*ScanMWDetector)
-				require.Equal(t, want, d.config)
-				require.Equal(t, enabled, components["scanmw"].enabled)
-				if enabled {
-					require.Contains(t, detectorNames(detectors), "scanmw")
-				} else {
-					require.NotContains(t, detectorNames(detectors), "scanmw")
-				}
-			})
+`, name, enabled))
+						settings = settingsFromAgentConfig(defaultCatalog(), cfg)
+					} else {
+						var err error
+						settings, err = ParseSettingsFromJSON(map[string]json.RawMessage{
+							name: json.RawMessage(fmt.Sprintf(
+								`{"enabled":%t,"min_points":42,"max_points":84}`,
+								enabled)),
+						})
+						require.NoError(t, err)
+					}
+					detectors, _, _, _, components := defaultCatalog().Instantiate(settings)
+					var want, got any
+					switch d := components[name].instance.(type) {
+					case *ScanMWDetector:
+						cfg := DefaultScanMWConfig()
+						cfg.MinPoints, cfg.MaxPoints = 42, 84
+						want, got = cfg, d.config
+					case *ScanWelchDetector:
+						cfg := DefaultScanWelchConfig()
+						cfg.MinPoints, cfg.MaxPoints = 42, 84
+						want, got = cfg, d.config
+					default:
+						t.Fatalf("unexpected detector: %T", d)
+					}
+					require.Equal(t, want, components[name].activeConfig)
+					require.Equal(t, want, got)
+					require.Equal(t, enabled, components[name].enabled)
+					if enabled {
+						require.Contains(t, detectorNames(detectors), name)
+					} else {
+						require.NotContains(t, detectorNames(detectors), name)
+					}
+				})
+			}
 		}
 	}
 }
@@ -171,7 +183,7 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	scanMW := settings.configs["scanmw"].(ScanMWConfig)
 	require.Equal(t, 42, scanMW.MinPoints)
 	require.Equal(t, 84, scanMW.MaxPoints)
-	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
+	scanWelch := settings.configs["scanwelch"].(ScanWelchConfig)
 	require.Equal(t, 42, scanWelch.MinPoints)
 	require.Equal(t, 84, scanWelch.MaxPoints)
 	require.False(t, settings.Enabled["anomaly_scorer"])

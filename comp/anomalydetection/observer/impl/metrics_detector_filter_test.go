@@ -28,18 +28,21 @@ func filterTestDetectors() map[string]func() observer.Detector {
 			return NewScanMWDetector(cfg)
 		},
 		"scanwelch": func() observer.Detector {
-			d := NewScanWelchDetector()
-			d.MinPoints, d.MinSegment, d.MaxPoints = 6, 2, 24
+			dCfg := DefaultScanWelchConfig()
+			dCfg.MinPoints, dCfg.MinSegment, dCfg.MaxPoints = 6, 2, 24
+			d := NewScanWelchDetector(dCfg)
 			return d
 		},
 		"holt_residual": func() observer.Detector {
-			d := NewHoltResidualDetector()
-			d.WarmupPoints, d.ResidualWindow = 4, 8
+			dCfg := DefaultHoltResidualConfig()
+			dCfg.WarmupPoints, dCfg.ResidualWindow = 4, 8
+			d := NewHoltResidualDetector(dCfg)
 			return d
 		},
 		"tukey_biweight": func() observer.Detector {
-			d := NewTukeyBiweightDetector()
-			d.MinPoints, d.WindowSize, d.ScoreEvery = 6, 8, 1
+			dCfg := DefaultTukeyBiweightConfig()
+			dCfg.MinPoints, dCfg.WindowSize, dCfg.ScoreEvery = 6, 8, 1
+			d := NewTukeyBiweightDetector(dCfg)
 			return d
 		},
 		"adapter": func() observer.Detector {
@@ -322,4 +325,13 @@ func TestDetectorFilterOutputsMatchUnfiltered(t *testing.T) {
 			require.Positive(t, found, "fixture must exercise anomaly output")
 		})
 	}
+}
+
+func TestSeriesDetectorAdapterConfigOwnership(t *testing.T) {
+	aggregations := []observer.Aggregate{observer.AggregateAverage}
+	d := newSeriesDetectorAdapter(&filterSeriesDetector{}, aggregations)
+	aggregations[0] = observer.AggregateSum
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage}, d.aggregations)
+	d.Reset()
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage}, d.aggregations)
 }

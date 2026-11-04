@@ -849,7 +849,7 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// Refresh on catalog/metadata changes or different kind/type restrictions.
+	// Refresh on catalog or filterable metadata changes.
 	cachedRefs []observerdef.SeriesRef
 	cachedGen  uint64
 
@@ -860,7 +860,7 @@ type seriesDetectorAdapter struct {
 func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
 	return &seriesDetectorAdapter{
 		detector:         detector,
-		aggregations:     aggregations,
+		aggregations:     append([]observerdef.Aggregate(nil), aggregations...),
 		windowSec:        defaultDetectorWindowSec,
 		lastVisibleCount: make(map[observerdef.QueryHandle]int),
 	}

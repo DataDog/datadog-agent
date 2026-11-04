@@ -134,13 +134,15 @@ func TestDetectorPointWindows(t *testing.T) {
 	bocpdConfig.WarmupPoints = 40
 	bocpd := NewBOCPDDetector(bocpdConfig)
 
-	holt := NewHoltResidualDetector()
-	holt.WarmupPoints = 24
-	holt.ResidualWindow = 60
+	holtCfg := DefaultHoltResidualConfig()
+	holtCfg.WarmupPoints = 24
+	holtCfg.ResidualWindow = 60
+	holt := NewHoltResidualDetector(holtCfg)
 
-	tukey := NewTukeyBiweightDetector()
-	tukey.MinPoints = 40
-	tukey.WindowSize = 80
+	tukeyCfg := DefaultTukeyBiweightConfig()
+	tukeyCfg.MinPoints = 40
+	tukeyCfg.WindowSize = 80
+	tukey := NewTukeyBiweightDetector(tukeyCfg)
 
 	for name, test := range map[string]struct {
 		detector observer.DetectorPointWindowRequirement
@@ -150,7 +152,7 @@ func TestDetectorPointWindows(t *testing.T) {
 		"holt":      {holt, observer.DetectorPointWindow{MinPoints: 24, MaxPoints: 60}},
 		"tukey":     {tukey, observer.DetectorPointWindow{MinPoints: 40, MaxPoints: 80}},
 		"scanmw":    {NewScanMWDetector(DefaultScanMWConfig()), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
-		"scanwelch": {NewScanWelchDetector(), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
+		"scanwelch": {NewScanWelchDetector(DefaultScanWelchConfig()), observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.Equal(t, test.want, test.detector.DetectorPointWindow())
@@ -166,29 +168,29 @@ func TestDetectorPointWindowActivation(t *testing.T) {
 
 	for name, detector := range map[string]observer.Detector{
 		"bocpd": NewBOCPDDetector(bocpdConfig),
-		"holt": &HoltResidualDetector{
+		"holt": NewHoltResidualDetector(HoltResidualConfig{
 			WarmupPoints:   4,
 			ResidualWindow: 1,
-			Aggregations:   []observer.Aggregate{observer.AggregateAverage},
-		},
-		"tukey": &TukeyBiweightDetector{
+			Aggregations:   []string{"avg"},
+		}),
+		"tukey": NewTukeyBiweightDetector(TukeyBiweightConfig{
 			WindowSize:   8,
 			MinPoints:    4,
 			ScoreEvery:   1,
-			Aggregations: []observer.Aggregate{observer.AggregateAverage},
-		},
+			Aggregations: []string{"avg"},
+		}),
 		"scanmw": NewScanMWDetector(ScanMWConfig{
 			MinPoints:    4,
 			MinSegment:   2,
 			MaxPoints:    8,
 			Aggregations: []observer.Aggregate{observer.AggregateAverage},
 		}),
-		"scanwelch": &ScanWelchDetector{
+		"scanwelch": NewScanWelchDetector(ScanWelchConfig{
 			MinPoints:    4,
 			MinSegment:   2,
 			MaxPoints:    8,
 			Aggregations: []observer.Aggregate{observer.AggregateAverage},
-		},
+		}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			storage := newDetectorTestStorage()
