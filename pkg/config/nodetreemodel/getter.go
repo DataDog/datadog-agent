@@ -44,6 +44,11 @@ func (c *ntmConfig) GetEnvVars() []string {
 func (c *ntmConfig) GetSensitiveEnvVars() []string {
 	c.RLock()
 	defer c.RUnlock()
+	return slices.Clone(c.sensitiveEnvVars)
+}
+
+// computeSensitiveEnvVars must be called with the lock held
+func (c *ntmConfig) computeSensitiveEnvVars() []string {
 	var vars []string
 	for key := range c.sensitiveKeys {
 		vars = append(vars, c.configEnvVars[key]...)

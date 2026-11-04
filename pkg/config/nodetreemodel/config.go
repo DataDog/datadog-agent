@@ -136,6 +136,8 @@ type ntmConfig struct {
 
 	// sensitiveKeys are the settings that hold credentials
 	sensitiveKeys map[string]struct{}
+	// sensitiveEnvVars are the env vars bound to sensitiveKeys, computed when the schema is built
+	sensitiveEnvVars []string
 
 	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use.
@@ -783,6 +785,7 @@ func (c *ntmConfig) buildSchema() {
 	}
 
 	c.buildEnvVars()
+	c.sensitiveEnvVars = c.computeSensitiveEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
