@@ -36,4 +36,9 @@ pod="$(kubectl --context kind-gadget-dev --namespace default get pod -l app.kube
 kubectl --context kind-gadget-dev --namespace default exec "$pod" -c agent -- tar cf - -C /tmp/observer-metrics .
 EOF
 
-python3 "$SKILL_ROOT/scripts/recording.py" validate "$OUT" "$flush"
+python3 "$SKILL_ROOT/scripts/recording.py" validate "$OUT" "$flush" \
+    --backend vm \
+    --scenario-dir "$scenario" \
+    --episode "$episode" \
+    --cluster-name kind-gadget-dev \
+    --namespace default
