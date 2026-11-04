@@ -67,17 +67,24 @@ func TestGetWorkloadToken(t *testing.T) {
 
 func TestGetWorkloadTokenFailures(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		status int
-		body   string
+		name      string
+		status    int
+		body      string
+		wantError string
 	}{
-		{"denied", 403, `sensitive-response`},
-		{"unavailable", 503, `sensitive-response`},
-		{"redirect", 307, ""},
-		{"invalid JSON", 200, `sensitive-response`},
-		{"intake response", 200, `{"data":{"attributes":{"api_key":"sensitive-response"}}}`},
-		{"missing token", 200, `{"data":{"type":"token","attributes":{}}}`},
-		{"oversized", 200, strings.Repeat("x", maxResponseBodySize+1)},
+		{"denied", 403, `sensitive-response`, "workload token request failed (HTTP 403)"},
+		{"unavailable", 503, `sensitive-response`, "workload token request failed (HTTP 503)"},
+		{"redirect", 307, "", "workload token request failed (HTTP 307)"},
+		{"grant disabled", 403, `{"errors":[{"title":"Forbidden","detail":"Workload grant is disabled for this organization"}]}`, "workload token request failed (HTTP 403): Workload grant is disabled for this organization"},
+		{"error title", 400, `{"errors":[{"title":"Unknown workload grant"}]}`, "workload token request failed (HTTP 400): Unknown workload grant"},
+		{"error metadata", 403, `{"errors":[{"detail":"Workload grant denied","meta":{"proof":"sensitive-proof"}}]}`, "workload token request failed (HTTP 403): Workload grant denied"},
+		{"token in error response", 403, `{"data":{"type":"token","attributes":{"access_token":"sensitive-token"}}}`, "workload token request failed (HTTP 403)"},
+		{"intake key in error response", 403, `{"data":{"attributes":{"api_key":"sensitive-key"}}}`, "workload token request failed (HTTP 403)"},
+		{"invalid JSON", 200, `sensitive-response`, "invalid workload token response"},
+		{"intake response", 200, `{"data":{"attributes":{"api_key":"sensitive-response"}}}`, "invalid workload token response"},
+		{"missing token", 200, `{"data":{"type":"token","attributes":{}}}`, "invalid workload token response"},
+		{"oversized", 200, strings.Repeat("x", maxResponseBodySize+1), "workload token response exceeds size limit"},
+		{"oversized error", 403, `{"errors":[{"detail":"sensitive-response"}]}` + strings.Repeat(" ", maxResponseBodySize), "workload token response exceeds size limit"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
@@ -95,7 +102,7 @@ func TestGetWorkloadTokenFailures(t *testing.T) {
 				return "sensitive-proof", nil
 			})
 			token, err := GetWorkloadToken(context.Background(), cfg, provider, &common.AuthConfig{OrgUUID: "org"}, common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}, "")
-			require.Error(t, err)
+			require.EqualError(t, err, tc.wantError)
 			require.Empty(t, token)
 			require.NotContains(t, err.Error(), "sensitive")
 			require.Equal(t, 1, calls, "no retry or redirect with the same proof")

@@ -21,8 +21,8 @@ import (
 )
 
 // GetWorkloadToken exchanges a fresh, request-bound proof for an opaque workload
-// token. It does not fetch or change an intake API key. The consumer (e.g. PAR)
-// verifies the token and its grant; the Agent must not treat decoded claims as
+// token. It does not fetch or change an intake API key. The receiving service's
+// authentication path verifies the token; the Agent must not treat decoded claims as
 // authorization. Each call is one attempt, so callers can obtain a fresh proof
 // and token when retrying enrollment rather than retrying an expired token.
 func GetWorkloadToken(ctx context.Context, cfg pkgconfigmodel.Reader, provider common.WorkloadProvider, auth *common.AuthConfig, request common.WorkloadTokenRequest, targetSite string) (string, error) {
@@ -73,16 +73,16 @@ func GetWorkloadToken(ctx context.Context, cfg pkgconfigmodel.Reader, provider c
 		return "", fmt.Errorf("request workload token: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		// Do not include response bodies or credentials in errors that may be logged.
-		return "", fmt.Errorf("workload token request failed (HTTP %d)", resp.StatusCode)
-	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		return "", fmt.Errorf("read workload token response: %w", err)
 	}
 	if len(raw) > maxResponseBodySize {
 		return "", errors.New("workload token response exceeds size limit")
+	}
+	if resp.StatusCode != http.StatusOK {
+		// Surface the server's JSON:API error message, never the raw response body.
+		return "", fmt.Errorf("workload token request failed (HTTP %d)%s", resp.StatusCode, errorDetail(raw))
 	}
 	var response struct {
 		Data struct {
