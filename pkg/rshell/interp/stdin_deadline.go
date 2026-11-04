@@ -21,7 +21,8 @@ import (
 // A run that finishes before ctx is done never touches f's deadline, so a read
 // deadline the caller configured is preserved. A run that is cancelled or
 // times out replaces it: Go cannot read back an existing deadline, so it is
-// reset to none on return.
+// reset to none on return. If ctx ends at the same moment the run finishes,
+// the watchdog may still win that race and reset the caller's deadline.
 //
 // f is never closed and no extra Read is issued, so no bytes are consumed on
 // the caller's behalf. Only files Go registered with its poller support
