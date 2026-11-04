@@ -120,6 +120,40 @@ func TestMacroMerge(t *testing.T) {
 	}
 }
 
+func TestMacroMergeOverride(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     MacroDefinition
+		override MacroDefinition
+	}{
+		{
+			name:     "expression to expression",
+			base:     MacroDefinition{Expression: `["/etc/default/foo"]`},
+			override: MacroDefinition{Expression: `["/etc/custom/foo"]`},
+		},
+		{
+			name:     "expression to values",
+			base:     MacroDefinition{Expression: `["/etc/default/foo"]`},
+			override: MacroDefinition{Values: []string{"/etc/custom/foo"}},
+		},
+		{
+			name:     "values to expression",
+			base:     MacroDefinition{Values: []string{"/etc/default/foo"}},
+			override: MacroDefinition{Expression: `["/etc/custom/foo"]`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.override.Combine = OverridePolicy
+			m := &PolicyMacro{Def: &tt.base}
+			require.NoError(t, m.MergeWith(&PolicyMacro{Def: &tt.override}))
+			assert.Equal(t, tt.override.Expression, m.Def.Expression)
+			assert.Equal(t, tt.override.Values, m.Def.Values)
+		})
+	}
+}
+
 func TestRuleMerge(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{

@@ -111,3 +111,41 @@ docker_build_fips_agent7_windows:
   tags: [$WINDOWS_RUNNER]
   variables:
     GIT_STRATEGY: "clone"
+
+# Sign the Windows images from Linux: the signer needs ddsign and a runner
+# identity allowed to sign, which the Windows runners do not have. One signer
+# per image family, so a failure in one family does not block the other.
+.docker_sign_windows:
+  extends: .docker_build_amd64
+  stage: container_build
+  rules:
+    - !reference [.except_light_pipeline]
+    - when: on_success
+  id_tokens:
+    # A job's own id_tokens replace the default ones: keep the CI identities token.
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+    DDSIGN_ID_TOKEN:
+      aud: image-integrity
+  script:
+    - |
+      shopt -s nullglob
+      ref_files=(signing/*.ref)
+      if [[ ${#ref_files[@]} -eq 0 ]]; then
+        echo "No image to sign: the build jobs' signing/*.ref artifacts are missing" >&2
+        exit 1
+      fi
+      for ref_file in "${ref_files[@]}"; do
+        ref="$(tr -d '\r\n' < "${ref_file}")"
+        ddsign sign "${ref}"
+      done
+
+docker_sign_agent7_windows:
+  extends: .docker_sign_windows
+  needs:
+    - docker_build_agent7_windows
+
+docker_sign_fips_agent7_windows:
+  extends: .docker_sign_windows
+  needs:
+    - docker_build_fips_agent7_windows

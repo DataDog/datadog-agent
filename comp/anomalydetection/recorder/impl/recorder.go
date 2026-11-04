@@ -19,12 +19,13 @@ import (
 type recorderImpl struct {
 	metrics recorder.MetricWriter
 	logs    recorder.LogWriter
+	filter  recorder.MetricFilter
 }
 
 // NewComponent wraps the supplied writers with recorder middleware.
 // The caller owns their lifecycle.
-func NewComponent(metrics recorder.MetricWriter, logs recorder.LogWriter) recorder.Component {
-	return &recorderImpl{metrics: metrics, logs: logs}
+func NewComponent(metrics recorder.MetricWriter, logs recorder.LogWriter, filter recorder.MetricFilter) recorder.Component {
+	return &recorderImpl{metrics: metrics, logs: logs, filter: filter}
 }
 
 func (r *recorderImpl) GetHandle(inner observer.HandleFunc) observer.HandleFunc {
@@ -68,6 +69,9 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView, contextKey u
 		timestamp = time.Now().Unix()
 	}
 	tagsView := sample.GetTags()
+	if h.recorder.filter != nil && h.recorder.filter.IsExcluded(sample) {
+		return
+	}
 	tags := make([]string, 0, tagsView.Len()+1)
 	tagsView.ForEach(func(tag string) { tags = append(tags, tag) })
 	if host := sample.GetHost(); host != "" && !slices.Contains(tags, "host:"+host) {
