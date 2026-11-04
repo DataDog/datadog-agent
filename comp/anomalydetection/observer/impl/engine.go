@@ -386,6 +386,15 @@ func (e *engine) registerHandle(h *handle) {
 	e.handlesMu.Unlock()
 }
 
+func (e *engine) flushFilteredMetrics() {
+	e.handlesMu.Lock()
+	defer e.handlesMu.Unlock()
+
+	for _, h := range e.handles {
+		h.flushFilteredMetrics()
+	}
+}
+
 // sourceTagForIngest returns "observer_source:<source>" with memoisation so
 // IngestLog / IngestMetric don't allocate a fresh string per ingest. The
 // source set is small and bounded; a copy-on-write map indexed via an

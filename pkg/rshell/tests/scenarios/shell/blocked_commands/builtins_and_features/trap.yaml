@@ -1,0 +1,12 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Trap builtin is intentionally blocked in the restricted shell.
+input:
+  script: |+
+    trap 'echo trapped' INT
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: trap: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

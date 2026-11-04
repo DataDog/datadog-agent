@@ -53,7 +53,7 @@ func readOneBatch(t *testing.T, pattern string, bloomColumns []string, check fun
 	require.NoError(t, err)
 	defer rr.Release()
 	require.True(t, rr.Next())
-	check(rr.Record())
+	check(rr.RecordBatch())
 	require.False(t, rr.Next())
 }
 

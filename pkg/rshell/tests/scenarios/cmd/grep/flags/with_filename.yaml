@@ -1,0 +1,16 @@
+description: grep -H forces filename prefix even for a single file.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -H foo file.txt
+expect:
+  stdout: |+
+    file.txt:foo
+  stderr: ""
+  exit_code: 0

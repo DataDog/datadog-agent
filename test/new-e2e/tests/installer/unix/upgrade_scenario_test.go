@@ -31,7 +31,7 @@ const (
 )
 
 type upgradeScenarioSuite struct {
-	packageBaseSuite
+	*packageBaseSuite
 }
 
 type packageEntry struct {
@@ -79,8 +79,9 @@ const (
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
+	baseSuite := newPackageSuite("upgrade_scenario", os, arch, method)
 	return &upgradeScenarioSuite{
-		packageBaseSuite: newPackageSuite("upgrade_scenario", os, arch, method),
+		packageBaseSuite: &baseSuite,
 	}
 }
 

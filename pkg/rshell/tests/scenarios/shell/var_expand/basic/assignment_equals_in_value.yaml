@@ -1,0 +1,10 @@
+description: Assignment value can contain equals signs.
+input:
+  script: |+
+    KEY="a=b=c"
+    echo "$KEY"
+expect:
+  stdout: |+
+    a=b=c
+  stderr: ""
+  exit_code: 0

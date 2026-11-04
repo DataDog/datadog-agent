@@ -1,4 +1,6 @@
 *                                    @DataDog/agent-devx
+observer-ablation-ddeval              @DataDog/agent-anomaly-detection
+observer-ablation-driver-tests        @DataDog/agent-anomaly-detection
 
 # CI / DevX
 test_and_lint_gitlab_configuration   @DataDog/agent-devx
@@ -31,6 +33,7 @@ tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
 tests_serverless-init*                  @DataDog/serverless-azure-and-gcp
 security_go_generate_check              @DataDog/agent-security
 new_e2e_scenario_imports_check          @DataDog/fleet-remediation
+rshell:*                              @DataDog/fleet-remediation
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 test_kmt_local_setup*                   @DataDog/ebpf-platform
@@ -110,6 +113,9 @@ deploy_fips_proxy_testing*           @DataDog/agent-devx
 
 # Image build
 docker_build*                        @DataDog/agent-build
+docker_sign_agent7_windows           @DataDog/agent-build
+docker_sign_fips_agent7_windows      @DataDog/agent-build
+docker_sign_fakeintake               @DataDog/agent-devx
 
 # Image scan
 scan_*                               @Datadog/agent-delivery

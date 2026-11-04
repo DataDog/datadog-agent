@@ -1,0 +1,22 @@
+description: |+
+  Bash treats bare `+` as a zero-timeout poll, identical to `0`,
+  `+0`, `""`, `.`, and `+.`. Compatible scripts that pass an
+  unsigned dynamic timeout that collapses to a lone `+` rely on
+  this. Verified empirically against bash 5.2.21:
+    printf x | { read -t + v; read rest; }
+      → rc=0, v="", rest="x"
+setup:
+  files:
+    - path: data.txt
+      content: |
+        hello
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    read -t + X < data.txt
+    echo "rc=$?"
+expect:
+  stdout: |+
+    rc=0
+  stderr: ""
+  exit_code: 0

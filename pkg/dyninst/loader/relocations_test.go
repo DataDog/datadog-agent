@@ -19,16 +19,18 @@ import (
 )
 
 // TestRelocationAreOnlyPtRegs tests that the relocation metadata is only
-// present for pt_regs offsets.
+// present for register offsets, which stripRelocations relies on.
 func TestRelocationAreOnlyPtRegs(t *testing.T) {
 	// The relocation metadata doesn't have a rich API but it has a nice
 	// String() method we can use to introspect the contents and validate that
 	// it matches our expectations.
 	//
 	// For different architectures there's a different index path because of
-	// the structure of the pt_regs struct.
+	// the structure of the pt_regs struct. Registers are read either from the
+	// probe's context (struct pt_regs) or from the copy of its user-visible
+	// registers (bpf_user_pt_regs_t).
 	const reloRegex = `CORERelocation\(byte_off, ` +
-		`Struct:"pt_regs"\[0(:[[:digit:]]+)+\], ` +
+		`(Struct:"pt_regs"|Typedef:"bpf_user_pt_regs_t")\[0(:[[:digit:]]+)+\], ` +
 		`local_id=[[:digit:]]+\)`
 	for _, debug := range []bool{true, false} {
 		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {

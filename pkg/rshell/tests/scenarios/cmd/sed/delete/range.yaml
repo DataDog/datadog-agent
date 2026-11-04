@@ -1,0 +1,13 @@
+description: The d command deletes a range of lines.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\nline4\nline5\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2,4d' input.txt
+expect:
+  stdout: "line1\nline5\n"
+  stderr: ""
+  exit_code: 0

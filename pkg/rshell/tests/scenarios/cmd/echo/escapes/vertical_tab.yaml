@@ -1,0 +1,8 @@
+description: Echo -e with \v (vertical tab) escape sequence.
+input:
+  script: |+
+    echo -e '\v'
+expect:
+  stdout: "\v\n"
+  stderr: ""
+  exit_code: 0

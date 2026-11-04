@@ -1,0 +1,13 @@
+description: uniq -c shows count of 2 for duplicate lines.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -c input.txt
+expect:
+  stdout: "      2 a\n"
+  stderr: ""
+  exit_code: 0
