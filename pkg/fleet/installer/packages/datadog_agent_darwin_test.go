@@ -73,13 +73,13 @@ func stubUninstall(t *testing.T) *[][]string {
 	t.Helper()
 
 	var commands [][]string
-	originalLayout, originalCommand := defaultUninstallLayout, uninstallCommand
+	originalLayout, originalCommand := defaultUninstallLayout, hostCommand
 	defaultUninstallLayout = uninstallLayout{}
-	uninstallCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+	hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		commands = append(commands, append([]string{name}, args...))
 		return nil, nil
 	}
-	t.Cleanup(func() { defaultUninstallLayout, uninstallCommand = originalLayout, originalCommand })
+	t.Cleanup(func() { defaultUninstallLayout, hostCommand = originalLayout, originalCommand })
 	return &commands
 }
 
@@ -106,7 +106,42 @@ func stubInstallerState(t *testing.T) string {
 	t.Cleanup(func() {
 		packagesRoot, ensureInstallerDataDir = originalRoot, originalEnsure
 	})
+	stubDmgLayout(t)
 	return root
+}
+
+// stubDmgLayout points the .dmg install steps at a temporary install, with the example
+// configuration the payload ships, and makes them chown to the current user, run no commands and
+// never sleep.
+func stubDmgLayout(t *testing.T) dmgLayout {
+	t.Helper()
+
+	root := t.TempDir()
+	layout := dmgLayout{
+		installDir:      filepath.Join(root, "opt", "datadog-agent"),
+		applicationsDir: filepath.Join(root, "Applications"),
+		logLink:         filepath.Join(root, "var", "log", "datadog"),
+		stagingDir:      filepath.Join(root, "staging"),
+		linkDir:         filepath.Join(root, "usr", "local", "bin"),
+		launchAgentsDir: filepath.Join(root, "LaunchAgents"),
+		usersDir:        filepath.Join(root, "Users"),
+		consoleDevice:   filepath.Join(root, "console"),
+		packagesDir:     filepath.Join(root, "datadog-packages"),
+		packagesRunDir:  filepath.Join(root, "datadog-packages", "run"),
+	}
+	for _, dir := range []string{layout.confDir(), layout.applicationsDir, layout.launchAgentsDir, layout.usersDir} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), "datadog.yaml.example"), []byte("api_key:\n# site: datadoghq.com\n"), 0o644))
+	require.NoError(t, os.WriteFile(layout.consoleDevice, nil, 0o600))
+
+	originalLayout, originalOwner, originalSleep := defaultDmgLayout, lookupOwner, sleep
+	defaultDmgLayout = layout
+	lookupOwner = func(string, string) (int, int, error) { return os.Getuid(), os.Getgid(), nil }
+	sleep = func(time.Duration) {}
+	t.Cleanup(func() { defaultDmgLayout, lookupOwner, sleep = originalLayout, originalOwner, originalSleep })
+	stubUninstall(t)
+	return layout
 }
 
 // withVersions stamps the two version symbols a real build sets through ldflags, so a test can
@@ -592,7 +627,7 @@ func TestUninstallRemovesTheInstall(t *testing.T) {
 	commands := stubUninstall(t)
 	current, err := user.Current()
 	require.NoError(t, err)
-	uninstallCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+	hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		*commands = append(*commands, append([]string{name}, args...))
 		if name == "who" {
 			return []byte(current.Username + " console  Nov  4 09:00\n" + current.Username + " ttys000  Nov  4 09:01\n"), nil

@@ -135,18 +135,21 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	}
 }
 
-// postInstallDMG is the part of the post-install the .dmg's postinstall script delegates to
-// `installer postinst datadog-agent dmg`: registering the Agent as a package and loading the stable
-// job set.
-//
-// The script creates the account and the directories, with their ownership, modes and access
-// control lists, and writes the install info itself, so none of that happens here.
+// postInstallDMG is the post-install the .dmg's postinstall script delegates to
+// `installer postinst datadog-agent dmg`: setting up the account, directories, configuration,
+// application and links (setUpDMGInstall), registering the Agent as a package, loading the stable
+// job set, and installing the GUI LaunchAgents (startDMGGUI). The script only loads the Agent's
+// LaunchDaemons itself when the installer is missing or fails.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
 // without the Agent's version, and must not also leave the Agent stopped.
 func postInstallDMG(ctx HookContext) error {
 	var errs []error
+	env := readInstallEnv(defaultDmgLayout)
+	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
+		errs = append(errs, err)
+	}
 	// The installer daemon keeps its state in its own root-owned run directory, never in the
 	// Agent's. Create it, or repair it, before the daemon is loaded below.
 	if err := ensureInstallerDataDir(); err != nil {
@@ -158,6 +161,7 @@ func postInstallDMG(ctx HookContext) error {
 	if err := installStableJobs(ctx); err != nil {
 		errs = append(errs, err)
 	}
+	startDMGGUI(ctx, defaultDmgLayout, env)
 	return errors.Join(errs...)
 }
 
@@ -323,9 +327,9 @@ var defaultUninstallLayout = uninstallLayout{
 	},
 }
 
-// uninstallCommand runs the launchctl, pkill and who commands the uninstall needs. Indirected so the
-// hook tests can run without them.
-var uninstallCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+// hostCommand runs the system commands the install and uninstall need: launchctl, dscl, chmod,
+// pkill, who and the like. Indirected so the hook tests can run without them.
+var hostCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return telemetry.CommandContext(ctx, name, args...).Output()
 }
 
@@ -335,11 +339,11 @@ var uninstallCommand = func(ctx context.Context, name string, args ...string) ([
 func uninstallAgent(ctx context.Context, layout uninstallLayout) {
 	for _, uid := range loggedInUIDs(ctx) {
 		for _, label := range layout.guiLabels {
-			_, _ = uninstallCommand(ctx, "launchctl", "bootout", "gui/"+uid+"/"+label)
+			_, _ = hostCommand(ctx, "launchctl", "bootout", "gui/"+uid+"/"+label)
 		}
 	}
 	for _, pattern := range layout.processPatterns {
-		_, _ = uninstallCommand(ctx, "pkill", "-f", pattern)
+		_, _ = hostCommand(ctx, "pkill", "-f", pattern)
 	}
 	// os.RemoveAll removes a link itself rather than what it points to.
 	for _, path := range layout.paths {
@@ -352,7 +356,7 @@ func uninstallAgent(ctx context.Context, layout uninstallLayout) {
 // loggedInUIDs returns the uids of the users with a login session, whose GUI domains hold the
 // Agent's LaunchAgents.
 func loggedInUIDs(ctx context.Context) []string {
-	out, err := uninstallCommand(ctx, "who")
+	out, err := hostCommand(ctx, "who")
 	if err != nil {
 		log.Warnf("could not list logged-in users: %v", err)
 		return nil
