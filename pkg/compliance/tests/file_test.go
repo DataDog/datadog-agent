@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -323,5 +324,157 @@ findings[f] {
 }
 `).
 		AssertPassedEvent(nil).
+		AssertPassedEvent(nil)
+}
+
+func TestFileUnreadable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file of mode 0")
+	}
+	b := newTestBench(t)
+	defer b.Run()
+
+	path := b.WriteTempFile(t, "secret")
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	b.AddRule("UnreadableNoParser").
+		WithInput(`
+- file:
+		path: %s
+`, path).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	input.file.content == ""
+	input.file.permissions == 0
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertPassedEvent(nil)
+
+	b.AddRule("UnreadableRaw").
+		WithInput(`
+- file:
+		path: %s
+		parser: raw
+`, path).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+has_key(o, k) {
+	_ := o[k]
+}
+
+findings[f] {
+	not has_key(input, "file")
+	f := dd.failing_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertFailedEvent(nil)
+}
+
+// makeHostRoot returns a host root whose var/run links to /run with an
+// absolute target, as on Ubuntu, holding run/cmp/a, run/cmp/b and etc/cmp.
+func makeHostRoot(t *testing.T) string {
+	root := t.TempDir()
+	for _, d := range []string{"var", "run/cmp", "etc"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("/run", filepath.Join(root, "var/run")); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{"run/cmp/a": "alpha", "run/cmp/b": "beta", "etc/cmp": "inside"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func TestFileHostRoot(t *testing.T) {
+	b := newTestBench(t).WithHostRoot(makeHostRoot(t))
+	defer b.Run()
+
+	b.AddRule("AbsoluteLink").
+		WithInput(`
+- file:
+		path: /var/run/cmp/a
+		parser: raw
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	input.file.content == "alpha"
+	input.file.path == "/var/run/cmp/a"
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertPassedEvent(nil)
+
+	b.AddRule("AbsoluteLinkGlob").
+		WithInput(`
+- file:
+		path: /var/run/cmp/*
+		parser: raw
+	type: array
+	tag: files
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	count(input.files) == 2
+	input.files[_].path == "/var/run/cmp/a"
+	input.files[_].content == "beta"
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertPassedEvent(nil)
+
+	b.AddRule("DotDot").
+		WithInput(`
+- file:
+		path: /../../etc/cmp
+		parser: raw
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	input.file.content == "inside"
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
 		AssertPassedEvent(nil)
 }

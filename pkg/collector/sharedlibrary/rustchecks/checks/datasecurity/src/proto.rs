@@ -11,6 +11,8 @@ pub mod datadog {
         include!(concat!(env!("OUT_DIR"), "/datadog.sds.rs"));
     }
 }
+#[cfg(not(bazel))]
+pub use prost_types::Timestamp;
 
 #[cfg(bazel)]
 pub mod datadog {
@@ -18,6 +20,8 @@ pub mod datadog {
         pub use sds_proto::datadog::sds::*;
     }
 }
+#[cfg(bazel)]
+pub use timestamp_proto::google::protobuf::Timestamp;
 
 // Proto types the check assembles directly.
 pub use datadog::sds::{

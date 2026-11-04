@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,7 +25,7 @@ func init() { registerModule(NoisyNeighbor) }
 
 // NoisyNeighbor Factory
 var NoisyNeighbor = &module.Factory{
-	Name: config.NoisyNeighborModule,
+	Name: sysconfigtypes.NoisyNeighborModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the noisy neighbor module")
 		p, err := noisyneighbor.NewProbe(ebpf.NewConfig())

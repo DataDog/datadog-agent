@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -38,6 +39,7 @@ from tasks.libs.common.utils import (
     get_repo_root,
     gitlab_section,
     running_in_ci,
+    running_in_gitlab_ci,
 )
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -49,7 +51,15 @@ from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
-from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
+from tasks.tools.e2e_stacks import (
+    CI_STACK_PREFIX,
+    FINAL_UNUSED_JOB_STATUSES,
+    destroy_remote_stack_api,
+    destroy_remote_stack_local,
+    init_job_consumers,
+    read_recorded_stacks,
+    stacks_cleanup_reason,
+)
 
 DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
@@ -220,6 +230,32 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
     return True
 
 
+def _install_windows_testsuites(module_name: str, targets: list[str]) -> None:
+    """Install the Windows test suites of the target packages where their e2e tests expect them, under `artifacts`.
+
+    Suites incompatible with the host, i.e. on anything but Linux x86_64, are left out.
+    Transitional, until e2e tests run through `bazel run` with the suites as their `data`.
+    """
+    prefixes = {
+        f"{module_name}/{path}" if (path := target.removesuffix("...").strip("./")) else module_name
+        for target in targets
+    } or {module_name}
+    for package in bazel(
+        "cquery",
+        f'attr(name, "^install_windows_testsuites$", //{module_name}/...)',
+        "--output=starlark",
+        "--starlark:expr='' if 'IncompatiblePlatformProvider' in providers(target) else target.label.package",
+        capture_output=True,
+    ).split():
+        if any(package == prefix or package.startswith(f"{prefix}/") for prefix in prefixes):
+            bazel(
+                "run",
+                f"//{package}:install_windows_testsuites",
+                "--",
+                f"--destdir={get_repo_root() / package / 'artifacts'}",
+            )
+
+
 # Buffer subtracted from the remaining GitLab job time to derive the go test
 # timeout. It gives the test framework (TearDownSuite: pulumi destroy, cluster
 # state dump, dashboard URL log) a window to run after go test panics on its
@@ -332,7 +368,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of building them on the fly, then execute them with gotestsum",
-        "max_retries": "Maximum number of retries for failed tests, default 3",
+        "max_retries": "Maximum number of retries for failed tests, only in e2e CI jobs where the job after_script cleans up the stacks",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
@@ -562,6 +598,8 @@ def run(
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
+    _install_windows_testsuites(module_name, targets)
+
     if use_bazel_built_binaries:
         if not _build_binaries_with_bazel(ctx, targets):
             print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
@@ -608,7 +646,12 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    to_teardown: set[tuple[str, str]] = set()
+    if max_retries and not _stacks_cleaned_up_by_job():
+        # Retries reuse the stacks of the failed tests, which are only kept until the end of the run when the
+        # CI job after_script cleans them up
+        print(color_message("Retries are only supported in e2e CI jobs, disabling them", Color.ORANGE))
+        max_retries = 0
+
     result_jsons: list[str] = []
     result_junits: list[str] = []
     for attempt in range(max_retries + 1):
@@ -617,11 +660,6 @@ def run(
         args["timeout"] = _compute_go_test_timeout(timeout)
 
         remaining_tries = max_retries - attempt
-        if remaining_tries > 0:
-            # If any tries are left, avoid destroying infra on failure
-            env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
-        else:
-            env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
 
         if keep_stack is True:
             env_vars["E2E_DEV_MODE"] = "true"
@@ -671,8 +709,6 @@ def run(
                         "yellow",
                     )
                 )
-                # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
-                to_teardown.update(known_flaky_failures)
 
             if to_retry:
                 failed_tests_printout = '\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))
@@ -692,33 +728,6 @@ def run(
                 args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_retry])
             else:
                 break
-
-    # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
-    # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
-    if to_teardown:
-        print(
-            color_message(
-                f"Tearing down {len(to_teardown)} leftover test infras",
-                "yellow",
-            )
-        )
-        affected_packages = {
-            os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
-        }
-        e2e_module.test_targets = list(affected_packages)
-        args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_teardown])
-        env_vars["E2E_TEARDOWN_ONLY"] = "true"
-        test_flavor(
-            ctx,
-            flavor=AgentFlavor.base,
-            build_tags=tags,
-            modules=[e2e_module],
-            args=args,
-            cmd=cmd,
-            env=env_vars,
-            result_junit="",  # No need to store JUnit results for teardown-only runs
-            result_json="",  # No need to store results for teardown-only runs
-        )
 
     # Merge all the partial result JSON files into the final result JSON
     with open(result_json, "w") as merged_file:
@@ -932,6 +941,52 @@ def cleanup_remote_stacks(ctx, stack_regex):
         print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
         print(f"Failed to destroy stack {stack}")
+
+
+def _stacks_cleaned_up_by_job() -> bool:
+    """Returns True if the stacks are cleaned up by the GitLab job after_script (`cleanup_job_stacks`) rather than by the tests."""
+    return running_in_gitlab_ci() and os.getenv("REMOTE_STACK_CLEANING") == "true"
+
+
+@task
+def cleanup_job_stacks(ctx):
+    """
+    Request the cleanup of the stacks recorded by the current e2e CI job, except the stacks an init job keeps for
+    the jobs consuming them. Meant to run in the job after_script.
+    """
+    if not running_in_ci():
+        raise Exit("This task is meant to run in an e2e CI job after_script", code=1)
+
+    stacks = read_recorded_stacks(os.environ["E2E_OUTPUT_DIR"])
+    if not stacks:
+        print("No stack recorded by the job, nothing to clean up")
+        return
+
+    job_status = os.environ["CI_JOB_STATUS"]
+    init_only = os.getenv("E2E_INIT_ONLY") == "true"
+    # An init job keeps its stacks for the jobs consuming them, unless it was canceled
+    if init_only and job_status != "canceled":
+        jobs = get_gitlab_repo().pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True).jobs.list(all=True)
+        consumers = init_job_consumers(os.environ["CI_JOB_NAME"], jobs)
+        if not consumers:
+            print(color_message(f"No job consuming the stacks of {os.environ['CI_JOB_NAME']} found", Color.ORANGE))
+        active_consumers = [job for job in consumers if job.status not in FINAL_UNUSED_JOB_STATUSES]
+        if active_consumers:
+            print(f"Keeping stacks {', '.join(stacks)} for {', '.join(job.name for job in active_consumers)}")
+            return
+
+    reason = stacks_cleanup_reason(job_status, init_only)
+    print(f"Requesting the cleanup of stacks {', '.join(stacks)}, because {reason.value}")
+    # The job may have been interrupted during a Pulumi operation, leaving the stack locked.
+    # No context is passed, each thread builds its own as invoke contexts are not thread-safe.
+    with ThreadPoolExecutor() as executor:
+        results = executor.map(
+            lambda stack: destroy_remote_stack_api(CI_STACK_PREFIX + stack, cancel_first=True), stacks
+        )
+        for exit_code, stdout, stderr, stack in results:
+            print(f"Stack {stack}: {stdout} {stderr}")
+            if exit_code != 0:
+                print(color_message(f"Failed to request the cleanup of stack {stack}", Color.RED))
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:

@@ -45,8 +45,9 @@ func nvlinkErrorCounterSample(device ddnvml.Device, metricName string, counter n
 }
 
 // createNVLinkStatelessAPIs creates the API calls for the NVLink stateless collector, spawning multiple simple collectors
-// for each API call and port.
-func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
+// for each API call and port. A permission error on all the ports of an API is returned so that the creation of the
+// collector can be retried.
+func createNVLinkStatelessAPIs(device ddnvml.Device) ([]apiCallInfo, error) {
 	nvlinkAPICalls := []nvlinkAPICallInfo{
 		{
 			Name: "nvlink_error_dl_replay",
@@ -86,6 +87,9 @@ func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
 			if errors.Is(err, errUnsupportedDevice) {
 				continue
 			}
+			if len(ports) == 0 && ddnvml.IsNoPermission(err) {
+				return nil, fmt.Errorf("get supported nvlink ports for %s: %w", nvlinkAPICall.Name, err)
+			}
 
 			log.Warnf("error getting supported nvlink ports for %s: %v", nvlinkAPICall.Name, err)
 		}
@@ -100,9 +104,13 @@ func createNVLinkStatelessAPIs(device ddnvml.Device) []apiCallInfo {
 		}
 	}
 
-	return apiCalls
+	return apiCalls, nil
 }
 
 func newNVLinkStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(nvlinkStateless, device, createNVLinkStatelessAPIs(device))
+	apiCalls, err := createNVLinkStatelessAPIs(device)
+	if err != nil {
+		return nil, err
+	}
+	return NewBaseCollector(nvlinkStateless, device, apiCalls)
 }

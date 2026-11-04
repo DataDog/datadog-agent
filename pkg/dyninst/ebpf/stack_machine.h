@@ -5,6 +5,7 @@
 #include "compiler.h"
 #include "context.h"
 #include "debug.h"
+#include "dwarf_regs.h"
 #include "framing.h"
 #include "scratch.h"
 #include "types.h"
@@ -3172,57 +3173,13 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // garbage pointers in any subsequent enqueue logic (because we don't
       // chase zero values).
     } else {
+#define SM_READ_ARG_REG(n)                                                     \
+  case n:                                                                      \
+    *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(n);             \
+    break;
       switch (regnum) {
-      // We need to switch over the regnum, as DWARF_REGISTER macro for amd64 requires
-      // paramter to be a literal number.
-      case 0:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(0);
-        break;
-      case 1:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(1);
-        break;
-      case 2:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(2);
-        break;
-      case 3:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(3);
-        break;
-      case 4:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(4);
-        break;
-      case 5:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(5);
-        break;
-      case 6:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(6);
-        break;
-      case 7:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(7);
-        break;
-      case 8:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(8);
-        break;
-      case 9:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(9);
-        break;
-      case 10:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(10);
-        break;
-      case 11:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(11);
-        break;
-      case 12:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(12);
-        break;
-      case 13:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(13);
-        break;
-      case 14:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(14);
-        break;
-      case 15:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(15);
-        break;
+        DWARF_ARG_REGS(SM_READ_ARG_REG)
+#undef SM_READ_ARG_REG
       default:
         LOG(2, "unknown register: %d", regnum);
         return 1;

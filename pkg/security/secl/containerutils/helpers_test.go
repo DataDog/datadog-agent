@@ -85,6 +85,18 @@ func TestFindContainerID(t *testing.T) {
 			input:  "/kubepods/besteffort/pod8bbdd97b-f902-4e16-8235-4ac18307cef6/09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
 			output: "09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6",
 		},
+		{ // containerd service
+			input:  "/runtime.slice/containerd.service",
+			output: "",
+		},
+		{ // pod slice
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice",
+			output: "",
+		},
+		{ // nested container cgroup
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice/cri-containerd-7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17.scope/init.scope",
+			output: "7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17",
+		},
 		{ // nested containers: the innermost wins
 			input:  "/docker/0123456789012345678901234567890123456789012345678901234567890123/docker/aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
@@ -157,5 +169,83 @@ func TestFindPodUID(t *testing.T) {
 	for _, test := range testCases {
 		podUID := FindPodUID(CGroupID(test.input))
 		assert.Equal(t, test.output, podUID)
+	}
+}
+
+func TestFindECSTaskID(t *testing.T) {
+	testCases := []testCase{
+		{ // cgroup v1
+			input:  "/ecs/409b8b89ccd746bdb9b5e03418406d96/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "409b8b89ccd746bdb9b5e03418406d96",
+		},
+		{ // task cgroup nested below another cgroup
+			input:  "/systemd/ecs/409b8b89ccd746bdb9b5e03418406d96/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "409b8b89ccd746bdb9b5e03418406d96",
+		},
+		{ // cgroup v1, legacy ARN format
+			input:  "/ecs/4a1b2c3d-5e6f-7a8b-9c0d-1e2f3a4b5c6d/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "4a1b2c3d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+		},
+		{ // cgroup v2
+			input:  "/ecstasks.slice/ecstasks-409b8b89ccd746bdb9b5e03418406d96.slice/docker-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "409b8b89ccd746bdb9b5e03418406d96",
+		},
+		{ // cgroup v2, legacy ARN format: systemd nests a slice per dash of the slice name
+			input:  "/ecstasks.slice/ecstasks-4a1b2c3d.slice/ecstasks-4a1b2c3d-5e6f.slice/ecstasks-4a1b2c3d-5e6f-7a8b.slice/ecstasks-4a1b2c3d-5e6f-7a8b-9c0d.slice/ecstasks-4a1b2c3d-5e6f-7a8b-9c0d-1e2f3a4b5c6d.slice/docker-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "4a1b2c3d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+		},
+		{ // task cgroup without a container
+			input:  "/ecs/409b8b89ccd746bdb9b5e03418406d96",
+			output: "409b8b89ccd746bdb9b5e03418406d96",
+		},
+		{ // normalized to lowercase
+			input:  "/ecs/409B8B89CCD746BDB9B5E03418406D96/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "409b8b89ccd746bdb9b5e03418406d96",
+		},
+		{ // the innermost task wins, like FindContainerID does for container IDs
+			input:  "/ecs/11111111111111111111111111111111/ecs/22222222222222222222222222222222/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "22222222222222222222222222222222",
+		},
+		{ // docker container outside of an ECS task, like the ECS agent itself
+			input:  "/docker/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "",
+		},
+		{
+			input:  "/system.slice/docker-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "",
+		},
+		{
+			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "",
+		},
+		{ // the parent segment must be exactly "ecs"
+			input:  "/notecs/409b8b89ccd746bdb9b5e03418406d96/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "",
+		},
+		{ // truncated task ID
+			input:  "/ecs/409b8b89ccd746bdb9b5e03418406d9/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+			output: "",
+		},
+		{
+			input:  "/ecs/agent",
+			output: "",
+		},
+		{ // a task slice always has the .slice suffix
+			input:  "/ecstasks.slice/ecstasks-409b8b89ccd746bdb9b5e03418406d96.scope",
+			output: "",
+		},
+		{
+			input:  "/ecstasks.slice",
+			output: "",
+		},
+		{
+			input:  "",
+			output: "",
+		},
+	}
+
+	for _, test := range testCases {
+		taskID := FindECSTaskID(CGroupID(test.input))
+		assert.Equal(t, test.output, taskID, test.input)
 	}
 }

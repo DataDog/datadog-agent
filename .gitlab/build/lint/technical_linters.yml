@@ -10,7 +10,7 @@ lint_licenses:
     - dda inv -- -e lint-licenses
 
 lint_rust_licenses:
-  extends: .lint
+  extends: [.lint, .rust_internal_registry]
   script:
     - dda inv -- -e lint-rust-licenses
 

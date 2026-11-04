@@ -110,7 +110,7 @@ func TestApplyTestbenchDefaults(t *testing.T) {
 	require.NotContains(t, settings.Enabled, "time_cluster")
 	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
 	require.True(t, scorer.CorrelationEvents)
-	require.Zero(t, scorer.CooldownSecs)
+	require.Equal(t, DefaultAnomalyScorerConfig().CooldownSecs, scorer.CooldownSecs)
 }
 
 func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
@@ -118,7 +118,7 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 		"bocpd":          json.RawMessage(`{"warmup_points": 42}`),
 		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84}`),
 		"scanwelch":      json.RawMessage(`{"min_points": 42, "max_points": 84}`),
-		"anomaly_scorer": json.RawMessage(`{"enabled":false}`),
+		"anomaly_scorer": json.RawMessage(`{"enabled":false,"cooldown_secs":0}`),
 		"time_cluster":   json.RawMessage(`{"enabled":true}`),
 	})
 	require.NoError(t, err)
@@ -132,6 +132,7 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	require.Equal(t, 42, scanWelch.MinPoints)
 	require.Equal(t, 84, scanWelch.MaxPoints)
 	require.False(t, settings.Enabled["anomaly_scorer"])
+	require.Zero(t, settings.configs["anomaly_scorer"].(AnomalyScorerConfig).CooldownSecs)
 	require.True(t, settings.Enabled["time_cluster"])
 }
 

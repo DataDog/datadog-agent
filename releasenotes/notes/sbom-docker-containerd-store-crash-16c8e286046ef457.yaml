@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a crash of the Agent when ``sbom.container_image.overlayfs_direct_scan``
+    is enabled and Docker keeps its images in the containerd image store, the
+    default for new installations of Docker Engine 29. The Agent now scans
+    such images by exporting them.

@@ -190,8 +190,8 @@ static void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum 
    dentry_resolver_kern_recursive(ctx, prog_type, &syscall->resolver);
 }
 
-static __always_inline struct dentry_resolver_input_t *peek_task_resolver_inputs(u64 pid_tgid, u64 event_type) {
-    struct dentry_resolver_input_t *inputs = (struct dentry_resolver_input_t *)bpf_map_lookup_elem(&dentry_resolver_inputs, &pid_tgid);
+static __always_inline struct dentry_resolver_input_t *peek_resolver_inputs(u64 event_type) {
+    struct dentry_resolver_input_t *inputs = get_dentry_resolver_input();
     if (!inputs) {
         return NULL;
     }
@@ -199,11 +199,6 @@ static __always_inline struct dentry_resolver_input_t *peek_task_resolver_inputs
         return inputs;
     }
     return NULL;
-}
-
-static __always_inline struct dentry_resolver_input_t *peek_resolver_inputs(u64 event_type) {
-    u64 key = bpf_get_current_pid_tgid();
-    return peek_task_resolver_inputs(key, event_type);
 }
 
 static __always_inline void dentry_resolver_kern_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {

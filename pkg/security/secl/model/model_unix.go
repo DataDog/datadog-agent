@@ -880,8 +880,9 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File FileEvent `field:"file"` // File pointing to the cgroup
-	Pid  uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
+	File   FileEvent `field:"file"` // File pointing to the cgroup
+	Pid    uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
+	Retval int32     `field:"-"`
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
@@ -967,13 +968,10 @@ type VethPairEvent struct {
 	PeerDevice NetDevice
 }
 
-// SyscallsEvent carries either a drain bitmap or a sample first-hit,
-// discriminated by EventReason.
+// SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	EventReason  SyscallDriftEventReason
-	Syscalls     []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-	SyscallID    uint32    // populated iff EventReason == SampleReason
-	SampleCookie uint64    // populated iff EventReason == SampleReason
+	EventReason SyscallDriftEventReason
+	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
 // PathKey identifies an entry in the dentry cache

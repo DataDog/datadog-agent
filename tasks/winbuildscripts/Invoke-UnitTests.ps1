@@ -82,11 +82,6 @@ Invoke-BuildScript `
         # Add the dev\lib directory to the PATH so that the go tests can find the rtloader DLL
         # TODO: This is a weird way to load the rtloader DLLs
         $env:PATH="$(Get-Location)\dev\lib;$env:PATH"
-        # Create ddagentuser for secrets tests if it doesn't already exist
-        if (-not (Get-LocalUser -Name "ddagentuser" -ErrorAction SilentlyContinue)) {
-            $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
-            New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
-        }
         # Generate the datadog.yaml config file to be used in integration tests
         & dda inv -- -e schema.template --schema=./pkg/config/schema/yaml/core_schema.yaml --build-type=datadog-agent --os-target=windows --output=./datadog.yaml
         # Build inputs needed for go builds

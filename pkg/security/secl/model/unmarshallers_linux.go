@@ -1063,7 +1063,8 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.Pid = binary.NativeEndian.Uint32(data[read : read+4])
-	read += 4
+	e.Retval = int32(binary.NativeEndian.Uint32(data[read+4 : read+8]))
+	read += 8
 
 	return read, nil
 }
@@ -1429,18 +1430,11 @@ func (e *OTelProcessCtxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself.
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 88 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
-
-	if e.EventReason == SampleReason {
-		e.SyscallID = binary.NativeEndian.Uint32(data[72:76])
-		// data[76:80] is C struct padding to 8-align the u64 sample_cookie
-		e.SampleCookie = binary.NativeEndian.Uint64(data[80:88])
-		return 88, nil
-	}
 
 	for i, b := range data[8:72] {
 		// compute the ID of the syscall
@@ -1450,7 +1444,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 88, nil
+	return 72, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

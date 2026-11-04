@@ -4,6 +4,8 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
+wine_wmc_repository = use_repo_rule("//bazel/tools/wmc:wine_wmc.bzl", "wine_wmc_repository")
+
 env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
 
 # Environment values available for packaging.
@@ -75,30 +77,39 @@ archive_override(
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply-chain-go-0.0.11/supply-chain-go-0.0.11.tar.gz",
 )
 
-bazel_dep(name = "apple_support", version = "2.10.1")  # provides --platforms=@apple_support//platforms:macos_x86_64
-bazel_dep(name = "bazel_features", version = "1.52.0")
+bazel_dep(name = "apple_support", version = "2.11.0")  # provides --platforms=@apple_support//platforms:macos_x86_64
+bazel_dep(name = "bazel_features", version = "1.53.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
-bazel_dep(name = "gawk", version = "5.4.0.bcr.3")
+bazel_dep(name = "gawk", version = "5.4.0.bcr.4")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
-bazel_dep(name = "llvm", version = "0.8.25")
+bazel_dep(name = "llvm", version = "0.8.26")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.4.1")
-bazel_dep(name = "rules_cc", version = "0.2.26")
+bazel_dep(name = "rules_bison", version = "0.4.bcr.1")
+bazel_dep(name = "rules_cc", version = "0.2.27")
 bazel_dep(name = "rules_flex", version = "0.4.1")
-bazel_dep(name = "rules_foreign_cc", version = "0.16.0")
-bazel_dep(name = "rules_go", version = "0.64.2")
+bazel_dep(name = "rules_foreign_cc", version = "0.17.0")
+bazel_dep(name = "rules_go", version = "0.65.0")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.3.0")
-bazel_dep(name = "rules_python", version = "2.4.2")
-bazel_dep(name = "rules_rs", version = "0.0.27")
-bazel_dep(name = "rules_rust", version = "0.74.0")
-bazel_dep(name = "rules_rust_prost", version = "0.74.0")
+bazel_dep(name = "rules_python", version = "2.4.5")
+bazel_dep(name = "rules_rs", version = "0.1.3")
 bazel_dep(name = "rules_shell", version = "0.8.0")
+
+# hermeticbuild/rules_wine v0.1.2 is not on the BCR yet.
+bazel_dep(name = "rules_wine", version = "0.1.2")
+archive_override(
+    module_name = "rules_wine",
+    sha256 = "e9905d00ce0dc5ca2b4c665d2cd6e632dd68d535de780b6c1aefda0d827888bf",
+    strip_prefix = "rules_wine-0.1.2",
+    urls = ["https://github.com/hermeticbuild/rules_wine/archive/refs/tags/v0.1.2.tar.gz"],
+)
+
 bazel_dep(name = "toml.bzl", version = "0.5.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 bazel_dep(name = "with_cfg.bzl", version = "1.0.1")
@@ -141,12 +152,22 @@ single_version_override(
     ],
 )
 
-# Temporary until rules_pkg > 1.3.0 is in BCR
+# Fork of rules_pkg main carrying bazelbuild/rules_pkg#1089 (pkg_rpm
+# rpm_own_tree_dirs). Go back to upstream main once it's merged.
 archive_override(
     module_name = "rules_pkg",
-    sha256 = "4ee2a57a0adbb5c70d9b180ea40167093ba7b890d5ac4bdd50fd45c89db92697",
-    strip_prefix = "rules_pkg-ad778d2f59b297486933936242cedbb0b5521d8d",
-    urls = ["https://github.com/bazelbuild/rules_pkg/archive/ad778d2f59b297486933936242cedbb0b5521d8d.tar.gz"],  # main as of Oct 10, 2026
+    sha256 = "05ba3462560329bf6757b4369c238d6997f418e3eda3db0da41db3c6e939a8fb",
+    strip_prefix = "rules_pkg-a0fea16700948eeefc885f23200e8e52d5e914eb",
+    urls = ["https://github.com/chouquette/rules_pkg/archive/a0fea16700948eeefc885f23200e8e52d5e914eb.tar.gz"],
+)
+
+single_version_override(
+    module_name = "rules_rs",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_rs-windows-gnu.patch",
+    ],
+    version = "0.1.3",
 )
 
 ##########################################
@@ -185,6 +206,11 @@ register_toolchains(
     "//bazel/toolchains/dd_strip:linux_toolchain",
     "//bazel/toolchains/dd_strip:macos_toolchain",
     "//bazel/toolchains/dd_strip:windows_toolchain",
+)
+
+register_toolchains(
+    "//bazel/rules/windows:linux_x86_64_toolchain",
+    "//bazel/rules/windows:windows_toolchain",
 )
 
 #########################
@@ -387,6 +413,10 @@ llvm_toolchain.target(
     arch = "x86_64",
     os = "macos",
 )
+llvm_toolchain.target(
+    arch = "x86_64",
+    os = "windows",
+)
 use_repo(llvm_toolchain, "llvm_toolchains")
 
 osx = use_extension("@llvm//extensions:osx.bzl", "osx")
@@ -470,6 +500,14 @@ pip.parse(
     hub_name = "py_dev_requirements",
     python_version = PYTHON_VERSION,
     requirements_lock = "//deps:py_dev_requirements_lock.txt",
+    # Resolve wheels for all platforms, not just the host's, to allow cross-platform (e.g. macOS -> Linux RBE) builds.
+    target_platforms = [
+        "linux_aarch64",
+        "linux_x86_64",
+        "osx_aarch64",
+        "osx_x86_64",
+        "windows_x86_64",
+    ],
 )
 pip.parse(
     hub_name = "py_agent_integrations_tool_requirements",
@@ -482,29 +520,21 @@ use_repo(pip, "py_agent_integrations_tool_requirements", "py_dev_requirements")
 ## Rust dependencies ##
 #######################
 
-rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
-
-# Register a GNU-ABI Rust toolchain for Windows so that rustc generates
-# GNU-style linker flags (-lkernel32, -o, etc.) compatible with the MinGW
-# cc_toolchain used on the Windows CI runner.
-rust.repository_set(
-    name = "rust_windows_gnu_x86_64",
+toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
+toolchains.toolchain(
     edition = "2024",
-    exec_triple = "x86_64-pc-windows-gnu",
-    target_compatible_with = [
-        "@platforms//os:windows",
-        "@platforms//cpu:x86_64",
-    ],
-    target_triple = "x86_64-pc-windows-gnu",
-    versions = ["1.94.0"],
+    use_rust_redist = False,  # rust-redist lacks the GNU-hosted Windows archives our patch needs
+    version = "1.94.0",
 )
-rust.toolchain(
-    edition = "2024",
-    versions = ["1.94.0"],
-)
-use_repo(rust, "rust_toolchains")
+use_repo(toolchains, "default_rust_toolchains")
 
-register_toolchains("@rust_toolchains//:all")
+register_toolchains("@default_rust_toolchains//...")
+
+rules_rust_shim = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+use_repo(rules_rust_shim, "rules_rust")
+
+rules_rust_prost_shim = use_extension("@rules_rs//rs:rules_rust_prost.bzl", "rules_rust_prost")
+use_repo(rules_rust_prost_shim, "rules_rust_prost")
 
 register_toolchains("//bazel/toolchains/prost:prost_toolchain")
 
@@ -582,7 +612,20 @@ include("//deps:go.MODULE.bazel")
 # buildifier: leave-alone
 include("//deps/agent_integrations:integrations.MODULE.bazel")
 
-# buildifier: leave-alone
-include("//bazel/tools/wine:wine.MODULE.bazel")
+rules_wine_ext = use_extension("@rules_wine//wine/extension:wine.bzl", "wine")
+use_repo(rules_wine_ext, "wine_toolchains")
+
+register_toolchains("@wine_toolchains//:all")
+
+# Same Wine tag the rules_wine prebuilt is built from. wmc is not in that
+# runtime archive, so the resource toolchain compiles it from this tree.
+wine_wmc_repository(
+    name = "wine_wmc",
+    build_file = "//bazel/tools/wmc:overlay/wmc.BUILD.bazel",
+    config_h = "//bazel/tools/wmc:overlay/config.h",
+    sha256 = "98b21b4ebdf7d9e2baa4a3508514285cf449f455603f82d3364b014c0e79b793",
+    strip_prefix = "wine-wine-11.20",
+    urls = ["https://codeload.github.com/wine-mirror/wine/tar.gz/refs/tags/wine-11.20"],
+)
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")

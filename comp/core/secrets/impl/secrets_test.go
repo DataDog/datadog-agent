@@ -1655,3 +1655,93 @@ func TestShouldResolvedSecretMultiBackendNamespace(t *testing.T) {
 		assert.False(t, resolver.shouldResolvedSecret("prodk8s;k8s_secret@namespace1/secret/key", "origin", "img", "namespace2"))
 	})
 }
+
+func TestGetPathsAndHandles(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.scrubHookFunc = func([]string) {}
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		res := map[string]string{}
+		for _, h := range handles {
+			res[h] = h + "_value"
+		}
+		return res, nil
+	}
+
+	paths, handles := resolver.GetPathsAndHandles()
+	assert.Empty(t, paths)
+	assert.Empty(t, handles)
+
+	conf := []byte(`
+api_key: ENC[my_key]
+snmp_traps:
+  enabled: true
+  community_strings:
+  - ENC[secret_0]
+  - ENC[secret_1]
+  - ENC[secret_2]
+  - ENC[secret_3]
+  - ENC[secret_4]
+  - ENC[secret_5]
+  - ENC[secret_6]
+  - ENC[secret_7]
+  - ENC[secret_8]
+  - ENC[secret_9]
+  - ENC[secret_10]
+  - ENC[my_key]
+`)
+	_, err := resolver.Resolve(conf, "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Equal(t, []string{
+		"api_key",
+		"snmp_traps.community_strings.0",
+		"snmp_traps.community_strings.1",
+		"snmp_traps.community_strings.2",
+		"snmp_traps.community_strings.3",
+		"snmp_traps.community_strings.4",
+		"snmp_traps.community_strings.5",
+		"snmp_traps.community_strings.6",
+		"snmp_traps.community_strings.7",
+		"snmp_traps.community_strings.8",
+		"snmp_traps.community_strings.9",
+		"snmp_traps.community_strings.10",
+		"snmp_traps.community_strings.11",
+	}, paths)
+	assert.Equal(t, []string{
+		"my_key",
+		"secret_0",
+		"secret_1",
+		"secret_2",
+		"secret_3",
+		"secret_4",
+		"secret_5",
+		"secret_6",
+		"secret_7",
+		"secret_8",
+		"secret_9",
+		"secret_10",
+		"my_key",
+	}, handles)
+
+	// paths from origins other than datadog.yaml are prefixed with the origin, and listed after datadog.yaml
+	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), "postgres.yaml", "", "", false)
+	require.NoError(t, err)
+	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), "apache.yaml", "", "", false)
+	require.NoError(t, err)
+
+	paths, handles = resolver.GetPathsAndHandles()
+	require.Len(t, paths, 15)
+	assert.Equal(t, "api_key", paths[0])
+	assert.Equal(t, []string{"apache.yaml:token", "postgres.yaml:instances.0.password"}, paths[13:])
+	assert.Equal(t, []string{"other_token", "db_pass"}, handles[13:])
+
+	// removing the origin removes its paths and handles
+	resolver.RemoveOrigin("datadog.yaml")
+	resolver.RemoveOrigin("postgres.yaml")
+	resolver.RemoveOrigin("apache.yaml")
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Empty(t, paths)
+	assert.Empty(t, handles)
+}

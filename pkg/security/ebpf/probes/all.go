@@ -36,7 +36,6 @@ const (
 	OpenSamplesMaxEntries    = 20000
 	BindSamplesMaxEntries    = 10000
 	ConnectSamplesMaxEntries = 10000
-	SyscallSamplesMaxEntries = 20000
 	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
 	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
 	ExcludedCgroupsMaxEntries = 4096
@@ -196,6 +195,7 @@ func AllMaps() []*manager.Map {
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
 		"network_stats_worker",
+		SyscallUsageTickerFunctionName,
 	}
 }
 
@@ -339,8 +339,8 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	if opts.EventSamplingSyscallsEnabled {
-		editors["syscall_samples"] = manager.MapSpecEditor{
-			MaxEntries: SyscallSamplesMaxEntries,
+		editors["syscall_usage"] = manager.MapSpecEditor{
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["excluded_cgroups"] = manager.MapSpecEditor{
@@ -468,6 +468,14 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
 		}
 		editors["capabilities_contexts"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+		editors["dentry_resolver_inputs"] = manager.MapSpecEditor{
 			Type:       ebpf.TaskStorage,
 			MaxEntries: 0,
 			KeySize:    4, // sizeof(unsigned int)

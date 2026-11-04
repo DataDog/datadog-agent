@@ -319,6 +319,10 @@
           "type": "string",
           "description": "Kubernetes pod UID"
         },
+        "ecs_task_id": {
+          "type": "string",
+          "description": "ECS task ID"
+        },
         "source": {
           "type": "string",
           "description": "Source of the container entry (event or procfs)"

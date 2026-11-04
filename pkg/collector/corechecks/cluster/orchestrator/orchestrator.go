@@ -230,7 +230,7 @@ func (o *OrchestratorCheck) Run() error {
 	// Enable terminated resource bundle to start buffering terminated resources
 	o.collectorBundle.EnableTerminatedResourceBundle()
 
-	o.collectorBundle.RetryDiscovery()
+	o.collectorBundle.RefreshDiscovery()
 
 	// Initialize collectors
 	o.collectorBundle.Initialize()

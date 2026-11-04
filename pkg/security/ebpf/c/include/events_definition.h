@@ -176,6 +176,7 @@ struct cgroup_write_event_t {
     struct cgroup_context_t cgroup;
     struct path_key_t path_key;
     u32 pid; // pid of the process added to the cgroup
+    s32 retval; // return value of the cgroup write
 };
 
 struct utimes_event_t {
@@ -429,9 +430,6 @@ struct ptrace_event_t {
     u32 ns_pid;
 };
 
-// EVENT_SYSCALLS. Two payload shapes discriminated by event_reason:
-//   - drain (PERIOD/EXIT/EXECVE): syscalls[] bitmap populated
-//   - sample first-hit (SAMPLE):  single syscall_id + sample_cookie
 struct syscall_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -441,10 +439,6 @@ struct syscall_monitor_event_t {
 
     u64 event_reason;
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
-
-    u32 syscall_id;
-    u32 padding;
-    u64 sample_cookie;
 };
 
 struct rename_event_t {

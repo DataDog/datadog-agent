@@ -24,7 +24,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -87,7 +87,7 @@ func (m *OOMKillCheck) Run() error {
 		return nil
 	}
 
-	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](m.sysProbeClient, sysconfig.OOMKillProbeModule)
+	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](m.sysProbeClient, sysconfigtypes.OOMKillProbeModule)
 	if err != nil {
 		return sysprobeclient.IgnoreStartupError(err)
 	}
@@ -109,7 +109,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
 		if !entityID.Empty() {
-			tags, err = m.tagger.Tag(entityID, types.ChecksConfigCardinality)
+			tags, err = m.tagger.Tag(entityID, types.HighCardinality)
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}

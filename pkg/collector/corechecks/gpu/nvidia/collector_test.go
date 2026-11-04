@@ -9,8 +9,10 @@ package nvidia
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
@@ -42,9 +44,109 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	devices := setupMockDevices(t)
 	deps := &CollectorDependencies{Config: gpuconfig.Config{}}
-	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
-	require.NotNil(t, collectors)
-	require.NoError(t, err)
+	builder := newCollectorBuilder(map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	collectors := builder.Build(devices, deps)
+	// only the first call succeeds, all other collectors are recorded to be retried later
+	require.Len(t, collectors, 1)
+	require.Len(t, builder.failed, len(devices))
+}
+
+func TestCollectorBuilderRetriesFailedCollectors(t *testing.T) {
+	devices := setupMockDevices(t)[:1]
+	deps := &CollectorDependencies{Config: gpuconfig.Config{}}
+
+	const flakyFailures = 2
+	var flakyCalls, unsupportedCalls int
+	builder := newCollectorBuilder(map[CollectorName]subsystemBuilder{
+		"ok": func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+			return &mockCollector{}, nil
+		},
+		"flaky": func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+			flakyCalls++
+			if flakyCalls <= flakyFailures {
+				return nil, errors.New("insufficient permissions")
+			}
+			return &mockCollector{}, nil
+		},
+		"unsupported": func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+			unsupportedCalls++
+			return nil, errUnsupportedDevice
+		},
+	})
+	now := time.Now()
+	builder.now = func() time.Time { return now }
+
+	require.Len(t, builder.Build(devices, deps), 1)
+	require.Equal(t, 1, flakyCalls)
+	require.Equal(t, 1, unsupportedCalls)
+
+	// no retries until the backoff expires
+	require.Empty(t, builder.RetryFailed(devices, deps))
+	require.Equal(t, 1, flakyCalls)
+
+	// the first retry fails again, doubling the backoff
+	now = now.Add(minRetryBackoff)
+	require.Empty(t, builder.RetryFailed(devices, deps))
+	require.Equal(t, 2, flakyCalls)
+
+	now = now.Add(minRetryBackoff)
+	require.Empty(t, builder.RetryFailed(devices, deps))
+	require.Equal(t, 2, flakyCalls)
+
+	now = now.Add(minRetryBackoff)
+	require.Len(t, builder.RetryFailed(devices, deps), 1)
+	require.Equal(t, 3, flakyCalls)
+
+	// once created, the collector is not retried anymore, and unsupported collectors are never retried
+	now = now.Add(maxRetryBackoff)
+	require.Empty(t, builder.RetryFailed(devices, deps))
+	require.Equal(t, 3, flakyCalls)
+	require.Equal(t, 1, unsupportedCalls)
+	require.Empty(t, builder.failed)
+}
+
+func TestCollectorBuilderRetryBackoffIsCapped(t *testing.T) {
+	builder := newCollectorBuilder(nil)
+	expected := []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 4 * time.Minute, maxRetryBackoff, maxRetryBackoff}
+	for i, backoff := range expected {
+		failures, retryIn := builder.recordFailure("GPU-1", gpm)
+		require.Equal(t, i+1, failures)
+		require.Equal(t, backoff, retryIn, "failure %d", i+1)
+	}
+
+	// collectors that keep failing for a long time must not overflow the backoff
+	for range 30 {
+		_, retryIn := builder.recordFailure("GPU-1", gpm)
+		require.Equal(t, maxRetryBackoff, retryIn)
+	}
+}
+
+func TestCollectorBuilderTracksFailuresPerDevice(t *testing.T) {
+	devices := setupMockDevices(t)[:1]
+	deps := &CollectorDependencies{Config: gpuconfig.Config{}}
+
+	calls := 0
+	builder := newCollectorBuilder(map[CollectorName]subsystemBuilder{
+		"failing": func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+			calls++
+			return nil, errors.New("failure")
+		},
+	})
+	now := time.Now()
+	builder.now = func() time.Time { return now }
+
+	require.Empty(t, builder.Build(devices, deps))
+	require.Len(t, builder.failed, 1)
+
+	// devices pending a retry are left to RetryFailed
+	require.Empty(t, builder.Build(devices, deps))
+	require.Equal(t, 1, calls)
+
+	// the device is gone, so its failed collectors are not retried anymore
+	now = now.Add(maxRetryBackoff)
+	require.Empty(t, builder.RetryFailed(nil, deps))
+	require.Empty(t, builder.failed)
+	require.Equal(t, 1, calls)
 }
 
 func TestCollectorTelemetryTags(t *testing.T) {
@@ -211,16 +313,16 @@ func TestAllCollectorsWork(t *testing.T) {
 		DeviceEventsGatherer: eventsGatherer,
 		SystemProbeCache:     spCache,
 		PRMCache:             prmCache,
-		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Workloadmeta:         workloadMetaMockWithGPUShares(t, devices),
 		Config: gpuconfig.Config{
-			Enabled:            true,
-			EnableEBPFProbes:   true,
-			PRMEndpointEnabled: true,
+			Enabled:             true,
+			EnableEBPFProbes:    true,
+			PRMEndpointEnabled:  true,
+			KAISchedulerEnabled: true,
 		},
 	}
 	seedPRMCacheForDevices(t, deps.PRMCache, devices)
-	collectors, err := BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors := BuildCollectors(devices, deps)
 	require.NotNil(t, collectors)
 
 	seenCollectors := make(map[CollectorName]struct{})
@@ -333,17 +435,17 @@ func TestDisabledCollectors(t *testing.T) {
 				PRMCache:             prmCache,
 				Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 				Config: gpuconfig.Config{
-					DisabledCollectors: tt.disabledCollectors,
-					Enabled:            true,
-					EnableEBPFProbes:   true,
-					PRMEndpointEnabled: true,
+					DisabledCollectors:  tt.disabledCollectors,
+					Enabled:             true,
+					EnableEBPFProbes:    true,
+					PRMEndpointEnabled:  true,
+					KAISchedulerEnabled: true,
 				},
 			}
 			seedPRMCacheForDevices(t, deps.PRMCache, devices)
 
 			// Build collectors with disabled list
-			collectors, err := BuildCollectors(devices, deps)
-			require.NoError(t, err)
+			collectors := BuildCollectors(devices, deps)
 
 			// Verify the correct number of collectors were created
 			require.Equal(t, tt.expectedCollectorCount, len(collectors),
@@ -394,8 +496,7 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 	}
 
 	// Build collectors with ebpf disabled
-	collectors, err := BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors := BuildCollectors(devices, deps)
 
 	// Verify no ebpf collectors were created
 	for _, collector := range collectors {
@@ -408,8 +509,7 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 
 	// Now test without disabling ebpf - should create ebpf collectors
 	deps.Config.DisabledCollectors = nil
-	collectors, err = BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors = BuildCollectors(devices, deps)
 
 	// Verify ebpf collectors were created
 	foundEbpf := false
@@ -493,8 +593,7 @@ func collectMetricNames(t *testing.T, spCache *SystemProbeCache) map[string]stru
 	}
 	seedPRMCacheForDevices(t, deps.PRMCache, devices)
 
-	collectors, err := BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors := BuildCollectors(devices, deps)
 
 	names := make(map[string]struct{})
 	for _, collector := range collectors {
@@ -545,6 +644,58 @@ func seedPRMCacheForDevices(t *testing.T, cache *PRMCache, devices []ddnvml.Devi
 			cache.SetCountersForTest(device.GetDeviceInfo().UUID, port, makeCounters(uint64(port*100)))
 		}
 	}
+}
+
+func TestGetSupportedNvlinkPortsPermissionErrorIsNotUnsupported(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCapabilities(testutil.Capabilities{NvLinkLinkCount: 2}))
+	failAllPorts := func(code nvml.Return) func(int) ([]Sample, error) {
+		return func(int) ([]Sample, error) {
+			return nil, &ddnvml.NvmlAPIError{APIName: "GpmSampleGet", NvmlErrorCode: code}
+		}
+	}
+
+	_, err := getSupportedNvlinkPorts(device, failAllPorts(nvml.ERROR_UNKNOWN))
+	require.ErrorIs(t, err, errUnsupportedDevice)
+
+	_, err = getSupportedNvlinkPorts(device, failAllPorts(nvml.ERROR_NO_PERMISSION))
+	require.True(t, ddnvml.IsNoPermission(err))
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+}
+
+func TestGetSupportedNvlinkPortsMixedPermissionAndUnsupportedErrorIsNotUnsupported(t *testing.T) {
+	// A port's discovery can return a joined error mixing an unsupported failure with
+	// a permission one (e.g. per-metric GPM or per-field FEC queries). IsUnsupported
+	// stops at the first NVML error of a join, so the permission failure would be hidden
+	// and the collector marked as unsupported and never retried; permissions can be
+	// recovered, so the mixed error must be reported as a permission error instead.
+	device := setupMockDevice(t, testutil.WithCapabilities(testutil.Capabilities{NvLinkLinkCount: 1}))
+	mixedErr := fmt.Errorf("failed to remove unsupported metrics: %w", errors.Join(
+		&ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
+		&ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NO_PERMISSION},
+	))
+
+	_, err := getSupportedNvlinkPorts(device, func(int) ([]Sample, error) { return nil, mixedErr })
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+}
+
+func TestNVLinkStatelessCollectorPermissionErrorIsNotUnsupported(t *testing.T) {
+	// a permission error must be detected even when another port fails first with a different error
+	device := setupMockDevice(t,
+		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 4, NvLinkLinkCount: 2}),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetNvLinkErrorCounterFunc = func(link int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
+				if link == 0 {
+					return 0, nvml.ERROR_UNKNOWN
+				}
+				return 0, nvml.ERROR_NO_PERMISSION
+			}
+		}))
+
+	collector, err := newNVLinkStatelessCollector(device, nil)
+	require.Nil(t, collector)
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
 }
 
 func TestRemoveDuplicateSamples(t *testing.T) {
@@ -772,8 +923,7 @@ func TestConfiguredMetricPriority(t *testing.T) {
 	}
 
 	// Build collectors with deviceEvents disabled (not useful for this test)
-	collectors, err := BuildCollectors([]ddnvml.Device{device}, deps)
-	require.NoError(t, err)
+	collectors := BuildCollectors([]ddnvml.Device{device}, deps)
 
 	// Set up the expected metric order. The first collector in the list should have the highest priority over the rest.
 	desiredMetricPriority := map[string][]CollectorName{

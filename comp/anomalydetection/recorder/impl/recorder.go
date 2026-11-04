@@ -33,6 +33,18 @@ func (r *recorderImpl) GetHandle(inner observer.HandleFunc) observer.HandleFunc 
 	}
 }
 
+func (r *recorderImpl) RecordLog(source string, msg observer.LogView) {
+	timestampMs := msg.GetTimestampUnixMilli()
+	if timestampMs == 0 {
+		timestampMs = time.Now().UnixMilli()
+	}
+	r.logs.WriteLog(recorder.LogData{
+		Source: source, TimestampMs: timestampMs,
+		Content: []byte(msg.GetContent()), Status: msg.GetStatus(),
+		Hostname: msg.GetHostname(), Tags: slices.Clone(msg.Tags()),
+	})
+}
+
 type metricDropObserver interface {
 	ObserveMetricAndReportDrop(observer.MetricView, uint64) bool
 }
@@ -73,13 +85,4 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView, contextKey u
 
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
-	timestampMs := msg.GetTimestampUnixMilli()
-	if timestampMs == 0 {
-		timestampMs = time.Now().UnixMilli()
-	}
-	h.recorder.logs.WriteLog(recorder.LogData{
-		Source: h.name, TimestampMs: timestampMs,
-		Content: []byte(msg.GetContent()), Status: msg.GetStatus(),
-		Hostname: msg.GetHostname(), Tags: slices.Clone(msg.Tags()),
-	})
 }

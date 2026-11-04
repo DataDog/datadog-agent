@@ -45,7 +45,6 @@ is_windows = sys.platform == "win32"
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
-CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
 BAZEL_TARGET = "//cmd/security-agent:security-agent"
 
@@ -228,19 +227,21 @@ def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     arch = Arch.from_str(arch)
     _, _, env = get_build_flags(ctx, arch=arch)
 
+    # span_go_tester is linked dynamically: dd-trace-go dlopens libddwaf, which fails in
+    # a static binary
     testers = {
-        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
+        "syscall_go_tester": (f"{syscall_tester_go_dir}/syscall_go_tester.go", True),
+        "span_go_tester": (f"{syscall_tester_go_dir}/span/span_go_tester.go", False),
     }
 
     exe_files = []
-    for name, source in testers.items():
+    for name, (source, static) in testers.items():
         exe_file = os.path.join(build_dir, name)
         go_build(
             ctx,
             source,
             build_tags=["syscalltesters", "osusergo", "netgo"],
-            ldflags="-extldflags=-static",
+            ldflags="-extldflags=-static" if static else "",
             bin_path=exe_file,
             env=env,
         )
@@ -405,7 +406,7 @@ def build_functional_tests(
 
         build_tags.append("pcap")
         build_libpcap(ctx, env=env, arch=arch)
-        cgo_flags = get_libpcap_cgo_flags(ctx)
+        cgo_flags = get_libpcap_cgo_flags()
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -692,44 +693,6 @@ def go_generate_check(ctx):
         raise Exit(code=1)
 
 
-E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
-
-
-@task
-def e2e_prepare_win(ctx):
-    """
-    Compile test suite for CWS windows new-e2e tests
-    """
-
-    out_binary = "testsuite.exe"
-
-    testsuite_out_dir = E2E_ARTIFACT_DIR
-    # Clean up previous build
-    if os.path.exists(testsuite_out_dir):
-        shutil.rmtree(testsuite_out_dir)
-
-    testsuite_out_path = os.path.join(testsuite_out_dir, out_binary)
-    build_functional_tests(
-        ctx,
-        bundle_ebpf=False,
-        race=False,
-        output=testsuite_out_path,
-        skip_linters=True,
-    )
-
-    # build the ETW tests binary also
-    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
-    srcpath = 'pkg/security/probe'
-    build_functional_tests(
-        ctx,
-        output=testsuite_out_path,
-        srcpath=srcpath,
-        bundle_ebpf=False,
-        race=False,
-        skip_linters=True,
-    )
-
-
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     build_cws_object_files(ctx, with_unit_test=True, arch=CURRENT_ARCH)
@@ -737,7 +700,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     env = {"CGO_ENABLED": "1"}
 
     build_libpcap(ctx, env=env)
-    cgo_flags = get_libpcap_cgo_flags(ctx)
+    cgo_flags = get_libpcap_cgo_flags()
     # append libpcap cgo-related environment variables to any existing ones
     for k, v in cgo_flags.items():
         if k in env:

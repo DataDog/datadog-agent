@@ -138,6 +138,7 @@ func (*fxTestMetric) GetMetricType() metrics.MetricType { return metrics.GaugeTy
 
 type fxTestLog struct{}
 
+func (*fxTestLog) GetSource() string            { return "containerd" }
 func (*fxTestLog) GetContent() string           { return "hello" }
 func (*fxTestLog) GetStatus() string            { return "info" }
 func (*fxTestLog) Tags() []string               { return []string{"service:test"} }
@@ -171,6 +172,7 @@ func TestTaggedModuleFlushesRealWritersOnStop(t *testing.T) {
 	handle := component.GetHandle(func(string) observer.Handle { return &fxTestHandle{} })("check")
 	handle.ObserveMetric(&fxTestMetric{}, 17)
 	handle.ObserveLog(&fxTestLog{})
+	component.RecordLog("logs", &fxTestLog{})
 	files, err := filepath.Glob(filepath.Join(dir, "*.parquet"))
 	require.NoError(t, err)
 	require.Empty(t, files)

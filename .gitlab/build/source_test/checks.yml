@@ -1,0 +1,72 @@
+---
+# Unit test of internal python code
+invoke_unit_tests:
+  extends: .bazel:defs:cache:progressive
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  rules:
+    - !reference [.on_invoke_tasks_changes]
+  script:
+    - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
+    - dda inv -- -e invoke-unit-tests.run
+
+# Check that each team in CODEOWNERS has its slack notification channel filled in the GITHUB_SLACK_MAP
+slack_teams_channels_check:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  rules:
+    - !reference [.except_light_pipeline]
+    - when: on_success
+  script:
+    - dda inv -- -e notify.check-teams
+
+unit_tests_notify:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends: .dd_octo_sts
+  rules:
+    - !reference [.except_main_release_or_mq]
+    - !reference [.except_disable_unit_tests]
+    - when: always
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - dda self dep sync -f legacy-tasks
+    - dda inv -- notify.unit-tests --pipeline-id $CI_PIPELINE_ID --pipeline-url $CI_PIPELINE_URL --branch-name $CI_COMMIT_REF_NAME
+  needs:
+    - tests_linux-x64-py3
+    - tests_linux-arm64-py3
+    - job: tests_windows-x64
+      optional: true
+  allow_failure: true
+
+# Validates that shared transitive dependencies (e.g. cilium/ebpf) between the
+# agent and the opentelemetry-ebpf-profiler remain compatible.
+#
+# The profiler's eBPF unwinder depends on specific cilium/ebpf APIs. Bumping
+# cilium/ebpf in the agent without first updating the profiler fork can silently
+# break unwinding at runtime.
+profiler_deps_check:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_light_pipeline]
+    - changes:
+        paths:
+          - go.mod
+          - go.sum
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - when: manual
+      allow_failure: true
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - dda inv -- -e host-profiler.validate-deps

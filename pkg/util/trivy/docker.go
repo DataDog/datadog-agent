@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 
 	dimage "github.com/moby/moby/api/types/image"
 	"github.com/moby/moby/client"
@@ -107,6 +108,13 @@ type fakeDockerContainer struct {
 	*fakeContainer
 }
 
+// ConfigFile returns the config file built from the inspect response. The
+// direct scan tolerates a history that disagrees with the diff IDs, for which
+// image.ConfigFile exports the whole image.
+func (c *fakeDockerContainer) ConfigFile() (*v1.ConfigFile, error) {
+	return c.image.inspectConfigFile()
+}
+
 func (c *fakeDockerContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
 	return c.fakeContainer.LayerByDiffID(hash)
 }
@@ -130,7 +138,10 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 		return nil, "", fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
-	if scanOptions.OverlayFsScan && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+	// From API 1.52, the daemon omits GraphDriver for the images of its
+	// containerd image store.
+	driver := fanalImage.inspect.GraphDriver
+	if scanOptions.OverlayFsScan && driver != nil && driver.Name == "overlay2" {
 		layers, err := buildDockerLayerPaths(fanalImage.inspect)
 		if err != nil {
 			return nil, "overlayfs", fmt.Errorf("unable to pair layer paths for image %s: %w", imgMeta.ID, err)

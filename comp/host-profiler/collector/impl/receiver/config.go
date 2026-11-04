@@ -9,6 +9,8 @@ package receiver
 
 import (
 	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -22,6 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 )
 
+// 19 Hz avoids lockstep sampling with periodic activity.
+const defaultSamplesPerSecond = 19
+
 // Config is the configuration for the profiles receiver.
 type Config struct {
 	EbpfCollectorConfig *ebpfconfig.Config                  `mapstructure:",squash"`
@@ -30,11 +35,13 @@ type Config struct {
 }
 
 // defaultEnvVars lists environment variables read from profiled processes to populate
-// unified service tags (service, env, version) in OTLP resource attributes.
+// unified service tags (service, env, version) and the crashtracking monitor process marker
+// in OTLP resource attributes.
 // The order indicates which environment variable takes precedence.
 var defaultEnvVars = []string{
 	"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION",
 	"OTEL_RESOURCE_ATTRIBUTES", // TODO: remove once we rebase our fork on upstream.
+	"DD_CRASHTRACKING_IS_MONITOR_PROCESS",
 }
 
 var _ confmap.Validator = (*Config)(nil)
@@ -48,10 +55,24 @@ func errSymbolEndpointsSiteRequired() error {
 func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
 }
+func errSymbolUploaderReportIntervalInvalid() error {
+	return fmt.Errorf("symbol_uploader.report.interval must be positive and at most %s", symboluploader.MaxReportInterval)
+}
+func errSymbolUploaderReportMaxInvalid() error {
+	return fmt.Errorf("symbol_uploader.report.max_paths_per_report must be positive and at most %d", symboluploader.MaxReportMaxPathsPerReport)
+}
 
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the confmap.Validator interface.
 func (c *Config) Validate() error {
+	// Normalize before upstream validation so even non-positive overrides use the supported frequency.
+	if c.EbpfCollectorConfig.SamplesPerSecond != defaultSamplesPerSecond {
+		slog.Warn("Datadog Host Profiler will use its supported sampling frequency instead of the configured samples_per_second value. "+
+			"If your use case requires a different sampling frequency, please contact Datadog Support at https://docs.datadoghq.com/help/.",
+			slog.Int("configured_samples_per_second", c.EbpfCollectorConfig.SamplesPerSecond),
+			slog.Int("effective_samples_per_second", defaultSamplesPerSecond))
+		c.EbpfCollectorConfig.SamplesPerSecond = defaultSamplesPerSecond
+	}
 	if err := c.EbpfCollectorConfig.Validate(); err != nil {
 		return err
 	}
@@ -77,6 +98,12 @@ func (c *Config) Validate() error {
 				return errSymbolEndpointsAPIKeyRequired()
 			}
 		}
+		if c.SymbolUploader.Report.Interval <= 0 || c.SymbolUploader.Report.Interval > symboluploader.MaxReportIntervalSeconds {
+			return errSymbolUploaderReportIntervalInvalid()
+		}
+		if c.SymbolUploader.Report.MaxPathsPerReport <= 0 || c.SymbolUploader.Report.MaxPathsPerReport > symboluploader.MaxReportMaxPathsPerReport {
+			return errSymbolUploaderReportMaxInvalid()
+		}
 	}
 	return nil
 }
@@ -90,6 +117,8 @@ func defaultConfig(profilerName string) component.Config {
 	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
+	cfg.SendErrorFrames = false
+	cfg.SamplesPerSecond = defaultSamplesPerSecond
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{

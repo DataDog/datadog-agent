@@ -212,6 +212,7 @@ func (a *Agent) SetupPipeline(
 		&sender.NoopSink{},
 		&diagnostic.NoopMessageReceiver{},
 		processingRules,
+		nil, // OTLP/DDOT is out of scope for tag filtering
 		a.endpoints,
 		destinationsCtx,
 		NewStatusProvider(),
