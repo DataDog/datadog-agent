@@ -32,9 +32,7 @@ type WorkloadmetaResolver struct {
 	kubeletLock       sync.Mutex
 	kubelet           *kubeletInfo
 	kubeletLookupTime time.Time
-
-	// seccompDefaultEnabled mirrors the node's kubelet --seccomp-default /
-	// seccompDefault setting, read once at construction.
+	// seccompDefaultEnabled mirrors the kubelet's --seccomp-default setting.
 	seccompDefaultEnabled bool
 }
 
@@ -110,8 +108,10 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) (Key, *Sec
 
 	// When neither the container nor the pod declares a seccomp profile, the
 	// kubelet applies RuntimeDefault if --seccomp-default is enabled on the node.
-	if hasPod && out.Seccomp == nil && r.seccompDefaultEnabled {
-		out.Seccomp = &SeccompProfile{Type: SeccompRuntimeDefault}
+	if hasPod && out.Seccomp == nil {
+		if _, seccompDefault := r.currentKubelet(); seccompDefault {
+			out.Seccomp = &SeccompProfile{Type: SeccompRuntimeDefault}
+		}
 	}
 
 	if sc == nil && podSC == nil && out.Seccomp == nil {
@@ -158,18 +158,19 @@ func (r *WorkloadmetaResolver) ResolveSeccompFilter(profile *SeccompProfile) (*S
 	if profile == nil || profile.Type != SeccompLocalhost {
 		return nil, nil
 	}
-	return readLocalhostSeccompProfile(r.currentKubelet(), profile.LocalhostProfile)
+	kubelet, _ := r.currentKubelet()
+	return readLocalhostSeccompProfile(kubelet, profile.LocalhostProfile)
 }
 
-// currentKubelet returns the cached kubelet, looking it up again when its
-// process is gone or its PID was reused.
-func (r *WorkloadmetaResolver) currentKubelet() *kubeletInfo {
+// currentKubelet returns the cached kubelet and its seccomp default, looking
+// the kubelet up again when its process is gone or its PID was reused.
+func (r *WorkloadmetaResolver) currentKubelet() (*kubeletInfo, bool) {
 	r.kubeletLock.Lock()
 	defer r.kubeletLock.Unlock()
 
 	if r.kubelet != nil && r.kubelet.pid != "" {
 		if _, ok := kubeletArgs(r.kubelet.pid); ok {
-			return r.kubelet
+			return r.kubelet, r.seccompDefaultEnabled
 		}
 		// Copy since callers read it unlocked.
 		stale := *r.kubelet
@@ -179,8 +180,9 @@ func (r *WorkloadmetaResolver) currentKubelet() *kubeletInfo {
 	if now := time.Now(); now.Sub(r.kubeletLookupTime) >= kubeletLookupInterval {
 		r.kubeletLookupTime = now
 		r.kubelet = findKubelet()
+		r.seccompDefaultEnabled = kubeletSeccompDefaultEnabled(r.kubelet)
 	}
-	return r.kubelet
+	return r.kubelet, r.seccompDefaultEnabled
 }
 
 func seccompFromWmeta(sp *workloadmeta.SeccompProfile) *SeccompProfile {
