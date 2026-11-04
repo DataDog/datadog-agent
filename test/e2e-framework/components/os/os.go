@@ -33,7 +33,7 @@ type PackageManager interface {
 // Shared by GenericPackageManager and ZypperPackageManager, the two PackageManager implementations.
 func assertInstalledCommand(runner command.Runner, n namer.Namer, checkBinary string, pulumiOpts []pulumi.ResourceOption) (command.Command, error) {
 	cmdStr := fmt.Sprintf(
-		"bash -c 'command -v %s || { echo \"%s is missing on this host; it must be pre-baked into the machine image, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/\" >&2; exit 1; }'",
+		"bash -c 'command -v %s || { echo \"%s is missing on this host; it must be pre-baked into the machine image, see https://datadoghq.dev/datadog-agent/dev/test/e2e/dependency/\" >&2; exit 1; }'",
 		checkBinary, checkBinary,
 	)
 	cmdName := n.ResourceName("assert-"+checkBinary, utils.StrHash(cmdStr))
@@ -67,7 +67,7 @@ func failIfAWS(env any) error {
 	if !isAWS(env) {
 		return nil
 	}
-	return errors.New("RuntimeInstallDocker is only meant for clouds without pre-baked images (GCP, Azure, local VMs): on AWS, use a pre-baked -e2e AMI that ships Docker instead, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/")
+	return errors.New("RuntimeInstallDocker is only meant for clouds without pre-baked images (GCP, Azure, local VMs): on AWS, use a pre-baked -e2e AMI that ships Docker instead, see https://datadoghq.dev/datadog-agent/dev/test/e2e/dependency/")
 }
 
 func AllowUnsignedPackages(allow bool) PackageManagerOption {

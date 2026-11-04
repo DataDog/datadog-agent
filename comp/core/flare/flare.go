@@ -83,7 +83,7 @@ func newFlare(deps dependencies) provides {
 	// Register legacy and internal providers here because registering them through Fx creates dependency cycles.
 	//
 	// Do not extend this legacy list. To add flare data, follow the provider guide at
-	// https://datadoghq.dev/datadog-agent/how-to/components/flares/.
+	// https://datadoghq.dev/datadog-agent/impl/framework/component/how-to/flare/.
 	f.providers = append(
 		f.providers,
 		pkgFlare.ExtraFlareProviders(deps.WMeta, deps.IPC)...,

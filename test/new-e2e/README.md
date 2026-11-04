@@ -4,7 +4,7 @@ This folder contains tests and utilities to write and run agent end to end tests
 
 ## Documentation
 
-For comprehensive information about running E2E tests, see the [Running E2E tests](https://datadoghq.dev/datadog-agent/how-to/test/e2e/) tutorial in the dev docs.
+For comprehensive information about running E2E tests, see the [Running E2E tests](https://datadoghq.dev/datadog-agent/dev/test/e2e/) tutorial in the dev docs.
 
 ## API Reference
 

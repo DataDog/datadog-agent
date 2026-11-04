@@ -25,10 +25,10 @@ These temporary pages are being reviewed for removal or incorporation into the [
 
 
 [legal]: legal.md
-[testing]: ../../doc/guidelines/testing/test-categories.md
-[memory]: ../../doc/how-to/memory-profiling/overview.md
+[testing]: ../../doc/dev/test/category.md
+[memory]: ../../doc/dev/debug/memory/index.md
 [caveats]: caveats.md
-[contributing]: ../../doc/guidelines/contributing.md
-[agent-omnibus]: ../../doc/how-to/build/distributions.md
-[tools]: ../../doc/how-to/debug-agents/index.md
-[logging]: ../../doc/guidelines/conventions/logging.md
+[contributing]: ../../doc/contrib/index.md
+[agent-omnibus]: ../../doc/dev/build/package.md
+[tools]: ../../doc/dev/debug/agent/index.md
+[logging]: ../../doc/contrib/code/log.md
