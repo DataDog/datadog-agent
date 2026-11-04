@@ -423,7 +423,14 @@ func run(
 	//            aggregator_stop_timeout (2 s).
 	//        5c. SharedForwarder.Stop() — drains in-flight HTTP transactions —
 	//            bounded by forwarder_stop_timeout (2 s).
-	defer flushLogsAgent(logConfig.FlushTimeout, logsAgent)
+	defer func() {
+		// Lines still in the channel have not reached the logs pipeline and may
+		// miss the exit flush.
+		if n := len(logConfig.Channel); n > 0 {
+			log.Debugf("%d log lines still queued when the exit flush started", n)
+		}
+		flushLogsAgent(logConfig.FlushTimeout, logsAgent)
+	}()
 	defer tracingCtx.TraceAgent.Stop()
 	defer func() {
 		cloudService.Shutdown(metricAgent, enhancedMetricsEnabled, err)
