@@ -392,11 +392,13 @@ A `go_library` does not inherit every tag of the test or binary above it. A patc
 transition (`//bazel/go_tags:transition.bzl`) keeps only the tags its transitive closure reads in
 `//go:build` lines, plus those that affect the standard library, so tag-insensitive libraries are
 configured once. The per-import-path tag lists live in the generated
-`bazel/go_tags/closure_tags.bzl`, which omits external packages that read no root tag. `dda inv tidy`
-regenerates it, and `bazel:run-gazelle` fails when it is stale; run `dda inv go.write-tag-manifest`
-after changing a build constraint or a dependency. A main-repository package missing from the
-manifest keeps all its tags, which is safe but configures it per tag set. A missing external package
-is treated as reading no root tag.
+`bazel/go_tags/closure_tags.bzl`, which lists only the packages whose closure reads a root tag (or
+contains a generated source it can't scan, `None`: keep all tags). A package missing from it is
+treated as reading no root tag, so a stale manifest silently drops tags: a new package gated on
+`//go:build docker` compiles without those files, and its tests may pass vacuously. Run
+`dda inv go.write-tag-manifest` (or `dda inv tidy`) after adding a package or changing a build
+constraint or a dependency; the `go-mod-tidy` pre-push hook does it too, and `bazel:run-gazelle`
+fails on a stale manifest. Resolve merge conflicts in the file by rerunning the command.
 
 ## Starlark language
 
