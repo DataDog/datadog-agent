@@ -66,6 +66,27 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestSearchAfterLatestTimestampFastPath(t *testing.T) {
+	buckets := []pointBucket{{timestamp: 10}, {timestamp: 20}, {timestamp: 40}}
+	for _, tc := range []struct {
+		name    string
+		buckets []pointBucket
+		value   int64
+		want    int
+	}{
+		{"empty", nil, 10, 0},
+		{"before-first", buckets, 9, 0},
+		{"exact-first", buckets, 10, 1},
+		{"between", buckets, 30, 2},
+		{"exact-last", buckets, 40, 3},
+		{"after-last", buckets, 41, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, searchAfter(tc.buckets, tc.value))
+		})
+	}
+}
+
 func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
 	s := newTimeSeriesStorage()
 	result := s.Add("logs", "log.pattern.count", 1, 1, nil)

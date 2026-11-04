@@ -315,6 +315,9 @@ func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
 
 // searchAfter returns the index of the first bucket timestamp > value using binary search.
 func searchAfter(buckets []pointBucket, value int64) int {
+	if len(buckets) == 0 || buckets[len(buckets)-1].timestamp <= value {
+		return len(buckets)
+	}
 	return sort.Search(len(buckets), func(i int) bool {
 		return buckets[i].timestamp > value
 	})
