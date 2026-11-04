@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
@@ -50,12 +50,9 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 	if err != nil {
 		return nil, fmt.Errorf("request PAR enrollment workload token: %w", err)
 	}
-	ddSite := configutils.ExtractSiteFromURL(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"))
-	if ddSite == "" {
-		ddSite = "datadoghq.com"
-	}
+	ddSite := parconfig.Site(cfg)
 	runnerName := agentIdentifier.Hostname + "-" + time.Now().UTC().Format("20060102150405")
-	client := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), nil)
+	client := opms.NewPublicClient(cfg, parconfig.APIBaseURL(cfg, ddSite), nil)
 	response, err := client.EnrollWithWorkloadToken(ctx, token, par.CreateRunnerRequest{
 		RunnerName:    runnerName,
 		RunnerModes:   []modes.Mode{modes.ModePull},

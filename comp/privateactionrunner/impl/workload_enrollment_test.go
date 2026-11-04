@@ -57,6 +57,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 	}))
 	defer server.Close()
 	overrides := map[string]interface{}{
+		"site":   "datadoghq.eu",
 		"dd_url": server.URL, "skip_ssl_validation": true,
 		// WIF must not validate or send these credentials, even with API-key-only mode off.
 		"api_key": "ENC[unused-intake-key]", par.APIKeyOnlyEnrollment: false,
@@ -99,6 +100,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, saved)
 	require.Equal(t, enrolled.Urn, saved.URN)
+	require.Equal(t, util.MakeRunnerURN("eu1", 42, "runner-wif"), saved.URN, "the runner region comes from site, not the intake URL")
 	require.Empty(t, saved.APIKeyHash)
 	require.Equal(t, "ENC[unused-intake-key]", cfg.GetString("api_key"))
 
