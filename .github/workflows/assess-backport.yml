@@ -99,7 +99,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_bots: github-actions
+          allowed_bots: github-actions,gh-worker-dd-mergequeue-cf854d
           claude_args: >-
             --allowedTools "Read(pr_context.json),Read(pr.diff),Write(claude.txt),Edit(claude.txt)"
             --disallowedTools "Bash,WebFetch,WebSearch,Task,KillShell"
