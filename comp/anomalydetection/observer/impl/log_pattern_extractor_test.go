@@ -505,12 +505,13 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	bocpdConfig.WarmupPoints = 2
 	bocpdConfig.MaxRunLength = 2
 	bocpd := NewBOCPDDetector(bocpdConfig)
-	scanmw := NewScanMWDetector()
-	scanwelch := NewScanWelchDetector()
-	scanmw.MinPoints = 2
-	scanwelch.MinPoints = 2
-	scanmw.MinSegment = 1
-	scanwelch.MinSegment = 1
+	scanmwConfig := DefaultScanMWConfig()
+	scanmwConfig.MinPoints, scanmwConfig.MinSegment = 2, 1
+	scanmw := NewScanMWDetector(scanmwConfig)
+	scanwelchCfg := DefaultScanWelchConfig()
+	scanwelchCfg.MinPoints = 2
+	scanwelchCfg.MinSegment = 1
+	scanwelch := NewScanWelchDetector(scanwelchCfg)
 
 	// Stateless detector that does NOT implement SeriesRemover. Registering it
 	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
@@ -591,11 +592,11 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 		"BOCPD per-series map must not exceed live series × aggregations")
 	require.Less(t, len(scanmw.series), scanmwBefore,
 		"ScanMW per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanmwBefore)
-	require.LessOrEqual(t, len(scanmw.series), 2*len(scanmw.Aggregations),
+	require.LessOrEqual(t, len(scanmw.series), 2*len(scanmwConfig.Aggregations),
 		"ScanMW per-series map must not exceed live series × aggregations")
 	require.Less(t, len(scanwelch.series), scanwelchBefore,
 		"ScanWelch per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanwelchBefore)
-	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.Aggregations),
+	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.config.Aggregations),
 		"ScanWelch per-series map must not exceed live series \u00d7 aggregations")
 
 	// Sanity check the stateless detector: registering it alongside the

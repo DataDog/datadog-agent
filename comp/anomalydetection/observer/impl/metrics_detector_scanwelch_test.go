@@ -13,10 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testScanWelchConfig() ScanWelchConfig {
+	cfg := DefaultScanWelchConfig()
+	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	return cfg
+}
+
 func testScanWelchDetector() *ScanWelchDetector {
-	d := NewScanWelchDetector()
-	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
-	return d
+	return NewScanWelchDetector(testScanWelchConfig())
 }
 
 func TestScanWelch_NotEnoughPoints(t *testing.T) {
@@ -32,18 +36,19 @@ func TestScanWelch_NotEnoughPoints(t *testing.T) {
 }
 
 func TestScanWelch_MinPointsBelowMinSegmentDoesNotPanic(t *testing.T) {
-	d := testScanWelchDetector()
-	d.MinPoints = 4
-	d.MinSegment = 12
-	d.MaxPoints = 24
+	dCfg := testScanWelchConfig()
+	dCfg.MinPoints = 4
+	dCfg.MinSegment = 12
+	dCfg.MaxPoints = 24
+	d := NewScanWelchDetector(dCfg)
 	storage := newTimeSeriesStorage()
 
-	for timestamp := int64(1); timestamp <= int64(d.MinSegment); timestamp++ {
+	for timestamp := int64(1); timestamp <= int64(d.config.MinSegment); timestamp++ {
 		storage.Add("ns", "metric", 100, timestamp, nil)
 	}
 
 	require.NotPanics(t, func() {
-		result := d.Detect(storage, int64(d.MinSegment))
+		result := d.Detect(storage, int64(d.config.MinSegment))
 		assert.Empty(t, result.Anomalies)
 	})
 }
@@ -220,4 +225,19 @@ func TestScanWelch_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
 	}
 
 	assert.True(t, fired, "preloaded replay should detect the step change as dataTime advances")
+}
+
+func TestScanWelchConfig(t *testing.T) {
+	require.Equal(t, DefaultScanWelchConfig(), NewScanWelchDetector(ScanWelchConfig{}).config)
+	cfg := DefaultScanWelchConfig()
+	cfg.MinPoints, cfg.MaxPoints = 40, 20
+	d := NewScanWelchDetector(cfg)
+	want := cfg
+	want.MaxPoints = 40
+	want.Aggregations = append([]observer.Aggregate(nil), cfg.Aggregations...)
+	cfg.MinPoints = 100
+	cfg.Aggregations[0] = observer.AggregateSum
+	require.Equal(t, want, d.config, "constructor owns its configuration")
+	d.Reset()
+	require.Equal(t, want, d.config, "reset preserves configuration")
 }

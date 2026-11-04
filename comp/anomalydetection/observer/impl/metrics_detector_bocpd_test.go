@@ -565,3 +565,13 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
 }
+
+func TestBOCPDConfigOwnership(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	d := NewBOCPDDetector(cfg)
+	cfg.Aggregations[0] = observer.AggregateSum
+	cfg.WarmupPoints = 100
+	require.Equal(t, DefaultBOCPDConfig(), d.config)
+	d.Reset()
+	require.Equal(t, DefaultBOCPDConfig(), d.config)
+}
