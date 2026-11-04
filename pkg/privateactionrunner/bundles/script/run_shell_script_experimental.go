@@ -11,12 +11,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/tempfile"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/scriptprocess"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -84,33 +86,29 @@ func (h *RunShellScriptHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}
-	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(maxOutputSize)
-	cmd.Stdout = stdoutWriter
-	cmd.Stderr = stderrWriter
-	start := time.Now()
-	err = cmd.Run()
-
-	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
+	result, err := scriptprocess.Run(ctx, cmd, defaultMaxOutputSize)
+	if errors.Is(err, scriptprocess.ErrOutputLimitExceeded) {
 		return nil, newOutputLimitError(defaultMaxOutputSize)
 	}
 
-	stdErr := sanitizeErrorMessage(scriptFile.Name(), stderrWriter.String())
+	stdErr := sanitizeErrorMessage(scriptFile.Name(), result.Stderr)
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("script execution timed out after %d seconds", inputs.Timeout)
 		}
-		if !inputs.NoFailOnError {
+		var exitErr *exec.ExitError
+		if ctx.Err() != nil || !inputs.NoFailOnError || !errors.As(err, &exitErr) {
 			return nil, fmt.Errorf("failed to execute command: %w, stderr %s", err, stdErr)
 		}
 	}
 
 	return &RunShellScriptOutputs{
 		ExecutedCommand: cmd.String(),
-		ExitCode:        cmd.ProcessState.ExitCode(),
-		Stdout:          formatOutput(stdoutWriter.String(), inputs.NoStripTrailingNewline),
+		ExitCode:        result.ExitCode,
+		Stdout:          formatOutput(result.Stdout, inputs.NoStripTrailingNewline),
 		Stderr:          formatOutput(stdErr, inputs.NoStripTrailingNewline),
-		DurationMillis:  int(time.Since(start).Milliseconds()),
+		DurationMillis:  int(result.Duration.Milliseconds()),
 	}, nil
 }
 

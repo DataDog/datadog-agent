@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix script and PowerShell actions getting stuck in the Private Action Runner
+    on Unix and Windows when a script leaves background processes running.
+    Child processes started by a script are now terminated on Unix and Windows
+    when the action finishes, times out, or is canceled. Execution errors and
+    timeouts are now reported even when ``noFailOnError`` is enabled.
