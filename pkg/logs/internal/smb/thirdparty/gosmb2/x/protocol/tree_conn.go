@@ -158,6 +158,17 @@ func (tc *Tree) ShareType() uint8 {
 	return tc.shareType
 }
 
+// Encrypted reports whether the requests on this tree are encrypted: the
+// session requires encryption (SMB2_SESSION_FLAG_ENCRYPT_DATA), or the share
+// does (SMB2_SHAREFLAG_ENCRYPT_DATA). It is the condition under which send
+// encrypts. DATADOG PATCH 7.
+func (tc *Tree) Encrypted() bool {
+	if tc == nil || tc.session == nil {
+		return false
+	}
+	return tc.session.sessionFlags&wire.SMB2_SESSION_FLAG_ENCRYPT_DATA != 0 || tc.shareFlags&wire.SMB2_SHAREFLAG_ENCRYPT_DATA != 0
+}
+
 func (tc *Tree) Dialect() uint16 {
 	if tc == nil || tc.session == nil || tc.session.conn == nil {
 		return 0

@@ -49,7 +49,8 @@ func WithClock(clk clock.Clock) Option {
 // is routine (it expired, the server failed over), and the next call dials
 // again right away. An Auth dial failure (bad password, locked account,
 // unknown share) waits the full 30s between attempts, so a wrong password does
-// not hammer the domain controller. Calls made during a backoff return an
+// not hammer the domain controller; with a Guard (WithGuard), a refused
+// password is not sent again at all (see Guard). Calls made during a backoff return an
 // error that classifies like the failure that started it.
 //
 // Errors other than Transient (NotFound, Sharing, Auth on one file) keep the
@@ -74,6 +75,7 @@ type reconnecting struct {
 	target string
 	dial   DialFunc
 	clock  clock.Clock
+	guard  *Guard // nil sends every logon
 
 	mu      sync.Mutex
 	cur     Client        // nil when not connected
@@ -195,7 +197,7 @@ func (r *reconnecting) session(ctx context.Context) (Client, error) {
 		r.dialing = done
 		r.mu.Unlock()
 
-		c, err := r.dial(ctx, r.cfg)
+		c, err := r.connect(ctx)
 		err = r.redact(err)
 
 		r.mu.Lock()
@@ -222,6 +224,19 @@ func (r *reconnecting) session(ctx context.Context) (Client, error) {
 		log.Infof("smb: connected to %s", r.target)
 		return c, nil
 	}
+}
+
+// connect dials a session, through the guard of the account when there is one.
+func (r *reconnecting) connect(ctx context.Context) (Client, error) {
+	if r.guard == nil {
+		return r.dial(ctx, r.cfg)
+	}
+	// The guard keeps the error of the refused logon, which it hands to every
+	// source of the account: redact it first.
+	return r.guard.Dial(ctx, r.cfg, func(ctx context.Context, cfg Config) (Client, error) {
+		c, err := r.dial(ctx, cfg)
+		return c, r.redact(err)
+	})
 }
 
 // recordFailure records a failed connection attempt and schedules the next

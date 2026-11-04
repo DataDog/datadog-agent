@@ -13,6 +13,22 @@
 // and polls one tailer per matched file. Sources that use the same share and
 // account share one reconnecting SMB client.
 //
+// Security: the Agent authenticates with NTLMv2, which proves the account to
+// the server but not the server to the Agent, so a source's host must be a
+// fully qualified domain name or an IP address, never a single-label name that
+// Windows would resolve with LLMNR or NetBIOS broadcasts, nor a name ending in
+// .local, which is resolved with multicast DNS, where any machine on the
+// subnet can answer and receive the NTLMv2 response. Every message is
+// signed, and only SMB 3 is offered unless the source sets allow_smb2; the
+// content is encrypted only if the server enforces it or the source sets
+// require_encryption.
+//
+// Logons: a domain locks an account out after a few bad logons, so the Agent
+// sends one logon at a time per account and none once the server refused the
+// account's password, whatever the number of sources and servers that use it,
+// until the password changes (a refreshed secret) or the Agent restarts; a
+// locked-out account is tried once an hour (see client.Guard).
+//
 // Agents do not elect a single reader per share: every Agent with an smb
 // source lists the share and reads every file the source's path matches, so a
 // DaemonSet that configures the source on N nodes ships each line N times.
@@ -78,6 +94,10 @@ type Launcher struct {
 	// its drain ends; drainMaxCloseTimeouts of them bound the drain.
 	closeTimeout time.Duration
 
+	// guard keeps a refused password from being sent again by any source (see
+	// client.Guard). It is the guard of the process, which outlives the launcher.
+	guard *client.Guard
+
 	// Test seams.
 	clock          clock.Clock
 	dial           client.DialFunc // nil means client.Dial
@@ -117,6 +137,7 @@ func NewLauncher(closeTimeout time.Duration) *Launcher {
 	return &Launcher{
 		closeTimeout: closeTimeout,
 		clock:        clock.New(),
+		guard:        client.ProcessGuard(),
 		tailers:      tailers.NewTailerContainer[*tailer.Tailer](),
 		claims:       &claims{owners: make(map[string]*scanner)},
 		addedDone:    make(chan struct{}),
@@ -322,9 +343,9 @@ func (l *Launcher) stopAll() {
 }
 
 // clientKey identifies the sources that can share an SMB session: same
-// server, share and account. The password is part of it so a source whose
-// secret was refreshed (see previousSources) does not reuse a session opened
-// with the old one; the key is never printed.
+// server, share, account and security settings. The password is part of it so a
+// source whose secret was refreshed (see previousSources) does not reuse a
+// session opened with the old one; the key is never printed.
 type clientKey struct {
 	host     string
 	port     int
@@ -332,6 +353,9 @@ type clientKey struct {
 	username string
 	domain   string
 	password string
+
+	allowSMB2         bool
+	requireEncryption bool
 }
 
 type sharedClient struct {
@@ -340,7 +364,8 @@ type sharedClient struct {
 }
 
 func (l *Launcher) acquireClient(cfg *config.SMBConfig) (clientKey, client.Client) {
-	key := clientKey{host: cfg.Host, port: cfg.Port, share: cfg.Share, username: cfg.Username, domain: cfg.Domain, password: cfg.Password}
+	key := clientKey{host: cfg.Host, port: cfg.Port, share: cfg.Share, username: cfg.Username, domain: cfg.Domain, password: cfg.Password,
+		allowSMB2: cfg.AllowSMB2, requireEncryption: cfg.RequireEncryption}
 	if key.port == 0 {
 		key.port = 445
 	}
@@ -348,7 +373,7 @@ func (l *Launcher) acquireClient(cfg *config.SMBConfig) (clientKey, client.Clien
 		shared.refs++
 		return key, shared.client
 	}
-	opts := []client.Option{client.WithClock(l.clock)}
+	opts := []client.Option{client.WithClock(l.clock), client.WithGuard(l.guard)}
 	if l.dial != nil {
 		opts = append(opts, client.WithDialer(l.dial))
 	}
@@ -359,6 +384,9 @@ func (l *Launcher) acquireClient(cfg *config.SMBConfig) (clientKey, client.Clien
 		Password: cfg.Password,
 		Domain:   cfg.Domain,
 		Port:     cfg.Port,
+
+		AllowSMB2:         cfg.AllowSMB2,
+		RequireEncryption: cfg.RequireEncryption,
 	}, opts...)
 	l.clients[key] = &sharedClient{client: c, refs: 1}
 	return key, c

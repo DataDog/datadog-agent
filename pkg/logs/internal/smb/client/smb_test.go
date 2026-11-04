@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync/atomic"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	smb2 "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol"
 )
 
@@ -293,12 +295,48 @@ func TestRedactErr(t *testing.T) {
 
 	leaky := fmt.Errorf("auth failed for password %s: %w", testPassword, status(statusLogonFailure))
 	err := redactErr(leaky, testPassword)
-	assert.Equal(t, "auth failed for password ********: "+status(statusLogonFailure).Error(), err.Error())
+	assert.Equal(t, redactedMessage, err.Error(), "the whole message goes: no substring of it is kept for a guess to probe")
 	assert.Equal(t, ErrAuth, Classify(err), "the classification survives the redaction")
+	code, ok := statusCode(err)
+	assert.True(t, ok)
+	assert.Equal(t, uint32(statusLogonFailure), code, "so does the status code")
 	assert.Nil(t, errors.Unwrap(err), "the original error, which holds the password, is dropped")
 	for _, verb := range []string{"%v", "%+v", "%s", "%#v"} {
 		assert.NotContains(t, fmt.Sprintf(verb, err), testPassword, verb)
 	}
+
+	// The sentinels of this package survive too, and a password of one character
+	// is looked for like any other.
+	guest := redactErr(fmt.Errorf("%s: %w", "x", errGuestSession), "x")
+	assert.Equal(t, redactedMessage, guest.Error())
+	assert.ErrorIs(t, guest, errGuestSession)
+	assert.Equal(t, ErrAuth, Classify(guest))
+	assert.NotErrorIs(t, guest, ErrClosed)
+}
+
+func TestRedactionKeepsAgentText(t *testing.T) {
+	cfg := Config{Host: "files.example.com", Share: "logs", Username: "u", Password: "encrypt the session", RequireEncryption: true}.withDefaults()
+
+	// The encryption check: the error is the Agent's own text, which holds the
+	// password.
+	refusal := checkEncryption(encrypted(false), true)
+	require.ErrorIs(t, refusal, ErrNotEncrypted)
+	require.Contains(t, refusal.Error(), cfg.Password)
+	err := checked(fmt.Errorf("smb: connect to %s: %w", cfg.target(), refusal))
+	assert.Same(t, err, redactErr(err, cfg.Password), "text built by Dial is not searched again")
+	assert.ErrorIs(t, err, ErrNotEncrypted)
+	assert.Contains(t, err.Error(), "does not encrypt")
+	assert.Equal(t, ErrAuth, Classify(err))
+
+	// A library error that holds the password is redacted before the Agent's
+	// text is added, and the guest sentinel survives.
+	guestLib := fmt.Errorf("%s: %w", cfg.Password, &protocol.InvalidResponseError{Message: "guest account doesn't support signing"})
+	guestErr := dialError(guestLib, cfg, cfg.target(), true)
+	assert.NotContains(t, guestErr.Error(), cfg.Password)
+	assert.Contains(t, guestErr.Error(), "check the username and password")
+	assert.ErrorIs(t, guestErr, errGuestSession)
+	assert.Equal(t, ErrAuth, Classify(guestErr), "a guest session needs user action, not a retry")
+	assert.Same(t, guestErr, redactErr(guestErr, cfg.Password))
 }
 
 func TestSMBClientRejectsBadArguments(t *testing.T) {
@@ -335,6 +373,49 @@ func TestDialerRequiresSigning(t *testing.T) {
 	d := newDialer(cfg)
 	assert.True(t, d.RequireMessageSigning, "unsigned sessions, including guest and anonymous ones, are refused")
 	assert.True(t, d.DisableAAPLExtension)
+}
+
+func TestDialerOffersOnlySMB3ByDefault(t *testing.T) {
+	cfg := Config{Host: "h", Share: "s", Username: "u", Password: testPassword}.withDefaults()
+	assert.Equal(t, []smb2.Dialect{smb2.SMB311, smb2.SMB302, smb2.SMB300}, newDialer(cfg).SpecifiedDialects,
+		"SMB 2.x cannot be encrypted and its negotiation is not authenticated: it is not offered unless the source opts in")
+
+	cfg.AllowSMB2 = true
+	assert.Empty(t, newDialer(cfg).SpecifiedDialects, "allow_smb2 leaves the library's list, SMB 3.1.1 down to 2.0.2")
+}
+
+type encrypted bool
+
+func (e encrypted) Encrypted() bool { return bool(e) }
+
+func TestRequireEncryptionFailsClosed(t *testing.T) {
+	assert.NoError(t, checkEncryption(encrypted(true), true))
+	assert.NoError(t, checkEncryption(encrypted(true), false))
+	assert.NoError(t, checkEncryption(encrypted(false), false), "encryption is opt-in")
+
+	err := checkEncryption(encrypted(false), true)
+	require.ErrorIs(t, err, ErrNotEncrypted)
+	assert.Equal(t, ErrAuth, Classify(err), "it needs a change of the server or of the source, so it backs off like an auth failure")
+	assert.Equal(t, ErrAuth, Classify(fmt.Errorf("smb: connect to smb://h/s: %w", err)))
+
+	assert.ErrorContains(t, Config{Host: "h", Share: "s", AllowSMB2: true, RequireEncryption: true}.validate(), "cannot be combined with allow_smb2")
+	assert.NoError(t, Config{Host: "h", Share: "s", RequireEncryption: true}.validate())
+}
+
+func TestNegotiateHintForServersWithoutSMB3(t *testing.T) {
+	notSupported := fmt.Errorf("smb: connect to smb://h/s: %w", status(statusNotSupported))
+	cfg := Config{Host: "h", Share: "s"}
+
+	err := negotiateHint(notSupported, cfg)
+	assert.ErrorIs(t, err, notSupported)
+	assert.ErrorContains(t, err, "allow_smb2: true")
+
+	cfg.AllowSMB2 = true
+	assert.Equal(t, notSupported, negotiateHint(notSupported, cfg), "no hint when SMB 2 is already allowed")
+	cfg.AllowSMB2 = false
+	other := status(statusAccessDenied)
+	assert.Equal(t, other, negotiateHint(other, cfg))
+	assert.Equal(t, io.EOF, negotiateHint(io.EOF, cfg))
 }
 
 func TestGuestSessionIsAnAuthError(t *testing.T) {

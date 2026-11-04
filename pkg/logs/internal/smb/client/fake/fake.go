@@ -40,6 +40,8 @@ var (
 	ErrNotFound     error = &protocol.ResponseError{Code: 0xC0000034} // STATUS_OBJECT_NAME_NOT_FOUND
 	ErrAuth         error = &protocol.ResponseError{Code: 0xC000006D} // STATUS_LOGON_FAILURE
 	ErrAccessDenied error = &protocol.ResponseError{Code: 0xC0000022} // STATUS_ACCESS_DENIED (ErrAuth kind)
+	ErrLockedOut    error = &protocol.ResponseError{Code: 0xC0000234} // STATUS_ACCOUNT_LOCKED_OUT
+	ErrDisabled     error = &protocol.ResponseError{Code: 0xC0000072} // STATUS_ACCOUNT_DISABLED
 	ErrSharing      error = &protocol.ResponseError{Code: 0xC0000043} // STATUS_SHARING_VIOLATION
 	errNotADir      error = &protocol.ResponseError{Code: 0xC0000103} // STATUS_NOT_A_DIRECTORY
 	errIsADir       error = &protocol.ResponseError{Code: 0xC00000BA} // STATUS_FILE_IS_A_DIRECTORY
