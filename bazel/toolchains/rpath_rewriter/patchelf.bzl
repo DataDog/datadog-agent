@@ -61,8 +61,9 @@ source "{helper}"
 # /. copies the contents of input rather than nesting it under output
 # (Bazel pre-creates output via declare_directory). chmod restores
 # owner-write so patchelf can rewrite files installed as 0555.
+# The declare_directory root itself rejects chmod on remote workers.
 cp -rL "$INPUT/." "$OUTPUT"
-chmod -R u+w "$OUTPUT"
+find "$OUTPUT" -mindepth 1 -exec chmod u+w {{}} +
 
 while IFS= read -r -d '' f; do
     RESOLVED_RPATH=$(origin_rpath_for_tree_file '$ORIGIN' "$OUTPUT" "$f" "$RPATH")
