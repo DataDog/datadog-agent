@@ -840,6 +840,7 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 // Ideally, the server wouldn't start up at all, but this workaround has been
 // in place for some time.
 func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
-	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
+	os.Setenv("DD_CMD_PORT", "0")                 // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_AGENT_IPC_PORT", "0")           // force disable the IPC server
+	os.Setenv("DD_AGENT_IPC_USE_SOCKET", "false") // also needed when config sync uses the unix socket
 }
