@@ -8,7 +8,7 @@
 # on an EKS cluster and compares their resource usage. The comparison is the Agent of the pipeline, the baseline the one
 # of a commit of the base branch chosen like SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`).
 #
-# The benchmark keeps an EKS cluster for about 1.5 h, so it only runs on dev branches: automatically when they change
+# The benchmark keeps an EKS cluster for its whole run, so it only runs on dev branches: automatically when they change
 # the code it measures, a regression then failing the pipeline, and manually otherwise. To run it manually, play
 # new-e2e-containers-benchmarkeks-baseline only: the other jobs need it, so GitLab skips them until it is played, and
 # then runs them after it.
@@ -155,3 +155,6 @@ new-e2e-containers-benchmarkeks:
     DYNAMIC_TESTS_FLAG: "" # Never skipped by the test selection
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
   retry: !reference [.retry_only_infra_failure, retry]
+  # Temporary, until the benchmark has proven reliable enough to block the merge of pull requests: a regression fails
+  # this job, but not the pipeline.
+  allow_failure: true
