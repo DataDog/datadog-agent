@@ -253,7 +253,6 @@ func TestHoltResidual_RemoveSeries(t *testing.T) {
 
 	d.RemoveSeries([]observer.SeriesRef{ref})
 	assert.Empty(t, d.series, "RemoveSeries must drop per-series state for freed refs")
-	assert.Nil(t, d.cachedRefs, "RemoveSeries should invalidate the series cache")
 }
 
 // TestHoltResidual_Reset confirms that Reset wipes per-series state.
@@ -267,7 +266,6 @@ func TestHoltResidual_Reset(t *testing.T) {
 
 	d.Reset()
 	assert.Empty(t, d.series, "Reset must clear per-series state")
-	assert.Nil(t, d.cachedRefs, "Reset must clear cached series")
 }
 
 // TestHoltResidual_DefaultsApplied confirms ensureDefaults populates a

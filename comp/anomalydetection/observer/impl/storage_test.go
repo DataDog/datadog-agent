@@ -66,6 +66,89 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestForEachSeriesStatusFilterAndVisibility(t *testing.T) {
+	s := newTimeSeriesStorage()
+	add := func(namespace, name, host string, timestamp int64, typ metrics.MetricType) observer.SeriesRef {
+		key := testStorageKeyForIdentity(namespace, name, host, []string{"env:prod"})
+		return s.AddWithKeyAndHostComposite(namespace, name, host, 1, timestamp,
+			tagset.CompositeTagsFromSlice([]string{"env:prod"}), key, typ).Ref
+	}
+	ref := add("dogstatsd", "cpu.utilization", "host-a", 100, metrics.GaugeType)
+	add("dogstatsd", "cpu.utilization", "host-a", 200, metrics.GaugeType)
+	add("dogstatsd", "cpu.usage", "host-b", 100, metrics.CountType)
+	add(observer.TelemetryNamespace, "cpu.utilization", "host-a", 100, metrics.GaugeType)
+	filter := observer.SeriesFilter{
+		Host: "host-a", NamePattern: "cpu.util", TagMatchers: map[string]string{"env": "prod"},
+		ExcludeNamespaces: []string{observer.TelemetryNamespace},
+	}
+	visit := func(end int64) seriesStatus {
+		t.Helper()
+		var got []seriesStatus
+		s.ForEachSeriesStatus(filter, end, func(found observer.SeriesRef, status seriesStatus) {
+			require.Equal(t, ref, found)
+			// The callback runs unlocked, including against an exclusive
+			// writer. Reentrant read operations are safe as well.
+			require.True(t, s.mu.TryLock())
+			s.mu.Unlock()
+			require.NotNil(t, s.GetSeriesMeta(found))
+			require.Equal(t, status.pointCount, s.PointCountUpTo(found, end))
+			got = append(got, status)
+		})
+		require.Len(t, got, 1)
+		return got[0]
+	}
+	before := visit(99)
+	require.Equal(t, 0, before.pointCount)
+	require.Equal(t, int64(0), before.latestTimestamp)
+	require.True(t, before.latestKnown)
+	require.Equal(t, metrics.GaugeType, before.metricType)
+	require.Equal(t, int64(2), before.writeGeneration, "preloaded future points are already written")
+	first := visit(100)
+	require.Equal(t, 1, first.pointCount)
+	require.Equal(t, int64(100), first.latestTimestamp)
+	last := visit(200)
+	require.Equal(t, 2, last.pointCount)
+	require.Equal(t, int64(200), last.latestTimestamp)
+
+	// Same-bucket merge and out-of-order backfill change the generation and
+	// visible count independently, without changing the catalog membership.
+	add("dogstatsd", "cpu.utilization", "host-a", 100, metrics.GaugeType)
+	require.Equal(t, first.pointCount, visit(100).pointCount)
+	require.Equal(t, first.writeGeneration+1, visit(100).writeGeneration)
+	add("dogstatsd", "cpu.utilization", "host-a", 150, metrics.GaugeType)
+	require.Equal(t, int64(150), visit(150).latestTimestamp)
+}
+
+func TestForEachSeriesStatusCallbackPanicReleasesReadLock(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("work", "cpu", 1, 100, nil)
+	require.Panics(t, func() {
+		s.ForEachSeriesStatus(observer.WorkloadSeriesFilter(), 100, func(observer.SeriesRef, seriesStatus) {
+			panic("callback")
+		})
+	})
+	// This write needs the same mutex exclusively and would hang if an RLock
+	// had been left held by the panicking callback.
+	s.Add("work", "memory", 1, 101, nil)
+	require.Len(t, s.ListSeries(observer.WorkloadSeriesFilter()), 2)
+}
+
+func TestInstrumentedForEachSeriesStatusDigestIgnoresAdmissionOrder(t *testing.T) {
+	digestFor := func(names []string) readDigest {
+		s := newTimeSeriesStorage()
+		for _, name := range names {
+			s.Add("work", name, 1, 100, nil)
+		}
+		reader := newInstrumentedStorage(s)
+		reader.ForEachSeriesStatus(observer.WorkloadSeriesFilter(), 100, func(observer.SeriesRef, seriesStatus) {})
+		return reader.digest("test", 100)
+	}
+	first := digestFor([]string{"cpu", "memory", "disk"})
+	second := digestFor([]string{"disk", "cpu", "memory"})
+	require.Equal(t, first.Hash, second.Hash)
+	require.Equal(t, first.ReadCount, second.ReadCount)
+}
+
 func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
 	s := newTimeSeriesStorage()
 	result := s.Add("logs", "log.pattern.count", 1, 1, nil)

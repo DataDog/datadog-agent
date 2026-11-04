@@ -855,13 +855,6 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
-	// ScanWelchDetector, and ScanMWDetector: SeriesGeneration changes on series
-	// admission/removal and filterable metadata updates, not ordinary point writes.
-	// Reuse the selection while that generation is unchanged.
-	cachedRefs []observerdef.SeriesRef
-	cachedGen  uint64
-
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
 	// are unique and never reused, so they remain stable for the lifetime of
@@ -886,11 +879,9 @@ func (a *seriesDetectorAdapter) Ready() bool {
 	return a.detector.Ready()
 }
 
-// Reset clears adapter-local caches and resets the wrapped detector when supported.
+// Reset clears adapter-local state and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
-	a.cachedRefs = nil
-	a.cachedGen = 0
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
 		resetter.Reset()
 	}
@@ -904,7 +895,7 @@ func (a *seriesDetectorAdapter) Reset() {
 // Concurrency invariant: this method runs on the single observerImpl.run()
 // goroutine that drives every other adapter callback (Detect, Reset). The
 // engine's fanOutSeriesRemoval is the only caller. Mutating lastVisibleCount
-// and cachedRefs without a lock is safe under that invariant only.
+// without a lock is safe under that invariant only.
 func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	if len(refs) == 0 {
 		return
@@ -914,26 +905,18 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 			delete(a.lastVisibleCount, ref)
 		}
 	}
-	a.cachedRefs = nil
-	a.cachedGen = 0
 	if remover, ok := a.detector.(observerdef.SeriesRemover); ok {
 		remover.RemoveSeries(refs)
 	}
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
-	gen := storage.SeriesGeneration()
-	if a.cachedRefs == nil || gen != a.cachedGen {
-		a.cachedRefs = workloadSeriesRefs(storage, a.cachedRefs)
-		a.cachedGen = gen
-	}
-
 	var allAnomalies []observerdef.Anomaly
 
-	for _, ref := range a.cachedRefs {
-		visibleCount := storage.PointCountUpTo(ref, dataTime)
+	forEachSeriesStatus(storage, observerdef.WorkloadSeriesFilter(), dataTime, func(ref observerdef.SeriesRef, status seriesStatus) {
+		visibleCount := status.pointCount
 		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
-			continue
+			return
 		}
 		a.lastVisibleCount[ref] = visibleCount
 
@@ -971,7 +954,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			}
 			allAnomalies = append(allAnomalies, result.Anomalies...)
 		}
-	}
+	})
 
 	return observerdef.DetectionResult{Anomalies: allAnomalies}
 }

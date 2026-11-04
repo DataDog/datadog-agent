@@ -440,7 +440,6 @@ func TestTukeyBiweight_RemoveSeries(t *testing.T) {
 
 	assert.Len(t, d.series, len(d.Aggregations),
 		"only state for the surviving series should remain")
-	assert.Nil(t, d.cachedSeries, "RemoveSeries must invalidate the cached series list")
 }
 
 // TestTukeyBiweight_ScoreEveryAmortization verifies that scoring runs at most
@@ -542,8 +541,7 @@ func TestTukeyBiweight_NoNewDataNoWork(t *testing.T) {
 	assert.Empty(t, r2.Anomalies, "no new data must produce no anomalies on re-call")
 }
 
-// TestTukeyBiweight_Reset verifies Reset clears the per-series map and the
-// cached series list, mirroring the contract on mannkendall / esn.
+// TestTukeyBiweight_Reset verifies Reset clears per-series state.
 func TestTukeyBiweight_Reset(t *testing.T) {
 	d := testTukeyBiweightDetector()
 	storage := newDetectorTestStorage()
@@ -555,5 +553,4 @@ func TestTukeyBiweight_Reset(t *testing.T) {
 
 	d.Reset()
 	assert.Empty(t, d.series, "reset should clear all state")
-	assert.Nil(t, d.cachedSeries, "reset should clear cached series")
 }

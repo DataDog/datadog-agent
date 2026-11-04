@@ -139,11 +139,6 @@ type HoltResidualDetector struct {
 	// per-series state keyed by ref+agg
 	series map[holtStateKey]*holtSeriesState
 
-	// Cache compact refs across Detect calls. Keeping only refs avoids retaining
-	// every series' metadata and tag slice for Holt's lifetime.
-	cachedRefs []observer.SeriesRef
-	cachedGen  uint64
-
 	// scratch is reused by the single-threaded detection loop for median/MAD
 	// calculations. It never aliases series state windows.
 	scratch []float64
@@ -220,8 +215,6 @@ func (d *HoltResidualDetector) DetectorPointWindow() observer.DetectorPointWindo
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
-	d.cachedRefs = nil
-	d.cachedGen = 0
 	d.scratch = d.scratch[:0]
 	d.ready = false
 }
@@ -239,8 +232,6 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, holtStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedRefs = nil
-	d.cachedGen = 0
 }
 
 // Detect implements observer.Detector. Streams new points into per-series
@@ -248,19 +239,9 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
-	gen := storage.SeriesGeneration()
-	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
-		d.cachedGen = gen
-	}
-
-	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
-
 	var allAnomalies []observer.Anomaly
 
-	for i, ref := range d.cachedRefs {
-		status := bulkStatus[i]
-
+	forEachSeriesStatus(storage, observer.WorkloadSeriesFilter(), dataTime, func(ref observer.SeriesRef, status seriesStatus) {
 		for _, agg := range d.Aggregations {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
@@ -311,7 +292,7 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 				state.lastWriteGen = status.writeGeneration
 			}
 		}
-	}
+	})
 
 	return observer.DetectionResult{Anomalies: allAnomalies}
 }

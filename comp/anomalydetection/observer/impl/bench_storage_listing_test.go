@@ -60,6 +60,38 @@ func buildSeriesListingBenchmarkStorage(numSeries int) *timeSeriesStorage {
 	return storage
 }
 
+// BenchmarkDetectorStatusTraversal reproduces the detector selection/status
+// path without detector math. Storage ingestion/removal is excluded.
+func BenchmarkDetectorStatusTraversal(b *testing.B) {
+	for _, count := range []int{5, 200, 2000} {
+		for _, mode := range []string{"stable", "churn"} {
+			b.Run(fmt.Sprintf("series=%d/%s", count, mode), func(b *testing.B) {
+				fixture := newDetectorAdvanceBenchmark(count)
+				traverse := func(timestamp int64) {
+					total := 0
+					forEachSeriesStatus(fixture.storage, observer.WorkloadSeriesFilter(), timestamp, func(ref observer.SeriesRef, status seriesStatus) {
+						total += int(ref) + status.pointCount + int(status.writeGeneration)
+					})
+					benchmarkTraversalChecksum = total
+				}
+				traverse(120)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					timestamp := int64(120)
+					if mode == "churn" {
+						b.StopTimer()
+						timestamp += int64(i + 1)
+						fixture.churn(i, timestamp)
+						b.StartTimer()
+					}
+					traverse(timestamp)
+				}
+			})
+		}
+	}
+}
+
 var benchmarkTraversalChecksum int
 
 func BenchmarkDetectorStatusSearch(b *testing.B) {

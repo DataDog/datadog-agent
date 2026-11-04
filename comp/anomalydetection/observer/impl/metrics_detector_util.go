@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const scanMaxPoints = 120
@@ -165,17 +166,36 @@ func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
 	}
 }
 
-// seriesStatus holds point count and write generation for a single series.
-// Used by bulkSeriesStatus and scan-based detectors.
+// seriesStatus holds the visibility and mutation state of a single series.
 type seriesStatus struct {
 	pointCount      int
+	latestTimestamp int64
+	latestKnown     bool
 	writeGeneration int64
+	metricType      metrics.MetricType
 }
 
-// bulkStatusReader is an optional optimization interface for StorageReader
-// implementations that support batch status queries in a single lock acquisition.
-type bulkStatusReader interface {
-	BulkSeriesStatus(refs []observer.SeriesRef, endTime int64) []seriesStatus
+// filteredSeriesStatusReader streams catalog entries without ref/status slices.
+// Callbacks may call storage read methods, but must not add or remove series
+// while traversal is in progress (including from the callback).
+type filteredSeriesStatusReader interface {
+	ForEachSeriesStatus(observer.SeriesFilter, int64, func(observer.SeriesRef, seriesStatus))
+}
+
+func forEachSeriesStatus(storage observer.StorageReader, filter observer.SeriesFilter, endTime int64, fn func(observer.SeriesRef, seriesStatus)) {
+	if reader, ok := storage.(filteredSeriesStatusReader); ok {
+		reader.ForEachSeriesStatus(filter, endTime, fn)
+		return
+	}
+	for _, meta := range storage.ListSeries(filter) {
+		fn(meta.Ref, seriesStatus{
+			pointCount:      storage.PointCountUpTo(meta.Ref, endTime),
+			writeGeneration: storage.WriteGeneration(meta.Ref),
+			metricType:      meta.MetricType,
+			// Legacy readers do not expose a cheap latest-visible timestamp.
+			// Callers may only use latestTimestamp when latestKnown is true.
+		})
+	}
 }
 
 // seriesRefLister is an optional optimization interface for StorageReader
@@ -254,25 +274,6 @@ func listSeriesRefs(storage observer.StorageReader, filter observer.SeriesFilter
 		dst = append(dst, meta.Ref)
 	}
 	return dst
-}
-
-// bulkSeriesStatus returns the point count and write generation for each ref.
-// If storage implements bulkStatusReader (e.g. timeSeriesStorage), it uses a
-// single lock acquisition. Otherwise falls back to individual PointCountUpTo +
-// WriteGeneration calls per ref.
-func bulkSeriesStatus(storage observer.StorageReader, refs []observer.SeriesRef, endTime int64) []seriesStatus {
-	if br, ok := storage.(bulkStatusReader); ok {
-		return br.BulkSeriesStatus(refs, endTime)
-	}
-	// Fallback: individual calls (2 lock acquisitions per ref).
-	result := make([]seriesStatus, len(refs))
-	for i, h := range refs {
-		result[i] = seriesStatus{
-			pointCount:      storage.PointCountUpTo(h, endTime),
-			writeGeneration: storage.WriteGeneration(h),
-		}
-	}
-	return result
 }
 
 // detectorMedian computes the median of a float64 slice without modifying the input.

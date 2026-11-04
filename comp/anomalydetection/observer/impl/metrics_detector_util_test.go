@@ -12,6 +12,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type countingPointReader struct {
+	observer.StorageReader
+	pointCalls int
+}
+
+func (r *countingPointReader) ForEachPoint(ref observer.SeriesRef, start, end int64, agg observer.Aggregate, fn func(*observer.Series, observer.Point)) bool {
+	r.pointCalls++
+	return r.StorageReader.ForEachPoint(ref, start, end, agg, fn)
+}
+
+func TestSeriesStatusLegacyFallbackMarksLatestUnknown(t *testing.T) {
+	s := newTimeSeriesStorage()
+	ref := s.Add("work", "metric", 1, 100, nil).Ref
+	s.Add("work", "metric", 2, 200, nil)
+	legacy := &countingPointReader{StorageReader: s}
+	forEachSeriesStatus(legacy, observer.WorkloadSeriesFilter(), 100, func(got observer.SeriesRef, status seriesStatus) {
+		require.Equal(t, ref, got)
+		require.Equal(t, 1, status.pointCount)
+		require.Equal(t, int64(2), status.writeGeneration)
+		require.False(t, status.latestKnown)
+	})
+}
+
 func TestListSeriesRefsFallbackUsesListSeries(t *testing.T) {
 	storage := &seriesListOnlyStorage{
 		metas: []observer.SeriesMeta{

@@ -1273,6 +1273,44 @@ func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
 
 // StorageReader interface implementation
 
+// ForEachSeriesStatus visits filtered series without materializing a catalog
+// snapshot or a status slice. The map iterator advances and each series'
+// metadata/status is captured under the read lock; the lock is released for
+// callbacks so they may safely reenter storage read methods.
+//
+// The single-writer engine must not admit or remove series for the entire
+// traversal, including callbacks: a map iterator cannot survive concurrent
+// membership changes while the lock is released. Point writes to existing
+// series are safe and are reflected by subsequent visits.
+func (s *timeSeriesStorage) ForEachSeriesStatus(filter observer.SeriesFilter, endTime int64, fn func(observer.SeriesRef, seriesStatus)) {
+	s.mu.RLock()
+	locked := true
+	defer func() {
+		if locked {
+			s.mu.RUnlock()
+		}
+	}()
+	for _, stats := range s.seriesIDStats {
+		if stats == nil || !matchesSeriesFilter(stats, filter) {
+			continue
+		}
+		ref := stats.ref
+		status := seriesStatus{writeGeneration: stats.writeGeneration, metricType: stats.MetricType}
+		if n := stats.pointCount(); n != 0 {
+			status.pointCount = searchAfter(stats.buckets, endTime)
+			if status.pointCount != 0 {
+				status.latestTimestamp = stats.buckets[status.pointCount-1].timestamp
+			}
+		}
+		status.latestKnown = true
+		s.mu.RUnlock()
+		locked = false
+		fn(ref, status)
+		s.mu.RLock()
+		locked = true
+	}
+}
+
 // ListSeries returns metadata for all series matching the filter.
 func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.SeriesMeta {
 	s.mu.RLock()
@@ -1389,29 +1427,6 @@ func (s *timeSeriesStorage) WriteGeneration(ref observer.SeriesRef) int64 {
 		return stats.writeGeneration
 	}
 	return 0
-}
-
-// BulkSeriesStatus returns the point count (up to endTime) and write generation
-// for each ref in a single lock acquisition. This avoids the overhead of
-// 2×len(refs) individual RLock/RUnlock calls in hot detector loops.
-// Implements bulkStatusReader (metrics_detector_util.go).
-func (s *timeSeriesStorage) BulkSeriesStatus(refs []observer.SeriesRef, endTime int64) []seriesStatus {
-	result := make([]seriesStatus, len(refs))
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for i, ref := range refs {
-		stats := s.resolveByID(ref)
-		if stats == nil || stats.pointCount() == 0 {
-			continue
-		}
-		result[i] = seriesStatus{
-			pointCount:      searchAfter(stats.buckets, endTime),
-			writeGeneration: stats.writeGeneration,
-		}
-	}
-	return result
 }
 
 // matchTags checks if tags contain all required key=value pairs.

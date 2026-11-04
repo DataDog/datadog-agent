@@ -94,10 +94,6 @@ type TukeyBiweightDetector struct {
 	// scoreBuf is shared by the single-writer detector while it scores each
 	// series. Keeping it here avoids retaining a raw window for every series.
 	scoreBuf []observer.Point
-
-	// Cache the discovered series list across Detect calls.
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
 }
 
 // TukeyBiweightConfig holds catalog/testbench tunables for TukeyBiweightDetector.
@@ -164,8 +160,6 @@ func (d *TukeyBiweightDetector) DetectorPointWindow() observer.DetectorPointWind
 // Reset clears all per-series state for replay/reanalysis.
 func (d *TukeyBiweightDetector) Reset() {
 	d.series = make(map[tbStateKey]*tbSeriesState)
-	d.cachedSeries = nil
-	d.cachedGen = 0
 	d.ready = false
 }
 
@@ -183,8 +177,6 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, tbStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedSeries = nil
-	d.cachedGen = 0
 }
 
 // Detect implements observer.Detector. If storage mutates an already-processed
@@ -194,28 +186,14 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
-	gen := storage.SeriesGeneration()
-	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
-		d.cachedGen = gen
-	}
-
-	refs := make([]observer.SeriesRef, len(d.cachedSeries))
-	for i, meta := range d.cachedSeries {
-		refs[i] = meta.Ref
-	}
-	bulkStatus := bulkSeriesStatus(storage, refs, dataTime)
-
 	var allAnomalies []observer.Anomaly
 
-	for i, meta := range d.cachedSeries {
-		status := bulkStatus[i]
-
+	forEachSeriesStatus(storage, observer.WorkloadSeriesFilter(), dataTime, func(ref observer.SeriesRef, status seriesStatus) {
 		for _, agg := range d.Aggregations {
-			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
+			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
-			sk := tbStateKey{ref: meta.Ref, agg: agg}
+			sk := tbStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
 			if !exists && status.pointCount < d.MinPoints {
@@ -231,14 +209,14 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 			}
 			startTime := state.lastProcessedTime
 			countIncreased := status.pointCount > state.lastProcessedCount
-			prefixCount := storage.PointCountUpTo(meta.Ref, state.lastProcessedTime)
+			prefixCount := storage.PointCountUpTo(ref, state.lastProcessedTime)
 			// A full point window can evict an old bucket while appending a new
 			// one. That changes the generation without changing the total count;
 			// the smaller prefix shows the lost bucket was before our cursor.
 			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen &&
 				prefixCount >= state.lastProcessedCount
 			cursorBucketChangedWithAppend := countIncreased && status.writeGeneration != state.lastWriteGen &&
-				prefixCount == state.lastProcessedCount && d.cursorPointChanged(storage, meta.Ref, agg, state)
+				prefixCount == state.lastProcessedCount && d.cursorPointChanged(storage, ref, agg, state)
 			if mergeOccurred || prefixCount > state.lastProcessedCount || cursorBucketChangedWithAppend {
 				state = &tbSeriesState{}
 				d.series[sk] = state
@@ -247,7 +225,7 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 
 			var seriesMeta *observer.Series
 			pointsSeen := false
-			storage.ForEachPoint(meta.Ref, startTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+			storage.ForEachPoint(ref, startTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
 				pointsSeen = true
 				if seriesMeta == nil {
 					sCopy := *s
@@ -261,12 +239,12 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				state.ticksSinceScore++
 
 				if status.pointCount >= d.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.ScoreEvery {
-					seriesMeta, d.scoreBuf = collectLastPoints(storage, meta.Ref, p.Timestamp, d.WindowSize, agg, d.scoreBuf)
+					seriesMeta, d.scoreBuf = collectLastPoints(storage, ref, p.Timestamp, d.WindowSize, agg, d.scoreBuf)
 					if len(d.scoreBuf) >= d.MinPoints {
 						state.ticksSinceScore = 0
 						d.ready = true
 						if anomaly, fired := d.scoreBiweight(d.scoreBuf, seriesMeta, agg, p.Timestamp); fired {
-							anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+							anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 							allAnomalies = append(allAnomalies, anomaly)
 							state.cooldownLeft = d.CooldownPoints
 							state.lastFireTime = p.Timestamp
@@ -288,7 +266,7 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				state.lastWriteGen = status.writeGeneration
 			}
 		}
-	}
+	})
 
 	return observer.DetectionResult{Anomalies: allAnomalies}
 }

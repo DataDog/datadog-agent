@@ -71,8 +71,6 @@ type ScanWelchDetector struct {
 	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
-	cachedRefs []observer.SeriesRef
-	cachedGen  uint64
 }
 
 // NewScanWelchDetector creates a ScanWelch detector with default settings.
@@ -109,8 +107,6 @@ func (d *ScanWelchDetector) DetectorPointWindow() observer.DetectorPointWindow {
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanWelchDetector) Reset() {
 	d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)
-	d.cachedRefs = nil
-	d.cachedGen = 0
 	d.ready = false
 }
 
@@ -126,8 +122,6 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, scanwelchStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedRefs = nil
-	d.cachedGen = 0
 }
 
 // Detect implements Detector. Same iteration pattern as ScanMW and BOCPD —
@@ -135,20 +129,9 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
-	gen := storage.SeriesGeneration()
-	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
-		d.cachedGen = gen
-	}
-
-	// Bulk-fetch visible point counts for series activation.
-	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
-
 	var allAnomalies []observer.Anomaly
 
-	for i, ref := range d.cachedRefs {
-		status := bulkStatus[i]
-
+	forEachSeriesStatus(storage, observer.WorkloadSeriesFilter(), dataTime, func(ref observer.SeriesRef, status seriesStatus) {
 		for _, agg := range d.Aggregations {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
@@ -207,7 +190,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				state.lastProcessedCount = state.observedPoints
 			}
 		}
-	}
+	})
 
 	return observer.DetectionResult{Anomalies: allAnomalies}
 }
