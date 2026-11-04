@@ -115,8 +115,6 @@ new-e2e-containers-eks-init:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    KUBERNETES_MEMORY_REQUEST: 24Gi
-    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -160,8 +158,6 @@ new-e2e-containers-openshift-init:
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     # Same as new-e2e-containers-eks-init.
-    KUBERNETES_MEMORY_REQUEST: 24Gi
-    KUBERNETES_MEMORY_LIMIT: 24Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 

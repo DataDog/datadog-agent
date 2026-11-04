@@ -8,8 +8,6 @@ integration_tests_otel:
   tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   variables:
-    KUBERNETES_MEMORY_REQUEST: 16Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
     # The Agent's legacy no_proxy matching compares the full host:port against
     # bare no_proxy entries, so it never bypasses the proxy for loopback test
     # servers bound to ephemeral ports. Opt into the port-aware matching.
@@ -36,8 +34,6 @@ docker_image_build_otel:
   # is reached over TCP), which is why the same image worked there before.
   tags: ["docker-in-docker:amd64"]
   variables:
-    KUBERNETES_MEMORY_REQUEST: 32Gi
-    KUBERNETES_MEMORY_LIMIT: 32Gi
     AFTER_SCRIPT_IGNORE_ERRORS: false # We run tests in the after_script
     BUILD_ARG: |
       --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME

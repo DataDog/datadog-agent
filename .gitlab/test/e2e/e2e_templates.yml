@@ -70,8 +70,6 @@
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
     KUBERNETES_CPU_LIMIT: 8
     # AWS SSH Key configuration

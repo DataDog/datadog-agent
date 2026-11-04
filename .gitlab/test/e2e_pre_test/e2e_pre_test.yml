@@ -18,7 +18,5 @@ e2e_pre_test:
   variables:
     TARGETS: ./tests/agent-devx/pre-test
     TEAM: "agent-devx"
-    KUBERNETES_MEMORY_REQUEST: 24Gi
-    KUBERNETES_MEMORY_LIMIT: 24Gi
     # override to use latest stable agent
     E2E_PIPELINE_ID: ""

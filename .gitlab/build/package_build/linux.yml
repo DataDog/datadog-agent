@@ -24,8 +24,6 @@
     - !reference [.agent_build_script]
   variables:
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -171,8 +169,6 @@ iot-agent-armhf:
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -207,8 +203,6 @@ dogstatsd-arm64:
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
