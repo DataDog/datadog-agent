@@ -29,6 +29,7 @@ new-e2e-agent-runtimes:
       paths:
         - Dockerfiles/agent/Dockerfile
         - Dockerfiles/agent/entrypoint.sh
+        - Dockerfiles/agent/cont-init.d/**/*
         - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
         - Dockerfiles/agent/processes.d/aio/**/*
         - pkg/procmgr/**/*

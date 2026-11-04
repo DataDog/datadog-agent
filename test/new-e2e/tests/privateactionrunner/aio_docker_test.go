@@ -129,6 +129,8 @@ func runAIODockerTask(s aioDockerTaskSuite, process string, split bool) {
 		assertLiveIPCCert(s, process)
 		// Split stands the monolith down: it starts, then exits 0.
 		waitForAIOProcess(s, aioMonolithProcess, "Exited", time.Minute)
+	} else {
+		waitForAIOProcess(s, parControlProcess, "Skipped", 30*time.Second)
 	}
 
 	key := s.signing()
