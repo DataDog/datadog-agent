@@ -49,6 +49,8 @@ func (d *fakeDiscovery) Schedule(ranges []ndmdiscovery.Range) map[string]error {
 
 func (d *fakeDiscovery) RangeCount() int { return 0 }
 
+func (d *fakeDiscovery) Trigger(string) error { return nil }
+
 // fakeLifecycle collects the hooks a component registers.
 type fakeLifecycle struct {
 	hooks []fx.Hook
