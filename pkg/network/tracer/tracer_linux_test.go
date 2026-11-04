@@ -2882,11 +2882,6 @@ func (s *TracerSuite) TestProtocolClassifierEntrySize() {
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("protocol classification not supported")
 	}
-	// The entry program is found by name, and the full name comes from BTF function info (kernel 5.0+). Older
-	// kernels truncate program names (4.15+) or don't name programs at all.
-	if kv < kernel.VersionCode(5, 0, 0) {
-		t.Skip("can't identify the entry program by name before kernel 5.0")
-	}
 
 	// Constant blinding is done by the JIT, so without it the program would be measured unblinded.
 	jitEnable, err := os.ReadFile("/proc/sys/net/core/bpf_jit_enable")
@@ -2905,6 +2900,9 @@ func (s *TracerSuite) TestProtocolClassifierEntrySize() {
 
 	setupTracer(t, cfg)
 
+	// Find this tracer's entry program through the program IDs it registered with pkg/ebpf, which records each
+	// program's full name from the eBPF manager. The kernel truncates program names (and before 4.15 doesn't keep
+	// them), and other processes may load programs with the same name.
 	entryName := string(probes.ProtocolClassifierEntrySocketFilter)
 	size := 0
 	var id ebpf.ProgramID
@@ -2915,22 +2913,19 @@ func (s *TracerSuite) TestProtocolClassifierEntrySize() {
 		}
 		require.NoError(t, err)
 
+		if name, err := ddebpf.GetProgNameFromProgID(uint32(id)); err != nil || name != entryName {
+			continue
+		}
+		if module, err := ddebpf.GetModuleFromProgID(uint32(id)); err != nil || module != "npm_tracer" {
+			continue
+		}
 		prog, err := ebpf.NewProgramFromID(id)
 		if err != nil {
-			continue // unloaded in the meantime
+			continue // registered by a tracer from an earlier test, unloaded since
 		}
 		info, err := prog.Info()
 		prog.Close()
-		if err != nil {
-			continue
-		}
-		if info.Name == entryName[:unix.BPF_OBJ_NAME_LEN-1] {
-			// The kernel truncates program names, and the full name comes from BTF function info.
-			t.Skip("can't identify the entry program without BTF function info")
-		}
-		if info.Name != entryName {
-			continue
-		}
+		require.NoError(t, err)
 		// Program IDs only increase, so the last match is the one this test's tracer loaded.
 		size, err = info.TranslatedSize()
 		require.NoError(t, err)
