@@ -134,6 +134,28 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
 }
 
+func newPkgConfig(cfg *ExporterConfig) config.Component {
+	pkgconfig := create.NewConfig("DD")
+	pkgconfigsetup.InitConfig(pkgconfig)
+	pkgconfig.BuildSchema()
+
+	// Set the API Key
+	pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceAgentRuntime)
+	if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
+		pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceAgentRuntime)
+	}
+	setupSerializer(pkgconfig, cfg)
+	setupForwarder(pkgconfig)
+	pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceAgentRuntime)
+
+	// Disable regular "Successfully posted payload" logs, since flushing is user-controlled and may happen frequently.
+	// Successful export operations can be monitored with exporterhelper metrics.
+	pkgconfig.Set("logging_frequency", int64(0), pkgconfigmodel.SourceAgentRuntime)
+
+	return pkgconfig
+}
+
 // ForwarderLifecycle is the minimum interface needed to manage a forwarder's
 // lifecycle. Returned by InitSerializer so callers do not need to depend on the
 // concrete forwarder type, which varies with the UseSyncForwarder feature gate.
@@ -167,25 +189,7 @@ func initSerializerInternal(logger *zap.Logger, cfg *ExporterConfig, sourceProvi
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := create.NewConfig("DD")
-			pkgconfigsetup.InitConfig(pkgconfig)
-			pkgconfig.BuildSchema()
-
-			// Set the API Key
-			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
-			pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceFile)
-			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
-				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceFile)
-			}
-			setupSerializer(pkgconfig, cfg)
-			setupForwarder(pkgconfig)
-			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
-
-			// Disable regular "Successfully posted payload" logs, since flushing is user-controlled and may happen frequently.
-			// Successful export operations can be monitored with exporterhelper metrics.
-			pkgconfig.Set("logging_frequency", int64(0), pkgconfigmodel.SourceAgentRuntime)
-
-			return pkgconfig
+			return newPkgConfig(cfg)
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
 			zp := &datadog.Zaplogger{Logger: log}
