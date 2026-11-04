@@ -26,11 +26,14 @@ dd_agent_go_test(
     srcs = ["crashreport_windows_test.go"],
     embed = [":crashreport"],
     target_compatible_with = ["@platforms//os:windows"],
-    deps = [
-        "//pkg/collector/corechecks/system/wincrashdetect/probe",
-        "//pkg/config/mock",
-        "//pkg/persistentcache",
-        "@com_github_stretchr_testify//require",
-        "@org_golang_x_sys//windows/registry",
-    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/collector/corechecks/system/wincrashdetect/probe",
+            "//pkg/config/mock",
+            "//pkg/persistentcache",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
 )
