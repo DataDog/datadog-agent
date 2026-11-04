@@ -7,6 +7,7 @@ package delegatedauthimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -79,11 +80,25 @@ func TestWorkloadTokenUnavailable(t *testing.T) {
 	d := NewComponent().Comp.(*delegatedAuthComponent)
 	request := common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}
 	_, err := d.GetWorkloadToken(context.Background(), "api_key", request)
-	require.ErrorContains(t, err, "unavailable")
+	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: check delegated authentication configuration and Agent status`)
 	// A different configured instance must not be used as a fallback.
 	d.instances["logs_config.api_key"] = &authInstance{provider: workloadProvider{}}
+	d.startupRecoveries["logs_config.api_key"] = &startupRecovery{lastError: errors.New("unrelated startup failure")}
 	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
-	require.ErrorContains(t, err, "unavailable")
+	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: check delegated authentication configuration and Agent status`)
+
+	d.startupRecoveries["api_key"] = &startupRecovery{}
+	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: startup is retrying`)
+	d.startupRecoveries["api_key"].lastError = errors.New("initial intake exchange failed")
+	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: startup is retrying: initial intake exchange failed`)
+
+	delete(d.startupRecoveries, "api_key")
+	d.disabledReason = "no supported cloud provider detected"
+	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: provider detection: no supported cloud provider detected`)
+
 	d.instances["api_key"] = &authInstance{}
 	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
 	require.ErrorContains(t, err, "does not support workload tokens")

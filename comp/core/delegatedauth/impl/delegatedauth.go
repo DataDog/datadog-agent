@@ -742,9 +742,22 @@ func (d *delegatedAuthComponent) GetWorkloadToken(ctx context.Context, apiKeyCon
 	d.mu.RLock()
 	instance := d.instances[apiKeyConfigKey]
 	cfg := d.config
+	var unavailableReason string
+	if instance == nil {
+		if recovery := d.startupRecoveries[apiKeyConfigKey]; recovery != nil {
+			unavailableReason = "startup is retrying"
+			if recovery.lastError != nil {
+				unavailableReason += fmt.Sprintf(": %v", recovery.lastError)
+			}
+		} else if d.disabledReason != "" {
+			unavailableReason = "provider detection: " + d.disabledReason
+		} else {
+			unavailableReason = "check delegated authentication configuration and Agent status"
+		}
+	}
 	d.mu.RUnlock()
 	if instance == nil {
-		return "", fmt.Errorf("delegated auth instance %q is unavailable", apiKeyConfigKey)
+		return "", fmt.Errorf("delegated auth instance %q is unavailable: %s", apiKeyConfigKey, unavailableReason)
 	}
 	// These instance fields are fixed at construction. Keep the selected instance
 	// for this request and release the component lock before any network work.
