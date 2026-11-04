@@ -67,6 +67,7 @@
     "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
-    "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped."
+    "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped.",
+    "libdd_rc_source": "Intentionally untracked for now. Pinned to an unreleased libdd-rc commit that must match the go.mod pseudo-version, the Cargo.toml git revs, BUILD_GIT_COMMIT_HASH, and the purl (enforced by tasks/unit_tests/rc_x509_pin_tests.py), so it is bumped by hand. Track it once libdd-rc publishes tagged releases."
   }
 }
