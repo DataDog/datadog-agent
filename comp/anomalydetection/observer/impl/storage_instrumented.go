@@ -118,6 +118,33 @@ func (c *callHasher) mixSeries(series *observerdef.Series) int {
 
 // --- StorageReader interface ---
 
+func (s *instrumentedStorage) ForEachSeriesStatus(filter observerdef.SeriesFilter, endTime int64, fn func(observerdef.SeriesRef, seriesStatus)) {
+	s.readCount++
+	count := 0
+	forEachSeriesStatus(s.inner, filter, endTime, func(ref observerdef.SeriesRef, status seriesStatus) {
+		// Each identity/status is hashed independently: map iteration order is
+		// intentionally unspecified, and digest() sorts per-call hashes.
+		ch := newCallHasher()
+		ch.mixString("ForEachSeriesStatusEntry")
+		if meta := s.inner.GetSeriesMeta(ref); meta != nil {
+			ch.mixSeriesIdentity(meta.Namespace, meta.Name, meta.Tags)
+		}
+		ch.mixInt64(int64(status.pointCount))
+		ch.mixInt64(status.latestTimestamp)
+		ch.mixInt64(status.writeGeneration)
+		ch.mixInt64(int64(status.metricType))
+		s.callHashes = append(s.callHashes, ch.sum())
+		count++
+		fn(ref, status)
+	})
+	ch := newCallHasher()
+	ch.mixString("ForEachSeriesStatus")
+	ch.mixString(filter.Namespace)
+	ch.mixInt64(endTime)
+	ch.mixInt64(int64(count))
+	s.callHashes = append(s.callHashes, ch.sum())
+}
+
 func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []observerdef.SeriesMeta {
 	s.readCount++
 	result := s.inner.ListSeries(filter)

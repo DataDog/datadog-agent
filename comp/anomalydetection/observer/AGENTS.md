@@ -136,6 +136,15 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+Detector hot paths use `forEachSeriesStatus` to traverse filtered refs and
+visible point status without per-tick catalog/status slices. Concrete storage
+releases its read lock before each callback, so callbacks may reenter read
+methods. The single-writer engine must not admit or remove any series during
+the **whole traversal**, including callbacks: the underlying map iterator
+resumes after the callback. Other `StorageReader` implementations use a
+metadata-list fallback; its status has no known latest-visible timestamp, so
+optimizations using `latestTimestamp` must check `latestKnown`.
+
 ### Bounded series admission
 
 Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,

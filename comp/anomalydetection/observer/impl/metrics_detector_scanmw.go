@@ -77,8 +77,6 @@ type ScanMWDetector struct {
 	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
-	cachedRefs []observer.SeriesRef
-	cachedGen  uint64
 }
 
 // NewScanMWDetector creates a ScanMW detector with default settings.
@@ -114,8 +112,6 @@ func (d *ScanMWDetector) DetectorPointWindow() observer.DetectorPointWindow {
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
 	d.series = make(map[scanmwStateKey]*scanmwSeriesState)
-	d.cachedRefs = nil
-	d.cachedGen = 0
 	d.ready = false
 }
 
@@ -130,8 +126,6 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, scanmwStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedRefs = nil
-	d.cachedGen = 0
 }
 
 // Detect implements Detector. It discovers series, reads segment data,
@@ -143,20 +137,9 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
-	gen := storage.SeriesGeneration()
-	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
-		d.cachedGen = gen
-	}
-
-	// Bulk-fetch visible point counts for series activation.
-	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
-
 	var allAnomalies []observer.Anomaly
 
-	for i, ref := range d.cachedRefs {
-		status := bulkStatus[i]
-
+	forEachSeriesStatus(storage, observer.WorkloadSeriesFilter(), dataTime, func(ref observer.SeriesRef, status seriesStatus) {
 		for _, agg := range d.Aggregations {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
@@ -215,7 +198,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				state.lastProcessedCount = state.observedPoints
 			}
 		}
-	}
+	})
 
 	return observer.DetectionResult{Anomalies: allAnomalies}
 }

@@ -123,12 +123,6 @@ type BOCPDDetector struct {
 
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
-
-	// Cache discovered series refs across Detect calls. Refresh when seriesGen changes.
-	// Holding []SeriesRef instead of []SeriesMeta avoids retaining the Tags []string
-	// backing array for every series (~5.8 MiB at 50k series).
-	cachedRefs []observer.SeriesRef
-	cachedGen  uint64
 }
 
 // NewBOCPDDetector creates a streaming BOCPD detector with the given config.
@@ -195,16 +189,10 @@ func (b *BOCPDDetector) DetectorPointWindow() observer.DetectorPointWindow {
 // points into existing history, so this detector gates incremental work on
 // visible point counts rather than raw slice positions.
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
-	gen := storage.SeriesGeneration()
-	if b.cachedRefs == nil || gen != b.cachedGen {
-		b.cachedRefs = workloadSeriesRefs(storage, b.cachedRefs)
-		b.cachedGen = gen
-	}
-
 	var allAnomalies []observer.Anomaly
 
-	for _, ref := range b.cachedRefs {
-		visibleCount := storage.PointCountUpTo(ref, dataTime)
+	forEachSeriesStatus(storage, observer.WorkloadSeriesFilter(), dataTime, func(ref observer.SeriesRef, status seriesStatus) {
+		visibleCount := status.pointCount
 		for _, agg := range b.config.Aggregations {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
@@ -226,7 +214,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			// advances) and the common live case. WriteGeneration catches
 			// same-bucket merges and retention-churn scenarios where point
 			// count stays constant but stored values changed.
-			writeGen := storage.WriteGeneration(ref)
+			writeGen := status.writeGeneration
 			if visibleCount <= state.lastProcessedCount && writeGen == state.lastWriteGen {
 				continue
 			}
@@ -247,7 +235,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			state.lastProcessedCount = visibleCount
 			state.lastWriteGen = writeGen
 		}
-	}
+	})
 
 	return observer.DetectionResult{Anomalies: allAnomalies}
 }
@@ -255,8 +243,6 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 // Reset clears all per-series state for replay/reanalysis.
 func (b *BOCPDDetector) Reset() {
 	b.series = make(map[bocpdStateKey]*bocpdSeriesState)
-	b.cachedRefs = nil
-	b.cachedGen = 0
 	b.ready = false
 }
 
@@ -275,10 +261,6 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(b.series, bocpdStateKey{ref: ref, agg: agg})
 		}
 	}
-	// Drop the cached series snapshot so the next Detect re-lists from
-	// storage and we don't iterate over removed refs.
-	b.cachedRefs = nil
-	b.cachedGen = 0
 }
 
 // processPoint handles a single new observation for a series.

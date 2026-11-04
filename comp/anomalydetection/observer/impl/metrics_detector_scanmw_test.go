@@ -179,7 +179,6 @@ func TestScanMW_Reset(t *testing.T) {
 
 	d.Reset()
 	assert.Empty(t, d.series, "reset should clear all state")
-	assert.Nil(t, d.cachedRefs, "reset should clear cached refs")
 }
 
 // TestScanMW_PreloadedReplayFiresAsDataTimeAdvances reproduces the testbench
