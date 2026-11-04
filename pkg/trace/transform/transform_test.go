@@ -7,6 +7,7 @@ package transform
 
 import (
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -75,16 +76,51 @@ func TestBatchedSpanAttributeTags(t *testing.T) {
 					conf := config.New()
 					scope := pcommon.NewInstrumentationScope()
 					for _, topLevel := range []bool{false, true} {
-						expected := OtelSpanToDDSpanMinimal(span, res, scope, topLevel, true, conf, selection.peer, selection.primary)
-						actual := OtelSpanToDDSpanMinimalWithTagKeys(span, res, scope, topLevel, true, conf, prepared)
+						expected := referenceMinimalSpanWithTags(span, res, scope, topLevel, conf, selection.peer, selection.primary)
+						actual := OtelSpanToDDSpanMinimal(span, res, scope, topLevel, true, conf, prepared)
 						require.Equal(t, expected, actual)
 						require.NotContains(t, actual.Meta, "unrequested")
 						require.Equal(t, 0.5, actual.Metrics["_sample_rate"])
+						// peer.service is normalized only when selected as a peer tag;
+						// a primary selection is copied after normalization and keeps the raw value.
+						switch {
+						case slices.Contains(selection.primary, "peer.service"):
+							require.Equal(t, " A PEER SERVICE ", actual.Meta["peer.service"])
+						case slices.Contains(selection.peer, "peer.service"):
+							require.Equal(t, "_a_peer_service", actual.Meta["peer.service"])
+						default:
+							require.NotContains(t, actual.Meta, "peer.service")
+						}
 					}
 				}
 			})
 		}
 	}
+}
+
+// referenceMinimalSpanWithTags reproduces the original per-key tag copy of the
+// minimal conversion (peer tags, peer service normalization, primary tags, then
+// the raw tracestate) as an independent oracle for the batched implementation.
+func referenceMinimalSpanWithTags(span ptrace.Span, res pcommon.Resource, scope pcommon.InstrumentationScope, topLevel bool, conf *config.AgentConfig, peer, primary []string) *pb.Span {
+	ddspan := OtelSpanToDDSpanMinimal(span, res, scope, topLevel, true, conf, OTelSpanTagKeys{})
+	copyTags := func(keys []string) {
+		for _, key := range keys {
+			if val := GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), false, key); val != "" {
+				ddspan.Meta[key] = val
+			}
+		}
+	}
+	copyTags(peer)
+	for _, key := range []string{"peer.service", "_dd.base_service"} {
+		if val, ok := ddspan.Meta[key]; ok {
+			ddspan.Meta[key], _ = normalizeutil.NormalizePeerService(val)
+		}
+	}
+	copyTags(primary)
+	if ts := span.TraceState().AsRaw(); ts != "" {
+		ddspan.Meta["w3c.tracestate"] = ts
+	}
+	return ddspan
 }
 
 func TestBatchedSpanAttributeTagsDuplicateKeys(t *testing.T) {
@@ -610,7 +646,7 @@ func TestOtelSpanToDDSpanTraceStatePreservation(t *testing.T) {
 			}
 
 			// Minimal conversion (APM stats path).
-			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 			// Full conversion.
 			fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
 
@@ -658,7 +694,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 					return span
 				}
 
-				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 				rate, ok := minSpan.Metrics["_sample_rate"]
 				require.True(t, ok, "minimal conversion must set _sample_rate")
 				assert.InDelta(t, tt.wantRate, rate, 1e-9)
@@ -674,7 +710,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 	t.Run("no tracestate leaves _sample_rate unset", func(t *testing.T) {
 		span := ptrace.NewSpan()
 		span.SetName("test-span")
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 		_, ok := minSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
 	})
@@ -710,7 +746,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		res := pcommon.NewResource()
 		res.Attributes().PutStr("region", "us-east-1")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team", "region"})
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team", "region"}))
 
 		assert.Equal(t, "checkout", minSpan.Meta["team"])
 		assert.Equal(t, "us-east-1", minSpan.Meta["region"])
@@ -723,7 +759,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		res := pcommon.NewResource()
 		res.Attributes().PutStr("team", "resource-team")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team"}))
 
 		assert.Equal(t, "span-team", minSpan.Meta["team"])
 	})
@@ -735,7 +771,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		span.Attributes().PutStr("not-a-primary-tag", "ignored")
 		span.Attributes().PutStr("empty", "")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, []string{"team", "empty", "missing"})
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team", "empty", "missing"}))
 
 		assert.Equal(t, "checkout", minSpan.Meta["team"])
 		assert.NotContains(t, minSpan.Meta, "not-a-primary-tag")
@@ -750,7 +786,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		res := pcommon.NewResource()
 		res.Attributes().PutStr("team", "platform")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team"}))
 
 		// An empty span value is treated as absent, so the resource value is used.
 		assert.Equal(t, "platform", minSpan.Meta["team"])
@@ -761,7 +797,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		span.SetName("test-span")
 		span.Attributes().PutStr("team", "checkout")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		assert.NotContains(t, minSpan.Meta, "team")
 	})
@@ -785,7 +821,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.Attributes().PutStr("operation.name", "invalid-op-name")
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		// Hyphens aren't valid in span names; NormalizeName replaces them with underscores.
 		assert.Equal(t, "invalid_op_name", minSpan.Name)
@@ -797,7 +833,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.SetEndTimestamp(pcommon.Timestamp(int64(span.StartTimestamp()) - 1))
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		assert.EqualValues(t, 0, minSpan.Duration)
 	})
@@ -809,7 +845,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.SetEndTimestamp(pcommon.Timestamp(200000000))
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		assert.GreaterOrEqual(t, minSpan.Start, minStart-200000000)
 		assert.LessOrEqual(t, minSpan.Start, time.Now().UnixNano())
@@ -821,7 +857,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.Attributes().PutStr("peer.service", longPeerSvc)
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"peer.service"}, nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys([]string{"peer.service"}, nil))
 
 		assert.Len(t, minSpan.Meta["peer.service"], normalizeutil.MaxServiceLen)
 		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["peer.service"])
@@ -833,7 +869,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.Attributes().PutStr("_dd.base_service", longBaseSvc)
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"_dd.base_service"}, nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys([]string{"_dd.base_service"}, nil))
 
 		assert.Len(t, minSpan.Meta["_dd.base_service"], normalizeutil.MaxServiceLen)
 		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["_dd.base_service"])
@@ -1828,7 +1864,7 @@ func TestOtelSpanToDDSpanReadOnlyTraces(t *testing.T) {
 	mutable := buildReadOnlySafetyCorpus()
 	mSpan, mRes, mLib := extract(mutable)
 	wantFull := OtelSpanToDDSpan(mSpan, mRes, mLib, cfg)
-	wantMinimal := OtelSpanToDDSpanMinimal(mSpan, mRes, mLib, true, true, cfg, nil, nil)
+	wantMinimal := OtelSpanToDDSpanMinimal(mSpan, mRes, mLib, true, true, cfg, OTelSpanTagKeys{})
 
 	readOnly := buildReadOnlySafetyCorpus()
 	readOnly.MarkReadOnly()
@@ -1842,7 +1878,7 @@ func TestOtelSpanToDDSpanReadOnlyTraces(t *testing.T) {
 	}, "OtelSpanToDDSpan must not mutate read-only pdata")
 
 	require.NotPanics(t, func() {
-		got := OtelSpanToDDSpanMinimal(roSpan, roRes, roLib, true, true, cfg, nil, nil)
+		got := OtelSpanToDDSpanMinimal(roSpan, roRes, roLib, true, true, cfg, OTelSpanTagKeys{})
 		assert.Equal(t, wantMinimal, got)
 	}, "OtelSpanToDDSpanMinimal must not mutate read-only pdata")
 
