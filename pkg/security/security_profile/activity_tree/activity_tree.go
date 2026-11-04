@@ -511,13 +511,15 @@ func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, 
 		at.Stats.counts[event.GetEventType()].addedCount[generationType].Inc()
 	}
 
-	// If we just registered a brand-new tag but the event was rejected before any node
-	// could reference it, free the slot immediately so it doesn't linger indefinitely.
-	if freshTag && err != nil {
-		at.removeImageTag(imageTag)
+	if err != nil {
+		// a slot still referenced by the lineage can't be reused: the next tag would inherit its nodes
+		if freshTag && (node == nil || !node.HasImageTag(imageTagID)) {
+			at.removeImageTag(imageTag)
+		}
+		return newEntry, nil, nil, err
 	}
 
-	return newEntry, node, eventNodeBase, err
+	return newEntry, node, eventNodeBase, nil
 }
 
 // Contains looks up the event in the activity tree
@@ -556,7 +558,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	if event.Error != nil {
 		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
-		return false, nil, nil, event.Error
+		return false, node, nil, event.Error
 	}
 
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()

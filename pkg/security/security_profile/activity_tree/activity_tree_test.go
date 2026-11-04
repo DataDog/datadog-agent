@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -746,6 +747,50 @@ func TestSyscallsByImageTagID_AfterImageTagEviction(t *testing.T) {
 	tree.EvictImageTag("v1")
 
 	assert.Empty(t, tree.SyscallsByImageTagID()[v1], "an evicted image tag keeps no syscalls")
+}
+
+func TestInsertRejectedEventFreshImageTag(t *testing.T) {
+	newEvent := func(eventType model.EventType) *model.Event {
+		event := newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerContext: model.ContainerContext{ContainerID: "123"},
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/bin/app",
+					FileFields:  model.FileFields{PathKey: model.PathKey{Inode: 1}},
+				},
+			},
+		})
+		event.Type = uint32(eventType)
+		return event
+	}
+
+	t.Run("rejected after the lineage was inserted", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+		event := newEvent(model.SyscallsEventType)
+		event.Error = errors.New("path resolution error")
+		_, node, _, err := tree.Insert(event, true, "v1", Runtime, nil)
+		require.Error(t, err)
+		assert.Nil(t, node)
+		require.Len(t, tree.ProcessNodes, 1)
+
+		v1 := tree.GetImageTagID("v1")
+		require.NotZero(t, v1, "the tag of the inserted lineage must stay registered")
+		assert.True(t, tree.ProcessNodes[0].HasImageTag(v1))
+
+		v2 := tree.GetOrInsertImageTag("v2")
+		assert.NotEqual(t, v1, v2)
+		assert.False(t, tree.ProcessNodes[0].HasImageTag(v2), "a new tag must not inherit the lineage")
+	})
+
+	t.Run("rejected before touching the tree", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+		_, _, _, err := tree.Insert(newEvent(model.BindEventType), true, "v1", Runtime, nil)
+		require.ErrorIs(t, err, ErrInvalidBindFamily)
+		assert.Empty(t, tree.ProcessNodes)
+		assert.Zero(t, tree.GetImageTagID("v1"))
+	})
 }
 
 func TestProcessInfoMatches(t *testing.T) {
