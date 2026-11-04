@@ -27,7 +27,7 @@ from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel, install_pulumi_plugins
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
@@ -604,7 +604,7 @@ def run(
             use_bazel_built_binaries = False
 
     _install_windows_testsuites(module_name, targets)
-    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.expanduser("~/.pulumi/plugins")}")
+    install_pulumi_plugins()
 
     if use_bazel_built_binaries:
         bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")

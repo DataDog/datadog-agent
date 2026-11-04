@@ -303,6 +303,12 @@ def build_binary_with_bazel(
             bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(bin_path))
 
 
+def install_pulumi_plugins() -> None:
+    """Install the Pulumi plugins where Pulumi looks for them."""
+    pulumi_home = os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
+    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(pulumi_home, 'plugins')}")
+
+
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
     omnibus build environment variables.

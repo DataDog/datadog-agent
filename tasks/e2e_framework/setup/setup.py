@@ -19,7 +19,7 @@ from tasks.e2e_framework.tool import (
     run_pulumi,
     warn,
 )
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import install_pulumi_plugins
 
 
 def _force_cleanup(
@@ -152,7 +152,7 @@ def setup(
     else:
         install_pulumi(ctx)
 
-    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.expanduser("~/.pulumi/plugins")}")
+    install_pulumi_plugins()
     run_pulumi(ctx, "login --local", project_dir=False, hide=True)
     info("✓ Pulumi plugins installed; local backend configured")
 

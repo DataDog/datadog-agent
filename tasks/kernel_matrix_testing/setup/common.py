@@ -7,7 +7,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import install_pulumi_plugins
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch
@@ -112,7 +112,7 @@ class PulumiPlugin(Requirement):
                 return RequirementState(Status.FAIL, "pulumi plugins not installed.", fixable=True)
 
             try:
-                bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.expanduser("~/.pulumi/plugins")}")
+                install_pulumi_plugins()
             except SystemExit as e:
                 return RequirementState(Status.FAIL, f"pulumi plugins installation failed: {e}")
 
