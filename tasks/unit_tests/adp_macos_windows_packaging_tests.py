@@ -92,17 +92,20 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertLess(handoff, fallback)
 
     def test_uninstall_hands_the_teardown_to_the_installed_installer(self):
-        # The uninstall script runs the installed installer's pre-remove, without --upgrade, before
-        # booting out the jobs it knows itself, as preinst does on upgrade.
+        # The uninstall script hands the uninstall to the installed installer's pre-remove, without
+        # --upgrade, and only removes the Agent itself when there is no installer or it fails.
         uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
 
         supported = uninstall.find('"$installer_bin" is-prerm-supported')
         handoff = uninstall.find('"$installer_bin" prerm datadog-agent dmg')
-        fallback = uninstall.find("Stopping system services")
+        definition = uninstall.find("uninstall_without_installer() {")
+        fallback = uninstall.find("        uninstall_without_installer\n", handoff)
         self.assertNotEqual(supported, -1)
         self.assertNotEqual(handoff, -1)
+        self.assertNotEqual(definition, -1)
         self.assertNotEqual(fallback, -1)
         self.assertNotIn("prerm --upgrade", uninstall)
+        self.assertLess(definition, supported)
         self.assertLess(supported, handoff)
         self.assertLess(handoff, fallback)
 
