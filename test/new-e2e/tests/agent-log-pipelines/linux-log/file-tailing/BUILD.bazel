@@ -5,9 +5,11 @@ dd_agent_go_test(
     srcs = [
         "delegated_auth_test.go",
         "file_tailing_test.go",
+        "ottl_test.go",
     ],
     data = ["config/config.yaml"],
     embedsrcs = [
+        "config/agent.yaml",
         "config/config.yaml",
         "fixtures/delegated_auth_server.py",
     ],

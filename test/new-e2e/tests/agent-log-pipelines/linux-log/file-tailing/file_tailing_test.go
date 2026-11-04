@@ -34,13 +34,8 @@ type LinuxFakeintakeSuite struct {
 //go:embed config/config.yaml
 var logConfig string
 
-const tagFilterAgentConfig = `
-logs_config:
-  tag_filters:
-    exclude:
-      - e2e_global_drop:*
-      - e2e_rescued:*
-`
+//go:embed config/agent.yaml
+var logAgentConfig string
 
 const (
 	logFileName = "hello-world.log"
@@ -74,7 +69,7 @@ func TestLinuxVMFileTailingSuite(t *testing.T) {
 				awshost.WithRunOptions(
 					scenec2.WithAgentOptions(
 						agentparams.WithLogs(),
-						agentparams.WithAgentConfig(tagFilterAgentConfig),
+						agentparams.WithAgentConfig(logAgentConfig),
 						agentparams.WithIntegration("custom_logs.d", logConfig),
 					)))),
 	}
@@ -110,7 +105,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		for _, service := range []string{"hello", iisService, tagFilterService} {
+		for _, service := range []string{"hello", iisService, tagFilterService, ottlService} {
 			logs, err := s.Env().FakeIntake.Client().FilterLogs(service)
 			require.NoError(c, err, "Unable to filter logs by the service '%s'.", service)
 			if !assert.Empty(c, logs, "Logs were found for service '%s' when none were expected.", service) {

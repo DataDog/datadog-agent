@@ -34,6 +34,7 @@ dd_agent_go_test(
     name = "processor_test",
     srcs = [
         "encoder_test.go",
+        "processor_ottl_test.go",
         "processor_test.go",
         "sync_processor_test.go",
         "transport_tags_test.go",
