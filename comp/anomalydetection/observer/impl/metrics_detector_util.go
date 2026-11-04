@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"math"
+	"slices"
 	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -44,8 +45,14 @@ func (w *scanDetectorWorkspace) assignRanks(values []float64) ([]float64, float6
 	for i, value := range values {
 		w.indexed[i] = scanIndexedValue{value: value, index: i}
 	}
-	sort.Slice(w.indexed, func(i, j int) bool {
-		return w.indexed[i].value < w.indexed[j].value
+	slices.SortFunc(w.indexed, func(a, b scanIndexedValue) int {
+		if a.value < b.value {
+			return -1
+		}
+		if a.value > b.value {
+			return 1
+		}
+		return 0
 	})
 
 	w.ranks = reuseFloat64(w.ranks, n)
@@ -104,7 +111,7 @@ func (w *scanDetectorWorkspace) medianPointInterval(points []observer.Point) int
 	for i := 1; i < len(points); i++ {
 		w.intervals[i-1] = points[i].Timestamp - points[i-1].Timestamp
 	}
-	sort.Slice(w.intervals, func(i, j int) bool { return w.intervals[i] < w.intervals[j] })
+	slices.Sort(w.intervals)
 	return w.intervals[len(w.intervals)/2]
 }
 

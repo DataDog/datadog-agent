@@ -6,11 +6,55 @@
 package observerimpl
 
 import (
+	"math"
+	"sort"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/stretchr/testify/require"
 )
+
+func TestScanWorkspaceTypedSortMatchesPreviousRanksAndIntervals(t *testing.T) {
+	var workspace scanDetectorWorkspace
+	for size := 2; size <= 120; size++ {
+		values := make([]float64, size)
+		points := make([]observer.Point, size)
+		for i := range values {
+			values[i] = float64((i*37+size*11)%17 - 8) // repeated values and ties
+			points[i].Timestamp = int64(i*i + i%3)
+		}
+		values[0], values[1] = math.Inf(-1), math.Inf(1)
+		wantIndexed := make([]scanIndexedValue, size)
+		for i, value := range values {
+			wantIndexed[i] = scanIndexedValue{value: value, index: i}
+		}
+		sort.Slice(wantIndexed, func(i, j int) bool { return wantIndexed[i].value < wantIndexed[j].value })
+		wantRanks := make([]float64, size)
+		wantCorrection := 0.0
+		for i := 0; i < size; {
+			j := i
+			for j < size && wantIndexed[j].value == wantIndexed[i].value {
+				j++
+			}
+			tieSize := float64(j - i)
+			for k := i; k < j; k++ {
+				wantRanks[wantIndexed[k].index] = float64(i+1+j) / 2
+			}
+			wantCorrection += tieSize*tieSize*tieSize - tieSize
+			i = j
+		}
+		ranks, correction := workspace.assignRanks(values)
+		require.Equal(t, wantRanks, ranks, "size=%d", size)
+		require.Equal(t, wantCorrection, correction, "size=%d", size)
+
+		intervals := make([]int64, size-1)
+		for i := 1; i < size; i++ {
+			intervals[i-1] = points[i].Timestamp - points[i-1].Timestamp
+		}
+		sort.Slice(intervals, func(i, j int) bool { return intervals[i] < intervals[j] })
+		require.Equal(t, intervals[len(intervals)/2], workspace.medianPointInterval(points), "size=%d", size)
+	}
+}
 
 func TestListSeriesRefsFallbackUsesListSeries(t *testing.T) {
 	storage := &seriesListOnlyStorage{
