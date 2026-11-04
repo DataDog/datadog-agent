@@ -1057,3 +1057,77 @@ func TestIsKAIReservationContainer(t *testing.T) {
 		})
 	}
 }
+
+func TestIsNonComputeGPUContainer(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected bool
+	}{
+		{
+			name:     "unset: the NVIDIA toolkit default (utility, compute) includes compute",
+			envVars:  nil,
+			expected: false,
+		},
+		{
+			name: "utility only",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "utility",
+			},
+			expected: true,
+		},
+		{
+			name: "compute and utility",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "compute,utility",
+			},
+			expected: false,
+		},
+		{
+			name: "all capabilities include compute",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "all",
+			},
+			expected: false,
+		},
+		{
+			name: "capabilities list containing all includes compute",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "utility,all",
+			},
+			expected: false,
+		},
+		{
+			name: "video and graphics without compute",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "video,graphics,utility",
+			},
+			expected: true,
+		},
+		{
+			name: "whitespace and case are normalized",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: " Utility , Compute ",
+			},
+			expected: false,
+		},
+		{
+			name: "empty value falls back to the toolkit default",
+			envVars: map[string]string{
+				nvidiaDriverCapabilitiesEnvVar: "",
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			container := &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-id"},
+				EnvVars:  tt.envVars,
+			}
+
+			assert.Equal(t, tt.expected, IsNonComputeGPUContainer(container))
+		})
+	}
+}

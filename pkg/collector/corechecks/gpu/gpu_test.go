@@ -423,6 +423,40 @@ func TestGPUToContainersMapSkipsKAIReservationPods(t *testing.T) {
 	assert.Equal(t, workloadContainer.EntityID, gpuToContainers[testutil.GPUUUIDs[1]][0].EntityID)
 }
 
+func TestGPUToContainersMapSkipsNonComputeContainers(t *testing.T) {
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil, nil)
+	require.NoError(t, check.deviceCache.Refresh())
+
+	// A GPU monitoring sidecar that only requests the utility capability: it
+	// holds the GPU but cannot run compute workloads on it.
+	wmetaMock.Set(&workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "utility-only-container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "gpu-exporter"},
+		EnvVars:    map[string]string{"NVIDIA_DRIVER_CAPABILITIES": "utility"},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: testutil.GPUUUIDs[0]},
+		},
+	})
+
+	workloadContainer := &workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "workload-container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "workload"},
+		EnvVars:    map[string]string{"NVIDIA_DRIVER_CAPABILITIES": "compute,utility"},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: testutil.GPUUUIDs[1]},
+		},
+	}
+	wmetaMock.Set(workloadContainer)
+
+	gpuToContainers := check.getGPUToContainersMap(time.Now())
+
+	assert.Empty(t, gpuToContainers[testutil.GPUUUIDs[0]], "the utility-only container must not be reported as the GPU's user")
+	require.Len(t, gpuToContainers[testutil.GPUUUIDs[1]], 1)
+	assert.Equal(t, workloadContainer.EntityID, gpuToContainers[testutil.GPUUUIDs[1]][0].EntityID)
+}
+
 func initReadiness(t *testing.T) *Readiness {
 	t.Helper()
 	readiness := NewReadiness(time.Minute)

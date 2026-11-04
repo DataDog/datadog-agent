@@ -32,7 +32,13 @@ var draDeviceNameRegex = regexp.MustCompile(`^gpu-([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
-	dockerInspectTimeout       = 100 * time.Millisecond
+	// nvidiaDriverCapabilitiesEnvVar is the environment variable through which a
+	// container declares which NVIDIA driver capabilities (e.g. compute,
+	// utility, graphics, video, ngx, compat32) are injected into it. The value
+	// is a comma-separated list, or "all".
+	// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+	nvidiaDriverCapabilitiesEnvVar = "NVIDIA_DRIVER_CAPABILITIES"
+	dockerInspectTimeout           = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
@@ -357,6 +363,31 @@ func findDeviceByIndex(devices []ddnvml.Device, index string) (ddnvml.Device, er
 	}
 
 	return nil, fmt.Errorf("%w with index %s", ErrCannotMatchDevice, index)
+}
+
+// IsNonComputeGPUContainer reports whether a container declares, through the
+// NVIDIA_DRIVER_CAPABILITIES environment variable, that it cannot run compute
+// workloads on the GPU. Containers requesting capabilities without "compute"
+// (e.g. utility-only containers such as GPU monitoring sidecars) hold the GPU
+// devices but cannot use them to run any workload, so their tags must not be
+// added to GPU metrics as a user of the device.
+// When the variable is unset, the NVIDIA toolkit injects a default capability
+// set (utility, compute), so the container is considered a compute user.
+// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+func IsNonComputeGPUContainer(container *workloadmeta.Container) bool {
+	capabilities, found := container.EnvVars[nvidiaDriverCapabilitiesEnvVar]
+	if !found || capabilities == "" {
+		return false
+	}
+
+	for _, capability := range strings.Split(capabilities, ",") {
+		switch strings.ToLower(strings.TrimSpace(capability)) {
+		case "compute", "all":
+			return false
+		}
+	}
+
+	return true
 }
 
 // IsDatadogAgentContainer checks if a container belong to the Datadog Agent (might be the agent, but also system-probe or other components)
