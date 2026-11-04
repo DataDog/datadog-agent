@@ -104,17 +104,10 @@ def _build_testbench(ctx, *, env: dict[str, str] | None = None):
 
 
 def _run_headless_replay(ctx, args, *, retain_parquet=False, timeout=None):
-    """Retry unordered input once with sorting; never treat failed replay as a score."""
-    started = time.monotonic()
+    """Run replay once in the requested mode; raise if it fails."""
     result = ctx.run(join_command(args + (["--retain-parquet"] if retain_parquet else [])), timeout=timeout, warn=True)
-    if result.failed and not retain_parquet and "not globally ordered" in result.stderr:
-        print("Recording is unordered; retrying with retained, sorted replay")
-        retain_parquet = True
-        remaining = None if timeout is None else max(0.001, timeout - (time.monotonic() - started))
-        result = ctx.run(join_command(args + ["--retain-parquet"]), timeout=remaining, warn=True)
     if result.failed:
         raise Exit(f"Testbench replay failed: {result.stderr}")
-    return retain_parquet
 
 
 @task
@@ -688,7 +681,6 @@ def eval_scenarios(
         scenario_logger.step(name)
 
         scenario_start = time.monotonic()
-        retained_replay = retain_parquet
         command_args = [
             "bin/anomalydetection-testbench",
             "--headless",
@@ -703,7 +695,7 @@ def eval_scenarios(
         elif only_flag:
             command_args += ["--only", only_flag]
         try:
-            retained_replay = _run_headless_replay(
+            _run_headless_replay(
                 ctx,
                 command_args,
                 retain_parquet=retain_parquet,
@@ -798,7 +790,7 @@ def eval_scenarios(
                 **score,
                 "output": output_path,
                 "inspect_command": inspect,
-                "replay_mode": "retained" if retained_replay else "streaming",
+                "replay_mode": "retained" if retain_parquet else "streaming",
             }
         )
         scenario_logger.detail(f"Inspect: {inspect}")

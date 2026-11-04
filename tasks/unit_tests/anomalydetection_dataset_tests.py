@@ -160,7 +160,7 @@ class TestDatasetReplay(unittest.TestCase):
 class TestLocalEvalCommand(unittest.TestCase):
     dataset = TestDatasetReplay.dataset
 
-    def run_eval(self, directory, *, unordered=False, default=True, fail=False):
+    def run_eval(self, directory, *, unordered=False, default=True, fail=False, retain_parquet=False, context=None):
         import shlex
         from types import SimpleNamespace
         from unittest.mock import MagicMock
@@ -168,7 +168,7 @@ class TestLocalEvalCommand(unittest.TestCase):
         from tasks.anomalydetection import eval_scenarios
 
         dataset = self.dataset(directory)
-        context = MagicMock()
+        context = context if context is not None else MagicMock()
 
         def run(command, **kwargs):
             args = shlex.split(command)
@@ -200,6 +200,7 @@ class TestLocalEvalCommand(unittest.TestCase):
                 scenarios_dir=str(directory / "cache"),
                 scenario_output_dir=str(directory / "outputs"),
                 main_report_path=str(directory / "report.json"),
+                retain_parquet=retain_parquet,
                 **kwargs,
             )
         return result, context, read
@@ -222,21 +223,27 @@ class TestLocalEvalCommand(unittest.TestCase):
             _, _, read = self.run_eval(Path(temporary), default=False)
         read.assert_called_once_with("Recordings", "observer-log-ad", "datadoghq.com")
 
-    def test_unordered_input_retries_sorted_and_records_replay_mode(self):
+    def test_retained_replay_requires_explicit_selection(self):
         with tempfile.TemporaryDirectory() as temporary:
-            result, context, _ = self.run_eval(Path(temporary), unordered=True)
-        self.assertEqual(context.run.call_count, 3)
+            result, context, _ = self.run_eval(Path(temporary), unordered=True, retain_parquet=True)
+        self.assertEqual(context.run.call_count, 2)  # One replay, then scoring.
         self.assertEqual(result["metadata"]["example"]["replay_mode"], "retained")
-        self.assertIn("--retain-parquet", context.run.call_args_list[1].args[0])
+        self.assertIn("--retain-parquet", context.run.call_args_list[0].args[0])
 
-    def test_failed_replay_aborts_without_publishing_a_partial_score(self):
+    def test_failed_replay_aborts_without_retry_or_publishing_a_partial_score(self):
+        from unittest.mock import MagicMock
+
         from invoke import Exit
 
         for unordered in (False, True):
             with self.subTest(unordered=unordered), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
-                with self.assertRaisesRegex(Exit, "replay crashed"):
-                    self.run_eval(directory, unordered=unordered, fail=True)
+                context = MagicMock()
+                error = "not globally ordered" if unordered else "replay crashed"
+                with self.assertRaisesRegex(Exit, error):
+                    self.run_eval(directory, unordered=unordered, fail=True, context=context)
+                context.run.assert_called_once()
+                self.assertNotIn("--retain-parquet", context.run.call_args.args[0])
                 self.assertFalse((directory / "report.json").exists())
 
     def test_local_eval_never_reads_llmobs(self):
@@ -269,30 +276,34 @@ class TestLocalEvalCommand(unittest.TestCase):
                     scenarios_dir=str(directory / "cache"),
                     config="config with spaces.json",
                     allowed_types="gauge,count",
+                    retain_parquet=True,
                 )
             args = shlex.split(ctx.run.call_args.args[0])
         read.assert_called_once_with(DEFAULT_DATASET, "observer-log-ad", "datadoghq.com")
         self.assertIn("config with spaces.json", args)
         self.assertIn("--headless", args)
         self.assertIn("gauge,count", args)
+        self.assertIn("--retain-parquet", args)
         self.assertIn(".llmobs/test-dataset", args[args.index("--scenarios-dir") + 1])
 
-    def test_headless_launcher_retries_unordered_input(self):
+    def test_headless_launcher_does_not_retry_unordered_input(self):
         from types import SimpleNamespace
         from unittest.mock import MagicMock
+
+        from invoke import Exit
 
         from tasks.anomalydetection import launch_testbench
 
         ctx = MagicMock()
-        ctx.run.side_effect = [
-            SimpleNamespace(failed=True, stderr="not globally ordered"),
-            SimpleNamespace(failed=False),
-        ]
-        with patch("tasks.anomalydetection.read_dataset") as read:
+        ctx.run.return_value = SimpleNamespace(failed=True, stderr="not globally ordered")
+        with (
+            patch("tasks.anomalydetection.read_dataset") as read,
+            self.assertRaisesRegex(Exit, "not globally ordered"),
+        ):
             launch_testbench.body(ctx, local=True, headless_scenario="example")
         read.assert_not_called()
-        self.assertEqual(ctx.run.call_count, 2)
-        self.assertIn("--retain-parquet", ctx.run.call_args.args[0])
+        ctx.run.assert_called_once()
+        self.assertNotIn("--retain-parquet", ctx.run.call_args.args[0])
 
     def test_interactive_launcher_uses_same_staged_recording_and_stops_its_process(self):
         import shlex

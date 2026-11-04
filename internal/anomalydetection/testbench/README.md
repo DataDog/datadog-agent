@@ -69,8 +69,9 @@ Provide `DD_API_KEY` and `DD_APP_KEY`, or prefix commands with
 
 Results include an `inspect_command` to open the recording and settings. The UI
 stops with Ctrl-C; `--api-port` and `--ui-port` allow additional instances.
-Headless replay streams by default, retrying with retained sorting for unordered
-input. Interactive replay retains all data, so detections can differ.
+Headless replay streams by default and fails if input cannot be replayed in order.
+`--retain-parquet` explicitly enables retained sorting for diagnosis. Interactive
+replay retains all data, so detections can differ.
 
 ## Evals
 
@@ -213,7 +214,7 @@ go tool pprof /tmp/observer.cpu.pprof
 
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --logs-only
 
-# Fall back to retained loading and global sorting for unordered local recordings
+# Explicitly use retained loading and global sorting for diagnosis
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --retain-parquet
 
 # Verbose output (includes anomaly detail, member series, titles)
