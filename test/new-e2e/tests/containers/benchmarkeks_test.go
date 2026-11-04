@@ -172,7 +172,7 @@ var benchmarkMetrics = []struct {
 	thresholds benchmark.Thresholds
 }{
 	{name: "container.cpu.usage", unit: benchmark.UnitNanocores, thresholds: cpuThresholds},
-	{name: "container.memory.usage", unit: benchmark.UnitBytes, thresholds: memoryThresholds},
+	{name: "container.memory.working_set", unit: benchmark.UnitBytes, thresholds: memoryThresholds},
 	{name: "container.memory.rss", unit: benchmark.UnitBytes, thresholds: memoryThresholds},
 }
 
