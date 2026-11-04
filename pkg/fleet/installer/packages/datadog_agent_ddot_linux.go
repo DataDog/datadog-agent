@@ -73,6 +73,9 @@ var (
 
 		SysvinitMainService: "datadog-agent-ddot",
 		SysvinitServices:    []string{"datadog-agent-ddot"},
+
+		ProcmgrUpstartServices:  []string{"datadog--ddot"},
+		ProcmgrSysvinitServices: []string{"datadog-agent-ddot"},
 	}
 )
 

@@ -171,6 +171,11 @@ var (
 
 		SysvinitMainService: "datadog-agent",
 		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
+
+		// The procmgr job is a static package file on Upstart and SysV, so the base lists above
+		// keep it too: an opted-out host still has to stop it and remove its links.
+		ProcmgrUpstartServices:  []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
+		ProcmgrSysvinitServices: []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
 	}
 
 	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
@@ -289,8 +294,8 @@ func installFilesystem(ctx HookContext) (err error) {
 // A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
 // instances (socket and processes.d conflicts).
 func retireLegacyProcmgrUnits(ctx HookContext) error {
-	switch service.GetServiceManagerType(ctx.PackagePath) {
-	case service.SystemdType, service.ProcmgrType:
+	switch currentInitSystem() {
+	case service.SystemdType:
 	default:
 		log.Debugf("retire legacy procmgr units: skipping, systemd not in use")
 		return nil
@@ -696,6 +701,9 @@ type datadogAgentService struct {
 
 	SysvinitMainService string
 	SysvinitServices    []string
+
+	ProcmgrUpstartServices  []string
+	ProcmgrSysvinitServices []string
 }
 
 var getLandlockABIVersion = func() (int, error) {
@@ -803,8 +811,8 @@ func experimentStartUnits(ctx HookContext, mainUnit string) []string {
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
-	switch service.GetServiceManagerType(ctx.PackagePath) {
-	case service.SystemdType, service.ProcmgrType:
+	switch currentInitSystem() {
+	case service.SystemdType:
 		return nil
 	case service.UpstartType:
 		if ctx.PackageType != PackageTypeDEB && ctx.PackageType != PackageTypeRPM {
@@ -831,7 +839,10 @@ const (
 // The installer process environment is not present then.
 var procmgrDefaultsPath = "/etc/datadog-agent/datadog-agent-procmgr"
 
-var currentServiceManager = service.GetServiceManagerType
+var (
+	currentServiceManager = service.GetServiceManagerType
+	currentInitSystem     = service.InitSystemType
+)
 
 var stopProcmgrService = func(ctx HookContext, manager service.Type) error {
 	switch manager {
@@ -906,7 +917,7 @@ func installerProcmgrDefaults(path string) (bool, error) {
 // syncProcmgrDefaults records an explicit process-manager choice for SysV and Upstart.
 // An unset variable leaves a hand-written defaults file alone.
 func syncProcmgrDefaults(ctx HookContext) error {
-	manager := currentServiceManager(ctx.PackagePath)
+	manager := currentInitSystem()
 	switch manager {
 	case service.SysvinitType, service.UpstartType:
 	default:
@@ -943,7 +954,7 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	if err := syncProcmgrDefaults(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		if err := systemd.EnableUnit(ctx, s.SystemdMainUnitStable); err != nil {
 			return err
@@ -953,13 +964,22 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 		}
 		return nil
 	case service.ProcmgrType:
-		if err := systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
-			return err
+		switch currentInitSystem() {
+		case service.SystemdType:
+			if err := systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
+				return err
+			}
+			if privilegedRshellUsable(ctx) {
+				return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
+			}
+			return nil
+		case service.UpstartType:
+			return nil // Nothing to do, this is defined directly in the upstart job file
+		case service.SysvinitType:
+			return sysvinit.InstallAll(ctx, s.ProcmgrSysvinitServices...)
+		default:
+			return errors.New("unsupported service manager")
 		}
-		if privilegedRshellUsable(ctx) {
-			return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
-		}
-		return nil
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
 	case service.SysvinitType:
@@ -974,11 +994,20 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.DisableUnits(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
-		return systemd.DisableUnits(ctx, s.ProcmgrUnitsStable...)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			return systemd.DisableUnits(ctx, s.ProcmgrUnitsStable...)
+		case service.UpstartType:
+			return nil // Nothing to do, this is defined directly in the upstart job file
+		case service.SysvinitType:
+			return sysvinit.RemoveAll(ctx, s.ProcmgrSysvinitServices...)
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
 	case service.SysvinitType:
@@ -1001,14 +1030,23 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	if !present {
 		return nil
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		if err := systemd.RestartUnit(ctx, s.SystemdMainUnitStable); err != nil {
 			return err
 		}
 	case service.ProcmgrType:
-		if err := systemd.RestartUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
-			return err
+		switch currentInitSystem() {
+		case service.SystemdType:
+			if err := systemd.RestartUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
+				return err
+			}
+		case service.UpstartType:
+			return upstart.Restart(ctx, s.UpstartMainService)
+		case service.SysvinitType:
+			return sysvinit.Restart(ctx, s.SysvinitMainService)
+		default:
+			return errors.New("unsupported service manager")
 		}
 	case service.UpstartType:
 		return upstart.Restart(ctx, s.UpstartMainService)
@@ -1028,11 +1066,20 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
 	case service.ProcmgrType:
-		return systemd.StopUnits(ctx, reverseStringSlice(s.ProcmgrUnitsStable)...)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			return systemd.StopUnits(ctx, reverseStringSlice(s.ProcmgrUnitsStable)...)
+		case service.UpstartType:
+			return upstart.StopAll(ctx, reverseStringSlice(s.ProcmgrUpstartServices)...)
+		case service.SysvinitType:
+			return sysvinit.StopAll(ctx, reverseStringSlice(s.ProcmgrSysvinitServices)...)
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType:
 		return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
 	case service.SysvinitType:
@@ -1043,13 +1090,12 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 }
 
 // WriteProcesses writes the processes for the given package path.
-// SysV and Upstart init scripts start dd-procmgrd, which reads these definitions.
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
-	switch service.GetServiceManagerType(packagePath) {
-	case service.ProcmgrType, service.SysvinitType, service.UpstartType:
+	switch currentServiceManager(packagePath) {
+	case service.ProcmgrType:
 		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
 	default:
-		return nil // Systemd without procmgr does not define processes
+		return nil // Only procmgr defines processes
 	}
 }
 
@@ -1058,11 +1104,18 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		return writeEmbeddedSystemdUnitsAndReload(ctx, installableUnits(ctx, s.SystemdUnitsStable)...)
 	case service.ProcmgrType:
-		return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsStable)...)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsStable)...)
+		case service.UpstartType, service.SysvinitType:
+			return nil // Nothing to do, files are embedded in the package
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -1075,11 +1128,18 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
-		return removeUnits(ctx, s.ProcmgrUnitsStable...)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			return removeUnits(ctx, s.ProcmgrUnitsStable...)
+		case service.UpstartType, service.SysvinitType:
+			return nil // Nothing to do, files are embedded in the package
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -1092,13 +1152,22 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		units := experimentStartUnits(ctx, s.SystemdMainUnitExp)
 		return systemd.StartUnit(ctx, units[0], units[1:]...)
 	case service.ProcmgrType:
-		units := experimentStartUnits(ctx, s.ProcmgrMainUnitExp)
-		return systemd.StartUnit(ctx, units[0], units[1:]...)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			units := experimentStartUnits(ctx, s.ProcmgrMainUnitExp)
+			return systemd.StartUnit(ctx, units[0], units[1:]...)
+		case service.UpstartType:
+			return errors.New("experiments are not supported on upstart")
+		case service.SysvinitType:
+			return errors.New("experiments are not supported on sysvinit")
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -1113,11 +1182,18 @@ func (s *datadogAgentService) StopExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, s.SystemdMainUnitExp)
 	case service.ProcmgrType:
-		return systemd.StopUnits(ctx, s.ProcmgrMainUnitExp)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			return systemd.StopUnits(ctx, s.ProcmgrMainUnitExp)
+		case service.UpstartType, service.SysvinitType:
+			return nil // Experiments are not supported on upstart or sysvinit
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType, service.SysvinitType:
 		return nil // Experiments are not supported on upstart or sysvinit
 	default:
@@ -1130,11 +1206,20 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		return writeEmbeddedSystemdUnitsAndReload(ctx, installableUnits(ctx, s.SystemdUnitsExp)...)
 	case service.ProcmgrType:
-		return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsExp)...)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsExp)...)
+		case service.UpstartType:
+			return errors.New("experiments are not supported on upstart")
+		case service.SysvinitType:
+			return errors.New("experiments are not supported on sysvinit")
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -1149,11 +1234,18 @@ func (s *datadogAgentService) RemoveExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType(ctx.PackagePath) {
+	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsExp...)
 	case service.ProcmgrType:
-		return removeUnits(ctx, s.ProcmgrUnitsExp...)
+		switch currentInitSystem() {
+		case service.SystemdType:
+			return removeUnits(ctx, s.ProcmgrUnitsExp...)
+		case service.UpstartType, service.SysvinitType:
+			return nil // Experiments are not supported on upstart or sysvinit
+		default:
+			return errors.New("unsupported service manager")
+		}
 	case service.UpstartType, service.SysvinitType:
 		return nil // Experiments are not supported on upstart or sysvinit
 	default:

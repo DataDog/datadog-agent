@@ -172,12 +172,12 @@ func TestSyncProcmgrDefaults(t *testing.T) {
 	require.Equal(t, "/etc/datadog-agent/datadog-agent-procmgr", procmgrDefaultsPath)
 	path := filepath.Join(t.TempDir(), "datadog-agent-procmgr")
 	originalPath := procmgrDefaultsPath
-	originalManager := currentServiceManager
+	originalInitSystem := currentInitSystem
 	originalStop := stopProcmgrService
 	procmgrDefaultsPath = path
 	t.Cleanup(func() {
 		procmgrDefaultsPath = originalPath
-		currentServiceManager = originalManager
+		currentInitSystem = originalInitSystem
 		stopProcmgrService = originalStop
 	})
 
@@ -188,14 +188,14 @@ func TestSyncProcmgrDefaults(t *testing.T) {
 	}
 	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
 
-	currentServiceManager = func(string) service.Type { return service.SystemdType }
+	currentInitSystem = func() service.Type { return service.SystemdType }
 	t.Setenv(processManagerEnabledEnv, "false")
 	require.NoError(t, syncProcmgrDefaults(ctx))
 	_, err := os.Stat(path)
 	require.ErrorIs(t, err, os.ErrNotExist)
 	assert.Empty(t, stopped)
 
-	currentServiceManager = func(string) service.Type { return service.UpstartType }
+	currentInitSystem = func() service.Type { return service.UpstartType }
 	require.NoError(t, syncProcmgrDefaults(ctx))
 	info, err := os.Lstat(path)
 	require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestSyncProcmgrDefaults(t *testing.T) {
 	_, err = os.Stat(path)
 	require.ErrorIs(t, err, os.ErrNotExist)
 
-	currentServiceManager = func(string) service.Type { return service.SysvinitType }
+	currentInitSystem = func() service.Type { return service.SysvinitType }
 	t.Setenv(processManagerEnabledEnv, "FALSE")
 	stopped = nil
 	require.NoError(t, syncProcmgrDefaults(ctx))
@@ -260,15 +260,61 @@ func TestSyncProcmgrDefaults(t *testing.T) {
 	assert.Equal(t, []service.Type{service.SysvinitType}, stopped)
 }
 
-// TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists
+func stubServiceManager(t *testing.T, manager service.Type, initSystem service.Type) {
+	t.Helper()
+	originalManager := currentServiceManager
+	originalInitSystem := currentInitSystem
+	currentServiceManager = func(string) service.Type { return manager }
+	currentInitSystem = func() service.Type { return initSystem }
+	t.Cleanup(func() {
+		currentServiceManager = originalManager
+		currentInitSystem = originalInitSystem
+	})
+}
+
+// TestProcmgrOnSysVAndUpstartKeepsPlainResults covers the procmgr branches that do not shell out.
+func TestProcmgrOnSysVAndUpstartKeepsPlainResults(t *testing.T) {
+	t.Setenv(processManagerEnabledEnv, "")
+	for _, initSystem := range []service.Type{service.UpstartType, service.SysvinitType} {
+		t.Run(string(initSystem), func(t *testing.T) {
+			stubServiceManager(t, service.ProcmgrType, initSystem)
+			ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
+
+			assert.NoError(t, agentService.WriteStable(ctx))
+			assert.NoError(t, agentService.RemoveStable(ctx))
+			assert.NoError(t, agentService.StopExperiment(ctx))
+			assert.NoError(t, agentService.RemoveExperiment(ctx))
+			assert.EqualError(t, agentService.StartExperiment(ctx), "experiments are not supported on "+string(initSystem))
+			assert.EqualError(t, agentService.WriteExperiment(ctx), "experiments are not supported on "+string(initSystem))
+			if initSystem == service.UpstartType {
+				assert.NoError(t, agentService.EnableStable(ctx))
+				assert.NoError(t, agentService.DisableStable(ctx))
+			}
+		})
+	}
+}
+
+func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
+	stubServiceManager(t, service.UpstartType, service.UpstartType)
+	packagePath := t.TempDir()
+	require.NoError(t, agentService.WriteProcesses(packagePath))
+	_, err := os.Stat(service.ConfigDir(packagePath))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+
+	stubServiceManager(t, service.ProcmgrType, service.UpstartType)
+	require.NoError(t, agentService.WriteProcesses(packagePath))
+	for _, process := range agentService.ProcmgrProcesses {
+		assert.FileExists(t, filepath.Join(service.ConfigDir(packagePath), process))
+	}
+}
+
+// TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists, plain and procmgr,
 // include procmgr ahead of the action service. StopStable reverses the lists.
 func TestSysVAndUpstartServicesStartProcmgr(t *testing.T) {
-	assert.Equal(t,
-		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
-		agentService.UpstartServices,
-	)
-	assert.Equal(t,
-		[]string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
-		agentService.SysvinitServices,
-	)
+	upstart := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
+	sysvinit := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
+	assert.Equal(t, upstart, agentService.UpstartServices)
+	assert.Equal(t, upstart, agentService.ProcmgrUpstartServices)
+	assert.Equal(t, sysvinit, agentService.SysvinitServices)
+	assert.Equal(t, sysvinit, agentService.ProcmgrSysvinitServices)
 }
