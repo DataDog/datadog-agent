@@ -141,9 +141,8 @@ type HoltResidualDetector struct {
 
 	// Cache compact refs across Detect calls. Keeping only refs avoids retaining
 	// every series' metadata and tag slice for Holt's lifetime.
-	cachedRefs      []observer.SeriesRef
-	cachedGen       uint64
-	cachedSelection detectorSelectionKey
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
 
 	// scratch is reused by the single-threaded detection loop for median/MAD
 	// calculations. It never aliases series state windows.
@@ -223,7 +222,6 @@ func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 	d.scratch = d.scratch[:0]
 	d.ready = false
 }
@@ -243,7 +241,6 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	d.cachedRefs = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 }
 
 // Detect implements observer.Detector. Streams new points into per-series
@@ -251,12 +248,10 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
 	d.ensureDefaults()
 
-	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if d.cachedRefs == nil || gen != d.cachedGen || selection != d.cachedSelection {
+	if d.cachedRefs == nil || gen != d.cachedGen {
 		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
-		d.cachedSelection = selection
 	}
 
 	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)

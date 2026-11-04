@@ -726,7 +726,11 @@ type StorageReader interface {
 
 // DetectionFilter borrows per-call restrictions; zero allows all workload series.
 // Telemetry is excluded; kind and type are independent.
-// Do not mutate filters or retain their pointers/slices as cache keys.
+// Kind/type restrictions (including nil versus explicit values) must stay constant
+// for an instance's lifetime, including resets. Pointer identity may change when
+// values are equal; changing selection values is unsupported and can reuse stale
+// cached membership. Aggregations may vary per call without changing membership.
+// Detectors must not mutate borrowed filters or retain their pointers/slices.
 type DetectionFilter struct {
 	MetricKind *MetricKind         // nil: any committed kind, including UNSET
 	MetricType *metrics.MetricType // nil: any input type, including UnknownType

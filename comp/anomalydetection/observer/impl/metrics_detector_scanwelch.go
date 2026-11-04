@@ -71,9 +71,8 @@ type ScanWelchDetector struct {
 	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
-	cachedRefs      []observer.SeriesRef
-	cachedGen       uint64
-	cachedSelection detectorSelectionKey
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
 }
 
 // NewScanWelchDetector creates a ScanWelch detector with default settings.
@@ -112,7 +111,6 @@ func (d *ScanWelchDetector) Reset() {
 	d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 	d.ready = false
 }
 
@@ -130,7 +128,6 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	d.cachedRefs = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 }
 
 // Detect implements Detector. Same iteration pattern as ScanMW and BOCPD —
@@ -138,12 +135,10 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
 	d.ensureDefaults()
 
-	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if d.cachedRefs == nil || gen != d.cachedGen || selection != d.cachedSelection {
+	if d.cachedRefs == nil || gen != d.cachedGen {
 		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
-		d.cachedSelection = selection
 	}
 
 	// Bulk-fetch visible point counts for series activation.

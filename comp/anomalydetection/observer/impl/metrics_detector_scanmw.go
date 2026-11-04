@@ -70,9 +70,8 @@ type ScanMWDetector struct {
 	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
-	cachedRefs      []observer.SeriesRef
-	cachedGen       uint64
-	cachedSelection detectorSelectionKey
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
 }
 
 // NewScanMWDetector normalizes and copies configuration once at construction.
@@ -127,7 +126,6 @@ func (d *ScanMWDetector) Reset() {
 	d.series = make(map[scanmwStateKey]*scanmwSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 	d.ready = false
 }
 
@@ -143,7 +141,6 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	d.cachedRefs = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 }
 
 // Detect implements Detector. It discovers series, reads segment data,
@@ -153,12 +150,10 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 // Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go Detect loop)
 // and ScanWelch — consider dedup if more scan-based detectors are added.
 func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
-	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if d.cachedRefs == nil || gen != d.cachedGen || selection != d.cachedSelection {
+	if d.cachedRefs == nil || gen != d.cachedGen {
 		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
-		d.cachedSelection = selection
 	}
 
 	// Bulk-fetch visible point counts for series activation.

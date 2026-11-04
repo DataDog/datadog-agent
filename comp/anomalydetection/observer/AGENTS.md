@@ -74,7 +74,9 @@ points; programmatic callers can supply their own parameters without catalog or
 global Agent settings.
 
 `Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
-restrictions and an intersection with configured aggregations. Empty means
+restrictions and an intersection with configured aggregations. Kind/type values
+and nil presence must stay constant per instance, including resets; equal-valued
+replacement pointers are allowed. Aggregations may vary per call. Empty means
 unrestricted workload detection; telemetry is always excluded. Filtering neither
 advances excluded state nor removes it; callers own reset/transition cleanup.
 Existing engine calls pass an empty filter.

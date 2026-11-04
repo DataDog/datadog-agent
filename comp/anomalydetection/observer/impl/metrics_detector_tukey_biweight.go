@@ -96,9 +96,8 @@ type TukeyBiweightDetector struct {
 	scoreBuf []observer.Point
 
 	// Cache the discovered series list across Detect calls.
-	cachedSeries    []observer.SeriesMeta
-	cachedGen       uint64
-	cachedSelection detectorSelectionKey
+	cachedSeries []observer.SeriesMeta
+	cachedGen    uint64
 }
 
 // TukeyBiweightConfig holds catalog/testbench tunables for TukeyBiweightDetector.
@@ -167,7 +166,6 @@ func (d *TukeyBiweightDetector) Reset() {
 	d.series = make(map[tbStateKey]*tbSeriesState)
 	d.cachedSeries = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 	d.ready = false
 }
 
@@ -187,7 +185,6 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	d.cachedSeries = nil
 	d.cachedGen = 0
-	d.cachedSelection = detectorSelectionKey{}
 }
 
 // Detect implements observer.Detector. If storage mutates an already-processed
@@ -197,12 +194,10 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
 	d.ensureDefaults()
 
-	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if d.cachedSeries == nil || gen != d.cachedGen || selection != d.cachedSelection {
+	if d.cachedSeries == nil || gen != d.cachedGen {
 		d.cachedSeries = storage.ListSeries(detectorSeriesFilter(filter))
 		d.cachedGen = gen
-		d.cachedSelection = selection
 	}
 
 	refs := make([]observer.SeriesRef, len(d.cachedSeries))

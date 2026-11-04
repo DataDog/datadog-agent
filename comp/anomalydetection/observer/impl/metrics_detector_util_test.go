@@ -49,45 +49,28 @@ func TestDetectorSeriesFilter(t *testing.T) {
 		}, []observer.SeriesRef{stableGauge, stableCount}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			before := newDetectorSelectionKey(tc.filter)
+			var beforeKind observer.MetricKind
+			var beforeType metrics.MetricType
+			if tc.filter.MetricKind != nil {
+				beforeKind = *tc.filter.MetricKind
+			}
+			if tc.filter.MetricType != nil {
+				beforeType = *tc.filter.MetricType
+			}
 			selection := detectorSeriesFilter(tc.filter)
 			require.Equal(t, observer.SeriesFilter{
 				MetricKind: tc.filter.MetricKind, MetricType: tc.filter.MetricType,
 				ExcludeNamespaces: []string{observer.TelemetryNamespace},
 			}, selection)
 			require.ElementsMatch(t, tc.want, storage.ListSeriesRefsInto(selection, nil))
-			require.Equal(t, before, newDetectorSelectionKey(tc.filter), "selection must not modify caller values")
+			if tc.filter.MetricKind != nil {
+				require.Equal(t, beforeKind, *tc.filter.MetricKind)
+			}
+			if tc.filter.MetricType != nil {
+				require.Equal(t, beforeType, *tc.filter.MetricType)
+			}
 		})
 	}
-}
-
-func TestDetectorSelectionKey(t *testing.T) {
-	kind, metricType := observer.UNSET, observer.UnknownType
-	filter := observer.DetectionFilter{MetricKind: &kind, MetricType: &metricType}
-	original := newDetectorSelectionKey(filter)
-	require.Equal(t, detectorSelectionKey{
-		kindSet: true, kind: observer.UNSET, typeSet: true, typ: observer.UnknownType,
-	}, original)
-	require.NotEqual(t, original, newDetectorSelectionKey(observer.DetectionFilter{}))
-	require.NotEqual(t, newDetectorSelectionKey(observer.DetectionFilter{}),
-		newDetectorSelectionKey(observer.DetectionFilter{MetricKind: &kind}))
-	require.NotEqual(t, newDetectorSelectionKey(observer.DetectionFilter{}),
-		newDetectorSelectionKey(observer.DetectionFilter{MetricType: &metricType}))
-
-	otherKind, otherType := kind, metricType
-	require.Equal(t, original, newDetectorSelectionKey(observer.DetectionFilter{
-		MetricKind: &otherKind, MetricType: &otherType,
-	}), "pointer identity must not affect the key")
-	filter.Aggregations = []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage}
-	require.Equal(t, original, newDetectorSelectionKey(filter), "aggregation restrictions do not affect series membership")
-
-	kind = observer.STABLE
-	require.NotEqual(t, original, newDetectorSelectionKey(filter))
-	kind = observer.UNSET
-	metricType = metrics.GaugeType
-	require.NotEqual(t, original, newDetectorSelectionKey(filter))
-	require.Equal(t, observer.UNSET, original.kind, "previous keys must retain their values")
-	require.Equal(t, observer.UnknownType, original.typ)
 }
 
 func TestAggregationAllowed(t *testing.T) {
@@ -118,20 +101,13 @@ func TestAggregationAllowed(t *testing.T) {
 	}
 }
 
-func TestDetectorFilterHelpersDoNotAllocate(t *testing.T) {
-	kind, metricType := observer.STABLE, metrics.GaugeType
-	filter := observer.DetectionFilter{
-		MetricKind: &kind, MetricType: &metricType,
-		Aggregations: []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage},
-	}
-	var key detectorSelectionKey
+func TestAggregationAllowedDoesNotAllocate(t *testing.T) {
+	requested := []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage}
 	var allowed bool
 	allocations := testing.AllocsPerRun(100, func() {
-		key = newDetectorSelectionKey(filter)
-		allowed = aggregationAllowed(observer.AggregateAverage, filter.Aggregations)
+		allowed = aggregationAllowed(observer.AggregateAverage, requested)
 	})
-	require.Zero(t, allocations, "cache-key construction and membership checks are hot-path operations")
-	require.Equal(t, newDetectorSelectionKey(filter), key)
+	require.Zero(t, allocations, "aggregation membership checks are hot-path operations")
 	require.True(t, allowed)
 }
 

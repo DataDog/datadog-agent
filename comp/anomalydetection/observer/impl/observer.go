@@ -850,9 +850,8 @@ type seriesDetectorAdapter struct {
 	windowSec int64
 
 	// Refresh on catalog/metadata changes or different kind/type restrictions.
-	cachedRefs      []observerdef.SeriesRef
-	cachedGen       uint64
-	cachedSelection detectorSelectionKey
+	cachedRefs []observerdef.SeriesRef
+	cachedGen  uint64
 
 	// Freshness is independent for each configured aggregation.
 	lastVisibleCount map[observerdef.QueryHandle]int
@@ -880,7 +879,6 @@ func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.QueryHandle]int)
 	a.cachedRefs = nil
 	a.cachedGen = 0
-	a.cachedSelection = detectorSelectionKey{}
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
 		resetter.Reset()
 	}
@@ -908,19 +906,16 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	}
 	a.cachedRefs = nil
 	a.cachedGen = 0
-	a.cachedSelection = detectorSelectionKey{}
 	if remover, ok := a.detector.(observerdef.SeriesRemover); ok {
 		remover.RemoveSeries(refs)
 	}
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64, filter observerdef.DetectionFilter) observerdef.DetectionResult {
-	selection := newDetectorSelectionKey(filter)
 	gen := storage.SeriesGeneration()
-	if a.cachedRefs == nil || gen != a.cachedGen || selection != a.cachedSelection {
+	if a.cachedRefs == nil || gen != a.cachedGen {
 		a.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), a.cachedRefs)
 		a.cachedGen = gen
-		a.cachedSelection = selection
 	}
 
 	var allAnomalies []observerdef.Anomaly

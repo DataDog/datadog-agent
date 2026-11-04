@@ -192,7 +192,7 @@ func TestDetectorFilterSelection(t *testing.T) {
 	}
 }
 
-func TestDetectorFilterChangesAndFreshness(t *testing.T) {
+func TestDetectorFilterConstantSelectionAndFreshness(t *testing.T) {
 	for name, factory := range filterTestDetectors() {
 		t.Run(name, func(t *testing.T) {
 			s, refs := newFilterTestStorage()
@@ -202,39 +202,28 @@ func TestDetectorFilterChangesAndFreshness(t *testing.T) {
 			d.Detect(s, 20, filter)
 			require.Len(t, filterTestState(d), 1)
 			require.True(t, d.Ready())
-			before := filterTestState(d)
 			calls := s.listCalls
-			kind = observer.LINEAR
-			d.Detect(s, 20, filter)
-			require.Equal(t, calls+1, s.listCalls, "kind pointer mutation must refresh selection")
-			mt = metrics.CountType
-			d.Detect(s, 20, filter)
-			require.Equal(t, calls+2, s.listCalls, "type pointer mutation must refresh selection")
-			kind = observer.STABLE
-			d.Detect(s, 20, filter)
-			require.Equal(t, calls+3, s.listCalls)
-			require.Len(t, filterTestState(d), 3, "filter changes retain previous state")
-			require.Equal(t, before[observer.QueryHandle{Ref: refs[0], Aggregate: observer.AggregateAverage}], filterTestState(d)[observer.QueryHandle{Ref: refs[0], Aggregate: observer.AggregateAverage}])
-
 			// Equal values and aggregation-only changes reuse the series selection.
 			otherKind, otherType := kind, mt
 			filter.MetricKind, filter.MetricType = &otherKind, &otherType
+			d.Detect(s, 20, filter)
+			require.Equal(t, calls, s.listCalls, "equal restrictions must reuse selection")
 			filter.Aggregations = []observer.Aggregate{observer.AggregateCount}
 			result := d.Detect(s, 20, filter)
-			require.Equal(t, calls+3, s.listCalls)
-			selected := observer.QueryHandle{Ref: refs[2], Aggregate: observer.AggregateCount}
+			require.Equal(t, calls, s.listCalls)
+			selected := observer.QueryHandle{Ref: refs[0], Aggregate: observer.AggregateCount}
 			require.Contains(t, filterTestState(d), selected, "count remains fresh after average-only processing")
 			if name == "adapter" {
 				require.Len(t, result.Anomalies, 1)
 				require.Equal(t, selected, *result.Anomalies[0].SourceRef)
 			}
-			before = filterTestState(d)
+			before := filterTestState(d)
 			for i, ref := range refs {
 				meta := s.GetSeriesMeta(ref)
 				s.AddWithKeyAndHostComposite(meta.Namespace, meta.Name, meta.Host, 110, 21, meta.Tags, uint64(i+1), meta.MetricType)
 			}
 			d.Detect(s, 21, filter)
-			require.Equal(t, calls+3, s.listCalls, "point writes must not invalidate selection")
+			require.Equal(t, calls, s.listCalls, "point writes must not invalidate selection")
 			after := filterTestState(d)
 			for key, state := range before {
 				if key != selected {
@@ -272,8 +261,10 @@ func TestDetectorFilterMetadataAndCleanup(t *testing.T) {
 			require.Len(t, filterTestState(d), 8, "newly eligible series must be processed")
 			before := filterTestState(d)
 			s.SetSeriesKind(refs[0], observer.LINEAR)
-			d.Detect(s, 20, filter)
-			require.Equal(t, before, filterTestState(d), "kind exclusion must retain state")
+			s.AddWithKeyAndHostComposite("work", "metric_1", "", 110, 21, tagset.CompositeTags{}, 1, metrics.GaugeType)
+			d.Detect(s, 21, filter)
+			require.Equal(t, calls+4, s.listCalls, "kind changes invalidate selection")
+			require.Equal(t, before, filterTestState(d), "kind-excluded state must not advance with fresh data")
 
 			d.(observer.SeriesRemover).RemoveSeries([]observer.SeriesRef{newRef})
 			for key := range filterTestState(d) {
@@ -287,6 +278,14 @@ func TestDetectorFilterMetadataAndCleanup(t *testing.T) {
 			require.False(t, d.Ready())
 			d.Detect(s, 20, filter)
 			require.Len(t, filterTestState(d), 6, "reset must rebuild the current selection")
+			calls = s.listCalls
+			s.RemoveSeriesByRefs([]observer.SeriesRef{newRef})
+			d.Detect(s, 21, filter)
+			require.Equal(t, calls+1, s.listCalls, "storage removal invalidates selection")
+			d.Detect(s, 21, filter)
+			require.Equal(t, calls+1, s.listCalls, "unchanged membership reuses selection")
+			d.(observer.SeriesRemover).RemoveSeries([]observer.SeriesRef{newRef})
+			require.Len(t, filterTestState(d), 4)
 		})
 	}
 }
