@@ -172,16 +172,16 @@ func TestFromDDConfig(t *testing.T) {
 			expectedDDSite: "ddog-gov.com",
 		},
 		{
-			name:           "dd_url overrides site",
+			name:           "dd_url does not override site",
 			site:           "datadoghq.com",
 			ddURL:          "https://api.datadoghq.eu.",
-			expectedDDSite: "datadoghq.eu",
+			expectedDDSite: "datadoghq.com",
 		},
 		{
-			name:           "custom domain via dd_url",
+			name:           "metrics proxy does not override default site",
 			site:           "",
 			ddURL:          "https://custom.endpoint.example.com.",
-			expectedDDSite: "",
+			expectedDDSite: "datadoghq.com",
 		},
 	}
 
