@@ -140,6 +140,8 @@ type Report struct {
 	Baseline   Version   `json:"baseline"`
 	Comparison Version   `json:"comparison"`
 	Results    []Result  `json:"results"`
+	// DashboardURL is the URL of a dashboard of the run.
+	DashboardURL string `json:"dashboard_url,omitempty"`
 }
 
 // notable reports whether a metric improved, regressed or couldn't be compared: the outcomes
@@ -196,6 +198,9 @@ func (r *Report) Markdown() string {
 		r.ClusterName,
 		first.From.UTC().Format(timeFormat), first.To.UTC().Format(timeFormat), first.To.Sub(first.From),
 		swapped.From.UTC().Format(timeFormat), swapped.To.UTC().Format(timeFormat), swapped.To.Sub(swapped.From))
+	if r.DashboardURL != "" {
+		fmt.Fprintf(&b, "Graphs and profiles of the run: [dashboard](%s)\n\n", r.DashboardURL)
+	}
 
 	b.WriteString("| Component | Metric | Baseline | Comparison | Change | p-value | Verdict |\n")
 	b.WriteString("|---|---|--:|--:|--:|--:|---|\n")
@@ -310,6 +315,18 @@ func ProfilesURL(appURL, query string, from, to time.Time) string {
 	values.Set("query", query)
 	setTimeRange(values, from, to)
 	return appURL + "/profiling/explorer?" + values.Encode()
+}
+
+// DashboardURL returns the URL of the dashboard dashboardID of the Datadog app at appURL over
+// [from, to], with its template variables set to templateVariables, by name.
+func DashboardURL(appURL, dashboardID string, templateVariables map[string]string, from, to time.Time) string {
+	values := url.Values{}
+	for name, value := range templateVariables {
+		values.Set("tpl_var_"+name+"[0]", value)
+	}
+	values.Set("refresh_mode", "paused")
+	setTimeRange(values, from, to)
+	return appURL + "/dashboard/" + dashboardID + "?" + values.Encode()
 }
 
 func setTimeRange(values url.Values, from, to time.Time) {
