@@ -1128,6 +1128,7 @@ func TestResumePointOfADeletedFileIsForgotten(t *testing.T) {
 	h := newHarness(t, withPath("app/app.log*"))
 	h.share.Write("app/app.log", []byte(lines(1, 1)))
 	h.scan()
+	h.out.waitLines(t, 1) // line 1 is sent before line 2's file has a tailer
 	require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 	h.share.Write("app/app.log", []byte(lines(2, 2)))
 	h.scan()                  // the drain of app.log.1 starts
