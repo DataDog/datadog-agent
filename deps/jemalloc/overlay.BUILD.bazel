@@ -222,21 +222,12 @@ expand_template(
     template = "include/jemalloc/internal/jemalloc_preamble.h.in",
 )
 
-# configure builds jemalloc.h by concatenating shell-generated headers and
-# private_namespace.h from nm over the compiled objects, so both are checked in.
+# configure builds jemalloc.h by concatenating shell-generated headers, so
+# it is checked in. JEMALLOC_NO_PRIVATE_NAMESPACE skips private_namespace.h.
 copy_file(
     name = "jemalloc_h",
     src = "@@//deps/jemalloc:jemalloc.h",
     out = "include/jemalloc/jemalloc.h",
-)
-
-copy_file(
-    name = "private_namespace_h",
-    src = select({
-        "@platforms//cpu:arm64": "@@//deps/jemalloc:private_namespace_linux_arm64.h",
-        "@platforms//cpu:x86_64": "@@//deps/jemalloc:private_namespace_linux_x86_64.h",
-    }),
-    out = "include/jemalloc/internal/private_namespace.h",
 )
 
 cc_library(
@@ -244,7 +235,6 @@ cc_library(
     srcs = _C_SRCS + glob(["include/jemalloc/internal/*.h"]) + [
         ":jemalloc_internal_defs_h",
         ":jemalloc_preamble_h",
-        ":private_namespace_h",
     ],
     hdrs = [":jemalloc_h"],
     conlyopts = [
@@ -267,6 +257,7 @@ cc_library(
         "_GNU_SOURCE",
         "_REENTRANT",
         "PIC",
+        "JEMALLOC_NO_PRIVATE_NAMESPACE",
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )

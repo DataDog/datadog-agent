@@ -3,8 +3,6 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 exports_files(
     [
         "jemalloc.h",
-        "private_namespace_linux_arm64.h",
-        "private_namespace_linux_x86_64.h",
     ],
     visibility = ["@jemalloc//:__pkg__"],
 )
