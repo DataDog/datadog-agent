@@ -4,6 +4,7 @@ load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
 
@@ -44,6 +45,124 @@ license(
     license_kinds = ["@rules_license//licenses/spdx:BSD-2-Clause"],
     license_text = "COPYING",
     visibility = ["//visibility:public"],
+)
+
+# Link order follows C_SRCS in upstream's Makefile.in, so that the layout of the
+# shared library matches the configure_make build.
+_C_SRCS = [
+    "src/jemalloc.c",
+    "src/arena.c",
+    "src/background_thread.c",
+    "src/base.c",
+    "src/bin.c",
+    "src/bin_info.c",
+    "src/bitmap.c",
+    "src/buf_writer.c",
+    "src/cache_bin.c",
+    "src/ckh.c",
+    "src/counter.c",
+    "src/ctl.c",
+    "src/decay.c",
+    "src/div.c",
+    "src/ecache.c",
+    "src/edata.c",
+    "src/edata_cache.c",
+    "src/ehooks.c",
+    "src/emap.c",
+    "src/eset.c",
+    "src/exp_grow.c",
+    "src/extent.c",
+    "src/extent_dss.c",
+    "src/extent_mmap.c",
+    "src/fxp.c",
+    "src/san.c",
+    "src/san_bump.c",
+    "src/hook.c",
+    "src/hpa.c",
+    "src/hpa_hooks.c",
+    "src/hpdata.c",
+    "src/inspect.c",
+    "src/large.c",
+    "src/log.c",
+    "src/malloc_io.c",
+    "src/mutex.c",
+    "src/nstime.c",
+    "src/pa.c",
+    "src/pa_extra.c",
+    "src/pai.c",
+    "src/pac.c",
+    "src/pages.c",
+    "src/peak_event.c",
+    "src/prof.c",
+    "src/prof_data.c",
+    "src/prof_log.c",
+    "src/prof_recent.c",
+    "src/prof_stats.c",
+    "src/prof_sys.c",
+    "src/psset.c",
+    "src/rtree.c",
+    "src/safety_check.c",
+    "src/sc.c",
+    "src/sec.c",
+    "src/stats.c",
+    "src/sz.c",
+    "src/tcache.c",
+    "src/test_hooks.c",
+    "src/thread_event.c",
+    "src/ticker.c",
+    "src/tsd.c",
+    "src/witness.c",
+]
+
+# Mirrors what configure_make gets from configure: CONFIGURE_CFLAGS,
+# CONFIGURE_CXXFLAGS, CPPFLAGS and PIC_CFLAGS.
+_COMMON_COPTS = [
+    "-Wall",
+    "-Wextra",
+    "-g3",
+    "-fvisibility=hidden",
+    "-Wimplicit-fallthrough",
+    "-O3",
+    "-fPIC",
+]
+
+cc_library(
+    name = "jemalloc",
+    srcs = _C_SRCS + ["src/jemalloc_cpp.cpp"] + glob(["include/jemalloc/internal/*.h"]),
+    conlyopts = [
+        "-std=gnu11",
+        "-Wsign-compare",
+        "-Wundef",
+        "-Wno-format-zero-length",
+        "-Wpointer-arith",
+        "-Wno-missing-braces",
+        "-Wno-missing-field-initializers",
+        "-Wno-missing-attributes",
+        "-pipe",
+        "-funroll-loops",
+    ],
+    copts = _COMMON_COPTS,
+    cxxopts = ["-std=c++17"],
+    includes = ["include"],
+    linkopts = [
+        "-lstdc++",
+        "-pthread",
+    ],
+    linkstatic = True,
+    local_defines = [
+        "_GNU_SOURCE",
+        "_REENTRANT",
+        "PIC",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["@@//deps/jemalloc:config"],
+)
+
+cc_shared_library(
+    name = "jemalloc_native_shared",
+    shared_lib_name = "libjemalloc.so.2",
+    user_link_flags = ["-Wl,-soname=libjemalloc.so.2"],
+    deps = [":jemalloc"],
 )
 
 filegroup(
