@@ -1,0 +1,14 @@
+description: The $? variable reflects success after a heredoc is processed by cat.
+input:
+  script: |+
+    false
+    cat <<EOF
+    hello
+    EOF
+    echo $?
+expect:
+  stdout: |+
+    hello
+    0
+  stderr: ""
+  exit_code: 0

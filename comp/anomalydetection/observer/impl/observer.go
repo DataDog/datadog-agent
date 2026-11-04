@@ -31,7 +31,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -646,9 +645,9 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 		case configuredRetention == 0:
 			// Keep the detector-derived retention.
 		case configuredRetention < 0:
-			pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s; using %s derived from enabled detector windows", configuredRetention, requiredRetention)
+			logging.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s; using %s derived from enabled detector windows", configuredRetention, requiredRetention)
 		case configuredRetention < requiredRetention:
-			pkglog.Warnf("anomaly_detection.storage.point_retention=%s is below the %s required by enabled detector windows; using %s", configuredRetention, requiredRetention, requiredRetention)
+			logging.Warnf("anomaly_detection.storage.point_retention=%s is below the %s required by enabled detector windows; using %s", configuredRetention, requiredRetention, requiredRetention)
 		default:
 			storageCfg.PointRetentionSecs = int64(configuredRetention.Seconds())
 		}
@@ -656,7 +655,7 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_ttl") {
 		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_ttl")
 		if d < 0 {
-			pkglog.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
+			logging.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
 		} else {
 			storageCfg.InactiveSeriesTTLSeconds = int64(d.Seconds())
 		}
@@ -664,7 +663,7 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_check_interval") {
 		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_check_interval")
 		if d < 0 {
-			pkglog.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
+			logging.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
 		} else {
 			storageCfg.InactiveSeriesCheckIntervalSeconds = int64(d.Seconds())
 		}
@@ -723,6 +722,8 @@ func (o *observerImpl) run() {
 	// Keep one engine writer while independently buffering each telemetry kind.
 	// Nil out closed queues so the other queue can finish draining.
 	metricsCh, logsCh := o.metricsCh, o.logsCh
+	ticker := time.NewTicker(filteredMetricPublishInterval)
+	defer ticker.Stop()
 	for metricsCh != nil || logsCh != nil {
 		var obs observation
 		var ok bool
@@ -737,6 +738,9 @@ func (o *observerImpl) run() {
 				logsCh = nil
 				continue
 			}
+		case <-ticker.C:
+			o.engine.flushFilteredMetrics()
+			continue
 		}
 		if obs.flush != nil {
 			close(obs.flush)
@@ -813,6 +817,7 @@ func (o *observerImpl) run() {
 		}
 		o.replayMu.Unlock()
 	}
+
 }
 
 // publishSeriesCount updates the series-count gauge after an analysis advance,
@@ -851,9 +856,9 @@ type seriesDetectorAdapter struct {
 	windowSec int64
 
 	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
-	// ScanWelchDetector, and ScanMWDetector: storage.SeriesGeneration() only
-	// advances when a brand-new series key is created, so we can avoid the
-	// per-Detect full-map series scan on steady-state cardinality.
+	// ScanWelchDetector, and ScanMWDetector: SeriesGeneration changes on series
+	// admission/removal and filterable metadata updates, not ordinary point writes.
+	// Reuse the selection while that generation is unchanged.
 	cachedRefs []observerdef.SeriesRef
 	cachedGen  uint64
 
@@ -1136,6 +1141,7 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+	o.engine.flushFilteredMetrics()
 	return nil
 }
 
@@ -1483,12 +1489,16 @@ type handle struct {
 	filter    *metricsFilterRules
 	logFilter *logAdmissionFilter
 
-	// Cache the common source's bound counter so rejecting high-volume metrics
-	// does not add an allocation to the producer path.
-	filteredMetricOnce   sync.Once
-	filteredMetricSource string
-	filteredMetric       telemetry.SimpleCounter
+	// Pending filtered counts publish at most once per second; idle/shutdown tails may remain.
+	pendingFilteredSource atomic.Uint64
+	pendingFilteredAgent  atomic.Uint64
+	lastFilteredPublish   atomic.Int64
 }
+
+// filteredMetricEpoch is monotonic; callers add 1ns so zero means never published.
+var filteredMetricEpoch = time.Now()
+
+const filteredMetricPublishInterval = time.Second
 
 // ObserveMetric observes a metric with its metrics-pipeline context key, or
 // requests key derivation on the preprocessing goroutine when contextKey is zero.
@@ -1542,19 +1552,46 @@ func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, conte
 }
 
 func (h *handle) recordFilteredMetric(source string) {
-	h.filteredMetricOnce.Do(func() {
-		h.filteredMetricSource = source
-		h.filteredMetric = h.telemetry.filteredMetrics.WithValues(source)
-	})
-	if h.filteredMetricSource == source {
-		h.filteredMetric.Inc()
+	if source == observerdef.AgentNamespace {
+		h.pendingFilteredAgent.Add(1)
+	} else {
+		h.pendingFilteredSource.Add(1)
+	}
+
+	h.publishFilteredMetricsIfDue(
+		time.Since(filteredMetricEpoch).Nanoseconds() + 1,
+	)
+}
+
+// publishFilteredMetricsIfDue claims publication by timestamp CAS and swaps each pending count exactly once.
+func (h *handle) publishFilteredMetricsIfDue(now int64) {
+	last := h.lastFilteredPublish.Load()
+	if last != 0 && now-last < int64(filteredMetricPublishInterval) {
+		return
+	}
+	if !h.lastFilteredPublish.CompareAndSwap(last, now) {
 		return
 	}
 
-	// datadog.* metrics are normalized to the agent namespace, rather than the
-	// source that created this handle. Keep the generic lookup for that uncommon
-	// alternate label value.
-	h.telemetry.recordFilteredMetric(source)
+	if n := h.pendingFilteredSource.Swap(0); n != 0 {
+		h.telemetry.filteredMetrics.Add(float64(n), h.source)
+	}
+	if n := h.pendingFilteredAgent.Swap(0); n != 0 {
+		h.telemetry.filteredMetrics.Add(float64(n), observerdef.AgentNamespace)
+	}
+}
+
+func (h *handle) flushFilteredMetrics() {
+	h.forcePublishFilteredMetrics()
+}
+
+func (h *handle) forcePublishFilteredMetrics() {
+	if n := h.pendingFilteredSource.Swap(0); n != 0 {
+		h.telemetry.filteredMetrics.Add(float64(n), h.source)
+	}
+	if n := h.pendingFilteredAgent.Swap(0); n != 0 {
+		h.telemetry.filteredMetrics.Add(float64(n), observerdef.AgentNamespace)
+	}
 }
 
 // ObserveLog observes a log message.
@@ -1593,7 +1630,6 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	if timestampMs == 0 {
 		timestampMs = admissionTime.UnixMilli()
 	}
-	tags := copyTags(rawTags)
 	content := msg.GetContent()
 	if h.telemetry != nil {
 		// Increment before enqueue to avoid a race where the consumer dequeues and
@@ -1608,7 +1644,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			logSource:     logSource,
 			content:       content,
 			status:        status,
-			tags:          tags,
+			tags:          rawTags,
 			hostname:      msg.GetHostname(),
 			timestampMs:   timestampMs,
 			admissionTime: admissionTime,

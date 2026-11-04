@@ -88,7 +88,7 @@ func TestReaderRCEndpointFQDN(t *testing.T) {
 }
 
 func TestReaderRejectsInvalidPAROverride(t *testing.T) {
-	for _, endpoint := range []string{"ftp://proxy.example.com", "https://user:secret@proxy.example.com", "https://proxy.example.com?query"} {
+	for _, endpoint := range []string{"ftp://proxy.example.com", "https://user:secret@proxy.example.com", "https://proxy.example.com?query", "https://proxy.example.com:65536", "https://[::1]:99999"} {
 		cfg := configmock.New(t)
 		cfg.SetInTest("api_key", "key")
 		cfg.SetInTest("remote_configuration.enabled", true)

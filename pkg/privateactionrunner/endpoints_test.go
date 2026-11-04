@@ -58,6 +58,9 @@ func TestAPIBaseURLPAROverride(t *testing.T) {
 				"https://par-proxy.example.com:8443/prefix",
 				"https://par-proxy.example.com:8443/prefix/",
 				"http://localhost:8080",
+				"https://proxy.example.com:0",
+				"https://proxy.example.com:65535",
+				"https://[::1]:65535/prefix",
 			} {
 				cfg.SetInTest(RunnerURL, endpoint)
 				actual, err := APIBaseURL(cfg, Site(cfg))
@@ -119,6 +122,7 @@ func TestRCURLOverrideWarnsWithoutChangingPAR(t *testing.T) {
 func TestAPIBaseURLRejectsInvalidOverride(t *testing.T) {
 	for _, endpoint := range []string{
 		"not-a-url", "ftp://proxy.example.com", "https://",
+		"https://proxy.example.com:65536", "https://[::1]:99999", "https://proxy.example.com:99999999999999999999",
 		"https://user:secret@proxy.example.com", "https://proxy.example.com?secret=value", "https://proxy.example.com#fragment",
 	} {
 		cfg := configmock.New(t)

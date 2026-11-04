@@ -1,0 +1,13 @@
+description: Break 0 is an invalid operand and produces an error.
+input:
+  script: |+
+    for i in 1; do
+      break 0
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "break"
+    - "0"
+    - "loop count out of range"
+  exit_code: 1

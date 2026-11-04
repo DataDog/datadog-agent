@@ -1,0 +1,11 @@
+description: The $? variable reflects exit status from nested brace groups.
+input:
+  script: |+
+    { { false; }; echo $?; }
+    { { true; }; echo $?; }
+expect:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

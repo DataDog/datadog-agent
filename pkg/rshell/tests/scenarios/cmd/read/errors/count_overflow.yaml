@@ -1,0 +1,13 @@
+# vuln-hunt 2026-05-19-codex / read.
+skip_assert_against_bash: true
+description: read rejects count values that overflow integer parsing.
+input:
+  script: |+
+    printf 'x\n' | { read -n 999999999999999999999999 X; echo "n=$?"; }
+    printf 'x\n' | { read -N 999999999999999999999999 X; echo "N=$?"; }
+expect:
+  stdout: |+
+    n=1
+    N=1
+  stderr_contains: ["invalid"]
+  exit_code: 0

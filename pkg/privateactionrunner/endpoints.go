@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -32,6 +33,11 @@ func APIBaseURL(cfg model.Reader, site string) (string, error) {
 		u, err := url.Parse(endpoint)
 		if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") {
 			return "", errors.New("invalid private_action_runner.par_dd_url: expected an HTTP(S) URL with a host")
+		}
+		if port := u.Port(); port != "" {
+			if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+				return "", errors.New("private_action_runner.par_dd_url port must be between 0 and 65535")
+			}
 		}
 		// Match the split-mode client's URL restrictions; never log credentials.
 		if u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(endpoint, "#") {

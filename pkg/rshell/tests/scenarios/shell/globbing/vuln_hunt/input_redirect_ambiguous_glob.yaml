@@ -1,0 +1,19 @@
+description: Input redirects reject globs that match multiple files.
+setup:
+  files:
+    - path: a.txt
+      content: "a\n"
+    - path: b.txt
+      content: "b\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat 2>/dev/null < *.txt
+    echo $?
+    echo after
+expect:
+  stdout: |+
+    1
+    after
+  stderr: |+
+  exit_code: 0

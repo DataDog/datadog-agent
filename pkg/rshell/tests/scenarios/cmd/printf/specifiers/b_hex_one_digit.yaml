@@ -1,0 +1,9 @@
+description: "%b \\xF with single hex digit works correctly."
+input:
+  script: |+
+    printf "%b" '\xF'
+expect:
+  stdout: "\x0f"
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true

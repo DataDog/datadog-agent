@@ -99,6 +99,7 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 ### Unit Tests
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
+Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
@@ -206,6 +207,12 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
 `doc/guidelines/` (contributing, coding style, components, etc.).
+
+When re-landing a reverted PR, generate a new release note with `reno new`
+rather than restoring the original file. reno keys notes by the UID in the
+filename and attributes a reused UID to the release it first appeared in, so
+the note silently drops out of the changelog
+(`dda inv linter.releasenote-reused-uids` catches this).
 
 ### Code ownership
 `.github/CODEOWNERS` is partly generated. The block between `# BEGIN COMPONENTS`

@@ -1,0 +1,10 @@
+description: vmstat with a non-numeric delay operand exits 1 with an "invalid delay" error.
+skip_assert_against_bash: true
+input:
+  script: |+
+    vmstat abc
+expect:
+  stdout: |+
+  stderr: |+
+    vmstat: invalid delay 'abc'
+  exit_code: 1

@@ -1,0 +1,16 @@
+# Security test: truncate in read-only mode (no remediation) is rejected.
+description: truncate without remediation mode fails with "capability not available".
+setup:
+  files:
+    - path: f.txt
+      content: "data"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    truncate -s 0 f.txt
+expect:
+  stdout: |+
+  stderr: |+
+    truncate: filesystem capability not available (remediation mode required)
+  exit_code: 1
+skip_assert_against_bash: true
