@@ -189,17 +189,9 @@ find_macos_pkgbuild(
     exec_compatible_with = ["@platforms//os:macos"],
 )
 
-find_selinux_tools = use_repo_rule("//bazel/toolchains/selinux_tools:configure.bzl", "find_selinux_tools")
-
-find_selinux_tools(
-    name = "selinux_tools",
-    exec_compatible_with = ["@platforms//os:linux"],
-)
-
 register_toolchains(
     "@macos_codesign//:all",
     "@macos_pkgbuild//:all",
-    "@selinux_tools//:all",
     dev_dependency = True,
 )
 
@@ -268,6 +260,7 @@ register_toolchains(
     "//bazel/toolchains/rpath_rewriter:install_name_tool_toolchain",
     "//bazel/toolchains/rpath_rewriter:noop_windows_toolchain",
     "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
+    "//bazel/toolchains/selinux_tools:selinux_tools_toolchain",
 )
 
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
