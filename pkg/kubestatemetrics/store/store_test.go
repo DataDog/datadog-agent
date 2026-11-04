@@ -9,6 +9,7 @@ package store
 
 import (
 	"errors"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -120,6 +121,8 @@ func TestBuildTags(t *testing.T) {
 
 func TestPush(t *testing.T) {
 	storeName := "test"
+	kubeNodeInfoOnly := FamilyAllow(func(f DDMetricsFam) bool { return f.Name == "kube_node_info" })
+	valEqualsOne := MetricAllow(func(m DDMetric) bool { return m.Val == 1 })
 	tests := []struct {
 		name        string
 		toAdd       map[types.UID][]DDMetricsFam
@@ -143,8 +146,8 @@ func TestPush(t *testing.T) {
 					},
 				},
 			},
-			familyAllow: GetAllFamilies,
-			metricAllow: GetAllMetrics,
+			familyAllow: nil,
+			metricAllow: nil,
 			res: map[string][]DDMetricsFam{
 				"kube_node_info": {
 					{
@@ -165,8 +168,8 @@ func TestPush(t *testing.T) {
 		{
 			name:        "no metrics",
 			toAdd:       map[types.UID][]DDMetricsFam{},
-			familyAllow: GetAllFamilies,
-			metricAllow: GetAllMetrics,
+			familyAllow: nil,
+			metricAllow: nil,
 			res:         map[string][]DDMetricsFam{},
 		},
 		{
@@ -201,8 +204,8 @@ func TestPush(t *testing.T) {
 					},
 				},
 			},
-			familyAllow: GetAllFamilies,
-			metricAllow: GetAllMetrics,
+			familyAllow: nil,
+			metricAllow: nil,
 			res: map[string][]DDMetricsFam{
 				"kube_node_info": {
 					{
@@ -268,8 +271,8 @@ func TestPush(t *testing.T) {
 					},
 				},
 			},
-			familyAllow: func(f DDMetricsFam) bool { return f.Name == "kube_node_info" },
-			metricAllow: GetAllMetrics,
+			familyAllow: kubeNodeInfoOnly,
+			metricAllow: nil,
 			res: map[string][]DDMetricsFam{
 				"kube_node_info": {
 					{
@@ -315,8 +318,8 @@ func TestPush(t *testing.T) {
 					},
 				},
 			},
-			familyAllow: GetAllFamilies,
-			metricAllow: func(m DDMetric) bool { return m.Val == 1 },
+			familyAllow: nil,
+			metricAllow: valEqualsOne,
 			res: map[string][]DDMetricsFam{
 				"kube_node_info": {
 					{
@@ -363,8 +366,8 @@ func TestPush(t *testing.T) {
 					},
 				},
 			},
-			familyAllow: func(f DDMetricsFam) bool { return f.Name == "kube_node_info" },
-			metricAllow: func(m DDMetric) bool { return m.Val == 1 },
+			familyAllow: kubeNodeInfoOnly,
+			metricAllow: valEqualsOne,
 			res: map[string][]DDMetricsFam{
 				"kube_node_info": {
 					{
@@ -391,6 +394,70 @@ func TestPush(t *testing.T) {
 			assert.Equal(t, res, test.res)
 		})
 	}
+}
+
+func TestPushNilFilters(t *testing.T) {
+	ms := NewMetricsStore(func(interface{}) []metric.FamilyInterface { return nil }, "test")
+	ms.addMetrics(map[types.UID][]DDMetricsFam{
+		"123": {
+			{
+				Type:        "*v1.Nodes",
+				Name:        "kube_node_info",
+				ListMetrics: []DDMetric{{Val: 1, Labels: map[string]string{"foo": "bar"}}},
+			},
+			{
+				Type:        "*v1.Nodes",
+				Name:        "kube_node_info",
+				ListMetrics: []DDMetric{{Val: 2, Labels: map[string]string{"foo": "baz"}}},
+			},
+			// families with no metrics are skipped
+			{
+				Type:        "*v1.Nodes",
+				Name:        "kube_node_empty",
+				ListMetrics: []DDMetric{},
+			},
+		},
+		"456": {
+			{
+				Type:        "*v1.Nodes",
+				Name:        "kube_node_info",
+				ListMetrics: []DDMetric{{Val: 3, Labels: map[string]string{"bar": "baz"}}},
+			},
+		},
+	})
+
+	// nil filters must behave like any other allow-all filter
+	nilRes := ms.Push(nil, nil)
+	allowAllFamilies := FamilyAllow(func(DDMetricsFam) bool { return true })
+	allowAllMetrics := MetricAllow(func(DDMetric) bool { return true })
+	filteredRes := ms.Push(allowAllFamilies, allowAllMetrics)
+	// the store is a map keyed by object, so family ordering across objects
+	// is not stable between calls: sort before comparing
+	sortFamsByVal := func(fams []DDMetricsFam) {
+		sort.Slice(fams, func(i, j int) bool { return fams[i].ListMetrics[0].Val < fams[j].ListMetrics[0].Val })
+	}
+	sortFamsByVal(nilRes["kube_node_info"])
+	sortFamsByVal(filteredRes["kube_node_info"])
+	assert.Equal(t, filteredRes, nilRes)
+
+	assert.Len(t, nilRes, 1) // kube_node_empty was skipped
+	assert.Equal(t, []DDMetricsFam{
+		{
+			Name:        "kube_node_info",
+			Type:        "*v1.Nodes",
+			ListMetrics: []DDMetric{{Val: 1, Labels: map[string]string{"foo": "bar"}}},
+		},
+		{
+			Name:        "kube_node_info",
+			Type:        "*v1.Nodes",
+			ListMetrics: []DDMetric{{Val: 2, Labels: map[string]string{"foo": "baz"}}},
+		},
+		{
+			Name:        "kube_node_info",
+			Type:        "*v1.Nodes",
+			ListMetrics: []DDMetric{{Val: 3, Labels: map[string]string{"bar": "baz"}}},
+		},
+	}, nilRes["kube_node_info"])
 }
 
 func TestReplace(t *testing.T) {
