@@ -7,6 +7,7 @@ package setup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -96,12 +97,12 @@ func providerConfigForDirective(directive delaDirective, defaultProviderConfig c
 	switch directive.provider {
 	case cloudauthconfig.ProviderOIDC:
 		if directive.params["region"] != "" {
-			return nil, fmt.Errorf("region is not supported for OIDC directives")
+			return nil, errors.New("region is not supported for OIDC directives")
 		}
 		if c, ok := defaultProviderConfig.(*cloudauthconfig.OIDCProviderConfig); ok {
 			return c, nil
 		}
-		return nil, fmt.Errorf("OIDC directives require delegated_auth.provider: oidc and an oidc source")
+		return nil, errors.New("OIDC directives require delegated_auth.provider: oidc and an oidc source")
 	case cloudauthconfig.ProviderAWS:
 		region := directive.params["region"]
 		if region == "" {
