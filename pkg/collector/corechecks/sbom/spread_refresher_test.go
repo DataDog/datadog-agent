@@ -37,9 +37,7 @@ import (
 // spreadSteps images refreshed nothing at all and inUse never became false
 // again once a container had stopped.
 func TestSpreadRefresherCoversEveryImage(t *testing.T) {
-	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
-		"sbom.cache_directory": t.TempDir(),
-	})
+	cfg := configcomp.NewMock(t)
 	if sbomscanner.GetGlobalScanner() == nil {
 		wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 			core.MockBundle(),

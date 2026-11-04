@@ -100,7 +100,7 @@ func NewComponent(reqs Requires) egressdef.Component {
 		doneCh:      make(chan struct{}),
 	}
 
-	// Register before OnStart so loadFromDisk can pre-populate resolvedCh.
+	// Register before OnStart so persisted state can pre-populate resolvedCh.
 	reqs.Store.RegisterIssuesObserver(storedef.IssuesObserver{
 		ResolvedCh: e.resolvedCh,
 	})
@@ -216,6 +216,7 @@ func (e *egress) Status() egressdef.SendStatus {
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
+	resourceType, resourceID := e.store.ResourceIdentity(e.hostname)
 	return &healthplatform.HealthReport{
 		EventType: eventType,
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
@@ -223,6 +224,8 @@ func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthpla
 		Host: &healthplatform.HostInfo{
 			Hostname:     e.hostname,
 			AgentVersion: pointer.Ptr(version.AgentVersion),
+			ResourceType: resourceType,
+			ResourceId:   resourceID,
 		},
 		Issues: issues,
 	}

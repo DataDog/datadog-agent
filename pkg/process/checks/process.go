@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -78,7 +79,7 @@ const (
 )
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
-// for live and running processes. The instance will store some state between
+// for running and zombie processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
 	config    pkgconfigmodel.Reader
@@ -91,7 +92,7 @@ type ProcessCheck struct {
 	// disallowList to hide processes
 	disallowList []*regexp.Regexp
 
-	// determine if zombies process will be collected
+	// determine if zombie processes are excluded from individual collection and parent aggregation
 	ignoreZombieProcesses bool
 
 	hostInfo                   *HostInfo
@@ -103,6 +104,7 @@ type ProcessCheck struct {
 	lastContainerRates         map[string]*proccontainers.ContainerRateMetrics
 	realtimeLastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	networkID                  string
+	initializeNetworkID        func()
 
 	realtimeLastCPUTime cpu.TimesStat
 	realtimeLastProcs   map[int32]*procutil.Stats
@@ -147,9 +149,10 @@ type ProcessCheck struct {
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
+	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
 	p.probe = newProcessProbe(p.config,
 		procutil.WithPermission(syscfg.ProcessModuleEnabled),
-		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
+		procutil.WithIgnoreZombieProcesses(p.ignoreZombieProcesses))
 	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
 	if err != nil {
 		return err
@@ -162,11 +165,10 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.sysprobeClient = client.Get(syscfg.SystemProbeAddress)
 	}
 
-	networkID, err := retryGetNetworkID(p.sysprobeClient)
-	if err != nil {
-		log.Infof("no network ID detected: %s", err)
-	}
-	p.networkID = networkID
+	// Network ID is enrichment for process payloads, not a prerequisite for
+	// starting other components. Resolve it on the check's first Run instead of
+	// blocking the process runner's OnStart hook with metadata retries.
+	p.initializeNetworkID = p.deferredNetworkIDLookup(retryGetNetworkID)
 
 	p.maxBatchSize = getMaxBatchSize(p.config)
 	p.maxBatchBytes = getMaxBatchBytes(p.config)
@@ -181,8 +183,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	initScrubber(p.config, p.scrubber)
 
 	p.disallowList = initDisallowList(p.config)
-
-	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
@@ -246,7 +246,7 @@ func (p *ProcessCheck) Cleanup() {
 }
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
-	start := time.Now()
+	start := p.clock.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, errEmptyCPUTime
 	}
 
-	procs, err := p.processesByPID()
+	procs, err := p.processesByPID(start)
 	if err != nil {
 		return nil, err
 	}
@@ -264,9 +264,13 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return CombinedRunResult{}, nil
 	}
 
-	// stores lastPIDs to be used by RTProcess
+	// Store PIDs for RTProcess. When zombie collection is enabled, retain
+	// zombie PIDs so realtime payloads continue to emit their individual stats.
 	p.lastPIDs = p.lastPIDs[:0]
-	for pid := range procs {
+	for pid, proc := range procs {
+		if proc == nil || proc.Stats == nil || (p.ignoreZombieProcesses && proc.Stats.IsZombie()) {
+			continue
+		}
 		p.lastPIDs = append(p.lastPIDs, pid)
 	}
 
@@ -307,11 +311,11 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	if p.lastProcs == nil {
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
-		p.lastRun = time.Now()
+		p.lastRun = start
 
 		if collectRealTime {
 			p.realtimeLastCPUTime = p.lastCPUTime
-			p.realtimeLastProcs = procsToStats(p.lastProcs)
+			p.realtimeLastProcs = procsToStats(procs, p.ignoreZombieProcesses)
 			p.realtimeLastRun = p.lastRun
 		}
 		return CombinedRunResult{}, nil
@@ -322,24 +326,29 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
+	aggregationEnabled := !p.ignoreZombieProcesses
+	var zombiesByPPID map[int32]zombieAggregate
+	if aggregationEnabled {
+		zombiesByPPID = p.aggregateZombiesByParent(procs, start)
+	}
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, zombiesByPPID, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, start)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
 	p.lastProcs = procs
 	p.lastCPUTime = cpuTimes[0]
-	p.lastRun = time.Now()
+	p.lastRun = start
 
 	result := &CombinedRunResult{
 		Standard: messages,
 	}
 	if collectRealTime {
-		stats := procsToStats(p.lastProcs)
+		stats := procsToStats(procs, p.ignoreZombieProcesses)
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -382,16 +391,105 @@ func (p *ProcessCheck) generateHints() int32 {
 	return hints
 }
 
-func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
-	stats := map[int32]*procutil.Stats{}
+func procsToStats(procs map[int32]*procutil.Process, zombiesIgnored bool) map[int32]*procutil.Stats {
+	stats := make(map[int32]*procutil.Stats, len(procs))
 	for pid, proc := range procs {
+		if proc == nil || proc.Stats == nil || (zombiesIgnored && proc.Stats.IsZombie()) {
+			continue
+		}
 		stats[pid] = proc.Stats
 	}
 	return stats
 }
 
+type zombieAggregate struct {
+	count   uint32
+	netRate float64
+}
+
+// sameProcessIdentity compares process lifetimes, independent of command-line changes.
+func sameProcessIdentity(current, previous *procutil.Process) bool {
+	return current != nil && previous != nil && current.Stats != nil && previous.Stats != nil &&
+		current.Pid == previous.Pid && current.Stats.CreateTime == previous.Stats.CreateTime
+}
+
+// aggregateZombiesByParent returns per-parent zombie aggregates keyed by PPID.
+// Current zombies contribute to the count, while process identities across the
+// current and previous polls determine the creation and reaping rate.
+func (p *ProcessCheck) aggregateZombiesByParent(procs map[int32]*procutil.Process, now time.Time) map[int32]zombieAggregate {
+	var zombiesByPPID map[int32]zombieAggregate
+
+	var interval float64
+	if !p.lastRun.IsZero() && now.After(p.lastRun) {
+		interval = now.Sub(p.lastRun).Seconds()
+	}
+
+	// Count current zombies and creations under their current parent.
+	for pid, proc := range procs {
+		if proc == nil || !proc.Stats.IsZombie() {
+			continue
+		}
+		if zombiesByPPID == nil {
+			zombiesByPPID = make(map[int32]zombieAggregate)
+		}
+		parentAgg := zombiesByPPID[proc.Ppid]
+		parentAgg.count++
+		previous := p.lastProcs[pid]
+		if interval > 0 && (previous == nil || !previous.Stats.IsZombie() || !sameProcessIdentity(proc, previous)) {
+			parentAgg.netRate += 1.0 / interval
+		}
+		zombiesByPPID[proc.Ppid] = parentAgg
+	}
+
+	if interval <= 0 {
+		return zombiesByPPID
+	}
+
+	// Debit previous zombies that are no longer represented by the same process
+	// identity. If the PID was reused by a new zombie, that process is both a
+	// reap for the previous parent and a creation for the current parent.
+	for pid, previous := range p.lastProcs {
+		if previous == nil || !previous.Stats.IsZombie() {
+			continue
+		}
+		current := procs[pid]
+		if current != nil && current.Stats.IsZombie() && sameProcessIdentity(current, previous) {
+			continue
+		}
+
+		if !sameProcessIdentity(procs[previous.Ppid], p.lastProcs[previous.Ppid]) {
+			continue
+		}
+		if zombiesByPPID == nil {
+			zombiesByPPID = make(map[int32]zombieAggregate)
+		}
+		parentAgg := zombiesByPPID[previous.Ppid]
+		parentAgg.netRate -= 1.0 / interval
+		zombiesByPPID[previous.Ppid] = parentAgg
+	}
+
+	return zombiesByPPID
+}
+
+// deferredNetworkIDLookup retains the existing retry and failure behavior, but
+// performs it only once, on the check runner's goroutine. No process sample or
+// payload is produced until lookup completes, and no extra worker needs teardown.
+func (p *ProcessCheck) deferredNetworkIDLookup(lookup func(*http.Client) (string, error)) func() {
+	return sync.OnceFunc(func() {
+		networkID, err := lookup(p.sysprobeClient)
+		if err != nil {
+			log.Infof("no network ID detected: %s", err)
+		}
+		p.networkID = networkID
+	})
+}
+
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+	if p.initializeNetworkID != nil {
+		p.initializeNetworkID()
+	}
+
 	if options == nil {
 		return p.run(nextGroupID(), false)
 	}
@@ -485,11 +583,13 @@ func chunkProcessesAndContainers(
 func fmtProcesses(
 	scrubber *procutil.DataScrubber,
 	disallowList []*regexp.Regexp,
-	procs, lastProcs map[int32]*procutil.Process,
+	procs map[int32]*procutil.Process,
+	lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	lookupIDProbe *LookupIDProbe,
+	zombiesByPPID map[int32]zombieAggregate,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
@@ -526,10 +626,13 @@ func fmtProcesses(
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 			// SERVICE DISCOVERY FIELDS
-			PortInfo:         formatPorts(fp.PortsCollected, fp.TCPPorts, fp.UDPPorts), // only populated if service discovery is enabled + linux
-			Language:         formatLanguage(fp.Language),                              // only populated if language detection is enabled + linux
-			ServiceDiscovery: formatServiceDiscovery(fp.Service),                       // only populated if service discovery is enabled + linux
-			InjectionState:   formatInjectionState(fp.InjectionState),                  // only populated if service discovery is enabled + linux
+			PortInfo:             formatPorts(fp.PortsCollected, fp.TCPPorts, fp.UDPPorts), // only populated if service discovery is enabled + linux
+			Language:             formatLanguage(fp.Language),                              // only populated if language detection is enabled + linux
+			ServiceDiscovery:     formatServiceDiscovery(fp.Service),                       // only populated if service discovery is enabled + linux
+			InjectionState:       formatInjectionState(fp.InjectionState),                  // only populated if service discovery is enabled + linux
+			ZombieChildrenCount:  zombiesByPPID[fp.Pid].count,
+			ZombieNetRate:        zombiesByPPID[fp.Pid].netRate,
+			HasZombieAggregation: !zombiesIgnored,
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {
@@ -586,19 +689,19 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, now time.Time
 	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
 	readRate := float32(-1)
 	if fp.IOStat.ReadCount >= 0 {
-		readRate = calculateRate(uint64(fp.IOStat.ReadCount), uint64(lastIO.ReadCount), before)
+		readRate = calculateRate(uint64(fp.IOStat.ReadCount), uint64(lastIO.ReadCount), now, before)
 	}
 	writeRate := float32(-1)
 	if fp.IOStat.WriteCount >= 0 {
-		writeRate = calculateRate(uint64(fp.IOStat.WriteCount), uint64(lastIO.WriteCount), before)
+		writeRate = calculateRate(uint64(fp.IOStat.WriteCount), uint64(lastIO.WriteCount), now, before)
 	}
 	readBytesRate := float32(-1)
 	if fp.IOStat.ReadBytes >= 0 {
-		readBytesRate = calculateRate(uint64(fp.IOStat.ReadBytes), uint64(lastIO.ReadBytes), before)
+		readBytesRate = calculateRate(uint64(fp.IOStat.ReadBytes), uint64(lastIO.ReadBytes), now, before)
 	}
 	writeBytesRate := float32(-1)
 	if fp.IOStat.WriteBytes >= 0 {
-		writeBytesRate = calculateRate(uint64(fp.IOStat.WriteBytes), uint64(lastIO.WriteBytes), before)
+		writeBytesRate = calculateRate(uint64(fp.IOStat.WriteBytes), uint64(lastIO.WriteBytes), now, before)
 	}
 	return &model.IOStat{
 		ReadRate:       readRate,
@@ -656,8 +759,8 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)
 }
 
-// skipProcess will skip a given process if it's disallow-listed or hasn't existed
-// for multiple collections.
+// skipProcess will skip a given process if it's disallow-listed, hasn't
+// existed for multiple collections, or is a zombie while zombie collection is disabled.
 func skipProcess(
 	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
@@ -678,12 +781,7 @@ func skipProcess(
 		// processes that live less than 20 seconds may not be captured.
 		return true
 	}
-	// Skipping zombie processes (defined in docs as Status = "Z") if the config
-	// for skipping zombie processes is on.
-	if zombiesIgnored && fp.Stats.IsZombie() {
-		return true
-	}
-	return false
+	return zombiesIgnored && fp.Stats.IsZombie()
 }
 
 func pidsForSystemProbeStats(procs map[int32]*procutil.Process) []int32 {

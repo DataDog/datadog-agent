@@ -72,6 +72,16 @@ const (
 	ownerNameKey = "owner_name"
 	// namespaceKey represents the KSM label key namespace
 	namespaceKey = "namespace"
+	// deploymentKey represents the KSM label key deployment
+	deploymentKey = "deployment"
+	// statefulSetKey represents the KSM label key statefulset
+	statefulSetKey = "statefulset"
+	// replicaSetKey represents the KSM label key replicaset
+	replicaSetKey = "replicaset"
+	// podKey represents the KSM label key pod
+	podKey = "pod"
+	// uidKey represents the KSM label key uid
+	uidKey = "uid"
 )
 
 var extendedCollectors = map[string]string{
@@ -82,6 +92,57 @@ var extendedCollectors = map[string]string{
 	"jobs":         "batch/v1, Resource=jobs_extended",
 	"nodes":        "core/v1, Resource=nodes_extended",
 	"pods":         "core/v1, Resource=pods_extended",
+}
+
+// DRA resources are enabled like any other resource, by listing them in the
+// check's collectors, one name per resource. They are resolved here rather
+// than through collectorNameReplacement because their GVR is not a constant:
+// the group reached v1 only in Kubernetes 1.34, clusters in the field still
+// serve a beta version, and DeviceTaintRule graduated later still (on 1.36,
+// claims are at v1 while devicetaintrules is only at v1beta2).
+const (
+	draResourceClaims   = "resourceclaims"
+	draResourceSlices   = "resourceslices"
+	draDeviceTaintRules = "devicetaintrules"
+)
+
+// splitDRACollectors removes the DRA resource names from collectors and
+// returns which of them were requested. Passed through as-is they would name
+// no registered store, and WithEnabledResources fails the whole check instance
+// on an unknown name -- every KSM metric, not only DRA.
+func splitDRACollectors(collectors []string) ([]string, map[string]bool) {
+	requested := map[string]bool{}
+	remaining := make([]string, 0, len(collectors))
+	for _, c := range collectors {
+		switch c {
+		case draResourceClaims, draResourceSlices, draDeviceTaintRules:
+			requested[c] = true
+		default:
+			remaining = append(remaining, c)
+		}
+	}
+	return remaining, requested
+}
+
+// draCollectors returns the store keys for the requested DRA resources the
+// cluster serves. They must match the keys the factories register under
+// (util.GVRFromType(factory.Name(), factory.ExpectedType())), so each uses the
+// version negotiated for that resource: claims and slices share apiVersion,
+// devicetaintrules has its own. An empty version means not served.
+func draCollectors(requested map[string]bool, apiVersion, taintAPIVersion string) []string {
+	var collectors []string
+	if apiVersion != "" {
+		gv := customresources.DRAGroup + "/" + apiVersion
+		for _, r := range []string{draResourceClaims, draResourceSlices} {
+			if requested[r] {
+				collectors = append(collectors, gv+", Resource="+r)
+			}
+		}
+	}
+	if requested[draDeviceTaintRules] && taintAPIVersion != "" {
+		collectors = append(collectors, customresources.DRAGroup+"/"+taintAPIVersion+", Resource="+draDeviceTaintRules)
+	}
+	return collectors
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -215,6 +276,16 @@ type KSMConfig struct {
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
 
+	// DRADeviceClasses restricts DRA collection to claims requesting one of
+	// these DeviceClasses. Empty means every claim is counted, including those
+	// of non-accelerator drivers. Filtering is by DeviceClass, not driver: the
+	// names coincide for NVIDIA but diverge in general. Only meaningful when
+	// "resourceclaims" is listed in collectors.
+	// Example:
+	// dra_device_classes:
+	//   - gpu.nvidia.com
+	DRADeviceClasses []string `yaml:"dra_device_classes"`
+
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
 	// It is also enriched in `initTags` with `kube_cluster_name` and global tags.
 	// Example:
@@ -282,12 +353,30 @@ type KSMCheck struct {
 	metricNamesMapper          map[string]string
 	metricAggregators          map[string]metricAggregator
 	metricTransformers         map[string]metricTransformerFunc
-	metadataMetricsRegex       *regexp.Regexp
 	initRetry                  retry.Retrier
 	workloadmetaStore          workloadmeta.Component
 	rolloutTracker             *customresources.RolloutTracker
 	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
 	namespaceTagsErrorLogLimit *log.Limit
+	// Autoscaler tags for the current run, by pod uid and by pod owner, in
+	// node_kubelet mode
+	podAutoscalerTags      map[string][]string
+	podOwnerAutoscalerTags map[podOwner][]string
+	// Autoscaler tags cached for the current run, by workload, in the DCA and
+	// CLC runners
+	workloadAutoscalerTags map[autoscaledWorkload][]string
+}
+
+type podOwner struct {
+	kind      string
+	namespace string
+	name      string
+}
+
+type autoscaledWorkload struct {
+	kind      workloadmeta.AutoscalerTargetKind
+	namespace string
+	name      string
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -414,6 +503,10 @@ func (k *KSMCheck) buildStores() error {
 	switch k.instance.PodCollectionMode {
 	case nodeKubeletPodCollection:
 		// Pods come from the kubelet, nothing API-server related to set up.
+		// This mode runs on every node agent, so it must not collect
+		// cluster-scoped resources such as the DRA ones -- each node would
+		// report the whole cluster's claims and slices. Those belong to the
+		// cluster-side companion instance (cluster_unassigned).
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()
 	case clusterAggregatesOnlyPodCollection:
@@ -508,8 +601,12 @@ func (k *KSMCheck) buildStores() error {
 
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 	// Equivalent to configuring --metric-annotations-allowlist.
+	// cr.collectors carries the resolved store keys: DRA names from the
+	// config (e.g. "devicetaintrules") are already expanded to their full
+	// GVR form there, while the local collectors slice still has the short
+	// names — the KSM builder validates these keys against store names.
 	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
+	for _, collector := range cr.collectors {
 		// Any annotation can be used for label joins.
 		allowedAnnotations[collector] = []string{"*"}
 	}
@@ -519,7 +616,7 @@ func (k *KSMCheck) buildStores() error {
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
 	allowedLabels := map[string][]string{}
-	for _, collector := range collectors {
+	for _, collector := range cr.collectors {
 		// Any label can be used for label joins.
 		allowedLabels[collector] = []string{"*"}
 	}
@@ -619,7 +716,14 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		}
 	}
 
+	// DRA names are resolved below, against the versions the cluster serves;
+	// see splitDRACollectors for why they cannot stay in the list as-is.
+	collectors, draRequested := splitDRACollectors(collectors)
+
 	if k.instance.PodCollectionMode == nodeKubeletPodCollection {
+		// collectors is always just "pods" here (see Configure): this mode
+		// runs per node and leaves cluster-scoped resources, DRA included, to
+		// the cluster-side instance.
 		return customResources{
 			collectors: collectors,
 			factories: []customresource.RegistryFactory{
@@ -662,7 +766,46 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewControllerRevisionRolloutFactory(c, k.rolloutTracker),
 	}
 
-	factories = manageResourcesReplacement(c, factories, resources)
+	// Register a DRA factory only for a resource that was both requested and
+	// is served at a version this code understands. Anything else would enable
+	// a store with no factory behind it. A name for a resource the cluster does
+	// not serve at all never reaches here: filterUnknownCollectors drops it.
+	if len(draRequested) > 0 {
+		draAPIVersion := customresources.DRAAPIVersion(resources)
+		draTaintAPIVersion := customresources.DeviceTaintRuleAPIVersion(resources)
+
+		if draAPIVersion == "" && (draRequested[draResourceClaims] || draRequested[draResourceSlices]) {
+			log.Infof("resourceclaims/resourceslices are listed in collectors but this cluster serves no known %s API version (supported: %s); skipping them", customresources.DRAGroup, strings.Join(customresources.DRASupportedVersions(), ", "))
+		}
+		if draAPIVersion != "" && draRequested[draResourceClaims] {
+			factories = append(factories, customresources.NewResourceClaimFactory(c, draAPIVersion, k.instance.DRADeviceClasses))
+		}
+		if draAPIVersion != "" && draRequested[draResourceSlices] {
+			factories = append(factories, customresources.NewResourceSliceFactory(c, draAPIVersion))
+		}
+		if draRequested[draDeviceTaintRules] {
+			if draTaintAPIVersion != "" {
+				factories = append(factories, customresources.NewDeviceTaintRuleFactory(c, draTaintAPIVersion))
+			} else {
+				log.Infof("devicetaintrules is listed in collectors but this cluster serves no known %s version of it (stable in Kubernetes 1.37); skipping it", customresources.DRAGroup)
+			}
+		}
+		collectors = lo.Uniq(append(collectors, draCollectors(draRequested, draAPIVersion, draTaintAPIVersion)...))
+	}
+
+	collectors, replacementFactories := manageResourcesReplacement(c, collectors, resources)
+	factories = append(factories, replacementFactories...)
+
+	// hpav2Factory (registered above via manageResourcesReplacement) only
+	// runs when the cluster serves autoscaling/v2beta2 but not
+	// autoscaling/v2. On clusters that serve autoscaling/v2, the upstream
+	// KSM generator handles HPAs directly and never gets the ownerRef
+	// enrichment, so add it here as an always-on extended collector,
+	// mirroring NewExtendedPodFactory.
+	if apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler") {
+		factories = append(factories, customresources.NewExtendedHorizontalPodAutoscalerFactory(c))
+		collectors = lo.Uniq(append(collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended"))
+	}
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
@@ -688,50 +831,67 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	}
 }
 
-func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
-	// backwards/forwards compatibility resource factories are only
-	// registered if they're needed, otherwise they'd overwrite the default
-	// ones that ship with ksm
-	resourceReplacements := map[string]map[string]func(c *apiserver.APIClient) customresource.RegistryFactory{
-		// support for older k8s versions where the resources are no
-		// longer supported in KSM
-		"batch/v1": {
-			"CronJob": customresources.NewCronJobV1Beta1Factory,
-		},
-		"policy/v1": {
-			"PodDisruptionBudget": customresources.NewPodDisruptionBudgetV1Beta1Factory,
-		},
-		"autoscaling/v2": {
-			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Beta2Factory,
-		},
+// manageResourcesReplacement supports older k8s versions that only serve
+// resources at an API version that is no longer supported in KSM. It returns
+// the factories of the stores replacing the KSM built-in ones for those
+// resources, and collectors with the built-in store names replaced by the
+// replacement store keys.
+func manageResourcesReplacement(c *apiserver.APIClient, collectors []string, resources []*v1.APIResourceList) ([]string, []customresource.RegistryFactory) {
+	resourceReplacements := []struct {
+		kind               string
+		groupVersion       string // served version supported by KSM
+		legacyGroupVersion string // served version supported by the replacement factory
+		newFactory         func(c *apiserver.APIClient) customresource.RegistryFactory
+	}{
+		{"CronJob", "batch/v1", "batch/v1beta1", customresources.NewCronJobV1Beta1Factory},
+		{"PodDisruptionBudget", "policy/v1", "policy/v1beta1", customresources.NewPodDisruptionBudgetV1Beta1Factory},
+		{"HorizontalPodAutoscaler", "autoscaling/v2", "autoscaling/v2beta2", customresources.NewHorizontalPodAutoscalerV2Beta2Factory},
 	}
 
-	for gv, resourceReplacement := range resourceReplacements {
-		for _, resource := range resources {
-			if resource.GroupVersion != gv {
-				continue
-			}
-
-			for _, apiResource := range resource.APIResources {
-				delete(resourceReplacement, apiResource.Kind)
-			}
+	var factories []customresource.RegistryFactory
+	for _, r := range resourceReplacements {
+		if apiResourceAvailable(resources, r.groupVersion, r.kind) || !apiResourceAvailable(resources, r.legacyGroupVersion, r.kind) {
+			// either the KSM built-in store supports this resource, or the
+			// replacement store wouldn't support it either
+			continue
 		}
+
+		factory := r.newFactory(c)
+		factories = append(factories, factory)
+		// The replacement store is registered under its group/version
+		// qualified key (see util.GVRFromType), not under the name of the
+		// built-in store, which is the factory name. It must be enabled under
+		// that key, otherwise KSM builds the built-in store, for an API
+		// version that isn't served.
+		collectors = lo.Replace(collectors, factory.Name(), kubestatemetrics.CustomResourceClientKey(factory.Name(), factory.ExpectedType()), -1)
 	}
 
-	for _, resourceReplacement := range resourceReplacements {
-		for _, factory := range resourceReplacement {
-			factories = append(factories, factory(c))
-		}
-	}
-
-	return factories
+	return collectors, factories
 }
 
-func (k *KSMCheck) shouldDropForMetadata(name string) bool {
+// apiResourceAvailable reports whether the given kind is served under the
+// given group/version, per cluster discovery.
+func apiResourceAvailable(resources []*v1.APIResourceList, groupVersion, kind string) bool {
+	for _, resource := range resources {
+		if resource.GroupVersion != groupVersion {
+			continue
+		}
+		for _, apiResource := range resource.APIResources {
+			if apiResource.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// shouldDropForMetadata reports whether name is a metadata-only metric.
+// Metadata metrics are useful for label joins but shouldn't be submitted unless they're customresource metrics.
+func shouldDropForMetadata(name string) bool {
 	if strings.HasPrefix(name, "kube_customresource") {
 		return false
 	}
-	return k.metadataMetricsRegex.MatchString(name)
+	return strings.HasSuffix(name, "_labels") || strings.HasSuffix(name, "_info") || strings.HasSuffix(name, "_status_reason")
 }
 
 // Run runs the KSM check
@@ -882,6 +1042,10 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 	// (via aggregator flush). Skip per-pod transformer/mapper dispatch to avoid
 	// double-emission of per-pod metrics already produced by node-agents.
 	aggregatesOnly := k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection
+	k.podAutoscalerTags, k.podOwnerAutoscalerTags, k.workloadAutoscalerTags = nil, nil, nil
+	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection && k.workloadmetaStore != nil {
+		k.podAutoscalerTags, k.podOwnerAutoscalerTags = autoscalerTagsFromPods(k.workloadmetaStore.ListKubernetesPods())
+	}
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			if suppressClusterAggregates && isClusterAggregateSourceMetric(metricFamily.Name) {
@@ -907,7 +1071,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(metricFamily.Name, m.Labels, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tagList, now)
 				}
 				continue
@@ -919,7 +1083,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(metricFamily.Name, m.Labels, labelJoiner, lMapperOverride)
 					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
@@ -927,14 +1091,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
-			if k.shouldDropForMetadata(metricFamily.Name) {
+			if shouldDropForMetadata(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
 				// they shouldn't be forwarded to Datadog unless they're customresource metrics
 				continue
 			}
 			// ignore the metric if it doesn't have a transformer
 			// or if it isn't mapped to a datadog metric name
-			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+			}
 		}
 	}
 	for _, aggregator := range k.metricAggregators {
@@ -942,16 +1108,17 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 	}
 }
 
-// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration.
+// hostnameAndTags returns the tags and the hostname for a metric based on the metric name and labels and the check configuration.
 //
 // This function must always return a "fresh" slice of tags, that will not be accessed after return.
-func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
+func (k *KSMCheck) hostnameAndTags(metricName string, labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 
-	// generate a dedicated tags slice
-	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
+	// generate a dedicated tags slice. The +1 is for the kube_autoscaler_kind
+	// tag, which is added separately
+	tagList := make([]string, 0, len(labels)+len(labelsToAdd)+1)
 
 	ownerKind, ownerName, resourceNamespace := "", "", ""
 	isArgoRollout := false
@@ -1033,7 +1200,161 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tagList = append(tagList, namespaceTags...)
 	}
 
+	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection {
+		// Node agents don't have autoscaled workload entities, but they have
+		// the autoscaler kinds of their pods in workloadmeta
+		if uid := labels[uidKey]; uid != "" {
+			tagList = append(tagList, k.podAutoscalerTags[uid]...)
+		} else {
+			// Aggregated series have no uid. They get the tags of their owner.
+			tagList = append(tagList, k.podOwnerAutoscalerTags[podOwner{kind: ownerKind, namespace: resourceNamespace, name: ownerName}]...)
+		}
+	} else if resourceNamespace != "" {
+		var workloads [2]autoscaledWorkload // To avoid an allocation on every call
+		for _, workload := range autoscaledWorkloads(workloads[:0], metricName, labels, resourceNamespace, ownerKind, ownerName, isArgoRollout) {
+			tagList = append(tagList, k.autoscaledWorkloadTags(workload)...)
+		}
+	}
+
 	return hostname, tagList
+}
+
+// autoscaledWorkloadTags returns the autoscaler tags of the workload. They are
+// cached for the run, because many series belong to the same workload.
+func (k *KSMCheck) autoscaledWorkloadTags(workload autoscaledWorkload) []string {
+	if autoscalerTags, found := k.workloadAutoscalerTags[workload]; found {
+		return autoscalerTags
+	}
+
+	entityID := types.NewKubernetesAutoscaledWorkloadEntityID(string(workload.kind), workload.namespace, workload.name)
+	// A missing entity means no autoscaler and returns no tags. That's cached
+	// too, so workloads without autoscalers are also looked up once per run.
+	autoscalerTags, _ := k.tagger.Tag(entityID, types.LowCardinality)
+
+	if k.workloadAutoscalerTags == nil {
+		k.workloadAutoscalerTags = make(map[autoscaledWorkload][]string)
+	}
+	k.workloadAutoscalerTags[workload] = autoscalerTags
+	return autoscalerTags
+}
+
+func autoscalerKindTags(kinds []workloadmeta.AutoscalerKind) []string {
+	autoscalerTags := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		autoscalerTags = append(autoscalerTags, tags.KubeAutoscalerKind+":"+string(kind))
+	}
+	return autoscalerTags
+}
+
+// autoscalerTagsFromPods returns the kube_autoscaler_kind tags of the given
+// pods by uid, and of their owners. Owners are keyed like in the aggregated
+// series: as is for pod.count, and with ReplicaSets turned into Deployments for
+// the .total series (see containerResourceOwnerGenerator in
+// customresources/pod.go).
+func autoscalerTagsFromPods(pods []*workloadmeta.KubernetesPod) (autoscalerTagsByUID map[string][]string, autoscalerTagsByOwner map[podOwner][]string) {
+	autoscalerTagsByUID = make(map[string][]string)
+	autoscalerTagsByOwner = make(map[podOwner][]string)
+	for _, pod := range pods {
+		if len(pod.AutoscalerKinds) == 0 {
+			continue
+		}
+
+		podTags := autoscalerKindTags(pod.AutoscalerKinds)
+		autoscalerTagsByUID[pod.ID] = podTags
+		for _, owner := range pod.Owners {
+			autoscalerTagsByOwner[podOwner{kind: owner.Kind, namespace: pod.Namespace, name: owner.Name}] = podTags
+			if owner.Kind == kubernetes.ReplicaSetKind {
+				if deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name); deployment != "" {
+					autoscalerTagsByOwner[podOwner{kind: kubernetes.DeploymentKind, namespace: pod.Namespace, name: deployment}] = podTags
+				}
+			}
+		}
+	}
+	return autoscalerTagsByUID, autoscalerTagsByOwner
+}
+
+// autoscaledWorkloads appends to dst the workloads whose kube_autoscaler_kind
+// tags a metric gets, and returns the result. Only pod, container, ReplicaSet,
+// Deployment and StatefulSet metrics get those tags.
+func autoscaledWorkloads(dst []autoscaledWorkload, metricName string, labels map[string]string, namespace, ownerKind, ownerName string, isArgoRollout bool) []autoscaledWorkload {
+	workload := func(kind workloadmeta.AutoscalerTargetKind, name string) autoscaledWorkload {
+		return autoscaledWorkload{kind: kind, namespace: namespace, name: name}
+	}
+
+	// Aggregated metrics (e.g. pod.count) lose the labels that tell a
+	// Deployment from an Argo Rollout, so both are looked up. That gives the
+	// right tags when only one of them exists.
+	// Limitation: If a Deployment and an Argo Rollout have the same name in the
+	// same namespace, their tags are merged, so the aggregated series of one
+	// can get the autoscaler kinds of the other. The more likely scenario of
+	// this happening is when migrating deployments to Argo Rollouts.
+	deploymentOrArgoRollout := func(name string) []autoscaledWorkload {
+		return append(dst,
+			workload(workloadmeta.AutoscalerTargetDeployment, name),
+			workload(workloadmeta.AutoscalerTargetArgoRollout, name),
+		)
+	}
+
+	switch {
+	case strings.HasPrefix(metricName, "kube_pod_"):
+		switch ownerKind {
+		case kubernetes.ReplicaSetKind:
+			name := kubernetes.ParseDeploymentForReplicaSet(ownerName)
+			if name == "" {
+				return dst
+			}
+			if isArgoRollout {
+				return append(dst, workload(workloadmeta.AutoscalerTargetArgoRollout, name))
+			}
+			// Series of a single pod have a pod label, so the kube_pod_labels
+			// join adds the Argo Rollout label to them when the pod has it
+			// (ensureArgoRolloutLabelJoin makes sure it's joined). Without
+			// it, the pod's ReplicaSet belongs to a Deployment.
+			if labels[podKey] != "" {
+				return append(dst, workload(workloadmeta.AutoscalerTargetDeployment, name))
+			}
+			// Aggregated metrics have no pod label
+			return deploymentOrArgoRollout(name)
+		case kubernetes.DeploymentKind:
+			// Pods aren't owned by Deployments, but the with_owner_tag
+			// metrics replace the ReplicaSet owner with a Deployment parsed
+			// from its name, also for Argo Rollouts
+			return deploymentOrArgoRollout(ownerName)
+		case kubernetes.StatefulSetKind:
+			return append(dst, workload(workloadmeta.AutoscalerTargetStatefulSet, ownerName))
+		}
+
+	case strings.HasPrefix(metricName, "kube_replicaset_"):
+		// The ReplicaSet owner is only known for kube_replicaset_owner
+		switch ownerKind {
+		case kubernetes.DeploymentKind:
+			return append(dst, workload(workloadmeta.AutoscalerTargetDeployment, ownerName))
+		case kubernetes.RolloutKind:
+			return append(dst, workload(workloadmeta.AutoscalerTargetArgoRollout, ownerName))
+		}
+		// ReplicaSet series have a replicaset label, so the
+		// kube_replicaset_labels join adds the Argo Rollout label to them when
+		// the ReplicaSet has it. Without it, the ReplicaSet belongs to a
+		// Deployment.
+		if name := kubernetes.ParseDeploymentForReplicaSet(labels[replicaSetKey]); name != "" {
+			if isArgoRollout {
+				return append(dst, workload(workloadmeta.AutoscalerTargetArgoRollout, name))
+			}
+			return append(dst, workload(workloadmeta.AutoscalerTargetDeployment, name))
+		}
+
+	case strings.HasPrefix(metricName, "kube_deployment_"):
+		if name := labels[deploymentKey]; name != "" {
+			return append(dst, workload(workloadmeta.AutoscalerTargetDeployment, name))
+		}
+
+	case strings.HasPrefix(metricName, "kube_statefulset_"):
+		if name := labels[statefulSetKey]; name != "" {
+			return append(dst, workload(workloadmeta.AutoscalerTargetStatefulSet, name))
+		}
+	}
+
+	return dst
 }
 
 // familyFilter is a metric families filter for label joins
@@ -1091,17 +1412,19 @@ func (k *KSMCheck) mergeLabelsMapper(extra map[string]string) {
 }
 
 // ensureArgoRolloutLabelJoin makes sure the internal label the
-// kube_argo_rollout tag is derived from is joined for pod labels.
-// mergeLabelJoins only adds the default kube_pod_labels join when the key is
-// absent, so a user-defined kube_pod_labels join would otherwise silently
-// drop this required label.
+// kube_argo_rollout tag is derived from is joined for pod labels, and for
+// ReplicaSet labels (used for the kube_autoscaler_kind tag). mergeLabelJoins
+// only adds the default joins when the key is absent, so a user-defined join
+// would otherwise silently drop this required label.
 func (k *KSMCheck) ensureArgoRolloutLabelJoin() {
-	podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
-	if !found || podLabelJoin.GetAllLabels || slices.Contains(podLabelJoin.LabelsToGet, argoRolloutLabelName) {
-		return
-	}
+	for _, family := range []string{"kube_pod_labels", "kube_replicaset_labels"} {
+		labelJoin, found := k.instance.LabelJoins[family]
+		if !found || labelJoin.GetAllLabels || slices.Contains(labelJoin.LabelsToGet, argoRolloutLabelName) {
+			continue
+		}
 
-	podLabelJoin.LabelsToGet = append(podLabelJoin.LabelsToGet, argoRolloutLabelName)
+		labelJoin.LabelsToGet = append(labelJoin.LabelsToGet, argoRolloutLabelName)
+	}
 }
 
 // mergeLabelJoins adds extra label joins to the configured label joins
@@ -1274,7 +1597,7 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 	}
 
 	for name, list := range metrics {
-		isMetadataMetric := k.metadataMetricsRegex.MatchString(name)
+		isMetadataMetric := shouldDropForMetadata(name)
 		if !k.isKnownMetric(name) && !isMetadataMetric {
 			k.telemetry.incUnknown()
 			continue
@@ -1337,11 +1660,19 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,
 			Namespaces:   []string{},
+			// Use the node_kubelet pod collection mode to avoid leader election
+			PodCollectionMode: "node_kubelet",
+			// Enable telemetry for the benchmark
+			Telemetry: true,
 		},
 		tagger,
 		nil,
 	)
 	check.allStores = allStores
+	// Configure() is skipped here, so initRetry is never set up by SetupRetrier and
+	// would otherwise stay at its zero-value NeedSetup status, making Run() return
+	// immediately with a nil error on every call without processing any metrics.
+	_ = check.initRetry.SetupRetrier(&retry.Config{Strategy: retry.JustTesting})
 	return check
 }
 
@@ -1359,10 +1690,6 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		workloadmetaStore:          wmeta,
 		rolloutTracker:             customresources.NewRolloutTracker(),
 		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
-
-		// metadata metrics are useful for label joins
-		// but shouldn't be submitted to Datadog
-		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
 
 	// Initialize metricTransformers after k is created since it needs a reference to k
@@ -1440,20 +1767,41 @@ func (k *KSMCheck) isKnownMetric(name string) bool {
 	return false
 }
 
-// defaultCollectors returns the KSM default resource collectors with
-// "endpoints" added back for backward compatibility (upstream KSM v2.18
-// replaced "endpoints" with "endpointslices" in its defaults).
+// excludedDefaultCollectors are KSM default resources left out of the check
+// defaults. The check maps none of their metrics, and their stores watch
+// admissionregistration.k8s.io/v1 resources only served since Kubernetes 1.30
+// (validating) or 1.36 (mutating), so on most clusters they would only add
+// failing watches. They can still be enabled through the collectors option.
+// Keep in sync with excludedDefaultKSMCollectors in
+// pkg/clusteragent/clusterchecks/ksm_sharding.go, which expands the defaults
+// of sharded instances.
+var excludedDefaultCollectors = []string{
+	"mutatingadmissionpolicies",
+	"mutatingadmissionpolicybindings",
+	"validatingadmissionpolicies",
+	"validatingadmissionpolicybindings",
+}
+
+// defaultCollectors returns the KSM default resource collectors, minus
+// excludedDefaultCollectors, with "endpoints" added back for backward
+// compatibility (upstream KSM v2.18 replaced "endpoints" with
+// "endpointslices" in its defaults).
 func defaultCollectors() []string {
-	collectors := options.DefaultResources.AsSlice()
+	collectors := slices.DeleteFunc(options.DefaultResources.AsSlice(), func(c string) bool {
+		return slices.Contains(excludedDefaultCollectors, c)
+	})
 	if _, found := options.DefaultResources["endpoints"]; !found {
 		collectors = append(collectors, "endpoints")
 	}
+	// DRA collectors are added by discoverCustomResources instead: they depend
+	// on the API version the cluster serves, which is not known here.
 	return collectors
 }
 
 // buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
-// It allows us to get kube_node_created and kube_pod_created and deny
-// the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
+// It allows us to get kube_node_created, kube_pod_created and
+// kube_resourceclaim_created and deny the rest of *_created metrics without
+// relying on a unmaintainable and unreadable regex.
 func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	deniedMetrics := options.MetricSet{
 		".*_generation":                                    {},
@@ -1465,7 +1813,7 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 		"kube_cronjob_status_active":                       {},
 		"kube_node_status_phase":                           {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},
-		"kube_job_spec_active_dealine_seconds":             {},
+		"kube_job_spec_active_deadline_seconds":            {},
 		"kube_job_spec_completions":                        {},
 		"kube_job_spec_parallelism":                        {},
 		"kube_job_status_active":                           {},
@@ -1479,7 +1827,14 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	}
 	for _, resource := range collectors {
 		// resource format: pods, nodes, jobs, deployments...
-		if resource == "pods" || resource == "nodes" {
+		// pods, nodes and resourceclaims keep their *_created metrics:
+		// kube_pod_created / kube_node_created feed pod.age / node.age,
+		// and kube_resourceclaim_created is the timestamp the
+		// resourceclaim.pending.age transformer turns into a wait time.
+		// This runs on the raw collector names, before splitDRACollectors
+		// extracts the DRA names, so the exemption must be here rather than
+		// at the split call site.
+		if resource == "pods" || resource == "nodes" || resource == draResourceClaims {
 			continue
 		}
 		deniedMetrics["kube_"+strings.TrimRight(resource, "s")+"_created"] = struct{}{}
@@ -1515,29 +1870,47 @@ func ownerTags(kind, name string) ([]string, string) {
 	return []string{tagKey + ":" + name}, ""
 }
 
+var (
+	podLabelsMapperOverride = map[string]string{
+		"phase": "pod_phase",
+	}
+
+	ingressLabelsMapperOverride = map[string]string{
+		"host":         "kube_ingress_host",
+		"path":         "kube_ingress_path",
+		"service_name": "kube_service",
+		"service_port": "kube_service_port",
+	}
+
+	serviceLabelsMapperOverride = map[string]string{
+		"service": "kube_service",
+	}
+)
+
 // labelsMapperOverride allows overriding the default label mapping for
 // a given metric depending on the metric family.
+// The returned map is shared and must not be modified by callers.
 // Current use-cases:
 //   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
 //   - Ingress metrics have generic tag names (host/path/service_name/service_port).
 //     It's important to have them in a dedicated mapper override for ingresses.
 func labelsMapperOverride(metricName string) map[string]string {
 	if strings.HasPrefix(metricName, "kube_pod") {
-		return map[string]string{"phase": "pod_phase"}
+		return podLabelsMapperOverride
 	}
 
 	if strings.HasPrefix(metricName, "kube_ingress") {
-		return map[string]string{
-			"host":         "kube_ingress_host",
-			"path":         "kube_ingress_path",
-			"service_name": "kube_service",
-			"service_port": "kube_service_port",
-		}
+		return ingressLabelsMapperOverride
 	}
 
 	if strings.HasPrefix(metricName, "kube_service") {
+		return serviceLabelsMapperOverride
+	}
+
+	if strings.HasPrefix(metricName, "kube_horizontalpodautoscaler") {
 		return map[string]string{
-			"service": "kube_service",
+			"ownerref_kind": tags.KubeOwnerRefKind,
+			"ownerref_name": tags.KubeOwnerRefName,
 		}
 	}
 	return nil

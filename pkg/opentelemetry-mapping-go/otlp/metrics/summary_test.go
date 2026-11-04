@@ -7,6 +7,12 @@ package metrics
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
 func TestSummaryMetrics(t *testing.T) {
@@ -64,6 +70,18 @@ func TestSummaryMetrics(t *testing.T) {
 				testinstance.options...,
 			)
 			translator := NewTestTranslator(t, options...)
+			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
+		})
+		// The minimal translator with summary deltas must match the default translator.
+		t.Run(testinstance.name+"/minimal", func(t *testing.T) {
+			options := append(
+				[]TranslatorOption{WithOriginProduct(OriginProductDatadogAgent), WithSummaryCumulativeToDelta()},
+				testinstance.options...,
+			)
+			attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+			require.NoError(t, err)
+			translator, err := NewMinimalTranslator(zap.NewNop(), attributesTranslator, options...)
+			require.NoError(t, err)
 			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 	}

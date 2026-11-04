@@ -51,7 +51,7 @@
 deploy_deb_testing-a7_x64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   extends:
     - .deploy_deb_testing-a7
@@ -115,7 +115,7 @@ deploy_deb_testing-a7_arm64:
 deploy_rpm_testing-a7_x64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   extends:
     - .deploy_rpm_testing-a7
@@ -157,7 +157,7 @@ deploy_rpm_testing-a7_arm64:
 deploy_suse_rpm_testing_x64-a7:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
@@ -215,7 +215,7 @@ deploy_fips_proxy_testing-a7_x64:
     # exercised when its own definition moves. Unlike its neighbors it must never be manual: the Agent
     # package uploads need it, and a needs edge on an untriggered manual job skips them, optional or not.
     - !reference [.on_deploy]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - changes:
         paths:
           - .gitlab/deploy/e2e_testing_deploy/e2e_deploy.yml

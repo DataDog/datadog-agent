@@ -52,6 +52,7 @@ type ddInfra struct {
 	defaultDatadogPublicRegistry   string
 	useMacosCompatibleSubnets      bool // Some subnets are not compatible with macOS hosts. macOS hosts are supported only in us-east-1a and us-east-1b
 	leaseBucket                    string
+	trackSSHActivity               bool // Enabled by create-vm and the agent-health demo lab. Requires the instance profile to be allowed to call ec2:CreateTags on the instance itself
 
 	ecs ddInfraECS
 	eks ddInfraEKS
@@ -86,6 +87,7 @@ type ddInfraEKS struct {
 	windowsLTSCNodeGroup                 bool
 	gpuNodeGroup                         bool
 	gpuInstanceType                      string
+	autoMode                             bool
 }
 
 type DDInfraEKSPodSubnets struct {
@@ -241,9 +243,10 @@ func agentQADefault() environmentDefault {
 		ddInfra: ddInfra{
 			defaultVPCID: "vpc-0097b9307ec2c8139",
 			defaultSubnets: []SubnetConfig{
-				{ID: "subnet-04bf3124d5c31c2e0", MacOSCompatible: true},  // us-east-1a
-				{ID: "subnet-06eecbdafc2dac21e", MacOSCompatible: false}, // us-east-1d
-				{ID: "subnet-0dabe4bab92b2b9a7", MacOSCompatible: true},  // us-east-1b
+				{ID: "subnet-0dabe4bab92b2b9a7", MacOSCompatible: true},    // us-east-1a (ci-us-east-1a)
+				{ID: "subnet-0a3f12f04bf8b0770", MacOSCompatible: true}, // us-east-1a (ci-us-east-1a-2)
+				{ID: "subnet-04bf3124d5c31c2e0", MacOSCompatible: true},    // us-east-1b (ci-us-east-1b)
+				{ID: "subnet-06eecbdafc2dac21e", MacOSCompatible: false},   // us-east-1d (ci-us-east-1d)
 			},
 			defaultSecurityGroups:          []string{"sg-05e9573fcc582f22c", "sg-0498c960a173dff1e"},
 			noInternetSecurityGroupNames:   []string{"no-internet-access"},

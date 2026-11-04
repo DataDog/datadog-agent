@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -54,7 +57,7 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMetho
 
 // waitForCoreUnitsActive waits for the units assertUnits expects Running, including procmgrUnit
 // when procmgr is the active service manager (assertUnits checks it conditionally too).
-func (s *packageAgentSuite) waitForCoreUnitsActive() {
+func (s *packageBaseSuite) waitForCoreUnitsActive() {
 	units := []string{agentUnit, traceUnit, probeUnit}
 	if s.host.ProcmgrEnabled() {
 		units = append(units, procmgrUnit)
@@ -63,6 +66,13 @@ func (s *packageAgentSuite) waitForCoreUnitsActive() {
 }
 
 func (s *packageAgentSuite) TestInstall() {
+	s.testInstall()
+}
+
+// testInstall holds the TestInstall assertions, shared with packageAgentFapolicydSuite so that
+// suite embeds packageBaseSuite instead of packageAgentSuite and doesn't promote every other
+// packageAgentSuite Test* method (experiment lifecycle, NSS-user, FIPS, ...) into its own run.
+func (s *packageBaseSuite) testInstall() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
@@ -95,7 +105,7 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
-func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
+func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 	loadedUnits := []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit}
 	if s.host.ProcmgrEnabled() {
 		loadedUnits = append(loadedUnits, procmgrUnit)
@@ -132,7 +142,7 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+			s.Require().FailNow("unsupported package manager", "%s", pkgManager)
 		}
 	}
 
@@ -356,18 +366,6 @@ func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 	assert.True(s.T(), s.host.GroupExists("dd-agent"), "dd-agent group should exist")
 }
 
-func (s *packageAgentSuite) TestInstallWithFapolicyd() {
-	if s.os != e2eos.RedHat9 {
-		s.T().Skip("fapolicyd is only supported on RedHat 9")
-	}
-	defer func() {
-		s.host.Run("sudo yum remove -y fapolicyd")
-	}()
-	s.host.Run("sudo yum install -y fapolicyd")
-
-	s.TestInstall()
-}
-
 func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 	s.RunInstallScript()
 	defer s.Purge()
@@ -393,7 +391,7 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 			continue
 		}
 
-		s.T().Fatalf("file %v is world writable", path)
+		s.Require().FailNow("file is world writable", "path: %v", path)
 	}
 }
 
@@ -433,21 +431,10 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// We use libnss-extrausers which reads from /var/lib/extrausers
 	// This works through nsswitch.conf without needing environment variables
 
-	// Install libnss-extrausers
-	if s.host.GetPkgManager() == "apt" {
-		s.host.Run("sudo apt-get update && sudo apt-get install -y libnss-extrausers")
-	} else if s.host.GetPkgManager() == "yum" {
-		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
-	} else if s.host.GetPkgManager() == "zypper" {
-		_, err := s.Env().RemoteHost.Execute("sudo zypper install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
+	// libnss-extrausers is only available on apt systems
+	if s.host.GetPkgManager() != "apt" {
+		s.T().Skip("libnss-extrausers not available on this system")
+		return
 	}
 
 	// Create the extrausers directory structure
@@ -468,7 +455,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if gid == 0 {
-		s.T().Fatal("Could not find available GID in range 900-999")
+		s.Require().FailNow("could not find available GID in range 900-999")
 	}
 
 	for id := 900; id < 1000; id++ {
@@ -481,7 +468,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if uid == 0 {
-		s.T().Fatal("Could not find available UID in range 900-999")
+		s.Require().FailNow("could not find available UID in range 900-999")
 	}
 
 	s.T().Logf("Using UID=%d GID=%d for dd-agent user/group", uid, gid)
@@ -592,4 +579,117 @@ func (s *packageAgentSuite) TestInstallFips() {
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
+}
+
+func (s *packageAgentSuite) TestFleetUpgradeAndReboot() {
+	remote := s.Env().RemoteHost
+	defer s.Purge()
+	defer func() {
+		if !s.T().Failed() {
+			return
+		}
+		for _, command := range []string{
+			"sudo systemctl status datadog-agent datadog-agent-trace datadog-agent-installer --no-pager",
+			"sudo journalctl -b -u datadog-agent -u datadog-agent-trace -u datadog-agent-installer --no-pager -n 200",
+			"readlink -f /opt/datadog-packages/datadog-agent/stable",
+			"sudo ls -ldZ /opt/datadog-packages/datadog-agent/stable/run; sudo ls -lZ /opt/datadog-packages/datadog-agent/stable/run/",
+			"sudo datadog-installer status",
+			"sudo journalctl -b -u datadog-agent-installer-exp --no-pager -n 200",
+			"cat /tmp/start_experiment.log /tmp/promote_experiment.log",
+			"sudo ausearch -m AVC,USER_AVC -ts boot",
+		} {
+			output, err := remote.Execute(command)
+			s.T().Logf("%s: %v\n%s", command, err, output)
+		}
+	}()
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	baselinePath := strings.TrimSpace(remote.MustExecute("readlink -f /opt/datadog-packages/datadog-agent/stable"))
+	remote.MustExecute("sudo systemctl restart datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
+	upgrade := &upgradeScenarioSuite{packageBaseSuite: &s.packageBaseSuite}
+	upgrade.setCatalog(upgrade.testCatalog())
+	_, err := upgrade.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	require.NoError(s.T(), err)
+	s.host.WaitForUnitActive(s.T(), agentUnitXP, traceUnitXP, "datadog-agent-installer-exp.service")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := remote.Execute("sudo datadog-installer daemon rc-status")
+		require.NoError(c, err)
+	}, time.Minute, time.Second)
+	_, err = upgrade.promoteExperiment(datadogAgent)
+	require.NoError(s.T(), err)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		state := upgrade.getInstallerStatus().Packages.States["datadog-agent"]
+		assert.Equal(c, s.pipelineAgentVersion, state.Stable)
+		assert.Empty(c, state.Experiment)
+	}, 2*time.Minute, time.Second)
+	upgradedPath := strings.TrimSpace(remote.MustExecute("readlink -f /opt/datadog-packages/datadog-agent/stable"))
+	require.NotEqual(s.T(), baselinePath, upgradedPath)
+	require.Equal(s.T(), "/opt/datadog-packages/datadog-agent/"+s.pipelineAgentVersion, upgradedPath)
+	s.assertRuntimeLabels()
+	before := strings.TrimSpace(remote.MustExecute("cat /proc/sys/kernel/random/boot_id"))
+	if _, err := remote.Execute("sudo systemctl --no-block reboot"); err != nil {
+		s.T().Logf("reboot request: %v", err)
+	}
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, remote.Reconnect())
+		after, err := remote.Execute("cat /proc/sys/kernel/random/boot_id")
+		require.NoError(c, err)
+		require.NotEmpty(c, strings.TrimSpace(after))
+		assert.NotEqual(c, before, strings.TrimSpace(after))
+	}, 20*time.Minute, 15*time.Second)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
+	state := upgrade.getInstallerStatus().Packages.States["datadog-agent"]
+	require.Equal(s.T(), s.pipelineAgentVersion, state.Stable)
+	require.Empty(s.T(), state.Experiment)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := remote.Execute("sudo datadog-agent status")
+		require.NoError(c, err, "%s", output)
+	}, time.Minute, time.Second)
+	s.assertRuntimeLabels()
+}
+
+func (s *packageAgentSuite) assertRuntimeLabels() {
+	s.T().Helper()
+	if s.os != e2eos.RedHat9SELinuxNPM {
+		return
+	}
+	require.Equal(s.T(), "Enforcing", strings.TrimSpace(s.Env().RemoteHost.MustExecute("getenforce")))
+	remote := s.Env().RemoteHost
+	const run = "/opt/datadog-packages/datadog-agent/stable/run"
+	for _, dir := range []string{run, "/opt/datadog-packages/run"} {
+		require.Equal(s.T(), "dd-agent:dd-agent 755", strings.TrimSpace(remote.MustExecute("stat -Lc '%U:%G %a' "+dir)))
+	}
+	s.assertRuntimeType(run)
+	// Socket activation starts trace-agent only after application traffic arrives.
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := remote.Execute("curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8126/info")
+		require.NoError(c, err)
+	}, time.Minute, time.Second)
+	for _, process := range []struct{ unit, file string }{{agentUnit, "agent.pid"}, {traceUnit, "trace-agent.pid"}} {
+		s.EventuallyWithT(func(c *assert.CollectT) {
+			pid, err := remote.Execute("cat " + run + "/" + process.file)
+			require.NoError(c, err)
+			number, err := strconv.Atoi(strings.TrimSpace(pid))
+			require.NoError(c, err)
+			require.Positive(c, number)
+			mainPID, err := remote.Execute("systemctl show -p MainPID --value " + process.unit)
+			require.NoError(c, err)
+			assert.Equal(c, strings.TrimSpace(mainPID), strings.TrimSpace(pid))
+		}, time.Minute, time.Second)
+		s.assertRuntimeType(run + "/" + process.file)
+	}
+	files := remote.MustExecute("find -H " + run + " -maxdepth 1 -type f -name '*.pid'")
+	for _, file := range strings.Fields(files) {
+		s.assertRuntimeType(file)
+	}
+}
+
+func (s *packageAgentSuite) assertRuntimeType(path string) {
+	s.T().Helper()
+	context := strings.TrimSpace(s.Env().RemoteHost.MustExecute(fmt.Sprintf("stat -Lc '%%C' %q", path)))
+	fields := strings.Split(context, ":")
+	require.GreaterOrEqual(s.T(), len(fields), 3, "missing SELinux context for %s: %s", path, context)
+	require.Equal(s.T(), "var_run_t", fields[2], path)
 }

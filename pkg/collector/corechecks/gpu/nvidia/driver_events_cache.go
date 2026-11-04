@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,7 +35,7 @@ func (c *DriverEventsCache) Refresh() error {
 		return errors.New("system-probe client is nil")
 	}
 
-	events, err := sysprobeclient.GetEndpoint[[]model.DriverEvent](c.client, "/driver-events", sysconfig.GPUMonitoringModule)
+	events, err := sysprobeclient.GetEndpoint[[]model.DriverEvent](c.client, "/driver-events", sysconfigtypes.GPUMonitoringModule)
 	if err != nil {
 		c.events = nil
 		if sysprobeclient.IgnoreStartupError(err) == nil {

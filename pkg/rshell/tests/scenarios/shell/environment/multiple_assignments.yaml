@@ -1,0 +1,10 @@
+description: "Multiple variables assigned in sequence are all accessible"
+input:
+  script: |
+    A=one
+    B=two
+    C=three
+    echo "$A $B $C"
+expect:
+  stdout: "one two three\n"
+  exit_code: 0

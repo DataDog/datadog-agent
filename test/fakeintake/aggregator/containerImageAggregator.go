@@ -45,7 +45,10 @@ func ParseContainerImagePayload(payload api.Payload) ([]*ContainerImagePayload, 
 
 	msg := agentmodel.ContainerImagePayload{}
 	if err := proto.Unmarshal(inflated, &msg); err != nil {
-		return nil, err
+		// A redirected endpoint also receives the {} body the Agent posts to
+		// check connectivity. Skip what fails to parse, as ParseSbomPayload
+		// does, so the other payloads still parse.
+		return nil, nil
 	}
 
 	payloads := make([]*ContainerImagePayload, len(msg.Images))

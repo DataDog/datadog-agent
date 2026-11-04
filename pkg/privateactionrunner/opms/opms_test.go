@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/DataDog/jsonapi"
@@ -24,7 +25,6 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
 
@@ -43,11 +43,10 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 // newTestClient builds a client wired to the given httptest server.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
-	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{
-			DDHost:             srv.URL,
+			APIBaseURL:         srv.URL,
 			OpmsRequestTimeout: 5000,
 			OrgId:              1,
 			RunnerId:           "test-runner",
@@ -58,15 +57,8 @@ func newTestClient(t *testing.T, srv *httptest.Server) *client {
 }
 
 func TestEndpointURL(t *testing.T) {
-	cfg := &config.Config{
-		DDHost:    "http://fakeintake.test:8080",
-		DDApiHost: "api.datadoghq.com",
-	}
-	client := &client{config: cfg}
-
+	client := &client{config: &config.Config{APIBaseURL: "https://api.datadoghq.com"}}
 	assert.Equal(t, "https://api.datadoghq.com/task", client.endpointURL("/task"))
-
-	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	for _, test := range []struct {
 		name     string
 		ddHost   string
@@ -83,13 +75,13 @@ func TestEndpointURL(t *testing.T) {
 			expected: "https://fakeintake.test:8443/task",
 		},
 		{
-			name:     "normalized HTTPS URL",
-			ddHost:   "fakeintake.test:8443",
+			name:     "trailing slash",
+			ddHost:   "https://fakeintake.test:8443/",
 			expected: "https://fakeintake.test:8443/task",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			client.config.DDHost = test.ddHost
+			client.config.APIBaseURL = test.ddHost
 			assert.Equal(t, test.expected, client.endpointURL("/task"))
 		})
 	}
@@ -359,6 +351,74 @@ func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
+}
+
+func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest, http.StatusNotFound} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(`{"errors":["sensitive response"]}`))
+			}))
+			defer srv.Close()
+
+			p := &publicClient{httpClient: srv.Client()}
+			_, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			require.Error(t, err)
+			assert.Equal(t, 1, calls)
+			assert.ErrorIs(t, err, ErrEnrollmentRejected)
+			assert.Equal(t, status == http.StatusUnauthorized || status == http.StatusForbidden, errors.Is(err, ErrEnrollmentUnauthorized))
+			if errors.Is(err, ErrEnrollmentUnauthorized) {
+				assert.NotContains(t, err.Error(), "sensitive response")
+				assert.Contains(t, err.Error(), "restart")
+			}
+		})
+	}
+}
+
+func TestEnrollmentRejectionWithUnreadableBodyStopsRetrying(t *testing.T) {
+	calls := 0
+	p := &publicClient{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				calls++
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(iotest.ErrReader(errors.New("connection reset"))),
+				}, nil
+			}),
+		},
+	}
+
+	_, err := p.doEnrollRequestWithRetry(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "api-key", "app-key")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrEnrollmentRejected)
+	assert.Equal(t, 1, calls)
+}
+
+func TestEnrollmentTransientStatusIsRetried(t *testing.T) {
+	for _, status := range []int{http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				if calls == 1 {
+					w.WriteHeader(status)
+					return
+				}
+				_, _ = w.Write([]byte("{}"))
+			}))
+			defer srv.Close()
+
+			p := &publicClient{httpClient: srv.Client()}
+			body, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			require.NoError(t, err)
+			assert.Equal(t, "{}", string(body))
+			assert.Equal(t, 2, calls)
+		})
+	}
 }
 
 func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {

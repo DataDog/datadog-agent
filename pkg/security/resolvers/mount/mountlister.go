@@ -144,6 +144,7 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 		Origin:        model.MountOriginListmount,
 		Visible:       true,
 		Detached:      false,
+		MountFlags:    model.NormalizeMountFlagsFromAttr(sm.MntAttr),
 	}
 }
 
@@ -229,7 +230,13 @@ func GetPidListmount(procfs string, pid uint32, cb func(*model.Mount)) error {
 	return getAllFromList([]int{fd}, cb)
 }
 
-func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
+func getFdListmount(nsfd int, cb func(*model.Mount)) error {
+	var nsStat unix.Stat_t
+	if err := unix.Fstat(nsfd, &nsStat); err != nil {
+		return fmt.Errorf("failed to stat mount namespace: %w", err)
+	}
+	nsInode := uint32(nsStat.Ino)
+
 	ids := make([]uint64, 2048)
 	buf := make([]byte, 4096)
 	firstIteration := true
@@ -242,6 +249,7 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 		StatmountMntPoint |
 		StatmountFsType)
 
+	var mounts []*model.Mount
 	for {
 		req := mntIDReq{
 			Size:  uint32(unsafe.Sizeof(mntIDReq{})),
@@ -279,8 +287,8 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 			}
 			sm := parseStatmount(buf)
 			mnt := newMountFromStatmount(&sm)
-			mnt.NamespaceInode = uint32(ino)
-			cb(mnt)
+			mnt.NamespaceInode = nsInode
+			mounts = append(mounts, mnt)
 			lastMountID = req2.MntID
 		}
 
@@ -294,6 +302,11 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 			// All mounts for this namespace were obtained
 			break
 		}
+	}
+
+	relativizeSnapshotMountPoints(mounts)
+	for _, mnt := range mounts {
+		cb(mnt)
 	}
 
 	return nil
@@ -317,7 +330,7 @@ func getAllFromList(lst []int, cb func(*model.Mount)) error {
 		}
 
 		for _, fd := range lst {
-			err := getFdListmount(fd, 0, cb)
+			err := getFdListmount(fd, cb)
 			if err != nil {
 				done <- err
 				return

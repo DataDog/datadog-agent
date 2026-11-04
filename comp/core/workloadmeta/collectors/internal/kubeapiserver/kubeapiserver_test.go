@@ -9,6 +9,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
@@ -206,6 +207,13 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 			name: "pod annotations as tags",
 			cfg: map[string]interface{}{
 				"kubernetes_pod_annotations_as_tags": map[string]string{"team": "kube_team"},
+			},
+			expected: true,
+		},
+		{
+			name: "KAI Scheduler",
+			cfg: map[string]interface{}{
+				"cluster_agent.kai_scheduler.enabled": true,
 			},
 			expected: true,
 		},
@@ -764,11 +772,54 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			},
 			expectedResources: []string{"//namespaces"},
 		},
+		{
+			name: "auto instrumentation enables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": true,
+			},
+			expectedResources: []string{"storage.k8s.io//csidrivers"},
+		},
+		{
+			name: "auto instrumentation disabled disables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": false,
+			},
+			expectedResources: nil,
+		},
+		{
+			name: "apm on demand enables namespace collection",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   false,
+				"apm_config.instrumentation.on_demand": true,
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "apm enabled and on demand do not duplicate namespaces",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   true,
+				"apm_config.instrumentation.on_demand": true,
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "apm disabled and not on demand disables namespace collection",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   false,
+				"apm_config.instrumentation.on_demand": false,
+			},
+			expectedResources: nil,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, test.cfg)
+			// on_demand defaults to true, which would add namespaces to every case.
+			overrides := map[string]interface{}{"apm_config.instrumentation.on_demand": false}
+			maps.Copy(overrides, test.cfg)
+			cfg := config.NewMockWithOverrides(t, overrides)
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})
 	}

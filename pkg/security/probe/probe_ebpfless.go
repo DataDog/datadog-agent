@@ -42,7 +42,7 @@ import (
 )
 
 const (
-	maxMessageSize = 256 * 1024
+	maxMessageSize = ebpfless.MaxMessageSize
 )
 
 type client struct {
@@ -128,7 +128,53 @@ func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 	}
 }
 
+func copyProcessCredentials(src *ebpfless.Credentials, dst *model.Credentials) {
+	if src == nil {
+		return
+	}
+	dst.UID, dst.EUID, dst.User, dst.EUser = src.UID, src.EUID, src.User, src.EUser
+	dst.GID, dst.EGID, dst.Group, dst.EGroup = src.GID, src.EGID, src.Group, src.EGroup
+}
+
+// applyProcSnapshot consumes Exec as metadata on a non-exec event. PID and
+// container/cgroup come from the existing envelope, or Fork's explicit parent
+// fields. Installing the snapshot must never dispatch an extra exec or fork.
+func (p *EBPFLessProbe) applyProcSnapshot(cl *client, msg *ebpfless.SyscallMsg) bool {
+	image := msg.Exec
+	if msg.Type == ebpfless.SyscallTypeExec || image == nil || !image.FromProcFS {
+		return true
+	}
+	pid, containerID, cgroupID := msg.PID, msg.ContainerID, msg.CGroupID
+	if msg.Type == ebpfless.SyscallTypeFork {
+		pid, containerID, cgroupID = msg.Fork.PPID, msg.Fork.ParentContainerID, msg.Fork.ParentCGroupID
+		if !p.Resolvers.ProcessResolver.PrepareProcessGeneration(
+			process.CacheResolverKey{Pid: pid, NSID: cl.nsID}, msg.Fork.ParentStartTime, true) {
+			return false
+		}
+	}
+	key := process.CacheResolverKey{Pid: pid, NSID: cl.nsID}
+	entry := p.Resolvers.ProcessResolver.NewEntry(key, image.PPID, image.File.Filename,
+		image.Args, image.ArgsTruncated, image.Envs, image.EnvsTruncated,
+		containerID, cgroupID, image.CreateTime, image.TTY, model.ProcessCacheEntryFromProcFS)
+	copyFileAttributes(&image.File, &entry.FileEvent)
+	if image.File.Filename == "" {
+		entry.FileEvent.SetBasenameStr("")
+	}
+	copyProcessCredentials(image.Credentials, &entry.Credentials)
+	p.Resolvers.ProcessResolver.AddContextEntry(key, entry, image.CreateTime)
+	return true
+}
+
 func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.SyscallMsg) {
+	hasSnapshot := syscallMsg.Type != ebpfless.SyscallTypeExec && syscallMsg.Exec != nil && syscallMsg.Exec.FromProcFS
+	if !p.Resolvers.ProcessResolver.PrepareProcessGeneration(
+		process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.StartTime,
+		hasSnapshot && syscallMsg.Type != ebpfless.SyscallTypeFork) {
+		return
+	}
+	if !p.applyProcSnapshot(cl, syscallMsg) {
+		return
+	}
 	event := p.zeroEvent()
 	event.PIDContext.NSID = cl.nsID
 	event.TimestampRaw = syscallMsg.Timestamp
@@ -150,23 +196,19 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 				syscallMsg.ContainerID, syscallMsg.CGroupID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		}
 
-		if syscallMsg.Exec.Credentials != nil {
-			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
-			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
-			entry.Credentials.User = syscallMsg.Exec.Credentials.User
-			entry.Credentials.EUser = syscallMsg.Exec.Credentials.EUser
-			entry.Credentials.GID = syscallMsg.Exec.Credentials.GID
-			entry.Credentials.EGID = syscallMsg.Exec.Credentials.EGID
-			entry.Credentials.Group = syscallMsg.Exec.Credentials.Group
-			entry.Credentials.EGroup = syscallMsg.Exec.Credentials.EGroup
-		}
+		copyProcessCredentials(syscallMsg.Exec.Credentials, &entry.Credentials)
 		event.Exec.Process = &entry.Process
 		copyFileAttributes(&syscallMsg.Exec.File, &event.Exec.FileEvent)
 
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
-		if entry := p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp); entry != nil && syscallMsg.CGroupID != "" {
-			entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+		if entry := p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp); entry != nil {
+			if syscallMsg.ContainerID != "" {
+				entry.ContainerContext.ContainerID = syscallMsg.ContainerID
+			}
+			if syscallMsg.CGroupID != "" {
+				entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+			}
 		}
 
 	case ebpfless.SyscallTypeOpen:

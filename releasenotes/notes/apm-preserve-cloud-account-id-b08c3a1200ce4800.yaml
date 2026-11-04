@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    APM: Preserve standard cloud and AWS account ID span attributes during credit card obfuscation.

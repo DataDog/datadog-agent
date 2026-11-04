@@ -41,7 +41,7 @@ func TestConnectEventAFIntetTCP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -84,7 +84,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	listener, err := net.Listen("tcp", ":4243")
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestConnectEventAFInetAnyUDP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -211,7 +211,7 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -258,7 +258,7 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -303,7 +303,7 @@ func TestConnectEventinetNonBlocking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.WaitSignalFromRule(t, func() error {
 		resp, err := http.Get("https://www.google.com")

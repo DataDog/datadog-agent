@@ -51,12 +51,13 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		commands,
 		// this command has a lot of options, so just test a few
-		[]string{"check", "cleopatra", "--delay", "1", "--flare"},
+		[]string{"check", "cleopatra", "--delay", "1", "--flare", "--workloadmeta-timeout", "7"},
 		run,
 		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, []string{"cleopatra"}, cliParams.args)
 			require.Equal(t, 1, cliParams.checkDelay)
 			require.True(t, cliParams.saveFlare)
+			require.Equal(t, uint(7), cliParams.workloadmetaTimeout)
 		})
 }
 

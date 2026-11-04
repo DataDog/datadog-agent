@@ -255,7 +255,7 @@ func (s *endpointSliceStore) matchesAnyCELTemplate(slice *discv1.EndpointSlice) 
 		return false
 	}
 
-	filterableEp := workloadfilter.CreateKubeEndpoint(serviceName, slice.Namespace, slice.GetAnnotations())
+	filterableEp := workloadfilter.CreateKubeEndpoint(serviceName, slice.Namespace, slice.GetAnnotations(), slice.GetLabels())
 	for _, tpl := range celEpSliceConfig.templates {
 		if tpl.IsMatched(filterableEp) {
 			return true

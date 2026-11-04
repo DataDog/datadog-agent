@@ -7,7 +7,6 @@ package installtest
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -15,8 +14,6 @@ import (
 
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -101,6 +98,48 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 	s.enableNPM()
+	s.testNPMFunctional()
+
+	// The drivers cannot unload while system-probe holds their devices open, and
+	// system-probe now exits with dd-procmgr-service instead of with a Windows service of
+	// its own, so the uninstaller has to stop the supervisor first. This is the only
+	// install-test scenario where system-probe is running when the uninstall starts.
+	s.Require().True(s.uninstallAgent(), "should uninstall the agent with NPM running")
+}
+
+// TestNPMInstallWithNetworkEnabledProperty tests that the DD_SYSTEM_PROBE_NETWORK_ENABLED
+// MSI property enables Cloud Network Monitoring on a fresh install, without editing
+// system-probe.yaml or restarting the Agent afterwards.
+func TestNPMInstallWithNetworkEnabledProperty(t *testing.T) {
+	s := &testNPMInstallWithNetworkEnabledPropertySuite{}
+	Run(t, s)
+}
+
+type testNPMInstallWithNetworkEnabledPropertySuite struct {
+	testNPMInstallSuite
+}
+
+func (s *testNPMInstallWithNetworkEnabledPropertySuite) TestNPMInstallWithNetworkEnabledProperty() {
+	host := s.Env().RemoteHost
+	_ = s.installAgentPackage(host,
+		s.AgentPackage,
+		windowsAgent.WithSystemProbeNetworkEnabled("true"),
+	)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(host), s.AgentPackage.AgentVersion())
+
+	// The MSI passes the property to the OCI package setup, which merges it into the
+	// system-probe.yaml the MSI wrote from its template.
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(host)
+	s.Require().NoError(err)
+	config, err := s.readYamlConfig(host, filepath.Join(configRoot, "system-probe.yaml"))
+	s.Require().NoError(err)
+	s.Require().Contains(config, "network_config", "system-probe.yaml should contain network_config")
+	networkConfig, ok := config["network_config"].(map[string]any)
+	s.Require().True(ok, "network_config should be a map")
+	s.Require().Equal(true, networkConfig["enabled"], "network_config.enabled should be true")
+
+	// Setup runs before the MSI starts the services, so system-probe should be running
+	// with no restart.
 	s.testNPMFunctional()
 }
 
@@ -189,15 +228,27 @@ func (s *testNPMInstallSuite) enableNPM() {
 func (s *testNPMInstallSuite) testNPMFunctional() {
 	host := s.Env().RemoteHost
 	s.Run("npm running", func() {
-		// services are running
-		expectedServices := []string{"datadog-system-probe", "ddnpm"}
-		for _, serviceName := range expectedServices {
-			s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-				status, err := windowsCommon.GetServiceStatus(host, serviceName)
-				require.NoError(c, err)
-				assert.Equal(c, "Running", status, "%s should be running", serviceName)
-			}, 1*time.Minute, 1*time.Second, "%s should be running", serviceName)
-		}
+		windowsCommon.AssertServiceState(s.T(), host, procmgrServiceName, "Running")
+		windowsCommon.AssertServiceState(s.T(), host, "ddnpm", "Running")
+
+		// dd-procmgr supervises system-probe, so the legacy SCM service stays stopped and
+		// the running instance has to be asserted on the procmgr side. Neither the stopped
+		// service nor ddnpm would catch a system-probe that procmgr failed to start: the
+		// driver stays loaded across a system-probe exit, and on the upgrade scenarios it
+		// may already be loaded from the pre-upgrade Agent.
+		windowsCommon.AssertServiceState(s.T(), host, "datadog-system-probe", "Stopped")
+
+		windowsAgent.AssertProcmgrProcessRunning(s.T(), host, "datadog-agent-sysprobe")
+
+		// The legacy SCM service was registered as LocalSystem, and system-probe needs that
+		// to reconfigure and start the driver services through the SCM. Under dd-procmgrd
+		// the account comes from the privileged spawn profile inheriting the supervisor
+		// token instead, so the only thing that shows it survived the migration is the
+		// token the child actually holds.
+		owner, err := windowsProcessOwnerByName(host, "system-probe.exe")
+		s.Require().NoError(err)
+		s.Assert().Contains(owner, "NT AUTHORITY/SYSTEM",
+			"system-probe should run as LocalSystem under dd-procmgrd")
 	})
 	s.Run("agent npm status", func() {
 		client := s.NewTestClientForHost(host)
@@ -219,13 +270,13 @@ func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPac
 		_, err := s.InstallAgent(host, installOpts...)
 		s.Require().NoError(err, "should upgrade to agent %s", agentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	if !s.Run("test "+agentPackage.AgentVersion(), func() {
 		client := s.NewTestClientForHost(host)
 		RequireAgentVersionRunningWithNoErrors(s.T(), client, agentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 }

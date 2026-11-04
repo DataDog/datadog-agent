@@ -9,6 +9,11 @@
 package configstreambootstrap
 
 import (
+	"fmt"
+	"slices"
+	"strings"
+	"sync"
+
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -66,16 +71,53 @@ func SeedGlobalBuilder(s Settings, configFile string) {
 	cert.PersistCertFilepath(b)
 }
 
-// DisableLocalEnvLayer drops the env layer (nodetreemodel only) so local DD_* vars
-// can't override streamed values. Viper-backed configs cannot clear env vars.
+var (
+	// Captured on the startup goroutine, read on the consumer's stream goroutine.
+	ignoredEnvVarsMu        sync.Mutex
+	capturedEnvVars         []string
+	lastIgnoredEnvVarReport []string
+)
+
+// DisableLocalEnvLayer drops the env layer so local DD_* vars can't override streamed values,
+// recording what it held so the settings can be named in a warning afterwards.
 func DisableLocalEnvLayer(clientName string) {
-	b := pkgconfigsetup.Datadog()
-	type envVarClearer interface{ ClearEnvVars() }
-	if clearer, ok := b.(envVarClearer); ok {
-		clearer.ClearEnvVars()
-		pkglog.Infof("configstreamconsumer[%s]: local env-var layer disabled", clientName)
+	control, ok := pkgconfigsetup.Datadog().(pkgconfigmodel.EnvVarControl)
+	if !ok {
+		pkglog.Errorf("configstreamconsumer[%s]: config does not implement EnvVarControl, so local DD_* env vars will keep overriding streamed values", clientName)
 		return
 	}
+	ignoredEnvVarsMu.Lock()
+	capturedEnvVars = describeEnvSettings(control.EnvVarSettings())
+	ignoredEnvVarsMu.Unlock()
+	control.ClearEnvVars()
+	pkglog.Infof("configstreamconsumer[%s]: local env-var layer disabled", clientName)
+}
+
+// describeEnvSettings renders each setting as "key (DD_VAR)", sorted. Names only, never values:
+// several of these settings are credentials.
+func describeEnvSettings(envSettings map[string][]string) []string {
+	described := make([]string, 0, len(envSettings))
+	for key, envVars := range envSettings {
+		described = append(described, fmt.Sprintf("%s (%s)", key, strings.Join(envVars, " or ")))
+	}
+	slices.Sort(described)
+	return described
+}
+
+// ReportIgnoredEnvVars warns about the settings a local DD_* var tried to set, consuming the
+// captured state so it reports at most once.
+func ReportIgnoredEnvVars(clientName string) {
+	ignoredEnvVarsMu.Lock()
+	ignored := capturedEnvVars
+	capturedEnvVars = nil
+	lastIgnoredEnvVarReport = ignored
+	ignoredEnvVarsMu.Unlock()
+
+	if len(ignored) == 0 {
+		return
+	}
+	pkglog.Warnf("configstreamconsumer[%s]: these settings were set by DD_* env vars on this process, which config streaming ignores; set them on the core Agent instead: %s",
+		clientName, strings.Join(ignored, ", "))
 }
 
 // AuthTokenFilepath resolves the auth-token path via pkg/api/security's fallback rules.
@@ -91,4 +133,10 @@ func IPCCertFilepath() string {
 // Config returns the global config builder the streamed settings are written to.
 func Config() pkgconfigmodel.Config {
 	return pkgconfigsetup.Datadog()
+}
+
+// SystemProbeConfig returns the system-probe config object. The stream never writes to it: it holds
+// the system-probe schema, which the core Agent does not know.
+func SystemProbeConfig() pkgconfigmodel.Config {
+	return pkgconfigsetup.SystemProbe()
 }

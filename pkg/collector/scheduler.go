@@ -71,7 +71,7 @@ type CheckScheduler struct {
 	senderManager       sender.SenderManager
 	shadowSenderManager sender.SenderManager
 	shadowCoreLoader    check.Loader
-	infraTagger         *infratags.Tagger // nil = no infra mode tagging
+	infraTagger         *infratags.MetricTagger // nil = no infra mode tagging
 	m                   sync.RWMutex
 }
 
@@ -82,7 +82,7 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
-		infraTagger:    infratags.NewTagger(setup.Datadog()),
+		infraTagger:    infratags.NewMetricTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {

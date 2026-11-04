@@ -8,7 +8,7 @@
 package sbom
 
 import (
-	"sync"
+	"fmt"
 	"testing"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
@@ -61,39 +61,93 @@ func TestQueryFileUsrMerge(t *testing.T) {
 	}
 }
 
-// TestFixedSizeQueueConcurrentAccess calls push/contains concurrently on a
-// shared fixedSizeQueue, as happens when containers share an image. Run with -race.
-func TestFixedSizeQueueConcurrentAccess(t *testing.T) {
-	q := newFixedSizeQueue[uint64](2)
+// TestQueryFileFirstOwnerWins checks that a path two packages list, as rpm does
+// for a directory they share, resolves to the first of them in the report, as
+// it did when the index was walked in report order.
+func TestQueryFileFirstOwnerWins(t *testing.T) {
+	report := []sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "filesystem"}, InstalledFiles: []string{"/usr/share/doc", "/usr/bin"}},
+		{Package: sbomtypes.Package{Name: "bash"}, InstalledFiles: []string{"/usr/bin/bash", "/usr/share/doc", "/usr/bin"}},
+		{Package: sbomtypes.Package{Name: "coreutils"}, InstalledFiles: []string{"/usr/bin", "/usr/bin/cat"}},
+	}
 
-	const goroutines = 50
-	const iterations = 200
+	backing := make([]sbomtypes.Package, len(report))
+	for i := range report {
+		backing[i] = report[i].Package
+	}
 
-	var wg sync.WaitGroup
+	fq := newFileQuerier(report, backing, false)
+	for _, tc := range []struct {
+		query   string
+		wantPkg string
+	}{
+		{"/usr/share/doc", "filesystem"},
+		{"/usr/bin", "filesystem"},
+		{"/usr/bin/bash", "bash"},
+		{"/usr/bin/cat", "coreutils"},
+	} {
+		got := ""
+		if pkg := fq.queryFile(tc.query); pkg != nil {
+			got = pkg.Name
+		}
+		if got != tc.wantPkg {
+			t.Errorf("queryFile(%q) = %q, want %q", tc.query, got, tc.wantPkg)
+		}
+	}
+}
 
-	for g := 0; g < goroutines; g++ {
-		seed := uint64(g)
-		wg.Go(func() {
-			for i := uint64(0); i < iterations; i++ {
-				q.push(seed*iterations + i)
+// hostReport returns the installed files of a host the size of an Ubuntu 24.04
+// machine, 2,171 packages listing 250,069 files, and the packages backing them.
+func hostReport() ([]sbomtypes.PackageWithInstalledFiles, []sbomtypes.Package) {
+	const packages, files = 2171, 250069
+	dirs := []string{"/usr/bin", "/usr/lib", "/usr/sbin", "/usr/share"}
+
+	report := make([]sbomtypes.PackageWithInstalledFiles, packages)
+	for i := range report {
+		report[i].Package = sbomtypes.Package{Name: fmt.Sprintf("pkg%d", i)}
+	}
+	for f := range files {
+		i := f % packages
+		report[i].InstalledFiles = append(report[i].InstalledFiles, fmt.Sprintf("%s/pkg%d/file%d", dirs[f%len(dirs)], i, f))
+	}
+
+	backing := make([]sbomtypes.Package, len(report))
+	for i := range report {
+		backing[i] = report[i].Package
+	}
+	return report, backing
+}
+
+// BenchmarkQueryFile measures a lookup in the index of a host on a merged /usr:
+// a file of a package, a missing file, and a missing file under /bin, which
+// takes a second lookup under /usr/bin. The missing files rotate, as the
+// accesses of a host do.
+func BenchmarkQueryFile(b *testing.B) {
+	report, backing := hostReport()
+	fq := newFileQuerier(report, backing, true)
+
+	for _, bm := range []struct {
+		name  string
+		paths []string
+	}{
+		{"hit", []string{report[len(report)/2].InstalledFiles[0]}},
+		{"miss", []string{"/usr/share/missing0", "/usr/share/missing1", "/usr/share/missing2", "/usr/share/missing3"}},
+		{"usr-merged-miss", []string{"/bin/missing0", "/bin/missing1", "/bin/missing2", "/bin/missing3"}},
+	} {
+		b.Run(bm.name, func(b *testing.B) {
+			i := 0
+			for b.Loop() {
+				fq.queryFile(bm.paths[i%len(bm.paths)])
+				i++
 			}
 		})
 	}
+}
 
-	for g := 0; g < goroutines; g++ {
-		seed := uint64(g)
-		wg.Go(func() {
-			for i := uint64(0); i < iterations; i++ {
-				q.contains(seed*iterations + i)
-			}
-		})
-	}
-
-	wg.Wait()
-
-	// The queue must never grow past its configured bound, even under
-	// concurrent access.
-	if got := len(q.queue); got > 2 {
-		t.Errorf("queue length = %d, want at most 2", got)
+// BenchmarkNewFileQuerier measures the indexing of the files of a host.
+func BenchmarkNewFileQuerier(b *testing.B) {
+	report, backing := hostReport()
+	for b.Loop() {
+		newFileQuerier(report, backing, true)
 	}
 }

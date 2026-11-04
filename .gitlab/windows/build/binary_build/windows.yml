@@ -2,7 +2,7 @@
 # Entrypoint for the Windows Docker image
 build_windows_container_entrypoint:
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: []
   stage: binary_build
@@ -19,7 +19,6 @@ build_windows_container_entrypoint:
       -v "$(Get-Location):c:\mnt"
       -e CI
       -e GITLAB_CI
-      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
       -e CI_JOB_ID
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME

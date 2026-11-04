@@ -106,7 +106,7 @@ type Config struct {
 	IgnoreAutodiscoveryTags bool `json:"ignore_autodiscovery_tags"` // (include in digest: true)
 
 	// CheckTagCardinality is used to override the default tag cardinality in the agent configuration
-	CheckTagCardinality string `json:"check_tag_cardinality"` // (include in digest: false)
+	CheckTagCardinality string `json:"check_tag_cardinality"` // (include in digest: true)
 
 	// MetricsExcluded is whether metrics collection is disabled (set by
 	// container listeners only)
@@ -490,6 +490,9 @@ func (c *Config) IntDigest() uint64 {
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
 	}
+	if c.CheckTagCardinality != "" {
+		_, _ = h.Write([]byte("check_tag_cardinality:" + c.CheckTagCardinality))
+	}
 
 	return h.Sum64()
 }
@@ -516,6 +519,9 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery:" + c.Discovery.MetricsPrefix))
+	}
+	if c.CheckTagCardinality != "" {
+		_, _ = h.Write([]byte("check_tag_cardinality:" + c.CheckTagCardinality))
 	}
 
 	return h.Sum64()

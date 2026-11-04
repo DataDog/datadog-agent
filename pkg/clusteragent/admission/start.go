@@ -19,6 +19,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
@@ -49,6 +50,7 @@ type ControllerContext struct {
 	FilterStore                  workloadfilter.Component
 	InstrumentationHandlers      []instrumentation.Handler
 	CSIDriverWatcher             libraryinjection.CSIDriverWatcher
+	DDITargets                   autoinstrumentation.DDITargetProvider
 	RcClient                     *rcclient.Client
 }
 
@@ -116,6 +118,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		ctx.InstrumentationHandlers,
 		ctx.DynamicInformer,
 		ctx.CSIDriverWatcher,
+		ctx.DDITargets,
 	)
 
 	go secretController.Run(ctx.StopCh)

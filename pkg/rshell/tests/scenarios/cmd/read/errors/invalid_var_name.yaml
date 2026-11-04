@@ -1,0 +1,11 @@
+description: read rejects an argument that is not a valid shell identifier.
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo "x" | { read 1bad; echo "exit=$?"; }
+expect:
+  stdout: |+
+    exit=1
+  stderr: |+
+    read: `1bad': not a valid identifier
+  exit_code: 0

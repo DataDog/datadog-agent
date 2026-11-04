@@ -18,6 +18,9 @@ Workload Protection events for Windows have the following JSON schema:
                 "rule_id": {
                     "type": "string"
                 },
+                "original_rule_id": {
+                    "type": "string"
+                },
                 "rule_version": {
                     "type": "string"
                 },
@@ -42,12 +45,19 @@ Workload Protection events for Windows have the following JSON schema:
                 },
                 "origin": {
                     "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "distribution": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "rule_id"
+                "rule_id",
+                "original_rule_id"
             ]
         },
         "ChangePermissionEvent": {
@@ -87,6 +97,18 @@ Workload Protection events for Windows have the following JSON schema:
                     "type": "string",
                     "description": "Container ID"
                 },
+                "pod_uid": {
+                    "type": "string",
+                    "description": "Kubernetes pod UID"
+                },
+                "ecs_task_id": {
+                    "type": "string",
+                    "description": "ECS task ID"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source of the container entry (event or procfs)"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time",
@@ -94,7 +116,7 @@ Workload Protection events for Windows have the following JSON schema:
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
-                    "description": "Variables values"
+                    "description": "Variable values"
                 }
             },
             "additionalProperties": false,
@@ -128,7 +150,15 @@ Workload Protection events for Windows have the following JSON schema:
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
-                    "description": "Variables values"
+                    "description": "Variable values"
+                },
+                "rule_context": {
+                    "$ref": "#/$defs/RuleContext",
+                    "description": "RuleContext rule context"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source of the event"
                 }
             },
             "additionalProperties": false,
@@ -167,6 +197,10 @@ Workload Protection events for Windows have the following JSON schema:
                 "name": {
                     "type": "string",
                     "description": "File basename"
+                },
+                "extension": {
+                    "type": "string",
+                    "description": "File extension"
                 }
             },
             "additionalProperties": false,
@@ -186,6 +220,10 @@ Workload Protection events for Windows have the following JSON schema:
                 "name": {
                     "type": "string",
                     "description": "File basename"
+                },
+                "extension": {
+                    "type": "string",
+                    "description": "File extension"
                 },
                 "destination": {
                     "$ref": "#/$defs/File",
@@ -226,6 +264,30 @@ Workload Protection events for Windows have the following JSON schema:
             "type": "object",
             "description": "MatchedRuleSerializer serializes a rule"
         },
+        "MatchingSubExpr": {
+            "properties": {
+                "offset": {
+                    "type": "integer"
+                },
+                "length": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "offset",
+                "length",
+                "value"
+            ],
+            "description": "MatchingSubExpr serializes matching sub expression to JSON"
+        },
         "Process": {
             "properties": {
                 "pid": {
@@ -261,6 +323,10 @@ Workload Protection events for Windows have the following JSON schema:
                 "user": {
                     "type": "string",
                     "description": "User name"
+                },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variable values"
                 }
             },
             "additionalProperties": false,
@@ -303,6 +369,10 @@ Workload Protection events for Windows have the following JSON schema:
                     "type": "string",
                     "description": "User name"
                 },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variable values"
+                },
                 "parent": {
                     "$ref": "#/$defs/Process",
                     "description": "Parent process"
@@ -313,10 +383,6 @@ Workload Protection events for Windows have the following JSON schema:
                     },
                     "type": "array",
                     "description": "Ancestor processes"
-                },
-                "variables": {
-                    "$ref": "#/$defs/Variables",
-                    "description": "Variables values"
                 },
                 "truncated_ancestors": {
                     "type": "boolean",
@@ -345,6 +411,22 @@ Workload Protection events for Windows have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "RegistryEventSerializer serializes a registry event to JSON"
+        },
+        "RuleContext": {
+            "properties": {
+                "matching_subexprs": {
+                    "items": {
+                        "$ref": "#/$defs/MatchingSubExpr"
+                    },
+                    "type": "array"
+                },
+                "expression": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "RuleContext serializes rule context to JSON"
         },
         "UserContext": {
             "properties": {
@@ -435,6 +517,9 @@ Workload Protection events for Windows have the following JSON schema:
         "rule_id": {
             "type": "string"
         },
+        "original_rule_id": {
+            "type": "string"
+        },
         "rule_version": {
             "type": "string"
         },
@@ -459,12 +544,19 @@ Workload Protection events for Windows have the following JSON schema:
         },
         "origin": {
             "type": "string"
+        },
+        "kernel_version": {
+            "type": "string"
+        },
+        "distribution": {
+            "type": "string"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "rule_id"
+        "rule_id",
+        "original_rule_id"
     ]
 }
 
@@ -530,6 +622,18 @@ Workload Protection events for Windows have the following JSON schema:
             "type": "string",
             "description": "Container ID"
         },
+        "pod_uid": {
+            "type": "string",
+            "description": "Kubernetes pod UID"
+        },
+        "ecs_task_id": {
+            "type": "string",
+            "description": "ECS task ID"
+        },
+        "source": {
+            "type": "string",
+            "description": "Source of the container entry (event or procfs)"
+        },
         "created_at": {
             "type": "string",
             "format": "date-time",
@@ -537,7 +641,7 @@ Workload Protection events for Windows have the following JSON schema:
         },
         "variables": {
             "$ref": "#/$defs/Variables",
-            "description": "Variables values"
+            "description": "Variable values"
         }
     },
     "additionalProperties": false,
@@ -550,8 +654,11 @@ Workload Protection events for Windows have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | Container ID |
+| `pod_uid` | Kubernetes pod UID |
+| `ecs_task_id` | ECS task ID |
+| `source` | Source of the container entry (event or procfs) |
 | `created_at` | Creation time of the container |
-| `variables` | Variables values |
+| `variables` | Variable values |
 
 | References |
 | ---------- |
@@ -588,7 +695,15 @@ Workload Protection events for Windows have the following JSON schema:
         },
         "variables": {
             "$ref": "#/$defs/Variables",
-            "description": "Variables values"
+            "description": "Variable values"
+        },
+        "rule_context": {
+            "$ref": "#/$defs/RuleContext",
+            "description": "RuleContext rule context"
+        },
+        "source": {
+            "type": "string",
+            "description": "Source of the event"
         }
     },
     "additionalProperties": false,
@@ -605,11 +720,14 @@ Workload Protection events for Windows have the following JSON schema:
 | `outcome` | Event outcome |
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
-| `variables` | Variables values |
+| `variables` | Variable values |
+| `rule_context` | RuleContext rule context |
+| `source` | Source of the event |
 
 | References |
 | ---------- |
 | [Variables](#variables) |
+| [RuleContext](#rulecontext) |
 
 ## `ExitEvent`
 
@@ -660,6 +778,10 @@ Workload Protection events for Windows have the following JSON schema:
         "name": {
             "type": "string",
             "description": "File basename"
+        },
+        "extension": {
+            "type": "string",
+            "description": "File extension"
         }
     },
     "additionalProperties": false,
@@ -674,6 +796,7 @@ Workload Protection events for Windows have the following JSON schema:
 | `path` | File path |
 | `device_path` | File device path |
 | `name` | File basename |
+| `extension` | File extension |
 
 
 ## `FileEvent`
@@ -694,6 +817,10 @@ Workload Protection events for Windows have the following JSON schema:
             "type": "string",
             "description": "File basename"
         },
+        "extension": {
+            "type": "string",
+            "description": "File extension"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -711,6 +838,7 @@ Workload Protection events for Windows have the following JSON schema:
 | `path` | File path |
 | `device_path` | File device path |
 | `name` | File basename |
+| `extension` | File extension |
 | `destination` | Target file information |
 
 | References |
@@ -763,6 +891,39 @@ Workload Protection events for Windows have the following JSON schema:
 | `policy_version` | Version of the policy that introduced the rule |
 
 
+## `MatchingSubExpr`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "offset": {
+            "type": "integer"
+        },
+        "length": {
+            "type": "integer"
+        },
+        "value": {
+            "type": "string"
+        },
+        "field": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "offset",
+        "length",
+        "value"
+    ],
+    "description": "MatchingSubExpr serializes matching sub expression to JSON"
+}
+
+{{< /code-block >}}
+
+
+
 ## `Process`
 
 
@@ -802,6 +963,10 @@ Workload Protection events for Windows have the following JSON schema:
         "user": {
             "type": "string",
             "description": "User name"
+        },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variable values"
         }
     },
     "additionalProperties": false,
@@ -821,11 +986,13 @@ Workload Protection events for Windows have the following JSON schema:
 | `container` | Container context |
 | `cmdline` | Command line arguments |
 | `user` | User name |
+| `variables` | Variable values |
 
 | References |
 | ---------- |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
+| [Variables](#variables) |
 
 ## `ProcessContext`
 
@@ -867,6 +1034,10 @@ Workload Protection events for Windows have the following JSON schema:
             "type": "string",
             "description": "User name"
         },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variable values"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -877,10 +1048,6 @@ Workload Protection events for Windows have the following JSON schema:
             },
             "type": "array",
             "description": "Ancestor processes"
-        },
-        "variables": {
-            "$ref": "#/$defs/Variables",
-            "description": "Variables values"
         },
         "truncated_ancestors": {
             "type": "boolean",
@@ -904,17 +1071,17 @@ Workload Protection events for Windows have the following JSON schema:
 | `container` | Container context |
 | `cmdline` | Command line arguments |
 | `user` | User name |
+| `variables` | Variable values |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
-| `variables` | Variables values |
 | `truncated_ancestors` | True if the ancestors list was truncated because it was too big |
 
 | References |
 | ---------- |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
-| [Process](#process) |
 | [Variables](#variables) |
+| [Process](#process) |
 
 ## `RegistryEvent`
 
@@ -947,6 +1114,31 @@ Workload Protection events for Windows have the following JSON schema:
 | `key_name` | Registry key name |
 | `key_path` | Registry key path |
 | `value_name` | Value name of the key value |
+
+
+## `RuleContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "matching_subexprs": {
+            "items": {
+                "$ref": "#/$defs/MatchingSubExpr"
+            },
+            "type": "array"
+        },
+        "expression": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "RuleContext serializes rule context to JSON"
+}
+
+{{< /code-block >}}
+
 
 
 ## `UserContext`

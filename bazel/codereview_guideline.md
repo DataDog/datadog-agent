@@ -19,10 +19,17 @@ any `deps` list that appears to include packages not directly imported by the ta
 No recursive globs: `glob(["**/*.ext"])` skips subdirectories containing BUILD files, defeats remote caching, and
 breaks incremental builds. Flag any `glob` with a `**` pattern. Instead, add a `BUILD.bazel` to each subdirectory.
 
+## Gazelle `# keep` directives
+
+Flag any new `# keep` that Gazelle would not override: on attributes Gazelle does not manage (`target_compatible_with`,
+`tags`, `data`, `env`, `gotags`, `linkmode`, ...), on non-rule statements, or on values identical to what Gazelle
+generates. A needed `# keep` should state its reason inline (`# keep: <reason>`).
+
 ## `print()` statements
 
 `print()` in `.bzl` files is for debugging only. Flag any committed `.bzl` file that contains a `print()` call not
-guarded by `if DEBUG:` with `DEBUG = False`.
+guarded by `if DEBUG:` with `DEBUG = False`, unless it denotes an actionable warning and the message starts with
+`WARNING: `.
 
 ## Depsets over list accumulation
 
@@ -52,8 +59,12 @@ runfiles library or `$(rlocationpath :target)` in `genrule`/test `args`.
 
 ## MODULE.bazel lock file
 
-`MODULE.bazel.lock` must be committed. Flag any PR that modifies any module extension (implementation or invocation)
-without a corresponding update to `MODULE.bazel.lock`.
+`MODULE.bazel.lock` must remain committed; never delete or `.gitignore` it. Do **not** flag a PR solely because
+it touches `MODULE.bazel` or a module extension without a lockfile diff — many edits leave the lock unchanged
+(comments, `use_repo` tidy, `register_toolchains`, reproducible extensions, non-resolution layout). CI enforces
+freshness via `bazel mod deps --lockfile_mode=refresh` + `git diff --exit-code` (not `--lockfile_mode=error`).
+Only flag if the lockfile is removed/ignored, or if resolved deps clearly changed (`bazel_dep` version, override,
+non-reproducible extension inputs) and the lock was left obviously stale without re-running `bazel mod deps`.
 
 ## No WORKSPACE patterns
 

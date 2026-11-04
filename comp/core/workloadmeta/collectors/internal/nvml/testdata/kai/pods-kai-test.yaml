@@ -1,0 +1,777 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: dfab2c37ecbf90c871d67073a8578db0d8415cb60549ac8cb8a502b3ac0c6caa
+      cni.projectcalico.org/podIP: 192.168.97.62/32
+      cni.projectcalico.org/podIPs: 192.168.97.62/32
+      gpu-fraction: '0.5'
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-a","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      nvidia.com/container.gpu-workload.gpu-memory.request: 7680Mi
+      pod-group-name: pg-frac-a-efc71a63-bdb9-4f0b-b95a-7309efddf661
+      received-resource-type: Fraction
+      runai/shared-gpu-configmap: frac-a-jb6btbp-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:09Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+      runai-gpu-group: c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8
+    name: frac-a
+    namespace: kai-test
+    resourceVersion: '18289'
+    uid: efc71a63-bdb9-4f0b-b95a-7309efddf661
+  spec:
+    containers:
+    - command:
+      - bash
+      - -c
+      - nvidia-smi -L; sleep infinity
+      env:
+      - name: NVIDIA_VISIBLE_DEVICES
+        valueFrom:
+          configMapKeyRef:
+            key: NVIDIA_VISIBLE_DEVICES
+            name: frac-a-jb6btbp-shared-gpu-0
+      - name: RUNAI_NUM_OF_GPUS
+        valueFrom:
+          configMapKeyRef:
+            key: RUNAI_NUM_OF_GPUS
+            name: frac-a-jb6btbp-shared-gpu-0
+      - name: GPU_PORTION
+        valueFrom:
+          configMapKeyRef:
+            key: GPU_PORTION
+            name: frac-a-jb6btbp-shared-gpu-0
+      envFrom:
+      - configMapRef:
+          name: frac-a-jb6btbp-shared-gpu-0-evar
+          optional: false
+      image: nvidia/cuda:13.0.2-base-ubi8
+      imagePullPolicy: IfNotPresent
+      name: gpu-workload
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-bs9l7
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    runtimeClassName: nvidia
+    schedulerName: kai-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - configMap:
+        defaultMode: 420
+        name: frac-a-jb6btbp-shared-gpu-0
+      name: frac-a-jb6btbp-shared-gpu-0-vol
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      message: Pod bound successfully to node ip-172-31-10-249
+      reason: Bound
+      status: 'True'
+      type: PodBound
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - containerID: containerd://7930c3c826687bc493b7be1962ed6c7d9c844b296b64ec9ab1c67877238f6966
+      image: docker.io/nvidia/cuda:13.0.2-base-ubi8
+      imageID: docker.io/nvidia/cuda@sha256:2de85260a4d34922be6f51d9b7ce6ddf600c4d29c157922ebde70b795b30914e
+      lastState: {}
+      name: gpu-workload
+      ready: true
+      resources: {}
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:18Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 0
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-bs9l7
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.62
+    podIPs:
+    - ip: 192.168.97.62
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:12Z'
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: 16e89e11a95e8c31d6c5ddb6760de10e95db9c9d26e47e24824261bd359273cb
+      cni.projectcalico.org/podIP: 192.168.97.63/32
+      cni.projectcalico.org/podIPs: 192.168.97.63/32
+      gpu-fraction: '0.5'
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-b","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      nvidia.com/container.gpu-workload.gpu-memory.request: 7680Mi
+      pod-group-name: pg-frac-b-f37a9009-010c-4c5b-8f9f-76df01891491
+      received-resource-type: Fraction
+      runai/shared-gpu-configmap: frac-b-fwh4zv2-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:09Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+      runai-gpu-group: c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8
+    name: frac-b
+    namespace: kai-test
+    resourceVersion: '18291'
+    uid: f37a9009-010c-4c5b-8f9f-76df01891491
+  spec:
+    containers:
+    - command:
+      - bash
+      - -c
+      - nvidia-smi -L; sleep infinity
+      env:
+      - name: NVIDIA_VISIBLE_DEVICES
+        valueFrom:
+          configMapKeyRef:
+            key: NVIDIA_VISIBLE_DEVICES
+            name: frac-b-fwh4zv2-shared-gpu-0
+      - name: RUNAI_NUM_OF_GPUS
+        valueFrom:
+          configMapKeyRef:
+            key: RUNAI_NUM_OF_GPUS
+            name: frac-b-fwh4zv2-shared-gpu-0
+      - name: GPU_PORTION
+        valueFrom:
+          configMapKeyRef:
+            key: GPU_PORTION
+            name: frac-b-fwh4zv2-shared-gpu-0
+      envFrom:
+      - configMapRef:
+          name: frac-b-fwh4zv2-shared-gpu-0-evar
+          optional: false
+      image: nvidia/cuda:13.0.2-base-ubi8
+      imagePullPolicy: IfNotPresent
+      name: gpu-workload
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-p5pbh
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    runtimeClassName: nvidia
+    schedulerName: kai-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - configMap:
+        defaultMode: 420
+        name: frac-b-fwh4zv2-shared-gpu-0
+      name: frac-b-fwh4zv2-shared-gpu-0-vol
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      message: Pod bound successfully to node ip-172-31-10-249
+      reason: Bound
+      status: 'True'
+      type: PodBound
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - containerID: containerd://77cbe2aa8f24d34a2bea99e09d961a279c34ebf74b7568a8a823eebb55417c00
+      image: docker.io/nvidia/cuda:13.0.2-base-ubi8
+      imageID: docker.io/nvidia/cuda@sha256:2de85260a4d34922be6f51d9b7ce6ddf600c4d29c157922ebde70b795b30914e
+      lastState: {}
+      name: gpu-workload
+      ready: true
+      resources: {}
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:18Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 0
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-p5pbh
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.63
+    podIPs:
+    - ip: 192.168.97.63
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:12Z'
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: a20ec62b47062ac1ef8852360e64bce5c1991b196df958efcb25d0550e2d96af
+      cni.projectcalico.org/podIP: 192.168.97.20/32
+      cni.projectcalico.org/podIPs: 192.168.97.20/32
+      gpu-fraction: '0.7'
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.7"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-c","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      nvidia.com/container.gpu-workload.gpu-memory.request: 10752Mi
+      pod-group-name: pg-frac-c-4eddcbec-8852-40ec-aad6-a9a98454ac83
+      received-resource-type: Fraction
+      runai/shared-gpu-configmap: frac-c-xqjzwv7-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:09Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+      runai-gpu-group: 0350dd42-d924-4f06-b897-3be2da6998e1
+    name: frac-c
+    namespace: kai-test
+    resourceVersion: '18292'
+    uid: 4eddcbec-8852-40ec-aad6-a9a98454ac83
+  spec:
+    containers:
+    - command:
+      - bash
+      - -c
+      - nvidia-smi -L; sleep infinity
+      env:
+      - name: NVIDIA_VISIBLE_DEVICES
+        valueFrom:
+          configMapKeyRef:
+            key: NVIDIA_VISIBLE_DEVICES
+            name: frac-c-xqjzwv7-shared-gpu-0
+      - name: RUNAI_NUM_OF_GPUS
+        valueFrom:
+          configMapKeyRef:
+            key: RUNAI_NUM_OF_GPUS
+            name: frac-c-xqjzwv7-shared-gpu-0
+      - name: GPU_PORTION
+        valueFrom:
+          configMapKeyRef:
+            key: GPU_PORTION
+            name: frac-c-xqjzwv7-shared-gpu-0
+      envFrom:
+      - configMapRef:
+          name: frac-c-xqjzwv7-shared-gpu-0-evar
+          optional: false
+      image: nvidia/cuda:13.0.2-base-ubi8
+      imagePullPolicy: IfNotPresent
+      name: gpu-workload
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-bk5ck
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    runtimeClassName: nvidia
+    schedulerName: kai-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - configMap:
+        defaultMode: 420
+        name: frac-c-xqjzwv7-shared-gpu-0
+      name: frac-c-xqjzwv7-shared-gpu-0-vol
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      message: Pod bound successfully to node ip-172-31-10-249
+      reason: Bound
+      status: 'True'
+      type: PodBound
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - containerID: containerd://cbfd52b8759bb4ca5fe2bf1d5903ed1511aa6d76a424da04fd422d2d6fb876b1
+      image: docker.io/nvidia/cuda:13.0.2-base-ubi8
+      imageID: docker.io/nvidia/cuda@sha256:2de85260a4d34922be6f51d9b7ce6ddf600c4d29c157922ebde70b795b30914e
+      lastState: {}
+      name: gpu-workload
+      ready: true
+      resources: {}
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:18Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 0
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-bk5ck
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.20
+    podIPs:
+    - ip: 192.168.97.20
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:13Z'
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: 78f197ccaac22cd151e84aa6f29b1a61ce8b73cace608770d9a5f23b69f62307
+      cni.projectcalico.org/podIP: 192.168.97.1/32
+      cni.projectcalico.org/podIPs: 192.168.97.1/32
+      gpu-fraction: '0.5'
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-cuda","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","while
+        true; do /usr/local/bin/cuda-basic 2000000 10000000 0; done"],"image":"ghcr.io/datadog/apps-cuda-basic:main","name":"gpu-workload"}],"restartPolicy":"Always","schedulerName":"kai-scheduler"}}
+
+        '
+      nvidia.com/container.gpu-workload.gpu-memory.request: 7680Mi
+      pod-group-name: pg-frac-cuda-8dc5dc63-8264-449a-9264-8954b267391d
+      received-resource-type: Fraction
+      runai/shared-gpu-configmap: frac-cuda-z658g79-shared-gpu
+    creationTimestamp: '2026-10-14T15:02:26Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+      runai-gpu-group: 4c5ff560-a6ca-4f10-820c-e183cad56ea2
+    name: frac-cuda
+    namespace: kai-test
+    resourceVersion: '20345'
+    uid: 8dc5dc63-8264-449a-9264-8954b267391d
+  spec:
+    containers:
+    - command:
+      - bash
+      - -c
+      - while true; do /usr/local/bin/cuda-basic 2000000 10000000 0; done
+      env:
+      - name: NVIDIA_VISIBLE_DEVICES
+        valueFrom:
+          configMapKeyRef:
+            key: NVIDIA_VISIBLE_DEVICES
+            name: frac-cuda-z658g79-shared-gpu-0
+      - name: RUNAI_NUM_OF_GPUS
+        valueFrom:
+          configMapKeyRef:
+            key: RUNAI_NUM_OF_GPUS
+            name: frac-cuda-z658g79-shared-gpu-0
+      - name: GPU_PORTION
+        valueFrom:
+          configMapKeyRef:
+            key: GPU_PORTION
+            name: frac-cuda-z658g79-shared-gpu-0
+      envFrom:
+      - configMapRef:
+          name: frac-cuda-z658g79-shared-gpu-0-evar
+          optional: false
+      image: ghcr.io/datadog/apps-cuda-basic:main
+      imagePullPolicy: IfNotPresent
+      name: gpu-workload
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-g2x6h
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    runtimeClassName: nvidia
+    schedulerName: kai-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - configMap:
+        defaultMode: 420
+        name: frac-cuda-z658g79-shared-gpu-0
+      name: frac-cuda-z658g79-shared-gpu-0-vol
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T15:02:27Z'
+      message: Pod bound successfully to node ip-172-31-10-249
+      reason: Bound
+      status: 'True'
+      type: PodBound
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T15:02:29Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T15:02:27Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T15:02:29Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T15:02:29Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T15:02:27Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - containerID: containerd://93761f780d454703f3f1d5b4260a2ea48d50bc6e1bb3d8a1576b2f5bc12de2b5
+      image: ghcr.io/datadog/apps-cuda-basic:main
+      imageID: ghcr.io/datadog/apps-cuda-basic@sha256:841f0bd54ad4ebfc1ff2456782968fefba0eac4cd99eb8837bd665dda4f7b9e5
+      lastState: {}
+      name: gpu-workload
+      ready: true
+      resources: {}
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T15:02:28Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 0
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-g2x6h
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.1
+    podIPs:
+    - ip: 192.168.97.1
+    qosClass: BestEffort
+    startTime: '2026-10-14T15:02:27Z'
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: dec1917770add8bf863524694adda755a9621ed2e4b3c94b7ff6188ae3d79e59
+      cni.projectcalico.org/podIP: 192.168.97.25/32
+      cni.projectcalico.org/podIPs: 192.168.97.25/32
+      gpu-fraction: '0.5'
+      gpu-fraction-num-devices: '2'
+      kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{"gpu-fraction":"0.5","gpu-fraction-num-devices":"2"},"labels":{"kai.scheduler/queue":"default-queue"},"name":"frac-multi","namespace":"kai-test"},"spec":{"containers":[{"command":["bash","-c","nvidia-smi
+        -L; sleep infinity"],"image":"nvidia/cuda:13.0.2-base-ubi8","name":"gpu-workload"}],"schedulerName":"kai-scheduler"}}
+
+        '
+      nvidia.com/container.gpu-workload.gpu-memory.request: 7680Mi
+      pod-group-name: pg-frac-multi-0d8f15f1-5dd6-45ee-90e2-17d3e0c2e310
+      received-resource-type: Fraction
+      runai/shared-gpu-configmap: frac-multi-76m6zln-shared-gpu
+    creationTimestamp: '2026-10-14T14:49:09Z'
+    generation: 1
+    labels:
+      kai.scheduler/queue: default-queue
+      runai-gpu-group/0247250f-e9cb-4445-8a61-23ffd7e6fd53: 0247250f-e9cb-4445-8a61-23ffd7e6fd53
+      runai-gpu-group/4c5ff560-a6ca-4f10-820c-e183cad56ea2: 4c5ff560-a6ca-4f10-820c-e183cad56ea2
+    name: frac-multi
+    namespace: kai-test
+    resourceVersion: '18290'
+    uid: 0d8f15f1-5dd6-45ee-90e2-17d3e0c2e310
+  spec:
+    containers:
+    - command:
+      - bash
+      - -c
+      - nvidia-smi -L; sleep infinity
+      env:
+      - name: NVIDIA_VISIBLE_DEVICES
+        valueFrom:
+          configMapKeyRef:
+            key: NVIDIA_VISIBLE_DEVICES
+            name: frac-multi-76m6zln-shared-gpu-0
+      - name: RUNAI_NUM_OF_GPUS
+        valueFrom:
+          configMapKeyRef:
+            key: RUNAI_NUM_OF_GPUS
+            name: frac-multi-76m6zln-shared-gpu-0
+      - name: GPU_PORTION
+        valueFrom:
+          configMapKeyRef:
+            key: GPU_PORTION
+            name: frac-multi-76m6zln-shared-gpu-0
+      envFrom:
+      - configMapRef:
+          name: frac-multi-76m6zln-shared-gpu-0-evar
+          optional: false
+      image: nvidia/cuda:13.0.2-base-ubi8
+      imagePullPolicy: IfNotPresent
+      name: gpu-workload
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-4vs96
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    runtimeClassName: nvidia
+    schedulerName: kai-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - configMap:
+        defaultMode: 420
+        name: frac-multi-76m6zln-shared-gpu-0
+      name: frac-multi-76m6zln-shared-gpu-0-vol
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      message: Pod bound successfully to node ip-172-31-10-249
+      reason: Bound
+      status: 'True'
+      type: PodBound
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:19Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - containerID: containerd://54be7ceeb2b9ecbfa49e8e8132121e10e7f40d3003c0ce83c7d5382b8d6279a4
+      image: docker.io/nvidia/cuda:13.0.2-base-ubi8
+      imageID: docker.io/nvidia/cuda@sha256:2de85260a4d34922be6f51d9b7ce6ddf600c4d29c157922ebde70b795b30914e
+      lastState: {}
+      name: gpu-workload
+      ready: true
+      resources: {}
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:18Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 0
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-4vs96
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.25
+    podIPs:
+    - ip: 192.168.97.25
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:13Z'
+kind: List
+metadata:
+  resourceVersion: ''

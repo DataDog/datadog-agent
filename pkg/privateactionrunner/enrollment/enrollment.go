@@ -11,15 +11,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -117,7 +113,7 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, par.APIBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -155,22 +151,14 @@ func SelfEnroll(
 	}, nil
 }
 
-func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
-	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
-		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/")
-	}
-	return "https://api." + ddSite
-}
-
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
-	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
-	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	ddSite := par.Site(cfg)
 	if ddSite == "" {
 		ddSite = "datadoghq.com"
 	}
 	apiKey := cfg.GetString("api_key")
-	extraHeaders := cfg.GetStringMapString(setup.PAROpmsExtraHeaders)
+	extraHeaders := cfg.GetStringMapString(par.OPMSExtraHeaders)
 
 	runnerNamePrefix := agentIdentifier.Hostname
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -181,7 +169,7 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 		}
 	}
 
-	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
+	if cfg.GetBool(par.APIKeyOnlyEnrollment) {
 		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
 	}
 	appKey := cfg.GetString("app_key")
@@ -209,7 +197,7 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, par.APIBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 

@@ -105,7 +105,7 @@ func TestDNSResponse(t *testing.T) {
 			test.validateDNSSchema(t, event)
 		}, "dns_response_ok")
 	})
-	test.Close()
+	test.CloseTest()
 
 	test, err = newTestModule(t, nil, ruleDefsResponseIPOnly)
 	if err != nil {
@@ -130,7 +130,7 @@ func TestDNSResponse(t *testing.T) {
 			test.validateDNSSchema(t, event)
 		}, "dns_response_ip_only")
 	})
-	test.Close()
+	test.CloseTest()
 
 	test, err = newTestModule(t, nil, ruleDefsRcodeNXDomain)
 
@@ -153,7 +153,7 @@ func TestDNSResponse(t *testing.T) {
 			test.validateDNSSchema(t, event)
 		}, "dns_response_nok")
 	})
-	test.Close()
+	test.CloseTest()
 }
 
 var _ = declare(TestDNSResponseDiscarder, testOpts{
@@ -180,7 +180,7 @@ func TestDNSResponseDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	defer justBind().Close()
 
 	t.Run("noerror-packet-is-discarded", func(_ *testing.T) {

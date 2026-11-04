@@ -10,6 +10,8 @@
 package {{.Name}}
 
 import (
+	"unsafe"
+
 	{{if has "go:build unix" .BuildTags}}
 	"net"
 
@@ -25,6 +27,59 @@ import (
 {{$FieldsTree := .FieldTree}}
 {{$GeneratedFunctions := dict}}
 
+// deepCopyType identifies the type of a pointer, slice or map. It is part of deepCopyKey because a struct
+// and its first field share the same address.
+type deepCopyType int
+
+// deepCopyKey identifies a pointer, slice or map of the original.
+type deepCopyKey struct {
+	ptr unsafe.Pointer
+	len int
+	typ deepCopyType
+}
+
+// deepCopyContext maps the pointers, slices and maps of the original to the memory of their copy, so that
+// the ones sharing memory in the original share it in the copy too.
+type deepCopyContext map[deepCopyKey]unsafe.Pointer
+
+func pointerKey[T any](p *T, typ deepCopyType) deepCopyKey {
+	return deepCopyKey{unsafe.Pointer(p), 0, typ}
+}
+
+func sliceKey[T any](s []T, typ deepCopyType) deepCopyKey {
+	return deepCopyKey{unsafe.Pointer(unsafe.SliceData(s)), len(s), typ}
+}
+
+func mapKey[V any](m map[string]V, typ deepCopyType) deepCopyKey {
+	return deepCopyKey{mapPointer(m), 0, typ}
+}
+
+func mapPointer[V any](m map[string]V) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&m))
+}
+
+func mapFromPointer[V any](p unsafe.Pointer) map[string]V {
+	return *(*map[string]V)(unsafe.Pointer(&p))
+}
+{{if has "go:build unix" .BuildTags}}
+func deepCopyIPNet(fieldToCopy net.IPNet, c deepCopyContext) net.IPNet {
+	return net.IPNet{IP: deepCopyIPBytes(fieldToCopy.IP, c), Mask: deepCopyIPBytes(fieldToCopy.Mask, c)}
+}
+
+func deepCopyIPBytes(fieldToCopy []byte, c deepCopyContext) []byte {
+	if fieldToCopy == nil {
+		return nil
+	}
+	key := sliceKey(fieldToCopy, deepCopyIPBytesType)
+	if copied, ok := c[key]; ok {
+		return unsafe.Slice((*byte)(copied), len(fieldToCopy))
+	}
+	copied := make([]byte, len(fieldToCopy))
+	copy(copied, fieldToCopy)
+	c[key] = unsafe.Pointer(unsafe.SliceData(copied))
+	return copied
+}
+{{end}}
 // DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
 func (e *Event) DeepCopy() *Event {
 	if e == nil {
@@ -32,12 +87,18 @@ func (e *Event) DeepCopy() *Event {
 	}
 
 	copied := &Event{}
+	c := make(deepCopyContext, 32)
+	{{- range PointedValues $FieldsTree}}
+	c[pointerKey(&e.{{.Path}}, deepCopy{{.PtrKey}}Type)] = unsafe.Pointer(&copied.{{.Path}})
+	{{- end}}
 
 	{{- range $FieldsTree.Children}}
 	{{- if .Field}}
 	{{- /* Fixed-size arrays are value types, copy by assignment; slices and maps always need functions; scalars can be direct assigned */}}
 	{{- if and .Field.IsArray .Field.IsFixedArray}}
 	copied.{{.Field.Name}} = e.{{.Field.Name}}
+	{{- else if and (eq .Field.OrigType "net.IPNet") (not .Field.IsArray) (not .Field.IsMap)}}
+	copied.{{.Field.Name}} = deepCopyIPNet(e.{{.Field.Name}}, c)
 	{{- else if and .Field.IsBasic (not .Field.IsArray) (not .Field.IsMap)}}
 	copied.{{.Field.Name}} = e.{{.Field.Name}}
 	{{- else}}
@@ -60,7 +121,7 @@ func (e *Event) DeepCopy() *Event {
 	{{- end}}
 	{{- $mapSuffix := ""}}
 	{{- if .Field.IsMap}}{{$mapSuffix = "Map"}}{{end}}
-	copied.{{.Field.Name}} = deepCopy{{$baseName}}{{$ptrSuffix}}{{$arrSuffix}}{{$mapSuffix}}(e.{{.Field.Name}})
+	copied.{{.Field.Name}} = deepCopy{{$baseName}}{{$ptrSuffix}}{{$arrSuffix}}{{$mapSuffix}}(e.{{.Field.Name}}, c)
 	{{- end}}
 	{{- end}}
 	{{- end}}
@@ -102,7 +163,8 @@ func (e *Event) DeepCopy() *Event {
 
 		{{- /* Only generate if not already generated */ -}}
 		{{- if not (hasKey $generated $key)}}
-		{{- $_ := set $generated $key true}}
+		{{- $strategy := GetFieldCopyStrategy $node.Field}}
+		{{- $_ := set $generated $key $strategy}}
 
 		{{- /* Build function name */ -}}
 		{{- $funcName := printf "deepCopy%s" $baseName}}
@@ -124,14 +186,21 @@ func (e *Event) DeepCopy() *Event {
 		{{- if $isPtr}}{{$typePrefix = printf "%s*" $typePrefix}}{{end}}
 		{{- $fullType := printf "%s%s" $typePrefix $node.Field.OrigType}}
 
-func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
-		{{- $strategy := GetFieldCopyStrategy $node.Field}}
+func {{$funcName}}(fieldToCopy {{$fullType}}, c deepCopyContext) {{$fullType}} {
 
 		{{- if eq $strategy "pointer"}}
 	if fieldToCopy == nil {
 		return nil
 	}
+	key := pointerKey(fieldToCopy, deepCopy{{$key}}Type)
+	if copied, ok := c[key]; ok {
+		return (*{{$node.Field.OrigType}})(copied)
+	}
 	copied := &{{$node.Field.OrigType}}{}
+	c[key] = unsafe.Pointer(copied)
+			{{- range PointedValues $node}}
+	c[pointerKey(&fieldToCopy.{{.Path}}, deepCopy{{.PtrKey}}Type)] = unsafe.Pointer(&copied.{{.Path}})
+			{{- end}}
 			{{- range $node.Children}}
 			{{- $childBaseName := BaseName .Field.OrigType}}
 			{{- /* For arrays/maps, check element/value properties; otherwise check field properties */}}
@@ -155,10 +224,12 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- /* Fixed-size arrays are value types, copy by assignment; slices and maps always need functions; scalars can be direct assigned */}}
 			{{- if and .Field.IsArray .Field.IsFixedArray}}
 	copied.{{.Name}} = fieldToCopy.{{.Name}}
+			{{- else if and (eq .Field.OrigType "net.IPNet") (not .Field.IsArray) (not .Field.IsMap)}}
+	copied.{{.Name}} = deepCopyIPNet(fieldToCopy.{{.Name}}, c)
 			{{- else if and .Field.IsBasic (not .Field.IsArray) (not .Field.IsMap)}}
 	copied.{{.Name}} = fieldToCopy.{{.Name}}
 			{{- else}}
-	copied.{{.Name}} = deepCopy{{$childBaseName}}{{$childPtrSuffix}}{{$childArrSuffix}}{{$childMapSuffix}}(fieldToCopy.{{.Name}})
+	copied.{{.Name}} = deepCopy{{$childBaseName}}{{$childPtrSuffix}}{{$childArrSuffix}}{{$childMapSuffix}}(fieldToCopy.{{.Name}}, c)
 			{{- end}}
 			{{- end}}
 	return copied
@@ -169,12 +240,15 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 	}
 			{{- $elemTypePrefix := ""}}
 			{{- if $isPtr}}{{$elemTypePrefix = "*"}}{{end}}
+	key := sliceKey(fieldToCopy, deepCopy{{$key}}Type)
+	if copied, ok := c[key]; ok {
+		return unsafe.Slice((*{{$elemTypePrefix}}{{$node.Field.OrigType}})(copied), len(fieldToCopy))
+	}
 	copied := make([]{{$elemTypePrefix}}{{$node.Field.OrigType}}, len(fieldToCopy))
+	c[key] = unsafe.Pointer(unsafe.SliceData(copied))
 			{{- if and $node.Field.IsBasic (eq $node.Field.OrigType "net.IPNet")}}
 	for i := range fieldToCopy {
-		copied[i] = fieldToCopy[i]
-		copied[i].IP = append(net.IP(nil), fieldToCopy[i].IP...)
-		copied[i].Mask = append(net.IPMask(nil), fieldToCopy[i].Mask...)
+		copied[i] = deepCopyIPNet(fieldToCopy[i], c)
 	}
 			{{- else if $node.Field.IsBasic}}
 	for i := range fieldToCopy {
@@ -184,7 +258,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- $elemCopyFunc := printf "deepCopy%s" $baseName}}
 			{{- if $isPtr}}{{$elemCopyFunc = printf "%sPtr" $elemCopyFunc}}{{end}}
 	for i := range fieldToCopy {
-		copied[i] = {{$elemCopyFunc}}(fieldToCopy[i])
+		copied[i] = {{$elemCopyFunc}}(fieldToCopy[i], c)
 	}
 			{{- end}}
 	return copied
@@ -198,8 +272,13 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- $isValueArray := false}}
 			{{- if $node.Field.MapValue}}{{$isValueArray = $node.Field.MapValue.IsArray}}{{end}}
 			{{- if $isValueArray}}{{$valueTypePrefix = printf "%s[]" $valueTypePrefix}}{{end}}
+	key := mapKey(fieldToCopy, deepCopy{{$key}}Type)
+	if copied, ok := c[key]; ok {
+		return mapFromPointer[{{$valueTypePrefix}}{{$node.Field.OrigType}}](copied)
+	}
 	copied := make(map[string]{{$valueTypePrefix}}{{$node.Field.OrigType}}, len(fieldToCopy))
-			{{- if $node.Field.IsBasic}}
+	c[key] = mapPointer(copied)
+			{{- if and $node.Field.IsBasic (not $isValueArray)}}
 	for k, v := range fieldToCopy {
 		copied[k] = v
 	}
@@ -208,7 +287,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- if $isPtr}}{{$valueCopyFunc = printf "%sPtr" $valueCopyFunc}}{{end}}
 			{{- if $isValueArray}}{{$valueCopyFunc = printf "%sArr" $valueCopyFunc}}{{end}}
 	for k, v := range fieldToCopy {
-		copied[k] = {{$valueCopyFunc}}(v)
+		copied[k] = {{$valueCopyFunc}}(v, c)
 	}
 			{{- end}}
 	return copied
@@ -247,10 +326,12 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- /* Fixed-size arrays are value types, copy by assignment; slices and maps always need functions; scalars can be direct assigned */}}
 			{{- if and .Field.IsArray .Field.IsFixedArray}}
 	copied.{{.Name}} = fieldToCopy.{{.Name}}
+			{{- else if and (eq .Field.OrigType "net.IPNet") (not .Field.IsArray) (not .Field.IsMap)}}
+	copied.{{.Name}} = deepCopyIPNet(fieldToCopy.{{.Name}}, c)
 			{{- else if and .Field.IsBasic (not .Field.IsArray) (not .Field.IsMap)}}
 	copied.{{.Name}} = fieldToCopy.{{.Name}}
 			{{- else}}
-	copied.{{.Name}} = deepCopy{{$childBaseName}}{{$childPtrSuffix}}{{$childArrSuffix}}{{$childMapSuffix}}(fieldToCopy.{{.Name}})
+	copied.{{.Name}} = deepCopy{{$childBaseName}}{{$childPtrSuffix}}{{$childArrSuffix}}{{$childMapSuffix}}(fieldToCopy.{{.Name}}, c)
 			{{- end}}
 			{{- end}}
 	return copied
@@ -282,3 +363,15 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 {{- end}}
 
 {{template "generateDeepCopyFunctions" (dict "Node" $FieldsTree "Generated" $GeneratedFunctions)}}
+
+const (
+	_ deepCopyType = iota
+{{- range $key, $strategy := $GeneratedFunctions}}
+{{- if or (eq $strategy "pointer") (eq $strategy "array") (eq $strategy "map")}}
+	deepCopy{{$key}}Type
+{{- end}}
+{{- end}}
+{{- if has "go:build unix" $.BuildTags}}
+	deepCopyIPBytesType
+{{- end}}
+)

@@ -24,10 +24,8 @@ import (
 type connectionState struct {
 	tcpState connStatus
 
-	// hasSentPacket is whether anything has been sent outgoing (aka whether maxSeqSent exists)
-	hasSentPacket bool
-	// maxSeqSent is the latest outgoing tcp.Seq if hasSentPacket==true
-	maxSeqSent uint32
+	// sentSeq tracks the latest outgoing sequence number
+	sentSeq SentSeqTracker
 
 	// hasLocalAck is whether there have been outgoing ACK's
 	hasLocalAck bool
@@ -113,8 +111,8 @@ func updateConnStatsForClose(conn *network.ConnectionStats) {
 	conn.Duration = time.Duration(nowNs - int64(conn.Duration))
 }
 
-// calcNextSeq returns the seq "after" this segment, aka, what the ACK will be once this segment is received
-func calcNextSeq(tcp *layers.TCP, payloadLen uint16) uint32 {
+// CalcNextSeq returns the seq "after" this segment, aka, what the ACK will be once this segment is received
+func CalcNextSeq(tcp *layers.TCP, payloadLen uint16) uint32 {
 	nextSeq := tcp.Seq + uint32(payloadLen)
 	if tcp.SYN || tcp.FIN {
 		nextSeq++
@@ -176,37 +174,30 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 // updateTCPStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
 // https://github.com/DataDog/datadog-windows-filter/blob/d7560d83eb627117521d631a4c05cd654a01987e/ddfilter/flow/flow_tcp.c#L91
 func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16, timestampNs uint64) {
-	nextSeq := calcNextSeq(tcp, payloadLen)
+	nextSeq := CalcNextSeq(tcp, payloadLen)
 
 	st.lastUpdateEpoch = timestampNs
 	if pktType == filter.PacketOutgoing {
 		conn.Monotonic.SentPackets++
-		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
-		packetCanRetransmit := nextSeq != tcp.Seq
-		if !st.hasSentPacket || isSeqBefore(st.maxSeqSent, nextSeq) {
+		advanced, overlap, retransmit := st.sentSeq.Observe(tcp.Seq, nextSeq)
+		if advanced {
 			// Count only genuinely new data bytes. If the segment partially
 			// overlaps with previously-counted data (a retransmit that extends
 			// beyond our high-water mark), subtract the overlap. We compute
 			// from payloadLen rather than nextSeq because nextSeq includes
 			// virtual bytes for SYN/FIN flags that aren't real data.
-			var overlap uint64
-			if st.hasSentPacket && isSeqBefore(tcp.Seq, st.maxSeqSent) {
-				overlap = uint64(st.maxSeqSent - tcp.Seq)
+			if uint64(payloadLen) > uint64(overlap) {
+				conn.Monotonic.SentBytes += uint64(payloadLen) - uint64(overlap)
 			}
-			if uint64(payloadLen) > overlap {
-				conn.Monotonic.SentBytes += uint64(payloadLen) - overlap
-			}
-			st.hasSentPacket = true
-			st.maxSeqSent = nextSeq
 
 			st.rttTracker.processOutgoing(timestampNs, nextSeq)
-		} else if packetCanRetransmit {
+		} else if retransmit {
 			conn.Monotonic.Retransmits++
 
 			st.rttTracker.clearTrip()
 		}
 
-		ackOutdated := !st.hasLocalAck || isSeqBefore(st.lastLocalAck, tcp.Ack)
+		ackOutdated := !st.hasLocalAck || IsSeqBefore(st.lastLocalAck, tcp.Ack)
 		if tcp.ACK && ackOutdated {
 			// wait until data comes in via synStateAcked
 			if st.hasLocalAck && st.remoteSynState.isSynAcked() {
@@ -225,7 +216,7 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 	} else {
 		conn.Monotonic.RecvPackets++
 
-		ackOutdated := !st.hasRemoteAck || isSeqBefore(st.lastRemoteAck, tcp.Ack)
+		ackOutdated := !st.hasRemoteAck || IsSeqBefore(st.lastRemoteAck, tcp.Ack)
 		if tcp.ACK && ackOutdated {
 			st.hasRemoteAck = true
 			st.lastRemoteAck = tcp.Ack
@@ -240,7 +231,7 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 }
 
 func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
-	nextSeq := calcNextSeq(tcp, payloadLen)
+	nextSeq := CalcNextSeq(tcp, payloadLen)
 	// update FIN sequence numbers
 	if tcp.FIN {
 		if pktType == filter.PacketOutgoing {

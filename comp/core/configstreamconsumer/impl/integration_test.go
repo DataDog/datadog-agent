@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -619,6 +620,314 @@ remote_agent:
 				SequenceId: 1,
 				Settings: []*pb.ConfigSetting{
 					{Key: "test.key", Value: mustNewValue(t, "from-file"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+// overrideTestConfig overrides the config for the test, cleaning up when done.
+func overrideTestConfig(t *testing.T, dir, addr string) string {
+	t.Helper()
+	host, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	datadogYaml := fmt.Sprintf(`
+cmd_host: %s
+cmd_port: %s
+auth_token_file_path: %s
+ipc_cert_file_path: %s
+remote_agent:
+  registry:
+    enabled: true
+  configstream:
+    consumer:
+      enabled: true
+`, host, port,
+		filepath.Join(dir, "auth_token"),
+		filepath.Join(dir, "ipc_cert.pem"),
+	)
+	datadogPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+
+	t.Cleanup(func() {
+		cfg := configstreambootstrap.Config()
+		cfg.UnsetForSource("log_level", model.SourceAgentRuntime)
+		cfg.UnsetForSource("log_level", model.SourceFile)
+		cfg.UnsetForSource("security_agent.log_level", model.SourceFile)
+		cfg.UnsetForSource("apm_config.log_level", model.SourceFile)
+		cfg.UnsetForSource("system_probe.log_level", model.SourceFile)
+	})
+	return datadogPath
+}
+
+func TestSecurityAgentLogLevelOverridesBaseKey(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		cfg := configstreambootstrap.Config()
+		// Synchronous by contract: readiness is signalled only after the remap has run.
+		require.Equal(t, "debug", cfg.Get("log_level"))
+		require.Equal(t, model.SourceAgentRuntime, cfg.GetSource("log_level"))
+
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 2,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("log_level") == "info"
+		}, 10*time.Second, 20*time.Millisecond, "the override outlived the namespaced key that produced it")
+		require.Equal(t, model.SourceFile, cfg.GetSource("log_level"))
+
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 3,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
+						{Key: "security_agent.log_level", Value: mustNewValue(t, ""), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("log_level") == "warn"
+		}, 10*time.Second, 20*time.Millisecond, "the base value never took effect")
+		require.Equal(t, model.SourceFile, cfg.GetSource("log_level"), "an empty namespaced value must not override")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "security_agent.log_level", Value: mustNewValue(t, "debug"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+func TestSystemProbeLogLevelYieldsToStreamedRC(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+	t.Cleanup(func() {
+		configstreambootstrap.SystemProbeConfig().UnsetForSource("log_level", model.SourceAgentRuntime)
+	})
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("system-probe", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		sysProbe := configstreambootstrap.SystemProbeConfig()
+		require.Equal(t, "warn", sysProbe.Get("log_level"))
+		require.Equal(t, model.SourceAgentRuntime, sysProbe.GetSource("log_level"))
+		require.NotEqual(t, "warn", configstreambootstrap.Config().Get("log_level"), "the core object must not carry the system-probe override")
+
+		// An RC/CLI log_level outranks the namespaced override, which only sits at SourceAgentRuntime.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 2,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "debug"), Source: string(model.SourceRC)},
+						{Key: "system_probe.log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return sysProbe.Get("log_level") == "debug"
+		}, 10*time.Second, 20*time.Millisecond, "the namespaced override outranked a streamed RC value")
+
+		// Retracting the RC layer hands the level back to the namespaced override.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 3,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+						{Key: "system_probe.log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return sysProbe.Get("log_level") == "warn"
+		}, 10*time.Second, 20*time.Millisecond, "the override never came back after the RC layer was retracted")
+
+		// With no namespaced value the streamed global is copied across instead.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 4,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+						{Key: "system_probe.log_level", Value: mustNewValue(t, ""), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return sysProbe.Get("log_level") == "info"
+		}, 10*time.Second, 20*time.Millisecond, "the streamed global never reached the system-probe object")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "system_probe.log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+func TestLogLevelOverrideIsPerClient(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		cfg := configstreambootstrap.Config()
+		require.Equal(t, "trace", cfg.Get("log_level"))
+		require.Equal(t, model.SourceAgentRuntime, cfg.GetSource("log_level"))
+		require.Equal(t, "error", cfg.Get("security_agent.log_level"), "another agent's key must be left untouched")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "apm_config.log_level", Value: mustNewValue(t, "trace"), Source: string(model.SourceFile)},
+					{Key: "security_agent.log_level", Value: mustNewValue(t, "error"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+func TestLocalEnvVarsAreReportedOnceStreamingStarts(t *testing.T) {
+	t.Setenv("DD_LOG_LEVEL", "debug")
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	configstreambootstrap.ResetGlobalConfig(t)
+	configstreambootstrap.UseDynamicSchema(t)
+
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		// The report trails readiness, so it may land just after OneShot hands control back.
+		require.Eventually(t, func() bool {
+			return slices.Contains(configstreambootstrap.LastIgnoredEnvVarReport(), "site (DD_SITE)")
+		}, 10*time.Second, 20*time.Millisecond, "a setting set by a local env var must be reported")
+		require.Contains(t, configstreambootstrap.LastIgnoredEnvVarReport(), "log_level (DD_LOG_LEVEL)",
+			"setting a consumer's config from its own env is reported even where the stream happens to agree")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "security_agent.log_level", Value: mustNewValue(t, "debug"), Source: string(model.SourceFile)},
 				},
 			},
 		},

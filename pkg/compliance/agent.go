@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/shirou/gopsutil/v4/process"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -34,6 +35,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -61,6 +63,12 @@ type AgentOptions struct {
 	// ResolverOptions is the options passed to the constructed resolvers
 	// internally. See resolver.go.
 	ResolverOptions
+
+	// HostCCRID is the Canonical Cloud Resource ID of the host running the
+	// agent. Resolving it requires querying the cloud provider metadata
+	// endpoints, so it is fetched only once at startup — see FetchHostCCRID —
+	// and stamped on every event and resource log the agent reports.
+	HostCCRID string
 
 	// ConfigDir is the directory in which benchmarks files and assets are
 	// defined.
@@ -322,9 +330,10 @@ func (a *Agent) Stop() {
 	a.cancel()
 	select {
 	case <-time.After(20 * time.Second):
+		log.Warnf("compliance agent: checks still running after 20s, not stopping reporter")
 	case <-a.finish:
+		a.opts.Reporter.Stop()
 	}
-	a.opts.Reporter.Stop()
 	log.Infof("compliance agent shut down")
 }
 
@@ -400,30 +409,49 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 
 	checkInterval := a.opts.CheckIntervalLowPriority
 	runTicker := time.NewTicker(checkInterval)
-	throttler := time.NewTicker(defaultEvalThrottling)
 	defer runTicker.Stop()
-	defer throttler.Stop()
 
 	log.Debugf("will be executing %d XCCDF benchmarks every %s", len(benchmarks), checkInterval)
 	for runCount := uint64(0); ; runCount++ {
 		for _, benchmark := range benchmarks {
 			if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, benchmark.FrameworkID) {
-				FinishXCCDFBenchmark(ctx, benchmark)
 				return
 			}
-			for _, rule := range benchmark.Rules {
-				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
-				a.reportCheckEvents(checkInterval, events...)
-				if sleepAborted(ctx, throttler.C) {
-					FinishXCCDFBenchmark(ctx, benchmark)
-					return
+			err := EvaluateXCCDFRules(ctx, a.opts.Hostname, XCCDFProbeRoot(), benchmark, defaultEvalThrottling, func(rule *Rule, event *CheckEvent, took time.Duration) {
+				ReportXCCDFInput(a.opts.StatsdClient, rule.ID, took)
+				if event != nil {
+					a.reportCheckEvents(checkInterval, event)
 				}
+			})
+			if ctx.Err() != nil {
+				return
 			}
-			FinishXCCDFBenchmark(ctx, benchmark)
+			if err != nil {
+				log.Warnf("could not evaluate xccdf benchmark: %v", err)
+			}
 		}
 		if sleepAborted(ctx, runTicker.C) {
 			return
 		}
+	}
+}
+
+// ReportXCCDFInput sends to client, when set, the input metrics of the XCCDF
+// rule ruleID that oscap-io evaluated in d.
+func ReportXCCDFInput(client statsd.ClientInterface, ruleID string, d time.Duration) {
+	if client == nil {
+		return
+	}
+	tags := []string{
+		"rule_id:" + ruleID,
+		"rule_input_type:xccdf",
+		"agent_version:" + version.AgentVersion,
+	}
+	if err := client.Count(metrics.MetricInputsHits, 1, tags, 1.0); err != nil {
+		log.Errorf("failed to send input metric: %v", err)
+	}
+	if err := client.Timing(metrics.MetricInputsDuration, d, tags, 1.0); err != nil {
+		log.Errorf("failed to send input metric: %v", err)
 	}
 }
 
@@ -561,6 +589,7 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (typ
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
+	resourceLog.CCRID = CCRIDForResource(a.opts.HostCCRID, string(resourceLog.ResourceType))
 	if a.wmeta != nil && resourceLog.Container != nil {
 		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
@@ -575,6 +604,7 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
+		event.CCRID = CCRIDForResource(a.opts.HostCCRID, event.ResourceType)
 		// Mutate event fully before updateEvent() publishes it into a.statuses.
 		if event.Result != CheckSkipped {
 			if a.wmeta != nil && event.Container != nil {
@@ -650,6 +680,9 @@ func (a *Agent) updateEvent(event *CheckEvent) {
 			"rule_id:" + event.RuleID,
 			"rule_result:" + string(event.Result),
 			"agent_version:" + event.AgentVersion,
+		}
+		if event.CCRID != "" {
+			tags = append(tags, "ccrid:"+event.CCRID)
 		}
 		if err := client.Gauge(metrics.MetricChecksStatuses, 1, tags, 1.0); err != nil {
 			log.Errorf("failed to send checks metric: %v", err)

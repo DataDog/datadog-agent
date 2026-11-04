@@ -7,6 +7,15 @@ package serializerexporter
 
 import "go.opentelemetry.io/collector/featuregate"
 
+// gaugeIntervalGate enables explicit reporting intervals for number metrics mapped
+// to Datadog gauges. Disabled by default; the attribute remains a metric tag.
+// Enable via --feature-gates=+datadog.serializerexporter.EnableGaugeInterval.
+var gaugeIntervalGate = featuregate.GlobalRegistry().MustRegister(
+	"datadog.serializerexporter.EnableGaugeInterval",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Use datadog.gauge.interval as the reporting interval for number metrics mapped to Datadog gauges."),
+)
+
 // useSyncForwarderGate, when enabled, swaps the asynchronous DefaultForwarder
 // behind the metric serializer for a synchronous, error-propagating forwarder
 // (OTelSyncForwarder). With it on, send failures surface back through
@@ -30,3 +39,19 @@ var useSyncForwarderGate = featuregate.GlobalRegistry().MustRegister(
 func IsSyncForwarderEnabled() bool {
 	return useSyncForwarderGate.IsEnabled()
 }
+
+// nativeOTelHistogramsGate, when enabled, makes DDOT translate metrics with the
+// minimal translator: OTel histograms are sent as is (V3 histogram types)
+// instead of being converted to DDSketch. Only delta histograms are sent;
+// cumulative histograms are dropped, so the pipeline needs cumulativetodelta.
+// The V2 sketch payload cannot carry these histograms, so DDOT refuses to start
+// unless every metrics destination receives sketches over V3.
+//
+// Disabled by default (Alpha). Enable via
+//
+//	--feature-gates=+datadog.serializerexporter.NativeOTelHistograms
+var nativeOTelHistogramsGate = featuregate.GlobalRegistry().MustRegister(
+	"datadog.serializerexporter.NativeOTelHistograms",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Send OTel histograms from DDOT in the native V3 format instead of converting them to DDSketch."),
+)

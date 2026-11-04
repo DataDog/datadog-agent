@@ -17,11 +17,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/bpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -203,9 +204,16 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessContainerID(ev *model.Event, _ *m
 	return fh.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 }
 
-// ResolveProcessCreatedAt resolves process creation time
+// ResolveProcessCreatedAt resolves the image time, or procfs birth time when no
+// exec was observed. Unknown times must not expose time.Time's zero-year value.
 func (fh *EBPFLessFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
-	return int(e.ExecTime.UnixNano())
+	if !e.ExecTime.IsZero() {
+		return int(e.ExecTime.UnixNano())
+	}
+	if !e.ForkTime.IsZero() {
+		return int(e.ForkTime.UnixNano())
+	}
+	return 0
 }
 
 // ResolveAsync resolves the async flag
@@ -613,6 +621,16 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ 
 
 // ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
 func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities that were checked against the initial/host user namespace
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities that were obtained from the initial/host user namespace
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
 

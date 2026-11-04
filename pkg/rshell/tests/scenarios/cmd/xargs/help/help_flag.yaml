@@ -1,0 +1,10 @@
+# skip: rshell builtin help output differs from GNU xargs.
+skip_assert_against_bash: true
+description: xargs --help prints usage to stdout and exits 0.
+input:
+  script: |+
+    xargs --help
+expect:
+  stdout_contains: ["Usage:", "--max-args"]
+  stderr: |+
+  exit_code: 0

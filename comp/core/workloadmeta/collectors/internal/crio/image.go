@@ -82,6 +82,7 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 		OS:           imgInfo.os,
 		Architecture: imgInfo.arch,
 		Variant:      imgInfo.variant,
+		Created:      imgInfo.created,
 		Layers:       imgInfo.layers,
 	}
 
@@ -92,15 +93,20 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 	}
 }
 
-// generateUnsetImageEvent generates an unset CollectorEvent for a removed or deleted image.
-func generateUnsetImageEvent(seenID workloadmeta.EntityID) *workloadmeta.CollectorEvent {
-	return &workloadmeta.CollectorEvent{
-		Type:   workloadmeta.EventTypeUnset,
-		Source: workloadmeta.SourceRuntime,
-		Entity: &workloadmeta.ContainerImageMetadata{
-			EntityID: seenID,
-		},
+// generateUnsetImageEvents generates the unset CollectorEvents for a removed or
+// deleted image, under the runtime source and the trivy source of its SBOM.
+func generateUnsetImageEvents(seenID workloadmeta.EntityID) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, 2)
+	for _, source := range []workloadmeta.Source{workloadmeta.SourceRuntime, workloadmeta.SourceTrivy} {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: source,
+			Entity: &workloadmeta.ContainerImageMetadata{
+				EntityID: seenID,
+			},
+		})
 	}
+	return events
 }
 
 // normalizeImageID returns the OCI config digest in sha256: form. CRI-O's image
@@ -127,7 +133,7 @@ func parseDigests(imageRefs []string) (string, error) {
 	return parts[1], nil
 }
 
-// parseImageInfo extracts operating system, architecture, variant, labels, and layer history from image info metadata.
+// parseImageInfo extracts operating system, architecture, variant, labels, creation time, and layer history from image info metadata.
 func parseImageInfo(info map[string]string, layerFilePath string, imgID string) imageInfo {
 	var imgInfo imageInfo
 
@@ -145,6 +151,7 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 			imgInfo.arch = parsed.ImageSpec.Architecture
 			imgInfo.variant = parsed.ImageSpec.Variant
 			imgInfo.labels = parsed.Labels
+			imgInfo.created, _ = time.Parse(time.RFC3339, parsed.ImageSpec.Created)
 
 			// Match layers with their history entries, including empty layers
 			historyIndex := 0
@@ -153,10 +160,9 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 				for historyIndex < len(parsed.ImageSpec.History) {
 					history := parsed.ImageSpec.History[historyIndex]
 					if history.EmptyLayer {
-						created, _ := time.Parse(time.RFC3339, history.Created)
 						imgInfo.layers = append(imgInfo.layers, workloadmeta.ContainerImageLayer{
 							History: &imgspecs.History{
-								Created:    &created,
+								Created:    historyCreated(history.Created),
 								CreatedBy:  history.CreatedBy,
 								Author:     history.Author,
 								Comment:    history.Comment,
@@ -174,9 +180,8 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 				var historyEntry *imgspecs.History
 				if historyIndex < len(parsed.ImageSpec.History) {
 					h := parsed.ImageSpec.History[historyIndex]
-					created, _ := time.Parse(time.RFC3339, h.Created)
 					historyEntry = &imgspecs.History{
-						Created:    &created,
+						Created:    historyCreated(h.Created),
 						CreatedBy:  h.CreatedBy,
 						Author:     h.Author,
 						Comment:    h.Comment,
@@ -205,10 +210,9 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 			for historyIndex < len(parsed.ImageSpec.History) {
 				history := parsed.ImageSpec.History[historyIndex]
 				if history.EmptyLayer {
-					created, _ := time.Parse(time.RFC3339, history.Created)
 					imgInfo.layers = append(imgInfo.layers, workloadmeta.ContainerImageLayer{
 						History: &imgspecs.History{
-							Created:    &created,
+							Created:    historyCreated(history.Created),
 							CreatedBy:  history.CreatedBy,
 							Author:     history.Author,
 							Comment:    history.Comment,
@@ -281,6 +285,16 @@ func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]wor
 	return imageEvents, allImageIDs, nil
 }
 
+// historyCreated returns the created time of an image config history entry,
+// which is optional, and nil when the entry has none that parses.
+func historyCreated(s string) *time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+	return &t
+}
+
 // parseLayerInfo reads a JSON file from the given path and returns a list of layerInfo
 func parseLayerInfo(rootPath string, imgID string) ([]layerInfo, error) {
 	filePath := fmt.Sprintf("%s/%s/manifest", rootPath, imgID)
@@ -307,13 +321,14 @@ type layerInfo struct {
 	MediaType string `json:"mediaType"`
 }
 
-// imageInfo holds the size, OS, architecture, variant, labels, and layers of an image.
+// imageInfo holds the size, OS, architecture, variant, labels, creation time, and layers of an image.
 type imageInfo struct {
 	size    int64
 	os      string
 	arch    string
 	variant string
 	labels  map[string]string
+	created time.Time
 	layers  []workloadmeta.ContainerImageLayer
 }
 
@@ -324,6 +339,7 @@ type parsedInfo struct {
 		OS           string `json:"os"`
 		Architecture string `json:"architecture"`
 		Variant      string `json:"variant"`
+		Created      string `json:"created"`
 		RootFS       struct {
 			DiffIDs []string `json:"diff_ids"`
 		} `json:"rootfs"`

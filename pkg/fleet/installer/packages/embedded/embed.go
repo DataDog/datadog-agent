@@ -40,6 +40,11 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/pm
 var procmgrUnits embed.FS
 
+// launchdJobs holds the launchd job definitions for macOS (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/darwin
+var launchdJobs embed.FS
+
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //
@@ -58,6 +63,30 @@ var ADPWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-action.yaml
 var PARWindowsProcmgrConfig string
 
+// ProcessWindowsProcmgrConfig is the codegen-rendered process manager config for the process
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __PROCESS_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-process.yaml
+var ProcessWindowsProcmgrConfig string
+
+// SysprobeWindowsProcmgrConfig is the codegen-rendered process manager config for system-probe
+// on Windows (see embedded/tmpl/main.go). Install time replaces __SYSPROBE_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-sysprobe.yaml
+var SysprobeWindowsProcmgrConfig string
+
+// TraceWindowsProcmgrConfig is the codegen-rendered process manager config for the trace
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __TRACE_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-trace.yaml
+var TraceWindowsProcmgrConfig string
+
+// SecurityWindowsProcmgrConfig is the codegen-rendered process manager config for the security
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __SECURITY_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-security.yaml
+var SecurityWindowsProcmgrConfig string
+
 // PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
 // on-demand executor on Windows (see embedded/tmpl/main.go).
 //
@@ -70,6 +99,9 @@ var PARExecutorWindowsProcmgrConfig string
 //
 //go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
 var PARControlWindowsProcmgrConfig string
+
+//go:embed tmpl/gen/windows
+var windowsProcmgrConfigs embed.FS
 
 // UnitType is the type of systemd unit.
 type UnitType string
@@ -101,6 +133,40 @@ func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported
 // GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
 func GetProcmgrProcess(name string) ([]byte, error) {
 	return procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", "processes.d", name))
+}
+
+// GetLaunchdJob returns the launchd job definition for the given label, e.g. "com.datadoghq.agent".
+func GetLaunchdJob(label string) ([]byte, error) {
+	return launchdJobs.ReadFile(path.Join("tmpl/gen/darwin", label+".plist"))
+}
+
+// ShippedProcmgrConfigFiles returns the basenames of processes.d YAML files the installer embeds
+// for Linux (tmpl/gen/pm/processes.d) and Windows (tmpl/gen/windows). Used by COAT drift tests
+// so a new shipped config cannot land without migratableServices coverage.
+func ShippedProcmgrConfigFiles() ([]string, error) {
+	seen := map[string]struct{}{}
+	for _, dir := range []struct {
+		fs  embed.FS
+		rel string
+	}{
+		{procmgrUnits, "tmpl/gen/pm/processes.d"},
+		{windowsProcmgrConfigs, "tmpl/gen/windows"},
+	} {
+		entries, err := dir.fs.ReadDir(dir.rel)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				seen[entry.Name()] = struct{}{}
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for name := range seen {
+		out = append(out, name)
+	}
+	return out, nil
 }
 
 func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {

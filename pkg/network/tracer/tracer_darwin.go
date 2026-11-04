@@ -27,12 +27,13 @@ import (
 
 // Tracer struct for tracking network state and connections on Darwin
 type Tracer struct {
-	config         *config.Config
-	connTracer     connection.Tracer
-	state          network.State
-	reverseDNS     dns.ReverseDNS
-	sourceExcludes []*networkfilter.ConnectionFilter
-	destExcludes   []*networkfilter.ConnectionFilter
+	config          *config.Config
+	connTracer      connection.Tracer
+	state           network.State
+	reverseDNS      dns.ReverseDNS
+	sourceExcludes  []*networkfilter.ConnectionFilter
+	destExcludes    []*networkfilter.ConnectionFilter
+	interfaceTagger *interfaceTagger
 }
 
 // NewTracer returns an initialized tracer struct for Darwin
@@ -72,29 +73,42 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	}
 
 	tr := &Tracer{
-		config:         cfg,
-		connTracer:     connTracer,
-		state:          state,
-		reverseDNS:     reverseDNS,
-		sourceExcludes: networkfilter.ParseConnectionFilters(cfg.ExcludedSourceConnections),
-		destExcludes:   networkfilter.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
+		config:          cfg,
+		connTracer:      connTracer,
+		state:           state,
+		reverseDNS:      reverseDNS,
+		sourceExcludes:  networkfilter.ParseConnectionFilters(cfg.ExcludedSourceConnections),
+		destExcludes:    networkfilter.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
+		interfaceTagger: newInterfaceTagger(),
 	}
 
-	// Start the connection tracer with a callback for closed connections
+	// Start the connection tracer with a callback for closed connections.
+	// The tagger is already running so a close during startup can be tagged.
 	err = connTracer.Start(func(conn *network.ConnectionStats) {
 		tr.storeClosedConnection(conn)
 	})
 	if err != nil {
+		tr.interfaceTagger.Close()
 		return nil, fmt.Errorf("error starting connection tracer: %w", err)
 	}
 
 	return tr, nil
 }
 
+// PrepareStop does nothing here. Only the Windows tracer has a collection path
+// that shutdown can be left waiting on; see the Windows implementation.
+func (t *Tracer) PrepareStop() {}
+
 // Stop halts all network monitoring.
 func (t *Tracer) Stop() {
+	// Stop the connection tracer before the tagger. Close only stops the
+	// tagger's refresh, so a connection closed during shutdown is still
+	// classified from the last cache.
 	if t.connTracer != nil {
 		t.connTracer.Stop()
+	}
+	if t.interfaceTagger != nil {
+		t.interfaceTagger.Close()
 	}
 	if t.reverseDNS != nil {
 		t.reverseDNS.Close()
@@ -124,6 +138,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 
 	// Convert buffer to connections slice
 	activeConns := buffer.Connections()
+	for i := range activeConns {
+		t.addInterfaceTags(&activeConns[i])
+	}
 
 	// Get DNS stats if available
 	var dnsStats dns.StatsByKeyByNameByType
@@ -175,10 +192,17 @@ func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
 
 // GetStats returns telemetry statistics
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
+	backendStatus := t.connectionTracerStatus()
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
 		"tracer": map[string]interface{}{
-			"type": "darwin_pcap",
+			"type":               t.connectionTracerType(),
+			"active_backend":     backendStatus.ActiveBackend,
+			"nstat_abi_revision": backendStatus.ABIRevision,
+			"source_healthy":     backendStatus.SourceHealthy,
+			"runtime_fallback":   backendStatus.RuntimeFallback,
+			"packet_enrichment":  backendStatus.PacketEnrichment,
+			"last_error":         backendStatus.LastError,
 		},
 	}
 
@@ -193,9 +217,26 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 // DebugNetworkState returns the current network state for debugging
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"state":       t.state.DumpState(clientID),
-		"tracer_type": "darwin_pcap",
+		"state":         t.state.DumpState(clientID),
+		"tracer_type":   t.connectionTracerType(),
+		"tracer_status": t.connectionTracerStatus(),
 	}, nil
+}
+
+func (t *Tracer) connectionTracerStatus() connection.DarwinTracerStatus {
+	return connection.GetDarwinTracerStatus(t.connTracer)
+}
+
+func (t *Tracer) connectionTracerType() string {
+	tracerType := t.connTracer.Type()
+	switch tracerType {
+	case connection.TracerTypeNStat:
+		return "darwin_nstat"
+	case connection.TracerTypeDarwin:
+		return "darwin_pcap"
+	default:
+		return fmt.Sprintf("darwin_unknown_%d", tracerType)
+	}
 }
 
 // DebugNetworkMaps returns connections for debugging (similar to GetActiveConnections but without delta)
@@ -275,7 +316,23 @@ func (t *Tracer) storeClosedConnection(conn *network.ConnectionStats) {
 	if t.shouldSkipConnection(conn) {
 		return
 	}
+	t.addInterfaceTags(conn)
 	t.state.StoreClosedConnection(conn)
+}
+
+// addInterfaceTags sets interface_name and interface_type from the local
+// address or the route to the peer.
+func (t *Tracer) addInterfaceTags(c *network.ConnectionStats) {
+	if t == nil || t.interfaceTagger == nil || c == nil {
+		return
+	}
+	name, typ, index := t.interfaceTagger.classify(c.Source.Addr, c.Dest.Addr)
+	if name == "" || typ == "" {
+		return
+	}
+	appendInterfaceTags(c, name, typ)
+	log.Debugf("interface_classifier: pid=%d ifIndex=%d tagged interface_name=%q interface_type=%q",
+		c.Pid, index, name, typ)
 }
 
 // Note: shouldSkipConnection is defined in tracer_shared.go

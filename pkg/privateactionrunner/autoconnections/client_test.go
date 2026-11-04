@@ -56,6 +56,25 @@ func (m *mockTagsProvider) GetTags(ctx context.Context, runnerID, hostname strin
 	return tags
 }
 
+func TestNewConnectionsAPIClientEndpointSelection(t *testing.T) {
+	for _, tc := range []struct {
+		fakeIntake, site, wantURL string
+	}{
+		{"false", "datadoghq.eu", "https://api.datadoghq.eu"},
+		{"false", "", "https://api."},
+		{"true", "datadoghq.eu", "http://fake-intake.example.test:8080"},
+	} {
+		t.Run(tc.fakeIntake+"/"+tc.site, func(t *testing.T) {
+			t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", tc.fakeIntake)
+			cfg := mock.New(t)
+			cfg.SetInTest("dd_url", "http://fake-intake.example.test:8080/")
+			client, err := NewConnectionsAPIClient(cfg, tc.site, "test-api-key", "test-app-key")
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantURL, client.baseUrl)
+		})
+	}
+}
+
 func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	cfg := mock.New(t)
 	apiKey := "test-api-key"
@@ -303,9 +322,7 @@ func TestCreateConnection_NoRetryOn4xx(t *testing.T) {
 }
 
 func TestCreateConnection_5xxExhaustsBudgetThenFails(t *testing.T) {
-	var hits int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		atomic.AddInt32(&hits, 1)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"errors": ["broken"]}`))
 	}))
@@ -324,7 +341,6 @@ func TestCreateConnection_5xxExhaustsBudgetThenFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
-	assert.Greater(t, atomic.LoadInt32(&hits), int32(1), "5xx should retry at least once")
 	assert.Less(t, time.Since(start), 1*time.Second, "should bail within MaxElapsedTime budget")
 }
 

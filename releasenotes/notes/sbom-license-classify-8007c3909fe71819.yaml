@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fixed SBOM scans that enable the ``languages`` analyzers
+    (``sbom.host.analyzers`` or ``sbom.container_image.analyzers``) logging
+    ``Unable to collect additional info`` warnings with
+    ``license classify error: not implemented`` for Python packages and Go
+    modules. Python packages whose metadata names only a license file now
+    carry an empty license list instead of the file path, such as
+    ``file:--LICENSE``.

@@ -103,6 +103,9 @@ type SyntheticsTestConfig struct {
 	ResultID string `json:"result_id"`
 	RunType  string `json:"run_type"`
 
+	// Enrichment is opaque metadata returned unchanged in the Synthetics result.
+	Enrichment json.RawMessage `json:"enrichment,omitempty"`
+
 	TestName            string `json:"test_name"`
 	LocationName        string `json:"location_name"`
 	LocationDisplayName string `json:"location_display_name"`
@@ -172,12 +175,13 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 			Request    json.RawMessage `json:"request"`
 		} `json:"config"`
 
-		OrgID    int    `json:"org_id"`
-		MainDC   string `json:"main_dc"`
-		PublicID string `json:"public_id"`
-		ResultID string `json:"result_id"`
-		RunType  string `json:"run_type"`
-		Interval int    `json:"tick_every"`
+		OrgID      int             `json:"org_id"`
+		MainDC     string          `json:"main_dc"`
+		PublicID   string          `json:"public_id"`
+		ResultID   string          `json:"result_id"`
+		RunType    string          `json:"run_type"`
+		Interval   int             `json:"tick_every"`
+		Enrichment json.RawMessage `json:"enrichment"`
 
 		TestName            string `json:"test_name"`
 		LocationName        string `json:"location_name"`
@@ -197,6 +201,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.ResultID = tmp.ResultID
 	c.RunType = tmp.RunType
 	c.Interval = tmp.Interval
+	c.Enrichment = tmp.Enrichment
 	c.TestName = tmp.TestName
 	c.LocationName = tmp.LocationName
 	c.LocationDisplayName = tmp.LocationDisplayName

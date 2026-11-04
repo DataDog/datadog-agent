@@ -264,12 +264,17 @@ func TestTukeyBiweight_FiresOnLevelShift(t *testing.T) {
 	require.NotEmpty(t, result.Anomalies, "level shift must produce at least one anomaly")
 
 	first := result.Anomalies[0]
+	title, description := observer.FormatAnomaly(first)
+	assert.Equal(t, "Tukey biweight: metric:avg", title)
+	assert.Contains(t, description, "above biweight baseline")
 	assert.Equal(t, "tukey_biweight", first.DetectorName)
 	require.NotNil(t, first.Score, "anomaly must carry a score")
 	assert.GreaterOrEqual(t, *first.Score, 5.0, "z-derived score should clear the threshold")
 	assert.Less(t, first.Timestamp, int64(shiftStart+20),
 		"first fire should arrive within 20 points of the shift")
 	assert.Equal(t, int64(1), first.SamplingIntervalSec)
+	require.NotNil(t, first.DebugInfo)
+	assert.Positive(t, first.DebugInfo.TukeyBiweightSampleCount)
 }
 
 // TestTukeyBiweight_RobustToHistoricalOutlier is the property the biweight

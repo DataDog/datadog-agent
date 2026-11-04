@@ -5,7 +5,9 @@
 
 mod spawn_identity;
 
-pub use spawn_identity::{expected_agent_spawn_user, expected_runtime_user_for_pid};
+pub use spawn_identity::{
+    expected_agent_spawn_user, expected_runtime_user_for_pid, expected_spawn_user_for_process,
+};
 
 #[cfg(unix)]
 use nix::sys::signal::{self, Signal};
@@ -36,10 +38,15 @@ pub struct DaemonStatus {
     pub running_processes: u32,
     pub created_processes: u32,
     pub stopped_processes: u32,
+    pub crashed_processes: u32,
     pub failed_processes: u32,
     pub exited_processes: u32,
     pub starting_processes: u32,
     pub stopping_processes: u32,
+    #[serde(default)]
+    pub invalid_config_processes: u32,
+    #[serde(default)]
+    pub skipped_processes: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -57,6 +64,10 @@ pub struct ProcessSnapshot {
     pub restart_count: u64,
     pub last_exit_code: Option<i32>,
     pub last_signal: Option<i32>,
+    #[serde(default)]
+    pub config_error: String,
+    #[serde(default)]
+    pub skip_reasons: Vec<String>,
 }
 
 /// Parsed output from `list --json`.
@@ -182,6 +193,10 @@ struct DescribeSnapshot {
     pub before: Vec<String>,
     #[serde(default)]
     pub runtime_user: String,
+    #[serde(default)]
+    pub config_error: String,
+    #[serde(default)]
+    pub exit_with_supervisor: bool,
 }
 
 /// Unset fields are not checked (same pattern as ReloadExpect / StatusProcessesCount).
@@ -197,6 +212,7 @@ pub struct DescribeExpect {
     pub working_dir: Option<String>,
     pub restart_policy: Option<String>,
     pub auto_start: Option<bool>,
+    pub condition_path_exists: Option<String>,
     pub restart_count: Option<u64>,
     pub restart_count_at_least: Option<u64>,
     pub last_exit_code: Option<Option<i32>>,
@@ -209,6 +225,9 @@ pub struct DescribeExpect {
     pub profile: Option<String>,
     pub user: Option<String>,
     pub runtime_user: Option<String>,
+    pub config_error: Option<String>,
+    pub has_config_error: Option<bool>,
+    pub exit_with_supervisor: Option<bool>,
 }
 
 impl DescribeSnapshot {
@@ -238,6 +257,12 @@ impl DescribeSnapshot {
             self,
         );
         assert_describe_field("auto_start", &self.auto_start, &expected.auto_start, self);
+        assert_describe_field(
+            "condition_path_exists",
+            &self.condition_path_exists,
+            &expected.condition_path_exists,
+            self,
+        );
         assert_describe_field(
             "restart_count",
             &self.restart_count,
@@ -293,6 +318,24 @@ impl DescribeSnapshot {
             &expected.runtime_user,
             self,
         );
+        assert_describe_field(
+            "config_error",
+            &self.config_error,
+            &expected.config_error,
+            self,
+        );
+        assert_describe_present(
+            "config_error",
+            &self.config_error,
+            expected.has_config_error,
+            self,
+        );
+        assert_describe_field(
+            "exit_with_supervisor",
+            &self.exit_with_supervisor,
+            &expected.exit_with_supervisor,
+            self,
+        );
         if let Some(expected_alive) = expected.pid_alive {
             let alive = self.pid > 0 && pid_is_alive(self.pid as u32);
             assert_eq!(
@@ -341,21 +384,29 @@ fn assert_describe_present(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExpect {
+    /// Queue window before the start pass. After ready, holds rest in `Skipped`.
+    #[allow(dead_code)]
     Created,
+    Skipped,
     Running,
     Stopped,
+    Crashed,
     Failed,
     Exited,
+    InvalidConfig,
 }
 
 impl ProcessExpect {
     fn as_str(self) -> &'static str {
         match self {
             Self::Created => "Created",
+            Self::Skipped => "Skipped",
             Self::Running => "Running",
             Self::Stopped => "Stopped",
+            Self::Crashed => "Crashed",
             Self::Failed => "Failed",
             Self::Exited => "Exited",
+            Self::InvalidConfig => "InvalidConfig",
         }
     }
 }
@@ -406,6 +457,22 @@ impl ProcessList {
         );
     }
 
+    pub fn assert_skip_reasons(&self, name: &str, expected: &[&str]) {
+        let process = self.require_process(name);
+        let actual: Vec<&str> = process.skip_reasons.iter().map(String::as_str).collect();
+        for reason in expected {
+            assert!(
+                actual.contains(reason),
+                "process '{name}' skip_reasons missing {reason}, got {actual:?}"
+            );
+        }
+        assert_eq!(
+            actual.len(),
+            expected.len(),
+            "process '{name}' skip_reasons extra labels: expected {expected:?}, got {actual:?}"
+        );
+    }
+
     pub fn assert_last_exit_code(&self, name: &str, code: i32) {
         let process = self.require_process(name);
         assert_eq!(
@@ -427,10 +494,13 @@ pub struct StatusProcessesCount {
     pub running: Option<u32>,
     pub created: Option<u32>,
     pub stopped: Option<u32>,
+    pub crashed: Option<u32>,
     pub failed: Option<u32>,
     pub exited: Option<u32>,
     pub starting: Option<u32>,
     pub stopping: Option<u32>,
+    pub invalid_config: Option<u32>,
+    pub skipped: Option<u32>,
 }
 
 impl StatusProcessesCount {
@@ -440,10 +510,13 @@ impl StatusProcessesCount {
             running: Some(0),
             created: Some(0),
             stopped: Some(0),
+            crashed: Some(0),
             failed: Some(0),
             exited: Some(0),
             starting: Some(0),
             stopping: Some(0),
+            invalid_config: Some(0),
+            skipped: Some(0),
         }
     }
 }
@@ -478,6 +551,11 @@ impl DaemonStatus {
                 self.stopped_processes,
                 expected.stopped,
             ),
+            (
+                "crashed_processes",
+                self.crashed_processes,
+                expected.crashed,
+            ),
             ("failed_processes", self.failed_processes, expected.failed),
             ("exited_processes", self.exited_processes, expected.exited),
             (
@@ -489,6 +567,16 @@ impl DaemonStatus {
                 "stopping_processes",
                 self.stopping_processes,
                 expected.stopping,
+            ),
+            (
+                "invalid_config_processes",
+                self.invalid_config_processes,
+                expected.invalid_config,
+            ),
+            (
+                "skipped_processes",
+                self.skipped_processes,
+                expected.skipped,
             ),
         ];
         for (field, actual, exp) in fields {
@@ -621,6 +709,12 @@ impl DaemonHandle {
 
     /// Like [`start`](Self::start), but also sets the given extra environment variables on the
     /// daemon process.
+    ///
+    /// The daemon is a real child process, so config gates read `DD_*` from the inherited
+    /// environment rather than through the process-global hook the in-process tests use.
+    /// Environment variables outrank the gated YAML file, so every gate input is removed
+    /// before `extra_env` is applied: otherwise a runner with, say,
+    /// `DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED` exported opens a gate no test wrote.
     pub fn start_with_env(
         config_dir: &Path,
         socket_path: &Path,
@@ -633,6 +727,9 @@ impl DaemonHandle {
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        for name in dd_procmgrd::config_gate::gate_env_var_names() {
+            cmd.env_remove(name);
+        }
         for (k, v) in extra_env {
             cmd.env(k, v);
         }
@@ -737,8 +834,30 @@ impl DaemonHandle {
         signal::kill(Pid::from_raw(pid), sig).expect("failed to send signal to daemon");
     }
 
+    pub fn try_exit_status(&mut self) -> Option<ExitStatus> {
+        self.child
+            .try_wait()
+            .expect("failed to check daemon status")
+    }
+
+    pub fn wait_for_exit(&mut self, timeout: Duration) -> Option<ExitStatus> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(status) = self.try_exit_status() {
+                return Some(status);
+            }
+            if Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     /// Gracefully stop the daemon and wait for exit.
     pub fn stop(&mut self) -> ExitStatus {
+        if let Some(status) = self.try_exit_status() {
+            return status;
+        }
         #[cfg(unix)]
         self.send_signal(Signal::SIGTERM);
         // TODO(S19): replace with GenerateConsoleCtrlEvent for graceful shutdown;
@@ -1073,6 +1192,7 @@ pub struct TestEnv {
     _dir: tempfile::TempDir,
     config_dir: PathBuf,
     socket_path: PathBuf,
+    daemon_env: Vec<(String, String)>,
     daemon: Option<DaemonHandle>,
 }
 
@@ -1096,8 +1216,18 @@ impl TestEnv {
             _dir: dir,
             config_dir,
             socket_path,
+            daemon_env: Vec::new(),
             daemon: None,
         }
+    }
+
+    pub fn with_daemon_env(mut self, extra_env: &[(&str, &str)]) -> Self {
+        self.daemon_env.extend(
+            extra_env
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string())),
+        );
+        self
     }
 
     pub fn with_config(self, name: &str, yaml: &str) -> Self {
@@ -1107,6 +1237,20 @@ impl TestEnv {
 
     pub fn with_process(self, name: &str) -> Self {
         install_process_fixture(self.env_root(), &self.config_dir, name);
+        self
+    }
+
+    pub fn with_process_extra(self, name: &str, extra_yaml: &str) -> Self {
+        install_process_fixture(self.env_root(), &self.config_dir, name);
+        let path = self.config_dir.join(format!("{name}.yaml"));
+        let mut yaml = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+        if !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        yaml.push_str(extra_yaml);
+        yaml.push('\n');
+        write_config(&self.config_dir, name, &yaml);
         self
     }
 
@@ -1133,12 +1277,21 @@ impl TestEnv {
         &self.config_dir
     }
 
+    pub fn socket_path(&self) -> &Path {
+        &self.socket_path
+    }
+
     pub fn start(self) -> Self {
         self.start_with_timeout(default_start_timeout())
     }
 
     pub fn start_with_timeout(mut self, timeout: Duration) -> Self {
-        let daemon = DaemonHandle::start(&self.config_dir, &self.socket_path);
+        let extra_env: Vec<(&str, &str)> = self
+            .daemon_env
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let daemon = DaemonHandle::start_with_env(&self.config_dir, &self.socket_path, &extra_env);
         self.daemon = Some(daemon);
         self.wait_until_ready(timeout)
             .unwrap_or_else(|e| panic!("daemon did not become ready within {timeout:?}: {e}"));
@@ -1517,6 +1670,12 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
+    /// `path` is matched against the rendered condition summary, which lists `path:key`.
+    pub fn assert_config_gate_not_met_logged(&self, name: &str, path: &str) {
+        let prefix = format!("[{name}] condition_config_any not met");
+        self.assert_daemon_log_line_contains(&[&prefix, path]);
+    }
+
     pub fn assert_pid_gone(&self, pid: u64) {
         assert!(
             wait_for_pid_gone(pid as u32, DEFAULT_TIMEOUT),
@@ -1626,6 +1785,25 @@ impl TestEnv {
     pub fn daemon_pid(&self) -> u32 {
         self.daemon().pid()
     }
+
+    pub fn wait_for_daemon_exit(&mut self, timeout: Duration) -> Option<ExitStatus> {
+        self.daemon
+            .as_mut()
+            .expect("daemon not started")
+            .wait_for_exit(timeout)
+    }
+
+    pub fn daemon_is_running(&mut self) -> bool {
+        self.daemon
+            .as_mut()
+            .expect("daemon not started")
+            .try_exit_status()
+            .is_none()
+    }
+
+    pub fn stop_daemon(&mut self) -> ExitStatus {
+        self.daemon.as_mut().expect("daemon not started").stop()
+    }
 }
 
 impl Drop for TestEnv {
@@ -1652,9 +1830,12 @@ fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: 
 fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) -> bool {
     match expected {
         ProcessExpect::Created
+        | ProcessExpect::Skipped
         | ProcessExpect::Stopped
+        | ProcessExpect::Crashed
         | ProcessExpect::Failed
-        | ProcessExpect::Exited => process.pid == 0,
+        | ProcessExpect::Exited
+        | ProcessExpect::InvalidConfig => process.pid == 0,
         ProcessExpect::Running => {
             let pid = process.pid as u32;
             pid > 0 && pid_is_alive(pid)

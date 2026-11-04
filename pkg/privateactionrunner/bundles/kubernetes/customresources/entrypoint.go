@@ -11,24 +11,25 @@ type KubernetesCustomResources struct {
 	actions map[string]types.Action
 }
 
-func NewKubernetesCustomResources() *KubernetesCustomResources {
+func NewKubernetesCustomResources(allowedResources []string) *KubernetesCustomResources {
+	policy := newResourcePolicy(allowedResources)
 	return &KubernetesCustomResources{
 		actions: map[string]types.Action{
 			// Manual actions
-			"createCustomObject":                 NewCreateCustomObjectHandler(),
-			"deleteCustomObject":                 NewDeleteCustomObjectHandler(),
-			"deleteMultipleCustomObjects":        NewDeleteMultipleCustomObjectsHandler(),
-			"getCustomObject":                    NewGetCustomObjectHandler(),
-			"listCustomObject":                   NewListCustomObjectHandler(),
-			"patchCustomObject":                  NewPatchCustomObjectHandler(),
-			"updateCustomObject":                 NewUpdateCustomObjectHandler(),
-			"createClusterCustomObject":          NewCreateClusterCustomObjectHandler(),
-			"deleteClusterCustomObject":          NewDeleteClusterCustomObjectHandler(),
-			"deleteMultipleClusterCustomObjects": NewDeleteMultipleClusterCustomObjectsHandler(),
-			"getClusterCustomObject":             NewGetClusterCustomObjectHandler(),
-			"listClusterCustomObject":            NewListClusterCustomObjectHandler(),
-			"patchClusterCustomObject":           NewPatchClusterCustomObjectHandler(),
-			"updateClusterCustomObject":          NewUpdateClusterCustomObjectHandler(),
+			"createCustomObject":                 NewCreateCustomObjectHandler(policy),
+			"deleteCustomObject":                 NewDeleteCustomObjectHandler(policy),
+			"deleteMultipleCustomObjects":        NewDeleteMultipleCustomObjectsHandler(policy),
+			"getCustomObject":                    NewGetCustomObjectHandler(policy),
+			"listCustomObject":                   NewListCustomObjectHandler(policy),
+			"patchCustomObject":                  NewPatchCustomObjectHandler(policy),
+			"updateCustomObject":                 NewUpdateCustomObjectHandler(policy),
+			"createClusterCustomObject":          NewCreateClusterCustomObjectHandler(policy),
+			"deleteClusterCustomObject":          NewDeleteClusterCustomObjectHandler(policy),
+			"deleteMultipleClusterCustomObjects": NewDeleteMultipleClusterCustomObjectsHandler(policy),
+			"getClusterCustomObject":             NewGetClusterCustomObjectHandler(policy),
+			"listClusterCustomObject":            NewListClusterCustomObjectHandler(policy),
+			"patchClusterCustomObject":           NewPatchClusterCustomObjectHandler(policy),
+			"updateClusterCustomObject":          NewUpdateClusterCustomObjectHandler(policy),
 		},
 	}
 }

@@ -20,8 +20,9 @@ const (
 // passing state. build resolves the concrete rule and remediation for a distro, since
 // package managers and service names differ across families.
 type probeCheck struct {
-	name     string // subtest label and probe identifier
-	hostOnly bool   // skip in the containerized agent (the probe needs live host state)
+	name     string   // subtest label and probe identifier
+	hostOnly bool     // skip in the containerized agent (the probe needs live host state)
+	families []family // nil = every family, else only these
 	build    func(d distro) probe
 }
 
@@ -29,25 +30,29 @@ type probeCheck struct {
 // written once and run on every distro and environment where it applies (probesFor).
 // The names double as the OpenSCAP probe coverage: file, textfilecontent54 (sshd,
 // accounts, kernel_module), rpminfo/dpkginfo (package), sysctl, systemdunitproperty
-// (service) and partition.
+// (service), partition, and the SCE engine (ufw).
 var probeChecks = []probeCheck{
 	{name: "file", build: fileCheck},
 	{name: "sshd", build: sshdCheck},
 	{name: "package", build: packageCheck},
 	{name: "accounts", build: accountsCheck},
+	{name: "partition", hostOnly: true, build: partitionCheck},
 	{name: "sysctl", hostOnly: true, build: sysctlCheck},
 	{name: "service", hostOnly: true, build: serviceCheck},
-	{name: "partition", hostOnly: true, build: partitionCheck},
+	{name: "ufw", hostOnly: true, families: []family{debian}, build: ufwCheck},
 	{name: "kernel_module", hostOnly: true, build: kernelModuleCheck},
 }
 
 // probesFor returns the probes to exercise on d in the given environment. A nil
 // onlyProbes runs every applicable check; a non-nil one restricts to those names, for
-// distros whose content evaluates only a subset (see distroAmazonLinux2023).
+// distros where some probes cannot set up their states (see distroAmazonLinux2023).
 func probesFor(d distro, onHost bool) []probe {
 	var ps []probe
 	for _, c := range probeChecks {
 		if c.hostOnly && !onHost {
+			continue
+		}
+		if c.families != nil && !slices.Contains(c.families, d.family) {
 			continue
 		}
 		if d.onlyProbes != nil && !slices.Contains(d.onlyProbes, c.name) {
@@ -74,12 +79,20 @@ func sshdCheck(distro) probe {
 // packageCheck exercises the rpminfo/dpkginfo probe via the telnet package.
 func packageCheck(d distro) probe {
 	rule := rulePrefix + "package_telnet_removed"
+	// telnet is baked into the e2e AMIs (ami-builder provision-e2e-apt.sh and
+	// provision-e2e-rhel-centos.sh), so the "broken" (non-compliant) state is
+	// already the machine's boot state on a fresh host and needs no network
+	// access. The package check only falls back to a network install on an
+	// image that does not bake it yet, or if a retry reuses a host where the
+	// fixed step below already removed the package.
 	if d.family == debian {
 		return probe{"package", rule,
-			"sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y telnet",
+			"dpkg -s telnet >/dev/null 2>&1 || (sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y telnet)",
 			"sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y telnet"}
 	}
-	return probe{"package", rule, "sudo dnf install -y telnet", "sudo dnf remove -y telnet"}
+	return probe{"package", rule,
+		"rpm -q telnet >/dev/null 2>&1 || sudo dnf install -y telnet",
+		"sudo dnf remove -y telnet"}
 }
 
 // accountsCheck exercises the textfilecontent54 probe via the login.defs password-warn
@@ -91,10 +104,7 @@ func accountsCheck(distro) probe {
 		"sudo sed -i -E 's/^#?PASS_WARN_AGE.*/PASS_WARN_AGE 7/' " + f}
 }
 
-// sysctlCheck exercises the sysctl probe. cis-rhel8 and cis-rhel10 evaluate
-// kernel.dmesg_restrict, the other benchmarks net.ipv4.ip_forward (note the opposite
-// compliant values). Host-only: a Docker host forces ip_forward=1, which the
-// containerized variant could never satisfy.
+// sysctlCheck exercises host-only kernel settings without changing Docker's IP forwarding.
 func sysctlCheck(d distro) probe {
 	if d.name == "rhel8" || d.name == "rhel10" {
 		const f = "/etc/sysctl.d/90-dmesg.conf"
@@ -102,10 +112,10 @@ func sysctlCheck(d distro) probe {
 			"sudo sysctl -w kernel.dmesg_restrict=0 && sudo rm -f " + f,
 			"sudo sysctl -w kernel.dmesg_restrict=1 && echo 'kernel.dmesg_restrict = 1' | sudo tee " + f}
 	}
-	const f = "/etc/sysctl.d/60-netipv4_sysctl.conf"
-	return probe{"sysctl", rulePrefix + "sysctl_net_ipv4_ip_forward",
-		"sudo sysctl -w net.ipv4.ip_forward=1 && sudo rm -f " + f,
-		"sudo sysctl -w net.ipv4.ip_forward=0 && echo 'net.ipv4.ip_forward = 0' | sudo tee " + f}
+	const f = "/etc/sysctl.d/90-aslr.conf"
+	return probe{"sysctl", rulePrefix + "sysctl_kernel_randomize_va_space",
+		"sudo sysctl -w kernel.randomize_va_space=0 && sudo rm -f " + f,
+		"sudo sysctl -w kernel.randomize_va_space=2 && echo 'kernel.randomize_va_space = 2' | sudo tee " + f}
 }
 
 // serviceCheck exercises the systemdunitproperty probe via the cron service. Host-only:
@@ -119,19 +129,33 @@ func serviceCheck(d distro) probe {
 		"sudo systemctl disable --now " + svc, "sudo systemctl enable --now " + svc}
 }
 
+// ufwCheck exercises the SCE engine via check_ufw_active, whose script runs ufw status.
+// ufw lists its chains with iptables, which asks netfilter over netlink and so needs
+// CAP_NET_ADMIN. Host-only: the script sees the agent's network namespace. Only the
+// Ubuntu benchmarks carry the rule. The fix allows SSH before it enables the firewall.
+func ufwCheck(distro) probe {
+	return probe{"ufw", rulePrefix + "check_ufw_active",
+		"sudo ufw --force disable",
+		"sudo ufw allow 22/tcp && sudo ufw --force enable"}
+}
+
 // partitionCheck exercises the partition probe via a separate /tmp. Host-only: it reads
-// the live mount table. The fix mounts a tmpfs /tmp, as the benchmark expects.
+// the live mount table. The fix mounts a tmpfs /tmp with nosuid, nodev and noexec, as
+// the benchmark expects. OpenSCAP writes the SCE scripts to /tmp, so the probes after
+// this one run their SCE checks as on a hardened host.
 func partitionCheck(distro) probe {
 	return probe{"partition", rulePrefix + "partition_for_tmp",
 		"sudo umount /tmp 2>/dev/null || true",
 		"echo 'tmpfs /tmp tmpfs defaults,nosuid,nodev,noexec 0 0' | sudo tee -a /etc/fstab && sudo mount /tmp"}
 }
 
-// kernelModuleCheck exercises the textfilecontent54 probe via the cramfs modprobe
-// blacklist. Host-only: the rule also depends on the module not being loaded.
+// kernelModuleCheck exercises the textfilecontent54 probe via the usb-storage modprobe
+// configuration. Host-only: the rule also depends on the module not being loaded. The
+// rule passes a module that no installed kernel ships, as the CIS audit does, so the
+// probe needs one the test kernels carry: usb-storage, where RHEL 9 and 10 lack cramfs.
 func kernelModuleCheck(distro) probe {
-	const f = "/etc/modprobe.d/cramfs.conf"
-	return probe{"kernel_module", rulePrefix + "kernel_module_cramfs_disabled",
-		"sudo rm -f " + f + " && sudo modprobe cramfs 2>/dev/null || true",
-		"sudo modprobe -r cramfs 2>/dev/null; printf 'install cramfs /bin/false\\nblacklist cramfs\\n' | sudo tee " + f}
+	const f = "/etc/modprobe.d/usb-storage.conf"
+	return probe{"kernel_module", rulePrefix + "kernel_module_usb-storage_disabled",
+		"sudo rm -f " + f + " && sudo modprobe usb-storage 2>/dev/null || true",
+		"sudo modprobe -r usb-storage 2>/dev/null; printf 'install usb-storage /bin/false\\nblacklist usb-storage\\n' | sudo tee " + f}
 }

@@ -152,14 +152,23 @@ func (v *initContainerInjectionValidator) RequireInjectorVersion(t *testing.T, e
 func parseInjectorVersionFromInitContainers(pod *corev1.Pod) string {
 	for _, container := range pod.Spec.InitContainers {
 		if container.Name == "datadog-init-apm-inject" {
-			parts := strings.Split(container.Image, ":")
-			if len(parts) != 2 {
-				continue
+			if _, version, ok := splitImageRef(container.Image); ok {
+				return version
 			}
-			return parts[1]
 		}
 	}
 	return ""
+}
+
+// splitImageRef splits an image reference into its image name and version. The version is the tag,
+// or the digest (e.g. "sha256:...") for digest references. The registry, which may have a port, is dropped.
+func splitImageRef(ref string) (string, string, bool) {
+	// gcr.io/datadoghq/dd-lib-java-init:v1 -> dd-lib-java-init:v1
+	ref = ref[strings.LastIndex(ref, "/")+1:]
+	if name, digest, ok := strings.Cut(ref, "@"); ok {
+		return name, digest, true
+	}
+	return strings.Cut(ref, ":")
 }
 
 // parseLibraryVersionsFromInitContainers extracts library versions from init container images.
@@ -167,23 +176,13 @@ func parseLibraryVersionsFromInitContainers(pod *corev1.Pod) map[string]string {
 	injectedVersions := map[string]string{}
 
 	for _, container := range pod.Spec.InitContainers {
-		// gcr.io/datadoghq/dd-lib-java-init:v1
-		parts := strings.Split(container.Image, ":")
-		if len(parts) != 2 {
+		image, version, ok := splitImageRef(container.Image)
+		if !ok {
 			continue
 		}
-		fullImage := parts[0]
-		version := parts[1]
-
-		// gcr.io/datadoghq/dd-lib-java-init
-		parts = strings.Split(fullImage, "/")
-		if len(parts) < 1 {
-			continue
-		}
-		image := parts[len(parts)-1]
 
 		// dd-lib-java-init
-		parts = strings.Split(image, "-")
+		parts := strings.Split(image, "-")
 		if len(parts) != 4 {
 			continue
 		}

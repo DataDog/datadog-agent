@@ -119,7 +119,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:       "hostname",
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Nil(c.getPeerTagKeys())
+		assert.Nil(c.PeerTagKeys())
 	})
 	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
@@ -132,7 +132,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTags:            []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Equal(cfg.ConfiguredPeerTags(), c.getPeerTagKeys())
+		assert.Equal(cfg.ConfiguredPeerTags(), c.PeerTagKeys())
 	})
 }
 
@@ -150,14 +150,14 @@ func TestConcentratorRefreshesPeerTagsForChangedMappingsWithSameContentHash(t *t
 		PeerTagsAggregation: true,
 	}
 	c := NewTestConcentratorWithCfg(time.Now(), &cfg)
-	require.Contains(t, c.getPeerTagKeys(), "peer.old")
+	require.Contains(t, c.PeerTagKeys(), "peer.old")
 
 	const newJSON = `{"version":"new","metadata":{"content_hash":"same-hash"},"concepts":{"peer.service":{"fallbacks":[{"name":"peer.new","provider":"datadog","type":"string"}]}}}`
 	newRegistry, err := semantics.NewRegistryFromJSON([]byte(newJSON))
 	require.NoError(t, err)
 	semantics.UpdateRegistry(newRegistry)
 
-	assert.Equal(t, []string{"peer.new"}, c.getPeerTagKeys())
+	assert.Equal(t, []string{"peer.new"}, c.PeerTagKeys())
 }
 
 func TestConcentratorRebuildsPeerTagCacheForMetadataOnlyRegistrySwap(t *testing.T) {
@@ -183,7 +183,7 @@ func TestConcentratorRebuildsPeerTagCacheForMetadataOnlyRegistrySwap(t *testing.
 	require.NotEqual(t, oldRegistry.Fingerprint(), newRegistry.Fingerprint())
 	semantics.UpdateRegistry(newRegistry)
 
-	assert.Equal(t, []string{"peer.same"}, c.getPeerTagKeys())
+	assert.Equal(t, []string{"peer.same"}, c.PeerTagKeys())
 	// A metadata-only payload change deliberately rebuilds this cheap cache so
 	// every payload change is guaranteed to invalidate registry-derived state.
 	assert.NotSame(t, cached, c.peerTagsCache.Load())
@@ -230,15 +230,15 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 	blocked := newAdditionalMetricTagStatSpan("blocked")
 	blocked.start = 2
 
-	c.spanConcentrator.addSpan(admitted, aggKey, infraTags{}, "", 1)
-	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
+	c.spanConcentrator.addSpan(admitted, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
 
 	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
 	assert.Equal(t, []string{"customer_id:blocked"}, blocked.matchingAdditionalMetricTags)
 	assert.Equal(t, BlockCounts{CapBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
 }
 
-// TestConcentrator_PeerTagKeysFollowRegistry verifies that getPeerTagKeys
+// TestConcentrator_PeerTagKeysFollowRegistry verifies that PeerTagKeys
 // rebuilds the cached peer-tag set when the live semantic registry has been
 // swapped (e.g. by an RC update) — driven entirely by the registry's
 // fingerprint, with no explicit notification from the RC handler.
@@ -255,7 +255,7 @@ func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
 		PeerTagsAggregation: true,
 	}
 	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Now(), &statsd.NoOpClient{})
-	originalKeys := c.getPeerTagKeys()
+	originalKeys := c.PeerTagKeys()
 	assert.Contains(t, originalKeys, "peer.service", "embedded registry maps peer.service concept")
 
 	// Install a registry with a different Version() and a remapped peer.service concept.
@@ -264,9 +264,63 @@ func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
 	require.NoError(t, err)
 	semantics.UpdateRegistry(custom)
 
-	refreshedKeys := c.getPeerTagKeys()
-	assert.Contains(t, refreshedKeys, "x.custom.peer", "getPeerTagKeys must pick up the new peer-tag mapping after the registry was swapped")
+	refreshedKeys := c.PeerTagKeys()
+	assert.Contains(t, refreshedKeys, "x.custom.peer", "PeerTagKeys must pick up the new peer-tag mapping after the registry was swapped")
 	assert.NotContains(t, refreshedKeys, "peer.service", "the old peer.service mapping must be gone after the fingerprint-keyed cache invalidates")
+}
+
+// TestConcentratorFutureClamp tests that spans ending far in the future are clamped
+// into the current time bucket instead of creating a future bucket that would not be
+// flushed until the agent's wall clock reaches it (which can look like a memory leak).
+func TestConcentratorFutureClamp(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	c := NewTestConcentrator(now)
+
+	// Span starting 1 hour in the future with a 10 second duration.
+	futureStart := now.UnixNano() + time.Hour.Nanoseconds()
+	strings := idx.NewStringTable()
+	span := idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      1,
+		ParentID:    0,
+		ServiceRef:  strings.Add("A1"),
+		NameRef:     strings.Add("query"),
+		ResourceRef: strings.Add("resource1"),
+		TypeRef:     strings.Add("db"),
+		Start:       uint64(futureStart),
+		Duration:    uint64((10 * time.Second).Nanoseconds()),
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+		},
+	})
+	// Build the StatSpan through the V1 API, but call addSpan directly with an
+	// explicit timestamp: addNowV1 reads time.Now() internally, and crossing a
+	// bucket boundary between this test's `now` and that clock read would make
+	// the expected bucket non-deterministic.
+	statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(span, c.PeerTagKeys(), nil)
+	if !assert.True(ok, "span should be eligible for stats") {
+		t.FailNow()
+	}
+	c.spanConcentrator.addSpan(statSpan, PayloadAggregationKey{Env: "none"}, infraTags{}, "", 1, now.UnixNano())
+
+	// The span must have been added to the bucket containing `now`, not a future one.
+	alignedNow := now.UnixNano() - now.UnixNano()%testBucketInterval
+	b, ok := c.spanConcentrator.buckets[alignedNow]
+	if !assert.True(ok, "span should be in the current time bucket") {
+		t.FailNow()
+	}
+	assert.Len(b.Export(), 1, "current bucket should contain the clamped span")
+	assert.Len(c.spanConcentrator.buckets, 1, "no future bucket should have been created")
+
+	// The clamp is counted for telemetry and drained on flush.
+	assert.Equal(int64(1), c.spanConcentrator.DrainFutureClamps(), "one span should have been counted as clamped")
+	assert.Equal(int64(0), c.spanConcentrator.DrainFutureClamps(), "drain should reset the clamp counter")
+
+	// The clamped stats are flushed normally once the buffer delay has passed.
+	flushTime := now.UnixNano() + int64(c.spanConcentrator.bufferLen)*testBucketInterval
+	stats := c.flushNow(flushTime, false)
+	assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket")
+	assert.Equal(uint64(alignedNow), stats.Stats[0].Stats[0].Start, "bucket start should be the current time bucket")
 }
 
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
@@ -943,7 +997,7 @@ func TestPeerTags(t *testing.T) {
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		// Inject a peer-tag key set directly, keyed by the live registry's
-		// fingerprint so getPeerTagKeys returns it without rebuilding from conf.
+		// fingerprint so PeerTagKeys returns it without rebuilding from conf.
 		c.peerTagsCache.Store(&config.PeerTagsCache{
 			Fingerprint: semantics.DefaultRegistry().Fingerprint(),
 			Keys:        []string{"db.instance", "db.system", "peer.service"},

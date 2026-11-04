@@ -622,6 +622,52 @@ network_devices:
 log_level: info`)
 }
 
+func TestDataSecurityScanningRulePatterns(t *testing.T) {
+	t.Run("YAML object: only id and license under scanning_rules are kept", func(t *testing.T) {
+		input := `scanning_rules:
+  - id: rule-1
+    license: proprietary
+    pattern: '(\d+)'
+    pattern_capture_groups: ['1']
+    proximity_keywords:
+      look_ahead_character_count: 30
+      included_keywords: ['card']
+    validator:
+      type: LuhnChecksum
+log_processing_rules:
+  - pattern: 'keep\s+me'
+    validator: keep-me
+task_id: task-1
+`
+		expected := `scanning_rules:
+  - id: rule-1
+    license: proprietary
+    pattern: "********"
+    pattern_capture_groups: "********"
+    proximity_keywords: "********"
+    validator: "********"
+log_processing_rules:
+  - pattern: 'keep\s+me'
+    validator: keep-me
+task_id: task-1
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		require.YAMLEq(t, expected, scrubbed)
+	})
+
+	t.Run("single-line YAML text: pattern is scrubbed to end of line", func(t *testing.T) {
+		input := `Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: '\\d{6}'\ntask_id: task-1\n"), } }`
+		expected := `Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: "********"`
+		assertClean(t, input, expected)
+	})
+
+	t.Run("YAML text: pattern outside of scanning_rules is preserved", func(t *testing.T) {
+		input := "log_processing_rules:\n  - pattern: 'keep\\s+me'"
+		assertClean(t, input, input)
+	})
+}
+
 func TestBearerToken(t *testing.T) {
 	assertClean(t,
 		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,

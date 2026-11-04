@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -79,6 +80,7 @@ type Requires struct {
 	Config              config.Component
 	Serializer          serializer.MetricSerializer
 	TraceAgent          traceagent.Component
+	TraceConfig         traceconfig.Component
 	LogsAgent           option.Option[logsagentpipeline.Component]
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
@@ -199,7 +201,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store, reqs.Config)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
-	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
+	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil, datadogconnector.WithAgentConfig(reqs.TraceConfig.Object()))
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 	factories.Extensions[dogtelextension.Type] = dogtelextension.NewFactoryForAgent(
@@ -216,7 +218,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.159.0",
+	Version:     "v0.164.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }

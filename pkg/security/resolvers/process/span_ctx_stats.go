@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"syscall"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -280,6 +282,20 @@ func (p *EBPFResolver) sendSpanCtxStats() error {
 		}
 	}
 	return nil
+}
+
+func (p *EBPFResolver) reportOTelProcCtxQueueLatency(queuedAt time.Time) {
+	p.reportLatency(metrics.MetricSpanContextProcessCtxQueueLatency, queuedAt, nil)
+}
+
+func (p *EBPFResolver) reportOTelTLSLatency(start time.Time, readELF bool) {
+	p.reportLatency(metrics.MetricSpanContextResolutionLatency, start, []string{"elf:" + strconv.FormatBool(readELF)})
+}
+
+func (p *EBPFResolver) reportLatency(metric string, since time.Time, tags []string) {
+	if err := p.statsdClient.Distribution(metric, time.Since(since).Seconds(), tags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metric, err)
+	}
 }
 
 // reportSpanCtx classifies and counts the outcome of step for pid, logging a

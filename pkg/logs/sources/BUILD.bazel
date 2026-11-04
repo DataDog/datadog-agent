@@ -8,6 +8,7 @@ go_library(
         "replaceable_source.go",
         "source.go",
         "sources.go",
+        "tagfilter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/sources",
     visibility = ["//visibility:public"],
@@ -16,6 +17,7 @@ go_library(
         "//pkg/logs/status/utils",
         "//pkg/util/log",
         "//pkg/util/statstracker",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 

@@ -6,11 +6,10 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -156,7 +155,7 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 		config.MaxRunLength = defaults.MaxRunLength
 	}
 	if config.MaxRunLength < config.WarmupPoints {
-		pkglog.Warnf("[observer] BOCPD max_run_length=%d is below warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
+		logging.Warnf("BOCPD max_run_length=%d is below warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
 		config.MaxRunLength = config.WarmupPoints
 	}
 	if config.PriorVarianceScale <= 0 {
@@ -460,30 +459,28 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 	}
 	deviation := (p.Value - state.baselineMean) / state.baselineStddev
 
-	triggerType := "short-run posterior mass"
-	triggerValue := shortRunMass
+	trigger := observer.BOCPDTriggerShortRunMass
 	triggerThreshold := b.config.CPMassThreshold
 	if cpProb >= b.config.CPThreshold {
-		triggerType = "changepoint probability"
-		triggerValue = cpProb
+		trigger = observer.BOCPDTriggerChangePointProbability
 		triggerThreshold = b.config.CPThreshold
 	}
 
-	displayName := source.String()
 	return &observer.Anomaly{
 		Type:         observer.AnomalyTypeMetric,
 		Source:       source,
 		DetectorName: b.Name(),
-		Title:        "BOCPD changepoint detected: " + displayName,
-		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
-			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
-		Timestamp: p.Timestamp,
+		Timestamp:    p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
-			BaselineMean:   state.baselineMean,
-			BaselineStddev: state.baselineStddev,
-			Threshold:      triggerThreshold,
-			CurrentValue:   p.Value,
-			DeviationSigma: deviation,
+			BaselineMean:         state.baselineMean,
+			BaselineStddev:       state.baselineStddev,
+			Threshold:            triggerThreshold,
+			CurrentValue:         p.Value,
+			DeviationSigma:       deviation,
+			BOCPDTrigger:         trigger,
+			BOCPDChangePointProb: cpProb,
+			BOCPDShortRunMass:    shortRunMass,
+			BOCPDShortRunLength:  b.config.ShortRunLength,
 		},
 	}
 }

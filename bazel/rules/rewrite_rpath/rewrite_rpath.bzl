@@ -75,7 +75,9 @@ def rewrite_rpaths(ctx, inputs, rpath, relative = False):
         if target.is_directory:
             output = ctx.actions.declare_directory("patched_dirs/" + target.basename)
         else:
-            output = ctx.actions.declare_file("patched/" + target.basename)
+            # Namespace the output by the rule's name so multiple rewrite_rpath
+            # instances sharing the same input basename don't collide.
+            output = ctx.actions.declare_file("patched/" + ctx.label.name + "/" + target.basename)
 
         resolved_rpath = relative_rpath(input, rpath) if relative else rpath
 

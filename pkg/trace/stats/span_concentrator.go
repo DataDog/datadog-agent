@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"go.uber.org/atomic"
 )
@@ -210,6 +209,9 @@ type SpanConcentrator struct {
 	httpEndpointCollapses *atomic.Int64
 	peerTagsCollapses     *atomic.Int64
 	originCollapses       *atomic.Int64
+	// futureClamps counts spans whose bucket was clamped from a future bucket
+	// to the current time bucket (e.g. spans from a client with a badly skewed clock).
+	futureClamps *atomic.Int64
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -253,6 +255,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 		httpEndpointCollapses: atomic.NewInt64(0),
 		peerTagsCollapses:     atomic.NewInt64(0),
 		originCollapses:       atomic.NewInt64(0),
+		futureClamps:          atomic.NewInt64(0),
 		bsize:                 cfg.BucketInterval,
 		oldestTs:              alignTs(now.UnixNano(), cfg.BucketInterval),
 		bufferLen:             defaultBufferLen,
@@ -369,6 +372,15 @@ func (sc *SpanConcentrator) DrainBlockCounts() BlockCounts {
 	return counts
 }
 
+// DrainFutureClamps atomically reads and zeroes the count of spans whose
+// bucket was clamped to the current time bucket (see addSpan).
+func (sc *SpanConcentrator) DrainFutureClamps() int64 {
+	if sc.futureClamps == nil {
+		return 0
+	}
+	return sc.futureClamps.Swap(0)
+}
+
 // NewStatSpanFromPB is a helper version of NewStatSpanWithConfig that builds a StatSpan from a pb.Span.
 func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string, additionalMetricTagKeys []string) (statSpan *StatSpan, ok bool) {
 	return sc.NewStatSpanWithConfig(
@@ -419,14 +431,19 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	if config.Metrics == nil {
 		config.Metrics = make(map[string]float64)
 	}
+	reg := semantics.DefaultRegistry()
 	a := semantics.NewDDSpanAccessor(config.Meta, config.Metrics)
-	spanKind := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptSpanKind)
+	spanKind := semantics.LookupString(reg, a, semantics.ConceptSpanKind)
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind)
-	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
-	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {
-		return nil, false
+	topLevel, found := semantics.LookupInt64(reg, a, semantics.ConceptDDTopLevel)
+	isTopLevel := found && topLevel == 1
+	if !isTopLevel && !eligibleSpanKind {
+		if v, ok := semantics.LookupInt64(reg, a, semantics.ConceptDDMeasured); !ok || v != 1 {
+			return nil, false
+		}
 	}
-	if traceutil.IsPartialSnapshotMetrics(config.Metrics) {
+	// Skip partial snapshots (version >= 0).
+	if v, ok := semantics.LookupFloat64(reg, a, semantics.ConceptDDPartialVersion); ok && v >= 0 {
 		return nil, false
 	}
 	service, name, typ, resource := config.Service, config.Name, config.Type, config.Resource
@@ -463,11 +480,17 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 // NewStatSpanFromV1 is a helper version of NewStatSpan that builds a StatSpan from an idx.InternalSpan.
 func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string, additionalMetricTagKeys []string) (statSpan *StatSpan, ok bool) {
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind())
-	isTopLevel := traceutil.HasTopLevelMetricsV1(s)
-	if !(isTopLevel || traceutil.IsMeasuredMetricsV1(s) || eligibleSpanKind) {
-		return nil, false
+	reg := semantics.DefaultRegistry()
+	a := semantics.NewDDSpanAccessorV1(s)
+	topLevel, found := semantics.LookupInt64(reg, a, semantics.ConceptDDTopLevel)
+	isTopLevel := found && topLevel == 1
+	if !isTopLevel && !eligibleSpanKind {
+		if v, ok := semantics.LookupInt64(reg, a, semantics.ConceptDDMeasured); !ok || v != 1 {
+			return nil, false
+		}
 	}
-	if traceutil.IsPartialSnapshotMetricsV1(s) {
+	// Skip partial snapshots (version >= 0).
+	if v, ok := semantics.LookupFloat64(reg, a, semantics.ConceptDDPartialVersion); ok && v >= 0 {
 		return nil, false
 	}
 	spanError := 0
@@ -561,11 +584,21 @@ var KindsComputed = map[string]struct{}{
 	"producer": {},
 }
 
-func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string, weight float64) {
+func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string, weight float64, now int64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	end := s.start + s.duration
 	btime := max(end-end%sc.bsize, sc.oldestTs)
+	if btime > now {
+		// Clamp the bucket to the current time bucket. Spans with a start or duration
+		// far in the future (e.g. from a client with a badly skewed clock) would
+		// otherwise create buckets that are not flushed until the agent's wall clock
+		// reaches them, retaining memory for that entire period.
+		if sc.futureClamps != nil {
+			sc.futureClamps.Add(1)
+		}
+		btime = max(alignTs(now, sc.bsize), sc.oldestTs)
+	}
 
 	b, ok := sc.buckets[btime]
 	if !ok {
@@ -586,7 +619,7 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
 // todo:raphael migrate dd-trace-go API to not depend on containerID/containerTags and add processTags at encoding layer
 func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
-	sc.addSpan(s, aggKey, infraTags{containerID: containerID, containerTags: containerTags}, origin, 1)
+	sc.addSpan(s, aggKey, infraTags{containerID: containerID, containerTags: containerTags}, origin, 1, time.Now().UnixNano())
 }
 
 // Flush deletes and returns complete ClientStatsPayloads.

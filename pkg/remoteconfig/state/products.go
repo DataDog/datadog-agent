@@ -14,7 +14,6 @@ var validProducts = map[string]struct{}{
 	ProductAgentConfig:                  {},
 	ProductAgentFailover:                {},
 	ProductAgentTask:                    {},
-	ProductAgentIntegrations:            {},
 	ProductAPMSampling:                  {},
 	ProductAPMSemanticCoreDD:            {},
 	ProductCWSDD:                        {},
@@ -49,6 +48,7 @@ var validProducts = map[string]struct{}{
 	ProductK8SActions:                   {},
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
+	ProductNDMConfig:                    {},
 }
 
 const (
@@ -66,8 +66,6 @@ const (
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentFailover is to receive the multi-region failover configuration
 	ProductAgentFailover = "AGENT_FAILOVER"
-	// ProductAgentIntegrations is to receive integrations to schedule
-	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask = "AGENT_TASK"
 	// ProductAPMSampling is the apm sampling product
@@ -143,4 +141,6 @@ const (
 	// ProductDataSecurityDBScanTasks remotely triggers Data Security DB scan tasks
 	// TODO(dsec-216): mutualize with pkg/config/remote/data/product.go.
 	ProductDataSecurityDBScanTasks = "DATA_SECURITY_DB_SCAN_TASKS"
+	// ProductNDMConfig receives configuration documents for network device monitoring
+	ProductNDMConfig = "NDM_CONFIG"
 )

@@ -304,7 +304,12 @@ class FileUtilities:
             return None
 
     @staticmethod
-    def walk_files(directory: str, debug: bool, filter: Callable[[str], bool] = lambda _: True) -> list[FileInfo]:
+    def walk_files(
+        directory: str,
+        debug: bool,
+        filter: Callable[[str], bool] = lambda _: True,
+        include_directories: bool = False,
+    ) -> list[FileInfo]:
         """
         Walk through files in a directory and create file inventory.
 
@@ -313,6 +318,8 @@ class FileUtilities:
             debug: Enable debug logging
             filter: a callback to filter out some patterns. If it returns false, the file
                     will not be added to the inventory.
+            include_directories: also list directories, and symlinks to directories, which
+                    are skipped by default.
 
         Returns:
             List of FileInfo objects for all files
@@ -328,8 +335,8 @@ class FileUtilities:
             print(f"📊 Found {files_count} files and {dirs_count} directories")
 
         for file_path in directory_path.rglob('*'):
-            # Skip directories
-            if file_path.is_dir():
+            # Skip directories, unless asked to list them
+            if file_path.is_dir() and not include_directories:
                 continue
             try:
                 relative_path = str(file_path.relative_to(directory_path))
@@ -380,6 +387,19 @@ class FileUtilities:
                         if debug:
                             print(f"⚠️  Could not read symlink {file_path}: {e}")
                         continue
+
+                elif file_path.is_dir():
+                    file_inventory.append(
+                        FileInfo(
+                            relative_path=relative_path,
+                            size_bytes=0,
+                            chmod=chmod,
+                            owner=file_stat.st_uid,
+                            group=file_stat.st_gid,
+                        )
+                    )
+
+                    files_processed += 1
 
                 elif file_path.is_file():
                     # Always generate checksums for regular files

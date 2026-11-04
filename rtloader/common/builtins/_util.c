@@ -281,9 +281,12 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
     // PyTuple_SetItem "steals" the reference: no INCREF, the tuple takes
     // over the obligation. Null each local so cleanup's Py_XDECREF won't
     // over-decref what the tuple now owns.
-    PyTuple_SetItem(pyResult, 0, pyStdout);  pyStdout = NULL;
-    PyTuple_SetItem(pyResult, 1, pyStderr);  pyStderr = NULL;
-    PyTuple_SetItem(pyResult, 2, pyRetCode); pyRetCode = NULL;
+    PyTuple_SetItem(pyResult, 0, pyStdout);
+    pyStdout = NULL;
+    PyTuple_SetItem(pyResult, 1, pyStderr);
+    pyStderr = NULL;
+    PyTuple_SetItem(pyResult, 2, pyRetCode);
+    pyRetCode = NULL;
 
 cleanup:
     Py_XDECREF(pyStdout);

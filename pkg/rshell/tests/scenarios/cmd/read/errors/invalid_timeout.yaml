@@ -1,0 +1,18 @@
+description: read -t rejects non-numeric, NaN, Inf, scientific-notation, and overflow timeouts (matches bash).
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo "x" | { read -t notanumber X; echo "rc1=$?"; }
+    echo "x" | { read -t NaN X; echo "rc2=$?"; }
+    echo "x" | { read -t Inf X; echo "rc3=$?"; }
+    echo "x" | { read -t 1e6 X; echo "rc4=$?"; }
+    echo "x" | { read -t -5 X; echo "rc5=$?"; }
+expect:
+  stdout: |+
+    rc1=1
+    rc2=1
+    rc3=1
+    rc4=1
+    rc5=1
+  stderr_contains: ["invalid timeout specification"]
+  exit_code: 0

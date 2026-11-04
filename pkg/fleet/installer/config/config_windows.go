@@ -54,7 +54,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return errors.New("there is already an experiment in progress")
 	}
 	// Clear and recreate the experiment/backup directory
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -79,7 +79,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 }
 
 // PromoteExperiment promotes the experiment to the stable.
-func (d *Directories) PromoteExperiment(_ context.Context) error {
+func (d *Directories) PromoteExperiment(ctx context.Context) error {
 	_, err := os.Stat(d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error checking for experiment directory: %w", err)
@@ -92,7 +92,7 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error renaming deployment ID file: %w", err)
 	}
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -118,7 +118,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
 		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
 	}
-	err = os.RemoveAll(d.ExperimentPath)
+	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
 	}
@@ -145,12 +145,16 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("failed to open target directory: %w", err)
 	}
 
+	robocopyPath, err := systemRobocopyPath()
+	if err != nil {
+		return err
+	}
 	// robocopy exit codes 1-7 indicate successful copies with various informational statuses.
 	// Only codes >=8 indicate copy errors.
 	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/return-codes-used-robocopy-utility
 	cmd := telemetry.CommandContext(
 		ctx,
-		"robocopy",
+		robocopyPath,
 		"/MIR",
 		"/SL",
 		sourcePath,
@@ -170,6 +174,18 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
 	return nil
+}
+
+// systemRobocopyPath returns the absolute path of the robocopy shipped with Windows.
+//
+// Resolving robocopy through PATH breaks on hosts whose PATH lacks System32, or where an older
+// robocopy (e.g. the Windows Server 2003 Resource Kit one, which rejects /SL) shadows it.
+func systemRobocopyPath() (string, error) {
+	systemDir, err := windows.GetSystemDirectory()
+	if err != nil {
+		return "", fmt.Errorf("error getting Windows system directory: %w", err)
+	}
+	return filepath.Join(systemDir, "robocopy.exe"), nil
 }
 
 // secureCreateTargetDirectoryWithSourcePermissions creates targetPath with the same permissions as srcPath.

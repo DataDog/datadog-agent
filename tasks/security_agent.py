@@ -12,7 +12,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.build_tags import get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.go import run_golangci_lint
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
@@ -45,7 +45,6 @@ is_windows = sys.platform == "win32"
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
-CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
 BAZEL_TARGET = "//cmd/security-agent:security-agent"
 
@@ -59,7 +58,7 @@ def build(
     install_path=None,
     go_mod="readonly",
     static=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     enable_bazel=False,
 ):
     """
@@ -75,9 +74,9 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
-
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
@@ -104,9 +103,7 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="security-agent", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    build_tags += get_default_build_tags(build="security-agent", flavor=fips_backend.agent_flavor())
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -124,6 +121,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        fips_backend=fips_backend,
     )
 
 
@@ -228,19 +226,21 @@ def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     arch = Arch.from_str(arch)
     _, _, env = get_build_flags(ctx, arch=arch)
 
+    # span_go_tester is linked dynamically: dd-trace-go dlopens libddwaf, which fails in
+    # a static binary
     testers = {
-        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
+        "syscall_go_tester": (f"{syscall_tester_go_dir}/syscall_go_tester.go", True),
+        "span_go_tester": (f"{syscall_tester_go_dir}/span/span_go_tester.go", False),
     }
 
     exe_files = []
-    for name, source in testers.items():
+    for name, (source, static) in testers.items():
         exe_file = os.path.join(build_dir, name)
         go_build(
             ctx,
             source,
             build_tags=["syscalltesters", "osusergo", "netgo"],
-            ldflags="-extldflags=-static",
+            ldflags="-extldflags=-static" if static else "",
             bin_path=exe_file,
             env=env,
         )
@@ -296,7 +296,9 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 # 2.17 symbols end up referenced. The host toolchain would link them against the
 # build image's glibc instead, which is newer than every KMT host and than the
 # ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
-# linked variant would then be skipped outside the newest legs.
+# linked variant would then be skipped outside the newest legs. The Node.js
+# tester is Bazel-built the same way, alongside the native one; it is glibc-only,
+# so there is no musl counterpart to build.
 #
 # musl is covered by TestResolveOTelTLSMuslDTV in
 # pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
@@ -403,7 +405,7 @@ def build_functional_tests(
 
         build_tags.append("pcap")
         build_libpcap(ctx, env=env, arch=arch)
-        cgo_flags = get_libpcap_cgo_flags(ctx)
+        cgo_flags = get_libpcap_cgo_flags()
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -563,76 +565,25 @@ def generate_cws_documentation(ctx):
 
 
 @task
-def cws_go_generate(ctx, verbose=False):
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx)
-
-    # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
-    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
-    # CWS codegens migrated to Bazel keep their //go:generate directives so a future
-    # Gazelle extension can pick them up; we just skip them in `go generate` here.
-    # See ABLD-420.
-    bazel("run", "//pkg/security/secl/compiler/eval:eval_operators")
-    bazel("run", "//pkg/security/secl/model:consts_map_names_linux")
-    bazel("run", "//pkg/security/secl/model:accessors_unix")
-    bazel("run", "//pkg/security/secl/model:accessors_windows")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_unix")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
-    bazel("run", "//docs/cloud-workload-security:secl_linux")
-    bazel("run", "//docs/cloud-workload-security:secl_windows")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
-    with ctx.cd("./pkg/security/secl"):
-        if sys.platform == "linux":
-            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
-        elif is_windows:
-            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
-        cmd = f"go generate -skip='{skip}'"
-        if verbose:
-            cmd += " -v"
-        ctx.run(cmd + " ./...")
-
-    if sys.platform == "linux":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_linux_easyjson.mock",
-            "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
-    ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run(f"go generate -skip='{skip}' -tags=bpf,cws_go_generate ./pkg/security/...")
-
-    # synchronize the seclwin package from the secl package
-    bazel("run", "//pkg/security/seclwin:sync")
-    bazel("run", "//pkg/security/seclwin/model:sync")
-
-    # generate documentation
-    generate_cws_documentation(ctx)
+def cws_go_generate(ctx, windows=False):
+    # CWS codegens keep their //go:generate directives so a future Gazelle
+    # extension can emit the matching Bazel targets from them (ABLD-475).
+    # Off Windows, cws_codegen renders backend_windows.md from the committed
+    # schema, so refresh that first.
+    if windows and sys.platform == "linux":
+        bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
+    bazel("run", "//pkg/security:cws_codegen")
 
 
 @task
 def generate_syscall_table(ctx):
-    def single_run(ctx, table_url, output_file, output_string_file, abis=None):
-        if abis:
-            abis = f"-abis {abis}"
-        ctx.run(
-            f"go run github.com/DataDog/datadog-agent/pkg/security/generators/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
-        )
+    """Regenerate secl model syscall enums from the pinned Linux kernel tables.
 
-    linux_version = "v6.13"
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
-        "pkg/security/secl/model/syscalls_linux_amd64.go",
-        "pkg/security/secl/model/syscalls_string_linux_amd64.go",
-        abis="common,64",
-    )
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
-        "pkg/security/secl/model/syscalls_linux_arm64.go",
-        "pkg/security/secl/model/syscalls_string_linux_arm64.go",
-    )
+    Tables are fetched as http_file repos in MODULE.bazel (same pins as
+    utils_syscall_table). Bumping the kernel version means updating those
+    URLs and sha256 entries.
+    """
+    bazel("run", "//pkg/security/secl/model:syscall_table")
 
 
 @task
@@ -649,6 +600,8 @@ DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/consta
 
 @task
 def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
@@ -656,6 +609,8 @@ def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONS
 
 @task
 def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
@@ -725,84 +680,20 @@ def get_git_dirty_files():
     return paths
 
 
-class FailingTask:
-    def __init__(self, name, dirty_files):
-        self.name = name
-        self.dirty_files = dirty_files
-
-
 @task
 def go_generate_check(ctx):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    tasks = [
-        [cws_go_generate],
-        [generate_cws_proto],
-        [gen_mocks],
-    ]
-    failing_tasks = []
-    previous_dirty = set()
-
-    for task_entry in tasks:
-        task, args = task_entry[0], task_entry[1:]
-        task(ctx, *args)
-        # when running a non-interactive session, python may buffer too much data and thus mix stderr and stdout
-        # this is especially visible in the Gitlab job logs
-        # we flush to ensure correct separation between steps
-        sys.stdout.flush()
-        sys.stderr.flush()
-        dirty_files = [f for f in get_git_dirty_files() if f not in previous_dirty]
-        if dirty_files:
-            failing_tasks.append(FailingTask(task.__name__, dirty_files))
-
-        previous_dirty.update(dirty_files)
-
-    if failing_tasks:
-        for ft in failing_tasks:
-            task = ft.name.replace("_", "-")
-            print(f"Task `dda inv security-agent.{task}` resulted in dirty files, please re-run it:")
-            for file in ft.dirty_files:
-                print(f"* {file}")
+    # The other CWS generated files are guarded by their Bazel diff tests;
+    # mockery has none yet.
+    gen_mocks(ctx)
+    dirty_files = get_git_dirty_files()
+    if dirty_files:
+        print("Task `dda inv security-agent.gen-mocks` resulted in dirty files, please re-run it:")
+        for file in dirty_files:
+            print(f"* {file}")
         raise Exit(code=1)
-
-
-E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
-
-
-@task
-def e2e_prepare_win(ctx):
-    """
-    Compile test suite for CWS windows new-e2e tests
-    """
-
-    out_binary = "testsuite.exe"
-
-    testsuite_out_dir = E2E_ARTIFACT_DIR
-    # Clean up previous build
-    if os.path.exists(testsuite_out_dir):
-        shutil.rmtree(testsuite_out_dir)
-
-    testsuite_out_path = os.path.join(testsuite_out_dir, out_binary)
-    build_functional_tests(
-        ctx,
-        bundle_ebpf=False,
-        race=False,
-        output=testsuite_out_path,
-        skip_linters=True,
-    )
-
-    # build the ETW tests binary also
-    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
-    srcpath = 'pkg/security/probe'
-    build_functional_tests(
-        ctx,
-        output=testsuite_out_path,
-        srcpath=srcpath,
-        bundle_ebpf=False,
-        race=False,
-        skip_linters=True,
-    )
 
 
 @task
@@ -812,7 +703,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     env = {"CGO_ENABLED": "1"}
 
     build_libpcap(ctx, env=env)
-    cgo_flags = get_libpcap_cgo_flags(ctx)
+    cgo_flags = get_libpcap_cgo_flags()
     # append libpcap cgo-related environment variables to any existing ones
     for k, v in cgo_flags.items():
         if k in env:

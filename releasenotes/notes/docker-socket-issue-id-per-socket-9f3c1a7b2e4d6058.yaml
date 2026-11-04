@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Health Platform: the Docker socket permission health issue now scopes its
+    issue id to the host and the set of unreachable sockets, instead of a single
+    fixed id shared across the fleet. Each affected host now files its own issue,
+    so one host recovering no longer resolves the issue for the others.

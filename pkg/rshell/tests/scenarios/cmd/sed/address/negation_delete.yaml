@@ -1,0 +1,13 @@
+description: Negation with the delete command keeps only matching lines.
+setup:
+  files:
+    - path: input.txt
+      content: "keep\nremove\nkeep\nremove\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '/keep/!d' input.txt
+expect:
+  stdout: "keep\nkeep\n"
+  stderr: ""
+  exit_code: 0

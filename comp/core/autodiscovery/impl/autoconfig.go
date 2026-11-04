@@ -74,6 +74,8 @@ type Requires struct {
 	Telemetry      telemetry.Component
 	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
+	// Without supplied params, preparation stays lazy until LoadAndRun.
+	Params autodiscoverydef.Params `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -87,7 +89,6 @@ type AutoConfig struct {
 	listenerRetryStop        chan struct{}
 	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
-	discoveryStop            chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
@@ -106,6 +107,7 @@ type AutoConfig struct {
 	healthPlatform           healthplatformdef.Component
 	staticConfigIndex        *listeners.StaticConfigIndex
 	serviceTracker           adtypes.ServiceTracker
+	preparation              *preparation
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -184,9 +186,17 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	}()
 
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
+	ac.preparation = &preparation{initialize: func() {
+		started := time.Now()
+		ac.prepareDefaults(deps.Config)
+		deps.Log.Infof("Autodiscovery setup completed in %s", time.Since(started))
+	}}
 	deps.Lc.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
+		OnStart: func(ctx context.Context) error {
 			ac.start()
+			if deps.Params.PreloadConfigsOnStart {
+				_, _, _ = ac.preparation.start(ctx)
+			}
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
@@ -197,7 +207,9 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	return ac
 }
 
-// NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies (without starting).
+// NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies,
+// without starting it or installing default configuration preparation.
+// LoadAndRun only runs explicitly registered providers on this instance.
 // Exported for use by the mock package.
 func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component) *AutoConfig {
 	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
@@ -207,20 +219,17 @@ func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretReso
 func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker) *AutoConfig {
 	staticConfigIndex := listeners.NewStaticConfigIndex()
 	telStore := acTelemetry.NewStore(telemetryComp)
-	cfgMgr := newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewPythonBridge(), telStore)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
 		listenerRetryStop:        nil, // We'll open it if needed
 		listenerStop:             make(chan struct{}),
-		discoveryStop:            make(chan struct{}),
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
 		refreshConfig:            make(chan struct{}, 1),
 		pendingSecretRefreshes:   make(map[string]struct{}),
 		store:                    newStore(),
-		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
@@ -233,6 +242,8 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		staticConfigIndex:        staticConfigIndex,
 		serviceTracker:           tracker,
 	}
+
+	ac.cfgMgr = newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewPythonBridge(), telStore, ac.publishChanges)
 
 	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, _ any) {
 		oldValueStr, ok := oldValue.(string)
@@ -405,27 +416,16 @@ func (ac *AutoConfig) start() {
 	// Start the service listener
 	go ac.serviceListening()
 	ac.cfgMgr.start()
-	go ac.discoveredChangesLoop(ac.cfgMgr.discoveredChanges())
-}
-
-// discoveredChangesLoop drains ConfigChanges produced asynchronously by the
-// configuration-discovery worker and forwards them to the scheduler. Exits
-// when discoveryStop is closed.
-func (ac *AutoConfig) discoveredChangesLoop(ch <-chan integration.ConfigChanges) {
-	for {
-		select {
-		case <-ac.discoveryStop:
-			return
-		case changes := <-ch:
-			ac.applyChanges(changes)
-		}
-	}
 }
 
 // stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) stop() {
+	if ac.preparation != nil {
+		ac.preparation.stop()
+	}
+
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
@@ -434,8 +434,7 @@ func (ac *AutoConfig) stop() {
 	// stop the service listener
 	ac.listenerStop <- struct{}{}
 
-	// stop the discovered-changes drain loop and then the worker itself.
-	close(ac.discoveryStop)
+	// Stop discovery before stopping the controller it publishes to.
 	ac.cfgMgr.stop()
 
 	// stop the meta scheduler
@@ -472,10 +471,21 @@ func (ac *AutoConfig) AddConfigProvider(provider providerTypes.ConfigProvider, s
 	ac.configPollers = append(ac.configPollers, cp)
 }
 
-// LoadAndRun loads all of the integration configs it can find
-// and schedules them. Should always be run once so providers
-// that don't need polling will be queried at least once
-func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
+// LoadAndRun prepares default providers/listeners if necessary, then loads and
+// schedules configs from all registered providers. Bare instances created for
+// mocks skip default preparation. Call once after startup, before shutdown;
+// callers may retry a canceled preparation wait, but must not start providers twice.
+func (ac *AutoConfig) LoadAndRun(ctx context.Context) error {
+	if ac.preparation != nil {
+		if err := ac.preparation.wait(ctx); err != nil {
+			return err
+		}
+	}
+	ac.loadRegisteredProviders(ctx)
+	return nil
+}
+
+func (ac *AutoConfig) loadRegisteredProviders(ctx context.Context) {
 	for _, cp := range ac.getConfigPollers() {
 		cp.start(ctx, ac)
 		if cp.canPoll {
@@ -569,8 +579,8 @@ func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error 
 }
 
 // processNewConfig store (in template cache) and resolves a given config,
-// returning the changes to be made.
-func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
+// publishing the resulting scheduling changes.
+func (ac *AutoConfig) processNewConfig(config integration.Config) {
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics := ac.store.getJMXMetricsForConfigName(config.Name)
@@ -585,12 +595,10 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 	if err != nil {
 		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
 		errorStats.setConfigError(config.Name, err.Error())
-		return integration.ConfigChanges{}
+		return
 	}
 
-	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.processNewConfig(config)
-	ac.store.setIDsOfChecksWithSecrets(changedIDsOfSecretsWithConfigs)
-	return changes
+	ac.cfgMgr.processNewConfig(config)
 }
 
 // AddListeners tries to initialise the listeners listed in the given configs. A first
@@ -704,9 +712,7 @@ func (ac *AutoConfig) RemoveScheduler(name string) {
 }
 
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
-	changes := ac.cfgMgr.processDelConfigs(configs)
-	ac.applyChanges(changes)
-	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
+	ac.cfgMgr.processDelConfigs(configs)
 }
 
 // getUnresolvedConfigs returns all the active configs, in their unresolved
@@ -768,32 +774,26 @@ func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) check
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
-	changes := ac.cfgMgr.processNewService(svc)
-	ac.applyChanges(changes)
+	ac.cfgMgr.processNewService(svc)
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
-	changes := ac.cfgMgr.processDelService(svc)
-	ac.applyChanges(changes)
+	ac.cfgMgr.processDelService(svc)
 }
 
 // processRefreshConfig takes a secret origin and matches it against an active config. If found
 // it will refresh the config to apply the new secret.
-func (ac *AutoConfig) processRefreshConfig(origin string) integration.ConfigChanges {
-	var changes integration.ConfigChanges
-
+func (ac *AutoConfig) processRefreshConfig(origin string) {
 	rawConfig, found := ac.cfgMgr.getActiveConfigs()[origin]
 	if !found {
 		ac.logs.Debugf("no active config found for secret origin %s", origin)
-		return changes
+		return
 	}
 
 	ac.logs.Infof("Found config '%v' using refreshed secret. Refreshing config.", rawConfig.Name)
 	ac.processRemovedConfigs([]integration.Config{rawConfig})
-	changes = ac.processNewConfig(rawConfig)
-	ac.applyChanges(changes)
-	return changes
+	ac.processNewConfig(rawConfig)
 }
 
 // GetAutodiscoveryErrors fetches AD errors from each ConfigProvider.  The
@@ -809,6 +809,14 @@ func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providerTyp
 		}
 	}
 	return errors
+}
+
+// publishChanges runs under the config manager's mutation lock. Update secret
+// mappings before scheduling can become visible to asynchronous schedulers.
+func (ac *AutoConfig) publishChanges(changes integration.ConfigChanges, ids map[checkid.ID]checkid.ID) {
+	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
+	ac.store.setIDsOfChecksWithSecrets(ids)
+	ac.applyChanges(changes)
 }
 
 // applyChanges applies a configChanges object. This always unschedules first.

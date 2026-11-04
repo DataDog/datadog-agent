@@ -1,0 +1,11 @@
+description: pwd --logical is an alias for -L.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    pwd --logical
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

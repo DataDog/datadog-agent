@@ -23,9 +23,13 @@ Provides a minimal tagger gRPC server that allows other agents (process-agent, t
 - Configurable message sizes and concurrent sync limits
 
 ### 2. Kubernetes Tag Enrichment (Standalone Mode)
-In standalone mode, the otel-agent runs a **local tagger** backed by workloadmeta collectors (kubelet, containerd, docker, ECS, crio, podman). The `infraattributes` processor uses this local tagger to enrich spans, metrics, and logs with K8s entity tags — `kube_deployment`, `kube_namespace`, `pod_name`, `kube_replica_set`, etc. — without a core Datadog Agent on the same host.
+In standalone mode, the otel-agent runs a **local tagger** backed by workloadmeta collectors (containerd, docker, ECS, crio, podman, plus one collector for pod/K8s metadata). The `infraattributes` processor uses this local tagger to enrich spans, metrics, and logs with K8s entity tags — `kube_deployment`, `kube_namespace`, `pod_name`, `kube_replica_set`, etc. — without a core Datadog Agent on the same host.
 
-**Required deployment configuration:**
+The pod/K8s-metadata source defaults to the **`kubelet`** collector, which lists pods from the local kubelet API. Set `use_kubelet_collector: false` in the extension config to opt in to **`nodefilter`** instead: a workloadmeta collector that watches pods directly from the K8s API server, scoped to the local node via a `spec.nodeName` field selector. This avoids granting the broader kubelet-API RBAC that the `kubelet` collector requires, at the cost of a watch on the API server per node.
+
+#### Using kubelet
+
+**Required deployment configuration**
 ```yaml
 env:
   - name: DD_KUBERNETES_KUBELET_HOST
@@ -36,11 +40,71 @@ env:
     value: "false"   # or configure a CA cert
 ```
 
-**Required RBAC:** The ServiceAccount needs `get` on `nodes/proxy` so the kubelet collector can list pods:
+**Required RBAC:** the ServiceAccount needs `get` on `nodes/proxy` so the kubelet collector can list pods:
 ```yaml
 - apiGroups: [""]
   resources: ["nodes/proxy"]
   verbs: ["get"]
+```
+
+#### Using the k8s API
+
+**Opt-in configuration**
+```yaml
+extensions:
+  dogtel:
+    use_kubelet_collector: false
+```
+
+`nodefilter` reads the local node's name from the first of a list of environment variables that is set, extending the `k8sattributesprocessor`'s own `node_from_env_var` filter config, which takes a single name. The default list is `K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME`: `K8S_NODE_NAME` is only populated by the OTel Helm chart with some presets (e.g. `kubernetesAttributes` in daemonset mode), `DD_KUBERNETES_KUBELET_NODENAME` by the Datadog Helm chart/Operator, and `OTEL_K8S_NODE_NAME` is always populated by the OTel Helm chart. Set `node_from_env_var` in the extension config, as a comma-separated list or a single name, to read it from other env vars if necessary.
+
+**Required deployment configuration, if not already set by Helm/Operator**
+```yaml
+env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+```
+
+**Required RBAC:** the ServiceAccount needs `get`/`list`/`watch` on `pods`:
+```yaml
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+```
+
+#### Hostname
+
+When no hostname is configured and no cloud provider (GCE, Azure) gives one, the hostname is `<node name>-<cluster name>`, or the bare node name when no cluster name is found. In standalone mode, the node name is read from the same `node_from_env_var` environment variables as above. So the hostname works with what a deployment set up for the upstream OpenTelemetry Collector already provides: neither kubelet API access, which RBAC meant for its `k8sattributesprocessor` doesn't grant, nor the Datadog-specific kubelet settings (`DD_KUBERNETES_KUBELET_HOST`, `DD_KUBELET_TLS_VERIFY`), which the OpenTelemetry Helm charts don't set. It falls back to the kubelet only when `use_kubelet_collector` is `true`.
+
+The cluster name comes from `DD_CLUSTER_NAME`, then from the cloud provider's API (GKE, AKS, EKS), then from the node's labels (only through the Cluster Agent, when `cluster_agent.enabled` is set, and never when `use_kubelet_collector` is `false`). Failing those, it is the `k8s.cluster.name` resource attribute, lowercased and with its `_` replaced by `-`. It is read from `service.telemetry.resource` in the collector config first, in either of its forms (the collector doesn't accept both at once):
+```yaml
+service:
+  telemetry:
+    resource:
+      k8s.cluster.name: my-cluster
+```
+```yaml
+service:
+  telemetry:
+    resource:
+      attributes:
+        - name: k8s.cluster.name
+          value: my-cluster
+```
+and otherwise from `OTEL_RESOURCE_ATTRIBUTES`, which the `opentelemetry-kube-stack` chart populates from its `clusterName` value (`unknown_k8s_cluster` by default):
+```yaml
+env:
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: k8s.cluster.name=my-cluster
+```
+
+To take precedence over the cloud provider's API, or to read it from another environment variable, set `DD_CLUSTER_NAME` instead, possibly referencing that variable:
+```yaml
+env:
+  - name: DD_CLUSTER_NAME
+    value: "$(MY_CLUSTER_NAME)"
 ```
 
 ### 3. Workload Detection Integration
@@ -56,7 +120,7 @@ Supports secrets resolution when running in standalone mode (`DD_OTEL_STANDALONE
 ### 5. Host Metadata Submission
 **Status:** ✅ Implemented via FX modules in otel-agent.
 
-Host metadata collection is enabled through FX modules added to otel-agent startup in [cmd/otel-agent/subcommands/run/command.go](../../cmd/otel-agent/subcommands/run/command.go):
+Host metadata collection is enabled through FX modules added to otel-agent startup in [cmd/otel-agent/subcommands/run/command.go](../../../cmd/otel-agent/subcommands/run/command.go):
 
 ```go
 runnerimpl.Module(),      // Metadata scheduler and submission
@@ -94,6 +158,12 @@ extensions:
     # Metadata collection (via FX modules in otel-agent)
     enable_metadata_collection: true  # Informational flag (default: true)
     metadata_interval: 300            # Interval in seconds (default: 300)
+
+    # K8s tag enrichment collector selection (default: kubelet)
+    use_kubelet_collector: true       # Set to false to opt in to the nodefilter collector (default: true)
+    # Comma-separated env vars nodefilter reads the local node's name from, the first one set winning
+    # (default: K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME)
+    node_from_env_var: K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME
 
 service:
   extensions: [dogtel]  # Only include when DD_OTEL_STANDALONE=true
@@ -257,7 +327,7 @@ DD_OTEL_STANDALONE=true ./bin/otel-agent/otel-agent \
 
 ### Phase 1 (Implemented)
 - ✅ Tagger gRPC server
-- ✅ K8s tag enrichment via local tagger (kubelet + container runtime collectors)
+- ✅ K8s tag enrichment via local tagger (kubelet, or nodefilter as an opt-in, + container runtime collectors)
 - ✅ Workload detection integration
 - ✅ Conditional secrets (via otel-agent config)
 - ✅ Host metadata submission (via FX modules in otel-agent)
@@ -304,7 +374,7 @@ DD_OTEL_STANDALONE=true ./bin/otel-agent/otel-agent \
 
 ## References
 
-- [OTel Collector Extension Development](https://opentelemetry.io/docs/collector/building/extension/)
-- [Datadog Agent Architecture](../../docs/dev/README.md)
-- [Tagger Component](../../comp/core/tagger/README.md)
-- [Workload Metadata](../../comp/core/workloadmeta/README.md)
+- [OTel Collector Extension Development](https://opentelemetry.io/docs/collector/extend/custom-component/extension/)
+- [Datadog Agent Architecture](https://datadoghq.dev/datadog-agent/architecture/)
+- [Tagger Component](../../core/tagger/README.md)
+- [Workload Metadata](../../core/workloadmeta/README.md)

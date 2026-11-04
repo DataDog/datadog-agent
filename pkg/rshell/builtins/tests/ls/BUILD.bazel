@@ -1,0 +1,17 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "ls_test",
+    srcs = ["ls_fuzz_test.go"],
+    data = glob(["testdata/**"]),
+    deps = [
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

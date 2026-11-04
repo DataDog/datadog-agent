@@ -32,7 +32,7 @@ func LoggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel types.LogL
 	fmtHandler := handlers.NewFormat(formatter, output)
 	// tests often write to a buffer, which might not be thread-safe, so we wrap the writer in a locking handler
 	lockingHandler := handlers.NewLocking(fmtHandler)
-	handler := handlers.NewLevel(types.ToSlogLevel(minLevel), lockingHandler)
+	handler := handlers.NewLevel(types.NewRulesSyncFromLevel(minLevel), lockingHandler)
 	return NewWrapper(handler), nil
 }
 

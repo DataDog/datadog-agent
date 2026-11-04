@@ -1,0 +1,17 @@
+description: jq coerces a computed object key only once its value generator emits.
+input:
+  script: |+
+    echo '{"k":1}' | jq -c '{(.k):empty}'
+    echo "empty-value:$?"
+    jq -nc '{("a","b"):(1,2),c:3}'
+    echo '{"k":"a"}' | jq -c '{a:1,(.k):2}'
+expect:
+  stdout: |+
+    empty-value:0
+    {"a":1,"c":3}
+    {"a":2,"c":3}
+    {"b":1,"c":3}
+    {"b":2,"c":3}
+    {"a":2}
+  stderr: |+
+  exit_code: 0

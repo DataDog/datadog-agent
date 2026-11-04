@@ -14,13 +14,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/jsonapi"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -34,7 +35,6 @@ import (
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/jsonapi"
 )
 
 const (
@@ -171,15 +171,11 @@ func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 }
 
 func (c *client) endpointURL(path string) string {
-	scheme, host := "https", c.config.DDApiHost
-	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
-		host = c.config.DDHost
-		if strings.HasPrefix(host, "http://") {
-			scheme = "http"
-		}
-		host = strings.TrimPrefix(strings.TrimPrefix(host, "http://"), "https://")
-	}
-	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String()
+	return EndpointURL(c.config, path)
+}
+
+func EndpointURL(cfg *config.Config, path string) string {
+	return strings.TrimSuffix(cfg.APIBaseURL, "/") + path
 }
 
 func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, error) {

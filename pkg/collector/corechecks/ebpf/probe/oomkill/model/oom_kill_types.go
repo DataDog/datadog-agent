@@ -17,4 +17,21 @@ type OOMKillStats struct {
 	ScoreAdj    int16  `json:"scoreAdj"`
 	Pages       uint64 `json:"pages"`
 	MemCgOOM    uint32 `json:"memcgoom"`
+	// CgroupMemory holds the memory statistics of the cgroup at the time of a cgroup OOM kill. It is
+	// nil unless oom_kill.emit_cgroup_memory_stats is enabled and the probe can collect them.
+	CgroupMemory *CgroupMemoryStats `json:"cgroupMemory,omitempty"`
+}
+
+// CgroupMemoryStats contains the memory statistics of a cgroup, in bytes
+type CgroupMemoryStats struct {
+	Usage        uint64 `json:"usage"`
+	ActiveAnon   uint64 `json:"activeAnon"`
+	InactiveAnon uint64 `json:"inactiveAnon"`
+	ActiveFile   uint64 `json:"activeFile"`
+	InactiveFile uint64 `json:"inactiveFile"`
+	Unevictable  uint64 `json:"unevictable"`
+	Kernel       uint64 `json:"kernel"`
+	// Unstable is set when the stat items could not be read without overlapping a memcg stats
+	// flush, and can be off by the updates that flush moved
+	Unstable bool `json:"unstable"`
 }

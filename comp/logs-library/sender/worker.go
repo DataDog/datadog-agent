@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -20,8 +19,8 @@ import (
 )
 
 var (
-	tlmPayloadsDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
-	tlmMessagesDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
+	tlmPayloadsDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped")
+	tlmMessagesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped")
 	tlmSendWaitTime    = telemetryimpl.GetCompatComponent().NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
 )
 
@@ -41,7 +40,7 @@ type worker struct {
 	finished       chan struct{}
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
-	flushWg        *sync.WaitGroup
+	serverlessMeta ServerlessMeta // nil unless serverless mode is enabled
 	sink           Sink
 	workerID       string
 
@@ -60,11 +59,11 @@ func newWorker(
 	workerID string,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
-	var flushWg *sync.WaitGroup
+	var enabledServerlessMeta ServerlessMeta
 
 	if serverlessMeta.IsEnabled() {
 		senderDoneChan = serverlessMeta.SenderDoneChan()
-		flushWg = serverlessMeta.WaitGroup()
+		enabledServerlessMeta = serverlessMeta
 	}
 	return &worker{
 		config:         config,
@@ -73,7 +72,7 @@ func newWorker(
 		destinations:   destinationFactory(workerID),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
-		flushWg:        flushWg,
+		serverlessMeta: enabledServerlessMeta,
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		workerID:       workerID,
@@ -186,11 +185,11 @@ func (s *worker) run() {
 			tlmSendWaitTime.Add(inUse)
 			s.utilization.Stop()
 
-			if s.senderDoneChan != nil && s.flushWg != nil {
+			if s.senderDoneChan != nil && s.serverlessMeta != nil {
 				// Wait for all destinations to finish sending the payload
 				senderDoneWg.Wait()
-				// Decrement the wait group when this payload has been sent
-				s.flushWg.Done()
+				// Record that this payload has been sent
+				s.serverlessMeta.PendingSendDone()
 			}
 			s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
 		case <-s.done:

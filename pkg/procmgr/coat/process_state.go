@@ -11,17 +11,48 @@ import "strings"
 const ServiceIDDDOT = "ddot"
 
 const (
-	ProcessStateNotInstalled = "not_installed"
-	ProcessStateUnknown      = "unknown"
-	ProcessStateCreated      = "created"
-	ProcessStateStarting     = "starting"
-	ProcessStateRunning      = "running"
-	ProcessStateStopping     = "stopping"
-	ProcessStateStopped      = "stopped"
-	ProcessStateCrashed      = "crashed"
-	ProcessStateExited       = "exited"
-	ProcessStateFailed       = "failed"
+	ProcessStateNotInstalled  = "not_installed"
+	ProcessStateUnknown       = "unknown"
+	ProcessStateCreated       = "created"
+	ProcessStateStarting      = "starting"
+	ProcessStateRunning       = "running"
+	ProcessStateStopping      = "stopping"
+	ProcessStateStopped       = "stopped"
+	ProcessStateCrashed       = "crashed"
+	ProcessStateExited        = "exited"
+	ProcessStateFailed        = "failed"
+	ProcessStateInvalidConfig = "invalid_config"
+	ProcessStateSkipped       = "skipped"
 )
+
+// procmgrProcessStates are the states reported as a tag on the procmgr_process_state gauge.
+// ProcessStateNotInstalled is excluded: it is derived from install state rather than reported
+// by dd-procmgrd. Ordinary series are only active under ManagementModeProcmgr; InvalidConfig is
+// also emitted from ProcmgrState alone (unloadable yaml is catalogued without that mode).
+var procmgrProcessStates = []string{
+	ProcessStateUnknown,
+	ProcessStateCreated,
+	ProcessStateStarting,
+	ProcessStateRunning,
+	ProcessStateStopping,
+	ProcessStateStopped,
+	ProcessStateCrashed,
+	ProcessStateExited,
+	ProcessStateFailed,
+	ProcessStateInvalidConfig,
+	ProcessStateSkipped,
+}
+
+// procmgrStateIsActive reports whether the procmgr_process_state gauge for state should be set
+// for service. Ordinary states require ManagementModeProcmgr so a service that moves off procmgr
+// clears every series instead of leaving the last one latched at 1. InvalidConfig is active from
+// ProcmgrState alone, matching ServiceProcessState when management_mode is not procmgr.
+func procmgrStateIsActive(service ServiceSnapshot, state string) bool {
+	if state == ProcessStateInvalidConfig && service.ProcmgrState == ProcessStateInvalidConfig {
+		return true
+	}
+	return service.ManagementMode == ManagementModeProcmgr && service.ProcmgrState == state
+}
 
 func (s Snapshot) ServiceProcessState(id string) string {
 	for _, service := range s.Services {
@@ -34,6 +65,9 @@ func (s Snapshot) ServiceProcessState(id string) string {
 		case ManagementModeSystemd, ManagementModeWindowsService:
 			// These modes are only set when the unit or service is active.
 			return ProcessStateRunning
+		}
+		if service.ProcmgrState == ProcessStateInvalidConfig {
+			return ProcessStateInvalidConfig
 		}
 		if !service.Installed && !service.ProcmgrConfigured {
 			return ProcessStateNotInstalled
@@ -67,6 +101,10 @@ func parseProcmgrState(name string) string {
 		return ProcessStateExited
 	case "FAILED":
 		return ProcessStateFailed
+	case "INVALID_CONFIG", "INVALIDCONFIG":
+		return ProcessStateInvalidConfig
+	case "SKIPPED":
+		return ProcessStateSkipped
 	default:
 		return ProcessStateUnknown
 	}

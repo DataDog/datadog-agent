@@ -101,6 +101,6 @@ func (ss *safeSender) SetCheckCustomTags(tags []string) {
 }
 
 // SetInfraTagger delegates to SetInfraTagger on the underlying sender.
-func (ss *safeSender) SetInfraTagger(tagger *infratags.Tagger) {
+func (ss *safeSender) SetInfraTagger(tagger *infratags.MetricTagger) {
 	ss.Sender.SetInfraTagger(tagger)
 }

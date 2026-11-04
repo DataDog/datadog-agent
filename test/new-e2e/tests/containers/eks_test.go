@@ -33,6 +33,8 @@ func TestEKSSuite(t *testing.T) {
 	suite := &eksSuite{}
 
 	eksOptions := []sceneks.Option{
+		// TODO: Route the Argo Rollouts chart's images through the internal registry.
+		sceneks.WithInternetAccess(),
 		sceneks.WithLinuxNodeGroup(),
 		sceneks.WithBottlerocketNodeGroup(),
 		sceneks.WithLinuxARMNodeGroup(),
@@ -212,8 +214,8 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
-				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				"^image_id:.*/apps-nginx-server@sha256:",
+				"^image_name:.*/apps-nginx-server$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_cluster_name:`,
 				"^kube_distribution:eks$",
@@ -274,8 +276,8 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
-				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				"^image_id:.*/apps-nginx-server@sha256:",
+				"^image_name:.*/apps-nginx-server$",
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_cluster_name:`,
 				"^kube_distribution:eks$",

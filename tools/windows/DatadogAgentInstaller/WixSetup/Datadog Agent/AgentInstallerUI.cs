@@ -44,14 +44,15 @@ namespace WixSetup.Datadog_Agent
             // see PrerequisitesCustomActions.EnsureSecureConfigRoot. The same check runs in the
             // InstallExecuteSequence, which is what a silent install relies on.
             // Set by the EnsureSecureConfigRootUI custom action
-            var configRootValid = new Condition("DDConfigRoot_Valid = \"True\"");
-            var configRootInvalid = new Condition("DDConfigRoot_Valid <> \"True\"");
+            // Fail closed if the check has not run; an absent root is not untrusted.
+            var configRootCanContinue = new Condition("DDConfigRoot_Untrusted = \"False\"");
+            var configRootUntrusted = new Condition("DDConfigRoot_Untrusted <> \"False\"");
 
             // Fresh install track
             OnFreshInstall(NativeDialogs.WelcomeDlg, Buttons.Next,
                 new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 1 },
-                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 2 },
-                new ShowDialog(Dialogs.LicenseAgreementDlg, configRootValid) { Order = 3 });
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootUntrusted) { Order = 2 },
+                new ShowDialog(Dialogs.LicenseAgreementDlg, configRootCanContinue) { Order = 3 });
             OnFreshInstall(Dialogs.LicenseAgreementDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
             OnFreshInstall(Dialogs.LicenseAgreementDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.LicenseAccepted));
             OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(Dialogs.LicenseAgreementDlg));
@@ -73,8 +74,8 @@ namespace WixSetup.Datadog_Agent
             // Upgrade track
             OnUpgrade(NativeDialogs.WelcomeDlg, Buttons.Next,
                 new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 1 },
-                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 2 },
-                new ShowDialog(NativeDialogs.CustomizeDlg, configRootValid) { Order = 3 });
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootUntrusted) { Order = 2 },
+                new ShowDialog(NativeDialogs.CustomizeDlg, configRootCanContinue) { Order = 3 });
             OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
             OnUpgrade(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
             OnUpgrade(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg));
@@ -92,8 +93,8 @@ namespace WixSetup.Datadog_Agent
             // check here covers all three buttons below.
             OnMaintenance(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next,
                 new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 1 },
-                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 2 },
-                new ShowDialog(NativeDialogs.MaintenanceTypeDlg, configRootValid) { Order = 3 });
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootUntrusted) { Order = 2 },
+                new ShowDialog(NativeDialogs.MaintenanceTypeDlg, configRootCanContinue) { Order = 3 });
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton",

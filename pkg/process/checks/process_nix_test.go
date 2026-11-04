@@ -8,7 +8,11 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"os/user"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"testing"
@@ -17,16 +21,37 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+func TestFormatUserUsesHostPasswdAndPreservesUnresolvedName(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("host-user:x:432:543::/:/bin/sh\n"), 0o600))
+	t.Setenv("HOST_ETC", dir)
+
+	cfg := configmock.New(t)
+	probe := NewLookupIDProbe(cfg)
+	probe.lookupID = func(string) (*user.User, error) { return nil, errors.New("unknown user") }
+
+	resolved := formatUser(&procutil.Process{Uids: []int32{432}, Gids: []int32{543}}, probe)
+	assert.Equal(t, "host-user", resolved.Name)
+	assert.Equal(t, int32(432), resolved.Uid)
+	assert.Equal(t, int32(543), resolved.Gid)
+
+	unresolved := formatUser(&procutil.Process{Uids: []int32{433}}, probe)
+	assert.Empty(t, unresolved.Name)
+	assert.Equal(t, int32(433), unresolved.Uid)
+}
 
 func makeContainer(id string) *model.Container {
 	return &model.Container{
@@ -131,7 +156,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, taggerMock, now)
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, nil, false, ex, nil, taggerMock, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
@@ -247,7 +272,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, taggerMock, now)
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, nil, false, ex, nil, taggerMock, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
@@ -428,7 +453,7 @@ func TestProcessGPUTagging(t *testing.T) {
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags, taggerMock, now)
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, nil, false, ex, tc.pidToGPUTags, taggerMock, now)
 
 			assert.Len(t, procs, 1)
 			assert.Equal(t, tc.expectedProcs, len(procs[""]))

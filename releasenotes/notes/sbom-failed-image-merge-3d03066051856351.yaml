@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The core agent merges the runtime usage reported by system-probe into an
+    image SBOM only once the scan of the image succeeds. A merge into a failed
+    scan kept the image SBOM failed after Trivy rescanned the image, until the
+    core agent restarted.

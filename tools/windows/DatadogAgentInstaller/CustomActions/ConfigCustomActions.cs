@@ -36,11 +36,26 @@ namespace Datadog.CustomActions
             public ApmConfig ApmConfig { get; set; }
         }
 
-        private static ActionResult ReadConfig(ISession session)
+        internal static ActionResult ReadConfig(ISession session)
         {
+            session[PrerequisitesCustomActions.ConfigRootUntrustedProperty] = "True";
+            session["DATADOGYAMLEXISTS"] = "no";
+
             try
             {
                 var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+                if (string.IsNullOrEmpty(configFolder))
+                {
+                    throw new InvalidOperationException("APPLICATIONDATADIRECTORY is not set");
+                }
+                SecureDirectory.AssertSecureOwner(session, configFolder, out var exists);
+                session[PrerequisitesCustomActions.ConfigRootUntrustedProperty] = "False";
+                if (!exists)
+                {
+                    session.Log("No existing configuration directory, skipping config import.");
+                    return ActionResult.Success;
+                }
+
                 var configFilePath = Path.Combine(configFolder, "datadog.yaml");
                 if (!File.Exists(configFilePath))
                 {
@@ -348,7 +363,7 @@ namespace Datadog.CustomActions
             return yaml;
         }
 
-        private static ActionResult WriteConfig(ISession session)
+        internal static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             try
@@ -361,6 +376,7 @@ namespace Datadog.CustomActions
                             "system-probe.yaml",
                             "security-agent.yaml",
                             "apm-inject.yaml",
+                            Path.Combine("private-action-runner", "powershell-script-config.yaml"),
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_high.yaml"),
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_low.yaml"),
                         }

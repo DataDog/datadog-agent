@@ -112,7 +112,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	cfg.SetInTest("orchestrator_explorer.enabled", true)
 	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
-	// since we're running the tests with -tags orchestrator and we've enabled the
+	// since we're running the tests with -tags kubeapiserver and we've enabled the
 	// needed feature above, we should have an orchestrator forwarder instantiated now
 
 	opts = demuxTestOptions()

@@ -49,15 +49,28 @@ func (c TagGroupByKey) AsMap() map[string]string {
 
 // tagGroupByKeyHash computes a stable fnv64a hash for a TagGroupByKey.
 func tagGroupByKeyHash(c TagGroupByKey) uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(c.Source))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Service))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Env))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Host))
-	return h.Sum64()
+	// This is FNV-1a over the same byte sequence as the former hash.Hash64
+	// implementation. It is inlined so hot-path group preparation is
+	// allocation-free.
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	hash := uint64(offset64)
+	hashTagGroupPart := func(s string) {
+		for i := 0; i < len(s); i++ {
+			hash ^= uint64(s[i])
+			hash *= prime64
+		}
+	}
+	hashTagGroupPart(c.Source)
+	hashTagGroupPart("|")
+	hashTagGroupPart(c.Service)
+	hashTagGroupPart("|")
+	hashTagGroupPart(c.Env)
+	hashTagGroupPart("|")
+	hashTagGroupPart(c.Host)
+	return hash
 }
 
 // TagGroupByKeyRegistry stores active tag groups by their stable uint64 hash.
@@ -124,21 +137,15 @@ func extractTagGroupByKey(tags []string) TagGroupByKey {
 	return group
 }
 
-// tagsForPatternGrouping returns a tag slice for TaggedPatternClusterer.Process.
-// When tags omit `host:` but hostname is non-empty (e.g. from LogView.GetHostname()),
-// a synthetic `host:<hostname>` entry is appended so grouping matches the host
-// split dimension. An explicit `host:` tag in tags always wins.
-func tagsForPatternGrouping(tags []string, hostname string) []string {
-	if hostname == "" {
-		return tags
+// tagGroupForPatternGrouping extracts the grouping dimensions and applies the
+// hostname fallback directly to the group. It neither allocates nor mutates
+// tags. A nonempty extracted host wins over hostname.
+func tagGroupForPatternGrouping(tags []string, hostname string) TagGroupByKey {
+	group := extractTagGroupByKey(tags)
+	if group.Host == "" {
+		group.Host = hostname
 	}
-	if extractTagGroupByKey(tags).Host != "" {
-		return tags
-	}
-	out := make([]string, len(tags)+1)
-	copy(out, tags)
-	out[len(tags)] = "host:" + hostname
-	return out
+	return group
 }
 
 // globalClusterHash produces a hex string that stably encodes a (groupHash,
@@ -157,6 +164,10 @@ func globalClusterHash(groupHash uint64, clusterID int64) string {
 //
 // NOT thread-safe: all calls must be made from the same goroutine.
 type TaggedPatternClusterer struct {
+	// MaxPatterns caps live clusters across all groups. Zero disables this cap.
+	MaxPatterns         int
+	patternTouches      patternTouchHeap
+	patternEntries      map[EvictedCluster]*patternTouchEntry
 	registry            *TagGroupByKeyRegistry
 	subClusterers       map[uint64]*patterns.PatternClusterer
 	newPatternClusterer func() *patterns.PatternClusterer
@@ -217,8 +228,7 @@ func NewTaggedPatternClustererWithFactory(registry *TagGroupByKeyRegistry, newPC
 // LRU evictions (if any) caused by this call — from per-group MaxClusters or
 // global MaxTagGroups caps — must be retrieved via DrainLRUEvictions before
 // the next Process call to avoid silently dropping eviction context.
-func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec int64) (uint64, *patterns.Cluster, bool) {
-	group := extractTagGroupByKey(tags)
+func (tc *TaggedPatternClusterer) Process(group TagGroupByKey, message string, unixSec int64) (uint64, *patterns.Cluster, bool) {
 	groupHash := tagGroupByKeyHash(group)
 
 	sub, exists := tc.subClusterers[groupHash]
@@ -255,6 +265,7 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 	// Drain layer-1 LRU evictions from this sub-clusterer and tag them with groupHash.
 	if evicted := sub.DrainLRUEvictedClusterIDs(); len(evicted) > 0 {
 		for _, id := range evicted {
+			tc.forgetPattern(EvictedCluster{GroupHash: groupHash, ClusterID: id})
 			tc.lruEvicted = append(tc.lruEvicted, EvictedCluster{GroupHash: groupHash, ClusterID: id})
 		}
 	}
@@ -272,6 +283,7 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 		tc.maybeCompactTouchHeap()
 	}
 
+	tc.touchPattern(EvictedCluster{GroupHash: groupHash, ClusterID: cluster.ID}, unixSec)
 	return groupHash, cluster, true
 }
 
@@ -348,6 +360,11 @@ func (tc *TaggedPatternClusterer) evictLRUTagGroupIfOverCap(incoming uint64) {
 }
 
 func (tc *TaggedPatternClusterer) removeTagGroup(groupHash uint64) {
+	if sub := tc.subClusterers[groupHash]; sub != nil {
+		for _, c := range sub.GetClusters() {
+			tc.forgetPattern(EvictedCluster{GroupHash: groupHash, ClusterID: c.ID})
+		}
+	}
 	delete(tc.subClusterers, groupHash)
 	delete(tc.lastTouchByGroup, groupHash)
 	tc.registry.delete(groupHash)
@@ -430,6 +447,8 @@ func (tc *TaggedPatternClusterer) Reset() {
 	tc.lastTouchByGroup = nil
 	tc.touchHeap = nil
 	tc.lruEvicted = nil
+	tc.patternTouches = nil
+	tc.patternEntries = nil
 }
 
 // NumSubClusterers returns the number of currently active sub-clusterers.
@@ -452,6 +471,7 @@ func (tc *TaggedPatternClusterer) GarbageCollectBefore(cutoff int64) []EvictedCl
 	for groupHash, sub := range tc.subClusterers {
 		stale := sub.ClusterIDsBeforeUnix(cutoff)
 		for _, id := range stale {
+			tc.forgetPattern(EvictedCluster{GroupHash: groupHash, ClusterID: id})
 			evicted = append(evicted, EvictedCluster{GroupHash: groupHash, ClusterID: id})
 		}
 		if len(stale) > 0 {
@@ -493,4 +513,75 @@ func (tc *TaggedPatternClusterer) Classify(groupHash uint64, message string) *pa
 		return nil
 	}
 	return sub.Classify(message)
+}
+
+// The indexed heap holds exactly one entry per live pattern. Updating a hot
+// pattern never accumulates stale entries; ties have deterministic ordering.
+type patternTouchEntry struct {
+	key   EvictedCluster
+	touch int64
+	index int
+}
+type patternTouchHeap []*patternTouchEntry
+
+func (h patternTouchHeap) Len() int { return len(h) }
+func (h patternTouchHeap) Less(i, j int) bool {
+	if h[i].touch != h[j].touch {
+		return h[i].touch < h[j].touch
+	}
+	if h[i].key.GroupHash != h[j].key.GroupHash {
+		return h[i].key.GroupHash < h[j].key.GroupHash
+	}
+	return h[i].key.ClusterID < h[j].key.ClusterID
+}
+func (h patternTouchHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i]; h[i].index = i; h[j].index = j }
+func (h *patternTouchHeap) Push(v any) {
+	e := v.(*patternTouchEntry)
+	e.index = len(*h)
+	*h = append(*h, e)
+}
+func (h *patternTouchHeap) Pop() any {
+	old := *h
+	e := old[len(old)-1]
+	old[len(old)-1] = nil
+	*h = old[:len(old)-1]
+	return e
+}
+func (tc *TaggedPatternClusterer) forgetPattern(key EvictedCluster) {
+	if e := tc.patternEntries[key]; e != nil {
+		heap.Remove(&tc.patternTouches, e.index)
+		delete(tc.patternEntries, key)
+	}
+}
+func (tc *TaggedPatternClusterer) touchPattern(key EvictedCluster, unixSec int64) {
+	if tc.MaxPatterns <= 0 {
+		return
+	}
+	if tc.patternEntries == nil {
+		tc.patternEntries = make(map[EvictedCluster]*patternTouchEntry)
+	}
+	if e := tc.patternEntries[key]; e != nil {
+		e.touch = unixSec
+		heap.Fix(&tc.patternTouches, e.index)
+	} else {
+		e := &patternTouchEntry{key: key, touch: unixSec}
+		tc.patternEntries[key] = e
+		heap.Push(&tc.patternTouches, e)
+	}
+	for len(tc.patternEntries) > tc.MaxPatterns {
+		victim := tc.patternTouches[0]
+		// Preserve the current output, even for an out-of-order log or timestamp tie.
+		if victim.key == key {
+			heap.Pop(&tc.patternTouches)
+			victim = tc.patternTouches[0]
+			heap.Push(&tc.patternTouches, tc.patternEntries[key])
+		}
+		tc.forgetPattern(victim.key)
+		sub := tc.subClusterers[victim.key.GroupHash]
+		_ = sub.RemoveCluster(victim.key.ClusterID)
+		if sub.NumClusters() == 0 {
+			tc.registry.delete(victim.key.GroupHash)
+		}
+		tc.lruEvicted = append(tc.lruEvicted, victim.key)
+	}
 }

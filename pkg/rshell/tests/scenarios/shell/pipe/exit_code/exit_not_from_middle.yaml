@@ -1,0 +1,10 @@
+description: Middle command failure in a 3-stage pipeline does not affect exit status when last succeeds.
+input:
+  script: |+
+    exit 42 | exit 99 | exit 0
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

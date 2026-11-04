@@ -91,6 +91,8 @@ const (
 	K8sKubeletConfig = pkgorchestratormodel.K8sKubeletConfig
 	// K8sConfigMap alias for pkgorchestratormodel.K8sConfigMap
 	K8sConfigMap = pkgorchestratormodel.K8sConfigMap
+	// K8sSecret alias for pkgorchestratormodel.K8sSecret
+	K8sSecret = pkgorchestratormodel.K8sSecret
 	// ECSTask alias for pkgorchestratormodel.ECSTask
 	ECSTask = pkgorchestratormodel.ECSTask
 )

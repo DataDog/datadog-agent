@@ -653,7 +653,7 @@ mod tests {
 
             let open_files_info = OpenFilesInfo {
                 sockets: vec![],
-                logs: vec![],
+                logs: Default::default(),
                 tracer_memfds: Vec::new(),
                 memfd_path: Some(tmpfile.path().to_path_buf()),
                 has_gpu_device: false,
@@ -685,7 +685,7 @@ mod tests {
 
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
-            logs: vec![],
+            logs: Default::default(),
             tracer_memfds: Vec::new(),
             memfd_path: Some(tmpfile.path().to_path_buf()),
             has_gpu_device: false,
@@ -701,7 +701,7 @@ mod tests {
 
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
-            logs: vec![],
+            logs: Default::default(),
             tracer_memfds: Vec::new(),
             memfd_path: None,
             has_gpu_device: false,
@@ -719,7 +719,7 @@ mod tests {
         // Try to use /dev/null which is not a regular file
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
-            logs: vec![],
+            logs: Default::default(),
             tracer_memfds: Vec::new(),
             memfd_path: Some(PathBuf::from("/dev/null")),
             has_gpu_device: false,
@@ -739,7 +739,7 @@ mod tests {
 
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
-            logs: vec![],
+            logs: Default::default(),
             tracer_memfds: Vec::new(),
             memfd_path: Some(PathBuf::from("/nonexistent/file/path")),
             has_gpu_device: false,
