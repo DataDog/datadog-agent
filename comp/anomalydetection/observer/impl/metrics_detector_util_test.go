@@ -22,6 +22,42 @@ func (r *countingPointReader) ForEachPoint(ref observer.SeriesRef, start, end in
 	return r.StorageReader.ForEachPoint(ref, start, end, agg, fn)
 }
 
+type countingNativeStatusReader struct{ *countingPointReader }
+
+func (r countingNativeStatusReader) ForEachSeriesStatus(filter observer.SeriesFilter, end int64, fn func(observer.SeriesRef, seriesStatus)) {
+	r.countingPointReader.StorageReader.(filteredSeriesStatusReader).ForEachSeriesStatus(filter, end, fn)
+}
+
+func TestScanLatestVisibleGuardAndLegacyFallback(t *testing.T) {
+	for _, detector := range []struct {
+		name string
+		new  func() observer.Detector
+	}{
+		{"scanmw", func() observer.Detector { return testScanMWDetector() }},
+		{"scanwelch", func() observer.Detector { return testScanWelchDetector() }},
+	} {
+		t.Run(detector.name, func(t *testing.T) {
+			storage := newTimeSeriesStorage()
+			for i := int64(1); i <= 40; i++ {
+				storage.Add("work", "metric", float64(i), i, nil)
+			}
+			native := &countingPointReader{StorageReader: storage}
+			fallback := &countingPointReader{StorageReader: storage}
+			nativeDetector, fallbackDetector := detector.new(), detector.new()
+			for _, end := range []int64{30, 30, 31, 31, 40} {
+				nativeResult := nativeDetector.Detect(countingNativeStatusReader{native}, end)
+				fallbackResult := fallbackDetector.Detect(fallback, end)
+				require.Equal(t, fallbackResult, nativeResult, "dataTime=%d", end)
+			}
+			// Both readers also use two ForEachPoint calls to collect scan
+			// windows (these wrappers hide the optional tail-point reader).
+			// Only the native reader avoids the two idle cursor reads.
+			require.Equal(t, 5, native.pointCalls)
+			require.Equal(t, 7, fallback.pointCalls)
+		})
+	}
+}
+
 func TestSeriesStatusLegacyFallbackMarksLatestUnknown(t *testing.T) {
 	s := newTimeSeriesStorage()
 	ref := s.Add("work", "metric", 1, 100, nil).Ref

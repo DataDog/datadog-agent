@@ -159,10 +159,15 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			// Count newly visible completed buckets, not storage writes. Preloaded
 			// replay has already written future points; streaming writes them as
 			// time advances. Retained point counts also stop growing on eviction.
-			storage.ForEachPoint(ref, state.lastObservedTime, dataTime, agg, func(_ *observer.Series, p observer.Point) {
-				state.observedPoints++
-				state.lastObservedTime = p.Timestamp
-			})
+			// A series with no newly visible timestamp cannot advance the
+			// observation cursor. Keep the fallback path for readers that do
+			// not expose the latest-visible timestamp.
+			if !status.latestKnown || status.latestTimestamp > state.lastObservedTime {
+				storage.ForEachPoint(ref, state.lastObservedTime, dataTime, agg, func(_ *observer.Series, p observer.Point) {
+					state.observedPoints++
+					state.lastObservedTime = p.Timestamp
+				})
+			}
 			if !activated && state.observedPoints < state.lastProcessedCount+d.MinSegment {
 				continue
 			}
