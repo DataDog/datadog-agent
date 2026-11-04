@@ -174,8 +174,9 @@ fn agent_service_env_var(name: &str) -> Option<String> {
 
 /// Gate inputs [`ENV_BINDINGS`] does not cover: the generated names for
 /// `discovery.enabled`, `data_plane.enabled`, `compliance_config.enabled`,
-/// `otelcollector.enabled`, `private_action_runner.enabled`, and
-/// `private_action_runner.split_enabled`, the fleet policy directory, the ECS
+/// `otelcollector.enabled`, `private_action_runner.enabled`,
+/// `private_action_runner.split_enabled`, and `fips.enabled`, the fleet policy
+/// directory, the ECS
 /// Fargate probe behind the `discovery.enabled` platform default, and
 /// `DD_CONF_DIR`, which shipped templates expand inside the gated path itself.
 #[cfg(any(test, feature = "test-helpers"))]
@@ -186,6 +187,7 @@ const UNBOUND_GATE_ENV_VARS: &[&str] = &[
     "DD_OTELCOLLECTOR_ENABLED",
     "DD_PRIVATE_ACTION_RUNNER_ENABLED",
     "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
+    "DD_FIPS_ENABLED",
     "DD_FLEET_POLICIES_DIR",
     "DD_CONF_DIR",
     "ECS_FARGATE",
@@ -274,6 +276,7 @@ mod tests {
             "DD_OTELCOLLECTOR_ENABLED",
             "DD_PRIVATE_ACTION_RUNNER_ENABLED",
             "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
+            "DD_FIPS_ENABLED",
             "DD_FLEET_POLICIES_DIR",
             "DD_CONF_DIR",
             "ECS_FARGATE",

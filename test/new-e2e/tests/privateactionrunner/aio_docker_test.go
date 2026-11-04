@@ -127,6 +127,8 @@ func runAIODockerTask(s aioDockerTaskSuite, process string, split bool) {
 	if split {
 		// describe keeps the unexpanded YAML. The spawned command line is the resolved path.
 		assertLiveIPCCert(s, process)
+		// Split stands the monolith down: it starts, then exits 0.
+		waitForAIOProcess(s, aioMonolithProcess, "Exited", time.Minute)
 	}
 
 	key := s.signing()

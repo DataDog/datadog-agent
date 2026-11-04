@@ -239,6 +239,14 @@ fn aio_par_control_skips_when_the_binary_is_absent() {
     );
     assert_eq!(
         par_control
+            .condition_config_none
+            .iter()
+            .flat_map(|file| file.keys.iter().map(String::as_str))
+            .collect::<Vec<_>>(),
+        ["fips.enabled"]
+    );
+    assert_eq!(
+        par_control
             .env
             .get("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
             .map(String::as_str),
@@ -268,13 +276,9 @@ fn aio_private_action_runner_monolith_is_gated_on_enabled() {
             .collect::<Vec<_>>(),
         ["private_action_runner.enabled"]
     );
-    assert_eq!(
-        monolith
-            .condition_config_none
-            .iter()
-            .flat_map(|file| file.keys.iter().map(String::as_str))
-            .collect::<Vec<_>>(),
-        ["private_action_runner.split_enabled"]
+    assert!(
+        monolith.condition_config_none.is_empty(),
+        "the monolith starts whenever PAR is enabled and stands down itself in split mode"
     );
     assert!(!monolith.exit_with_supervisor);
     let enabled_gated = monolith.condition_config_any.iter().any(|file| {

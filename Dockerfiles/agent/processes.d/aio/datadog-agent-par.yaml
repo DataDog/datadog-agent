@@ -1,4 +1,4 @@
-# Monolith Private Action Runner. Split mode starts par-control instead: split_enabled vetoes this entry.
+# Monolith Private Action Runner. In split mode it exits on its own. FIPS keeps it, since split is unsupported there.
 description: Datadog Private Action Runner
 command: /opt/datadog-agent/embedded/bin/privateactionrunner
 args:
@@ -10,10 +10,6 @@ condition_config_any:
   - path: /etc/datadog-agent/datadog.yaml
     keys:
       - private_action_runner.enabled
-condition_config_none:
-  - path: /etc/datadog-agent/datadog.yaml
-    keys:
-      - private_action_runner.split_enabled
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10

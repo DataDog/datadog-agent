@@ -12,6 +12,11 @@ condition_config_any:
   - path: /etc/datadog-agent/datadog.yaml
     keys:
       - private_action_runner.split_enabled
+# FIPS falls back to the monolith, so split stays down.
+condition_config_none:
+  - path: /etc/datadog-agent/datadog.yaml
+    keys:
+      - fips.enabled
 # par-control drains for at most 170 seconds, including terminal publication.
 stop_timeout: 180
 restart: on-failure

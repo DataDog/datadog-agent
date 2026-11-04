@@ -118,6 +118,7 @@ enum GatedKey {
     OtelCollector,
     PrivateActionRunnerEnabled,
     PrivateActionRunnerSplitEnabled,
+    FipsEnabled,
 }
 
 struct GatedKeySpec {
@@ -149,6 +150,7 @@ const OTELCOLLECTOR_ENABLED_KEY: &str = "otelcollector.enabled";
 const PRIVATE_ACTION_RUNNER_ENABLED_KEY: &str = "private_action_runner.enabled";
 const PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY: &str = "private_action_runner.split_enabled";
 const PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_ENV: &str = "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED";
+const FIPS_ENABLED_KEY: &str = "fips.enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -269,6 +271,13 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     GatedKeySpec {
         kind: GatedKey::PrivateActionRunnerSplitEnabled,
         key: PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // par-control veto. Schema default is false. No platform override.
+    GatedKeySpec {
+        kind: GatedKey::FipsEnabled,
+        key: FIPS_ENABLED_KEY,
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
@@ -2148,11 +2157,12 @@ process_config:
 
     fn par_control_would_start(fx: &Gate, agent: &str) -> bool {
         fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY)])
+            && fx.veto_clear(&[par_key(agent, FIPS_ENABLED_KEY)])
     }
 
+    /// The monolith starts whenever PAR is enabled. Go stands it down in split mode.
     fn par_monolith_would_start(fx: &Gate, agent: &str) -> bool {
         fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_ENABLED_KEY)])
-            && fx.veto_clear(&[par_key(agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY)])
     }
 
     #[test]
@@ -2280,6 +2290,43 @@ process_config:
         fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
         assert!(par_control_would_start(&fx, &agent));
         assert!(!par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_env_with_enabled_starts_both() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n");
+        fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+        assert!(par_control_would_start(&fx, &agent));
+        assert!(
+            par_monolith_would_start(&fx, &agent),
+            "the monolith starts and stands down itself when split is supported"
+        );
+    }
+
+    #[test]
+    fn private_action_runner_fips_keeps_the_monolith() {
+        for label in ["yaml", "env", "fleet"] {
+            let fx = Gate::new();
+            let agent = if label == "yaml" {
+                fx.agent("private_action_runner:\n  enabled: true\nfips:\n  enabled: true\n")
+            } else {
+                fx.agent("private_action_runner:\n  enabled: true\n")
+            };
+            match label {
+                "env" => fx.env("DD_FIPS_ENABLED", "true"),
+                "fleet" => {
+                    fx.fleet(AGENT_POLICY, "fips:\n  enabled: true\n");
+                }
+                _ => {}
+            }
+            fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+            assert!(
+                !par_control_would_start(&fx, &agent),
+                "{label}: fips.enabled vetoes par-control"
+            );
+            assert!(par_monolith_would_start(&fx, &agent), "{label}");
+        }
     }
 
     #[test]
