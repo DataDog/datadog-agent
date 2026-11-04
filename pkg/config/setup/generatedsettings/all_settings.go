@@ -2065,7 +2065,7 @@ func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_capacity_time_interval_sec", 900)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0)
-	config.BindEnvAndSetDefault("forwarder_stop_wait_for_inflight", false)
+	config.BindEnvAndSetDefault("forwarder_stop_wait_for_inflight", true)
 	config.BindEnvAndSetDefault("forwarder_storage_path", "${run_path}/transactions_to_retry")
 	config.BindEnvAndSetDefault("genresources.additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("genresources.batch_max_concurrent_send", 0)
