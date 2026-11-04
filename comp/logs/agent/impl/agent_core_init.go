@@ -9,10 +9,6 @@ package agentimpl
 
 import (
 	"fmt"
-	"net"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/spf13/afero"
@@ -23,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
-	"github.com/DataDog/datadog-agent/comp/logs-library/routing"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -35,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -133,52 +127,6 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, tagFilters *tagfilter.Filters, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
-	// TEMPORARY manual Agent validation; reverted after the recorded smoke run.
-	if address := os.Getenv("DD_LOG_ROUTING_SMOKE_B"); address != "" {
-		host, rawPort, err := net.SplitHostPort(address)
-		if err != nil {
-			panic(err)
-		}
-		port, err := strconv.Atoi(rawPort)
-		if err != nil {
-			panic(err)
-		}
-		main := config.NewEndpoint(strings.Repeat("b", 32), "", host, port, "", false)
-		main.UseCompression = a.endpoints.Main.UseCompression
-		main.CompressionKind = a.endpoints.Main.CompressionKind
-		main.CompressionLevel = a.endpoints.Main.CompressionLevel
-		other := config.NewEndpointsWithBatchSettings(main, nil, false, true, a.endpoints.BatchWait,
-			a.endpoints.BatchMaxConcurrentSend, a.endpoints.BatchMaxSize,
-			a.endpoints.BatchMaxContentSize, a.endpoints.InputChanSize)
-		provider, err := pipeline.NewRoutedProvider(pipeline.RoutedOptions{
-			NumberOfPipelines: 1, Sink: a.auditor,
-			DiagnosticMessageReceiver: diagnosticMessageReceiver,
-			ProcessingRules:           processingRules, TagFilters: tagFilters,
-			Groups: []routing.Group{{ID: "a", Endpoints: a.endpoints}, {ID: "b", Endpoints: other}},
-			Resolve: func(msg *message.Message) (routing.Selection, error) {
-				text := string(msg.GetContent())
-				switch {
-				case strings.Contains(text, "route=AB"):
-					return routing.Selection{Groups: []string{"a", "b"}}, nil
-				case strings.Contains(text, "route=A"):
-					return routing.Selection{Groups: []string{"a"}}, nil
-				case strings.Contains(text, "route=B"):
-					return routing.Selection{Groups: []string{"b"}}, nil
-				case strings.Contains(text, "route=NONE"):
-					return routing.Selection{Excluded: true}, nil
-				default:
-					return routing.Selection{}, fmt.Errorf("routing smoke record has no route")
-				}
-			},
-			DestinationsContext: destinationsCtx, Hostname: a.hostname, Config: a.config,
-			Compression: a.compression, Secrets: a.secrets,
-		})
-		if err != nil {
-			panic(err)
-		}
-		a.log.Warn("TEMPORARY routing smoke provider enabled")
-		return provider
-	}
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
