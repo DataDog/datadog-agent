@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -603,12 +602,12 @@ func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
 
 // In deny mode, every rejected open of the host goes through the sampler: the global open sampling rate could be
 // exhausted by the opens of the container runtime before the syscall tester runs.
-var _ = declare(TestFilterOpenSavedByWorkloadProfileSampler, testOpts{eventSamplingOpenRateUnlimited: true})
+var _ = declare(TestFilterSavedByWorkloadProfileSampler, testOpts{eventSamplingOpenRateUnlimited: true})
 
-// TestFilterOpenSavedByWorkloadProfileSampler checks that an event rejected by the approvers is still forwarded
+// TestFilterSavedByWorkloadProfileSampler checks that an event rejected by the approvers is still forwarded
 // to user space when the workload profile sampler samples it, flagged so that the rule engine doesn't evaluate it,
-// and that the sampler then rejects the same event for the same process.
-func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
+// and that the sampler then drops the same event for the same process.
+func TestFilterSavedByWorkloadProfileSampler(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -629,6 +628,10 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 		{
 			ID:         "test_rule_sampler_open",
 			Expression: `open.file.path == "{{.Root}}/test-sampler-approved"`,
+		},
+		{
+			ID:         "test_rule_sampler_bind",
+			Expression: `bind.addr.family == AF_INET6`,
 		},
 		{
 			ID:         "test_rule_sampler_connect",
@@ -652,11 +655,14 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
-	// countSavedEvents runs the syscall tester in the container and counts its forwarded events flagged as saved
-	// from the approvers that match the filter. The test files are on the host and can be opened by other processes
-	// too, which are sampled under their own key.
-	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
-		var count atomic.Int32
+	// forwardedEvents runs the syscall tester in the container and returns whether each of its forwarded events
+	// that match the filter is flagged as saved by the sampler. The test files are on the host and can be opened
+	// by other processes too, which are sampled under their own key.
+	forwardedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) []bool {
+		var (
+			lock  sync.Mutex
+			saved []bool
+		)
 		runUntilSentinel(t, test, dockerInstance, func() error {
 			cmd := dockerInstance.Command("sh", append([]string{"-c", `"$@" && true`, "--", syscallTester}, args...), []string{})
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -664,36 +670,59 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) {
-			if event.GetEventType() != eventType || !event.IsSavedByActivityDumps() {
-				return
-			}
-			if event.ProcessContext.FileEvent.PathnameStr != syscallTester {
+			if event.GetEventType() != eventType || event.ProcessContext.FileEvent.PathnameStr != syscallTester {
 				return
 			}
 			if v, _ := event.GetFieldValue(filter.key); v == filter.value {
-				count.Add(1)
+				lock.Lock()
+				saved = append(saved, event.IsSavedByActivityDumps())
+				lock.Unlock()
 			}
 		})
-		return int(count.Load())
+		lock.Lock()
+		defer lock.Unlock()
+		return saved
 	}
 
-	t.Run("open", func(t *testing.T) {
-		testFile, _, err := test.Path("test-sampler-sampled")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(testFile)
+	testFile, _, err := test.Path("test-sampler-sampled")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
 
-		// the same process opens the same file twice: only the first open is sampled
-		count := countSavedEvents(t, model.FileOpenEventType, eventKeyValueFilter{key: "open.file.path", value: testFile}, "open", testFile, testFile)
-		assert.Equal(t, 1, count, "the first open should be saved by the sampler, the second one rejected")
-	})
-
-	t.Run("connect", func(t *testing.T) {
-		// the same process connects twice to the same address: only the first connect is sampled
-		count := countSavedEvents(t, model.ConnectEventType, eventKeyValueFilter{key: "connect.addr.port", value: 4254}, "connect", "AF_INET", "any", "udp", "4254", "2")
-		assert.Equal(t, 1, count, "the first connect should be saved by the sampler, the second one rejected")
-	})
+	for _, tc := range []struct {
+		name      string
+		eventType model.EventType
+		filter    eventKeyValueFilter
+		// args make the syscall tester emit the event twice from the same process, with the same sample key
+		args []string
+	}{
+		{
+			name:      "open",
+			eventType: model.FileOpenEventType,
+			filter:    eventKeyValueFilter{key: "open.file.path", value: testFile},
+			args:      []string{"open", testFile, testFile},
+		},
+		{
+			name:      "bind",
+			eventType: model.BindEventType,
+			filter:    eventKeyValueFilter{key: "bind.addr.port", value: 4255},
+			args:      []string{"bind", "AF_INET", "any", "udp", "4255", ";", "bind", "AF_INET", "any", "udp", "4255"},
+		},
+		{
+			name:      "connect",
+			eventType: model.ConnectEventType,
+			filter:    eventKeyValueFilter{key: "connect.addr.port", value: 4254},
+			args:      []string{"connect", "AF_INET", "any", "udp", "4254", "2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			saved := forwardedEvents(t, tc.eventType, tc.filter, tc.args...)
+			if assert.Len(t, saved, 1, "the kernel should forward the first %s, and drop the second one", tc.name) {
+				assert.True(t, saved[0], "the first %s should be saved by the sampler", tc.name)
+			}
+		})
+	}
 }
 
 var _ = declareInlineConfig(TestFilterOpenSampleRefreshWorkloadProfile)
