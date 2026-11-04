@@ -35,8 +35,8 @@ replace (
 require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.30.0
-	code.cloudfoundry.org/bbs/models v1.24.0
-	code.cloudfoundry.org/garden v0.9.0
+	code.cloudfoundry.org/bbs/models v1.25.0
+	code.cloudfoundry.org/garden v0.10.0
 	code.cloudfoundry.org/lager/v3 v3.93.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
@@ -302,7 +302,6 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/gosnmp/gosnmp v1.47.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
-	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api/v2 v2.0.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.7.8
@@ -411,7 +410,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.39.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.39.1
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.35
 	go.mongodb.org/mongo-driver/v2 v2.9.2
@@ -505,7 +504,7 @@ require (
 	k8s.io/cli-runtime v0.37.1
 	k8s.io/client-go v0.37.1
 	k8s.io/component-base v0.37.1
-	k8s.io/cri-api v0.37.1
+	k8s.io/cri-api v0.37.2
 	k8s.io/cri-client v0.37.1
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.37.1
@@ -709,6 +708,7 @@ require (
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
+	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/consul/api v1.34.4 // indirect
 	github.com/hashicorp/cronexpr v1.1.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

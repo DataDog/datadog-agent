@@ -191,7 +191,6 @@ use_repo(
     "com_github_gosnmp_gosnmp",
     "com_github_goware_modvendor",
     "com_github_grpc_ecosystem_go_grpc_middleware_v2",
-    "com_github_h2non_filetype",
     "com_github_hairyhenderson_go_codeowners",
     "com_github_hashicorp_consul_api_v2",
     "com_github_hashicorp_go_multierror",
@@ -509,7 +508,7 @@ use_repo(
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
-    "sh_helm_helm_v3",
+    "sh_helm_helm_v4",
     "tools_gotest_gotestsum",
 )
 
@@ -586,6 +585,17 @@ go_deps.module_override(
     patch_strip = 1,
     patches = ["//bazel/patches:kustomize-disable-go-plugin-loader.patch"],
     path = "sigs.k8s.io/kustomize/api",
+)
+
+# kyaml's openapi package go:embeds files from its kubernetesapi and kustomizationapi subpackages, which Gazelle
+# leaves out of embedsrcs across package boundaries (bazel-contrib/bazel-gazelle#1392): excluding their unused Go
+# files keeps those directories in the openapi package.
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:exclude openapi/kubernetesapi/*.go",
+        "gazelle:exclude openapi/kustomizationapi/*.go",
+    ],
+    path = "sigs.k8s.io/kustomize/kyaml",
 )
 
 # gopacket/pcap links -lpcap, but the hermetic Linux sysroot ships neither pcap.h

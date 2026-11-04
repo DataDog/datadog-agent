@@ -678,8 +678,6 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_socket_setsockopt"),
 				hookFunc("hook_sk_attach_filter"),
-				hookFunc("hook_release_sock"),
-				hookFunc("rethook_release_sock"),
 			}},
 		},
 
