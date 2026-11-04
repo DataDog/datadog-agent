@@ -71,12 +71,17 @@ func newClients(clock clock.Clock, clientsTTL time.Duration) *clients {
 	}
 }
 
-// seen marks the given client as active
-func (c *clients) seen(pbClient *pbgo.Client) {
+// seen marks the given client as active and reports whether its requested
+// product set changed since the previous request.
+func (c *clients) seen(pbClient *pbgo.Client) bool {
 	c.m.Lock()
 	defer c.m.Unlock()
 	now := c.clock.Now().UTC()
 	pbClient.LastSeen = uint64(now.UnixMilli())
+	productsChanged := false
+	if previous, ok := c.clients[pbClient.Id]; ok {
+		productsChanged = !sameProducts(previous.pbClient.Products, pbClient.Products)
+	}
 	// Store a copy: the caller may keep mutating pbClient after this returns.
 	pbCopy, ok := proto.Clone(pbClient).(*pbgo.Client)
 	if !ok {
@@ -87,6 +92,27 @@ func (c *clients) seen(pbClient *pbgo.Client) {
 		lastSeen: now,
 		pbClient: pbCopy,
 	}
+	return productsChanged
+}
+
+func sameProducts(a, b []string) bool {
+	productsA := make(map[string]struct{}, len(a))
+	for _, product := range a {
+		productsA[product] = struct{}{}
+	}
+	productsB := make(map[string]struct{}, len(b))
+	for _, product := range b {
+		productsB[product] = struct{}{}
+	}
+	if len(productsA) != len(productsB) {
+		return false
+	}
+	for product := range productsA {
+		if _, ok := productsB[product]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // active checks whether a certain client is active
