@@ -236,7 +236,7 @@ stages:
   - .post
 
 variables:
-  # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
+  # Route CI clones through the GitRetriever mirror via the runner feature flag
   # the agent is build with a special flag that allow computing code coverage of the binary when it is running.
   E2E_COVERAGE_PIPELINE: false
   # Directory in which we execute the omnibus build.
@@ -401,6 +401,16 @@ variables:
   FF_TIMESTAMPS: true
   FF_USE_FASTZIP: true
   FF_USE_WINDOWS_JOB_OBJECT: true # Prevent orphaned processes from holding file handles, see https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/4525
+  # Route CI clones through the GitRetriever mirror. The DD runner fork resolves
+  # this flag before the experiments client (see IsGitretrieverEnabled), which covers
+  # runner pools that cannot evaluate the server-side experiment — notably macOS,
+  # where the experiments client degrades to a no-op outside Kubernetes and clones
+  # fall back to gitlab.ddbuild.io: the only clone path without client-side fallback
+  # and the one affected by the Gitaly-fork 256-object upload-pack redirect limit.
+  # Linux/K8s pools already get the mirror via the experiment; no change for them.
+  # If the mirror is unreachable, the runner's FailedGitRetriever fallback retries
+  # from GitLab directly.
+  FF_GITRETRIEVER_ENABLED: "true"
   CACHE_COMPRESSION_LEVEL: slowest
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
