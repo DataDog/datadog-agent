@@ -150,8 +150,8 @@ func postInstallDMG(ctx HookContext) error {
 	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
 		errs = append(errs, err)
 	}
-	// The installer daemon keeps its state in its own root-owned run directory, never in the
-	// Agent's. Create it, or repair it, before the daemon is loaded below.
+	// The packages root holds the package entry the installer daemon reports the Agent from, and
+	// only root may write to it. Create it, or repair it, before the entry is registered below.
 	if err := ensureInstallerDataDir(); err != nil {
 		errs = append(errs, err)
 	}

@@ -45,11 +45,10 @@ const (
 // Agent's own jobs; the postinstall script's fallback does not install it.
 const macosInstallerLaunchDaemon = "com.datadoghq.installer"
 
-// macosInstallerOwnDirs are the directories the installer daemon keeps its state in, which must be
-// root-owned and writable by root only.
+// macosInstallerOwnDirs are the directories only root may write to: the packages root, which holds
+// the package entry the installer daemon reports the Agent from.
 var macosInstallerOwnDirs = []string{
 	"/opt/datadog-packages",
-	"/opt/datadog-packages/run",
 }
 
 // macosStableLaunchDaemons are the Agent's stable LaunchDaemons, in load order. They are also the

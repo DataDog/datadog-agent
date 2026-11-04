@@ -74,7 +74,7 @@ var defaultDmgLayout = dmgLayout{
 	usersDir:        "/Users",
 	consoleDevice:   "/dev/console",
 	packagesDir:     paths.PackagesPath,
-	packagesRunDir:  paths.RunPath,
+	packagesRunDir:  filepath.Join(paths.PackagesPath, "run"),
 }
 
 func (l dmgLayout) confDir() string      { return filepath.Join(l.installDir, "etc") }
@@ -223,15 +223,15 @@ func removeOldInstallFiles(layout dmgLayout) {
 		filepath.Join(layout.installDir, "agent"),
 		filepath.Join(layout.installDir, "checks.d"),
 		filepath.Join(layout.installDir, "embedded", "bin", "ai-prompt-logger-native-host"),
-		// The installer daemon's task state, from builds that kept it in the Agent's run
-		// directory. Its remote config database stays there: it is run_path's default.
+		// Builds that ran a configuration experiment watcher from the Agent's run directory.
 		filepath.Join(layout.runDir(), "experiment-deadline"),
-		filepath.Join(layout.runDir(), "installer.sock"),
 		filepath.Join(layout.runDir(), "installer.pid"),
-		filepath.Join(layout.runDir(), "installer_tasks.db"),
-		// Builds that logged the installer daemon, or kept its remote config database, under the
-		// packages root, where anything left would be read as a package.
+		// Builds that kept the installer daemon's state and logs under the packages root. The
+		// daemon now keeps them in the Agent's run and log directories, and anything left under the
+		// packages root would be read as a package.
 		filepath.Join(layout.packagesDir, "logs"),
+		filepath.Join(layout.packagesRunDir, "installer.sock"),
+		filepath.Join(layout.packagesRunDir, "installer_tasks.db"),
 		filepath.Join(layout.packagesRunDir, "remote-config-installer.db"),
 	}
 	for _, path := range stale {

@@ -50,13 +50,9 @@ const (
 	// ExperimentInstallerPath is the path to the experiment installer binary. macOS runs no
 	// version experiments, so there is no second binary to point at.
 	ExperimentInstallerPath = StableInstallerPath
-	// RunPath is the root installer daemon's own run directory: its socket, pid file, task
-	// database, remote configuration cache and the configuration experiment deadline.
-	//
-	// It is deliberately not the Agent's run directory, /opt/datadog-agent/run: that one belongs
-	// to the Agent's account, and the daemon runs as root. Like on Linux, it lives under
-	// PackagesPath, which only root can write to (see EnsureInstallerDataDir).
-	RunPath = "/opt/datadog-packages/run"
+	// RunPath is where the installer daemon keeps its socket and task database: the Agent's run
+	// directory, alongside its remote configuration cache, which follows run_path's default.
+	RunPath = "/opt/datadog-agent/run"
 	// DatadogDataDir is the path to the Datadog data directory.
 	DatadogDataDir = "/opt/datadog-agent/etc"
 	// DatadogProgramFilesDir is the Datadog Program Files directory (not used on non-Windows platforms).
@@ -77,16 +73,14 @@ func SetupInstallerDataDir() error {
 // rootOwner is the owner every directory holding root installer state must have: root:wheel.
 var rootOwner = dirOwner{uid: 0, gid: 0}
 
-// installerDataDirs are the directories the root installer keeps its own state in, parents first.
-var installerDataDirs = []string{PackagesPath, RunPath}
+// installerDataDirs are the directories only root may write to: the packages root, which holds the
+// package entry the installer reports the Agent from.
+var installerDataDirs = []string{PackagesPath}
 
-// EnsureInstallerDataDir makes sure the directories the root installer keeps its own state in,
-// installerDataDirs, are real directories owned by root:wheel and writable by root only,
-// creating them when missing and repairing their ownership and mode when they drifted.
-//
-// The root daemon, its detached watcher and its resume step trust what these directories hold,
-// so they must never be writable by the Agent's account. A path that is not a directory (a
-// symbolic link in particular) is refused rather than repaired.
+// EnsureInstallerDataDir makes sure installerDataDirs are real directories owned by root:wheel and
+// writable by root only, creating them when missing and repairing their ownership and mode when
+// they drifted. A path that is not a directory (a symbolic link in particular) is refused rather
+// than repaired.
 func EnsureInstallerDataDir() error {
 	for _, dir := range installerDataDirs {
 		if err := ensureTrustedDir(dir, rootOwner); err != nil {
