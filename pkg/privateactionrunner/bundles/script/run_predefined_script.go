@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -86,10 +85,7 @@ func (h *RunPredefinedScriptHandler) Run(
 		return nil, newOutputLimitError(defaultMaxOutputSize)
 	}
 
-	// noFailOnError only permits a nonzero exit status, not cancellation,
-	// start failures, or a timeout waiting for inherited output pipes.
-	var exitErr *exec.ExitError
-	if err != nil && (ctx.Err() != nil || !inputs.NoFailOnError || !errors.As(err, &exitErr)) {
+	if err != nil && !inputs.NoFailOnError {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("script execution timed out after %d seconds", inputs.Timeout)
 		}

@@ -52,9 +52,9 @@ func TestScriptHandlerExecutionErrors(t *testing.T) {
 		{name: "success", mode: "success"},
 		{name: "nonzero exit", mode: "failure", wantError: "failed to execute"},
 		{name: "allowed nonzero exit", mode: "failure", noFail: true},
-		{name: "start failure", mode: "success", noFail: true, startFailure: true, wantError: "failed to execute"},
-		{name: "canceled", mode: "success", noFail: true, canceled: true, wantError: "context canceled"},
-		{name: "timeout", mode: "child", noFail: true, timeout: 1, wantError: "timed out after 1 seconds"},
+		{name: "start failure", mode: "success", startFailure: true, wantError: "failed to execute"},
+		{name: "canceled", mode: "success", canceled: true, wantError: "context canceled"},
+		{name: "timeout", mode: "child", timeout: 1, wantError: "timed out after 1 seconds"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -87,7 +87,7 @@ func TestScriptHandlerExecutionErrors(t *testing.T) {
 	}
 }
 
-func TestScriptHandlerDoesNotSuppressPipeTimeout(t *testing.T) {
+func TestScriptHandlerReleasesInheritedPipes(t *testing.T) {
 	exe, err := os.Executable()
 	require.NoError(t, err)
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
@@ -95,7 +95,7 @@ func TestScriptHandlerDoesNotSuppressPipeTimeout(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := runProcessTestHandler(t, ctx, processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "exit", pidFile}), true, 0)
+		_, err := runProcessTestHandler(t, ctx, processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "exit", pidFile}), false, 0)
 		done <- err
 	}()
 	child := waitForTestChild(t, pidFile)
