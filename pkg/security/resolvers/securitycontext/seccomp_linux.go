@@ -109,7 +109,7 @@ func readLocalhostSeccompProfile(kubelet *kubeletInfo, localhostPath string) (*S
 // in a container (e.g. kind nodes).
 func hostRoots(kubelet *kubeletInfo) []string {
 	var roots []string
-	if kubelet != nil {
+	if kubelet != nil && kubelet.pid != "" {
 		roots = append(roots, filepath.Join(procDir(), kubelet.pid, "root"))
 	}
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {

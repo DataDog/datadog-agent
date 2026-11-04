@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -107,6 +108,36 @@ func TestResolveSeccompFilterAfterKubeletRestart(t *testing.T) {
 	assert.Equal(t, "200", r.kubelet.pid)
 }
 
+func TestResolveSeccompFilterIgnoresReusedKubeletPID(t *testing.T) {
+	proc := t.TempDir()
+	hostRoot := t.TempDir()
+	writeProfile := func(root, body string) {
+		dir := filepath.Join(root, "data/kubelet/seccomp")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "p.json"), []byte(body), 0o600))
+	}
+	writeProcess := func(cmdline string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(proc, "100"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(proc, "100", "cmdline"), []byte(cmdline), 0o600))
+	}
+	t.Setenv("HOST_PROC", proc)
+	t.Setenv("HOST_ROOT", hostRoot)
+	writeProfile(hostRoot, testSeccompProfileJSON)
+
+	writeProcess("kubelet\x00--root-dir=/data/kubelet\x00")
+	r := &WorkloadmetaResolver{kubelet: findKubelet(), kubeletLookupTime: time.Now()}
+	require.NotNil(t, r.kubelet)
+
+	writeProcess("other\x00")
+	writeProfile(filepath.Join(proc, "100", "root"), `{"defaultAction": "SCMP_ACT_ALLOW"}`)
+
+	res, err := r.ResolveSeccompFilter(&SeccompProfile{Type: SeccompLocalhost, LocalhostProfile: "p.json"})
+	require.NoError(t, err)
+	assert.Equal(t, ActionErrno, res.DefaultAction)
+	assert.Empty(t, r.kubelet.pid)
+	assert.Equal(t, "/data/kubelet", r.kubelet.rootDir)
+}
+
 func TestReadLocalhostSeccompProfileFromInitRoot(t *testing.T) {
 	proc := t.TempDir()
 	dir := filepath.Join(proc, "1", "root", "var/lib/kubelet/seccomp")
@@ -123,6 +154,7 @@ func TestHostRoots(t *testing.T) {
 	t.Setenv("HOST_PROC", "/hp")
 	t.Setenv("HOST_ROOT", "/host")
 	assert.Equal(t, []string{"/hp/7/root", "/host", "/hp/1/root", "/"}, hostRoots(&kubeletInfo{pid: "7"}))
+	assert.Equal(t, []string{"/host", "/hp/1/root", "/"}, hostRoots(&kubeletInfo{rootDir: "/data/kubelet"}))
 
 	t.Setenv("HOST_ROOT", "")
 	assert.Equal(t, []string{"/hp/1/root", "/"}, hostRoots(nil))

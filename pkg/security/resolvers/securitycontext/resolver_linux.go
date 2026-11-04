@@ -167,10 +167,14 @@ func (r *WorkloadmetaResolver) currentKubelet() *kubeletInfo {
 	r.kubeletLock.Lock()
 	defer r.kubeletLock.Unlock()
 
-	if r.kubelet != nil {
+	if r.kubelet != nil && r.kubelet.pid != "" {
 		if _, ok := kubeletArgs(r.kubelet.pid); ok {
 			return r.kubelet
 		}
+		// Copy since callers read it unlocked.
+		stale := *r.kubelet
+		stale.pid = ""
+		r.kubelet = &stale
 	}
 	if now := time.Now(); now.Sub(r.kubeletLookupTime) >= kubeletLookupInterval {
 		r.kubeletLookupTime = now
