@@ -372,6 +372,9 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 	t.AttemptHandler(t)
 
 	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client, pointCountTelemetry)
+	if err != nil && !t.Retryable {
+		t.recordDropped(pointCountTelemetry)
+	}
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -384,6 +387,15 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 	}
 
 	return nil
+}
+
+func (t *HTTPTransaction) recordDropped(pointCountTelemetry PointCountTelemetry) {
+	TransactionsDroppedByEndpoint.Add(t.GetEndpointName(), 1)
+	TransactionsDropped.Add(1)
+	TlmTxDropped.Inc(t.Domain, t.GetEndpointName())
+	if pointCountTelemetry != nil {
+		pointCountTelemetry.OnPointDropped(t.GetPointCount())
+	}
 }
 
 // internalProcess does the  work of actually sending the http request to the specified domain
@@ -413,9 +425,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	resp, err := client.Do(req)
 
 	if err != nil {
-		// Do not requeue transaction if that one was canceled
-		if ctx.Err() == context.Canceled {
-			return 0, nil, nil
+		if ctx.Err() != nil {
+			return 0, nil, ctx.Err()
 		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
@@ -429,6 +440,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		if ctx.Err() != nil {
+			return 0, nil, ctx.Err()
+		}
 		log.Errorf("Fail to read the response Body: %s", err)
 		return 0, nil, err
 	}
@@ -452,12 +466,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	// to (example: a specific DD region, or a http proxy)
 	if resp.StatusCode == 400 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %q, dropping it", resp.Status, logURL, truncateBodyForLog(body))
-		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-		TransactionsDropped.Add(1)
-		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
-		if pointCountTelemetry != nil {
-			pointCountTelemetry.OnPointDropped(t.GetPointCount())
-		}
+		t.recordDropped(pointCountTelemetry)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
@@ -469,12 +478,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		}
 
 		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
-		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-		TransactionsDropped.Add(1)
-		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
-		if pointCountTelemetry != nil {
-			pointCountTelemetry.OnPointDropped(t.GetPointCount())
-		}
+		t.recordDropped(pointCountTelemetry)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
