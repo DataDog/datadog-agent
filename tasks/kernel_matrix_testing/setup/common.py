@@ -7,7 +7,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.libs.build.bazel import install_pulumi_plugins
+from tasks.e2e_framework.tool import install_pulumi_plugins
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch

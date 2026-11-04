@@ -15,11 +15,11 @@ from tasks.e2e_framework.tool import (
     get_aws_cmd,
     get_resource_owner_id,
     info,
+    install_pulumi_plugins,
     is_windows,
     run_pulumi,
     warn,
 )
-from tasks.libs.build.bazel import install_pulumi_plugins
 
 
 def _force_cleanup(
