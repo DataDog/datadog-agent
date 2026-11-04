@@ -8,7 +8,6 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -56,13 +55,6 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	}
 	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
-	if runtime.GOOS == "darwin" {
-		// Fleet sends macOS its requests as UPDATER_TASK tasks, and macOS has no version upgrades
-		// yet, so the subscription must not wait for a catalog to arrive first. Subscribing here,
-		// before the client starts, needs no goroutine.
-		rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
-		subscribeToTask = func() {}
-	}
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
 	rc.client.Start()
 }
