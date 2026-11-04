@@ -78,45 +78,75 @@ type Operations struct {
 	FileOperations []FileOperation `json:"file_operations"`
 }
 
-// ReplaceSecrets replaces SEC[key] placeholders with decrypted values in the operations.
+// ReplaceSecrets replaces SEC[key] placeholders in JSON string values. Secret
+// contents are data: they cannot alter JSON structure or introduce new SEC references.
 func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) error {
-	for key, decryptedValue := range decryptedSecrets {
-		// Build the full key: SEC[key]
-		fullKey := fmt.Sprintf("SEC[%s]", key)
-
-		// Replace in all file operations. Patch and jq Arguments are both raw JSON blobs,
-		// so secrets are substituted with a flat textual replacement that is agnostic to
-		// nesting depth. For jq, secrets live in the arguments rather than the transform
-		// text, so the transform stays a static program and secret values are never spliced
-		// into the jq source.
-		for i := range operations.FileOperations {
-			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
-				operations.FileOperations[i].Patch = bytes.ReplaceAll(
-					operations.FileOperations[i].Patch,
-					[]byte(fullKey),
-					[]byte(decryptedValue),
-				)
-			}
-			if bytes.Contains(operations.FileOperations[i].Arguments, []byte(fullKey)) {
-				operations.FileOperations[i].Arguments = bytes.ReplaceAll(
-					operations.FileOperations[i].Arguments,
-					[]byte(fullKey),
-					[]byte(decryptedValue),
-				)
-			}
-		}
-	}
-
-	// Verify all secrets have been replaced. The transform text is also checked so that a
-	// stray SEC[...] embedded directly in a transform (which is unsupported) fails loudly
-	// rather than reaching gojq unsubstituted.
-	for _, operation := range operations.FileOperations {
-		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Transform) || secRegex.Match(operation.Arguments) {
+	updated := append([]FileOperation(nil), operations.FileOperations...)
+	for i := range updated {
+		operation := &updated[i]
+		if secRegex.MatchString(operation.Transform) {
 			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
 		}
+		var err error
+		operation.Patch, err = replaceSecretJSON(operation.Patch, decryptedSecrets)
+		if err != nil {
+			return err
+		}
+		operation.Arguments, err = replaceSecretJSON(operation.Arguments, decryptedSecrets)
+		if err != nil {
+			return err
+		}
 	}
-
+	operations.FileOperations = updated
 	return nil
+}
+
+func replaceSecretJSON(data json.RawMessage, secrets map[string]string) (json.RawMessage, error) {
+	if !secRegex.Match(data) {
+		return data, nil
+	}
+	if !json.Valid(data) {
+		return nil, errors.New("invalid JSON containing secret references")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, errors.New("invalid JSON containing secret references")
+	}
+	unresolved := false
+	var replace func(any) any
+	replace = func(value any) any {
+		switch value := value.(type) {
+		case string:
+			return secRegex.ReplaceAllStringFunc(value, func(reference string) string {
+				secret, ok := secrets[reference[4:len(reference)-1]]
+				if !ok {
+					unresolved = true
+					return reference
+				}
+				return secret
+			})
+		case []any:
+			for i, child := range value {
+				value[i] = replace(child)
+			}
+		case map[string]any:
+			for key, child := range value {
+				// References are supported in values, never in field names.
+				if secRegex.MatchString(key) {
+					unresolved = true
+				}
+				value[key] = replace(child)
+			}
+		}
+		return value
+	}
+	value = replace(value)
+	if unresolved {
+		return nil, errors.New("secrets are not fully replaced, SEC[...] found in the config")
+	}
+	return json.Marshal(value)
 }
 
 // Apply applies the operations to the root.

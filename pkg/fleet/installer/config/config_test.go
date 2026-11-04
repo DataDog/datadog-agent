@@ -927,10 +927,10 @@ func TestReplaceSecrets(t *testing.T) {
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
 				{
-					Patch: []byte(`api_key: SEC[apikey]`),
+					Patch: []byte(`{"api_key":"SEC[apikey]"}`),
 				},
 				{
-					Patch: []byte(`app_key: SEC[appkey]`),
+					Patch: []byte(`{"app_key":"SEC[appkey]"}`),
 				},
 			},
 		}
@@ -941,8 +941,8 @@ func TestReplaceSecrets(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "api_key: my-api-key", string(ops.FileOperations[0].Patch))
-		assert.Equal(t, "app_key: my-app-key", string(ops.FileOperations[1].Patch))
+		assert.Equal(t, `{"api_key":"my-api-key"}`, string(ops.FileOperations[0].Patch))
+		assert.Equal(t, `{"app_key":"my-app-key"}`, string(ops.FileOperations[1].Patch))
 	})
 
 	t.Run("no secrets to replace", func(t *testing.T) {
@@ -966,7 +966,7 @@ func TestReplaceSecrets(t *testing.T) {
 			DeploymentID: "test-config",
 			FileOperations: []FileOperation{
 				{
-					Patch: []byte(`api_key: SEC[apikey]`),
+					Patch: []byte(`{"api_key":"SEC[apikey]"}`),
 				},
 			},
 		}
@@ -1520,6 +1520,66 @@ init_config:
 			}}
 			require.Error(t, ops.Apply(context.Background(), tmpDir))
 			assert.Equal(t, "info", readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))["log_level"])
+		})
+	}
+}
+
+func TestReplaceSecretsJSONValues(t *testing.T) {
+	for name, secret := range map[string]string{
+		"quotes and control characters": "quote\"backslash\\newline\n\ttab",
+		"backslashes":                   `value\with\escapes`,
+		"JSON field injection":          `x", "enabled": false, "extra": "injected`,
+		"unicode":                       "unicode-雪-🔑",
+		"literal reference":             "literal SEC[another] credential",
+	} {
+		t.Run(name, func(t *testing.T) {
+			ops := Operations{FileOperations: []FileOperation{{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/http_check.d/secret.yaml",
+				Patch:             json.RawMessage(`{"instances":[{"password":"SEC[credential]","enabled":true,"exact":9007199254740993}]}`),
+			}, {
+				FileOperationType: FileOperationJQ,
+				Transform:         `.password = $password`,
+				Arguments:         json.RawMessage(`{"password":"SEC[credential]"}`),
+			}}}
+			require.NoError(t, ReplaceSecrets(&ops, map[string]string{"credential": secret, "another": "must-not-be-expanded"}))
+			var config struct {
+				Instances []struct {
+					Password string
+					Enabled  bool
+					Exact    json.Number
+					Extra    string
+				}
+			}
+			require.NoError(t, json.Unmarshal(ops.FileOperations[0].Patch, &config))
+			require.Len(t, config.Instances, 1)
+			assert.Equal(t, secret, config.Instances[0].Password)
+			assert.True(t, config.Instances[0].Enabled)
+			assert.Equal(t, json.Number("9007199254740993"), config.Instances[0].Exact)
+			assert.Empty(t, config.Instances[0].Extra)
+			var arguments map[string]string
+			require.NoError(t, json.Unmarshal(ops.FileOperations[1].Arguments, &arguments))
+			assert.Equal(t, secret, arguments["password"])
+			assert.Equal(t, `.password = $password`, ops.FileOperations[1].Transform)
+		})
+	}
+}
+
+func TestReplaceSecretsFailureIsAtomic(t *testing.T) {
+	for name, invalid := range map[string]FileOperation{
+		"missing reference":       {Patch: json.RawMessage(`{"password":"SEC[missing]"}`)},
+		"reference in field name": {Patch: json.RawMessage(`{"SEC[credential]":"value"}`)},
+		"reference in transform":  {Transform: `.password = "SEC[credential]"`},
+		"malformed JSON":          {Patch: json.RawMessage(`{"password":"SEC[credential]"`)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			first := json.RawMessage(`{"password":"SEC[credential]"}`)
+			ops := Operations{FileOperations: []FileOperation{{Patch: first}, invalid}}
+			err := ReplaceSecrets(&ops, map[string]string{"credential": "private-value"})
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), "private-value")
+			assert.Equal(t, string(first), string(ops.FileOperations[0].Patch))
+			assert.Equal(t, invalid, ops.FileOperations[1])
 		})
 	}
 }
