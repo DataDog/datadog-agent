@@ -388,6 +388,14 @@ path length (see the Windows section). When `dd_agent_go_test` fails with a path
 short suffix for the combination to `_TAG_SET_SUFFIX_ALIASES` in
 `//bazel/rules/go:dd_agent_go_test.bzl`.
 
+A `go_library` does not inherit every tag of the test or binary above it. A patched-in incoming
+transition (`//bazel/go_tags:transition.bzl`) keeps only the tags its transitive closure reads in
+`//go:build` lines, plus those that affect the standard library, so tag-insensitive libraries are
+configured once. The per-import-path tag lists live in the generated
+`bazel/go_tags/closure_tags.bzl`. `dda inv tidy` regenerates it, and `bazel:run-gazelle` fails when
+it is stale; run `dda inv go.write-tag-manifest` after changing a build constraint or a dependency. An
+import path missing from the manifest keeps all its tags, which is safe but configures it per tag set.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
