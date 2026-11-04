@@ -99,9 +99,18 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 			c, err := net.Dial(network, net.JoinHostPort(natAddr, port))
 			require.NoError(t, err)
 			t.Cleanup(func() { c.Close() })
-			for i := 0; i < 10; i++ {
+			const datagrams = 10
+			for i := 0; i < datagrams; i++ {
 				_, err = c.Write(bytes.Repeat([]byte{'u'}, 200))
 				require.NoError(t, err)
+			}
+			// net_dev_queue fires on egress before loopback delivers the datagram, so once every datagram has
+			// arrived, the probe has run for all of them
+			require.NoError(t, ln.SetReadDeadline(time.Now().Add(5*time.Second)))
+			buf := make([]byte, 512)
+			for i := 0; i < datagrams; i++ {
+				_, _, err = ln.ReadFrom(buf)
+				require.NoError(t, err, "datagram %d of %d not received", i+1, datagrams)
 			}
 		}
 		send(t, "udp4", "1.1.1.1:0", "2.2.2.2")
@@ -109,8 +118,7 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 			send(t, "udp6", "[fd00::1]:0", "fd00::2")
 		}
 
-		// Let the TCP subtests' entries and any UDP sends settle, then check that only TCP was recorded.
-		time.Sleep(500 * time.Millisecond)
+		// every UDP datagram has been through net_dev_queue, so only the TCP subtests' entries can be there
 		var k, v netebpf.ConnTuple
 		it := skbMap.Iterate()
 		for it.Next(unsafe.Pointer(&k), unsafe.Pointer(&v)) {
