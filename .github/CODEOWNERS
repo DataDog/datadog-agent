@@ -42,6 +42,7 @@
 /.agents/skills/create-runtime-setting/SKILL.md @DataDog/agent-runtimes @DataDog/fleet-automation
 /.agents/skills/cws-btfhub-sync                 @DataDog/agent-security
 /.agents/skills/cws-iouring-coverage/           @DataDog/agent-security
+/.agents/skills/describe-functional-changes/    @DataDog/agent-devx
 /.agents/skills/explain-lading-config           @DataDog/single-machine-performance
 /.agents/skills/gpu-live-metric-validation/     @DataDog/accelerator-telemetry
 /.agents/skills/injector-dev                    @Datadog/container-platform
