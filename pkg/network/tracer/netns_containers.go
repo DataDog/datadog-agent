@@ -9,7 +9,11 @@ package tracer
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"go4.org/intern"
@@ -105,7 +109,7 @@ func newNetNSContainerResolver(ownerImages, ignoredContainers []string, tunnelPo
 
 	r := &netnsContainerResolver{
 		readNetNS: func(pid int) (uint32, error) {
-			return netnsutil.GetNetNsInoFromPid(procRoot, pid)
+			return readProcessNetNS(procRoot, pid)
 		},
 		rootNetNS:         rootNetNS,
 		ownerImages:       toSet(ownerImages),
@@ -122,6 +126,39 @@ func newNetNSContainerResolver(ownerImages, ignoredContainers []string, tunnelPo
 		}
 	}
 	return r, nil
+}
+
+// readProcessNetNS returns the network namespace most of a process's threads are in. /proc/<pid>/ns/net is the
+// main thread's, and a process that enters pods' namespaces (istio-cni, for one) can leave its main thread in a
+// pod's, which would count it as a container of that pod. Ties go to the main thread.
+func readProcessNetNS(procRoot string, pid int) (uint32, error) {
+	leader, err := netnsutil.GetNetNsInoFromPid(procRoot, pid)
+	if err != nil {
+		return 0, err
+	}
+	taskDir := filepath.Join(procRoot, strconv.Itoa(pid), "task")
+	tasks, err := os.ReadDir(taskDir)
+	if err != nil || len(tasks) <= 1 {
+		return leader, nil
+	}
+	counts := make(map[uint32]int, 2)
+	for _, task := range tasks {
+		var st syscall.Stat_t
+		if syscall.Stat(filepath.Join(taskDir, task.Name(), "ns", "net"), &st) == nil {
+			counts[uint32(st.Ino)]++
+		}
+	}
+	return majorityNetNS(leader, counts), nil
+}
+
+func majorityNetNS(leader uint32, counts map[uint32]int) uint32 {
+	best, bestCount := leader, counts[leader]
+	for netns, n := range counts {
+		if n > bestCount {
+			best, bestCount = netns, n
+		}
+	}
+	return best
 }
 
 // onTunnel reports whether a socket with these ports is on the mesh tunnel. A proxy's other legs inside the pod

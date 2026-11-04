@@ -10,6 +10,9 @@ package tracer
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -423,4 +426,45 @@ func TestNetNSContainerResolverOnTunnel(t *testing.T) {
 
 	none := &netnsContainerResolver{}
 	assert.False(t, none.onTunnel(15008, 8080), "with no tunnel ports nothing is reattributed")
+}
+
+func TestMajorityNetNS(t *testing.T) {
+	assert.Equal(t, uint32(1), majorityNetNS(2, map[uint32]int{1: 9, 2: 1}), "a main thread left in a pod's namespace is outvoted")
+	assert.Equal(t, uint32(2), majorityNetNS(2, map[uint32]int{1: 1, 2: 1}), "ties go to the main thread")
+	assert.Equal(t, uint32(2), majorityNetNS(2, nil), "without task counts the main thread's namespace is used")
+}
+
+func TestReadProcessNetNSUsesMostThreads(t *testing.T) {
+	// regular files stand in for namespaces: hard links share an inode, like threads sharing a namespace
+	root := t.TempDir()
+	own, pod := filepath.Join(root, "own"), filepath.Join(root, "pod")
+	require.NoError(t, os.WriteFile(own, nil, 0o600))
+	require.NoError(t, os.WriteFile(pod, nil, 0o600))
+	inode := func(path string) uint32 {
+		var st syscall.Stat_t
+		require.NoError(t, syscall.Stat(path, &st))
+		return uint32(st.Ino)
+	}
+	link := func(target, path string) {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		require.NoError(t, os.Link(target, path))
+	}
+
+	procRoot := filepath.Join(root, "proc")
+	// the main thread is in the pod's namespace, like istio-cni after setting a pod up; its other threads aren't
+	link(pod, filepath.Join(procRoot, "42", "ns", "net"))
+	link(pod, filepath.Join(procRoot, "42", "task", "42", "ns", "net"))
+	for _, tid := range []string{"43", "44", "45"} {
+		link(own, filepath.Join(procRoot, "42", "task", tid, "ns", "net"))
+	}
+	ns, err := readProcessNetNS(procRoot, 42)
+	require.NoError(t, err)
+	assert.Equal(t, inode(own), ns)
+
+	// a single-threaded process uses its main thread's namespace
+	link(pod, filepath.Join(procRoot, "50", "ns", "net"))
+	link(pod, filepath.Join(procRoot, "50", "task", "50", "ns", "net"))
+	ns, err = readProcessNetNS(procRoot, 50)
+	require.NoError(t, err)
+	assert.Equal(t, inode(pod), ns)
 }
