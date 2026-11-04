@@ -104,12 +104,10 @@ type holtSeriesState struct {
 	lastSeenTimestamp int64
 }
 
-// HoltResidualDetector detects MAD-scaled forecast residuals with confirmation
-// and effect-size gates. Configuration is immutable; state is single-writer.
+// HoltResidualDetector detects confirmed, MAD-scaled forecast residuals.
 type HoltResidualDetector struct {
-	ready        bool
-	config       HoltResidualConfig
-	aggregations []observer.Aggregate
+	ready  bool
+	config HoltResidualConfig
 
 	// per-series state keyed by ref+agg
 	series map[holtStateKey]*holtSeriesState
@@ -141,9 +139,6 @@ type HoltResidualConfig struct {
 	MinDeviationMAD float64 `json:"min_deviation_mad"`
 	// Refractory suppresses this many points after a fire.
 	Refractory int `json:"refractory"`
-
-	// Aggregations to run detection on. Default: [Average, Count].
-	Aggregations []string `json:"aggregations,omitempty"`
 }
 
 // DefaultHoltResidualConfig returns the production/testbench defaults.
@@ -157,10 +152,6 @@ func DefaultHoltResidualConfig() HoltResidualConfig {
 		ConfirmM:        holtConfirmM,
 		MinDeviationMAD: holtMinDeviationMAD,
 		Refractory:      holtRefractory,
-		Aggregations: []string{
-			observer.AggregateString(observer.AggregateAverage),
-			observer.AggregateString(observer.AggregateCount),
-		},
 	}
 }
 
@@ -191,14 +182,9 @@ func NewHoltResidualDetector(cfg HoltResidualConfig) *HoltResidualDetector {
 	if cfg.Refractory <= 0 {
 		cfg.Refractory = defaults.Refractory
 	}
-	if len(cfg.Aggregations) == 0 {
-		cfg.Aggregations = defaults.Aggregations
-	}
-	cfg.Aggregations = append([]string(nil), cfg.Aggregations...)
 	return &HoltResidualDetector{
-		config:       cfg,
-		aggregations: parseAggregateConfig(cfg.Aggregations),
-		series:       make(map[holtStateKey]*holtSeriesState),
+		config: cfg,
+		series: make(map[holtStateKey]*holtSeriesState),
 	}
 }
 
@@ -232,7 +218,7 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, holtStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -242,10 +228,11 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 
 // Detect implements observer.Detector. Streams new points into per-series
 // Holt state and emits anomalies when all three gates pass.
-func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
+		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
 	}
 
@@ -256,7 +243,7 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
-		for _, agg := range d.aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}

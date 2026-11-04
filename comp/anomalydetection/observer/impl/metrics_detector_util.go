@@ -165,6 +165,35 @@ func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
 	}
 }
 
+func detectorSeriesFilter(filter observer.DetectionFilter) observer.SeriesFilter {
+	selection := observer.WorkloadSeriesFilter()
+	selection.MetricKind, selection.MetricType = filter.MetricKind, filter.MetricType
+	return selection
+}
+
+// detectorAggregations returns valid, unique selections in invocation order.
+func detectorAggregations(requested []observer.Aggregate) (values [3]observer.Aggregate, count int) {
+	if len(requested) == 0 {
+		return [3]observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, 2
+	}
+	var seen uint8
+	for _, agg := range requested {
+		switch agg {
+		case observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount:
+		default:
+			continue
+		}
+		mask := aggregateMask(agg)
+		if seen&mask != 0 {
+			continue
+		}
+		seen |= mask
+		values[count] = agg
+		count++
+	}
+	return values, count
+}
+
 // seriesStatus holds point count and write generation for a single series.
 // Used by bulkSeriesStatus and scan-based detectors.
 type seriesStatus struct {
@@ -230,13 +259,6 @@ func supportsSeriesAggregate(storage observer.StorageReader, ref observer.Series
 		return support.SupportsAggregate(ref, agg)
 	}
 	return true
-}
-
-// workloadSeriesRefs returns the workload series refs used by detector hot
-// paths. It avoids the metadata-heavy ListSeries allocation when the storage
-// implementation provides a ref-only listing.
-func workloadSeriesRefs(storage observer.StorageReader, dst []observer.SeriesRef) []observer.SeriesRef {
-	return listSeriesRefs(storage, observer.WorkloadSeriesFilter(), dst)
 }
 
 func listSeriesRefs(storage observer.StorageReader, filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef {

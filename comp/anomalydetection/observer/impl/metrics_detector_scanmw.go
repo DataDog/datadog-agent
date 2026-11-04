@@ -35,13 +35,12 @@ type scanmwSeriesState struct {
 // ScanMWConfig contains construction-time statistical parameters.
 // Only MinPoints and MaxPoints are exposed through Agent/testbench settings.
 type ScanMWConfig struct {
-	MinSegment            int                  `json:"-"` // minimum points on each side of a split
-	MinPoints             int                  `json:"min_points"`
-	MaxPoints             int                  `json:"max_points"`
-	SignificanceThreshold float64              `json:"-"` // maximum accepted p-value
-	MinEffectSize         float64              `json:"-"` // minimum absolute rank-biserial correlation
-	MinDeviationMAD       float64              `json:"-"` // median separation in pre-segment MADs
-	Aggregations          []observer.Aggregate `json:"-"`
+	MinSegment            int     `json:"-"` // minimum points on each side of a split
+	MinPoints             int     `json:"min_points"`
+	MaxPoints             int     `json:"max_points"`
+	SignificanceThreshold float64 `json:"-"` // maximum accepted p-value
+	MinEffectSize         float64 `json:"-"` // minimum absolute rank-biserial correlation
+	MinDeviationMAD       float64 `json:"-"` // median separation in pre-segment MADs
 }
 
 // DefaultScanMWConfig preserves unrestricted detection on averages and counts.
@@ -53,7 +52,6 @@ func DefaultScanMWConfig() ScanMWConfig {
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
-		Aggregations:          []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount},
 	}
 }
 
@@ -99,10 +97,6 @@ func NewScanMWDetector(cfg ScanMWConfig) *ScanMWDetector {
 	if cfg.MinDeviationMAD <= 0 {
 		cfg.MinDeviationMAD = defaults.MinDeviationMAD
 	}
-	if len(cfg.Aggregations) == 0 {
-		cfg.Aggregations = defaults.Aggregations
-	}
-	cfg.Aggregations = append([]observer.Aggregate(nil), cfg.Aggregations...)
 	return &ScanMWDetector{
 		config: cfg,
 		series: make(map[scanmwStateKey]*scanmwSeriesState),
@@ -135,7 +129,7 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.config.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, scanmwStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -149,10 +143,11 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 //
 // Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go Detect loop)
 // and ScanWelch — consider dedup if more scan-based detectors are added.
-func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
+		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
 	}
 
@@ -164,7 +159,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
-		for _, agg := range d.config.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}

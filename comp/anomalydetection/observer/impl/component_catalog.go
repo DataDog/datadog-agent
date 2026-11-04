@@ -32,7 +32,7 @@ type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	defaultConfig  any           // typed config value (e.g. BOCPDConfig, HoltResidualConfig)
+	defaultConfig  any           // typed constructor or catalog config
 	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
 
@@ -49,6 +49,43 @@ type componentEntry struct {
 	// values, so unspecified fields keep their default. Returns the populated
 	// typed config. Nil means the component has no tunable hyperparameters.
 	parseJSON func(defaults any, raw []byte) (any, error)
+}
+
+// detectorRegistration binds invocation selection to one detector instance.
+type detectorRegistration struct {
+	detector observerdef.Detector
+	filter   observerdef.DetectionFilter
+}
+
+// Catalog-only aggregation settings stay separate from detector statistics.
+type holtResidualCatalogConfig struct {
+	HoltResidualConfig
+	Aggregations []string `json:"aggregations,omitempty"`
+}
+
+type tukeyBiweightCatalogConfig struct {
+	TukeyBiweightConfig
+	Aggregations []string `json:"aggregations,omitempty"`
+}
+
+func defaultHoltResidualCatalogConfig() holtResidualCatalogConfig {
+	return holtResidualCatalogConfig{HoltResidualConfig: DefaultHoltResidualConfig(), Aggregations: []string{"avg", "count"}}
+}
+
+func defaultTukeyBiweightCatalogConfig() tukeyBiweightCatalogConfig {
+	return tukeyBiweightCatalogConfig{TukeyBiweightConfig: DefaultTukeyBiweightConfig(), Aggregations: []string{"avg", "count"}}
+}
+
+// detectorFilter resolves compatibility settings once during registration.
+func detectorFilter(cfg any) observerdef.DetectionFilter {
+	var aggregations []observerdef.Aggregate
+	switch cfg := cfg.(type) {
+	case holtResidualCatalogConfig:
+		aggregations = parseAggregateConfig(cfg.Aggregations)
+	case tukeyBiweightCatalogConfig:
+		aggregations = parseAggregateConfig(cfg.Aggregations)
+	}
+	return observerdef.DetectionFilter{Aggregations: aggregations}
 }
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
@@ -104,10 +141,10 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 
 	bocpd := DefaultBOCPDConfig()
 	bocpd.WarmupPoints = 40
-	holt := DefaultHoltResidualConfig()
+	holt := defaultHoltResidualCatalogConfig()
 	holt.WarmupPoints = 15
 	holt.ResidualWindow = 25
-	tukey := DefaultTukeyBiweightConfig()
+	tukey := defaultTukeyBiweightCatalogConfig()
 	tukey.WindowSize = 40
 	tukey.MinPoints = 40
 
@@ -280,11 +317,11 @@ func defaultCatalog() *componentCatalog {
 				name:           "holt_residual",
 				displayName:    "HoltResidual",
 				kind:           componentDetector,
-				defaultConfig:  DefaultHoltResidualConfig(),
-				factory:        func(cfg any) any { return NewHoltResidualDetector(cfg.(HoltResidualConfig)) },
+				defaultConfig:  defaultHoltResidualCatalogConfig(),
+				factory:        func(cfg any) any { return NewHoltResidualDetector(cfg.(holtResidualCatalogConfig).HoltResidualConfig) },
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
-					cfg := DefaultHoltResidualConfig()
+					cfg := defaultHoltResidualCatalogConfig()
 					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
 						cfg.WarmupPoints = reader.GetInt(key)
 					}
@@ -294,7 +331,7 @@ func defaultCatalog() *componentCatalog {
 					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(HoltResidualConfig)
+					cfg := defaults.(holtResidualCatalogConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, err
 					}
@@ -302,14 +339,16 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			{
-				name:           "tukey_biweight",
-				displayName:    "TukeyBiweight",
-				kind:           componentDetector,
-				defaultConfig:  DefaultTukeyBiweightConfig(),
-				factory:        func(cfg any) any { return NewTukeyBiweightDetector(cfg.(TukeyBiweightConfig)) },
+				name:          "tukey_biweight",
+				displayName:   "TukeyBiweight",
+				kind:          componentDetector,
+				defaultConfig: defaultTukeyBiweightCatalogConfig(),
+				factory: func(cfg any) any {
+					return NewTukeyBiweightDetector(cfg.(tukeyBiweightCatalogConfig).TukeyBiweightConfig)
+				},
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
-					cfg := DefaultTukeyBiweightConfig()
+					cfg := defaultTukeyBiweightCatalogConfig()
 					if key := prefix + "min_points"; reader.IsConfigured(key) {
 						cfg.MinPoints = reader.GetInt(key)
 					}
@@ -319,7 +358,7 @@ func defaultCatalog() *componentCatalog {
 					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(TukeyBiweightConfig)
+					cfg := defaults.(tukeyBiweightCatalogConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, err
 					}
@@ -376,7 +415,7 @@ func defaultCatalog() *componentCatalog {
 // It is NOT included in correlators — the engine handles that separately so it
 // can set the typed engine.scorer pointer at the same time.
 func (c *componentCatalog) Instantiate(settings ComponentSettings) (
-	detectors []observerdef.Detector,
+	detectors []detectorRegistration,
 	correlators []observerdef.Correlator,
 	scorer *anomalyScorer,
 	extractors []observerdef.LogMetricsExtractor,
@@ -411,9 +450,9 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 		switch entry.kind {
 		case componentDetector:
 			if d, ok := instance.(observerdef.Detector); ok {
-				detectors = append(detectors, d)
+				detectors = append(detectors, detectorRegistration{detector: d, filter: detectorFilter(cfg)})
 			} else if sd, ok := instance.(observerdef.SeriesDetector); ok {
-				detectors = append(detectors, newSeriesDetectorAdapter(sd, defaultAggregations))
+				detectors = append(detectors, detectorRegistration{detector: newSeriesDetectorAdapter(sd), filter: detectorFilter(cfg)})
 			}
 		case componentCorrelator:
 			// The anomaly_scorer entry is a componentCorrelator but returns an
@@ -568,7 +607,7 @@ func (c *componentCatalog) validateDetectorTeardownContract() error {
 		// in seriesDetectorAdapter, which is a SeriesRemover. A direct
 		// Detector implementation must be a SeriesRemover itself.
 		if sd, ok := instance.(observerdef.SeriesDetector); ok {
-			wrapped := newSeriesDetectorAdapter(sd, defaultAggregations)
+			wrapped := newSeriesDetectorAdapter(sd)
 			if _, ok := any(wrapped).(observerdef.SeriesRemover); !ok {
 				return &detectorTeardownContractError{name: entry.name, reason: "seriesDetectorAdapter no longer implements SeriesRemover — the wrapping invariant has regressed"}
 			}
