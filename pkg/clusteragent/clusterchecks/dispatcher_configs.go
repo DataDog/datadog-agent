@@ -215,15 +215,6 @@ func (d *dispatcher) shouldDispatchDangling() bool {
 	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
 }
 
-// retrieveDangling extracts dangling configs from the store
-func (d *dispatcher) retrieveDangling() []integration.Config {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
-	configs := makeConfigArrayFromDangling(d.store.danglingConfigs)
-	return configs
-}
-
 // deleteDangling clears the dangling configs from the store
 func (d *dispatcher) deleteDangling(ids []string) {
 	for _, id := range ids {

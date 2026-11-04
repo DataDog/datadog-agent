@@ -227,7 +227,7 @@ func TestGetNodeTypeCounts(t *testing.T) {
 	dispatcher.processNodeStatus("agent2", "10.0.0.21", types.NodeStatus{LastChange: 4, NodeType: types.NodeTypeNodeAgent})
 	dispatcher.processNodeStatus("agent3", "10.0.0.22", types.NodeStatus{LastChange: 5, NodeType: types.NodeTypeNodeAgent})
 
-	clcRunnerCount, nodeAgentCount := dispatcher.store.CountNodeTypes()
+	clcRunnerCount, nodeAgentCount := dispatcher.store.countNodeTypes()
 	assert.Equal(t, 2, clcRunnerCount)
 	assert.Equal(t, 3, nodeAgentCount)
 }
@@ -510,11 +510,10 @@ func TestDanglingConfig(t *testing.T) {
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
-	// get the danglings and make sure they are removed from the store
-	configs := dispatcher.retrieveDangling()
-	dispatcher.deleteDangling([]string{config.Digest()})
-	assert.Len(t, configs, 1)
+	// dispatch the danglings and make sure they are removed from the store
+	dispatcher.dispatchDangling()
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+	assert.Len(t, dispatcher.store.nodes["nodeA"].digestToConfig, 1)
 }
 
 func TestUnscheduleDanglingConfig(t *testing.T) {

@@ -22,10 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	defaultBusynessValue int = -1
-)
-
 // getClusterCheckConfigs returns configurations dispatched to a given node
 func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Config, int64, error) {
 	d.store.RLock()
@@ -271,9 +267,9 @@ func (d *dispatcher) updateRunnersStats() {
 		}
 		node.clcRunnerStats = stats
 		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)
-		node.busyness = calculateBusyness(stats)
-		log.Debugf("Updated busyness on node: %s, node IP: %s, busyness value: %d", name, node.clientIP, node.busyness)
-		busyness.Set(float64(node.busyness), node.name, le.JoinLeaderValue)
+		nodeBusyness := calculateBusyness(stats)
+		log.Debugf("Updated busyness on node: %s, node IP: %s, busyness value: %d", name, node.clientIP, nodeBusyness)
+		busyness.Set(float64(nodeBusyness), node.name, le.JoinLeaderValue)
 		node.Unlock()
 	}
 }

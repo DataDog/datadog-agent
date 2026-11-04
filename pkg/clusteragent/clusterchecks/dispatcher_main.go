@@ -62,6 +62,8 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	rebalanceMinPercImprovement      int
+	stickiness                       stickinessConfig
 	rebalanceMu                      sync.Mutex // the ticker and the rebalance API can run concurrently
 	shardingStrategies               []shardingStrategy
 	shards                           *shardTracker
@@ -184,6 +186,13 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	d.shardingStrategies = []shardingStrategy{ksmSharding, instanceSharding}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
+	d.rebalanceMinPercImprovement = pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
+	d.stickiness = stickinessConfig{
+		enabled:    pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"),
+		factor:     pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"),
+		upperLimit: pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"),
+		lowerLimit: pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"),
+	}
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
 		return d
@@ -398,28 +407,14 @@ func (d *dispatcher) scanUnscheduledChecks() {
 
 // logWarmupSummary logs the nodes seen by the leader at the end of the warmup phase.
 func (d *dispatcher) logWarmupSummary() {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
-	clcCount, nodeAgentCount := 0, 0
-	for _, node := range d.store.nodes {
-		node.RLock()
-		nodetype := node.nodetype
-		node.RUnlock()
-		switch nodetype {
-		case cctypes.NodeTypeCLCRunner:
-			clcCount++
-		case cctypes.NodeTypeNodeAgent:
-			nodeAgentCount++
-		}
-	}
+	clcCount, nodeAgentCount := d.store.countNodeTypes()
 	log.Infof("Warmup summary: %d nodes registered (%d CLC runners, %d node agents)",
-		len(d.store.nodes), clcCount, nodeAgentCount)
+		clcCount+nodeAgentCount, clcCount, nodeAgentCount)
 }
 
-// UpdateAdvancedDispatchingMode checks if any node agents are in the pool
+// updateAdvancedDispatchingMode checks if any node agents are in the pool
 // and disables advanced dispatching if found
-func (d *dispatcher) UpdateAdvancedDispatchingMode() {
+func (d *dispatcher) updateAdvancedDispatchingMode() {
 	if !d.advancedDispatching.Load() {
 		return
 	}
