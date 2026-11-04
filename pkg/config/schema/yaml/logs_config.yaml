@@ -147,8 +147,12 @@ properties:
     type: integer
     default: 60
     visibility: public
-    description: The maximum number of seconds the Agent spends reading from a file
+    description: |-
+      The maximum number of seconds the Agent spends reading from a file
       after it has been rotated.
+      For `type: smb` sources: the number of seconds a rotated file can go
+      without new data before the Agent stops reading it, for at most 10
+      times this value in total.
     comment: maximum time that the unix tailer will hold a log file open after it
       has been rotated
   open_files_limit:

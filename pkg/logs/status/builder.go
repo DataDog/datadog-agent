@@ -399,6 +399,9 @@ func (b *Builder) configToDictionary(source *sourcesPkg.LogSource, verbose bool)
 	dictionary["Service"] = c.Service
 	dictionary["Source"] = c.Source
 	dictionary["Bytes Read"] = source.BytesRead.Load()
+	if missed := source.BytesMissed.Load(); missed > 0 {
+		dictionary["Bytes Missed"] = missed
+	}
 	switch c.Type {
 	case config.TCPType:
 		dictionary["Port"] = c.Port
@@ -448,6 +451,20 @@ func (b *Builder) configToDictionary(source *sourcesPkg.LogSource, verbose bool)
 	case config.WindowsEventType:
 		dictionary["ChannelPath"] = c.ChannelPath
 		dictionary["Query"] = c.Query
+	case config.SMBType:
+		// agent status output is not scrubbed: never add c.SMB.Password here.
+		dictionary["Path"] = c.Path
+		if verbose {
+			dictionary["TailingMode"] = source.GetTailingMode()
+		}
+		if c.SMB != nil {
+			dictionary["Host"] = c.SMB.Host
+			dictionary["Share"] = c.SMB.Share
+			dictionary["Username"] = c.SMB.Username
+			if c.SMB.Port != 0 {
+				dictionary["Port"] = c.SMB.Port
+			}
+		}
 	}
 	for k, v := range dictionary {
 		if v == "" {
