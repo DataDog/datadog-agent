@@ -13,6 +13,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -72,6 +73,8 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 	})}
 	runner := newStartedRunnerForStopTest(nil, false)
 	runner.logger = logmock.New(t)
+	var cacheMetricsStopped atomic.Bool
+	runner.stopCacheMetrics = func(context.Context) error { cacheMetricsStopped.Store(true); return nil }
 	runner.telemetry = telemetry.NewTelemetry(client, "test-api-key", "datadoghq.com", observability.ParService)
 
 	// Completed child spans must stay buffered until outstanding synthetic parents finish.
@@ -134,6 +137,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 	}()
 	synctest.Wait()
 	assert.Empty(t, stopped, "shutdown must wait for blocked work")
+	assert.False(t, cacheMetricsStopped.Load(), "cache collection remains active while actions drain")
 	assert.NotNil(t, runner.telemetry, "telemetry must remain active while draining")
 	assert.Empty(t, payloads, "completed spans must not flush before draining finishes")
 	close(finish)
@@ -144,6 +148,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 		t.Fatal("runner shutdown did not finish")
 	}
 
+	require.True(t, cacheMetricsStopped.Load())
 	require.Nil(t, runner.telemetry)
 	// Only telemetry cleanup is repeatable; WorkflowRunner.Stop closes its shutdown channel.
 	runner.stopTelemetry()

@@ -112,8 +112,9 @@ type PrivateActionRunner struct {
 	executorDone    chan struct{}
 	shutdowner      compdef.Shutdowner
 
-	telemetry   *telemetry.Telemetry
-	keysManager taskverifier.KeysManager
+	telemetry        *telemetry.Telemetry
+	keysManager      taskverifier.KeysManager
+	stopCacheMetrics func(context.Context) error
 
 	started     bool
 	startOnce   sync.Once
@@ -348,6 +349,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	// The executor has its own span buffer; start its sender only after setup succeeds.
 	if cfg != nil {
 		p.startTelemetry(cfg)
+		p.startCacheMetrics(runCtx, cfg.MetricsClient)
 	}
 
 	go func() {
@@ -449,6 +451,9 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 	p.stopTelemetry()
 
 	var stopErr error
+	if p.stopCacheMetrics != nil {
+		stopErr = errors.Join(stopErr, p.stopCacheMetrics(ctx))
+	}
 	if p.encryptionStore != nil {
 		p.encryptionStore.Stop()
 	}
@@ -517,7 +522,11 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return p.commonRunner.Start(ctx)
+	if err := p.commonRunner.Start(ctx); err != nil {
+		return err
+	}
+	p.startCacheMetrics(ctx, cfg.MetricsClient)
+	return nil
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
@@ -548,6 +557,9 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 			err = fmt.Errorf("failed to stop common runner: %w", err)
 		}
 		stopErr = errors.Join(stopErr, err)
+	}
+	if p.stopCacheMetrics != nil {
+		stopErr = errors.Join(stopErr, p.stopCacheMetrics(ctx))
 	}
 	p.stopTelemetry()
 	if p.ownsMetricsClient && p.metricsClient != nil {
