@@ -226,6 +226,7 @@ SERVERLESS_TAGS = set(["serverless", "otlp"])
 SYSTEM_PROBE_TAGS = set([
     "datadog.no_waf",
     "ec2",
+    "fargateprocess",  # used by the CNM direct sender to resolve the task-based hostname in sidecar mode
     "bpf",
     "netcgo",
     "npm",

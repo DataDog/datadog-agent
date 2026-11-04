@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"go4.org/intern"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -50,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -68,6 +70,32 @@ var senderTelemetry = struct {
 	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "connection_count", nil, ""),
 }
 
+// isSidecar and getFargateHost are variables so tests can override them.
+var (
+	isSidecar      = fargate.IsSidecar
+	getFargateHost = fargate.GetFargateHost
+)
+
+// resolveHostname returns the hostname to attach to connections payloads.
+//
+// In sidecar mode (ECS Fargate, EKS Fargate, ECS managed instances) the core
+// agent intentionally reports an empty hostname, because the task or pod is the
+// unit of identity. The backend identifies these payloads by the task-based
+// hostname (for example `fargate_task:<task ARN>`), so we resolve it the same
+// way the process-agent does in pkg/process/checks/host_info.go. Without this,
+// direct send (enabled by default on Linux since 7.85) sends an empty hostname
+// and the backend drops the payloads.
+func resolveHostname(ctx context.Context, hostnameComp hostname.Component, logger log.Component) (string, error) {
+	if isSidecar() {
+		h, err := getFargateHost(ctx)
+		if err == nil && h != "" {
+			return h, nil
+		}
+		logger.Warnf("failed to get Fargate host, falling back to agent hostname: host=%q err=%v", h, err)
+	}
+	return hostnameComp.Get(ctx)
+}
+
 // New creates a direct sender
 func New(
 	ctx context.Context,
@@ -78,7 +106,7 @@ func New(
 		return nil, fmt.Errorf("register client: %s", err)
 	}
 
-	hostName, err := deps.Hostname.Get(ctx)
+	hostName, err := resolveHostname(ctx, deps.Hostname, deps.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("hostname: %s", err)
 	}
