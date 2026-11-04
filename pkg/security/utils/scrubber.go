@@ -72,25 +72,51 @@ func (s *Scrubber) ScrubCommand(cmdline []string) []string {
 	return args
 }
 
-// maskSensitiveValues matches every pattern against the original line before masking, unlike
-// procutil which rewrites the line pattern by pattern: in `secrets.py --token abc`, masking
-// `--token` as the value of `secrets.py` would hide the `--token` key and leak `abc`
-func maskSensitiveValues(patterns []procutil.DataScrubberPattern, line string) (string, bool) {
+// sensitiveMatch locates a key token and the value it masks within the scrubbed line
+type sensitiveMatch struct {
+	key, valueStart, valueEnd int
+}
+
+// findSensitiveMatches matches every pattern against the original line, unlike procutil which
+// rewrites the line pattern by pattern: in `secrets.py --token abc`, masking `--token` as the
+// value of `secrets.py` would hide the `--token` key and leak `abc`
+func findSensitiveMatches(patterns []procutil.DataScrubberPattern, line string) []sensitiveMatch {
 	lower := strings.ToLower(line)
-	var spans [][2]int
+	var matches []sensitiveMatch
 	for _, p := range patterns {
 		if !strings.Contains(lower, p.FastCheck) {
 			continue
 		}
-		v := 2 * p.Re.SubexpIndex("value")
+		k, v := 2*p.Re.SubexpIndex("key"), 2*p.Re.SubexpIndex("value")
 		for _, m := range p.Re.FindAllStringSubmatchIndex(line, -1) {
-			spans = append(spans, [2]int{m[v], m[v+1]})
+			key := line[m[k]:m[k+1]]
+			matches = append(matches, sensitiveMatch{m[k] + len(key) - len(strings.TrimLeft(key, " ")), m[v], m[v+1]})
 		}
 	}
+	slices.SortFunc(matches, func(a, b sensitiveMatch) int { return cmp.Compare(a.key, b.key) })
+	return matches
+}
+
+// sensitiveValueSpans drops keys already masked as a value unless they are flags, so
+// `--password secret -al` keeps `-al` while `secrets.py --token abc` still masks `abc`
+func sensitiveValueSpans(line string, matches []sensitiveMatch) [][2]int {
+	var spans [][2]int
+	for _, m := range matches {
+		masked := slices.ContainsFunc(spans, func(s [2]int) bool { return s[0] <= m.key && m.key < s[1] })
+		if masked && line[m.key] != '-' {
+			continue
+		}
+		spans = append(spans, [2]int{m.valueStart, m.valueEnd})
+	}
+	slices.SortFunc(spans, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
+	return spans
+}
+
+func maskSensitiveValues(patterns []procutil.DataScrubberPattern, line string) (string, bool) {
+	spans := sensitiveValueSpans(line, findSensitiveMatches(patterns, line))
 	if len(spans) == 0 {
 		return line, false
 	}
-	slices.SortFunc(spans, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
 
 	var sb strings.Builder
 	last := 0
