@@ -44,7 +44,6 @@ go_library(
         "//comp/logs-library/metrics",
         "//comp/logs-library/pipeline",
         "//comp/logs-library/processor",
-        "//comp/logs-library/routing",
         "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//comp/logs/agent/def",
