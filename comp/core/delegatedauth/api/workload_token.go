@@ -20,7 +20,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-// GetWorkloadToken exchanges a fresh, request-bound proof for an opaque workload
+// GetWorkloadToken exchanges a fresh provider proof for an opaque workload
 // token. It does not fetch or change an intake API key. The consumer (e.g. PAR)
 // verifies the token and its grant; the Agent must not treat decoded claims as
 // authorization. Each call is one attempt, so callers can obtain a fresh proof
