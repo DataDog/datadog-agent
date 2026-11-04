@@ -87,10 +87,10 @@ managed by **Bazel**.
 **Add the eBPF CO-RE program** in the check's `c/runtime/BUILD.bazel` using
 `ebpf_program_suite` (see existing targets in
 `pkg/collector/corechecks/ebpf/c/runtime/BUILD.bazel`). Then:
-1. Add the target to the `co_re_objects` `ebpf_objects` list in
-   `pkg/ebpf/BUILD.bazel`. That list is what gets staged and, later, packaged.
-   `all_ebpf_programs` includes the unstripped group, so it does not need its
-   own entry.
+1. Add the `<name>.stripped` and `<name>-debug.stripped` targets to the
+   `co_re_objects` filegroup in `pkg/ebpf/BUILD.bazel`. That list is what gets
+   staged and, later, packaged. `all_ebpf_programs` includes the group, so it
+   does not need its own entry.
 
 **Add runtime compilation support** by creating a `runtime_compilation_bundle`
 target in `pkg/ebpf/bytecode/BUILD.bazel`:

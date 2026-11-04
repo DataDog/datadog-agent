@@ -361,29 +361,6 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
         target_compatible_with = ["@platforms//os:linux"],
     )
 
-def _ebpf_objects_impl(name, visibility, srcs):
-    native.filegroup(
-        name = name,
-        srcs = [src.same_package_label(src.name + ".stripped") for src in srcs],
-        visibility = visibility,
-    )
-    native.filegroup(
-        name = name + "_unstripped",
-        srcs = srcs,
-        visibility = visibility,
-    )
-
-ebpf_objects = macro(
-    doc = """Group eBPF programs built by ebpf_prog or ebpf_program_suite.
-
-    Generates {name} (stripped objects) and {name}_unstripped.
-    """,
-    attrs = {
-        "srcs": attr.label_list(mandatory = True, configurable = False),
-    },
-    implementation = _ebpf_objects_impl,
-)
-
 ebpf_program_suite = macro(
     doc = """Create both normal and debug variants of an eBPF program.
 

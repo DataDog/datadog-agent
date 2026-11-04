@@ -6,7 +6,6 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_objects")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
@@ -86,75 +85,74 @@ test_suite(
     ],
 )
 
-# Shipped eBPF assets. {name} is the stripped objects, {name}_unstripped the
-# objects as compiled. all_ebpf_programs is the unstripped superset.
-ebpf_objects(
+# Shipped eBPF assets (stripped objects).
+filegroup(
     name = "prebuilt_objects",
     srcs = [
-        "//pkg/network/ebpf/c/prebuilt:conntrack",
-        "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
-        "//pkg/network/ebpf/c/prebuilt:dns",
-        "//pkg/network/ebpf/c/prebuilt:dns-debug",
-        "//pkg/network/ebpf/c/prebuilt:offset-guess",
-        "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
-        "//pkg/network/ebpf/c/prebuilt:shared-libraries",
-        "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
-        "//pkg/network/ebpf/c/prebuilt:tracer",
-        "//pkg/network/ebpf/c/prebuilt:tracer-debug",
-        "//pkg/network/ebpf/c/prebuilt:usm",
-        "//pkg/network/ebpf/c/prebuilt:usm-debug",
-        "//pkg/security/ebpf/c/prebuilt:runtime-security",
-        "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
-        "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
-        "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+        "//pkg/network/ebpf/c/prebuilt:conntrack.stripped",
+        "//pkg/network/ebpf/c/prebuilt:conntrack-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:dns.stripped",
+        "//pkg/network/ebpf/c/prebuilt:dns-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:offset-guess.stripped",
+        "//pkg/network/ebpf/c/prebuilt:offset-guess-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:shared-libraries.stripped",
+        "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:tracer.stripped",
+        "//pkg/network/ebpf/c/prebuilt:tracer-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:usm.stripped",
+        "//pkg/network/ebpf/c/prebuilt:usm-debug.stripped",
+        "//pkg/security/ebpf/c/prebuilt:runtime-security.stripped",
+        "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry.stripped",
+        "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser.stripped",
+        "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper.stripped",
     ],
     visibility = ["//visibility:public"],
 )
 
-ebpf_objects(
+filegroup(
     name = "prebuilt_test_objects",
     srcs = [
-        "//pkg/network/ebpf/c/prebuilt:usm_events_test",
-        "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
+        "//pkg/network/ebpf/c/prebuilt:usm_events_test.stripped",
+        "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug.stripped",
     ],
     visibility = ["//visibility:public"],
 )
 
-ebpf_objects(
+filegroup(
     name = "co_re_objects",
     srcs = [
-        "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
-        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
-        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
-        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
-        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
-        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
-        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
-        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
-        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
-        "//pkg/dyninst/ebpf:dyninst_event",
-        "//pkg/dyninst/ebpf:dyninst_event-debug",
-        "//pkg/ebpf/c:ksyms_iter",
-        "//pkg/ebpf/c:lock_contention",
-        "//pkg/ebpf/testdata/c:error_telemetry",
-        "//pkg/ebpf/testdata/c:logdebug-test",
-        "//pkg/ebpf/testdata/c:preempt_test",
-        "//pkg/ebpf/testdata/c:sleepable",
-        "//pkg/ebpf/testdata/c:uprobe_attacher-test",
-        "//pkg/gpu/ebpf/c/runtime:gpu",
-        "//pkg/gpu/ebpf/c/runtime:gpu-debug",
-        "//pkg/network/ebpf/c:tracer",
-        "//pkg/network/ebpf/c:tracer-debug",
-        "//pkg/network/ebpf/c/co-re:tracer-fentry",
-        "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
-        "//pkg/network/ebpf/c/runtime:conntrack",
-        "//pkg/network/ebpf/c/runtime:conntrack-debug",
-        "//pkg/network/ebpf/c/runtime:shared-libraries",
-        "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
-        "//pkg/network/ebpf/c/runtime:usm",
-        "//pkg/network/ebpf/c/runtime:usm-debug",
-        "//pkg/network/ebpf/c/sk:sk_tracer",
-        "//pkg/network/ebpf/c/sk:sk_tracer-debug",
+        "//cmd/system-probe/subcommands/ebpf/testdata:btf_test.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug.stripped",
+        "//pkg/dyninst/ebpf:dyninst_event.stripped",
+        "//pkg/dyninst/ebpf:dyninst_event-debug.stripped",
+        "//pkg/ebpf/c:ksyms_iter.stripped",
+        "//pkg/ebpf/c:lock_contention.stripped",
+        "//pkg/ebpf/testdata/c:error_telemetry.stripped",
+        "//pkg/ebpf/testdata/c:logdebug-test.stripped",
+        "//pkg/ebpf/testdata/c:preempt_test.stripped",
+        "//pkg/ebpf/testdata/c:sleepable.stripped",
+        "//pkg/ebpf/testdata/c:uprobe_attacher-test.stripped",
+        "//pkg/gpu/ebpf/c/runtime:gpu.stripped",
+        "//pkg/gpu/ebpf/c/runtime:gpu-debug.stripped",
+        "//pkg/network/ebpf/c:tracer.stripped",
+        "//pkg/network/ebpf/c:tracer-debug.stripped",
+        "//pkg/network/ebpf/c/co-re:tracer-fentry.stripped",
+        "//pkg/network/ebpf/c/co-re:tracer-fentry-debug.stripped",
+        "//pkg/network/ebpf/c/runtime:conntrack.stripped",
+        "//pkg/network/ebpf/c/runtime:conntrack-debug.stripped",
+        "//pkg/network/ebpf/c/runtime:shared-libraries.stripped",
+        "//pkg/network/ebpf/c/runtime:shared-libraries-debug.stripped",
+        "//pkg/network/ebpf/c/runtime:usm.stripped",
+        "//pkg/network/ebpf/c/runtime:usm-debug.stripped",
+        "//pkg/network/ebpf/c/sk:sk_tracer.stripped",
+        "//pkg/network/ebpf/c/sk:sk_tracer-debug.stripped",
     ],
     visibility = ["//visibility:public"],
 )
@@ -181,9 +179,9 @@ filegroup(
     name = "all_ebpf_programs",
     srcs = select({
         "@platforms//os:linux": [
-            ":co_re_objects_unstripped",
-            ":prebuilt_objects_unstripped",
-            ":prebuilt_test_objects_unstripped",
+            ":co_re_objects",
+            ":prebuilt_objects",
+            ":prebuilt_test_objects",
             ":runtime_sources",
             "//pkg/ebpf/kernelbugs:uprobe-trigger",
         ],
@@ -211,12 +209,7 @@ selects.config_setting_group(
     ],
 )
 
-# Must match get_ebpf_build_dir() in tasks/system_probe.py.
-_BUILD_DIR = {
-    ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64",
-    "//conditions:default": "pkg/ebpf/bytecode/build/x86_64",
-}
-
+# The arch directories must match get_ebpf_build_dir() in tasks/system_probe.py.
 pkg_files(
     name = "install_prebuilt_objects",
     srcs = [
@@ -224,14 +217,20 @@ pkg_files(
         ":prebuilt_test_objects",
     ],
     attributes = pkg_attributes(mode = "644"),
-    prefix = select(_BUILD_DIR),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64",
+    }),
 )
 
 pkg_files(
     name = "install_co_re_objects",
     srcs = [":co_re_objects"],
     attributes = pkg_attributes(mode = "644"),
-    prefix = select({k: v + "/co-re" for k, v in _BUILD_DIR.items()}),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64/co-re",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64/co-re",
+    }),
 )
 
 pkg_files(
@@ -275,17 +274,16 @@ pkg_files(
     prefix = "pkg/ebpf/kernelbugs/c",
 )
 
-_INSTALL_OBJECT_FILES_COMMON = [
-    ":install_co_re_objects",
-    ":install_kernelbugs_binaries",
-    ":install_kernelbugs_objects",
-    ":install_runtime_hashes",
-    ":install_runtime_sources",
-]
-
 pkg_install(
     name = "install_object_files",
-    srcs = _INSTALL_OBJECT_FILES_COMMON + [":install_prebuilt_objects"],
+    srcs = [
+        ":install_co_re_objects",
+        ":install_kernelbugs_binaries",
+        ":install_kernelbugs_objects",
+        ":install_prebuilt_objects",
+        ":install_runtime_hashes",
+        ":install_runtime_sources",
+    ],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -302,7 +300,10 @@ pkg_files(
         "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper.stripped",
         "//pkg/security/ebpf/c/prebuilt:runtime-security.stripped",
     ],
-    prefix = select(_BUILD_DIR),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64",
+    }),
 )
 
 pkg_files(
@@ -313,7 +314,10 @@ pkg_files(
         "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper-baloum",
     ],
     attributes = pkg_attributes(mode = "444"),
-    prefix = select(_BUILD_DIR),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64",
+    }),
     renames = {
         "//pkg/security/ebpf/c/prebuilt:runtime-security-baloum": "runtime-security.o",
         "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry-baloum": "runtime-security-fentry.o",
@@ -323,9 +327,14 @@ pkg_files(
 
 pkg_install(
     name = "install_object_files_baloum",
-    srcs = _INSTALL_OBJECT_FILES_COMMON + [
+    srcs = [
         ":install_baloum_objects",
+        ":install_co_re_objects",
+        ":install_kernelbugs_binaries",
+        ":install_kernelbugs_objects",
         ":install_prebuilt_objects_without_cws",
+        ":install_runtime_hashes",
+        ":install_runtime_sources",
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )
