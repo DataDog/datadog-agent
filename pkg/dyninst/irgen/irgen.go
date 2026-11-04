@@ -8588,7 +8588,20 @@ func pickLineInjectionPC(
 	return nonStmtPc, ir.Issue{}, nil
 }
 
-// Follow branch-local moves to shared code on the same source line.
+// followLineJump moves a line probe from branch-local setup to shared code on
+// the same source line. For example, the compiler can emit this layout for a
+// call whose argument is selected by an earlier conditional:
+//
+//	branchA: MOV a, arg  // line 93: first statement entry in the line table
+//	         JMP shared
+//	branchB: MOV b, arg
+//	shared:  CALL use    // line 93
+//
+// Probing branchA misses calls reached through branchB. Probing shared instead
+// covers both paths. Only moves, loads/stores on ARM64, and NOPs may precede the
+// forward jump; calls, conditional branches, or another source line stop the
+// search. The target must belong to the same file and line, and must not enter
+// a loop that would make the probe fire more often.
 func followLineJump(arch object.Architecture, addr, injectionPC uint64, body []byte, lines []line) uint64 {
 	if injectionPC < addr || injectionPC-addr >= uint64(len(body)) {
 		return injectionPC
@@ -8652,7 +8665,22 @@ func followLineJump(arch object.Architecture, addr, injectionPC uint64, body []b
 	return injectionPC
 }
 
-// Keep loops from reaching the new probe more often than the old one.
+// lineJumpEntersLoop conservatively checks whether moving a probe from
+// injectionPC to target could make it fire on additional loop iterations.
+// For example:
+//
+//	injectionPC: MOV zero, index
+//	             JMP target
+//	loop:        ADD one, index
+//	target:      CMP index, limit
+//	             JLT loop
+//
+// The original probe fires once before the loop, but a probe at target would
+// fire on every iteration. Scan the rest of the function for branches into
+// (injectionPC, target], including branches directly to target. Branches back
+// to or before injectionPC are safe: they also pass through the original probe.
+// This is not a reachability analysis; even an unreachable branch into that
+// interval, or an instruction we cannot decode, makes us keep the old probe.
 func lineJumpEntersLoop(arch object.Architecture, addr, injectionPC, target uint64, body []byte) bool {
 	for pc := target; pc-addr < uint64(len(body)); {
 		var size int
