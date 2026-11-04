@@ -21,13 +21,14 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.build import go_tags
 from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
+from tasks.libs.common.utils import TimedOperationResult, get_build_flags, get_repo_root, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
 from tasks.schema.generate import GENERATED_SETTINGS_DIR, schema_codegen
@@ -426,6 +427,37 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
         timings,
         lambda: write_test_binaries_bzl(ctx),
     )
+
+
+@task
+def write_tag_manifest(_):
+    """
+    Regenerate bazel/go_tags/closure_tags.bzl: the build tags each go_library's closure reads.
+    """
+    query = bazel(
+        "query",
+        "--consistent_labels",
+        "--keep_going",
+        "--output=streamed_jsonproto",
+        go_tags.QUERY,
+        capture_output=True,
+        ignore_errors=True,
+    )
+    # 3: some packages failed to load, e.g. Windows-only toolchain repositories on other hosts. That is only fatal
+    # when a Go package is among them, which build_manifest detects.
+    if query.returncode not in (0, 3):
+        raise Exit(code=query.returncode)
+    output_base = bazel("info", "output_base", capture_output=True).strip()
+    repo_root = str(get_repo_root())
+    try:
+        universe, manifest = go_tags.build_manifest(
+            go_tags.parse_graph(query.stdout),
+            lambda label: go_tags.scan_build_tags(go_tags.source_path(label, repo_root, output_base)),
+        )
+    except ValueError as e:
+        raise Exit(message=str(e), code=1) from e
+    with open(get_repo_root() / go_tags.MANIFEST_PATH, "w", encoding="utf-8", newline="\n") as bzl:
+        bzl.write(go_tags.render_manifest(universe, manifest))
 
 
 @task(autoprint=True)
