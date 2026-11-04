@@ -427,6 +427,8 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
         timings,
         lambda: write_test_binaries_bzl(ctx),
     )
+    # 8. **/BUILD.bazel + **/*.go -> bazel/go_tags/closure_tags.bzl
+    _timed_step("write tag manifest", timings, lambda: write_tag_manifest(ctx))
 
 
 @task
@@ -441,11 +443,13 @@ def write_tag_manifest(_):
         "--output=streamed_jsonproto",
         go_tags.QUERY,
         capture_output=True,
+        capture_stderr=True,
         ignore_errors=True,
     )
     # 3: some packages failed to load, e.g. Windows-only toolchain repositories on other hosts. That is only fatal
     # when a Go package is among them, which build_manifest detects.
     if query.returncode not in (0, 3):
+        print(query.stderr, file=sys.stderr)
         raise Exit(code=query.returncode)
     output_base = bazel("info", "output_base", capture_output=True).strip()
     repo_root = str(get_repo_root())
@@ -455,6 +459,7 @@ def write_tag_manifest(_):
             lambda label: go_tags.scan_build_tags(go_tags.source_path(label, repo_root, output_base)),
         )
     except ValueError as e:
+        print(query.stderr, file=sys.stderr)
         raise Exit(message=str(e), code=1) from e
     with open(get_repo_root() / go_tags.MANIFEST_PATH, "w", encoding="utf-8", newline="\n") as bzl:
         bzl.write(go_tags.render_manifest(universe, manifest))
