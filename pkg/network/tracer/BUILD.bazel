@@ -213,6 +213,7 @@ dd_agent_go_test(
         "tracer_darwin_test.go",
         "tracer_dump_conntrack_test.go",
         "tracer_linux_test.go",
+        "tracer_net_dev_queue_linux_test.go",
         "tracer_test.go",
         "tracer_windows_test.go",
         "utils_linux_test.go",
