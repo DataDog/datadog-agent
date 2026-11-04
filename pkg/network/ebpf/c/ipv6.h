@@ -38,6 +38,20 @@ static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct
 #endif
 }
 
+// Copies an in6_addr that is already on the BPF stack, avoiding a helper call.
+// Yields the same bytes as read_in6_addr; use read_in6_addr for kernel pointers.
+static __maybe_unused __always_inline void copy_in6_addr_from_stack(u64 *addr_h, u64 *addr_l, const struct in6_addr *in6) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    *addr_h = ((u64)in6->in6_u.u6_addr32[1] << 32) | in6->in6_u.u6_addr32[0];
+    *addr_l = ((u64)in6->in6_u.u6_addr32[3] << 32) | in6->in6_u.u6_addr32[2];
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    *addr_h = ((u64)in6->in6_u.u6_addr32[0] << 32) | in6->in6_u.u6_addr32[1];
+    *addr_l = ((u64)in6->in6_u.u6_addr32[2] << 32) | in6->in6_u.u6_addr32[3];
+#else
+#error "Fix your compiler's __BYTE_ORDER__?!"
+#endif
+}
+
 static __maybe_unused __always_inline bool is_tcpv6_enabled() {
 #ifdef COMPILE_RUNTIME
 #ifdef FEATURE_TCPV6_ENABLED
