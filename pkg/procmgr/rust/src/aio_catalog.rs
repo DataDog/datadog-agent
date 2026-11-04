@@ -12,7 +12,7 @@
 use crate::config::{ProcessConfig, RestartPolicy, load_configs};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const PATH_ENV: &str = "/opt/datadog-agent/bin/agent:/opt/datadog-agent/embedded/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
@@ -388,9 +388,11 @@ fn aio_commands_match_s6_run_scripts() {
 ///
 /// Bazel passes each file's rlocation path. A runfiles directory is not a
 /// reliable input, and source symlinks may arrive as regular files, so the
-/// test compares bytes instead of `read_link`. Cargo reads the checkout.
-/// `CARGO_MANIFEST_DIR` stays in the non-Bazel branch: rules_rust rejects that
-/// absolute path when it appears under `--cfg=bazel`.
+/// test compares bytes instead of `read_link`. On Windows that regular file
+/// holds the link text (`aio/<name>.yaml`) rather than the target contents.
+/// Cargo reads the checkout. `CARGO_MANIFEST_DIR` stays in the non-Bazel
+/// branch: rules_rust rejects that absolute path when it appears under
+/// `--cfg=bazel`.
 fn catalog_yaml_files() -> (Vec<PathBuf>, Vec<PathBuf>) {
     #[cfg(bazel)]
     {
@@ -447,30 +449,82 @@ fn sorted_file_names(files: &[PathBuf]) -> Vec<String> {
     names
 }
 
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .unwrap_or_else(|| panic!("{} has no file name", path.display()))
+        .to_string_lossy()
+        .into_owned()
+}
+
 fn read_by_name(files: &[PathBuf]) -> HashMap<String, Vec<u8>> {
     files
         .iter()
         .map(|path| {
-            let name = path
-                .file_name()
-                .unwrap_or_else(|| panic!("{} has no file name", path.display()))
-                .to_string_lossy()
-                .into_owned();
             let bytes =
                 fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+            (file_name(path), bytes)
+        })
+        .collect()
+}
+
+/// A symlink checked out as a regular file is the relative target path.
+/// Follow that to the aio bytes when the text is `aio/<name>`. Real YAML
+/// contains a colon, so it is left unchanged.
+fn symlink_checkout_bytes(
+    bytes: &[u8],
+    name: &str,
+    aio_bytes: &HashMap<String, Vec<u8>>,
+) -> Option<Vec<u8>> {
+    let text = std::str::from_utf8(bytes).ok()?.trim();
+    if text.contains('\n') || text.contains(':') {
+        return None;
+    }
+    let forward = format!("aio/{name}");
+    let backward = format!("aio\\{name}");
+    if text != forward && text != backward {
+        return None;
+    }
+    aio_bytes.get(name).cloned()
+}
+
+fn read_top_level(
+    files: &[PathBuf],
+    aio_bytes: &HashMap<String, Vec<u8>>,
+) -> HashMap<String, Vec<u8>> {
+    files
+        .iter()
+        .map(|path| {
+            let name = file_name(path);
+            let bytes =
+                fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+            let bytes = symlink_checkout_bytes(&bytes, &name, aio_bytes).unwrap_or(bytes);
             (name, bytes)
         })
         .collect()
 }
 
-fn stage_yaml_files(files: &[PathBuf]) -> tempfile::TempDir {
+#[test]
+fn symlink_checkout_text_resolves_to_the_aio_file() {
+    let name = "datadog-agent-action-executor.yaml";
+    let aio = HashMap::from([(name.to_string(), b"description: executor\n".to_vec())]);
+    let link = format!("aio/{name}");
+    assert_eq!(
+        symlink_checkout_bytes(link.as_bytes(), name, &aio).as_deref(),
+        Some(b"description: executor\n".as_slice())
+    );
+    let windows = format!("aio\\{name}");
+    assert_eq!(
+        symlink_checkout_bytes(windows.as_bytes(), name, &aio).as_deref(),
+        Some(b"description: executor\n".as_slice())
+    );
+    assert!(symlink_checkout_bytes(b"description: executor\n", name, &aio).is_none());
+    assert!(symlink_checkout_bytes(b"aio/other.yaml", name, &aio).is_none());
+}
+
+fn stage_named_bytes(files: &HashMap<String, Vec<u8>>) -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
-    for path in files {
-        let name = path
-            .file_name()
-            .unwrap_or_else(|| panic!("{} has no file name", path.display()));
-        fs::copy(path, dir.path().join(name))
-            .unwrap_or_else(|err| panic!("copy {}: {err}", path.display()));
+    for (name, bytes) in files {
+        fs::write(dir.path().join(name), bytes).unwrap_or_else(|err| panic!("write {name}: {err}"));
     }
     dir
 }
@@ -481,8 +535,8 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
     assert_eq!(sorted_file_names(&top_files), TOP_LEVEL_YAMLS);
     assert_eq!(sorted_file_names(&aio_files), AIO_YAMLS);
 
-    let top_bytes = read_by_name(&top_files);
     let aio_bytes = read_by_name(&aio_files);
+    let top_bytes = read_top_level(&top_files, &aio_bytes);
     for name in TOP_LEVEL_YAMLS {
         assert_eq!(
             top_bytes.get(*name),
@@ -491,8 +545,8 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
         );
     }
 
-    let top_dir = stage_yaml_files(&top_files);
-    let aio_dir = stage_yaml_files(&aio_files);
+    let top_dir = stage_named_bytes(&top_bytes);
+    let aio_dir = stage_named_bytes(&aio_bytes);
 
     let top = load_configs(top_dir.path()).expect("top-level processes.d parses");
     assert!(top.invalid.is_empty());
