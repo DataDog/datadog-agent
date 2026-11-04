@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    CNM: Fixed missing Cloud Network Monitoring data from Agents running as a
+    sidecar (ECS Fargate, EKS Fargate, and ECS managed instances) when
+    ``network_config.direct_send`` is enabled, which is the default on Linux
+    since 7.85.0. system-probe now reports the task-based hostname, as the
+    process-agent did.
