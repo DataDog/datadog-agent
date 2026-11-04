@@ -129,6 +129,18 @@ public:
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
+    //! Pure virtual runRemoteQueryStream member.
+    /*!
+      \param check The python object pointer to the check we wish to use.
+      \param request_json A credential-free JSON request string.
+      \param emit Callback invoked once per serialized stream event.
+      \param userdata Opaque pointer passed to emit.
+      \return A boolean indicating the success or not of the operation.
+    */
+    virtual bool runRemoteQueryStream(RtLoaderPyObject *check, const char *request_json,
+                                      remote_query_stream_emit_cb emit, void *userdata)
+        = 0;
+
     //! Pure virtual cancelCheck member.
     /*!
       \param check The python object pointer to the check we wish to cancel.

@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "queries",
+    srcs = [
+        "entrypoint.go",
+        "execute.go",
+        "ipc_client.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/api/security/cert",
+        "//pkg/config/setup",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/devtracing",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/system",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+dd_agent_go_test(
+    name = "queries_test",
+    srcs = [
+        "execute_test.go",
+    ],
+    embed = [":queries"],
+    deps = [
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/devtracing",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/core",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -77,6 +78,41 @@ func testGetConfig(t *testing.T) {
 	GetConfig(C.CString("cmd_port"), &config)
 	require.NotNil(t, config)
 	assert.Equal(t, "5001", C.GoString(config))
+
+	// remote_queries.execute.enabled is the execute-bridge toggle, a registered
+	// boolean of the same section as the Test Drive selector key below: GetConfig
+	// returns its default and then reflects an in-test override.
+	GetConfig(C.CString("remote_queries.execute.enabled"), &config)
+	require.NotNil(t, config)
+	assert.Equal(t, "false", C.GoString(config))
+
+	pkgconfigsetup.Datadog().SetInTest("remote_queries.execute.enabled", true)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().UnsetForSource("remote_queries.execute.enabled", pkgconfigmodel.SourceUnknown)
+	})
+	GetConfig(C.CString("remote_queries.execute.enabled"), &config)
+	require.NotNil(t, config)
+	assert.Equal(t, "true", C.GoString(config))
+
+	// remote_queries.execute.intake_test_drive is the Test Drive selector key
+	// read by integrations-core through datadog_agent.get_config. It must be
+	// registered so GetConfig returns its value instead of nil for an unknown key.
+	GetConfig(C.CString("remote_queries.execute.intake_test_drive"), &config)
+	require.NotNil(t, config)
+	assert.Equal(t, `""`, C.GoString(config), `default empty string is JSON-encoded as ""`)
+
+	pkgconfigsetup.Datadog().SetInTest("remote_queries.execute.intake_test_drive", "test-drive-abc")
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().UnsetForSource("remote_queries.execute.intake_test_drive", pkgconfigmodel.SourceUnknown)
+	})
+	GetConfig(C.CString("remote_queries.execute.intake_test_drive"), &config)
+	require.NotNil(t, config)
+	assert.Equal(t, `"test-drive-abc"`, C.GoString(config))
+
+	// The superseded intake_test_drive_selector key must no longer be registered:
+	// GetConfig returns nil for unknown keys.
+	GetConfig(C.CString("remote_queries.execute.intake_test_drive_selector"), &config)
+	require.Nil(t, config, "the superseded intake_test_drive_selector key must not be registered")
 }
 
 func testSetExternalTags(t *testing.T) {

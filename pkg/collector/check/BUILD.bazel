@@ -10,6 +10,7 @@ go_library(
         "jmx.go",
         "loader.go",
         "metadata.go",
+        "remote_query_stream.go",
         "retry.go",
         "shadow.go",
         "unwrap.go",
