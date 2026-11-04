@@ -8,8 +8,8 @@ package observerimpl
 import (
 	"math"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // scanmwStateKey identifies per-series state by ref and aggregation.
@@ -350,7 +350,7 @@ func (d *ScanMWDetector) ensureDefaults() {
 		d.MaxPoints = scanMaxPoints
 	}
 	if d.MaxPoints < d.MinPoints {
-		pkglog.Warnf("[observer] ScanMW max_points=%d is below min_points=%d; using %d", d.MaxPoints, d.MinPoints, d.MinPoints)
+		logging.Warnf("ScanMW max_points=%d is below min_points=%d; using %d", d.MaxPoints, d.MinPoints, d.MinPoints)
 		d.MaxPoints = d.MinPoints
 	}
 	if d.SignificanceThreshold <= 0 {
