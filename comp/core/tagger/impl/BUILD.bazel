@@ -18,6 +18,7 @@ go_library(
         "//comp/core/tagger/def",
         "//comp/core/tagger/mock",
         "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/originresolver",
         "//comp/core/tagger/tagstore",
         "//comp/core/tagger/telemetry",
         "//comp/core/tagger/types",
