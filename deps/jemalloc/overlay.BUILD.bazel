@@ -233,7 +233,7 @@ foreign_cc_shared_wrapper(
 dd_cc_packaged(
     name = "jemalloc_pkg",
     dest_dir = "embedded/lib",
-    input = ":jemalloc_shared",
+    input = ":jemalloc_native_shared",
     libname = "libjemalloc",
     version = "2",
 )
