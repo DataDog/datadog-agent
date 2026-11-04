@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
+	libebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -314,4 +317,46 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
 		require.NoError(t, err)
 	})
+}
+
+func TestNetDevQueueProbeSelection(t *testing.T) {
+	cfg := config.New()
+	// prebuilt rejects UDPv6 on 5.18+
+	cfg.CollectUDPv6Conns = false
+	if !ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+	if features.HaveProgramType(libebpf.RawTracepoint) != nil {
+		t.Skip("raw tracepoints not supported")
+	}
+	prev := netDevQueueTPBTFSupported
+	t.Cleanup(func() { netDevQueueTPBTFSupported = prev })
+
+	netDevQueueProbes := []probes.ProbeFuncName{
+		probes.NetDevQueueTPBTF,
+		probes.NetDevQueueRawTracepoint,
+		probes.NetDevQueueTracepoint,
+		probes.DevQueueXmitNitKprobe,
+	}
+	for _, tc := range []struct {
+		name            string
+		runtime, core   bool
+		tpBTFSupported  bool
+		expectedNetDevQ probes.ProbeFuncName
+	}{
+		{"CO-RE with tp_btf", false, true, true, probes.NetDevQueueTPBTF},
+		{"CO-RE without tp_btf", false, true, false, probes.NetDevQueueRawTracepoint},
+		{"runtime compiled", true, false, true, probes.NetDevQueueRawTracepoint},
+		{"prebuilt", false, false, true, probes.NetDevQueueRawTracepoint},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			netDevQueueTPBTFSupported = func() bool { return tc.tpBTFSupported }
+			enabled, err := enabledProbes(cfg, tc.runtime, tc.core)
+			require.NoError(t, err)
+			for _, p := range netDevQueueProbes {
+				_, ok := enabled[manager.ProbeIdentificationPair{EBPFFuncName: p, UID: probeUID}]
+				assert.Equal(t, p == tc.expectedNetDevQ, ok, "probe %s", p)
+			}
+		})
+	}
 }

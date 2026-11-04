@@ -1104,15 +1104,22 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
-    struct sock *sk = sk_buff_sk(skb);
+#ifdef COMPILE_CORE
+static __always_inline struct sock *sk_buff_sk_btf(struct sk_buff *skb) {
+    return skb->sk;
+}
+#endif
+
+// With btf set, skb must be a BTF-typed pointer (tp_btf argument).
+static __always_inline int handle_net_dev_queue(struct sk_buff* skb, const bool btf) {
+    struct sock *sk = BTF_OR_PROBE_READ(btf, sk_buff_sk, skb);
     if (!sk) {
         return 0;
     }
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
+    if (BTF_OR_PROBE_READ(btf, sk_buff_to_tcp_tuple, skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -1122,7 +1129,7 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t sock_tup;
     // netns and pid stay zero: the map is keyed without them.
-    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    if (!BTF_OR_PROBE_READ(btf, read_conn_tuple_no_netns, &sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -1137,6 +1144,18 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
     return 0;
 }
 
+#ifdef COMPILE_CORE
+// Typed arguments let the verifier turn the skb and sock field reads into BPF_PROBE_MEM loads.
+SEC("tp_btf/net_dev_queue")
+int BPF_BYPASSABLE_PROG(tp_btf__net__net_dev_queue, struct sk_buff *skb) {
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb, true);
+}
+#endif
+
 // BPF_BYPASSABLE_PROG runs the bypass check before skb is loaded from ctx,
 // so the injected bypass instructions cannot clobber it.
 SEC("raw_tracepoint/net/net_dev_queue")
@@ -1145,7 +1164,7 @@ int BPF_BYPASSABLE_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb)
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, false);
 }
 
 SEC("tracepoint/net/net_dev_queue")
@@ -1156,7 +1175,7 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, false);
 }
 
 // Kprobe fallback for kernels < 4.15 that don't support multiple tracepoint attachments
@@ -1182,7 +1201,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__dev_queue_xmit_nit, struct sk_buff *skb) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, false);
 }
 
 char _license[] SEC("license") = "GPL";

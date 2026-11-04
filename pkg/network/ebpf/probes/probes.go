@@ -38,6 +38,8 @@ const (
 	// ProtocolClassifierGRPCSocketFilter runs a classification rules for gRPC protocols.
 	ProtocolClassifierGRPCSocketFilter ProbeFuncName = "socket__classifier_grpc"
 
+	// NetDevQueueTPBTF is the BTF-typed (tp_btf) version of the net_dev_queue probe, CO-RE only
+	NetDevQueueTPBTF ProbeFuncName = "tp_btf__net__net_dev_queue"
 	// NetDevQueueRawTracepoint runs a raw tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	NetDevQueueRawTracepoint ProbeFuncName = "raw_tracepoint__net__net_dev_queue"
 	// NetDevQueueTracepoint is the tracepoint version of the same probe attach on kernels less than 4.17

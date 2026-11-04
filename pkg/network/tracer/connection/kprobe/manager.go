@@ -17,6 +17,7 @@ import (
 )
 
 var mainProbes = []probes.ProbeFuncName{
+	probes.NetDevQueueTPBTF, // CO-RE only
 	probes.NetDevQueueTracepoint,
 	probes.DevQueueXmitNitKprobe, // kprobe fallback for net_dev_queue on kernels < 4.15
 	probes.ProtocolClassifierEntrySocketFilter,

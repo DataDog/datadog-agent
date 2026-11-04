@@ -9,10 +9,12 @@ package tracer
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -23,6 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
@@ -54,6 +57,11 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 	tr := setupTracer(t, cfg)
 	skbMap, err := tr.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
+
+	// CO-RE and fentry use tp_btf wherever the kernel can load it; the other modes never do.
+	mode := ebpftest.GetBuildMode()
+	wantTPBTF := (mode == ebpftest.CORE || mode == ebpftest.Fentry) && ddfeatures.SupportsTPBTFProbeMem("net_dev_queue") == nil
+	require.Equal(t, wantTPBTF, tpBTFNetDevQueueLoaded(t), "tp_btf net_dev_queue program loaded")
 
 	t.Run("IPv4 TCP", func(t *testing.T) {
 		port := startEchoServer(t, "1.1.1.1:0", "tcp4")
@@ -127,6 +135,31 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 		}
 		require.NoError(t, it.Err())
 	})
+}
+
+// tpBTFNetDevQueueLoaded reports whether a tp_btf net_dev_queue program is loaded in the kernel.
+func tpBTFNetDevQueueLoaded(t *testing.T) bool {
+	// depending on the kernel and library, the name is either full or cut to the kernel's 15 bytes
+	name := string(probes.NetDevQueueTPBTF)
+	var id ebpf.ProgramID
+	for {
+		next, err := ebpf.ProgramGetNextID(id)
+		if errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+		require.NoError(t, err)
+		id = next
+
+		prog, err := ebpf.NewProgramFromID(id)
+		if err != nil {
+			continue
+		}
+		info, err := prog.Info()
+		prog.Close()
+		if err == nil && info.Type == ebpf.Tracing && len(info.Name) >= unix.BPF_OBJ_NAME_LEN-1 && strings.HasPrefix(name, info.Name) {
+			return true
+		}
+	}
 }
 
 // startEchoServer starts a TCP echo server and returns its port.

@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "features.go",
         "iterator.go",
+        "tp_btf.go",
         "tracing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/features",
