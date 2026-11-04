@@ -50,13 +50,9 @@ type ScanWelchConfig struct {
 
 	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
 	MinDeviationMAD float64 `json:"-"`
-
-	// Aggregations to run detection on. Default: [Average, Count]
-	Aggregations []observer.Aggregate `json:"-"`
 }
 
-// ScanWelchDetector scans splits with Welch's t-test, then verifies candidates
-// with Mann-Whitney and MAD gates. Each detection advances the segment start.
+// ScanWelchDetector verifies Welch candidates with Mann-Whitney and MAD gates.
 type ScanWelchDetector struct {
 	ready  bool
 	config ScanWelchConfig
@@ -83,10 +79,6 @@ func DefaultScanWelchConfig() ScanWelchConfig {
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		},
 	}
 }
 
@@ -118,10 +110,6 @@ func NewScanWelchDetector(cfg ScanWelchConfig) *ScanWelchDetector {
 	if cfg.MinDeviationMAD <= 0 {
 		cfg.MinDeviationMAD = defaults.MinDeviationMAD
 	}
-	if len(cfg.Aggregations) == 0 {
-		cfg.Aggregations = defaults.Aggregations
-	}
-	cfg.Aggregations = append([]observer.Aggregate(nil), cfg.Aggregations...)
 	return &ScanWelchDetector{
 		config: cfg,
 		series: make(map[scanwelchStateKey]*scanwelchSeriesState),
@@ -154,7 +142,7 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.config.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, scanwelchStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -165,6 +153,7 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 // Detect implements Detector. Same iteration pattern as ScanMW and BOCPD —
 // consider dedup if more scan-based detectors are added.
 func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
 		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
@@ -179,8 +168,8 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
-		for _, agg := range d.config.Aggregations {
-			if !aggregationAllowed(agg, filter.Aggregations) || !supportsSeriesAggregate(storage, ref, agg) {
+		for _, agg := range aggregations[:numAggregations] {
+			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
 			sk := scanwelchStateKey{ref: ref, agg: agg}

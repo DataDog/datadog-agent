@@ -613,7 +613,7 @@ const (
 	storageRetentionPad  = 16 * time.Second
 )
 
-func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.Detector) StorageConfig {
+func storageConfigFromAgentConfig(cfg config.Component, detectors []detectorRegistration) StorageConfig {
 	storageCfg := DefaultStorageConfig()
 	maxPoints := maxDetectorPoints(detectors)
 	requiredRetention := time.Duration(maxPoints)*storagePointInterval + storageRetentionPad
@@ -671,9 +671,10 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	return storageCfg
 }
 
-func maxDetectorPoints(detectors []observerdef.Detector) int {
+func maxDetectorPoints(detectors []detectorRegistration) int {
 	var maxPoints int
-	for _, detector := range detectors {
+	for _, registration := range detectors {
+		detector := registration.detector
 		if requirement, ok := detector.(observerdef.DetectorPointWindowRequirement); ok {
 			maxPoints = max(maxPoints, requirement.DetectorPointWindow().MaxPoints)
 		}
@@ -827,13 +828,6 @@ func (o *observerImpl) publishSeriesCount() {
 // far back seriesDetectorAdapter reads when running detection. 300s = 5 minutes.
 const defaultDetectorWindowSec = 300
 
-// defaultAggregations is the standard set of aggregations used when adapting
-// a SeriesDetector into a Detector.
-var defaultAggregations = []observerdef.Aggregate{
-	observerdef.AggregateAverage,
-	observerdef.AggregateCount,
-}
-
 // seriesDetectorAdapter wraps a stateless SeriesDetector to implement Detector.
 // It runs the wrapped detector on eligible series/aggregations.
 //
@@ -841,8 +835,7 @@ var defaultAggregations = []observerdef.Aggregate{
 // re-running the detector when no new data has arrived. This keeps the
 // stateless detector path simple and correct even as storage internals evolve.
 type seriesDetectorAdapter struct {
-	detector     observerdef.SeriesDetector
-	aggregations []observerdef.Aggregate
+	detector observerdef.SeriesDetector
 
 	// windowSec limits how far back GetSeriesRange reads. 0 means unbounded
 	// (read from timestamp 0). A positive value reads [dataTime-windowSec, dataTime],
@@ -853,14 +846,13 @@ type seriesDetectorAdapter struct {
 	cachedRefs []observerdef.SeriesRef
 	cachedGen  uint64
 
-	// Freshness is independent for each configured aggregation.
+	// Freshness is independent for each aggregation.
 	lastVisibleCount map[observerdef.QueryHandle]int
 }
 
-func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
+func newSeriesDetectorAdapter(detector observerdef.SeriesDetector) *seriesDetectorAdapter {
 	return &seriesDetectorAdapter{
 		detector:         detector,
-		aggregations:     append([]observerdef.Aggregate(nil), aggregations...),
 		windowSec:        defaultDetectorWindowSec,
 		lastVisibleCount: make(map[observerdef.QueryHandle]int),
 	}
@@ -899,7 +891,7 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	}
 	if len(a.lastVisibleCount) > 0 {
 		for _, ref := range refs {
-			for _, agg := range a.aggregations {
+			for _, agg := range [...]observerdef.Aggregate{observerdef.AggregateAverage, observerdef.AggregateSum, observerdef.AggregateCount} {
 				delete(a.lastVisibleCount, observerdef.QueryHandle{Ref: ref, Aggregate: agg})
 			}
 		}
@@ -912,6 +904,7 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64, filter observerdef.DetectionFilter) observerdef.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if a.cachedRefs == nil || gen != a.cachedGen {
 		a.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), a.cachedRefs)
@@ -922,8 +915,8 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 	for _, ref := range a.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
-		for _, agg := range a.aggregations {
-			if !aggregationAllowed(agg, filter.Aggregations) || !supportsSeriesAggregate(storage, ref, agg) {
+		for _, agg := range aggregations[:numAggregations] {
+			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
 			key := observerdef.QueryHandle{Ref: ref, Aggregate: agg}

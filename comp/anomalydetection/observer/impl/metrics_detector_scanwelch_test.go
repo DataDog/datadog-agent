@@ -13,14 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testScanWelchConfig() ScanWelchConfig {
-	cfg := DefaultScanWelchConfig()
-	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
-	return cfg
-}
-
 func testScanWelchDetector() *ScanWelchDetector {
-	return NewScanWelchDetector(testScanWelchConfig())
+	return NewScanWelchDetector(DefaultScanWelchConfig())
 }
 
 func TestScanWelch_NotEnoughPoints(t *testing.T) {
@@ -31,12 +25,12 @@ func TestScanWelch_NotEnoughPoints(t *testing.T) {
 		storage.Add("ns", "metric", 100, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 10, observer.DetectionFilter{})
+	result := d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, result.Anomalies, "should not fire with fewer than MinPoints")
 }
 
 func TestScanWelch_MinPointsBelowMinSegmentDoesNotPanic(t *testing.T) {
-	dCfg := testScanWelchConfig()
+	dCfg := DefaultScanWelchConfig()
 	dCfg.MinPoints = 4
 	dCfg.MinSegment = 12
 	dCfg.MaxPoints = 24
@@ -48,7 +42,7 @@ func TestScanWelch_MinPointsBelowMinSegmentDoesNotPanic(t *testing.T) {
 	}
 
 	require.NotPanics(t, func() {
-		result := d.Detect(storage, int64(d.config.MinSegment), observer.DetectionFilter{})
+		result := d.Detect(storage, int64(d.config.MinSegment), observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 		assert.Empty(t, result.Anomalies)
 	})
 }
@@ -64,7 +58,7 @@ func TestScanWelch_DetectsStepChange(t *testing.T) {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 40, observer.DetectionFilter{})
+	result := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
@@ -86,7 +80,7 @@ func TestScanWelch_DetectsDownwardStepChange(t *testing.T) {
 	for i := 20; i < 40; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
-	result := d.Detect(storage, 40, observer.DetectionFilter{})
+	result := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, result.Anomalies)
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
 	assert.Equal(t, "ScanWelch changepoint: metric:avg", title)
@@ -100,16 +94,16 @@ func TestScanWelch_IncrementalAdvance(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
-	r1 := d.Detect(storage, 20, observer.DetectionFilter{})
+	r1 := d.Detect(storage, 20, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, r1.Anomalies, "no anomaly in stable data")
 
 	for i := 20; i < 40; i++ {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
-	r2 := d.Detect(storage, 40, observer.DetectionFilter{})
+	r2 := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r2.Anomalies, "should detect step change on second advance")
 
-	r3 := d.Detect(storage, 40, observer.DetectionFilter{})
+	r3 := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, r3.Anomalies, "no new data should produce no anomalies")
 }
 
@@ -124,13 +118,13 @@ func TestScanWelch_SegmentAdvancement(t *testing.T) {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
 
-	r1 := d.Detect(storage, 50, observer.DetectionFilter{})
+	r1 := d.Detect(storage, 50, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r1.Anomalies, "should detect first changepoint")
 
 	for i := 50; i < 90; i++ {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
-	r2 := d.Detect(storage, 90, observer.DetectionFilter{})
+	r2 := d.Detect(storage, 90, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, r2.Anomalies, "stable post-change data should not re-fire")
 }
 
@@ -145,14 +139,14 @@ func TestScanWelch_TwoSequentialChanges(t *testing.T) {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
 
-	r1 := d.Detect(storage, 50, observer.DetectionFilter{})
+	r1 := d.Detect(storage, 50, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r1.Anomalies, "should detect first changepoint")
 
 	for i := 50; i < 80; i++ {
 		storage.Add("ns", "metric", 500, int64(i+1), nil)
 	}
 
-	r2 := d.Detect(storage, 80, observer.DetectionFilter{})
+	r2 := d.Detect(storage, 80, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r2.Anomalies, "should detect second changepoint after segment advancement")
 }
 
@@ -168,10 +162,10 @@ func TestScanWelch_DeterministicReplay(t *testing.T) {
 	}
 
 	d1 := makeDetector()
-	r1 := d1.Detect(storage, 40, observer.DetectionFilter{})
+	r1 := d1.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	d2 := makeDetector()
-	r2 := d2.Detect(storage, 40, observer.DetectionFilter{})
+	r2 := d2.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	require.Equal(t, len(r1.Anomalies), len(r2.Anomalies), "replay should produce same anomaly count")
 	for i := range r1.Anomalies {
@@ -187,7 +181,7 @@ func TestScanWelch_Reset(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
-	d.Detect(storage, 40, observer.DetectionFilter{})
+	d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.NotEmpty(t, d.series, "should have state after detection")
 
 	d.Reset()
@@ -219,7 +213,7 @@ func TestScanWelch_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
 	// Replay: advance dataTime one bucket at a time over preloaded storage.
 	var fired bool
 	for dataTime := int64(1); dataTime <= 40; dataTime++ {
-		if len(d.Detect(storage, dataTime, observer.DetectionFilter{}).Anomalies) > 0 {
+		if len(d.Detect(storage, dataTime, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}}).Anomalies) > 0 {
 			fired = true
 		}
 	}
@@ -234,9 +228,8 @@ func TestScanWelchConfig(t *testing.T) {
 	d := NewScanWelchDetector(cfg)
 	want := cfg
 	want.MaxPoints = 40
-	want.Aggregations = append([]observer.Aggregate(nil), cfg.Aggregations...)
+
 	cfg.MinPoints = 100
-	cfg.Aggregations[0] = observer.AggregateSum
 	require.Equal(t, want, d.config, "constructor owns its configuration")
 	d.Reset()
 	require.Equal(t, want, d.config, "reset preserves configuration")

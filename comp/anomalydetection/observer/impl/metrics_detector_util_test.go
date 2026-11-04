@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var defaultAggregations = []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}
+
 func TestDetectorSeriesFilter(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	add := func(key uint64, namespace string, metricType metrics.MetricType, kind observer.MetricKind) observer.SeriesRef {
@@ -73,42 +75,29 @@ func TestDetectorSeriesFilter(t *testing.T) {
 	}
 }
 
-func TestAggregationAllowed(t *testing.T) {
-	configured := []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage}
+func TestDetectorAggregations(t *testing.T) {
+	avg, sum, count := observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount
 	for _, tc := range []struct {
 		name      string
 		requested []observer.Aggregate
 		want      []observer.Aggregate
 	}{
-		{"nil", nil, configured},
-		{"empty", []observer.Aggregate{}, configured},
-		{"intersection", []observer.Aggregate{observer.AggregateSum, observer.AggregateAverage}, []observer.Aggregate{observer.AggregateAverage}},
-		{"no match", []observer.Aggregate{observer.AggregateSum}, nil},
-		{"configured order", []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, configured},
-		{"duplicates", []observer.Aggregate{observer.AggregateAverage, observer.AggregateAverage}, []observer.Aggregate{observer.AggregateAverage}},
+		{"nil", nil, []observer.Aggregate{avg, count}},
+		{"empty", []observer.Aggregate{}, []observer.Aggregate{avg, count}},
+		{"sum", []observer.Aggregate{sum}, []observer.Aggregate{sum}},
+		{"ordered duplicates", []observer.Aggregate{count, sum, avg, count, sum}, []observer.Aggregate{count, sum, avg}},
+		{"invalid", []observer.Aggregate{observer.AggregateNone, observer.Aggregate(-1), observer.Aggregate(100)}, nil},
+		{"mixed", []observer.Aggregate{observer.AggregateNone, sum, observer.Aggregate(100), avg}, []observer.Aggregate{sum, avg}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before := append([]observer.Aggregate{}, tc.requested...)
-			var selected []observer.Aggregate
-			for _, agg := range configured {
-				if aggregationAllowed(agg, tc.requested) {
-					selected = append(selected, agg)
-				}
-			}
-			require.Equal(t, tc.want, selected)
-			require.Equal(t, before, append([]observer.Aggregate{}, tc.requested...), "caller aggregations must be unchanged")
+			values, n := detectorAggregations(tc.requested)
+			require.Equal(t, tc.want, append([]observer.Aggregate(nil), values[:n]...))
+			require.Equal(t, before, append([]observer.Aggregate{}, tc.requested...), "borrowed selection must not change")
+			require.Zero(t, testing.AllocsPerRun(100, func() { values, n = detectorAggregations(tc.requested) }))
+			require.Equal(t, tc.want, append([]observer.Aggregate(nil), values[:n]...))
 		})
 	}
-}
-
-func TestAggregationAllowedDoesNotAllocate(t *testing.T) {
-	requested := []observer.Aggregate{observer.AggregateCount, observer.AggregateAverage}
-	var allowed bool
-	allocations := testing.AllocsPerRun(100, func() {
-		allowed = aggregationAllowed(observer.AggregateAverage, requested)
-	})
-	require.Zero(t, allocations, "aggregation membership checks are hot-path operations")
-	require.True(t, allowed)
 }
 
 func TestListSeriesRefsFallbackUsesListSeries(t *testing.T) {
@@ -164,49 +153,44 @@ func TestDetectorPointWindowActivation(t *testing.T) {
 	bocpdConfig := DefaultBOCPDConfig()
 	bocpdConfig.WarmupPoints = 4
 	bocpdConfig.MaxRunLength = 8
-	bocpdConfig.Aggregations = []observer.Aggregate{observer.AggregateAverage}
 
 	for name, detector := range map[string]observer.Detector{
 		"bocpd": NewBOCPDDetector(bocpdConfig),
 		"holt": NewHoltResidualDetector(HoltResidualConfig{
 			WarmupPoints:   4,
 			ResidualWindow: 1,
-			Aggregations:   []string{"avg"},
 		}),
 		"tukey": NewTukeyBiweightDetector(TukeyBiweightConfig{
-			WindowSize:   8,
-			MinPoints:    4,
-			ScoreEvery:   1,
-			Aggregations: []string{"avg"},
+			WindowSize: 8,
+			MinPoints:  4,
+			ScoreEvery: 1,
 		}),
 		"scanmw": NewScanMWDetector(ScanMWConfig{
-			MinPoints:    4,
-			MinSegment:   2,
-			MaxPoints:    8,
-			Aggregations: []observer.Aggregate{observer.AggregateAverage},
+			MinPoints:  4,
+			MinSegment: 2,
+			MaxPoints:  8,
 		}),
 		"scanwelch": NewScanWelchDetector(ScanWelchConfig{
-			MinPoints:    4,
-			MinSegment:   2,
-			MaxPoints:    8,
-			Aggregations: []observer.Aggregate{observer.AggregateAverage},
+			MinPoints:  4,
+			MinSegment: 2,
+			MaxPoints:  8,
 		}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			storage := newDetectorTestStorage()
 			for timestamp := int64(1); timestamp <= 3; timestamp++ {
 				storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
-				detector.Detect(storage, timestamp, observer.DetectionFilter{})
+				detector.Detect(storage, timestamp, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 				require.False(t, detector.Ready())
 				require.Zero(t, detectorStateCount(detector))
 			}
 
 			storage.Add("ns", "metric", 4, 4, nil)
-			detector.Detect(storage, 4, observer.DetectionFilter{})
+			detector.Detect(storage, 4, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 			require.Equal(t, 1, detectorStateCount(detector))
 
 			storage.Add("ns", "metric", 5, 5, nil)
-			detector.Detect(storage, 5, observer.DetectionFilter{})
+			detector.Detect(storage, 5, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 			require.True(t, detector.Ready())
 		})
 	}

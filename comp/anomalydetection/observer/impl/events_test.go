@@ -178,7 +178,7 @@ func (d *emitOnSeriesDetector) Detect(series observerdef.Series) observerdef.Det
 func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 	e := newEngine(engineConfig{
 		storage:   newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{&mockDetector{name: "noop"}},
+		detectors: []detectorRegistration{{detector: &mockDetector{name: "noop"}}},
 	})
 
 	sink := &collectingSink{}
@@ -201,10 +201,8 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	}
 
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{
-			&anomalyDetector{name: "test", anomalies: anomalies},
-		},
+		storage:   newTimeSeriesStorage(),
+		detectors: []detectorRegistration{{detector: &anomalyDetector{name: "test", anomalies: anomalies}}},
 	})
 
 	sink := &collectingSink{}
@@ -242,10 +240,8 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingEvidence(t *testing.T) {
 		Timestamp:    99,
 	}}
 	e := newEngine(engineConfig{
-		storage: storage,
-		detectors: []observerdef.Detector{
-			&anomalyDetector{name: "test", anomalies: anomalies},
-		},
+		storage:   storage,
+		detectors: []detectorRegistration{{detector: &anomalyDetector{name: "test", anomalies: anomalies}}},
 	})
 
 	sink := &collectingSink{}
@@ -283,7 +279,7 @@ func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
 	e := newEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{first},
-		detectors:  []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{anomaly}}},
+		detectors:  []detectorRegistration{{detector: &anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{anomaly}}}},
 	})
 
 	// Switching extractors must not clear stored series context.
@@ -349,11 +345,11 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 
 func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.T) {
 	extractor := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
-	detector := newSeriesDetectorAdapter(&emitOnSeriesDetector{name: "test_series_detector"}, []observerdef.Aggregate{observerdef.AggregateCount})
+	detector := newSeriesDetectorAdapter(&emitOnSeriesDetector{name: "test_series_detector"})
 	e := newEngine(engineConfig{
 		storage:    newTimeSeriesStorage(),
 		extractors: []observerdef.LogMetricsExtractor{extractor},
-		detectors:  []observerdef.Detector{detector},
+		detectors:  []detectorRegistration{{detector: detector, filter: observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateCount}}}},
 	})
 
 	e.IngestLog("source-a", &logObs{
@@ -562,7 +558,7 @@ func TestEngineResetResetsDetectorsAndCorrelators(t *testing.T) {
 	extractor := &stubExtractor{name: "extractor"}
 	e := newEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
-		detectors:   []observerdef.Detector{detector},
+		detectors:   []detectorRegistration{{detector: detector}},
 		correlators: []observerdef.Correlator{correlator},
 		extractors:  []observerdef.LogMetricsExtractor{extractor},
 	})
@@ -627,7 +623,7 @@ func TestAdvanceRejectsAnomaliesWithoutSourceRef(t *testing.T) {
 	correlator := &recordingCorrelator{}
 	e := newEngine(engineConfig{
 		storage:             storage,
-		detectors:           []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{invalid, valid}}},
+		detectors:           []detectorRegistration{{detector: &anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{invalid, valid}}}},
 		correlators:         []observerdef.Correlator{correlator},
 		trackAnomalyHistory: true,
 		baseline:            BaselineConfig{Enabled: true, DurationSec: 10},
@@ -679,7 +675,7 @@ func TestAnomalyDedupKeyDistinguishesDetectors(t *testing.T) {
 	}
 	e := newEngine(engineConfig{
 		storage: newTimeSeriesStorage(), trackAnomalyHistory: true,
-		detectors: []observerdef.Detector{&anomalyDetector{name: "test_detector", anomalies: anomalies}},
+		detectors: []detectorRegistration{{detector: &anomalyDetector{name: "test_detector", anomalies: anomalies}}},
 	})
 	e.Advance(100)
 	assert.Len(t, e.StateView().Anomalies(), 2, "different detectors on one source and timestamp must survive dedup")
@@ -706,7 +702,7 @@ func TestLogDerivedAnomaliesWithDifferentSourcesDoNotCollide(t *testing.T) {
 	}
 	e := newEngine(engineConfig{
 		storage: newTimeSeriesStorage(), trackAnomalyHistory: true,
-		detectors: []observerdef.Detector{&anomalyDetector{name: "log_detector", anomalies: anomalies}},
+		detectors: []detectorRegistration{{detector: &anomalyDetector{name: "log_detector", anomalies: anomalies}}},
 	})
 	e.Advance(100)
 	assert.Len(t, e.StateView().Anomalies(), 2, "different log-derived sources must survive dedup")
@@ -733,9 +729,7 @@ func TestAnomalyDedupIsConsistentAcrossHistoryAndEvents(t *testing.T) {
 	e := newEngine(engineConfig{
 		storage:             newTimeSeriesStorage(),
 		trackAnomalyHistory: true,
-		detectors: []observerdef.Detector{
-			&anomalyDetector{name: "test_detector", anomalies: anomalies},
-		},
+		detectors:           []detectorRegistration{{detector: &anomalyDetector{name: "test_detector", anomalies: anomalies}}},
 	})
 
 	sink := &collectingSink{}
@@ -761,7 +755,7 @@ func TestReplayUniqueAnomalySourcesAreBounded(t *testing.T) {
 
 	e := newEngine(engineConfig{
 		storage:             storage,
-		detectors:           []observerdef.Detector{det},
+		detectors:           []detectorRegistration{{detector: det}},
 		trackAnomalyHistory: true,
 	})
 
@@ -812,7 +806,7 @@ func TestFindingM9_SetDetectorsRace(_ *testing.T) {
 
 	e := newEngine(engineConfig{
 		storage:   storage,
-		detectors: []observerdef.Detector{&mockDetector{name: "initial"}},
+		detectors: []detectorRegistration{{detector: &mockDetector{name: "initial"}}},
 	})
 
 	var wg sync.WaitGroup
@@ -830,9 +824,7 @@ func TestFindingM9_SetDetectorsRace(_ *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 500; i++ {
-			e.SetDetectors([]observerdef.Detector{
-				&mockDetector{name: fmt.Sprintf("det_%d", i)},
-			})
+			e.SetDetectors([]detectorRegistration{{detector: &mockDetector{name: fmt.Sprintf("det_%d", i)}}})
 		}
 	}()
 
@@ -879,7 +871,7 @@ func TestFindingM10_ResetRace(_ *testing.T) {
 
 	e := newEngine(engineConfig{
 		storage:     storage,
-		detectors:   []observerdef.Detector{det},
+		detectors:   []detectorRegistration{{detector: det}},
 		correlators: []observerdef.Correlator{corr},
 	})
 
@@ -922,4 +914,32 @@ func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
 	seriesB := storage.GetSeries("shared_tags_extractor", "metric.b", []string{"env:test", "observer_source:source-a"}, AggregateAverage)
 	require.NotNil(t, seriesB)
 
+}
+
+// Same names deliberately guard against name-based filter lookup.
+type filterRecordingDetector struct{ filters []observerdef.DetectionFilter }
+
+func (*filterRecordingDetector) Name() string { return "shared_name" }
+func (*filterRecordingDetector) Ready() bool  { return false }
+func (d *filterRecordingDetector) Detect(_ observerdef.StorageReader, _ int64, filter observerdef.DetectionFilter) observerdef.DetectionResult {
+	d.filters = append(d.filters, filter)
+	return observerdef.DetectionResult{}
+}
+
+func TestEngineDetectorRegistrationFilters(t *testing.T) {
+	first, second := &filterRecordingDetector{}, &filterRecordingDetector{}
+	firstFilter := observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}}
+	secondFilter := observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateCount}}
+	detectors := []detectorRegistration{
+		{detector: first, filter: firstFilter},
+		{detector: second, filter: secondFilter},
+	}
+	e := newEngine(engineConfig{storage: newTimeSeriesStorage(), detectors: detectors})
+	e.Advance(1)
+	require.Equal(t, []observerdef.DetectionFilter{firstFilter}, first.filters)
+	require.Equal(t, []observerdef.DetectionFilter{secondFilter}, second.filters)
+	e.SetDetectors(detectors[1:])
+	e.Advance(2)
+	require.Len(t, first.filters, 1)
+	require.Equal(t, []observerdef.DetectionFilter{secondFilter, secondFilter}, second.filters)
 }

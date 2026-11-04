@@ -171,16 +171,27 @@ func detectorSeriesFilter(filter observer.DetectionFilter) observer.SeriesFilter
 	return selection
 }
 
-func aggregationAllowed(agg observer.Aggregate, requested []observer.Aggregate) bool {
+// detectorAggregations returns valid, unique selections in invocation order.
+func detectorAggregations(requested []observer.Aggregate) (values [3]observer.Aggregate, count int) {
 	if len(requested) == 0 {
-		return true
+		return [3]observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, 2
 	}
-	for _, candidate := range requested {
-		if candidate == agg {
-			return true
+	var seen uint8
+	for _, agg := range requested {
+		switch agg {
+		case observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount:
+		default:
+			continue
 		}
+		mask := aggregateMask(agg)
+		if seen&mask != 0 {
+			continue
+		}
+		seen |= mask
+		values[count] = agg
+		count++
 	}
-	return false
+	return values, count
 }
 
 // seriesStatus holds point count and write generation for a single series.

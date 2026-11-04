@@ -724,17 +724,11 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 }
 
-// DetectionFilter borrows independent kind/type restrictions; zero selects all
-// workload series, never telemetry. Kind/type values and nil presence must remain
-// constant across calls and resets to avoid stale caches; equal-valued pointers
-// may differ. Aggregations may vary per call. Detectors must not mutate filters
-// or retain borrowed pointers/slices.
+// DetectionFilter is borrowed: never mutate or retain it; telemetry is excluded.
 type DetectionFilter struct {
-	MetricKind *MetricKind         // nil: any committed kind, including UNSET
-	MetricType *metrics.MetricType // nil: any input type, including UnknownType
-	// Aggregations intersects configured values in configured order.
-	// Empty means all configured values; duplicates add no work.
-	Aggregations []Aggregate
+	MetricKind   *MetricKind         // nil: any kind; value/nil fixed across calls and resets
+	MetricType   *metrics.MetricType // nil: any type; value/nil fixed across calls and resets
+	Aggregations []Aggregate         // Valid unique values in order; empty selects Average then Count.
 }
 
 // Detector analyzes stored series for anomalies.

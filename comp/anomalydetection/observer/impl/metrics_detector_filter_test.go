@@ -46,7 +46,7 @@ func filterTestDetectors() map[string]func() observer.Detector {
 			return d
 		},
 		"adapter": func() observer.Detector {
-			return newSeriesDetectorAdapter(&filterSeriesDetector{}, defaultAggregations)
+			return newSeriesDetectorAdapter(&filterSeriesDetector{})
 		},
 	}
 }
@@ -100,8 +100,9 @@ func filterTestState(detector observer.Detector) map[observer.QueryHandle]string
 
 type filterTestStorage struct {
 	*timeSeriesStorage
-	listCalls   int
-	averageOnly bool
+	listCalls       int
+	averageOnly     bool
+	aggregateChecks []observer.QueryHandle
 }
 
 func (s *filterTestStorage) ListSeries(filter observer.SeriesFilter) []observer.SeriesMeta {
@@ -113,6 +114,7 @@ func (s *filterTestStorage) ListSeriesRefsInto(filter observer.SeriesFilter, dst
 	return s.timeSeriesStorage.ListSeriesRefsInto(filter, dst)
 }
 func (s *filterTestStorage) SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool {
+	s.aggregateChecks = append(s.aggregateChecks, observer.QueryHandle{Ref: ref, Aggregate: agg})
 	return (!s.averageOnly || agg == observer.AggregateAverage) && s.timeSeriesStorage.SupportsAggregate(ref, agg)
 }
 
@@ -157,16 +159,33 @@ func TestDetectorFilterSelection(t *testing.T) {
 				{"unset", observer.DetectionFilter{MetricKind: &unset}, []int{3}, []observer.Aggregate{avg, cnt}, false},
 				{"unknown type", observer.DetectionFilter{MetricType: &unknownType}, []int{3}, []observer.Aggregate{avg, cnt}, false},
 				{"no series", observer.DetectionFilter{MetricKind: &linear, MetricType: &count}, nil, nil, false},
-				{"intersection", observer.DetectionFilter{Aggregations: []observer.Aggregate{sum, avg, avg}}, []int{0, 1, 2, 3}, []observer.Aggregate{avg}, false},
-				{"no aggregation", observer.DetectionFilter{Aggregations: []observer.Aggregate{sum}}, nil, nil, false},
-				{"order and duplicates", observer.DetectionFilter{MetricKind: &linear, Aggregations: []observer.Aggregate{cnt, avg, cnt}}, []int{1}, []observer.Aggregate{avg, cnt}, false},
+				{"sum and average", observer.DetectionFilter{Aggregations: []observer.Aggregate{sum, avg, avg}}, []int{0, 1, 2, 3}, []observer.Aggregate{sum, avg}, false},
+				{"sum", observer.DetectionFilter{Aggregations: []observer.Aggregate{sum}}, []int{0, 1, 2, 3}, []observer.Aggregate{sum}, false},
+				{"order and duplicates", observer.DetectionFilter{MetricKind: &linear, Aggregations: []observer.Aggregate{cnt, avg, cnt}}, []int{1}, []observer.Aggregate{cnt, avg}, false},
+				{"invalid", observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateNone, -1, 100}}, nil, nil, false},
+				{"empty aggregations", observer.DetectionFilter{Aggregations: []observer.Aggregate{}}, []int{0, 1, 2, 3}, []observer.Aggregate{avg, cnt}, false},
 				{"unsupported aggregate", observer.DetectionFilter{Aggregations: []observer.Aggregate{cnt}}, nil, nil, true},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					s, refs := newFilterTestStorage()
 					s.averageOnly = tc.averageOnly
 					d := factory()
+					borrowed := append([]observer.Aggregate{}, tc.filter.Aggregations...)
 					result := d.Detect(s, 20, tc.filter)
+					require.Equal(t, borrowed, append([]observer.Aggregate{}, tc.filter.Aggregations...))
+					if !tc.averageOnly {
+						for _, ref := range refs {
+							var order []observer.Aggregate
+							for _, check := range s.aggregateChecks {
+								if check.Ref == ref {
+									order = append(order, check.Aggregate)
+								}
+							}
+							if len(order) > 0 {
+								require.Equal(t, tc.aggs, order)
+							}
+						}
+					}
 					var want, got []observer.QueryHandle
 					for _, index := range tc.indices {
 						for _, agg := range tc.aggs {
@@ -234,10 +253,17 @@ func TestDetectorFilterConstantSelectionAndFreshness(t *testing.T) {
 				}
 			}
 			require.NotEqual(t, before[selected], after[selected])
-			filter.Aggregations = []observer.Aggregate{observer.AggregateSum}
+			filter.Aggregations = []observer.Aggregate{observer.AggregateNone, observer.Aggregate(100)}
 			d.Detect(s, 21, filter)
 			require.Equal(t, after, filterTestState(d))
 			require.True(t, d.Ready(), "filtering does not clear readiness")
+			filter.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+			d.Detect(s, 21, filter)
+			resumed := filterTestState(d)
+			require.Equal(t, after[selected], resumed[selected], "resuming average must preserve count state")
+			average := observer.QueryHandle{Ref: refs[0], Aggregate: observer.AggregateAverage}
+			require.NotEqual(t, after[average], resumed[average], "excluded average retains its freshness")
+			require.Equal(t, calls, s.listCalls)
 		})
 	}
 }
@@ -327,11 +353,63 @@ func TestDetectorFilterOutputsMatchUnfiltered(t *testing.T) {
 	}
 }
 
-func TestSeriesDetectorAdapterConfigOwnership(t *testing.T) {
-	aggregations := []observer.Aggregate{observer.AggregateAverage}
-	d := newSeriesDetectorAdapter(&filterSeriesDetector{}, aggregations)
-	aggregations[0] = observer.AggregateSum
-	require.Equal(t, []observer.Aggregate{observer.AggregateAverage}, d.aggregations)
-	d.Reset()
-	require.Equal(t, []observer.Aggregate{observer.AggregateAverage}, d.aggregations)
+func TestDetectorFilterRemovalClearsAllAggregates(t *testing.T) {
+	for name, factory := range filterTestDetectors() {
+		t.Run(name, func(t *testing.T) {
+			s, refs := newFilterTestStorage()
+			d := factory()
+			for _, agg := range []observer.Aggregate{observer.AggregateCount, observer.AggregateSum, observer.AggregateAverage} {
+				d.Detect(s, 20, observer.DetectionFilter{Aggregations: []observer.Aggregate{agg}})
+			}
+			require.Len(t, filterTestState(d), 12)
+			d.(observer.SeriesRemover).RemoveSeries([]observer.SeriesRef{refs[0]})
+			states := filterTestState(d)
+			require.Len(t, states, 9)
+			for key := range states {
+				require.NotEqual(t, refs[0], key.Ref)
+			}
+			require.Equal(t, 20, s.PointCountUpTo(refs[0], 20), "cleanup retains history")
+			d.Detect(s, 20, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateCount}})
+			require.Len(t, filterTestState(d), 10, "only the requested aggregate reactivates")
+			d.(interface{ Reset() }).Reset()
+			require.Empty(t, filterTestState(d))
+		})
+	}
+}
+
+func TestDetectorAggregationReplayParity(t *testing.T) {
+	for _, entry := range defaultCatalog().Entries() {
+		if entry.kind != componentDetector {
+			continue
+		}
+		for _, agg := range []observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
+			t.Run(entry.name+"/"+observer.AggregateString(agg), func(t *testing.T) {
+				live := entry.factory(entry.defaultConfig).(observer.Detector)
+				replay := entry.factory(entry.defaultConfig).(observer.Detector)
+				streaming, preloaded := newDetectorTestStorage(), newDetectorTestStorage()
+				add := func(storage *timeSeriesStorage, ts int64) {
+					level := (ts / 101) % 3
+					for sample := int64(0); sample < 10+20*level+ts%3; sample++ {
+						storage.Add("work", "metric", float64(100+20*level+ts%3), ts, nil)
+					}
+				}
+				for ts := int64(1); ts <= 500; ts++ {
+					add(preloaded, ts)
+				}
+				filter := observer.DetectionFilter{Aggregations: []observer.Aggregate{agg}}
+				found := 0
+				for ts := int64(1); ts <= 500; ts++ {
+					add(streaming, ts)
+					got := live.Detect(streaming, ts, filter).Anomalies
+					require.ElementsMatch(t, got, replay.Detect(preloaded, ts, filter).Anomalies, "at observation %d", ts)
+					require.Empty(t, live.Detect(streaming, ts, filter).Anomalies)
+					for _, anomaly := range got {
+						require.Equal(t, agg, anomaly.SourceRef.Aggregate)
+					}
+					found += len(got)
+				}
+				require.Positive(t, found, "fixture must exercise anomaly output")
+			})
+		}
+	}
 }

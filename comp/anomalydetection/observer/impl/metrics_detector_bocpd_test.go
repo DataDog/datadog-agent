@@ -281,11 +281,6 @@ func TestBOCPDDetector_DeterministicReplay(t *testing.T) {
 	}
 }
 
-func TestBOCPDDetector_DefaultAggregations(t *testing.T) {
-	cfg := DefaultBOCPDConfig()
-	assert.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, cfg.Aggregations)
-}
-
 func TestBOCPDDetector_DefaultWarmup60(t *testing.T) {
 	cfg := DefaultBOCPDConfig()
 	assert.Equal(t, 60, cfg.WarmupPoints, "default warmup should be 60 points")
@@ -309,7 +304,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = warmup
 	config.PriorVarianceScale = 100.0
-	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
@@ -319,7 +314,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	for i := warmup; i < warmup+150; i++ {
 		storage.Add("ns", "metric", 12.0, int64(i+1), nil)
 	}
-	d.Detect(storage, int64(warmup+150), observer.DetectionFilter{})
+	d.Detect(storage, int64(warmup+150), observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	var state *bocpdSeriesState
 	for _, s := range d.series {
@@ -392,7 +387,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 5
-	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
@@ -404,7 +399,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 
 	// Add first value at timestamp 5 (this completes warmup)
 	storage.Add("ns", "metric", 100.0, 5, nil)
-	d.Detect(storage, 5, observer.DetectionFilter{})
+	d.Detect(storage, 5, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	// Add a second value at timestamp 5 -- storage merges into the same bucket.
 	// Average of {100, 200} = 150.
@@ -435,7 +430,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	require.NotNil(t, stateBefore)
 	genBefore := stateBefore.lastWriteGen
 
-	d.Detect(storage, 5, observer.DetectionFilter{})
+	d.Detect(storage, 5, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	var stateAfter *bocpdSeriesState
 	for _, s := range d.series {
@@ -458,7 +453,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 1
-	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
@@ -470,7 +465,7 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 		storage.Add("ns", "metric", 100.0+float64(i), int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 10, observer.DetectionFilter{})
+	result := d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	// Check that no anomaly has NaN in its debug info.
 	for _, a := range result.Anomalies {
@@ -569,7 +564,7 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 func TestBOCPDConfigOwnership(t *testing.T) {
 	cfg := DefaultBOCPDConfig()
 	d := NewBOCPDDetector(cfg)
-	cfg.Aggregations[0] = observer.AggregateSum
+
 	cfg.WarmupPoints = 100
 	require.Equal(t, DefaultBOCPDConfig(), d.config)
 	d.Reset()

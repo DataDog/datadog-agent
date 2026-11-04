@@ -155,10 +155,10 @@ func TestApplyTestbenchDefaults(t *testing.T) {
 	settings := ApplyTestbenchDefaults(ComponentSettings{})
 
 	require.Equal(t, 40, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
-	holt := settings.configs["holt_residual"].(HoltResidualConfig)
+	holt := settings.configs["holt_residual"].(holtResidualCatalogConfig)
 	require.Equal(t, 15, holt.WarmupPoints)
 	require.Equal(t, 25, holt.ResidualWindow)
-	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
+	tukey := settings.configs["tukey_biweight"].(tukeyBiweightCatalogConfig)
 	require.Equal(t, 40, tukey.WindowSize)
 	require.Equal(t, 40, tukey.MinPoints)
 	require.True(t, settings.Enabled["anomaly_scorer"])
@@ -200,4 +200,83 @@ func (*bareDetectorForValidator) Name() string { return "bare-detector" }
 func (*bareDetectorForValidator) Ready() bool  { return true }
 func (*bareDetectorForValidator) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
+}
+
+func TestCatalogAggregationFilters(t *testing.T) {
+	for _, name := range []string{"holt_residual", "tukey_biweight"} {
+		for _, tc := range []struct {
+			name string
+			json string
+			want []observerdef.Aggregate
+		}{
+			{"omitted", `{}`, defaultAggregations},
+			{"empty", `{"aggregations":[]}`, nil},
+			{"null", `{"aggregations":null}`, nil},
+			{"unknown", `{"aggregations":["invalid"]}`, nil},
+			{"sum", `{"aggregations":["sum"]}`, []observerdef.Aggregate{observerdef.AggregateSum}},
+			{"ordered", `{"aggregations":["count","avg"]}`, []observerdef.Aggregate{observerdef.AggregateCount, observerdef.AggregateAverage}},
+			{"mixed", `{"aggregations":["invalid","sum","avg"]}`, []observerdef.Aggregate{observerdef.AggregateSum, observerdef.AggregateAverage}},
+			{"duplicates", `{"aggregations":["sum","sum"]}`, []observerdef.Aggregate{observerdef.AggregateSum, observerdef.AggregateSum}},
+		} {
+			t.Run(name+"/"+tc.name, func(t *testing.T) {
+				settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{name: json.RawMessage(tc.json)})
+				require.NoError(t, err)
+				settings.Enabled = map[string]bool{"bocpd": false, name: true}
+				settings = ApplyTestbenchDefaults(settings)
+				detectors, _, _, _, components := defaultCatalog().Instantiate(settings)
+				raw, err := json.Marshal(components[name].activeConfig)
+				require.NoError(t, err)
+				var flat map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(raw, &flat))
+				require.NotContains(t, flat, "HoltResidualConfig")
+				require.NotContains(t, flat, "TukeyBiweightConfig")
+				roundtrip, err := ParseSettingsFromJSON(map[string]json.RawMessage{name: raw})
+				require.NoError(t, err)
+				roundtrip.Enabled = settings.Enabled
+				decoded, _, _, _, _ := defaultCatalog().Instantiate(roundtrip)
+				wantValues, wantCount := detectorAggregations(detectors[0].filter.Aggregations)
+				gotValues, gotCount := detectorAggregations(decoded[0].filter.Aggregations)
+				require.Equal(t, wantValues, gotValues)
+				require.Equal(t, wantCount, gotCount)
+				require.Len(t, detectors, 1)
+				require.Equal(t, tc.want, append([]observerdef.Aggregate(nil), detectors[0].filter.Aggregations...))
+				storage := newDetectorTestStorage()
+				for ts := int64(1); ts <= 120; ts++ {
+					storage.Add("work", "metric", 100, ts, nil)
+				}
+				e := newEngine(engineConfig{storage: storage, detectors: detectors})
+				check := func() {
+					var got []observerdef.Aggregate
+					for key := range filterTestState(detectors[0].detector) {
+						got = append(got, key.Aggregate)
+					}
+					want, n := detectorAggregations(tc.want)
+					require.ElementsMatch(t, want[:n], got)
+				}
+				e.Advance(120)
+				check()
+				e.Reset()
+				e.Advance(120)
+				check()
+				e.SetDetectors(detectors)
+				e.ReplayStoredData()
+				check()
+				settings.Enabled[name] = false
+				disabled, _, _, _, _ := defaultCatalog().Instantiate(settings)
+				require.Empty(t, disabled)
+				e.SetDetectors(disabled)
+				settings.Enabled[name] = true
+				replacement, _, _, _, _ := defaultCatalog().Instantiate(settings)
+				require.Equal(t, detectors[0].filter, replacement[0].filter)
+				require.NotSame(t, detectors[0].detector, replacement[0].detector)
+				e.ResetForReplay(replacement, nil, nil, nil, DefaultStorageConfig(), BaselineConfig{})
+				detectors = replacement
+				for ts := int64(1); ts <= 120; ts++ {
+					e.Storage().Add("work", "metric", 100, ts, nil)
+				}
+				e.ReplayStoredData()
+				check()
+			})
+		}
+	}
 }

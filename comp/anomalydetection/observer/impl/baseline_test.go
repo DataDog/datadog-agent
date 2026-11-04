@@ -94,7 +94,7 @@ func makeBaselineEngine(cfg BaselineConfig, correlator observerdef.Correlator) (
 	}
 	e := newEngine(engineConfig{
 		storage:     storage,
-		detectors:   []observerdef.Detector{detector},
+		detectors:   []detectorRegistration{{detector: detector}},
 		correlators: corrs,
 		baseline:    cfg,
 	})
@@ -242,7 +242,7 @@ func TestBaseline_WaitingDetectorDoesNotMuteUntilReady(t *testing.T) {
 		ref:          ref,
 		source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
 	}
-	e := newEngine(engineConfig{storage: storage, detectors: []observerdef.Detector{detector}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
+	e := newEngine(engineConfig{storage: storage, detectors: []detectorRegistration{{detector: detector}}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
 
 	e.Advance(100) // detector emits before Ready; it is suppressed but cannot mute
 	assert.Empty(t, e.baseline.mutedHashes)
@@ -267,9 +267,12 @@ func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
 		ref:        ref,
 	}
 	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{fast, slow},
-		baseline:  BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
+		storage: storage,
+		detectors: []detectorRegistration{
+			{detector: fast},
+			{detector: slow},
+		},
+		baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
 	})
 
 	e.Advance(100) // both detectors are analysing and nominate cpu for muting
@@ -295,8 +298,11 @@ func TestBaseline_FastDetectorForwardsWhileSlowerDetectorStillAnalyses(t *testin
 	slow := &baselineTestDetector{name: "slow", readyAtSec: 400, emitAfterSec: 1<<62 - 1}
 	correlator := &recordingCorrelator{}
 	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observerdef.Detector{fast, slow},
+		storage: storage,
+		detectors: []detectorRegistration{
+			{detector: fast},
+			{detector: slow},
+		},
 		correlators: []observerdef.Correlator{correlator},
 		baseline:    BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
 	})
@@ -433,7 +439,7 @@ func TestBaseline_VirtualMetricDroppedAfterFreeze(t *testing.T) {
 
 	e := newEngine(engineConfig{
 		storage:    storage,
-		detectors:  []observerdef.Detector{&storageAwareDetector{}},
+		detectors:  []detectorRegistration{{detector: &storageAwareDetector{}}},
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 		baseline:   BaselineConfig{Enabled: true, DurationSec: 600, MuteNoisyMetrics: true},
 	})

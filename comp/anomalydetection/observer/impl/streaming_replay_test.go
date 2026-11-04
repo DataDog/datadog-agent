@@ -36,7 +36,7 @@ func TestSynchronousLogStreamAdvancesAndFlushes(t *testing.T) {
 	detector := &streamAdvanceRecorder{}
 	obs := &observerImpl{engine: newEngine(engineConfig{
 		storage:   newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{detector},
+		detectors: []detectorRegistration{{detector: detector}},
 	})}
 
 	obs.IngestLogAndAdvance("parquet", &mockLogView{timestampMs: 10_000})
