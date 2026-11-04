@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "oidc.go",
         "sources.go",
+        "workload.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/oidc",
     visibility = ["//visibility:public"],
@@ -18,7 +19,10 @@ go_library(
 
 dd_agent_go_test(
     name = "oidc_test",
-    srcs = ["oidc_test.go"],
+    srcs = [
+        "oidc_test.go",
+        "workload_test.go",
+    ],
     embed = [":oidc"],
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",

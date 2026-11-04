@@ -269,3 +269,25 @@ rapid test -s cloud-auth-config --type unit --filter TestCustomOIDCProviderOrgUU
 Provider protocols: [GCP instance identity](https://docs.cloud.google.com/compute/docs/instances/verifying-instance-identity),
 [Azure VM managed identity tokens](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token),
 and [Kubernetes projected tokens](https://kubernetes.io/docs/concepts/storage/projected-volumes/).
+
+## Workload grant exchange
+
+The OIDC adapter also implements `common.WorkloadProvider`. Consumers can use the
+existing `api.GetWorkloadToken` client with `Grants: []string{"rc_secrets"}`.
+Every call obtains a fresh source token and exchanges it through
+`POST /api/v2/delegated-token?token_type=workload`. The result is an opaque ETS
+workload token; this path does not retrieve or overwrite an intake API key.
+
+ETS must authorize the requested grant for the verified workload. For the RC
+prototype, that requires the `custom_oidc_auth` and `rc-secrets-wif` org flags and
+a matching custom OIDC intake mapping with `rc_secrets_enabled: true`. A normal
+intake mapping is insufficient. Use `oidc.org_uuid_source: claims` with the
+initial RC issuer, or deploy the explicit destination ETS support before using
+the adapter's default request routing.
+
+OIDC bearer proofs cannot attest a caller-supplied public key. Requests with a
+`JWKThumbprint` are rejected before acquiring credentials. An RC encryption key
+remains separate from the workload token. Consumers must verify the token and
+apply their own secret authorization; decoding the token in the Agent does not
+establish authority. This adapter supplies the exchange hook; registering the
+`PrepareSecretDelivery` handler is a separate integration.

@@ -45,8 +45,9 @@ func (r WorkloadTokenRequest) Validate() error {
 	return nil
 }
 
-// WorkloadProvider explicitly supports binding a proof to the requested grants
-// and key. Implementing Provider for intake alone does not imply this capability.
+// WorkloadProvider explicitly supports the workload exchange. A provider must
+// reject key binding unless its proof authenticates the supplied key. ETS owns
+// grant authorization. Intake Provider support alone does not imply this capability.
 type WorkloadProvider interface {
 	GenerateWorkloadAuthProof(context.Context, pkgconfigmodel.Reader, *AuthConfig, WorkloadTokenRequest) (string, error)
 }
