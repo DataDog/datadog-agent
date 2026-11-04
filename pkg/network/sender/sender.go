@@ -219,6 +219,12 @@ type directSender struct {
 	checkInterval       time.Duration
 	runCount            uint64
 	collectWG           sync.WaitGroup
+
+	// Compression state reused across chunks and collects. Only the serial
+	// collect loop touches it.
+	zctx        zstd.Ctx
+	rawBuf      bytes.Buffer
+	compressBuf []byte
 }
 
 func (d *directSender) start() {
@@ -446,24 +452,11 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 		}()
 		defer d.resolver.removeDeadTagContainers()
+		defer d.trimCompressScratch()
 
 		for connsChunk := range slices.Chunk(conns.Conns, d.maxConnsPerMessage) {
-			// TODO is there some way to get a larger lower bound on the size of a payload
-			// ex: (minConnSize * len(connsChunk)) + len(d.staticEncodedHeader)
-			// compression makes this calculation difficult
-			dstBuf := bytes.NewBuffer(make([]byte, 0, len(d.staticEncodedHeader)))
-			_, err := dstBuf.Write(d.staticEncodedHeader)
-			if err != nil {
-				d.log.Errorf("Unable to encode message header: %s", err)
-				continue
-			}
-			zw, err := zstd.NewWriter(dstBuf)
-			if err != nil {
-				d.log.Errorf("Unable to create zstd writer: %s", err)
-				continue
-			}
-
-			builder.Reset(zw)
+			d.rawBuf.Reset()
+			builder.Reset(&d.rawBuf)
 			d.encodeConfiguration(builder)
 			builder.SetGroupId(groupID)
 			builder.SetGroupSize(numBatches)
@@ -504,16 +497,52 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				builder.AddResolvConfs(v.Get())
 			}
 
-			if err := zw.Close(); err != nil {
-				d.log.Errorf("Unable to close compression writer: %s", err)
+			body, err := d.compressChunk(d.rawBuf.Bytes())
+			if err != nil {
+				d.log.Errorf("Unable to compress payload: %s", err)
 				continue
 			}
 
-			if !yield(dstBuf.Bytes()) {
+			if !yield(body) {
 				return
 			}
 			messageIndex++
 		}
+	}
+}
+
+// maxRetainedScratch bounds the scratch memory kept between collects.
+const maxRetainedScratch = 4 << 20
+
+// compressChunk returns the message header followed by one zstd frame of raw.
+// The forwarder keeps the returned slice, so it is always newly allocated; only
+// the context and the scratch buffer are reused.
+func (d *directSender) compressChunk(raw []byte) ([]byte, error) {
+	if d.zctx == nil {
+		d.zctx = zstd.NewCtx()
+	}
+	bound := zstd.CompressBound(len(raw))
+	if cap(d.compressBuf) < bound {
+		d.compressBuf = make([]byte, bound)
+	}
+	compressed, err := d.zctx.CompressLevel(d.compressBuf[:bound], raw, zstd.DefaultCompression)
+	if err != nil {
+		// Never reuse a context after a failure.
+		d.zctx = nil
+		return nil, err
+	}
+	body := make([]byte, len(d.staticEncodedHeader)+len(compressed))
+	n := copy(body, d.staticEncodedHeader)
+	copy(body[n:], compressed)
+	return body, nil
+}
+
+func (d *directSender) trimCompressScratch() {
+	if d.rawBuf.Cap() > maxRetainedScratch {
+		d.rawBuf = bytes.Buffer{}
+	}
+	if cap(d.compressBuf) > maxRetainedScratch {
+		d.compressBuf = nil
 	}
 }
 
