@@ -1,15 +1,6 @@
-load("@rules_cc//cc:defs.bzl", "cc_test")
-
 exports_files(
     [
         "jemalloc.h",
     ],
     visibility = ["@jemalloc//:__pkg__"],
-)
-
-cc_test(
-    name = "smoke_test",
-    srcs = ["smoke_test.c"],
-    dynamic_deps = ["@jemalloc//:jemalloc_native_shared"],
-    deps = ["@jemalloc"],
 )

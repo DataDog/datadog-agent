@@ -260,10 +260,10 @@ cc_library(
         "JEMALLOC_NO_PRIVATE_NAMESPACE",
     ],
     target_compatible_with = ["@platforms//os:linux"],
-    # Only the shared library and the smoke test may use the static archive;
-    # it is built with JEMALLOC_NO_PRIVATE_NAMESPACE, so linking it elsewhere
-    # risks colliding on its unprefixed internal symbol names.
-    visibility = ["@@//deps/jemalloc:__pkg__"],
+    # The shared library is the only consumer. The archive is built with
+    # JEMALLOC_NO_PRIVATE_NAMESPACE, so linking it elsewhere risks colliding
+    # on its unprefixed internal symbol names.
+    visibility = ["//visibility:private"],
 )
 
 cc_shared_library(
