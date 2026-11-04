@@ -6,7 +6,6 @@ import json
 import os
 import platform
 import re
-import shlex
 import shutil
 import string
 import sys
@@ -34,6 +33,7 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
+    join_command,
     parse_kernel_version,
 )
 from tasks.libs.types.arch import ALL_ARCHS, Arch
@@ -803,8 +803,8 @@ def _bazel_install(ctx: Context, target: str, destdir: str, *flags: str, sudo: b
     try:
         bazel("run", f"--script_path={script}", *flags, target)
         # Keep the Python launcher from creating root-owned bytecode in Bazel's user-owned runfiles.
-        prefix = "sudo env PYTHONDONTWRITEBYTECODE=1" if sudo else "env"
-        ctx.run(f"{prefix} {shlex.quote(script)} --destdir={shlex.quote(destdir)}")
+        prefix = ["sudo", "env", "PYTHONDONTWRITEBYTECODE=1"] if sudo else ["env"]
+        ctx.run(join_command([*prefix, script, f"--destdir={destdir}"]))
     finally:
         if os.path.exists(script):
             os.unlink(script)
