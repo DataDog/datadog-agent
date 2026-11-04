@@ -1,0 +1,20 @@
+description: awk parses unary not after concatenation and matches gawk's parse-time versus runtime literal-zero handling.
+input:
+  script: |+
+    awk 'BEGIN { x="b"; y=1; print "a" !0, x !y }'
+    awk 'BEGIN { print 1 || (1 / !1) }' 2>/dev/null
+    printf 'zero-divisor=%s\n' "$?"
+    awk 'BEGIN { print "grouped-before"; print 1 / (((0))) }' 2>/dev/null
+    printf 'grouped-status=%s\n' "$?"
+    awk 'BEGIN { print "plus-before"; print 1 % +0 }' 2>/dev/null
+    printf 'plus-status=%s\n' "$?"
+expect:
+  stdout: |+
+    a1 b0
+    zero-divisor=1
+    grouped-before
+    grouped-status=2
+    plus-before
+    plus-status=2
+  stderr: |+
+  exit_code: 0

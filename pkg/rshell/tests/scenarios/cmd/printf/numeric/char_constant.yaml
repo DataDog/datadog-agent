@@ -1,0 +1,9 @@
+description: Printf converts a character constant to its ASCII value.
+input:
+  script: |+
+    printf "%d\n" "'A"
+expect:
+  stdout: |+
+    65
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,24 @@
+description: read at EOF clears each NAME variable to empty (matches bash) — even if it had a prior value.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    A=oldA
+    B=oldB
+    C=oldC
+    read A B C < empty.txt
+    echo "rc=$?"
+    echo "A=[$A]"
+    echo "B=[$B]"
+    echo "C=[$C]"
+expect:
+  stdout: |+
+    rc=1
+    A=[]
+    B=[]
+    C=[]
+  stderr: ""
+  exit_code: 0

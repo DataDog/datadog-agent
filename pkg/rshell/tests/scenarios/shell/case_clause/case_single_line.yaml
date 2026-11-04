@@ -1,0 +1,11 @@
+# skip: case statements are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Single-line case statement is blocked.
+input:
+  script: |+
+    case x in x) echo y;; esac
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

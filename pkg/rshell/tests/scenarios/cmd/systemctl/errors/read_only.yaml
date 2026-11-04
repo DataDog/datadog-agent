@@ -1,0 +1,11 @@
+# The entire systemctl builtin is unavailable outside remediation mode.
+skip_assert_against_bash: true
+description: systemctl inspection requires remediation mode
+input:
+  script: |+
+    systemctl list-units
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: remediation mode required
+  exit_code: 1
