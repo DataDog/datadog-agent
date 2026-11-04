@@ -53,13 +53,15 @@ fn lookup_env(name: &str) -> Option<String> {
 ///
 /// The last two join `ipc_cert.pem`, like `getCertFilepath` in `pkg/api/security/cert`.
 /// A missing config file reads as empty. A file that does not parse is an error, so the
-/// caller never guesses a path from a config it could not read.
+/// caller never guesses a path from a config it could not read. So is an `ENC[...]`
+/// secret handle in any of these settings: only the Agent's secret backend resolves it.
 pub(crate) fn resolve_ipc_cert_file_path(
     config_path: &Path,
     env: impl Fn(&str) -> Option<String>,
 ) -> Result<String> {
-    let non_empty_env = |name: &str| env(name).filter(|value| !value.is_empty());
-    if let Some(path) = non_empty_env("DD_IPC_CERT_FILE_PATH") {
+    let non_empty_env =
+        |name: &str| reject_secret_handle(name, env(name).filter(|value| !value.is_empty()));
+    if let Some(path) = non_empty_env("DD_IPC_CERT_FILE_PATH")? {
         return Ok(path);
     }
 
@@ -72,22 +74,38 @@ pub(crate) fn resolve_ipc_cert_file_path(
         }
     };
     let yaml_string = |key: &str| {
-        agent_yaml::lookup_dotted_key(&root, key)
+        let value = agent_yaml::lookup_dotted_key(&root, key)
             .and_then(agent_yaml::scalar_as_string)
-            .filter(|value| !value.is_empty())
+            .filter(|value| !value.is_empty());
+        reject_secret_handle(key, value)
     };
 
-    if let Some(path) = yaml_string("ipc_cert_file_path") {
+    if let Some(path) = yaml_string("ipc_cert_file_path")? {
         return Ok(path);
     }
-    let token_path =
-        non_empty_env("DD_AUTH_TOKEN_FILE_PATH").or_else(|| yaml_string("auth_token_file_path"));
+    let token_path = match non_empty_env("DD_AUTH_TOKEN_FILE_PATH")? {
+        Some(path) => Some(path),
+        None => yaml_string("auth_token_file_path")?,
+    };
     let dir = match token_path.as_deref().map(Path::new) {
         Some(token) => token.parent(),
         None => config_path.parent(),
     }
     .unwrap_or_else(|| Path::new("/"));
     Ok(dir.join(IPC_CERT_FILE_NAME).to_string_lossy().into_owned())
+}
+
+/// Matches `IsEnc` in `comp/core/secrets/utils`.
+fn reject_secret_handle(setting: &str, value: Option<String>) -> Result<Option<String>> {
+    if let Some(value) = &value {
+        let trimmed = value.trim_matches([' ', '\t']);
+        if trimmed.starts_with("ENC[") && trimmed.ends_with(']') {
+            anyhow::bail!(
+                "{setting} is a secret handle that dd-procmgrd cannot resolve, set DD_IPC_CERT_FILE_PATH to the certificate path"
+            );
+        }
+    }
+    Ok(value)
 }
 
 pub(crate) fn expand_env_vars(input: &str) -> String {
@@ -343,6 +361,46 @@ LANG=en_US.UTF-8
         let (path, _) = resolve(Some("ipc_cert_file_path: [unterminated\n"), &[]);
         let err = path.unwrap_err();
         assert!(format!("{err:#}").contains("parsing"), "{err:#}");
+    }
+
+    #[test]
+    fn ipc_cert_refuses_to_guess_from_a_secret_handle() {
+        for (yaml, env, setting) in [
+            (
+                "ipc_cert_file_path: ENC[cert]\n",
+                &[][..],
+                "ipc_cert_file_path",
+            ),
+            (
+                "auth_token_file_path: ' ENC[token]\t'\n",
+                &[][..],
+                "auth_token_file_path",
+            ),
+            (
+                "api_key: abc\n",
+                &[("DD_IPC_CERT_FILE_PATH", "ENC[cert]")][..],
+                "DD_IPC_CERT_FILE_PATH",
+            ),
+            (
+                "api_key: abc\n",
+                &[("DD_AUTH_TOKEN_FILE_PATH", "ENC[token]")][..],
+                "DD_AUTH_TOKEN_FILE_PATH",
+            ),
+        ] {
+            let (path, _) = resolve(Some(yaml), env);
+            let err = format!("{:#}", path.unwrap_err());
+            assert!(err.starts_with(setting), "{err}");
+            assert!(err.contains("secret handle"), "{err}");
+        }
+    }
+
+    #[test]
+    fn ipc_cert_skips_a_secret_handle_it_never_reaches() {
+        let (path, _) = resolve(
+            Some("ipc_cert_file_path: /yaml/cert.pem\nauth_token_file_path: ENC[token]\n"),
+            &[],
+        );
+        assert_eq!(path.unwrap(), "/yaml/cert.pem");
     }
 
     #[test]
