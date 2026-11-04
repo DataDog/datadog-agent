@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -97,8 +96,7 @@ func (h *RunShellScriptHandler) Run(
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("script execution timed out after %d seconds", inputs.Timeout)
 		}
-		var exitErr *exec.ExitError
-		if ctx.Err() != nil || !inputs.NoFailOnError || !errors.As(err, &exitErr) {
+		if !inputs.NoFailOnError {
 			return nil, fmt.Errorf("failed to execute command: %w, stderr %s", err, stdErr)
 		}
 	}
