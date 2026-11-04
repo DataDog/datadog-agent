@@ -27,6 +27,33 @@ func TestHistogramConfError(t *testing.T) {
 	assert.Equal(t, []int{95, 22}, ParsePercentiles([]string{"0.95", "test", "0.12test", "0.22", "200", "-50"}))
 }
 
+func TestHistogramConfNonFinite(t *testing.T) {
+	for _, percentile := range []string{"NaN", "nan", "NAN", "Inf", "+Inf", "-Inf", "Infinity", "+Infinity", "-Infinity"} {
+		t.Run(percentile, func(t *testing.T) {
+			assert.Empty(t, ParsePercentiles([]string{percentile}))
+			assert.Equal(t, []int{29, 95}, ParsePercentiles([]string{"0.29", percentile, "0.95"}))
+		})
+	}
+}
+
+func TestHistogramConfBoundaries(t *testing.T) {
+	assert.Equal(t, []int{0, 0, 1, 99, 100}, ParsePercentiles([]string{"0", "-0", "0.01", "0.99", "1"}))
+	assert.Empty(t, ParsePercentiles([]string{"-0.01", "1.01"}))
+}
+
+func TestHistogramNonFinitePercentiles(t *testing.T) {
+	hist := &Histogram{}
+	hist.configure(nil, ParsePercentiles([]string{"0.95", "NaN", "0.29"}))
+	hist.addSample(&MetricSample{Value: 10}, 0)
+	hist.addSample(&MetricSample{Value: 20}, 0)
+
+	series, err := hist.flush(10)
+	require.NoError(t, err)
+	require.Len(t, series, 2)
+	assert.Equal(t, ".29percentile", series[0].NameSuffix)
+	assert.Equal(t, ".95percentile", series[1].NameSuffix)
+}
+
 func TestConfigureDefault(t *testing.T) {
 	cfg := setupConfig(t)
 	hist := NewHistogram(10, cfg)

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Ignore ``NaN`` values in ``histogram_percentiles`` instead of converting
+    them to integer percentiles and emitting unexpected percentile metrics.
