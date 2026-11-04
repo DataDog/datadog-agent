@@ -3,37 +3,49 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package networkdevicesimpl implements the networkdevices component interface.
-package networkdevicesimpl
+// Package ndmconnectivitycheckimpl implements the ndmconnectivitycheck component interface.
+package ndmconnectivitycheckimpl
 
 import (
+	"sync"
+
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	networkdevices "github.com/DataDog/datadog-agent/comp/networkdevices/def"
+	ndmconnectivitycheck "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
-// Requires defines the dependencies for the networkdevices component.
+// Requires defines the dependencies for the ndmconnectivitycheck component.
 type Requires struct {
 	compdef.In
+
 	Logger log.Component
 }
 
-// Provides defines the output of the networkdevices component.
+// Provides defines the output of the ndmconnectivitycheck component.
 type Provides struct {
 	compdef.Out
 
-	Comp                      networkdevices.Component
+	Comp                      ndmconnectivitycheck.Component
 	ConnectivityCheckEndpoint api.EndpointProvider `group:"agent_endpoint"`
 }
 
-type networkDevicesImpl struct {
+type connectivityCheck struct {
 	logger log.Component
+
+	pingOnce sync.Once
+	ping     pingprobe.Capability
 }
 
-// NewComponent creates a new networkdevices component.
+func newImpl(logger log.Component) *connectivityCheck {
+	return &connectivityCheck{logger: logger}
+}
+
+// NewComponent creates a new ndmconnectivitycheck component.
 func NewComponent(reqs Requires) Provides {
-	comp := &networkDevicesImpl{logger: reqs.Logger}
+	comp := newImpl(reqs.Logger)
+
 	return Provides{
 		Comp: comp,
 		ConnectivityCheckEndpoint: api.NewAgentEndpointProvider(

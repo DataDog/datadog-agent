@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package fx provides the fx module for the networkdevices component
+// Package fx provides the fx module for the ndmconnectivitycheck component
 package fx
 
 import (
-	networkdevicesimpl "github.com/DataDog/datadog-agent/comp/networkdevices/impl"
+	ndmconnectivitycheckimpl "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,7 +15,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			networkdevicesimpl.NewComponent,
+			ndmconnectivitycheckimpl.NewComponent,
 		),
 	)
 }
