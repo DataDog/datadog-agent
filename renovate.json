@@ -254,6 +254,26 @@
     "customManagers" : [
       {
         "customType": "regex",
+        "managerFilePatterns": ["test/e2e-framework/components/kubernetes/istio/ambient.go"],
+        "matchStrings": [
+          "AmbientDefaultVersion\\s*=\\s*\"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "base",
+        "packageNameTemplate": "base",
+        "registryUrlTemplate": "https://istio-release.storage.googleapis.com/charts",
+        "datasourceTemplate": "helm"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["test/e2e-framework/components/kubernetes/istio/ambient.go"],
+        "matchStrings": [
+          "gatewayAPIVersion\\s*=\\s*\"(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "kubernetes-sigs/gateway-api",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
