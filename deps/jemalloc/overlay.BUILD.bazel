@@ -13,8 +13,8 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-# The GitHub archive has no VERSION file; the checked-in jemalloc.h uses
-# 5.3.0-0-g54eaed1d8b56b1aa528be3bdd1877e59c56fa90c.
+# Checked-in jemalloc.h still carries the git-describe version from configure
+# on the tag archive. The release tarball has a VERSION file; this build does not read it.
 VERSION = "5.3.0"
 
 package_metadata(
@@ -23,7 +23,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://github.com/jemalloc/jemalloc/archive/refs/tags/{version}.tar.gz",
+        download_url = "https://github.com/jemalloc/jemalloc/releases/download/{version}/jemalloc-{version}.tar.bz2",
         package = "jemalloc",
         version = VERSION,
     ),
