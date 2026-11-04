@@ -38,10 +38,9 @@ static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
 #define RESP_CLASS_SIGN         (1 << 1) // '-' or '+', leading position only, for integers and big numbers
 #define RESP_CLASS_MINUS        (1 << 2) // '-', leading position only, for the null forms $-1 and *-1
 #define RESP_CLASS_DOT          (1 << 3) // '.', for RESP3 doubles
-#define RESP_CLASS_ALPHA        (1 << 4) // A-Za-z, for +OK, -NOPE ...
+#define RESP_CLASS_ALPHA        (1 << 4) // A-Za-z, for +OK, -NOPE ..., and inf/nan/exponents in doubles
 #define RESP_CLASS_PUNCT        (1 << 5) // ' ', '-', '_', for error and status text
 #define RESP_CLASS_INNER_SIGN   (1 << 6) // '-' or '+' at any position, for double signs and exponents (-1.5, 1e-7)
-#define RESP_CLASS_DOUBLE_ALPHA (1 << 7) // the letters of inf, nan and the exponent marker: i n f a e E
 
 // Is c acceptable inside a RESP field of the given classes? `first` marks the
 // byte immediately after the type prefix, the only position a leading sign may
@@ -59,17 +58,16 @@ static __always_inline bool resp_char_allowed(char c, __u8 allowed_classes, bool
     if ((allowed_classes & RESP_CLASS_DOT) && c == '.') {
         return true;
     }
-    if ((allowed_classes & RESP_CLASS_ALPHA) && (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z'))) {
+    // A-Za-z in one comparison: setting bit 5 folds upper case onto lower case,
+    // and the unsigned wrap sends everything below 'a' above 25. No other byte
+    // lands in 'a'..'z' after the fold.
+    if ((allowed_classes & RESP_CLASS_ALPHA) && (__u8)((c | 0x20) - 'a') < 26) {
         return true;
     }
     if ((allowed_classes & RESP_CLASS_PUNCT) && (c == ' ' || c == '-' || c == '_')) {
         return true;
     }
     if ((allowed_classes & RESP_CLASS_INNER_SIGN) && (c == '-' || c == '+')) {
-        return true;
-    }
-    if ((allowed_classes & RESP_CLASS_DOUBLE_ALPHA) &&
-        (c == 'i' || c == 'n' || c == 'f' || c == 'a' || c == 'e' || c == 'E')) {
         return true;
     }
     return false;
@@ -145,7 +143,7 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
 // RESP allows any byte but CR and LF here. Digits are included so that short
 // replies carrying numbers (a status word with a count, a short error code)
 // still classify; they raise the false-positive rate on random bytes only from
-// ~1.20e-7 to ~1.28e-7. Long replies such as +FULLRESYNC <runid> <offset>
+// ~1.35e-7 to ~1.43e-7. Long replies such as +FULLRESYNC <runid> <offset>
 // (~50 bytes) exceed RESP_FIELD_MAX_LEN and are rejected by design: the
 // connection is classified from the client's request instead.
 #define RESP_CLASS_TEXT (RESP_CLASS_ALPHA | RESP_CLASS_DIGIT | RESP_CLASS_DOT | RESP_CLASS_PUNCT)
@@ -165,7 +163,7 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
 // text. Frames whose first field is longer than RESP_FIELD_MAX_LEN, or whose
 // terminator falls outside the buffer, are rejected; giving up is the safe
 // direction, and the caller retries on later packets. On uniform random bytes
-// the false-positive rate is ~1.28e-7, about half of it from the fixed
+// the false-positive rate is ~1.43e-7, about 40% of it from the fixed
 // three-byte RESP3 null _\r\n.
 //
 // The switch only chooses which character classes the first field may use;
@@ -203,10 +201,12 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
 
     // Doubles additionally carry '.', a sign or signed exponent (-1.5, 1e-7),
     // and the literals inf, -inf and nan. Only the character set is checked,
-    // not the grammar. INNER_SIGN admits a sign at every position, including
-    // the leading one.
+    // not the grammar: any letter is admitted, because narrowing it to the
+    // letters of inf/nan/e cost ~50 instructions per inlined copy for a gain of
+    // ~1.5e-8 in the false-positive rate. INNER_SIGN admits a sign at every
+    // position, including the leading one.
     case RESP3_DOUBLE_PREFIX:          // Double
-        classes = RESP_CLASS_DIGIT | RESP_CLASS_INNER_SIGN | RESP_CLASS_DOT | RESP_CLASS_DOUBLE_ALPHA;
+        classes = RESP_CLASS_DIGIT | RESP_CLASS_INNER_SIGN | RESP_CLASS_DOT | RESP_CLASS_ALPHA;
         break;
 
     // Simple strings: +OK\r\n, +PONG\r\n.

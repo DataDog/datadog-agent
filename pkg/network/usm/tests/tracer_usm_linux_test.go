@@ -912,7 +912,7 @@ func testRedisRESPValidation(t *testing.T, tr *tracer.Tracer, clientHost, target
 		{"sign-only length", []byte("$-\r\n"), unclassified},
 		{"sign-only integer", []byte(":+\r\n"), unclassified},
 		{"plus-signed length", []byte("$+5\r\n"), unclassified},
-		{"double with non-numeric letters", []byte(",abc\r\n"), unclassified},
+		{"double with a character outside its class", []byte(",1_5\r\n"), unclassified},
 	}
 
 	tests := make([]protocolClassificationAttributes, 0, len(cases))
