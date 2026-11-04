@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/ebpf-profiler/asm/arm"
-	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
 	"go.opentelemetry.io/ebpf-profiler/nativeunwind/elfunwindinfo"
 	"golang.org/x/arch/arm64/arm64asm"
@@ -126,22 +125,15 @@ func extractTLSGOffset(f *pfelf.File) (int32, error) {
 	}
 	defer pclntab.Close()
 
-	syms := []libpf.Symbol{
-		{Name: "runtime.load_g.abi0"},
-		{Name: "runtime.load_g"},
-	}
-	if err := pclntab.LookupSymbols(syms); err != nil {
-		return 0, err
-	}
-	sym := &syms[0]
-	if sym.Address == 0 {
+	sym, err := pclntab.LookupSymbol("runtime.load_g.abi0")
+	if err != nil {
 		// Use runtime.load_g as backup, if we can not identify
 		// runtime.load_g.abi0. This can happen, if runtime.load_g.abi0
 		// is inlined into runtime.load_g.
-		sym = &syms[1]
-	}
-	if sym.Address == 0 {
-		return 0, libpf.ErrSymbolNotFound
+		sym, err = pclntab.LookupSymbol("runtime.load_g")
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	pc := int64(sym.Address)
