@@ -217,7 +217,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.6
 	github.com/DataDog/jsonapi v0.13.0
-	github.com/DataDog/libdd-rc/ffi-hosts/go v0.0.0-20261029204620-248199fbc416
+	github.com/DataDog/libdd-rc/ffi-hosts/go v0.0.0-20261102180237-db80f6d9448e
 	github.com/DataDog/rshell v0.0.31
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260917081843-fe016948e308
