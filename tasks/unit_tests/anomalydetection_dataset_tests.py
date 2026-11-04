@@ -1,10 +1,13 @@
 import copy
 import hashlib
 import json
+import shutil
 import tempfile
 import unittest
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 
 from tasks.libs.anomalydetection.datasets import DEFAULT_DATASET, _download, prepare_dataset, read_dataset
@@ -89,6 +92,57 @@ class TestDatasetReplay(unittest.TestCase):
             updated_root, _ = prepare_dataset(changed, directory / "cache")
             self.assertEqual(json.loads((updated_root / "example/episode.json").read_text())["version"], 2)
             self.assertEqual(json.loads((root / "example/episode.json").read_text()), EPISODE)
+
+    def test_overlapping_dataset_updates_keep_their_own_recording(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            older = self.dataset(directory)
+            cache = directory / "cache"
+            older_root, _ = prepare_dataset(older, cache)
+            shutil.rmtree(older_root)  # Rebuild the view from the already-verified cache.
+            newer = self.dataset(directory, episode={**EPISODE, "version": 2})
+            copytree = shutil.copytree
+            newer_root = None
+
+            def interleave(source, destination, *args, **kwargs):
+                nonlocal newer_root
+                if newer_root is None:
+                    # Finish the other invocation between cache validation and linking.
+                    with patch("tasks.libs.anomalydetection.datasets.shutil.copytree", copytree):
+                        newer_root, _ = prepare_dataset(newer, cache)
+                return copytree(source, destination, *args, **kwargs)
+
+            with patch("tasks.libs.anomalydetection.datasets.shutil.copytree", side_effect=interleave):
+                result, _ = prepare_dataset(older, cache)
+            self.assertEqual(result, older_root)
+            self.assertEqual(json.loads((result / "example/episode.json").read_text()), EPISODE)
+            self.assertEqual(json.loads((newer_root / "example/episode.json").read_text())["version"], 2)
+
+    def test_simultaneous_downloads_publish_one_complete_recording(self):
+        from tasks.libs.anomalydetection.datasets import _extract
+
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            dataset = self.dataset(directory)
+            both_extracted = Barrier(2)
+
+            def extract(*args):
+                _extract(*args)
+                both_extracted.wait(timeout=5)
+
+            with (
+                patch("tasks.libs.anomalydetection.datasets._extract", side_effect=extract),
+                ThreadPoolExecutor(max_workers=2) as workers,
+            ):
+                futures = [workers.submit(prepare_dataset, dataset, directory / "cache") for _ in range(2)]
+                results = [future.result(timeout=10) for future in futures]
+            self.assertEqual(results[0], results[1])
+            root, names = results[0]
+            self.assertEqual(names, ["example"])
+            self.assertEqual(json.loads((root / "example/episode.json").read_text()), EPISODE)
+            self.assertEqual(
+                (root / "example/parquet/observer-metrics-1.parquet").read_bytes(), b"original parquet bytes"
+            )
 
     def test_rejects_bad_checksum_without_destroying_existing_cache(self):
         with tempfile.TemporaryDirectory() as temporary:

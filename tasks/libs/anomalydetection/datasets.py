@@ -1,5 +1,6 @@
 """Read current LLMObs datasets and stage their original recordings for local replay."""
 
+import errno
 import hashlib
 import json
 import os
@@ -163,14 +164,35 @@ def _extract(archive_path, destination, episode_member):
                 shutil.copyfileobj(source, target)
 
 
+def _cached_recording(target, identity):
+    try:
+        return (
+            json.loads((target / "recording.json").read_text()) == identity
+            and (target / "episode.json").is_file()
+            and any((target / "parquet").glob("*.parquet"))
+        )
+    except (OSError, ValueError):
+        return False
+
+
+def _publish_directory(staged, target):
+    """Publish a complete directory, or reuse one another invocation published."""
+    try:
+        staged.rename(target)
+    except OSError as error:
+        if error.errno not in {errno.EEXIST, errno.ENOTEMPTY} or not target.is_dir():
+            raise
+
+
 def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
     """Stage selected dataset rows without changing recording bytes or episode labels."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", str(dataset["id"])):
         raise ValueError("Invalid dataset ID")
     root = Path(scenarios_dir) / ".llmobs" / dataset["id"]
-    root.mkdir(parents=True, exist_ok=True)
+    cache = root / ".recordings"
+    cache.mkdir(parents=True, exist_ok=True)
     selected = []
-    identities = []
+    recordings = {}
     requested = {name.strip() for name in scenario.split(",") if name.strip()}
     for record in dataset["records"]:
         attrs = record.get("attributes", record)
@@ -193,20 +215,11 @@ def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
         if not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise ValueError(f"{name}: recording.sha256 is required")
         identity = {"sha256": digest, "episode_member": spec.get("episode_member")}
-        target = root / name
-        marker = target / "recording.json"
-        try:
-            cached = (
-                marker.is_file()
-                and json.loads(marker.read_text()) == identity
-                and (target / "episode.json").is_file()
-                and any((target / "parquet").glob("*.parquet"))
-            )
-        except (OSError, ValueError):
-            cached = False
-        if not cached:
+        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        target = cache / key
+        if not _cached_recording(target, identity):
             print(f"Downloading {name}…", flush=True)
-            with tempfile.TemporaryDirectory(dir=root, prefix=".download-") as temporary:
+            with tempfile.TemporaryDirectory(dir=cache, prefix=".download-") as temporary:
                 staged = Path(temporary)
                 archive = staged / "recording.zip"
                 _download(spec.get("uri", ""), archive, aws_profile)
@@ -216,19 +229,21 @@ def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
                 extracted.mkdir()
                 _extract(archive, extracted, spec.get("episode_member"))
                 (extracted / "recording.json").write_text(json.dumps(identity))
-                if target.exists():
-                    shutil.rmtree(target)
-                extracted.rename(target)
+                _publish_directory(extracted, target)
+                if not _cached_recording(target, identity):
+                    raise ValueError(f"Incomplete recording cache at {target}; remove it and retry")
         selected.append(name)
-        identities.append((name, identity))
+        recordings[name] = target
     if requested - set(selected):
         raise ValueError(f"Scenarios not found in dataset: {', '.join(sorted(requested - set(selected)))}")
     if not selected:
         raise ValueError(f"No matching scenarios in dataset {dataset['name']!r}")
-    # The cache can contain older/filtered recordings. Expose only this selection,
-    # using hard links so large Parquet files are not copied. Including checksums
-    # keeps existing replay/inspect paths stable when the dataset changes.
-    selection = hashlib.sha256(json.dumps(sorted(identities), sort_keys=True).encode()).hexdigest()
+    # Link only the requested recordings, whose checksum-specific paths never
+    # change beneath another invocation. This key also bypasses older cache views
+    # built from replaceable scenario-name directories.
+    selection = hashlib.sha256(
+        json.dumps([(name, path.name) for name, path in sorted(recordings.items())]).encode()
+    ).hexdigest()
     views = root / ".selections"
     views.mkdir(exist_ok=True)
     replay_root = views / selection
@@ -237,9 +252,6 @@ def prepare_dataset(dataset, scenarios_dir, *, scenario="", aws_profile=""):
             staged = Path(temporary) / "scenarios"
             staged.mkdir()
             for name in selected:
-                shutil.copytree(root / name, staged / name, copy_function=os.link)
-            try:
-                staged.rename(replay_root)
-            except FileExistsError:
-                pass  # Another invocation prepared the same immutable selection.
+                shutil.copytree(recordings[name], staged / name, copy_function=os.link)
+            _publish_directory(staged, replay_root)
     return replay_root, selected
