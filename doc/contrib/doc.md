@@ -50,11 +50,11 @@ Use the [topic directory](../topic.md) and links between topic overviews to conn
 
 Architecture, Implementation, and Development workflow are peer navigation roots. Entering a root shows that collection's subject tabs and sidebars. Home and Contributing use ordinary sidebars.
 
-Expand existing collections with topics and nested sidebar sections before adding another root. A new root should serve a substantial collection that needs its own tabs, with an Overview landing page and a clear return route to the main docs. Nested roots are not supported. See the [navigation roots reference](../dev/tool/doc.md#navigation-roots) for configuration and behavior.
+Expand existing collections with topics and nested sidebar sections before adding another root. A new root should serve a substantial collection that needs its own tabs, with a landing page and a clear return route to the main docs. Name the first tab after the root and link it to its landing page. Nested roots are not supported. See the [navigation roots reference](../dev/tool/doc.md#navigation-roots) for configuration and behavior.
 
 ### Directories and URLs
 
-Make tabs and sidebar sections correspond to directories so the filesystem generally follows the site navigation. The first tab of the main site or a navigation root is the exception: keep its pages directly in the containing directory, without an extra Home or Overview directory. Use `index.md` for a landing page.
+Make tabs and sidebar sections correspond to directories so the filesystem generally follows the site navigation. The first tab of the main site or a navigation root is the exception: keep its pages directly in the containing directory. Use `index.md` for a landing page.
 
 Keep directory names and Markdown filenames short yet meaningful. Use lowercase names with hyphens instead of underscores, and prefer singular words: `test.md` rather than `tests.md`, or `optional-dependency.md` rather than `optional_dependencies.md`. Let the containing directory supply context instead of repeating it in every filename. For example, the component testing tutorial lives at `impl/framework/component/tutorial/test.md`.
 
