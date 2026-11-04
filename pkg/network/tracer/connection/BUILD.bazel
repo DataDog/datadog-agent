@@ -181,6 +181,7 @@ go_library(
 dd_agent_go_test(
     name = "connection_test",
     srcs = [
+        "cookie_test.go",
         "darwin_composite_tracer_test.go",
         "darwin_packet_analyzer_test.go",
         "darwin_packet_sidecar_test.go",
@@ -206,6 +207,7 @@ dd_agent_go_test(
             "//pkg/process/util",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@com_github_twmb_murmur3//:murmur3",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
@@ -222,6 +224,7 @@ dd_agent_go_test(
             "@com_github_prometheus_client_golang//prometheus",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@com_github_twmb_murmur3//:murmur3",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
@@ -238,6 +241,7 @@ dd_agent_go_test(
             "@com_github_prometheus_client_golang//prometheus",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@com_github_twmb_murmur3//:murmur3",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
@@ -246,6 +250,7 @@ dd_agent_go_test(
             "//pkg/process/util",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@com_github_twmb_murmur3//:murmur3",
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],

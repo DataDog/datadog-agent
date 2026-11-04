@@ -23,7 +23,7 @@ import (
 
 func (d *directSender) encodeConnection(
 	builder *model.ConnectionBuilder,
-	nc network.ConnectionStats,
+	nc *network.ConnectionStats,
 	conns *network.Connections,
 	routeSet *indexedset.IndexedSet[network.Via],
 	resolvConfSet *indexedset.IndexedSet[network.ResolvConf],
@@ -88,8 +88,8 @@ func (d *directSender) encodeConnection(
 func (d *directSender) encodeDNS(connsChunk []network.ConnectionStats, conns *network.Connections, dnsEncoder model.DNSEncoderV2, builder *model.CollectorConnectionsBuilder) (*indexedset.IndexedSet[dns.Hostname], []int32) {
 	dnsCount := 0
 	dnsHostnameCount := 0
-	for _, nc := range connsChunk {
-		if dnsHostnames, ok := conns.DNS[nc.Dest]; ok {
+	for i := range connsChunk {
+		if dnsHostnames, ok := conns.DNS[connsChunk[i].Dest]; ok {
 			dnsCount++
 			dnsHostnameCount += len(dnsHostnames)
 		}
@@ -100,7 +100,8 @@ func (d *directSender) encodeDNS(connsChunk []network.ConnectionStats, conns *ne
 	dnsForBatch := make(map[string]*model.DNSDatabaseEntry, dnsCount)
 	// completely populate dns set ahead of time
 	dnsSet := indexedset.New[dns.Hostname](dnsHostnameCount)
-	for _, nc := range connsChunk {
+	for i := range connsChunk {
+		nc := &connsChunk[i]
 		destIP := unique.Make(nc.Dest.Addr.String()).Value()
 		// create unique DNSDatabaseEntry values
 		if dnsHostnames, ok := conns.DNS[nc.Dest]; ok {
@@ -141,14 +142,15 @@ func (d *directSender) encodeDNS(connsChunk []network.ConnectionStats, conns *ne
 
 func (d *directSender) encodeContainerForPID(connsChunk []network.ConnectionStats, builder *model.CollectorConnectionsBuilder) {
 	cidCount := 0
-	for _, conn := range connsChunk {
-		if conn.ContainerID.Source != nil {
+	for i := range connsChunk {
+		if connsChunk[i].ContainerID.Source != nil {
 			cidCount++
 		}
 	}
 	// cidCount is an upper bound on the number of PIDs written
 	writtenPids := make(map[uint32]struct{}, cidCount)
-	for _, conn := range connsChunk {
+	for i := range connsChunk {
+		conn := &connsChunk[i]
 		// the PID's own container, not the one a reattributed socket was moved to
 		cid := conn.ContainerID.Source
 		if conn.NetNSOriginalContainerID != nil {

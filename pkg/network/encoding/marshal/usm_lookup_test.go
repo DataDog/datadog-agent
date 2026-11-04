@@ -40,7 +40,7 @@ func TestUSMLookup(t *testing.T) {
 			SPort:  60000,
 			DPort:  80,
 		}}
-		assert.Equal(t, val, USMLookup(c1, data))
+		assert.Equal(t, val, USMLookup(&c1, data))
 
 		c2 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("2.2.2.2"),
@@ -48,7 +48,7 @@ func TestUSMLookup(t *testing.T) {
 			SPort:  80,
 			DPort:  60000,
 		}}
-		assert.Equal(t, val, USMLookup(c2, data))
+		assert.Equal(t, val, USMLookup(&c2, data))
 	})
 
 	t.Run("with NAT", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestUSMLookup(t *testing.T) {
 				ReplDstPort: 8080,
 			},
 		}
-		assert.Equal(t, val, USMLookup(c1, data))
+		assert.Equal(t, val, USMLookup(&c1, data))
 
 		c2 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("2.2.2.2"),
@@ -92,6 +92,6 @@ func TestUSMLookup(t *testing.T) {
 				ReplDstPort: 50000,
 			},
 		}
-		assert.Equal(t, val, USMLookup(c2, data))
+		assert.Equal(t, val, USMLookup(&c2, data))
 	})
 }

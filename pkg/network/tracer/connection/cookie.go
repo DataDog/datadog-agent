@@ -10,36 +10,23 @@ package connection
 
 import (
 	"encoding/binary"
-	"hash"
 
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type cookieHasher struct {
-	hash hash.Hash64
-	buf  []byte
+	// big-endian cookie followed by the connection byte key
+	buf [8 + network.ConnectionByteKeyMaxLen]byte
 }
 
 func newCookieHasher() *cookieHasher {
-	return &cookieHasher{
-		hash: murmur3.New64(),
-		buf:  make([]byte, network.ConnectionByteKeyMaxLen),
-	}
+	return &cookieHasher{}
 }
 
 func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
-	h.hash.Reset()
-	if err := binary.Write(h.hash, binary.BigEndian, stats.Cookie); err != nil {
-		log.Errorf("error writing cookie to hash: %s", err)
-		return
-	}
-	key := stats.ByteKey(h.buf)
-	if _, err := h.hash.Write(key); err != nil {
-		log.Errorf("error writing byte key to hash: %s", err)
-		return
-	}
-	stats.Cookie = h.hash.Sum64()
+	binary.BigEndian.PutUint64(h.buf[:8], stats.Cookie)
+	key := stats.ByteKey(h.buf[8:])
+	stats.Cookie = murmur3.Sum64(h.buf[:8+len(key)])
 }

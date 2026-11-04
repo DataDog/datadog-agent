@@ -39,14 +39,14 @@ func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStats) *redisEnco
 	}
 }
 
-func (e *redisEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+func (e *redisEncoder) EncodeConnection(c *network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
 	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
 		staticTags = e.encodeData(c, b)
 	})
 	return
 }
 
-func (e *redisEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64 {
+func (e *redisEncoder) encodeData(c *network.ConnectionStats, w io.Writer) uint64 {
 	if e == nil {
 		return 0
 	}
