@@ -1,0 +1,13 @@
+description: "Descending numeric range (e.g. 4,2) is treated as a one-line range."
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\nc\nd\ne\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '4,2p' input.txt
+expect:
+  stdout: "d\n"
+  stderr: ""
+  exit_code: 0

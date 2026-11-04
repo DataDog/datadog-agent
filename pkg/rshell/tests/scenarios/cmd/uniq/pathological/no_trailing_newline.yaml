@@ -1,0 +1,14 @@
+description: uniq on a file whose last line has no trailing newline still produces correct output with a trailing newline (GNU uniq normalizes line endings).
+setup:
+  files:
+    - path: file.txt
+      content: "apple\nbanana"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq file.txt
+expect:
+  stdout: "apple\nbanana\n"
+  stderr: ""
+  exit_code: 0

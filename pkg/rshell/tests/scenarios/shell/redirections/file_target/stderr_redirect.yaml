@@ -1,0 +1,12 @@
+description: In remediation mode, 2> redirects stderr to a file; >&2 after 2> routes stdout there too.
+input:
+  script: |+
+    echo captured 2>err.txt >&2
+    cat err.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    captured
+  stderr: |+
+  exit_code: 0

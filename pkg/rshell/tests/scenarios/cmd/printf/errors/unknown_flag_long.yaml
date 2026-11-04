@@ -1,0 +1,8 @@
+description: Printf rejects unknown long flag --follow with exit 2.
+input:
+  script: |+
+    printf --follow "%s" hello
+expect:
+  stdout: ""
+  stderr_contains: ["invalid option"]
+  exit_code: 2

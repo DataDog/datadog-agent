@@ -1,0 +1,24 @@
+# vuln-hunt 2026-05-18-initial-audit / interp-redirect-handling.
+# stmtSync (interp/runner_exec.go:35-56) snapshots stdin/stdout/stderr
+# before applying redirects and unconditionally restores them at the end of
+# the statement, so a failed redirect must not leak FDs into the following
+# statement. This scenario exercises both halves of that contract: the
+# first cat reads from a file outside AllowedPaths (rejected at sandbox),
+# and the second cat reads cleanly from a file that IS in AllowedPaths.
+# A regression that left the first cat's pipe attached to r.stdin would
+# make the second cat read empty / wrong content.
+description: A failed input redirect must not leak state into the next statement.
+setup:
+  files:
+    - path: ok.txt
+      content: "ok-payload"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat </etc/passwd
+    cat <ok.txt
+expect:
+  stdout: "ok-payload"
+  exit_code: 0
+  stderr_contains: ["passwd"]
+skip_assert_against_bash: true

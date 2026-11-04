@@ -1,0 +1,13 @@
+description: uniq rejects negative overflow for --skip-fields.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --skip-fields=-999999999999999999999 input.txt
+expect:
+  stdout: ""
+  stderr: "uniq: -999999999999999999999: invalid number of fields to skip\n"
+  exit_code: 1

@@ -1,0 +1,16 @@
+description: sha256sum cannot read file operands outside AllowedPaths.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: secret
+      content: "secret"
+    - path: allowed/placeholder
+      content: "allowed"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    sha256sum secret
+expect:
+  stdout: |+
+  stderr_contains: ["permission denied"]
+  exit_code: 1

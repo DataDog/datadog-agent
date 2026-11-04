@@ -1,0 +1,22 @@
+description: find -prune with multiple prune targets.
+setup:
+  files:
+    - path: dir/skip1/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/skip2/b.txt
+      content: "b"
+      chmod: 0644
+    - path: dir/keep/c.txt
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir '(' -name skip1 -o -name skip2 ')' -prune -o -type f -print
+expect:
+  stdout: |+
+    dir/keep/c.txt
+  stderr: ""
+  exit_code: 0
+skip_assert_against_bash: true
