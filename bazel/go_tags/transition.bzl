@@ -51,8 +51,8 @@ _STDLIB_TAGS = [
     "tools",
 ]
 
-_KEPT = {t: None for t in _STDLIB_TAGS}
-_UNIVERSE = {t: None for t in TAG_UNIVERSE}
+_KEPT = set(_STDLIB_TAGS)
+_UNIVERSE = set(TAG_UNIVERSE)
 
 def _go_library_tags_transition_impl(settings, attr):
     tags = settings[_TAGS]
@@ -68,7 +68,7 @@ def _go_library_tags_transition_impl(settings, attr):
         _TAGS: projected,
         # non_go_transition restores `before` on cdeps and data. Leaving it unset when nothing
         # changed lets tag-free libraries share the command-line configuration.
-        _ORIGINAL_TAGS: "" if sorted(projected) == sorted(before) else json.encode(before),
+        _ORIGINAL_TAGS: "" if set(projected) == set(before) else json.encode(before),
     }
 
 go_library_tags_transition = transition(
