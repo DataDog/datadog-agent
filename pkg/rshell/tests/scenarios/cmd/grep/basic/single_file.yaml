@@ -1,0 +1,18 @@
+description: grep matches a pattern in a single file.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        apple
+        banana
+        cherry
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep banana file.txt
+expect:
+  stdout: |+
+    banana
+  stderr: ""
+  exit_code: 0

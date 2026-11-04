@@ -1,0 +1,13 @@
+description: wc -w counts 2 words on a line with two tokens.
+setup:
+  files:
+    - path: file.txt
+      content: "x y\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -w file.txt
+expect:
+  stdout: "2 file.txt\n"
+  stderr: ""
+  exit_code: 0

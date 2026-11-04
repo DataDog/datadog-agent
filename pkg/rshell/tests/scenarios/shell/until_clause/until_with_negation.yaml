@@ -1,0 +1,14 @@
+description: until loop with a negated condition iterates until the negated predicate is true.
+input:
+  script: |+
+    i=
+    until ! [ "$i" != aa ]; do
+      i="${i}a"
+      echo "$i"
+    done
+expect:
+  stdout: |+
+    a
+    aa
+  stderr: |+
+  exit_code: 0

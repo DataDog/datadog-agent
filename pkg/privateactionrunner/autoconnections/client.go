@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -40,7 +41,7 @@ type ConnectionsClient struct {
 }
 
 func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
-	baseUrl := "https://api." + ddSite
+	baseUrl := par.APIBaseURL(cfg, ddSite)
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	httpClient := &http.Client{

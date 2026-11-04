@@ -1,0 +1,10 @@
+description: If condition using a pipeline.
+input:
+  script: |+
+    if echo hello | cat; then echo yes; fi
+expect:
+  stdout: |+
+    hello
+    yes
+  stderr: ""
+  exit_code: 0

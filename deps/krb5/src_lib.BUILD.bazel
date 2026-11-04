@@ -1,0 +1,392 @@
+load("@@//deps/krb5:krb5_codegen.bzl", "krb5_compile_et")
+load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
+load("@@//deps/krb5:krb5_library.bzl", "krb5_shared_library")
+load("@@//deps/krb5:krb5_tests.bzl", "krb5_c_tests")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = [
+        "//:__subpackages__",
+        "@@//deps/krb5:__pkg__",
+    ],
+)
+
+# libgssrpc (lib/rpc): ONC RPC over GSS-API, used by kadmin.
+krb5_shared_library(
+    name = "gssrpc",
+    srcs = [
+        "rpc/auth_gss.c",
+        "rpc/auth_gssapi.c",
+        "rpc/auth_gssapi_misc.c",
+        "rpc/auth_none.c",
+        "rpc/auth_unix.c",
+        "rpc/authgss_prot.c",
+        "rpc/authunix_prot.c",
+        "rpc/bindresvport.c",
+        "rpc/clnt_generic.c",
+        "rpc/clnt_perror.c",
+        "rpc/clnt_raw.c",
+        "rpc/clnt_simple.c",
+        "rpc/clnt_tcp.c",
+        "rpc/clnt_udp.c",
+        "rpc/dyn.c",
+        "rpc/dyn.h",
+        "rpc/dynP.h",
+        "rpc/get_myaddress.c",
+        "rpc/getrpcport.c",
+        "rpc/gssrpcint.h",
+        "rpc/pmap_clnt.c",
+        "rpc/pmap_getmaps.c",
+        "rpc/pmap_getport.c",
+        "rpc/pmap_prot.c",
+        "rpc/pmap_prot2.c",
+        "rpc/pmap_rmt.c",
+        "rpc/rpc_callmsg.c",
+        "rpc/rpc_commondata.c",
+        "rpc/rpc_dtablesize.c",
+        "rpc/rpc_prot.c",
+        "rpc/svc.c",
+        "rpc/svc_auth.c",
+        "rpc/svc_auth_gss.c",
+        "rpc/svc_auth_gssapi.c",
+        "rpc/svc_auth_none.c",
+        "rpc/svc_auth_unix.c",
+        "rpc/svc_raw.c",
+        "rpc/svc_run.c",
+        "rpc/svc_simple.c",
+        "rpc/svc_tcp.c",
+        "rpc/svc_udp.c",
+        "rpc/xdr.c",
+        "rpc/xdr_alloc.c",
+        "rpc/xdr_array.c",
+        "rpc/xdr_float.c",
+        "rpc/xdr_mem.c",
+        "rpc/xdr_rec.c",
+        "rpc/xdr_reference.c",
+        "rpc/xdr_sizeof.c",
+        "rpc/xdr_stdio.c",
+    ],
+    dynamic_deps = [
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/gssapi:gssapi_krb5_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    local_defines = [
+        "DEBUG_GSSAPI=0",
+        "GSSAPI_KRB5",
+        "GSSRPC__IMPL",
+    ],
+    version = "4.2",
+    exports = "rpc/libgssrpc.exports",
+    deps = [
+        "//:gssrpc_h",
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/gssapi:gssapi_krb5_h",
+        "//src/lib/gssapi:gssapi_krb5_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+    ],
+)
+
+krb5_compile_et(
+    name = "adb_err",
+    src = "kdb/adb_err.et",
+    out_c = "kdb/adb_err.c",
+    out_h = "kdb/adb_err.h",
+)
+
+cc_library(
+    name = "kdb_private_h",
+    hdrs = glob(["kdb/*.h"]) + ["kdb/adb_err.h"],
+    includes = ["kdb"],
+)
+
+# libkdb5 (lib/kdb): KDC database interface.
+krb5_shared_library(
+    name = "kdb5",
+    srcs = [
+        "kdb/decrypt_key.c",
+        "kdb/encrypt_key.c",
+        "kdb/iprop_xdr.c",
+        "kdb/kdb5.c",
+        "kdb/kdb_convert.c",
+        "kdb/kdb_cpw.c",
+        "kdb/kdb_default.c",
+        "kdb/kdb_log.c",
+        "kdb/keytab.c",
+        ":adb_err",
+    ],
+    dynamic_deps = [
+        ":gssrpc_pkg",
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    implementation_deps = [":kdb_private_h"],
+    linkopts = ["-ldl"],
+    local_defines = ["KDB5_USE_LIB_KDB_DB2"],
+    version = "10.0",
+    exports = "kdb/libkdb5.exports",
+    deps = [
+        ":gssrpc_lib",
+        "//:gssrpc_h",
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+)
+
+krb5_compile_et(
+    name = "kadm_err",
+    src = "kadm5/kadm_err.et",
+    out_c = "kadm5/kadm_err.c",
+    out_h = "kadm5/kadm_err.h",
+)
+
+krb5_compile_et(
+    name = "chpass_util_strings",
+    src = "kadm5/chpass_util_strings.et",
+    out_c = "kadm5/chpass_util_strings.c",
+    out_h = "kadm5/chpass_util_strings.h",
+)
+
+cc_library(
+    name = "kadm5_h",
+    hdrs = [
+        "kadm5/admin.h",
+        "kadm5/admin_internal.h",
+        "kadm5/admin_xdr.h",
+        "kadm5/chpass_util_strings.h",
+        "kadm5/kadm_err.h",
+        "kadm5/kadm_rpc.h",
+        "kadm5/server_internal.h",
+    ],
+    include_prefix = "kadm5",
+    strip_include_prefix = "kadm5",
+)
+
+cc_library(
+    name = "kadm5_private_h",
+    hdrs = [
+        "kadm5/admin.h",
+        "kadm5/admin_internal.h",
+        "kadm5/admin_xdr.h",
+        "kadm5/chpass_util_strings.h",
+        "kadm5/clnt/client_internal.h",
+        "kadm5/kadm_err.h",
+        "kadm5/kadm_rpc.h",
+        "kadm5/server_internal.h",
+    ],
+    includes = [
+        "kadm5",
+        "kadm5/clnt",
+    ],
+)
+
+# Objects of lib/kadm5 that upstream links into both kadm5 libraries.
+cc_library(
+    name = "kadm5_common",
+    srcs = [
+        "kadm5/alt_prof.c",
+        "kadm5/chpass_util.c",
+        "kadm5/kadm_rpc_xdr.c",
+        "kadm5/logger.c",
+        "kadm5/misc_free.c",
+        "kadm5/str_conv.c",
+        ":chpass_util_strings",
+        ":kadm_err",
+    ],
+    copts = KRB5_COPTS,
+    implementation_deps = [":kadm5_private_h"],
+    local_defines = KRB5_LOCAL_DEFINES,
+    tags = ["LINKABLE_MORE_THAN_ONCE"],
+    deps = [
+        ":gssrpc_lib",
+        ":kadm5_h",
+        "//:gssrpc_h",
+        "//:include",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+    alwayslink = True,
+)
+
+pkg_mklink(
+    name = "kadm5clnt_link",
+    link_name = "embedded/lib/libkadm5clnt.so",
+    target = "libkadm5clnt_mit.so",
+)
+
+pkg_filegroup(
+    name = "kadm5clnt_link_files",
+    srcs = [":kadm5clnt_link"],
+)
+
+# libkadm5clnt_mit (lib/kadm5/clnt): kadmin client library, also installed as libkadm5clnt.so.
+krb5_shared_library(
+    name = "kadm5clnt_mit",
+    srcs = [
+        "kadm5/clnt/client_init.c",
+        "kadm5/clnt/client_principal.c",
+        "kadm5/clnt/client_rpc.c",
+        "kadm5/clnt/clnt_chpass_util.c",
+        "kadm5/clnt/clnt_policy.c",
+        "kadm5/clnt/clnt_privs.c",
+    ],
+    dynamic_deps = [
+        ":gssrpc_pkg",
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/gssapi:gssapi_krb5_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    implementation_deps = [":kadm5_private_h"],
+    pkg_data = [":kadm5clnt_link_files"],
+    version = "12.0",
+    exports = "kadm5/clnt/libkadm5clnt_mit.exports",
+    deps = [
+        ":gssrpc_lib",
+        ":kadm5_common",
+        ":kadm5_h",
+        "//:gssrpc_h",
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/gssapi:gssapi_krb5_h",
+        "//src/lib/gssapi:gssapi_krb5_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+)
+
+pkg_mklink(
+    name = "kadm5srv_link",
+    link_name = "embedded/lib/libkadm5srv.so",
+    target = "libkadm5srv_mit.so",
+)
+
+pkg_filegroup(
+    name = "kadm5srv_link_files",
+    srcs = [":kadm5srv_link"],
+)
+
+# libkadm5srv_mit (lib/kadm5/srv): kadmin server library, also installed as libkadm5srv.so.
+krb5_shared_library(
+    name = "kadm5srv_mit",
+    srcs = [
+        "kadm5/srv/adb_xdr.c",
+        "kadm5/srv/kadm5_hook.c",
+        "kadm5/srv/pwqual.c",
+        "kadm5/srv/pwqual_dict.c",
+        "kadm5/srv/pwqual_empty.c",
+        "kadm5/srv/pwqual_hesiod.c",
+        "kadm5/srv/pwqual_princ.c",
+        "kadm5/srv/server_init.c",
+        "kadm5/srv/server_kdb.c",
+        "kadm5/srv/server_misc.c",
+        "kadm5/srv/svr_chpass_util.c",
+        "kadm5/srv/svr_iters.c",
+        "kadm5/srv/svr_policy.c",
+        "kadm5/srv/svr_principal.c",
+    ],
+    dynamic_deps = [
+        ":gssrpc_pkg",
+        ":kdb5_pkg",
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/gssapi:gssapi_krb5_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    implementation_deps = [
+        ":kadm5_private_h",
+        ":kdb_private_h",
+        "//src/lib/gssapi:gssapi_private_h",
+    ],
+    linkopts = ["-ldl"],
+    pkg_data = [":kadm5srv_link_files"],
+    version = "12.0",
+    exports = "kadm5/srv/libkadm5srv_mit.exports",
+    deps = [
+        ":gssrpc_lib",
+        ":kadm5_common",
+        ":kadm5_h",
+        ":kdb5_lib",
+        "//:gssrpc_h",
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/gssapi:gssapi_krb5_h",
+        "//src/lib/gssapi:gssapi_krb5_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+)
+
+# libkrad (lib/krad): RADIUS client, used by the otp plugin.
+krb5_shared_library(
+    name = "krad",
+    srcs = [
+        "krad/attr.c",
+        "krad/attrset.c",
+        "krad/client.c",
+        "krad/code.c",
+        "krad/internal.h",
+        "krad/packet.c",
+        "krad/remote.c",
+    ],
+    dynamic_deps = [
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+        "//src/util:verto_pkg",
+    ],
+    version = "0.0",
+    exports = "krad/libkrad.exports",
+    deps = [
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+        "//src/util:verto_lib",
+    ],
+)
+
+pkg_files(
+    name = "kadm5_hdr_files",
+    srcs = [
+        "kadm5/admin.h",
+        "kadm5/chpass_util_strings.h",
+        "kadm5/kadm_err.h",
+    ],
+    prefix = "embedded/include/kadm5",
+)
+
+krb5_c_tests(
+    name = "krad_tests",
+    srcs = [
+        "krad/t_attr.c",
+        "krad/t_attrset.c",
+        "krad/t_code.c",
+    ],
+    copts = KRB5_COPTS,
+    local_defines = KRB5_LOCAL_DEFINES,
+    support_srcs = [
+        "krad/internal.h",
+        "krad/t_test.c",
+        "krad/t_test.h",
+    ],
+    deps = [":krad_lib"],
+)

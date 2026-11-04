@@ -1,0 +1,14 @@
+description: Cut selects specific fields and field ranges with a delimiter.
+setup:
+  files:
+    - path: input.txt
+      content: "a:b:c\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f1,3- input.txt
+expect:
+  stdout: "a:c\n"
+  stderr: ""
+  exit_code: 0

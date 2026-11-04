@@ -1,0 +1,14 @@
+description: Until loop's exit status is the exit status of the last command in the last body iteration.
+input:
+  script: |+
+    i=
+    until [ "$i" = aa ]; do
+      i="${i}a"
+      false
+    done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=1
+  stderr: |+
+  exit_code: 0

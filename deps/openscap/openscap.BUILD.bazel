@@ -182,6 +182,9 @@ COMMON_INCLUDE_DIRS = [
 
 COMMON_DEFINES = [
     "HAVE_CONFIG_H",
+    # OpenSCAP's CMakeLists.txt sets RBT_IMPLICIT_LOCKING. It locks the
+    # red-black trees that probe threads share.
+    "RBT_IMPLICIT_LOCKING=1",
     "_GNU_SOURCE",
 ]
 

@@ -8,7 +8,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.git import get_commit_sha, get_current_branch
@@ -34,7 +34,7 @@ def build(
     rebuild=False,
     go_mod="readonly",
     static=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     no_strip_binary=False,
     arch_suffix=False,
     injector_only=False,
@@ -50,13 +50,14 @@ def build(
     if enable_bazel:
         if arch_suffix:
             raise NotImplementedError("--enable-bazel does not support --arch-suffix.")
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
         target = (
             "//cmd/cws-instrumentation:cws-instrumentation-injector_only"
             if injector_only
             else "//cmd/cws-instrumentation:cws-instrumentation"
         )
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(target, args=bazel_args, bin_path=BIN_PATH)
+        build_binary_with_bazel(target, bin_path=BIN_PATH)
         return
 
     if build_tags is None:
@@ -74,9 +75,7 @@ def build(
     }
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="cws-instrumentation", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    build_tags += get_default_build_tags(build="cws-instrumentation", flavor=fips_backend.agent_flavor())
 
     if injector_only:
         build_tags.append("cws_instrumentation_injector_only")
@@ -101,6 +100,7 @@ def build(
         bin_path=agent_bin,
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        fips_backend=fips_backend,
     )
 
 

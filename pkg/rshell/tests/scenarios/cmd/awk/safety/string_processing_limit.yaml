@@ -1,0 +1,11 @@
+# skip: rshell intentionally bounds aggregate evaluated-string work.
+skip_assert_against_bash: true
+description: awk bounds aggregate string processing across repeated calls.
+input:
+  script: |+
+    awk 'BEGIN { printf "%1048576s", "" }' | awk '{ for (;;) toupper($0) }'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: string processing limit exceeded (maximum 67108864 bytes)
+  exit_code: 1

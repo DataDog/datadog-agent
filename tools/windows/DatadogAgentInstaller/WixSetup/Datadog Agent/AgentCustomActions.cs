@@ -554,6 +554,7 @@ namespace WixSetup.Datadog_Agent
                            "SITE=[SITE]," +
                            "DD_LOG_LEVEL=[DD_LOG_LEVEL]," +
                            "DD_ENV=[DD_ENV]," +
+                           "DD_SYSTEM_PROBE_NETWORK_ENABLED=[DD_SYSTEM_PROBE_NETWORK_ENABLED]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +

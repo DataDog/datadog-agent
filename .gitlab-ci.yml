@@ -115,6 +115,8 @@
 
 # Windows-specific e2e tests
 .windows_path_3: &windows_path_3
+  - pkg/rshell/**/*
+  - test/new-e2e/tests/privateactionrunner/**/*
   - test/new-e2e/tests/fleet/**/* # cross platform tests
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
@@ -377,7 +379,7 @@ variables:
   # End vault variables
 
   # POSIX only (Linux and macOS): Windows jobs override this in .windows_docker_default
-  DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: ci-identities-gitlab-job-client secrets read feature-flags-client token
+  DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: tools/ci/read_ci_secret.sh feature-flags-client token
 
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"

@@ -1,0 +1,16 @@
+description: break inside an else-branch exits the enclosing until loop.
+input:
+  script: |+
+    until false; do
+      if false; then
+        :
+      else
+        break
+      fi
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: |+
+  exit_code: 0

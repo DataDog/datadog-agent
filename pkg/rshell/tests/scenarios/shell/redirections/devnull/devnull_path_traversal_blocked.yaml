@@ -1,0 +1,11 @@
+# skip: redirect restrictions are an rshell-specific security feature
+skip_assert_against_bash: true
+description: Path traversal via /dev/null/../../etc is blocked (not literal /dev/null).
+input:
+  script: |+
+    echo hello > /dev/null/../../../tmp/evil
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2
