@@ -207,7 +207,7 @@ func buildSNMPClient(ctx context.Context, host string, opts *connectivity.SNMPOp
 		Target:    host,
 		Port:      uint16(opts.Port),
 		Transport: "udp",
-		Timeout:   time.Duration(opts.TimeoutMs) * time.Millisecond,
+		Timeout:   time.Duration(opts.TimeoutSec) * time.Second,
 		Retries:   opts.Retries,
 	}
 
