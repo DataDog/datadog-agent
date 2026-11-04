@@ -263,7 +263,7 @@ The backend API is not final. The component uses the `routingClient` interface.
 Query, with the API key of the group. The query has no parameters:
 
 ```
-GET https://api.<site>/api/unstable/agent/intake-routing
+GET https://config.<site>/api/unstable/agent/intake-routing
 DD-API-KEY: <key>
 Accept: application/json
 User-Agent: datadog-agent/<version>
@@ -412,7 +412,7 @@ the logs agent restarts.
 To do an end-to-end test:
 
 1. Run a fake backend that answers the routing path, `/probe`, and `POST /api/v2/logs`.
-2. Send `api.datad0g.com` and an override host such as
+2. Send `config.datad0g.com` and an override host such as
    `acme.agent-http-intake.logs.datad0g.com` to the fake backend (with `/etc/hosts` or a proxy).
 3. Run the Agent with `site: datad0g.com`, `logs_config.force_use_http: true`,
    `skip_ssl_validation: true`, and `intake_routing: {enabled: true, refresh_interval: 1m}`.
