@@ -14,6 +14,11 @@ import (
 
 // Processing rule types
 const (
+	// ExcludeAtMatchOTTL drops messages for which the OTTL condition is true.
+	ExcludeAtMatchOTTL = "exclude_at_match_ottl"
+	// IncludeAtMatchOTTL keeps messages for which the OTTL condition is true.
+	IncludeAtMatchOTTL = "include_at_match_ottl"
+
 	ExcludeAtMatch   = "exclude_at_match"
 	IncludeAtMatch   = "include_at_match"
 	MaskSequences    = "mask_sequences"
@@ -37,6 +42,7 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
+	OTTLCondition      *OTTLCondition `mapstructure:"-" json:"-" yaml:"-"`
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
@@ -61,6 +67,13 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			_, err := regexp.Compile(rule.Pattern)
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
+			}
+		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
+			if _, err := compileOTTLCondition(rule.Pattern); err != nil {
+				return fmt.Errorf("invalid OTTL condition for processing rule %q: %w", rule.Name, err)
 			}
 		case ExcludeTruncated:
 			break
@@ -88,9 +101,17 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 	return nil
 }
 
-// CompileProcessingRules compiles all processing rule regular expressions.
+// CompileProcessingRules compiles processing rule regular expressions and OTTL conditions.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
+		if rule.Type == ExcludeAtMatchOTTL || rule.Type == IncludeAtMatchOTTL {
+			condition, err := compileOTTLCondition(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid OTTL condition for processing rule %q: %w", rule.Name, err)
+			}
+			rule.OTTLCondition = condition
+			continue
+		}
 		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
 			continue
 		}

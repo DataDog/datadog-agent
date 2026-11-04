@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add OTTL conditions for filtering JSON log messages with the
+    ``include_at_match_ottl`` and ``exclude_at_match_ottl`` processing rules.
+    Conditions can select nested JSON fields in global or source-level rules.

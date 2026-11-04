@@ -22,3 +22,14 @@ logs:
     service: iis-w3c
     source: iis
     auto_multi_line_detection: true
+  - type: file
+    path: '/var/log/e2e_test_logs/ottl.json'
+    service: ottl-filtering
+    source: custom_log
+    log_processing_rules:
+      - type: include_at_match_ottl
+        name: keep_production
+        pattern: 'attributes["env"] == "prod"'
+      - type: exclude_at_match_ottl
+        name: drop_health_checks
+        pattern: 'attributes["http"]["path"] == "/health" and attributes["http"]["status"] < 400'
