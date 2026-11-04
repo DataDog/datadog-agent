@@ -23,6 +23,7 @@ go_library(
 dd_agent_go_test(
     name = "stats_test",
     srcs = [
+        "otel_attr_shape_benchmark_test.go",
         "otel_benchmark_test.go",
         "otel_util_test.go",
     ],
