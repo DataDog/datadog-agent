@@ -105,6 +105,7 @@ dd_agent_go_test(
         "testdata/decoded/sample/testGenericPtrIdentity.json",
         "testdata/decoded/sample/testGenericSwap.json",
         "testdata/decoded/sample/testGenericWrapBox.json",
+        "testdata/decoded/sample/testHandleOrder.json",
         "testdata/decoded/sample/testInlinedBA.json",
         "testdata/decoded/sample/testInlinedBB.json",
         "testdata/decoded/sample/testInlinedBBA.json",
