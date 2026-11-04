@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Fix ``agent check`` and ``agent jmx`` stealing the running Agent's IPC unix socket
-    when ``agent_ipc.use_socket`` is enabled, which broke IPC consumers such as remote
-    shell and config sync until the Agent was restarted.
