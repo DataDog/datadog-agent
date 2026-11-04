@@ -78,16 +78,32 @@ static __always_inline u16 sk_buff_transport_header(struct sk_buff *skb) {
     return trans_head;
 }
 
+#ifdef COMPILE_CORE
+// Header field readers for a BTF-typed skb pointer: BPF_PROBE_MEM loads instead of probe reads.
+static __always_inline unsigned char* sk_buff_head_btf(struct sk_buff *skb) {
+    return skb->head;
+}
+
+static __always_inline u16 sk_buff_network_header_btf(struct sk_buff *skb) {
+    return skb->network_header;
+}
+
+static __always_inline u16 sk_buff_transport_header_btf(struct sk_buff *skb) {
+    return skb->transport_header;
+}
+#endif
+
 // Expects tup to be zeroed. Returns the data length of the skb or a negative value in case of an error.
 // With tcp_only set, non-TCP packets return 0 before the transport header is read.
-static __always_inline int __sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup, const bool tcp_only) {
-    unsigned char *head = sk_buff_head(skb);
+// With btf set, skb must be a BTF-typed pointer. The packet headers are still copied with probe reads.
+static __always_inline int __sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup, const bool tcp_only, const bool btf) {
+    unsigned char *head = BTF_OR_PROBE_READ(btf, sk_buff_head, skb);
     if (!head) {
         log_debug("ERR reading head");
         return -1;
     }
 
-    u16 net_head = sk_buff_network_header(skb);
+    u16 net_head = BTF_OR_PROBE_READ(btf, sk_buff_network_header, skb);
     if (!net_head) {
         log_debug("ERR reading network_header");
         return -1;
@@ -165,7 +181,7 @@ static __always_inline int __sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t 
         return 0;
     }
 
-    u16 trans_head = sk_buff_transport_header(skb);
+    u16 trans_head = BTF_OR_PROBE_READ(btf, sk_buff_transport_header, skb);
     if (!trans_head) {
         log_debug("ERR reading trans_head");
         return -1;
@@ -204,12 +220,19 @@ static __always_inline int __sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t 
 }
 
 static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
-    return __sk_buff_to_tuple(skb, tup, false);
+    return __sk_buff_to_tuple(skb, tup, false, false);
 }
 
 // TCP-only variant for callers that drop everything else.
 static __maybe_unused __always_inline int sk_buff_to_tcp_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
-    return __sk_buff_to_tuple(skb, tup, true);
+    return __sk_buff_to_tuple(skb, tup, true, false);
 }
+
+#ifdef COMPILE_CORE
+// sk_buff_to_tcp_tuple for a BTF-typed skb pointer.
+static __maybe_unused __always_inline int sk_buff_to_tcp_tuple_btf(struct sk_buff *skb, conn_tuple_t *tup) {
+    return __sk_buff_to_tuple(skb, tup, true, true);
+}
+#endif
 
 #endif
