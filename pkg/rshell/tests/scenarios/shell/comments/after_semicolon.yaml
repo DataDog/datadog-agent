@@ -1,0 +1,11 @@
+description: Comment after a semicolon separator is ignored.
+input:
+  script: |+
+    echo first; # comment after semicolon
+    echo second
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

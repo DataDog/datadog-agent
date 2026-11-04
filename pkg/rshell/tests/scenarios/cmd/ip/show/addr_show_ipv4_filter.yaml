@@ -1,0 +1,11 @@
+# ip -4 addr show - IPv4-only filter: verify only inet lines shown.
+# Uses no dev filter so it works cross-platform (lo on Linux, lo0 on macOS).
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip -4 addr show shows only IPv4 addresses (inet lines, no inet6)"
+input:
+  script: |+
+    ip -4 addr show
+expect:
+  stdout_contains: ["inet 127.0.0.1"]
+  exit_code: 0
+skip_assert_against_bash: true

@@ -80,6 +80,23 @@ func TestReaderRCEndpointFQDN(t *testing.T) {
 	}
 }
 
+func TestReaderIgnoresMetricsEndpoint(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	for _, endpoint := range []string{"https://app.us3.datadoghq.com", "https://metrics-proxy.example.com"} {
+		cfg := configmock.New(t)
+		cfg.SetInTest("api_key", "key")
+		cfg.SetInTest("site", "datadoghq.eu")
+		cfg.SetInTest("dd_url", endpoint)
+		cfg.SetInTest("remote_configuration.enabled", true)
+		rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
+		source := NewSource(cfg, rc)
+		require.True(t, source.Read(time.Now()).Ready)
+		require.Equal(t, "https://api.datadoghq.eu", enrollmentEndpoint(cfg))
+		cfg.SetInTest("dd_url", "https://another-metrics-proxy.example.com")
+		require.True(t, source.Read(time.Now()).Ready, "metrics routing changes must not affect PAR readiness")
+	}
+}
+
 func TestReaderFreezesLoopbackEndpoints(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "true")
 	cfg := configmock.New(t)

@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/benbjohnson/clock v1.3.5
-	github.com/cenkalti/backoff/v7 v7.0.1
+	github.com/cenkalti/backoff/v7 v7.0.2
 	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.12.1
 )
@@ -206,6 +206,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../pkg/remoteflags
+	github.com/DataDog/datadog-agent/pkg/rshell => ../../../pkg/rshell
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../pkg/serializer

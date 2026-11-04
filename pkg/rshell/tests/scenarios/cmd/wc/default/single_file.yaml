@@ -1,0 +1,13 @@
+description: wc with a single file shows lines words bytes and filename.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc file.txt
+expect:
+  stdout: " 2  2 11 file.txt\n"
+  stderr: ""
+  exit_code: 0

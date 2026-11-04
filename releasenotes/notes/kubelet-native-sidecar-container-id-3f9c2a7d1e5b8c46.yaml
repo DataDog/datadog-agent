@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Origin detection based on a pod UID and container name now finds the
+    container regardless of whether it is a regular, ephemeral or init
+    container, instead of relying on the init container flag to pick one.
+    This fixes missing ``container.id`` and container tags on OTLP data sent
+    from Kubernetes native sidecars (init containers with
+    ``restartPolicy: Always``). The ``datadog.container.is_init`` resource
+    attribute is no longer needed for these containers and has no effect.

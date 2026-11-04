@@ -1,0 +1,12 @@
+description: while true with break runs the body exactly once.
+input:
+  script: |+
+    while true; do
+      echo x
+      break
+    done
+expect:
+  stdout: |+
+    x
+  stderr: |+
+  exit_code: 0

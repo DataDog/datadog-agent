@@ -1,0 +1,23 @@
+description: "test parenthesized subexpressions with unary operators"
+input:
+  script: |+
+    # ( -n "=" ) — grouped unary -n with "=" as operand → true
+    test '(' -n = ')'
+    echo "paren-n-eq: $?"
+    # ( -n foo ) — grouped unary -n with "foo" → true
+    test '(' -n foo ')'
+    echo "paren-n-foo: $?"
+    # ( -z "" ) — grouped unary -z with "" → true
+    test '(' -z "" ')'
+    echo "paren-z-empty: $?"
+    # ( -z "x" ) — grouped unary -z with "x" → false
+    test '(' -z x ')'
+    echo "paren-z-x: $?"
+expect:
+  stdout: |
+    paren-n-eq: 0
+    paren-n-foo: 0
+    paren-z-empty: 0
+    paren-z-x: 1
+  stderr: ""
+  exit_code: 0

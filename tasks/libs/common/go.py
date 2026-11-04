@@ -14,6 +14,7 @@ from invoke.context import Context, MockContext
 from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
@@ -132,7 +133,9 @@ def go_build(
     check_deadcode: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
+    fips_backend: FipsBackend = FipsBackend.none,
 ) -> Result:
+    env = env or {}
     if check_deadcode and sys.platform == "aix":
         print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
         check_deadcode = False
@@ -145,10 +148,8 @@ def go_build(
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
     # the link step — before `go build` copies the .exe to bin_path —
     # which is why the pre-create is needed.
-    target_is_windows = (
-        sys.platform == "win32" or (env or {}).get("GOOS") == "windows" or os.getenv("GOOS") == "windows"
-    )
-    if bin_path and target_is_windows:
+    target_os = env.get("GOOS") or os.getenv("GOOS") or platform.system().lower()
+    if bin_path and target_os == "windows":
         os.makedirs(os.path.dirname(os.path.abspath(str(bin_path))) or ".", exist_ok=True)
         if os.environ.get("DD_GO_PDB", "1") != "0":
             ldflags = _with_pdb_extldflag(ldflags or "", str(bin_path))
@@ -185,6 +186,11 @@ def go_build(
         cmd += " -trimpath"
 
     cmd += f" {entrypoint}"
+
+    if fips_backend == FipsBackend.boringcrypto:
+        env = env | {"GOEXPERIMENT": "boringcrypto"}
+    elif fips_backend == FipsBackend.msgo and target_os == "linux":
+        env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}
 
     if check_deadcode:
         result = _handle_pipe_to_whydeadcode(ctx, os.path.basename(entrypoint), cmd, env)

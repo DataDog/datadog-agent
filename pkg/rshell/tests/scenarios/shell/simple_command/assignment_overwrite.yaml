@@ -1,0 +1,10 @@
+description: Variable assignment can be overwritten.
+input:
+  script: |+
+    x=old
+    x=new
+    echo $x
+expect:
+  stdout: "new\n"
+  stderr: ""
+  exit_code: 0

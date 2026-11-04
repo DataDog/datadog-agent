@@ -1,0 +1,21 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate continues processing remaining file operands after a per-file failure, truncating app.log despite missing.log failing, and exits 1 for the overall partial failure.
+setup:
+  files:
+    - path: app.log
+      content: "0123456789\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --force missing.log app.log
+    echo "exit:$?"
+    wc -c < app.log
+expect:
+  stdout: |+
+    exit:1
+    0
+  stderr: |+
+    logrotate: "missing.log": no such file or directory
+  exit_code: 0

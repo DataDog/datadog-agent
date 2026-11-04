@@ -41,7 +41,7 @@ struct {
 // top of the uprobe and read again at the keep/drop decision.
 typedef struct coord_scratch {
   // The probe's registers, copied out of the uprobe context.
-  struct pt_regs regs;
+  bpf_user_pt_regs_t regs;
   // The span the walk found, if it found one.
   trace_context_t trace;
   // The link the context walk is currently on.
@@ -161,7 +161,7 @@ coordinated_should_drop(const probe_params_t* params, uint64_t start_ns,
 // SM_OP_EXPR_READ_REGISTER in stack_machine.h; both spell out every register
 // because the verifier needs each load to sit at a constant offset.
 static inline __attribute__((always_inline)) uint64_t
-coord_read_arg_reg(const struct pt_regs* regs, uint8_t regnum) {
+coord_read_arg_reg(const bpf_user_pt_regs_t* regs, uint8_t regnum) {
   uint64_t v = 0;
 #define COORD_READ_ARG_REG(n)                                                  \
   case n: v = regs->DWARF_REGISTER(n); break;

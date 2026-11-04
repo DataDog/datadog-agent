@@ -1331,6 +1331,9 @@ func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uin
 	now := time.Now()
 	seeded := false
 	for i := range mounts {
+		if secprof.ComputeHeapSize() >= maxSize {
+			break
+		}
 		mnt := &mounts[i]
 
 		// mount paths are resolved lazily, so a cached entry may have an empty Path.
@@ -1347,9 +1350,6 @@ func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uin
 
 		secprof.InsertMount(mnt, cgroupInode, imageTag, activity_tree.Snapshot, now)
 		seeded = true
-		if secprof.ComputeHeapSize() >= maxSize {
-			break
-		}
 	}
 	return seeded
 }
