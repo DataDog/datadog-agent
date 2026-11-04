@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CWS: Short DNS responses that cannot be decoded, and all short DNS
+    responses when DNS resolution is disabled, are no longer handled as regular
+    events, which decoded process, span and cgroup context from the DNS packet.
+    The ``failed_dns`` internal monitoring event is still sent for responses
+    that cannot be decoded.
