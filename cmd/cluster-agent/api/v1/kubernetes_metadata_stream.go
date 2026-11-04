@@ -122,7 +122,11 @@ type podRef struct {
 }
 
 // nodeIndex counts, per node, the pods that reference each key, and keeps the
-// reverse index to find the nodes of a key.
+// reverse index to find the nodes of a key. For example, with 2 pods of
+// deployment default/web on node1 and 1 on node2, the workload index has:
+//
+//	nodeKeys: {"node1": {"deployment/default/web": 2}, "node2": {"deployment/default/web": 1}}
+//	keyNodes: {"deployment/default/web": {"node1": 2, "node2": 1}}
 type nodeIndex struct {
 	nodeKeys map[string]map[string]int
 	keyNodes map[string]map[string]int
