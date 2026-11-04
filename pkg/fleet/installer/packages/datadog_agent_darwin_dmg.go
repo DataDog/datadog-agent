@@ -225,7 +225,6 @@ func removeOldInstallFiles(layout dmgLayout) {
 		filepath.Join(layout.installDir, "embedded", "bin", "ai-prompt-logger-native-host"),
 		// Builds that ran a configuration experiment watcher from the Agent's run directory.
 		filepath.Join(layout.runDir(), "experiment-deadline"),
-		filepath.Join(layout.runDir(), "installer.pid"),
 		// Builds that kept the installer daemon's state and logs under the packages root. The
 		// daemon now keeps them in the Agent's run and log directories, and anything left under the
 		// packages root would be read as a package.

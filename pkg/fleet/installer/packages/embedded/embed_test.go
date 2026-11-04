@@ -194,7 +194,8 @@ func TestLaunchdAgentAndSysprobeReadTheSameConfig(t *testing.T) {
 }
 
 // TestLaunchdInstallerJob pins the root installer daemon's job: it runs as root, logs next to the
-// Agent's other jobs, leaves run_path to the configuration as on Linux, and writes no pidfile.
+// Agent's other jobs, leaves run_path to the configuration and writes its pidfile in the Agent's run
+// directory, as on Linux.
 func TestLaunchdInstallerJob(t *testing.T) {
 	content, err := GetLaunchdJob("com.datadoghq.installer")
 	require.NoError(t, err)
@@ -204,13 +205,12 @@ func TestLaunchdInstallerJob(t *testing.T) {
 	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-agent/logs/launchd_installer.log</string>`, definition)
 	assert.Regexp(t, `<key>StandardErrorPath</key>\s*<string>/opt/datadog-agent/logs/launchd_installer.log</string>`, definition)
 	assert.Regexp(t, `<key>UserName</key>\s*<string>root</string>`, definition)
-	assert.NotContains(t, definition, "/opt/datadog-agent/run")
 
 	var plist struct {
 		Args []string `xml:"dict>array>string"`
 	}
 	require.NoError(t, xml.Unmarshal(content, &plist))
-	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "run", "-c", "/opt/datadog-agent/etc"}, plist.Args)
+	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "run", "-c", "/opt/datadog-agent/etc", "-p", "/opt/datadog-agent/run/installer.pid"}, plist.Args)
 }
 
 // assertPropertyList checks that content is a well-formed XML property list. The repository has no

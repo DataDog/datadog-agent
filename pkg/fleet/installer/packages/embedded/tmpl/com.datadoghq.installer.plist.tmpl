@@ -18,15 +18,15 @@
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
         </dict>
-{{- /* No pidfile, for the same reason as the Agent's job: nothing reads it, and a stale one whose
-       PID another process has since reused stops the daemon from starting, which KeepAlive would
-       turn into a restart loop. */}}
+{{- /* The pidfile goes in the Agent's run directory, next to the daemon's socket, as on Linux. */}}
         <key>ProgramArguments</key>
         <array>
             <string>{{.ProgramDir}}/embedded/bin/installer</string>
             <string>run</string>
             <string>-c</string>
             <string>{{.EtcDir}}</string>
+            <string>-p</string>
+            <string>{{.RunDir}}/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
         <string>{{.LogDir}}/launchd_installer.log</string>

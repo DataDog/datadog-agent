@@ -22,6 +22,8 @@
             <string>run</string>
             <string>-c</string>
             <string>/opt/datadog-agent/etc</string>
+            <string>-p</string>
+            <string>/opt/datadog-agent/run/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
         <string>/opt/datadog-agent/logs/launchd_installer.log</string>
