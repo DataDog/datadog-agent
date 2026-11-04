@@ -33,6 +33,7 @@ dd_agent_go_test(
     srcs = [
         "delegatedauth_test.go",
         "oidc_test.go",
+        "workload_token_test.go",
     ],
     embed = [":impl"],
     deps = [
