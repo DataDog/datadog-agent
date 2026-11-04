@@ -1,4 +1,4 @@
-load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog", "ebpf_program_suite")
 
 ebpf_program_suite(
     name = "tracer-fentry",
@@ -7,6 +7,22 @@ ebpf_program_suite(
     extra_flags = [
         "-Ipkg/network/ebpf/c/co-re",
         "-Ipkg/network/ebpf/c",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:ebpf_c_headers",
+        "//pkg/network/ebpf/c:ebpf_c_network",
+    ],
+)
+
+# Test-only: compares the bulk and per-field skb header parsers in ip.h.
+ebpf_prog(
+    name = "skb-parse-test",
+    src = "skb-parse-test.c",
+    core = True,
+    extra_flags = [
+        "-Ipkg/network/ebpf/c",
+        "-g",
     ],
     visibility = ["//visibility:public"],
     deps = [

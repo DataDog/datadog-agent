@@ -144,6 +144,7 @@ filegroup(
         "//pkg/gpu/ebpf/c/runtime:gpu-debug.stripped",
         "//pkg/network/ebpf/c:tracer.stripped",
         "//pkg/network/ebpf/c:tracer-debug.stripped",
+        "//pkg/network/ebpf/c/co-re:skb-parse-test.stripped",
         "//pkg/network/ebpf/c/co-re:tracer-fentry.stripped",
         "//pkg/network/ebpf/c/co-re:tracer-fentry-debug.stripped",
         "//pkg/network/ebpf/c/runtime:conntrack.stripped",
