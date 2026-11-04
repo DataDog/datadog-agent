@@ -540,7 +540,6 @@
 /comp/metadata/serverlessinit @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/ebpf-platform
 /comp/trace/etwtracer @DataDog/windows-products
-/comp/trace-telemetry @DataDog/agent-runtimes
 /comp/anomalydetection/logssource @DataDog/agent-anomaly-detection
 /comp/anomalydetection/observer @DataDog/agent-anomaly-detection
 /comp/anomalydetection/recorder @DataDog/agent-anomaly-detection

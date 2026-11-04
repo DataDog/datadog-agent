@@ -36,9 +36,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	if metricsClient == nil {
 		metricsClient = &statsd.NoOpClient{}
 	}
-	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
-	ddHost := getDatadogHost(mainEndpoint)
-	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	ddSite := par.Site(config)
 	encodedPrivateKey := config.GetString(par.PrivateKey)
 	urn := config.GetString(par.URN)
 
@@ -112,8 +110,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellAllowedCommandsConfigured:    config.IsConfigured(par.RestrictedShellAllowedCommands),
 		RShellAllowedPathsConfigured:       config.IsConfigured(par.RestrictedShellAllowedPaths),
 		OpmsExtraHeaders:                   config.GetStringMapString(par.OPMSExtraHeaders),
-		DDHost:                             ddHost,
-		DDApiHost:                          "api." + ddSite,
+		APIBaseURL:                         par.APIBaseURL(config, ddSite),
 		Modes:                              []modes.Mode{modes.ModePull},
 		OrgId:                              orgID,
 		PrivateKey:                         privateKey,
@@ -256,14 +253,6 @@ func warnNonDirectoryPaths(paths []string) {
 				par.RestrictedShellAllowedPaths, p)
 		}
 	}
-}
-
-// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
-// It removes the "https://" prefix and any trailing "." from the endpoint URL.
-func getDatadogHost(endpoint string) string {
-	host := strings.TrimSuffix(endpoint, ".")
-	host = strings.TrimPrefix(host, "https://")
-	return host
 }
 
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {

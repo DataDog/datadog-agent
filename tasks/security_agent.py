@@ -12,7 +12,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.build_tags import get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.go import run_golangci_lint
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
@@ -58,7 +58,7 @@ def build(
     install_path=None,
     go_mod="readonly",
     static=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     enable_bazel=False,
 ):
     """
@@ -74,8 +74,8 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
-        if fips_mode:
-            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
         build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
         return
 
@@ -103,9 +103,7 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="security-agent", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    build_tags += get_default_build_tags(build="security-agent", flavor=fips_backend.agent_flavor())
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -123,6 +121,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        fips_backend=fips_backend,
     )
 
 
