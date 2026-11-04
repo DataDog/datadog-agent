@@ -46,6 +46,12 @@ func init() {
 // DefaultScrubber, but can be used to initialize other, custom scrubbers with
 // the default replacers.
 func AddDefaultReplacers(scrubber *Scrubber) {
+	delaFallbackReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(?i)(\bfallback\s*=\s*)[^,\]]*`),
+		Hints:       []string{"DELA["},
+		Repl:        []byte(`${1}********`),
+		LastUpdated: parseVersion("7.84.0"),
+	}
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
 		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
@@ -197,7 +203,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
-		walk(&data, func(key string, _ any) (bool, any) {
+		walk(&data, func(key string, _ string, _ any) (bool, any) {
 			switch key {
 			// ADD rule info that can be shown
 			case "id", "license":
@@ -239,6 +245,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
+				apiKey = scrubber.ScrubLine(apiKey)
 				return HideKeyExceptLastChars(apiKey)
 			}
 			return defaultReplacement
@@ -357,6 +364,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
 
+	scrubber.AddReplacer(SingleLine, delaFallbackReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
@@ -505,6 +513,15 @@ func ScrubBytes(file []byte) ([]byte, error) {
 // serialized string, using the default scrubber.
 func ScrubYaml(data []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubYaml(data)
+}
+
+// ScrubYamlPreserveStructure scrubs credentials from YAML while preserving
+// key order and scalar styles, using the default scrubber.
+// Some fields such as `additional_endpoints` may lose order. This is acceptable behavior,
+// since this setting isn't really used too often, and already has some strange edge-cases
+// we handle specially.
+func ScrubYamlPreserveStructure(data []byte) ([]byte, error) {
+	return DefaultScrubber.ScrubYamlPreserveStructure(data)
 }
 
 // ScrubYamlString scrubs credentials from the given YAML string by loading the data and scrubbing the object instead of
@@ -668,4 +685,15 @@ func AddStrippedKeys(strippedKeys []string) {
 		dynamicReplacers = append(dynamicReplacers, replacer)
 		dynamicReplacersMutex.Unlock()
 	}
+}
+
+// GetStrippedKeys returns the keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON) on the
+// default scrubber.
+func GetStrippedKeys() []string {
+	return DefaultScrubber.GetStrippedKeys()
+}
+
+// ClearStrippedKeys forgets the keys recorded by the default scrubber.
+func ClearStrippedKeys() {
+	DefaultScrubber.ClearStrippedKeys()
 }

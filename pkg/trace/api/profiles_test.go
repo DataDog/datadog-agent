@@ -468,3 +468,11 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 	})
 }
+
+func TestProfileProxyMultipleEndpointsEmptyBody(t *testing.T) {
+	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
+		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
+		c.ProfilingProxy.MaxRequestBytes = 1024
+		return newProfileProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
+	})
+}

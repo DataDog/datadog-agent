@@ -12,7 +12,6 @@ import (
 
 	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
@@ -107,13 +106,6 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	observerHandle := obs.GetHandle("logs")
 
-	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
-	logsRules, err := logsfilter.LoadRules(deps.Config, logsProcessingRulesKey)
-	if err != nil {
-		logging.Warnf("logssource %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
-		logsRules = &logsfilter.Rules{}
-	}
-
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
 	if err != nil {
 		logging.Warnf("logssource invalid global processing rules, proceeding without them: %v", err)
@@ -125,12 +117,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		pauseFilter = fs.GetContainerPausedFilters()
 	}
 
-	var samplerOnDropped func(source, priority string)
-	if obsOk {
-		samplerOnDropped = obs.RecordSamplerDropped
-	}
-	sampler := newLogSamplerFromConfig(deps.Config, samplerOnDropped)
-	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler, logsRules)
+	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)

@@ -1,0 +1,7 @@
+description: Star precision from argument controls float decimals.
+input:
+  script: |+
+    printf "%.*f\n" 2 3.14159
+expect:
+  stdout: "3.14\n"
+  exit_code: 0

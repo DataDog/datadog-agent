@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -43,28 +42,32 @@ func (f *fakeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
 type fakeCredentialResolver struct {
 	credential *privateconnection.PrivateCredentials
 	err        error
-	gotConn    *privateactionspb.ConnectionInfo
+	gotTask    *types.Task
 }
 
 type fakeBundle struct {
-	action types.Action
+	action        types.Action
+	gotActionName string
 }
 
-func (b *fakeBundle) GetAction(string) types.Action {
+func (b *fakeBundle) GetAction(actionName string) types.Action {
+	b.gotActionName = actionName
 	return b.action
 }
 
 type recordingAction struct {
 	called bool
+	task   *types.Task
 }
 
-func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.PrivateCredentials) (interface{}, error) {
+func (a *recordingAction) Run(_ context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
 	a.called = true
+	a.task = task
 	return "executed", nil
 }
 
-func (f *fakeCredentialResolver) ResolveConnectionInfoToCredential(_ context.Context, conn *privateactionspb.ConnectionInfo, _ *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
-	f.gotConn = conn
+func (f *fakeCredentialResolver) ResolveCredentials(_ context.Context, task *types.Task) (*privateconnection.PrivateCredentials, error) {
+	f.gotTask = task
 	return f.credential, f.err
 }
 
@@ -78,6 +81,8 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	connectionInfo := &privateactionspb.ConnectionInfo{RunnerId: "runner-id"}
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
 	unwrappedTask.Data.Attributes.ConnectionInfo = connectionInfo
+	dequeuedTask.Data.Attributes.Inputs = map[string]interface{}{"url": "https://unsigned.example.com"}
+	unwrappedTask.Data.Attributes.Inputs = map[string]interface{}{"url": "https://signed.example.com"}
 	credential := &privateconnection.PrivateCredentials{
 		Type: privateconnection.TokenAuthType,
 		Tokens: []privateconnection.PrivateCredentialsToken{
@@ -87,6 +92,8 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	verifier := &fakeTaskVerifier{unwrappedTask: unwrappedTask}
 	credentialResolver := &fakeCredentialResolver{credential: credential}
 	executor := &WorkflowTaskExecutor{
+		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
 		taskVerifier: verifier,
 		resolver:     credentialResolver,
 	}
@@ -97,7 +104,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	require.NotNil(t, got)
 	assert.Nil(t, failureTask)
 	assert.Same(t, dequeuedTask, verifier.gotTask)
-	assert.Same(t, connectionInfo, credentialResolver.gotConn)
+	assert.Same(t, unwrappedTask, credentialResolver.gotTask)
 	assert.Same(t, unwrappedTask, got.Task)
 	assert.Same(t, credential, got.Credential)
 	assert.Equal(t, "job-id", got.Task.Data.Attributes.JobId)
@@ -121,7 +128,7 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails
 	require.ErrorIs(t, err, verifyErr)
 	assert.Nil(t, got)
 	assert.Same(t, dequeuedTask, failureTask)
-	assert.Nil(t, credentialResolver.gotConn)
+	assert.Nil(t, credentialResolver.gotTask)
 }
 
 func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolutionFails(t *testing.T) {
@@ -132,6 +139,8 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
 	verifier := &fakeTaskVerifier{unwrappedTask: unwrappedTask}
 	executor := &WorkflowTaskExecutor{
+		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
 		taskVerifier: verifier,
 		resolver:     &fakeCredentialResolver{err: resolveErr},
 	}
@@ -173,6 +182,126 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "executed", output)
 	assert.True(t, action.called)
+}
+
+func TestWorkflowTaskExecutorRoutesNativeExecutionFQN(t *testing.T) {
+	const (
+		publicBundle = "com.datadoghq.helm"
+		actionName   = "addRepo"
+		publicFQN    = publicBundle + "." + actionName
+	)
+
+	tests := []struct {
+		name         string
+		executionFQN string
+		wantError    string
+	}{
+		{
+			name: "native action uses public FQN when execution FQN is absent",
+		},
+		{
+			name:         "native action uses public FQN when execution FQN matches it",
+			executionFQN: publicFQN,
+		},
+		{
+			name:         "unknown execution FQN fails closed",
+			executionFQN: "com.datadoghq.unknown.action",
+			wantError:    "could not find bundle for com.datadoghq.unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nativeAction := &recordingAction{}
+			nativeBundle := &fakeBundle{action: nativeAction}
+			executor := &WorkflowTaskExecutor{
+				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+					publicBundle: nativeBundle,
+				}},
+				config: &config.Config{
+					ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+					MetricsClient:    &statsd.NoOpClient{},
+				},
+			}
+			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+			task.Data.Attributes.ExecutionFQN = tt.executionFQN
+
+			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.Nil(t, output)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "executed", output)
+			}
+			assert.Equal(t, tt.wantError == "", nativeAction.called)
+			if tt.wantError == "" {
+				assert.Equal(t, actionName, nativeBundle.gotActionName)
+			} else {
+				assert.Empty(t, nativeBundle.gotActionName)
+			}
+		})
+	}
+}
+
+func TestWorkflowTaskExecutorRoutesNewPublicActionToAuthoredScript(t *testing.T) {
+	const (
+		publicBundle = "com.datadoghq.hosts"
+		actionName   = "diskUtilization"
+		scriptBundle = "com.datadoghq.authoredscripts"
+		executionFQN = scriptBundle + ".hosts." + actionName
+	)
+
+	tests := []struct {
+		name      string
+		allowlist map[string]sets.Set[string]
+		wantError string
+	}{
+		{
+			name:      "public FQN is allowlisted",
+			allowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+		},
+		{
+			name:      "execution FQN cannot authorize public action",
+			allowlist: map[string]sets.Set[string]{scriptBundle + ".hosts": sets.New(actionName)},
+			wantError: "not allowlisted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scriptAction := &recordingAction{}
+			scriptHandler := &fakeBundle{action: scriptAction}
+			// Use an exact fake bundle here; the node-only registry fallback has its own test.
+			registry := &privatebundles.Registry{Bundles: map[string]types.Bundle{
+				scriptBundle + ".hosts": scriptHandler,
+			}}
+			require.Nil(t, registry.GetBundle(publicBundle))
+			executor := &WorkflowTaskExecutor{
+				registry: registry,
+				config: &config.Config{
+					ActionsAllowlist: tt.allowlist,
+					MetricsClient:    &statsd.NoOpClient{},
+				},
+			}
+			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+			task.Data.Attributes.ExecutionFQN = executionFQN
+
+			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.Nil(t, output)
+				assert.False(t, scriptAction.called)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "executed", output)
+				assert.True(t, scriptAction.called)
+				require.Same(t, task, scriptAction.task)
+				assert.Equal(t, publicBundle+"."+actionName, scriptAction.task.GetFQN())
+			}
+			assert.Equal(t, actionName, scriptHandler.gotActionName)
+		})
+	}
 }
 
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
@@ -255,4 +384,37 @@ func newWorkflowTask(taskID, bundleID, actionName, jobID string) *types.Task {
 		JobId:    jobID,
 	}
 	return task
+}
+
+func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		bundle    types.Bundle
+		allowed   bool
+		wantError string
+	}{
+		{name: "unknown bundle", allowed: true, wantError: "could not find bundle"},
+		{name: "unknown action", bundle: &fakeBundle{}, allowed: true, wantError: "could not find action"},
+		{name: "disabled action", bundle: &fakeBundle{action: &recordingAction{}}, wantError: "not allowlisted"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			credentialResolver := &fakeCredentialResolver{}
+			unwrapped := newWorkflowTask("signed-task", "com.datadoghq.mongodb", "find", "")
+			executor := &WorkflowTaskExecutor{
+				registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"com.datadoghq.mongodb": test.bundle}},
+				config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"com.datadoghq.http": sets.New("sendRequest")}},
+				taskVerifier: &fakeTaskVerifier{unwrappedTask: unwrapped},
+				resolver:     credentialResolver,
+			}
+			if test.allowed {
+				executor.config.ActionsAllowlist["com.datadoghq.mongodb"] = sets.New("find")
+			}
+			prepared, failureTask, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper", "com.datadoghq.http", "sendRequest", "job-id"))
+			require.ErrorContains(t, err, test.wantError)
+			assert.Nil(t, prepared)
+			assert.Same(t, unwrapped, failureTask)
+			assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
+			assert.Nil(t, credentialResolver.gotTask)
+		})
+	}
 }

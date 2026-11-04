@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    On macOS, the Datadog process manager daemon (``dd-procmgrd``) now ships as the LaunchDaemon
+    ``com.datadoghq.procmgr`` and always runs. ``process_manager.enabled`` is not yet supported on
+    macOS, and no Agent component is supervised by ``dd-procmgrd`` yet on this platform.

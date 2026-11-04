@@ -115,6 +115,7 @@ dd_agent_go_test(
     name = "script_test",
     srcs = [
         "limited_writer_test.go",
+        "run_predefined_powershell_script_windows_test.go",
         "transform_inline_script_test.go",
     ],
     embed = [":script"],

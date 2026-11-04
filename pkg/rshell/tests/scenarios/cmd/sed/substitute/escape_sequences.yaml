@@ -1,0 +1,13 @@
+description: Replacement strings support escape sequences like \n, \t, \\, and \&.
+setup:
+  files:
+    - path: input.txt
+      content: "foo bar\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/foo/a\tb/' input.txt
+expect:
+  stdout: "a\tb bar\n"
+  stderr: ""
+  exit_code: 0

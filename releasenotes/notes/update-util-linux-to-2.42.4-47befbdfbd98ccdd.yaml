@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Update ``util-linux`` (``libblkid``) to 2.42.4.

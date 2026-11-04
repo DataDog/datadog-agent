@@ -1,0 +1,31 @@
+description: awk preserves mutable record metadata across implicit stdin and resets it for explicit files.
+setup:
+  files:
+    - path: one.txt
+      content: |+
+        a
+        b
+    - path: two.txt
+      content: |+
+        c
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk 'NR == 1 { NR = 10.5; FNR = 20.5; FILENAME = "renamed" } { print NR ":" FNR ":" FILENAME }' one.txt two.txt
+    printf 'd\ne\n' | awk 'BEGIN { FNR = 7 } { print FNR }'
+    printf 'f\ng\n' | awk 'BEGIN { FNR = 7 } { print FNR }' -
+    printf 'h\ni\n' | awk 'BEGIN { NR = "-2.75tail"; FNR = "word"; print NR ":" FNR } { print NR ":" FNR }'
+expect:
+  stdout: |+
+    10:20:renamed
+    11:21:renamed
+    12:1:two.txt
+    8
+    9
+    1
+    2
+    -2:word
+    -1:1
+    0:2
+  stderr: |+
+  exit_code: 0

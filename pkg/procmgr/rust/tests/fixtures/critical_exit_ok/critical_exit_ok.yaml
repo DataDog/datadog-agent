@@ -1,0 +1,5 @@
+command: {{python}}
+args:
+  - {{script}}
+restart: always
+exit_with_supervisor: true

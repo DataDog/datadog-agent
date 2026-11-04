@@ -33,6 +33,14 @@ const (
 	defaultDirectorPort  = 9182
 )
 
+// Request setting overrides for a single Versa endpoint, unset values inherit
+// the instance-wide max_count, max_pages and client_timeout
+type endpointOverrideCfg struct {
+	MaxCount int `yaml:"max_count"`
+	MaxPages int `yaml:"max_pages"`
+	Timeout  int `yaml:"timeout"`
+}
+
 // Configuration for the Versa check
 type checkCfg struct {
 	DirectorEndpoint                      string   `yaml:"director_endpoint"`
@@ -44,6 +52,7 @@ type checkCfg struct {
 	MaxAttempts                           int      `yaml:"max_attempts"`
 	MaxPages                              int      `yaml:"max_pages"`
 	MaxCount                              int      `yaml:"max_count"`
+	ClientTimeout                         int      `yaml:"client_timeout"`
 	LookbackTimeWindowMinutes             int      `yaml:"lookback_time_window_minutes"`
 	UseHTTP                               bool     `yaml:"use_http"`
 	Insecure                              bool     `yaml:"insecure"`
@@ -68,14 +77,17 @@ type checkCfg struct {
 	SendInterfaceMetadataFromAnalytics    *bool    `yaml:"send_interface_metadata_from_analytics"`
 	ClientID                              string   `yaml:"client_id"`
 	ClientSecret                          string   `yaml:"client_secret"`
+
+	EndpointOverrides map[string]endpointOverrideCfg `yaml:"endpoint_overrides"`
 }
 
 // VersaCheck contains the fields for the Versa check
 type VersaCheck struct {
 	core.CheckBase
-	interval      time.Duration
-	config        checkCfg
-	metricsSender *report.Sender
+	interval          time.Duration
+	config            checkCfg
+	endpointOverrides map[client.Endpoint]client.EndpointConfig
+	metricsSender     *report.Sender
 }
 
 // Run executes the check
@@ -436,6 +448,11 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	}
 	v.config = instanceConfig
 
+	v.endpointOverrides, err = parseEndpointOverrides(v.config.EndpointOverrides)
+	if err != nil {
+		return err
+	}
+
 	if v.config.Namespace == "" {
 		v.config.Namespace = "default"
 	} else {
@@ -479,11 +496,36 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		clientOptions = append(clientOptions, client.WithMaxCount(v.config.MaxCount))
 	}
 
+	if v.config.ClientTimeout > 0 {
+		clientOptions = append(clientOptions, client.WithTimeout(time.Duration(v.config.ClientTimeout)*time.Second))
+	}
+
+	for endpoint, config := range v.endpointOverrides {
+		clientOptions = append(clientOptions, client.WithEndpointConfig(endpoint, config))
+	}
+
 	if v.config.LookbackTimeWindowMinutes > 0 {
 		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
 	}
 
 	return clientOptions, nil
+}
+
+// parseEndpointOverrides validates the endpoint_overrides config and converts it to client endpoint configs
+func parseEndpointOverrides(overrides map[string]endpointOverrideCfg) (map[client.Endpoint]client.EndpointConfig, error) {
+	endpointConfigs := make(map[client.Endpoint]client.EndpointConfig, len(overrides))
+	for name, override := range overrides {
+		endpoint, err := client.ParseEndpoint(name)
+		if err != nil {
+			return nil, fmt.Errorf("invalid endpoint_overrides: %w", err)
+		}
+		endpointConfigs[endpoint] = client.EndpointConfig{
+			MaxCount: override.MaxCount,
+			MaxPages: override.MaxPages,
+			Timeout:  time.Duration(override.Timeout) * time.Second,
+		}
+	}
+	return endpointConfigs, nil
 }
 
 // Interval returns the scheduling time for the check

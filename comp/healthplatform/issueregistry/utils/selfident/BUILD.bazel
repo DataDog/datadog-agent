@@ -13,12 +13,15 @@ go_library(
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/containers/metrics/system",
         "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
+        "//pkg/util/option",
     ],
 )
 

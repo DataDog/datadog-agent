@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -40,13 +41,16 @@ var ErrEnrollmentUnauthorized = fmt.Errorf("%w: credentials not accepted", ErrEn
 const (
 	createPARPath           = "/api/unstable/on_prem_runners"
 	createPARApiKeyOnlyPath = "/api/unstable/on_prem_runners/api_key_only"
+	createPARWorkloadPath   = "/api/unstable/on_prem_runners/workload_token"
 
 	enrollmentInitialBackoff = 1 * time.Second
 	enrollmentMaxBackoff     = 30 * time.Second
 )
 
-// PublicClient exposes endpoints that don't require JWT authentication
+// PublicClient exposes enrollment endpoints used before a runner has its own identity.
 type PublicClient interface {
+	EnrollWithWorkloadToken(ctx context.Context, token string, request par.CreateRunnerRequest) (*par.CreateRunnerResponse, error)
+
 	EnrollWithApiKey(
 		ctx context.Context,
 		apiKey string,
@@ -181,18 +185,15 @@ func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string,
 // success. On non-2xx responses, returns the status code so the caller can
 // decide whether to retry.
 func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, int, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	req, err := newEnrollmentRequest(ctx, url, body)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to build runner creation request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/vnd.api+json")
-	req.Header.Set("Accept", "application/json")
 	req.Header.Set("DD-API-KEY", apiKey)
 	if appKey != "" {
 		req.Header.Set("DD-APPLICATION-KEY", appKey)
 	}
-	req.Header.Set(app.VersionHeaderName, parversion.RunnerVersion)
 	for k, v := range p.extraHeaders {
 		req.Header.Set(k, v)
 	}
@@ -227,4 +228,85 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		err = fmt.Errorf("%w: %w; check the site and Private Action Runner configuration, then restart the Private Action Runner", ErrEnrollmentRejected, err)
 	}
 	return nil, resp.StatusCode, err
+}
+
+// EnrollWithWorkloadToken makes one enrollment attempt using an ETS workload
+// token bound to request.PublicKeyPEM. It sends no API/application key and never
+// falls back to API-key enrollment. The caller owns identity persistence and
+// retries: a short-lived token must be refreshed before a later attempt, and an
+// ambiguous response must not cause a new key/runner to be created.
+// This endpoint creates new runners; it does not migrate an existing runner.
+func (p *publicClient) EnrollWithWorkloadToken(ctx context.Context, token string, request par.CreateRunnerRequest) (*par.CreateRunnerResponse, error) {
+	if token == "" {
+		return nil, errors.New("workload enrollment token is required")
+	}
+	if request.ID != "" {
+		return nil, errors.New("workload enrollment cannot specify an existing runner ID")
+	}
+	endpoint := p.ddBaseURL + createPARWorkloadPath
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return nil, errors.New("workload enrollment endpoint must use HTTPS")
+	}
+	payload, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
+	if err != nil {
+		return nil, fmt.Errorf("marshal workload enrollment request: %w", err)
+	}
+	req, err := newEnrollmentRequest(ctx, endpoint, payload)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range p.extraHeaders {
+		req.Header.Set(k, v)
+	}
+	// Extra headers cannot override workload authentication or add API keys.
+	req.Header.Del("DD-API-KEY")
+	req.Header.Del("DD-APPLICATION-KEY")
+	req.Header.Set("Authorization", "Bearer "+token)
+	// Share the configured transport and timeout without changing the legacy
+	// client's redirect policy. A workload token must not follow redirects.
+	client := *p.httpClient
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send workload enrollment request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		// Do not echo credentials or the response body into Agent logs.
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return nil, fmt.Errorf("%w (HTTP %d): check the workload token and the WIF mapping's PAR enrollment permission", ErrEnrollmentUnauthorized, resp.StatusCode)
+		}
+		err := fmt.Errorf("workload enrollment failed (HTTP %d)", resp.StatusCode)
+		if resp.StatusCode < http.StatusBadRequest || !util.IsRetryableHTTPStatus(resp.StatusCode) {
+			err = fmt.Errorf("%w: %w", ErrEnrollmentRejected, err)
+		}
+		return nil, err
+	}
+	const maxResponseSize = 1024 * 1024
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("read workload enrollment response: %w", err)
+	}
+	if len(body) > maxResponseSize {
+		return nil, errors.New("workload enrollment response exceeds size limit")
+	}
+	response := new(par.CreateRunnerResponse)
+	if jsonapi.Unmarshal(body, response) != nil || response.RunnerID == "" || response.OrgID <= 0 {
+		return nil, errors.New("invalid workload enrollment response")
+	}
+	return response, nil
+}
+
+// newEnrollmentRequest shares the JSON:API POST setup. Each enrollment path
+// supplies its own credentials and controls its retry and redirect policy.
+func newEnrollmentRequest(ctx context.Context, url string, body []byte) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set(app.VersionHeaderName, parversion.RunnerVersion)
+	return req, nil
 }

@@ -42,6 +42,7 @@ func CompressSBOM(sbom *workloadmeta.SBOM) (*workloadmeta.CompressedSBOM, error)
 		GenerationMethod:   sbom.GenerationMethod,
 		Status:             sbom.Status,
 		Error:              sbom.Error,
+		OSFallback:         sbom.OSFallback,
 	}, nil
 }
 
@@ -77,5 +78,6 @@ func UncompressSBOM(csbom *workloadmeta.CompressedSBOM) (*workloadmeta.SBOM, err
 		GenerationMethod:   csbom.GenerationMethod,
 		Status:             csbom.Status,
 		Error:              csbom.Error,
+		OSFallback:         csbom.OSFallback,
 	}, nil
 }

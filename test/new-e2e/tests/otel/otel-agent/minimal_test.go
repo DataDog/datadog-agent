@@ -62,6 +62,8 @@ agents:
 	e2e.Run(t, &minimalTestSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(values),
 					kubernetesagentparams.WithOTelAgent(),
@@ -184,6 +186,7 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
                 - datadog
             processors:
                 - filter/drop-prometheus-internal-metrics/dd-autoconfigured
+                - cumulativetodelta/dd-autoconfigured
             receivers:
                 - prometheus/dd-autoconfigured
         traces:

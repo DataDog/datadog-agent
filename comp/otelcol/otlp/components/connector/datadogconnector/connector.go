@@ -48,9 +48,6 @@ type traceToMetricConnector struct {
 	// ctagKeys are container tag keys
 	ctagKeys []string
 
-	// peerTagKeys are peer tag keys to group APM stats
-	peerTagKeys []string
-
 	// primaryTagKeys are span-derived primary tag keys appended to APM stats
 	primaryTagKeys []string
 
@@ -74,6 +71,10 @@ type traceToMetricConnector struct {
 
 	// isStarted tracks whether Start() has been called.
 	isStarted bool
+
+	// rootFilter, if set, excludes from stats the traces whose root span the trace-agent's
+	// apm_config.ignore_resources, apm_config.filter_tags or apm_config.filter_tags_regex deny.
+	rootFilter *rootFilter
 }
 
 // newTraceToMetricConnector creates a new connector with native OTel span ingestion
@@ -108,7 +109,6 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 		translator:      trans,
 		tcfg:            tcfg,
 		ctagKeys:        cfg.(*datadogconfig.ConnectorComponentConfig).Traces.ResourceAttributesAsContainerTags,
-		peerTagKeys:     tcfg.ConfiguredPeerTags(),
 		primaryTagKeys:  tcfg.ConfiguredSpanDerivedPrimaryTagKeys(),
 		concentrator:    concentrator,
 		statsout:        statsout,
@@ -204,7 +204,14 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// _sample_rate (head-based sampling weight) is injected during OTel→DD span
 	// conversion in pkg/trace/transform, so the Concentrator scales stats by the
 	// head-sampling weight without any connector-local logic.
-	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.peerTagKeys, c.primaryTagKeys, c.obfuscator)
+	var inputs []stats.Input
+	// rootFilter applies apm_config.ignore_resources, apm_config.filter_tags and apm_config.filter_tags_regex as the
+	// trace-agent behind the datadog exporter does
+	if c.rootFilter != nil {
+		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator, ignoredRootsFilter(traces, c.rootFilter))
+	} else {
+		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator)
+	}
 	for _, input := range inputs {
 		c.concentrator.Add(input)
 	}

@@ -1,0 +1,7 @@
+description: The N command flushes queued 'a' text before reading the next input line.
+input:
+  script: "echo -e 'line1\nline2' | sed -e 'a\\X' -e 'N' -e 'p'"
+expect:
+  stdout: "X\nline1\nline2\nline1\nline2\n"
+  stderr: ""
+  exit_code: 0

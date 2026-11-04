@@ -1,0 +1,25 @@
+description: "test -s on empty and non-empty files"
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+    - path: nonempty.txt
+      content: "data"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    test -s nonempty.txt
+    echo "nonempty: $?"
+    test -s empty.txt
+    echo "empty: $?"
+    test -s nonexistent
+    echo "missing: $?"
+expect:
+  stdout: |
+    nonempty: 0
+    empty: 1
+    missing: 1
+  stderr: ""
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # uses allowed_paths which the bash harness does not support

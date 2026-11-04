@@ -8,8 +8,8 @@
 // Package launchd wraps the launchctl(1) subset the installer needs to manage launchd jobs.
 //
 // Every operation is idempotent, because the hooks that call them run on both install paths and
-// may run again on a host that is already in the desired state: bootstrapping a loaded job,
-// booting out an absent one and removing a definition that is not there all succeed.
+// may run again on a host that is already in the desired state: bootstrapping a loaded job
+// and booting out an absent one both succeed.
 package launchd
 
 import (
@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -30,45 +28,35 @@ import (
 // Domain is a launchd domain.
 type Domain string
 
-const (
-	// System is the system domain: jobs run as root at boot, with no login session.
-	System Domain = "system"
-	// GUI is a per-user domain, for jobs that need a login session. Per-user jobs are out of
-	// scope for Fleet, which never manages one; the domain exists so a job definition can name
-	// where it belongs.
-	GUI Domain = "gui"
-)
+// System is the system domain: jobs run at boot, with no login session.
+const System Domain = "system"
 
 // Dir returns the directory job definitions for the domain live in.
-func (d Domain) Dir() string {
-	if d == GUI {
-		return "/Library/LaunchAgents"
-	}
+func (Domain) Dir() string {
 	return "/Library/LaunchDaemons"
 }
 
-// Job is a launchd job definition on disk.
+// Job is a launchd job definition on disk, at <Dir>/<Label>.plist.
 type Job struct {
 	// Label is the job's launchd label, e.g. com.datadoghq.agent.
 	Label string
-	// PlistPath is where the definition lives. Empty means the default path for the domain.
-	PlistPath string
-	// Domain is the domain the job belongs to.
-	Domain Domain
+	// Dir is the directory the definition lives in. Empty means the system domain's directory.
+	Dir string
 }
 
 // Path returns the path the job definition is written to.
 func (j Job) Path() string {
-	if j.PlistPath != "" {
-		return j.PlistPath
+	dir := j.Dir
+	if dir == "" {
+		dir = System.Dir()
 	}
-	return filepath.Join(j.Domain.Dir(), j.Label+".plist")
+	return filepath.Join(dir, j.Label+".plist")
 }
 
 // Write writes the job definition to disk.
 //
-// The write goes to a temporary file in the same directory and is renamed into place, so launchd
-// never reads a partially written property list.
+// The write goes to a temporary file in the same directory, is flushed to disk and is renamed into
+// place, so neither launchd nor a power loss can leave a partially written or empty property list.
 func (j Job) Write(content []byte) error {
 	path := j.Path()
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp")
@@ -92,6 +80,10 @@ func (j Job) Write(content []byte) error {
 	if err := tmp.Chown(0, 0); err != nil {
 		log.Warnf("could not set root:wheel ownership on job definition %s: %v", path, err)
 	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("could not flush job definition: %w", err)
+	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("could not close job definition: %w", err)
 	}
@@ -101,31 +93,6 @@ func (j Job) Write(content []byte) error {
 	return nil
 }
 
-// Remove removes the job definition from disk. It succeeds when the definition is already absent.
-func (j Job) Remove() error {
-	if err := os.Remove(j.Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("could not remove job definition: %w", err)
-	}
-	return nil
-}
-
-// JobStatus is what launchctl print reports about a job.
-type JobStatus struct {
-	// Label is the job's launchd label.
-	Label string
-	// PID is the running process's PID, or 0 when the job is loaded but not running.
-	PID int
-	// LastExitStatus is the exit code launchd last recorded for the job, or 0 when it has
-	// never exited. Ambiguous on its own: a job can also exit with code 0. Check HasExited to
-	// tell the two apart.
-	LastExitStatus int
-	// HasExited reports whether launchd has ever recorded an exit for this job, i.e. whether
-	// LastExitStatus is a real recorded code rather than "(never exited)"'s zero value.
-	HasExited bool
-	// Loaded reports whether the job is present in the domain.
-	Loaded bool
-}
-
 // Runner executes a command and returns its combined output.
 type Runner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
@@ -133,8 +100,6 @@ type Runner func(ctx context.Context, name string, args ...string) ([]byte, erro
 type Client struct {
 	// Domain is the domain every operation targets.
 	Domain Domain
-	// UID selects the session for the GUI domain. It is ignored for the system domain.
-	UID int
 
 	// Runner executes launchctl. Nil runs the real binary; tests substitute a recorder.
 	Runner Runner
@@ -154,7 +119,11 @@ func NewClient(domain Domain) *Client {
 }
 
 const (
-	defaultBootoutSettleTimeout      = 10 * time.Second
+	// defaultBootoutSettleTimeout must be longer than the ExitTimeOut of the jobs the installer
+	// manages (10 seconds): launchd waits that long for a job to stop before it kills it, so a
+	// shorter wait would report a slow-stopping job as stuck. It matches the 30 seconds the .dmg
+	// postinstall script's fallback waits for the same thing.
+	defaultBootoutSettleTimeout      = 30 * time.Second
 	defaultBootoutSettlePollInterval = 100 * time.Millisecond
 )
 
@@ -191,7 +160,7 @@ func (c *Client) Bootstrap(ctx context.Context, job Job) error {
 //
 // launchd's bootout is asynchronous: launchctl can return before the label has actually left the
 // domain, which used to let a following Bootstrap race it and fail with a bare
-// "Input/output error". Bootout now polls Print until the label is gone, bounded by
+// "Input/output error". Bootout now polls Loaded until the label is gone, bounded by
 // BootoutSettleTimeout, so a nil return is a real guarantee that the domain no longer has it.
 func (c *Client) Bootout(ctx context.Context, label string) error {
 	out, err := c.launchctl(ctx, "bootout", c.serviceTarget(label))
@@ -208,19 +177,32 @@ func (c *Client) Bootout(ctx context.Context, label string) error {
 }
 
 func (c *Client) waitUntilUnloaded(ctx context.Context, label string) error {
-	ctx, cancel := context.WithTimeout(ctx, c.bootoutSettleTimeout())
+	timeout := c.bootoutSettleTimeout()
+	settleCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	timedOut := fmt.Errorf("%s did not leave the domain within %s", label, timeout)
 	for {
-		loaded, err := c.Loaded(ctx, label)
+		loaded, err := c.Loaded(settleCtx, label)
 		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("could not confirm %s left the domain: %w", label, ctxErr)
+			}
+			// The deadline killed a launchctl print that was still running: report the timeout,
+			// not the signal that ended the command.
+			if settleCtx.Err() != nil {
+				return timedOut
+			}
 			return fmt.Errorf("could not confirm %s left the domain: %w", label, err)
 		}
 		if !loaded {
 			return nil
 		}
 		select {
-		case <-ctx.Done():
-			return fmt.Errorf("%s did not leave the domain within %s", label, c.bootoutSettleTimeout())
+		case <-settleCtx.Done():
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("could not confirm %s left the domain: %w", label, ctxErr)
+			}
+			return timedOut
 		case <-time.After(c.bootoutSettlePollInterval()):
 		}
 	}
@@ -253,34 +235,20 @@ func (c *Client) Enable(ctx context.Context, label string) error {
 	return nil
 }
 
-// Print reports what launchd knows about a job. A job that is not loaded is reported with
-// Loaded false and no error.
-func (c *Client) Print(ctx context.Context, label string) (JobStatus, error) {
-	out, err := c.launchctl(ctx, "print", c.serviceTarget(label))
-	if err != nil {
-		if code, ok := exitCode(err); ok && code == exitServiceNotFound {
-			return JobStatus{Label: label}, nil
-		}
-		return JobStatus{Label: label}, fmt.Errorf("could not print %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
-	}
-	status := parsePrint(label, string(out))
-	return status, nil
-}
-
 // Loaded reports whether the job is present in the domain.
 func (c *Client) Loaded(ctx context.Context, label string) (bool, error) {
-	status, err := c.Print(ctx, label)
-	if err != nil {
-		return false, err
+	out, err := c.launchctl(ctx, "print", c.serviceTarget(label))
+	if err == nil {
+		return true, nil
 	}
-	return status.Loaded, nil
+	if code, ok := exitCode(err); ok && code == exitServiceNotFound {
+		return false, nil
+	}
+	return false, fmt.Errorf("could not print %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
 }
 
 func (c *Client) domainTarget() string {
-	if c.Domain == GUI {
-		return fmt.Sprintf("gui/%d", c.UID)
-	}
-	return string(System)
+	return string(c.Domain)
 }
 
 func (c *Client) serviceTarget(label string) string {
@@ -291,10 +259,7 @@ func (c *Client) launchctl(ctx context.Context, args ...string) ([]byte, error) 
 	if c.Runner != nil {
 		return c.Runner(ctx, launchctlPath, args...)
 	}
-	cmd := telemetry.CommandContext(ctx, launchctlPath, args...)
-	// print's output is parsed, so it is requested in the C locale whatever the host's is.
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
-	return cmd.CombinedOutput()
+	return telemetry.CommandContext(ctx, launchctlPath, args...).CombinedOutput()
 }
 
 const (
@@ -311,28 +276,4 @@ func exitCode(err error) (int, bool) {
 		return exitErr.ExitCode(), true
 	}
 	return 0, false
-}
-
-var (
-	pidRe  = regexp.MustCompile(`(?m)^\s*pid\s*=\s*(\d+)\s*$`)
-	exitRe = regexp.MustCompile(`(?m)^\s*last exit (?:code|status)\s*=\s*(-?\d+)\s*$`)
-)
-
-// parsePrint extracts the fields the installer needs from launchctl print output. launchd's
-// output is a nested, unstable, undocumented dump, so only the individual lines that matter are
-// matched; anything absent is left at its zero value rather than treated as an error.
-func parsePrint(label string, out string) JobStatus {
-	status := JobStatus{Label: label, Loaded: true}
-	if m := pidRe.FindStringSubmatch(out); m != nil {
-		if pid, err := strconv.Atoi(m[1]); err == nil {
-			status.PID = pid
-		}
-	}
-	if m := exitRe.FindStringSubmatch(out); m != nil {
-		if code, err := strconv.Atoi(m[1]); err == nil {
-			status.LastExitStatus = code
-			status.HasExited = true
-		}
-	}
-	return status
 }

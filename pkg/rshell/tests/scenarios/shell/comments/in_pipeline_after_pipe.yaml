@@ -1,0 +1,10 @@
+description: Comment in pipeline after pipe operator.
+input:
+  script: |+
+    echo foo |###
+    cat #|:
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

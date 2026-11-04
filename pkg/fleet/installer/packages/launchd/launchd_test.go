@@ -9,19 +9,17 @@ package launchd
 
 import (
 	"context"
+	"errors"
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// runningPrintOutput is real `launchctl print system/com.apple.opendirectoryd` output, trimmed to
-// the leading block. The parser must survive launchd's nested, undocumented dump, so the fixture
-// keeps the nesting rather than a hand-written flat list of the keys under test.
+// runningPrintOutput is `launchctl print` output for a loaded job, trimmed to the leading block.
 const runningPrintOutput = `system/com.datadoghq.agent = {
 	active count = 7
 	path = /Library/LaunchDaemons/com.datadoghq.agent.plist
@@ -46,20 +44,6 @@ const runningPrintOutput = `system/com.datadoghq.agent = {
 	forks = 0
 	execs = 1
 	last exit code = (never exited)
-}
-`
-
-// exitedPrintOutput is a job launchd has run and recorded an exit code for.
-const exitedPrintOutput = `system/com.datadoghq.agent-exp = {
-	active count = 0
-	path = /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
-	type = LaunchDaemon
-	state = not running
-
-	program = /opt/datadog-agent/bin/agent/agent
-	domain = system
-	runs = 1
-	last exit code = 2
 }
 `
 
@@ -108,53 +92,9 @@ func newClient(rec *recorder) *Client {
 	return c
 }
 
-func TestParsePrint(t *testing.T) {
-	tests := []struct {
-		name string
-		out  string
-		want JobStatus
-	}{
-		{
-			name: "running job",
-			out:  runningPrintOutput,
-			want: JobStatus{Label: "com.datadoghq.agent", PID: 395, LastExitStatus: 0, Loaded: true},
-		},
-		{
-			name: "job that exited non-zero",
-			out:  exitedPrintOutput,
-			want: JobStatus{Label: "com.datadoghq.agent", PID: 0, LastExitStatus: 2, HasExited: true, Loaded: true},
-		},
-		{
-			name: "loaded job launchd reports nothing else about",
-			out:  "system/com.datadoghq.agent = {\n\tstate = not running\n}\n",
-			want: JobStatus{Label: "com.datadoghq.agent", Loaded: true},
-		},
-		{
-			// "pid" appears inside nested dictionaries as a substring of other keys
-			// (e.g. "spawn type"); only a whole-line match may be taken.
-			name: "pid-like keys are not mistaken for the pid",
-			out:  "system/com.datadoghq.agent = {\n\tinherited pid = 1\n\tpid = 42\n}\n",
-			want: JobStatus{Label: "com.datadoghq.agent", PID: 42, Loaded: true},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, parsePrint("com.datadoghq.agent", tt.out))
-		})
-	}
-}
-
-func TestPrintNotLoadedIsNotAnError(t *testing.T) {
-	rec := &recorder{outputs: [][]byte{[]byte(notLoadedOutput)}, errs: []error{exitError(113)}}
-	status, err := newClient(rec).Print(context.Background(), "com.datadoghq.agent")
-	require.NoError(t, err)
-	assert.Equal(t, JobStatus{Label: "com.datadoghq.agent"}, status)
-	assert.False(t, status.Loaded)
-}
-
-func TestPrintRealFailureIsAnError(t *testing.T) {
+func TestLoadedRealFailureIsAnError(t *testing.T) {
 	rec := &recorder{outputs: [][]byte{[]byte("Bad request.\nCould not talk to launchd\n")}, errs: []error{exitError(1)}}
-	_, err := newClient(rec).Print(context.Background(), "com.datadoghq.agent")
+	_, err := newClient(rec).Loaded(context.Background(), "com.datadoghq.agent")
 	assert.Error(t, err)
 }
 
@@ -195,16 +135,11 @@ func TestOperationsAreIdempotentWhenJobIsAbsent(t *testing.T) {
 			"Load failed: 5: Input/output error: service already loaded\n",
 		} {
 			rec := &recorder{outputs: [][]byte{[]byte(out)}, errs: []error{exitError(5)}}
-			job := Job{Label: "com.datadoghq.agent", Domain: System}
+			job := Job{Label: "com.datadoghq.agent"}
 			assert.NoError(t, newClient(rec).Bootstrap(context.Background(), job))
 		}
 	})
 
-	t.Run("removing a definition that is not there", func(t *testing.T) {
-		job := Job{Label: "com.datadoghq.agent", PlistPath: filepath.Join(t.TempDir(), "absent.plist")}
-		assert.NoError(t, job.Remove())
-		assert.NoError(t, job.Remove())
-	})
 }
 
 // TestBootstrapFailureIsAnErrorWhenTheJobIsNotLoaded guards the idempotency above from
@@ -214,7 +149,7 @@ func TestBootstrapFailureIsAnErrorWhenTheJobIsNotLoaded(t *testing.T) {
 		outputs: [][]byte{[]byte("Bootstrap failed: 5: Input/output error\n"), []byte(notLoadedOutput)},
 		errs:    []error{exitError(5), exitError(exitServiceNotFound)},
 	}
-	job := Job{Label: "com.datadoghq.agent", Domain: System}
+	job := Job{Label: "com.datadoghq.agent"}
 	assert.Error(t, newClient(rec).Bootstrap(context.Background(), job))
 }
 
@@ -248,50 +183,89 @@ func TestBootoutNamesTheServiceTarget(t *testing.T) {
 	assert.Equal(t, []string{"bootout", "system/com.datadoghq.agent"}, rec.calls[0].args)
 }
 
-// TestBootoutWaitsForTheJobToLeaveTheDomain guards the fix for the race documented in
-// priv_notes/TO_BE_FIXED_MACOS_LAUNCHD_BOOTOUT_BOOTSTRAP_RACE.md: launchctl bootout can return
+// TestBootoutWaitsForTheJobToLeaveTheDomain guards against a race: launchctl bootout can return
 // before the label has actually left the domain, and a Bootstrap that follows immediately can hit
 // a bare "Input/output error". Bootout must not return until a print poll confirms the label is
 // gone.
 func TestBootoutWaitsForTheJobToLeaveTheDomain(t *testing.T) {
-	rec := &recorder{
-		outputs: [][]byte{
-			nil,                        // bootout
-			[]byte(runningPrintOutput), // print: still loaded
-			[]byte(runningPrintOutput), // print: still loaded
-			[]byte(notLoadedOutput),    // print: finally gone
-		},
-		errs: []error{nil, nil, nil, exitError(113)},
-	}
-	c := newClient(rec)
-	c.BootoutSettlePollInterval = time.Millisecond
-	require.NoError(t, c.Bootout(context.Background(), "com.datadoghq.agent"))
-
-	var prints int
-	for _, call := range rec.calls {
-		if len(call.args) > 0 && call.args[0] == "print" {
-			prints++
+	synctest.Test(t, func(t *testing.T) {
+		rec := &recorder{
+			outputs: [][]byte{
+				nil,                        // bootout
+				[]byte(runningPrintOutput), // print: still loaded
+				[]byte(runningPrintOutput), // print: still loaded
+				[]byte(notLoadedOutput),    // print: finally gone
+			},
+			errs: []error{nil, nil, nil, exitError(113)},
 		}
-	}
-	assert.Equal(t, 3, prints, "Bootout must poll print until the label is actually gone")
+		c := newClient(rec)
+		require.NoError(t, c.Bootout(context.Background(), "com.datadoghq.agent"))
+
+		var prints int
+		for _, call := range rec.calls {
+			if len(call.args) > 0 && call.args[0] == "print" {
+				prints++
+			}
+		}
+		assert.Equal(t, 3, prints, "Bootout must poll print until the label is actually gone")
+	})
 }
 
 // TestBootoutTimesOutIfTheJobNeverLeaves is the regression guard for the settle loop itself: it
 // must fail loudly rather than hang forever or silently report success on a label that never
 // actually left the domain.
 func TestBootoutTimesOutIfTheJobNeverLeaves(t *testing.T) {
-	c := NewClient(System)
-	c.Runner = func(_ context.Context, _ string, _ ...string) ([]byte, error) {
-		return []byte(runningPrintOutput), nil
-	}
-	c.BootoutSettleTimeout = 10 * time.Millisecond
-	c.BootoutSettlePollInterval = time.Millisecond
-	assert.Error(t, c.Bootout(context.Background(), "com.datadoghq.agent"))
+	synctest.Test(t, func(t *testing.T) {
+		c := NewClient(System)
+		c.Runner = func(_ context.Context, _ string, _ ...string) ([]byte, error) {
+			return []byte(runningPrintOutput), nil
+		}
+		assert.Error(t, c.Bootout(context.Background(), "com.datadoghq.agent"))
+	})
+}
+
+// TestBootoutTimesOutWhilePrintIsStillRunning pins the error reported when the settle deadline
+// kills a launchctl print that has not returned yet: it is the timeout, not the signal that ended
+// the command.
+func TestBootoutTimesOutWhilePrintIsStillRunning(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := NewClient(System)
+		c.Runner = func(ctx context.Context, _ string, args ...string) ([]byte, error) {
+			if args[0] != "print" {
+				return nil, nil
+			}
+			<-ctx.Done()
+			return nil, errors.New("signal: killed")
+		}
+		err := c.Bootout(context.Background(), "com.datadoghq.agent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "did not leave the domain within "+defaultBootoutSettleTimeout.String())
+		assert.NotContains(t, err.Error(), "killed")
+	})
+}
+
+// TestBootoutReportsCancellation pins that a caller's cancellation is reported as such rather
+// than as the settle timeout.
+func TestBootoutReportsCancellation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		c := NewClient(System)
+		c.Runner = func(ctx context.Context, _ string, args ...string) ([]byte, error) {
+			if args[0] != "print" {
+				return nil, nil
+			}
+			cancel()
+			<-ctx.Done()
+			return nil, errors.New("signal: killed")
+		}
+		err := c.Bootout(ctx, "com.datadoghq.agent")
+		assert.ErrorIs(t, err, context.Canceled)
+	})
 }
 
 func TestCommandConstruction(t *testing.T) {
 	ctx := context.Background()
-	job := Job{Label: "com.datadoghq.agent", Domain: System}
+	job := Job{Label: "com.datadoghq.agent"}
 
 	tests := []struct {
 		name string
@@ -330,20 +304,9 @@ func TestCommandConstruction(t *testing.T) {
 	}
 }
 
-func TestGUIDomainTargets(t *testing.T) {
-	rec := &recorder{}
-	c := NewClient(GUI)
-	c.UID = 501
-	c.Runner = rec.run
-	require.NoError(t, c.Enable(context.Background(), "com.datadoghq.gui"))
-	assert.Equal(t, []string{"enable", "gui/501/com.datadoghq.gui"}, rec.calls[0].args)
-	assert.Equal(t, "/Library/LaunchAgents", GUI.Dir())
-	assert.Equal(t, "/Library/LaunchDaemons", System.Dir())
-}
-
 func TestJobWriteIsAtomicAndLeavesNoTemporaryFiles(t *testing.T) {
 	dir := t.TempDir()
-	job := Job{Label: "com.datadoghq.agent", PlistPath: filepath.Join(dir, "com.datadoghq.agent.plist")}
+	job := Job{Label: "com.datadoghq.agent", Dir: dir}
 
 	require.NoError(t, job.Write([]byte("first")))
 	content, err := os.ReadFile(job.Path())
@@ -363,15 +326,11 @@ func TestJobWriteIsAtomicAndLeavesNoTemporaryFiles(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	assert.Len(t, entries, 1, "write left a temporary file behind")
-
-	require.NoError(t, job.Remove())
-	_, err = os.Stat(job.Path())
-	assert.True(t, os.IsNotExist(err))
 }
 
 func TestJobPathDefaultsToTheDomainDirectory(t *testing.T) {
 	assert.Equal(t, "/Library/LaunchDaemons/com.datadoghq.installer.plist",
-		Job{Label: "com.datadoghq.installer", Domain: System}.Path())
-	assert.Equal(t, "/Library/LaunchAgents/com.datadoghq.gui.plist",
-		Job{Label: "com.datadoghq.gui", Domain: GUI}.Path())
+		Job{Label: "com.datadoghq.installer"}.Path())
+	assert.Equal(t, "/tmp/x/com.datadoghq.installer.plist",
+		Job{Label: "com.datadoghq.installer", Dir: "/tmp/x"}.Path())
 }

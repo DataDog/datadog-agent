@@ -981,3 +981,79 @@ func TestIsDatadogAgentContainer(t *testing.T) {
 		})
 	}
 }
+
+func TestIsKAIReservationContainer(t *testing.T) {
+	const (
+		reservationPodName = "gpu-reservation-6d8e72c077c10ec9"
+		gpuGroup           = "c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8"
+		reservedGPU        = "GPU-0b5693b2-d023-de74-f5c9-bb2c1cad110d"
+	)
+
+	tests := []struct {
+		name     string
+		pod      *workloadmeta.KubernetesPod
+		expected bool
+	}{
+		{
+			// The annotation alone is enough: name and label are only the
+			// fallback for the window before it is written.
+			name: "pod with the reservation annotation only",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:        "renamed-reservation",
+				Namespace:   "kai-resource-reservation",
+				Annotations: map[string]string{kaiReservationGPUAnnotation: reservedGPU},
+			}},
+			expected: true,
+		},
+		{
+			name: "reservation pod that has not written its annotation yet",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:      reservationPodName,
+				Namespace: "kai-resource-reservation",
+				Labels:    map[string]string{kaiGPUGroupLabel: gpuGroup},
+			}},
+			expected: true,
+		},
+		{
+			name: "fractional pod sharing the reserved GPU",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:        "frac-a",
+				Namespace:   "kai-test",
+				Labels:      map[string]string{kaiGPUGroupLabel: gpuGroup},
+				Annotations: map[string]string{"gpu-fraction": "0.5"},
+			}},
+			expected: false,
+		},
+		{
+			name: "pod named like a reservation pod but without a GPU group",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:      "gpu-reservation-report",
+				Namespace: "default",
+			}},
+			expected: false,
+		},
+		{
+			name: "regular GPU pod",
+			pod: &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{
+				Name:      "training-job",
+				Namespace: "default",
+			}},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wmetaMock := testutil.GetWorkloadMetaMock(t)
+			tt.pod.EntityID = workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"}
+			wmetaMock.Set(tt.pod)
+			container := &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-id"},
+				Owner:    &tt.pod.EntityID,
+			}
+			wmetaMock.Set(container)
+
+			assert.Equal(t, tt.expected, IsKAIReservationContainer(wmetaMock, container))
+		})
+	}
+}

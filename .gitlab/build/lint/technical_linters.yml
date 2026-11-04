@@ -10,7 +10,7 @@ lint_licenses:
     - dda inv -- -e lint-licenses
 
 lint_rust_licenses:
-  extends: .lint
+  extends: [.lint, .rust_internal_registry]
   script:
     - dda inv -- -e lint-rust-licenses
 
@@ -41,8 +41,7 @@ lint_docs_links:
 lint_e2e_internet_access:
   extends: .lint
   script:
-    # `dda inv --dep` is a no-op with DDA_NO_DYNAMIC_DEPS=1, so install into dda's own environment instead
-    - python3 -m pip install tree-sitter==0.26.0 tree-sitter-go==0.25.0
+    - dda self dep sync -f go-ast
     - dda inv -- -e linter.e2e-internet-access
 
 lint_codeowners:
@@ -117,10 +116,3 @@ lint_config_schema:
         compare_to: $COMPARE_TO_BRANCH
   script:
     - dda inv -- -e schema.lint
-
-lint_rtloader:
-  extends: .lint
-  rules: !reference [.on_rtloader_changes]
-  script:
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.format --raise-if-changed

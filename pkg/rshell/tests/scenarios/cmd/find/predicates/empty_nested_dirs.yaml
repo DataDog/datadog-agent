@@ -1,0 +1,30 @@
+description: find -empty matches empty files at various depths in a nested tree.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/full/file.txt
+      content: "stuff"
+      chmod: 0644
+    - path: dir/empty1.txt
+      content: ""
+      chmod: 0644
+    - path: dir/sub/empty2.txt
+      content: ""
+      chmod: 0644
+    - path: dir/sub/deep/empty3.txt
+      content: ""
+      chmod: 0644
+    - path: dir/sub/deep/notempty.txt
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -empty
+expect:
+  stdout_unordered: |+
+    dir/empty1.txt
+    dir/sub/empty2.txt
+    dir/sub/deep/empty3.txt
+  stderr: ""
+  exit_code: 0

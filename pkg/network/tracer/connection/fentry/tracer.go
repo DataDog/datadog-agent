@@ -203,6 +203,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 			o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
+	o.ExcludedMaps = append(o.ExcludedMaps, "pending_tcp_retransmit_skb")
 
 	for funcName := range enabledProbes {
 		pid := manager.ProbeIdentificationPair{

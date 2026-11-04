@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -71,6 +72,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 	metrics := []observer.MetricOutput{{
 		Name:       metricName,
 		Value:      1,
+		MetricType: pkgmetrics.CountType,
 		Tags:       tags,
 		HasContext: true,
 		Context: observer.MetricContext{
@@ -125,6 +127,7 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagse
 		out = append(out, observer.MetricOutput{
 			Name:       "log.field." + sanitizeMetricFragment(k),
 			Value:      f,
+			MetricType: pkgmetrics.GaugeType,
 			Tags:       tags,
 			HasContext: true,
 			Context: observer.MetricContext{

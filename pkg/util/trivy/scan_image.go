@@ -14,24 +14,26 @@ import (
 
 	trivycache "github.com/aquasecurity/trivy/pkg/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
+	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 )
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, scanOptions sbom.ScanOptions) (*Report, error) {
-	cache := trivycache.NewMemoryCache()
-
-	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption(scanOptions))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
-	}
-
-	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache))
+	trivyReport, osFallback, err := scanWithOSFallback(ctx, fanalImage.Name(), scanOptions, func(ctx context.Context, artifactOption artifact.Option) (*types.Report, error) {
+		cache := trivycache.NewMemoryCache()
+		imageArtifact, err := image2.NewArtifact(fanalImage, cache, artifactOption)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
+		}
+		return c.scan(ctx, imageArtifact, applier.NewApplier(cache))
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID)
+	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID, osFallback)
 }

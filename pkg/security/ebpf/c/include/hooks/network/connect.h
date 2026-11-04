@@ -35,13 +35,14 @@ static __always_inline int sys_connect_ret_impl(void *ctx, int retval, enum TAIL
         return 0;
     }
 
-    // Bail out on failed connects before the approvers, otherwise a dropped event would still
-    // pollute connect_samples and suppress later successful connects to the same endpoint.
+    // Handled errors (EACCES, EPERM, or any error when capture_all_errors is enabled) are kept for
+    // rule evaluation, while connect_approvers only samples connects with retval 0, -EINPROGRESS, or -EAGAIN.
     // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64).
     if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
         goto pop_and_exit;
     }
 
+    syscall->retval = retval;
     approve_syscall(syscall, connect_approvers);
 
     register_connecting_flow(syscall->connect.sk, syscall->connect.pid_tgid ? syscall->connect.pid_tgid : bpf_get_current_pid_tgid());

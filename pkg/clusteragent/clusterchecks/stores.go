@@ -124,6 +124,7 @@ type nodeStore struct {
 	busyness         int
 	workers          int
 	nodetype         types.NodeType
+	group            string // runner group, "" for a general worker
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
@@ -184,16 +185,4 @@ func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error)
 		return stats, fmt.Errorf("check ID not found: %s", checkID)
 	}
 	return stats, nil
-}
-
-// GetBusyness calculates busyness of the node
-// The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) int) int {
-	s.RLock()
-	defer s.RUnlock()
-	busyness := 0
-	for _, stats := range s.clcRunnerStats {
-		busyness += busynessFunc(stats)
-	}
-	return busyness
 }

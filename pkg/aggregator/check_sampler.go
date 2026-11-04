@@ -18,8 +18,8 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 const checksSourceTypeName = "System"
@@ -322,7 +322,8 @@ func (cs *CheckSampler) releaseMetrics() {
 	for i := 0; i < int(metrics.NumMetricTypes); i++ {
 		mtype := metrics.MetricType(i).String()
 		tlmChecksContextsByMtype.Delete(idString, mtype)
-		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindStruct)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindData)
 	}
 }
 

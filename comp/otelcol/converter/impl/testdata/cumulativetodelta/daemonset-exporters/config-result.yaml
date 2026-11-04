@@ -1,0 +1,28 @@
+processors:
+  cumulativetodelta/custom:
+  cumulativetodelta/dd-autoconfigured:
+service:
+  pipelines:
+    metrics/otlp:
+      receivers: [otlp]
+      processors: [cumulativetodelta/dd-autoconfigured]
+      exporters: [otlp]
+    metrics/otlp_grpc:
+      receivers: [otlp]
+      processors: [cumulativetodelta/dd-autoconfigured]
+      exporters: [otlp_grpc/gw]
+    metrics/otlp_http:
+      receivers: [otlp]
+      processors: [cumulativetodelta/dd-autoconfigured]
+      exporters: [otlp_http]
+    metrics/loadbalancing:
+      receivers: [otlp]
+      processors: [cumulativetodelta/dd-autoconfigured]
+      exporters: [loadbalancing]
+    metrics/debug:
+      receivers: [otlp]
+      exporters: [debug]
+    metrics/user-c2d:
+      receivers: [otlp]
+      processors: [cumulativetodelta/custom]
+      exporters: [otlphttp]

@@ -122,6 +122,8 @@ You're looking for two things:
 
 State your verdict among the below options, as well as a recommended course of action and the linked incident if any.
 
+Before recommending a retry, check whether the job supports a standalone GitLab retry: some E2E/KMT jobs depend on pre-init state or infrastructure that may already have been cleaned up. Record retryability and its evidence in `Evidence`; if retryability is unknown or requires re-initialization, explain the recovery needed instead of recommending a direct job retry.
+
 | blame | incident status | Suggested action |
 |---|---|---|
 | `pr-code` | — | Propose the smallest concrete fix. Don't apply it. |

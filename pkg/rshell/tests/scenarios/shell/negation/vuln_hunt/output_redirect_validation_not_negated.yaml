@@ -1,0 +1,14 @@
+# vuln-hunt 2026-05-19-codex / negation.
+# Validation happens before statement execution, so ! must not convert a
+# blocked output redirect into a successful no-op.
+skip_assert_against_bash: true
+description: Negation does not invert blocked output-redirection validation errors.
+input:
+  script: |+
+    ! echo hidden > created.txt
+    echo after
+expect:
+  stdout: |+
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

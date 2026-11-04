@@ -1,0 +1,11 @@
+# -i values above maxInterval (60s) are clamped with a stderr warning.
+# DNS fails immediately on the unresolvable host so the test exits fast.
+description: "ping -i with value above maximum emits clamping warning"
+input:
+  script: |+
+    ping -c 1 -i 120s no-such-host-xyzzy.invalid
+expect:
+  stdout: ""
+  stderr_contains: ["ping: warning: -i 2m0s out of range"]
+  exit_code: 1
+skip_assert_against_bash: true

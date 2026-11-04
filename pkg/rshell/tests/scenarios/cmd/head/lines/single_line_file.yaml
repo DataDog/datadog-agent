@@ -1,0 +1,13 @@
+description: head on single-line file outputs that line.
+setup:
+  files:
+    - path: one.txt
+      content: "only line\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head one.txt
+expect:
+  stdout: "only line\n"
+  stderr: ""
+  exit_code: 0

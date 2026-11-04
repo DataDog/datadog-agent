@@ -9,18 +9,20 @@ import (
 	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // sampleNoSource implements MetricView only — no sourceProvider.
 type sampleNoSource struct{ name string }
 
-func (s *sampleNoSource) GetName() string               { return s.name }
-func (s *sampleNoSource) GetValue() float64             { return 0 }
-func (s *sampleNoSource) GetTags() tagset.CompositeTags { return tagset.CompositeTags{} }
-func (s *sampleNoSource) GetHost() string               { return "" }
-func (s *sampleNoSource) GetTimestampUnix() int64       { return 0 }
-func (s *sampleNoSource) GetSampleRate() float64        { return 1 }
+func (s *sampleNoSource) GetName() string                   { return s.name }
+func (s *sampleNoSource) GetValue() float64                 { return 0 }
+func (s *sampleNoSource) GetTags() tagset.CompositeTags     { return tagset.CompositeTags{} }
+func (s *sampleNoSource) GetHost() string                   { return "" }
+func (s *sampleNoSource) GetTimestampUnix() int64           { return 0 }
+func (s *sampleNoSource) GetSampleRate() float64            { return 1 }
+func (s *sampleNoSource) GetMetricType() metrics.MetricType { return observerdef.UnknownType }
 
 // testContextKeyFor derives a key from test fixture fields without calling
 // GetTags. This preserves lazy-tag-read assertions in filter tests while every
@@ -86,6 +88,7 @@ func (h *countingHandle) ObserveLog(_ observerdef.LogView)                 { h.l
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {
+	source      string
 	content     string
 	status      string
 	tags        []string
@@ -93,6 +96,7 @@ type mockLogView struct {
 	timestampMs int64
 }
 
+func (m *mockLogView) GetSource() string            { return m.source }
 func (m *mockLogView) GetContent() string           { return m.content }
 func (m *mockLogView) GetStatus() string            { return m.status }
 func (m *mockLogView) Tags() []string               { return m.tags }

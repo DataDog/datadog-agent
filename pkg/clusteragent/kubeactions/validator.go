@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors"
 )
 
 // ValidationError represents an error during action validation
@@ -176,6 +178,13 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 			}
 		}
 
+		if _, err := executors.ParseGetResourceGVR(action.Resource.ApiVersion, action.Resource.Kind); err != nil {
+			return &ValidationError{
+				Action:  action,
+				Message: err.Error(),
+			}
+		}
+
 		if isProtectedKind(action.Resource.Kind) {
 			return &ValidationError{
 				Action:  action,
@@ -202,9 +211,11 @@ var protectedNamespaces = map[string]struct{}{
 	"kube-node-lease": {},
 }
 
-// isProtectedNamespace returns true if the namespace is a protected system namespace
+// isProtectedNamespace returns true if the namespace is a protected system namespace.
+// The comparison is case-insensitive so a value like "Kube-System" cannot get past
+// the check if an executor normalizes it before use.
 func isProtectedNamespace(namespace string) bool {
-	_, ok := protectedNamespaces[namespace]
+	_, ok := protectedNamespaces[strings.ToLower(namespace)]
 	return ok
 }
 
