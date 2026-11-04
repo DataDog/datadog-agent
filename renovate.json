@@ -53,6 +53,11 @@
         "schedule": ["* 1-4 5 6,12 *"]
       },
       {
+        "description": "Update the lading version in test/regression/**/config.yaml manually.",
+        "matchDepNames": ["DataDog/lading"],
+        "enabled": false
+      },
+      {
         "matchManagers": ["custom.regex"],
         "minimumReleaseAge": null,
         "prPriority": 10
