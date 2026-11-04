@@ -488,3 +488,44 @@ func TestIntegrationMetadataSecretReferences(t *testing.T) {
 		assert.Contains(t, scrubbed.ConfigFormat, "********")
 	}
 }
+
+func TestIntegrationMetadataRetainsTextScrubbing(t *testing.T) {
+	configmock.New(t)
+	file := filepath.Join(t.TempDir(), "http_check.yaml")
+	for _, key := range []string{"password", "pswd", "my_pswd"} {
+		t.Run(key, func(t *testing.T) {
+			content := fmt.Sprintf("instances:\n  - name: fixture\n    password: ENC[keep]\n    %s: private-value\n", key)
+			if key == "password" {
+				content = "instances:\n  - name: fixture\n    password: private-value\n    token: ENC[keep]\n"
+			}
+			require.NoError(t, os.WriteFile(file, []byte(content), 0o600))
+			_, format, err := GetIntegrationConfigFromFile("http_check", file)
+			require.NoError(t, err)
+			if key == "password" {
+				assert.Contains(t, format.ConfigFormat, "ENC[keep]")
+			}
+			assert.NotContains(t, format.ConfigFormat, "private-value")
+		})
+	}
+}
+
+func TestRestoreIntegrationSecretReferencesDoesNotRestoreContainers(t *testing.T) {
+	for name, tc := range map[string]struct{ original, scrubbed string }{
+		"redacted map":         {"auth_token: {password: 'ENC[hidden]', other: private-value}", "auth_token: '********'"},
+		"redacted list":        {"community_strings: ['ENC[hidden]', private-value]", "community_strings: '********'"},
+		"missing field":        {"password: ENC[hidden]", "{}"},
+		"different list shape": {"items: ['ENC[first]', 'ENC[second]']", "items: ['********']"},
+		"non-string result":    {"password: ENC[hidden]", "password: null"},
+		"embedded reference":   {"password: prefix ENC[handle] private-suffix", "password: '********'"},
+		"multiline plaintext":  {"password: |\n  private-line-one\n  private-line-two\n", "password: '********'"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := restoreIntegrationSecretReferences([]byte(tc.original), tc.scrubbed)
+			require.NoError(t, err)
+			assert.Equal(t, tc.scrubbed, result)
+		})
+	}
+	result, err := restoreIntegrationSecretReferences([]byte("password: ENC[hidden]"), "invalid: [")
+	require.NoError(t, err)
+	assert.Equal(t, "invalid: [", result, "unparseable scrubbed output must not restore anything")
+}

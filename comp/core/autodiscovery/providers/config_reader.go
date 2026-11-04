@@ -564,14 +564,14 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
-		// Preserve secret-backend references as structured values. ScrubYamlString
-		// applies a final text pass that redacts ENC[...] under password keys,
-		// preventing inventory consumers from detecting reference-only changes.
-		scrubbed, err := scrubber.ScrubYamlPreserveStructure(serializedConfigFormat)
+		scrubbedConfigFormat, err = scrubber.ScrubYamlString(string(serializedConfigFormat))
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
-		scrubbedConfigFormat = string(scrubbed)
+		scrubbedConfigFormat, err = restoreIntegrationSecretReferences(serializedConfigFormat, scrubbedConfigFormat)
+		if err != nil {
+			return conf, ConfigFormatWrapper{}, err
+		}
 	}
 
 	// If no valid instances were found & this is neither a metrics file, a logs file,
@@ -671,4 +671,57 @@ func ResetReader(paths []string) {
 	readerMu.Unlock()
 
 	InitConfigFilesReader(paths)
+}
+
+// restoreIntegrationSecretReferences preserves complete secret-backend handles
+// after all normal scrubbing passes. It never restores a redacted container or
+// missing field, so text-only scrubbers and custom stripped keys remain effective.
+func restoreIntegrationSecretReferences(originalData []byte, scrubbed string) (string, error) {
+	var original, redacted any
+	if err := yaml.Unmarshal(originalData, &original); err != nil {
+		return "", errors.New("failed to parse original integration metadata")
+	}
+	if err := yaml.Unmarshal([]byte(scrubbed), &redacted); err != nil {
+		// Some text replacers emit non-YAML output (for example, unquoted
+		// asterisks). Keep that fully scrubbed result without restoring anything.
+		return scrubbed, nil
+	}
+	restored, changed := restoreIntegrationSecretValues(original, redacted)
+	if !changed {
+		return scrubbed, nil
+	}
+	data, err := yaml.Marshal(restored)
+	if err != nil {
+		return "", errors.New("failed to serialize scrubbed integration metadata")
+	}
+	return string(data), nil
+}
+
+func restoreIntegrationSecretValues(original, redacted any) (any, bool) {
+	changed := false
+	switch value := redacted.(type) {
+	case string:
+		if reference, ok := original.(string); ok && scrubber.IsEnc(reference) && reference != value {
+			return reference, true
+		}
+	case map[any]any:
+		if source, ok := original.(map[any]any); ok {
+			for key, child := range value {
+				if prior, exists := source[key]; exists {
+					restored, updated := restoreIntegrationSecretValues(prior, child)
+					value[key] = restored
+					changed = changed || updated
+				}
+			}
+		}
+	case []any:
+		if source, ok := original.([]any); ok && len(source) == len(value) {
+			for i, child := range value {
+				restored, updated := restoreIntegrationSecretValues(source[i], child)
+				value[i] = restored
+				changed = changed || updated
+			}
+		}
+	}
+	return redacted, changed
 }
