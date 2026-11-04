@@ -1597,6 +1597,7 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
 	assert.True(t, conf.IsKnown("serverless.metadata_enabled"))
 	assert.True(t, conf.IsKnown("serverless.metadata_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_runtime"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
