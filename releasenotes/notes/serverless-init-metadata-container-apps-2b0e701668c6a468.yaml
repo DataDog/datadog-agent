@@ -1,6 +1,0 @@
----
-features:
-  - |
-    When ``DD_SERVERLESS_INIT_METADATA_ENABLED`` is set, serverless-init
-    reports metadata for Azure Container Apps, identified by revision with the
-    owning app as the parent resource.

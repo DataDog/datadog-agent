@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -56,7 +57,7 @@ func (s *lockedMetadataSerializer) SendMetadata(payload marshaler.JSONMarshaler)
 func (s *lockedMetadataSerializer) sent() []*sentMetadataPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]*sentMetadataPayload{}, s.payloads...)
+	return slices.Clone(s.payloads)
 }
 
 type microVMMetadataTelemetry struct{}
