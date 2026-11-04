@@ -10,8 +10,12 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/persistentcache",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/config/setup"] + select({
-        "@rules_go//go/platform:windows": ["@org_golang_x_sys//windows"],
+    deps = [
+        "//pkg/config/setup",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
         "//conditions:default": [],
     }),
 )
