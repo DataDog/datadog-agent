@@ -225,8 +225,10 @@ func (mr *Resolver) syncPidFunc() func(uint32) error {
 
 func isPreExistingMount(mnt *model.Mount) bool {
 	switch mnt.Origin {
-	case model.MountOriginEvent, model.MountOriginMoveMount, model.MountOriginPivotRoot, model.MountOriginFsmount, model.MountOriginOpenTree:
+	case model.MountOriginEvent, model.MountOriginMoveMount, model.MountOriginFsmount, model.MountOriginOpenTree:
 		return false
+	case model.MountOriginPivotRoot:
+		return !mnt.Detached && (mnt.MountPointStr == "/" || mnt.Path == "/")
 	default:
 		return true
 	}

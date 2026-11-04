@@ -1,0 +1,11 @@
+description: Heredoc delimiters are not brace-expanded, so a tilde inside their braces stays literal.
+input:
+  script: |+
+    cat <<{~root/,x}
+    ok
+    {~root/,x}
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

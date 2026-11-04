@@ -1,0 +1,13 @@
+description: sort -t and -k sort by a specific field.
+setup:
+  files:
+    - path: file.txt
+      content: "c:3\na:1\nb:2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -t : -k 2 file.txt
+expect:
+  stdout: "a:1\nb:2\nc:3\n"
+  stderr: ""
+  exit_code: 0

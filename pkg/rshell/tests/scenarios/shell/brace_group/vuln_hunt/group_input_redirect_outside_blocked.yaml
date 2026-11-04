@@ -1,0 +1,19 @@
+# skip: AllowedPaths sandbox restriction is an rshell-specific feature.
+skip_assert_against_bash: true
+description: A group-level input redirect on a brace group must honor AllowedPaths.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    { cat; } < secret/data.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["permission denied"]
+  exit_code: 0

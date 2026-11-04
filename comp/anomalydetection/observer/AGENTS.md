@@ -14,9 +14,9 @@ send). Metric handles reject name/source/host-only processing rules before
 enqueueing, retain immutable resolved-tag views, and defer tag-dependent
 filtering, muting, and context-key generation when needed to the dispatch
 goroutine; log handles reject conclusive source-only rules and below-threshold
-severities before copying caller-owned content and tags, then defer tag-based
-`processing_rules`, per-source priority rate limiting, and log recording to the
-dispatch goroutine.
+severities before snapshotting scalar fields and retaining immutable tags,
+then defer tag-based `processing_rules`, per-source priority rate limiting,
+and log recording to the dispatch goroutine.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
@@ -188,9 +188,9 @@ insertion only. It fingerprints tags as unordered, duplicate-insensitive sets
 and collision-checks views without flattening them. Existing-series writes must
 not hash or inspect tags; eviction releases the interner reference.
 
-Raw `LogView.Tags()` remains a `[]string` because the upstream log can be
-reused. Copy it once at raw-log ingestion; all derived metric paths should then
-use a composite view.
+Raw `LogView.Tags()` remains a `[]string`. Its backing storage must stay
+immutable, so raw-log ingestion retains it directly and derived metric paths
+wrap it in a composite view.
 
 ### Correlator-owned deduplication (`correlationEmitter`)
 

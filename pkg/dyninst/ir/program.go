@@ -87,6 +87,8 @@ type GoModuledataInfo struct {
 	//
 	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
 	TypesOffset uint32
+	// ETypesOffset is independent of TypesOffset since Go 1.27.
+	ETypesOffset uint32
 }
 
 // GoMapHashInfo holds the addresses of runtime hash-related globals needed to
@@ -96,10 +98,12 @@ type GoModuledataInfo struct {
 //
 // See pkg/dyninst/irgen/go_swiss_maps.md for details on the hash algorithms.
 type GoMapHashInfo struct {
-	// UseAeshashAddr is the address of runtime.useAeshash (bool).
+	// UseAeshashAddr is the address of runtime.useAeshash (bool),
+	// or internal/runtime/maps.UseAeshash starting in Go 1.27.
 	// Determines whether the process uses AES-NI or wyhash for map hashing.
 	UseAeshashAddr uint64
-	// AeskeyschedAddr is the address of runtime.aeskeysched (uint8[128]).
+	// AeskeyschedAddr is the address of runtime.aeskeysched (uint8[128]),
+	// or internal/runtime/maps.aeskeysched starting in Go 1.27.
 	// The per-process AES round key schedule, used when useAeshash is true.
 	AeskeyschedAddr uint64
 }

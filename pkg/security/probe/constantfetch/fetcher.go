@@ -189,7 +189,9 @@ func CreateConstantEditors(constants *ConstantFetcherStatus) []manager.ConstantE
 	for name, value := range constants.Values {
 		pushedValue := value.Value
 		if pushedValue == ErrorSentinel {
-			seclog.Errorf("failed to fetch constant for %s", name)
+			if !optionalConstants[name] {
+				seclog.Errorf("failed to fetch constant for %s", name)
+			}
 			pushedValue = 0
 		}
 

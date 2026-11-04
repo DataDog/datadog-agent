@@ -1,0 +1,13 @@
+description: Comments after logic operators do not confuse and-or list continuation.
+input:
+  script: |+
+    echo one && # comment after &&
+    echo two ||
+    # comment after ||
+    echo three
+expect:
+  stdout: |+
+    one
+    two
+  stderr: ""
+  exit_code: 0

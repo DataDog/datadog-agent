@@ -1,0 +1,64 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "procinfo",
+    srcs = [
+        "ancestors.go",
+        "procinfo.go",
+        "procinfo_darwin.go",
+        "procinfo_linux.go",
+        "procinfo_other.go",
+        "procinfo_windows.go",
+        "procinfo_windows_size_32.go",
+        "procinfo_windows_size_64.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/procinfo",
+    visibility = ["//pkg/rshell/builtins:__subpackages__"],
+    deps = [
+        "//pkg/rshell/builtins/internal/procpath",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "procinfo_test",
+    srcs = [
+        "ancestors_test.go",
+        "procinfo_darwin_test.go",
+        "procinfo_linux_test.go",
+        "procinfo_test.go",
+        "procinfo_windows_test.go",
+    ],
+    embed = [":procinfo"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)
