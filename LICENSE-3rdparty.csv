@@ -310,6 +310,7 @@ core,github.com/DataDog/jsonapi,Apache-2.0,"Copyright [2022-Present] Datadog, In
 core,github.com/DataDog/libdd-rc/ffi-hosts/go/internal/libddrcffi,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
 core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
 core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
+core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config/rc_secrets,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
 core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/protocol,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
 core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/signature,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
 core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509,Apache-2.0,"Copyright 2026-Present Datadog, Inc."

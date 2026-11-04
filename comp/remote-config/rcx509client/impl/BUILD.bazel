@@ -3,6 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509 @libdd_rc_source//:rcx509
 # gazelle:resolve go github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config @libdd_rc_source//:remote_config_go_proto
+# gazelle:resolve go github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config/rc_secrets @libdd_rc_source//:rc_secrets_go_proto
 
 go_library(
     name = "impl",
@@ -11,6 +12,7 @@ go_library(
         "factory.go",
         "factory_testbuild.go",
         "rcx509client.go",
+        "secret_delivery.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/impl",
     target_compatible_with = select({
@@ -21,22 +23,30 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/common",
+        "//comp/core/delegatedauth/def",
         "//comp/core/log/def",
         "//comp/def",
         "//comp/remote-config/rcx509client/def",
         "//pkg/config/remote/api",
         "//pkg/config/utils",
         "//pkg/version",
+        "@libdd_rc_source//:rc_secrets_go_proto",
         "@libdd_rc_source//:rcx509",
         "@libdd_rc_source//:remote_config_go_proto",
         "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/durationpb",
         "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_x_crypto//nacl/box",
     ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["rcx509client_test.go"],
+    srcs = [
+        "rcx509client_test.go",
+        "secret_delivery_test.go",
+    ],
     embed = [":impl"],
     target_compatible_with = select({
         "@rules_go//go/platform:darwin": [],
@@ -45,12 +55,16 @@ dd_agent_go_test(
     }),
     deps = [
         "//comp/core/config",
+        "//comp/core/delegatedauth/common",
+        "//comp/core/delegatedauth/mock",
         "//comp/core/log/mock",
         "//comp/def",
         "//comp/remote-config/rcx509client/def",
         "//pkg/version",
         "@com_github_stretchr_testify//require",
+        "@libdd_rc_source//:rc_secrets_go_proto",
         "@libdd_rc_source//:remote_config_go_proto",
         "@org_golang_google_protobuf//proto",
+        "@org_golang_x_crypto//nacl/box",
     ],
 )

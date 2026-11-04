@@ -289,5 +289,5 @@ OIDC bearer proofs cannot attest a caller-supplied public key. Requests with a
 `JWKThumbprint` are rejected before acquiring credentials. An RC encryption key
 remains separate from the workload token. Consumers must verify the token and
 apply their own secret authorization; decoding the token in the Agent does not
-establish authority. This adapter supplies the exchange hook; registering the
-`PrepareSecretDelivery` handler is a separate integration.
+establish authority. For the opt-in Agent handler and its prerequisites, see the
+[RC Secrets workload preparation prototype](rc-secrets-workload-prototype.md).

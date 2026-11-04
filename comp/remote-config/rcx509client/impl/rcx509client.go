@@ -8,12 +8,15 @@ package rcx509clientimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
@@ -25,6 +28,8 @@ import (
 const (
 	enabledSetting          = "remote_configuration.x509.enabled"
 	debugPingEnabledSetting = "remote_configuration.x509.debug_ping_enabled"
+	secretsEnabledSetting   = "remote_configuration.x509.secrets.enabled"
+	secretProductsSetting   = "remote_configuration.x509.secrets.products"
 	websocketPath           = "api/v2/ws"
 	appName                 = "core-agent"
 )
@@ -33,10 +38,11 @@ const (
 type Dependencies struct {
 	compdef.In
 
-	Lifecycle compdef.Lifecycle
-	Config    cfgcomp.Component
-	Logger    log.Component
-	Factory   rcx509client.ClientFactory `optional:"true"`
+	Lifecycle     compdef.Lifecycle
+	Config        cfgcomp.Component
+	Logger        log.Component
+	Factory       rcx509client.ClientFactory `optional:"true"`
+	DelegatedAuth delegatedauth.Component    `optional:"true"`
 }
 
 // Provides defines the output of the x509 client component.
@@ -50,9 +56,10 @@ type component struct {
 	mu    sync.RWMutex
 	state rcx509client.State
 
-	client rcx509client.Client
-	logger log.Component
-	wg     sync.WaitGroup
+	client  rcx509client.Client
+	logger  log.Component
+	wg      sync.WaitGroup
+	secrets *secretDelivery
 }
 
 // New constructs the x509 client component. It remains inert unless both the
@@ -76,13 +83,30 @@ func New(deps Dependencies) Provides {
 		return Provides{Comp: comp}
 	}
 
+	if deps.Config.GetBool(secretsEnabledSetting) {
+		// Use the same configured instance as RC's transport, including an explicit
+		// RC API-key override. Never silently fall back to the primary instance.
+		instance := "api_key"
+		if deps.Config.IsConfigured("remote_configuration.api_key") {
+			instance = "remote_configuration.api_key"
+		}
+		comp.secrets = newSecretDelivery(deps.Config.GetStringSlice(secretProductsSetting), func(ctx context.Context) (string, error) {
+			if deps.DelegatedAuth == nil {
+				return "", errors.New("workload identity is unavailable")
+			}
+			return deps.DelegatedAuth.GetWorkloadToken(ctx, instance, common.WorkloadTokenRequest{Grants: []string{"rc_secrets"}})
+		})
+		clientConfig.PrepareSecretDelivery = comp.secrets.prepare
+	}
 	client, err := deps.Factory(clientConfig)
 	if err != nil {
+		comp.secrets.close()
 		comp.state = rcx509client.StateFailed
 		deps.Logger.Errorf("remote config x509 client initialization failed: %v", err)
 		return Provides{Comp: comp}
 	}
 	if client == nil {
+		comp.secrets.close()
 		comp.state = rcx509client.StateFailed
 		deps.Logger.Error("remote config x509 client factory returned a nil client")
 		return Provides{Comp: comp}
@@ -147,6 +171,10 @@ func (c *component) State() rcx509client.State {
 	return c.state
 }
 
+func (c *component) OpenSecret(product, contextID string, ciphertext []byte) ([]byte, error) {
+	return c.secrets.open(product, contextID, ciphertext)
+}
+
 func (c *component) setState(state rcx509client.State) {
 	c.mu.Lock()
 	c.state = state
@@ -160,6 +188,7 @@ func (c *component) start(_ context.Context) error {
 	go func() {
 		defer c.wg.Done()
 		err := c.client.Start()
+		c.secrets.close()
 
 		c.mu.Lock()
 		defer c.mu.Unlock()
@@ -180,6 +209,7 @@ func (c *component) stop(_ context.Context) error {
 	c.setState(rcx509client.StateStopping)
 	err := c.client.Close()
 	c.wg.Wait()
+	c.secrets.close()
 	if err != nil {
 		c.setState(rcx509client.StateFailed)
 		c.logger.Errorf("unable to stop remote config x509 client: %v", err)
