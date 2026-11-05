@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -238,10 +239,14 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
+	// A saved API-key runner is disposable. Enroll a new WIF runner on startup,
+	// leaving the old identity file untouched until enrollment succeeds.
+	// Cluster Agent replacement needs shared-Secret coordination.
+	if p.wifEnrollmentEnabled() && p.coreConfig.GetBool(par.SelfEnroll) &&
+		flavor.GetFlavor() != flavor.ClusterAgent && persistedIdentity != nil && !persistedIdentity.WIFEnrolled {
+		persistedIdentity = nil
+	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
-		if p.wifEnrollmentEnabled() {
-			return nil, errors.New("WIF enrollment cannot replace an existing runner identity; migration must be completed separately")
-		}
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {

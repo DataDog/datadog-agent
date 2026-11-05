@@ -171,12 +171,14 @@ properties:
     type: boolean
     default: false
     description: |-
-      Use the primary intake WIF identity to enroll a new node Agent Private Action
-      Runner. Has no effect unless primary intake WIF is configured through
-      delegated_auth.org_uuid. Requires PAR enrollment permission on
-      the matched mapping. Does not fall back to API-key enrollment or migrate an
-      existing runner. Existing saved identities are reused; disabling this setting
-      does not change their authorization. Cluster Agent enrollment is not supported.
+      Use the primary intake WIF identity for node Agent Private Action Runner
+      enrollment. With self_enroll enabled, replace a saved non-WIF runner with a
+      new WIF runner on startup. Requires primary intake WIF configured through
+      delegated_auth.org_uuid and PAR enrollment permission on the matched mapping.
+      Enrollment failure stops PAR startup without changing the saved identity or
+      falling back to API-key enrollment. Later restarts reuse the WIF identity,
+      including after intake-key rotation or disabling this setting.
+      Cluster Agent enrollment is not supported.
   api_key_only_enrollment:
     node_type: setting
     type: boolean

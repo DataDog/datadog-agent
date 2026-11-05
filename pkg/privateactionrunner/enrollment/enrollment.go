@@ -35,6 +35,7 @@ type Result struct {
 	RunnerName    string
 	OrchClusterID string
 	APIKeyHash    string
+	WIFEnrolled   bool
 }
 
 type AgentIdentifier struct {
@@ -49,6 +50,8 @@ type PersistedIdentity struct {
 	OrchClusterID string `json:"orch_cluster_id,omitempty"`
 	// Hashed rather than stored raw, to avoid persisting a second live credential.
 	APIKeyHash string `json:"api_key_hash,omitempty"`
+	// Set after successful WIF enrollment, so intake-key rotation does not replace the runner.
+	WIFEnrolled bool `json:"wif_enrolled,omitempty"`
 }
 
 func HashAPIKey(apiKey string) string {

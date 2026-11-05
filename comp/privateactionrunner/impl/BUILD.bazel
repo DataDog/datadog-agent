@@ -41,6 +41,7 @@ go_library(
         "//pkg/privateactionrunner/runners",
         "//pkg/privateactionrunner/task-verifier",
         "//pkg/privateactionrunner/util",
+        "//pkg/util/flavor",
         "//pkg/util/http",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@org_golang_google_grpc//:grpc",
@@ -57,6 +58,7 @@ dd_agent_go_test(
         "privateactionrunner_test.go",
         "standalone_enrollment_test.go",
         "workload_enrollment_test.go",
+        "workload_reenrollment_test.go",
     ],
     embed = [":impl"],
     deps = [
