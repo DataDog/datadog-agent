@@ -18,6 +18,8 @@ import (
 var adjustMtx sync.Mutex
 
 // Adjust makes changes to the raw config based on deprecations and inferences.
+// It also sets sbom.enrichment.usage.enabled in the core config when the user
+// left it unset.
 func Adjust(cfg model.Config) {
 	adjustMtx.Lock()
 	defer adjustMtx.Unlock()
