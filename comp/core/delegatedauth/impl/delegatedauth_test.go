@@ -1824,14 +1824,14 @@ func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {
 	})
 }
 
-func TestFallbackTargetInstanceCarriesWriteTargetFields(t *testing.T) {
+func TestNewAuthInstanceCarriesWriteTargetFields(t *testing.T) {
 	t.Run("map shape", func(t *testing.T) {
-		instance := fallbackTargetInstance(delegatedauth.InstanceParams{
+		instance := newAuthInstance(delegatedauth.InstanceParams{
 			APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
 			AdditionalEndpointDomain:     "https://second-org.datadoghq.com",
 			AdditionalEndpointsConfigKey: "additional_endpoints",
 			AdditionalEndpointDirective:  "DELA[second-org-uuid, aws, fallback=static-key]",
-		})
+		}, nil)
 
 		assert.Equal(t, "https://second-org.datadoghq.com", instance.additionalEndpointDomain)
 		assert.Equal(t, "additional_endpoints", instance.additionalEndpointsConfigKey)
@@ -1840,11 +1840,11 @@ func TestFallbackTargetInstanceCarriesWriteTargetFields(t *testing.T) {
 	})
 
 	t.Run("list shape", func(t *testing.T) {
-		instance := fallbackTargetInstance(delegatedauth.InstanceParams{
+		instance := newAuthInstance(delegatedauth.InstanceParams{
 			APIKeyConfigKey:                  "logs_config.additional_endpoints[0][logs-org-uuid]",
 			AdditionalEndpointsListConfigKey: "logs_config.additional_endpoints",
 			AdditionalEndpointDirective:      "DELA[logs-org-uuid, aws, fallback=static-key]",
-		})
+		}, nil)
 
 		assert.Equal(t, "logs_config.additional_endpoints", instance.additionalEndpointsListConfigKey)
 		assert.Equal(t, "DELA[logs-org-uuid, aws, fallback=static-key]", instance.lastWrittenValue)
@@ -1930,12 +1930,15 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 		"https://second-org.datadoghq.com": {"DELA[second-org-uuid, aws, fallback=static-fallback-key]"},
 	})
 
-	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+	comp := &delegatedAuthComponent{
+		instances:      make(map[string]*authInstance),
+		initialized:    true,
+		providerConfig: &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
+	}
 
 	apiKeyConfigKey := "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]"
 	params := delegatedauth.InstanceParams{
 		Config:                       mockConfig,
-		ProviderConfig:               &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
 		OrgUUID:                      "second-org-uuid",
 		RefreshInterval:              60,
 		APIKeyConfigKey:              apiKeyConfigKey,
@@ -1960,6 +1963,8 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	comp.mu.RUnlock()
 	require.NotNil(t, instance)
 	require.NotNil(t, recovery)
+	assert.Equal(t, cloudauthconfig.ProviderAWS, instance.providerName)
+	assert.Equal(t, "us-east-1", instance.providerRegion, "use the detected provider when none was supplied")
 	require.NoError(t, comp.AddInstance(context.Background(), params))
 	comp.mu.RLock()
 	assert.Same(t, instance, comp.instances[apiKeyConfigKey])
@@ -1995,6 +2000,8 @@ func TestAddInstanceStopsAfterInitialFailureWhenAsyncStartupIsDisabled(t *testin
 	instance := comp.instances["logs_config.api_key"]
 	comp.mu.RUnlock()
 	require.NotNil(t, instance)
+	assert.Equal(t, cloudauthconfig.ProviderAWS, instance.providerName)
+	assert.Equal(t, "us-east-1", instance.providerRegion)
 	assert.Error(t, instance.lastError)
 	assert.ErrorIs(t, instance.refreshCtx.Err(), context.Canceled)
 	select {
@@ -2309,7 +2316,7 @@ func TestAddInstanceEndpointRegistration(t *testing.T) {
 					if state == "recovery with older instance" {
 						oldParams.TargetSite = "old.datadoghq.com"
 					}
-					oldInstance = fallbackTargetInstance(oldParams)
+					oldInstance = newAuthInstance(oldParams, oldParams.ProviderConfig)
 					oldInstance.refreshCtx, oldInstance.refreshCancel = context.WithCancel(context.Background())
 					t.Cleanup(oldInstance.refreshCancel)
 					oldInstance.lastWrittenValue = "previously-resolved-key"
@@ -2329,7 +2336,7 @@ func TestAddInstanceEndpointRegistration(t *testing.T) {
 					if state != "active" {
 						return errors.New("provider unavailable")
 					}
-					return comp.replaceInstance(ctx, p.APIKeyConfigKey, fallbackTargetInstance(p))
+					return comp.replaceInstance(ctx, p.APIKeyConfigKey, newAuthInstance(p, p.ProviderConfig))
 				}
 
 				require.NoError(t, comp.AddInstance(context.Background(), params))

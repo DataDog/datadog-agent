@@ -417,7 +417,7 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 			return err
 		}
 		if params.FallbackAPIKey != "" {
-			if err := d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true); err != nil {
+			if err := d.writeAPIKeyToTarget(newAuthInstance(params, params.ProviderConfig), params.FallbackAPIKey, true); err != nil {
 				return fmt.Errorf("failed to write fallback API key: %w", err)
 			}
 		}
@@ -446,34 +446,18 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 	authConfig := &common.AuthConfig{
 		OrgUUID: params.OrgUUID,
 	}
-	providerName, providerRegion := providerStatus(providerConfig)
-
 	// Create a context for the background refresh goroutine
 	refreshCtx, refreshCancel := context.WithCancel(context.Background())
 
 	// Create new auth instance with backoff configured
-	instance := &authInstance{
-		provider:                         tokenProvider,
-		authConfig:                       authConfig,
-		refreshInterval:                  refreshInterval,
-		apiKeyConfigKey:                  apiKeyConfigKey,
-		providerName:                     providerName,
-		providerRegion:                   providerRegion,
-		registration:                     endpointRegistrationFor(params),
-		targetSite:                       resolveTargetSite(params),
-		additionalEndpointDomain:         params.AdditionalEndpointDomain,
-		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
-		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
-		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
-		listEntryIndex:                   params.ListEntryIndex,
-		additionalEndpointIdentity:       params.AdditionalEndpointIdentity,
-		lastWrittenValue:                 params.AdditionalEndpointDirective,
-		originalDirective:                params.AdditionalEndpointDirective,
-		backoff:                          newBackoff(refreshInterval),
-		refreshCtx:                       refreshCtx,
-		refreshCancel:                    refreshCancel,
-		done:                             make(chan struct{}),
-	}
+	instance := newAuthInstance(params, providerConfig)
+	instance.provider = tokenProvider
+	instance.authConfig = authConfig
+	instance.refreshInterval = refreshInterval
+	instance.backoff = newBackoff(refreshInterval)
+	instance.refreshCtx = refreshCtx
+	instance.refreshCancel = refreshCancel
+	instance.done = make(chan struct{})
 
 	if err := d.replaceInstance(ctx, apiKeyConfigKey, instance); err != nil {
 		refreshCancel()
@@ -866,9 +850,9 @@ func resolveTargetSite(params delegatedauth.InstanceParams) string {
 	return params.AdditionalEndpointDomain
 }
 
-// fallbackTargetInstance builds a minimal authInstance for the no-cloud-provider case in AddInstance.
-func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
-	providerName, providerRegion := providerStatus(params.ProviderConfig)
+// newAuthInstance initializes the shared routing and writeback state; callers add refresh state as needed.
+func newAuthInstance(params delegatedauth.InstanceParams, providerConfig common.ProviderConfig) *authInstance {
+	providerName, providerRegion := providerStatus(providerConfig)
 	return &authInstance{
 		apiKeyConfigKey:                  params.APIKeyConfigKey,
 		providerName:                     providerName,
