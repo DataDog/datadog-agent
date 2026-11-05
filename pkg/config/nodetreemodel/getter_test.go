@@ -372,7 +372,11 @@ func TestSensitive(t *testing.T) {
 	require.True(t, cfg.IsSensitive("LOGS.api_key"))
 	require.False(t, cfg.IsSensitive("site"))
 	require.False(t, cfg.IsSensitive("unknown"))
-	require.Equal(t, []string{"TEST_API_KEY", "TEST_LOGS_API_KEY", "TEST_OTHER_API_KEY"}, cfg.GetSensitiveEnvVars())
+	require.Equal(t,
+		[]string{"TEST_OTHER_API_KEY", "test_logs_api_key", "TEST_API_KEY"},
+		cfg.FilterSensitiveEnvVars([]string{"TEST_SITE", "TEST_OTHER_API_KEY", "test_logs_api_key", "UNKNOWN", "TEST_API_KEY"}),
+	)
+	require.Empty(t, cfg.FilterSensitiveEnvVars([]string{"TEST_SITE", "UNKNOWN"}))
 
 	assert.Panics(t, func() { cfg.SetSensitive("site") })
 	assert.False(t, cfg.IsSensitive("site"))

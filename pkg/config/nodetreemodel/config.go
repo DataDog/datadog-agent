@@ -137,7 +137,7 @@ type ntmConfig struct {
 	// sensitiveKeys are the settings that hold credentials
 	sensitiveKeys map[string]struct{}
 	// sensitiveEnvVars are the env vars bound to sensitiveKeys, computed when the schema is built
-	sensitiveEnvVars []string
+	sensitiveEnvVars map[string]struct{}
 
 	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use.

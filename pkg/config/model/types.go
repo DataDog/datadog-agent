@@ -221,8 +221,8 @@ type Reader interface {
 
 	// IsSensitive returns whether the setting holds a credential, as declared by `sensitive: true` in the schema
 	IsSensitive(key string) bool
-	// GetSensitiveEnvVars returns the env vars bound to sensitive settings
-	GetSensitiveEnvVars() []string
+	// FilterSensitiveEnvVars returns the env vars from envVars that are bound to sensitive settings
+	FilterSensitiveEnvVars(envVars []string) []string
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() []string
@@ -321,7 +321,9 @@ type Setup interface {
 	// Name in the list must be sorted by priority (oldest name first).
 	BindEnvAndSetDefaultWithDeprecation(key string, defaultVal interface{}, deprecatedNames []string, envvars ...string)
 
-	// SetSensitive marks a setting as holding a credential
+	// SetSensitive marks a setting as holding a credential.
+	// It must only be called by the code generated from the schema: set `sensitive: true` on the setting
+	// instead. The forbidigo linter enforces this.
 	SetSensitive(key string)
 
 	AddConfigPath(in string)

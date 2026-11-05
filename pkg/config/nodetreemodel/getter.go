@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -40,21 +41,28 @@ func (c *ntmConfig) GetEnvVars() []string {
 	return vars
 }
 
-// GetSensitiveEnvVars returns the env vars bound to sensitive settings
-func (c *ntmConfig) GetSensitiveEnvVars() []string {
+// FilterSensitiveEnvVars returns the env vars from envVars that are bound to sensitive settings
+func (c *ntmConfig) FilterSensitiveEnvVars(envVars []string) []string {
 	c.RLock()
 	defer c.RUnlock()
-	return slices.Clone(c.sensitiveEnvVars)
+	var sensitive []string
+	for _, envVar := range envVars {
+		if _, found := c.sensitiveEnvVars[strings.ToUpper(envVar)]; found {
+			sensitive = append(sensitive, envVar)
+		}
+	}
+	return sensitive
 }
 
 // computeSensitiveEnvVars must be called with the lock held
-func (c *ntmConfig) computeSensitiveEnvVars() []string {
-	var vars []string
+func (c *ntmConfig) computeSensitiveEnvVars() map[string]struct{} {
+	vars := map[string]struct{}{}
 	for key := range c.sensitiveKeys {
-		vars = append(vars, c.configEnvVars[key]...)
+		for _, envVar := range c.configEnvVars[key] {
+			vars[strings.ToUpper(envVar)] = struct{}{}
+		}
 	}
-	slices.Sort(vars)
-	return slices.Compact(vars)
+	return vars
 }
 
 // EnvVarSettings walks the env layer and returns each setting it provides, mapped to the env vars
