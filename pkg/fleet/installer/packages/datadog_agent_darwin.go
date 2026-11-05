@@ -67,6 +67,13 @@ var ensureInstallerDataDir = paths.EnsureInstallerDataDir
 // Indirected so the hook tests can run against a temporary directory.
 var packagesRoot = paths.PackagesPath
 
+// agentUserExists reports whether the Agent's account exists. Indirected so the hook tests do not
+// depend on the account of the machine they run on.
+var agentUserExists = func() bool {
+	_, err := user.Lookup(agentUser)
+	return err == nil
+}
+
 // launchdClient and launchdJobDir are indirected so the hook tests can run without launchd.
 var (
 	launchdClient = func() *launchd.Client { return launchd.NewClient(launchd.System) }
@@ -114,11 +121,10 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 	if err := client.Enable(ctx, label); err != nil {
 		return fmt.Errorf("failed to enable %s: %w", label, err)
 	}
+	// Every job sets RunAtLoad, so bootstrapping it starts it. It is not kickstarted on top: a job
+	// launchd cannot spawn, for instance one whose account is missing, would block that call.
 	if err := client.Bootstrap(ctx, job); err != nil {
 		return fmt.Errorf("failed to load %s: %w", label, err)
-	}
-	if err := client.Kickstart(ctx, label, false); err != nil {
-		return fmt.Errorf("failed to start %s: %w", label, err)
 	}
 	return nil
 }
@@ -158,8 +164,15 @@ func postInstallDMG(ctx HookContext) error {
 	if err := registerPackageRepository(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	if err := installStableJobs(ctx); err != nil {
-		errs = append(errs, err)
+	// The Agent's jobs run as its account, and launchd cannot start them without it. If the account
+	// could not be created, they are left unloaded and the hook fails, so the postinstall script
+	// reports the install as incomplete instead of waiting on jobs that will never run.
+	if agentUserExists() {
+		if err := installStableJobs(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("not loading the Agent's jobs: %s does not exist", agentUser))
 	}
 	startDMGGUI(ctx, defaultDmgLayout, env)
 	return errors.Join(errs...)

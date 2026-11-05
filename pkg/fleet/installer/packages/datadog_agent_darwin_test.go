@@ -94,17 +94,19 @@ func stubJobDir(t *testing.T) string {
 	return dir
 }
 
-// stubInstallerState points the post-install at a temporary packages root and skips creating the
-// installer's root-owned directories, which only root can do.
+// stubInstallerState points the post-install at a temporary packages root, skips creating the
+// installer's root-owned directories, which only root can do, and reports the Agent's account as
+// present.
 func stubInstallerState(t *testing.T) string {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "datadog-packages")
-	originalRoot, originalEnsure := packagesRoot, ensureInstallerDataDir
+	originalRoot, originalEnsure, originalUserExists := packagesRoot, ensureInstallerDataDir, agentUserExists
 	packagesRoot = root
 	ensureInstallerDataDir = func() error { return nil }
+	agentUserExists = func() bool { return true }
 	t.Cleanup(func() {
-		packagesRoot, ensureInstallerDataDir = originalRoot, originalEnsure
+		packagesRoot, ensureInstallerDataDir, agentUserExists = originalRoot, originalEnsure, originalUserExists
 	})
 	stubDmgLayout(t)
 	return root
@@ -163,7 +165,7 @@ func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
 
 	client := launchd.NewClient(launchd.System)
 	enabled := false
-	started := false
+	loaded := false
 	client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		switch args[0] {
 		case "print":
@@ -174,14 +176,15 @@ func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
 			if !enabled {
 				return nil, errors.New("service is disabled")
 			}
+			loaded = true
 		case "kickstart":
-			started = true
+			return nil, errors.New("kickstart must not be called: bootstrap starts the job")
 		}
 		return nil, nil
 	}
 
 	require.NoError(t, loadStableJob(context.Background(), client, "com.datadoghq.agent"))
-	assert.True(t, started)
+	assert.True(t, loaded)
 }
 
 func testHookContext(t *testing.T) HookContext {
@@ -227,7 +230,11 @@ func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.Contains(t, enabled, "system/"+label)
 		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")})
-		assert.Contains(t, *calls, []string{"kickstart", "system/" + label})
+	}
+	// Bootstrapping starts the jobs, which all set RunAtLoad; kickstart could block on one launchd
+	// cannot spawn.
+	for _, args := range *calls {
+		assert.NotEqual(t, "kickstart", args[0], "a job was kickstarted")
 	}
 
 	// Only the stable set is touched.
@@ -253,12 +260,13 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 		return client
 	}
 
+	dir := launchdJobDir
 	err := installStableJobs(testHookContext(t))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), failing)
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable[1:] {
-		assert.Contains(t, *calls, []string{"kickstart", "system/" + label}, "%s was not started", label)
+		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
 	}
 }
 
@@ -496,6 +504,28 @@ func TestPostInstallDMGLoadsTheJobsWhenSetupFails(t *testing.T) {
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.FileExists(t, filepath.Join(dir, label+".plist"))
 	}
+}
+
+// TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount pins that the post-install does not
+// load jobs launchd cannot start: without the Agent's account it reports the failure, leaving the
+// jobs to the postinstall script's fallback, and still registers the package.
+func TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	root := stubInstallerState(t)
+	agentUserExists = func() bool { return false }
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	err := postInstallDMG(ctx)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "_dd-agent does not exist")
+	assert.Empty(t, *calls, "launchd was called without the Agent's account")
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
+	}
+	assert.DirExists(t, root)
 }
 
 // TestRegisterPackageRepositoryReportsTheInstalledVersion covers what the entry tells the backend:
