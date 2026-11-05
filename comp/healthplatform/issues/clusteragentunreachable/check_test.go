@@ -77,6 +77,24 @@ func TestCheck_SuccessClearsFailure(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
+func TestCheck_ScrubsAndTruncatesError(t *testing.T) {
+	c, tr, clock := newTestChecker()
+	tr.ReportFailure(errors.New(`Get "https://user:hunter2@dca:5005/version": connection refused`))
+	clock.t = clock.t.Add(failureThreshold)
+
+	reports, err := c.Check()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.NotContains(t, reports[0].Context[contextKeyError], "hunter2")
+	assert.Contains(t, reports[0].Context[contextKeyError], "connection refused")
+
+	tr.ReportFailure(errors.New(strings.Repeat("x", 2*maxErrorLength)))
+	reports, err = c.Check()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Len(t, reports[0].Context[contextKeyError], maxErrorLength+len("..."))
+}
+
 func TestHostIssueID_PerHost(t *testing.T) {
 	assert.NotEqual(t, hostIssueID("node-1"), hostIssueID("node-2"))
 	assert.Equal(t, hostIssueID("node-1"), hostIssueID("node-1"))

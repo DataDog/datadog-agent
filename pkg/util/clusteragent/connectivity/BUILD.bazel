@@ -6,7 +6,6 @@ go_library(
     srcs = ["connectivity.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/clusteragent/connectivity",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/scrubber"],
 )
 
 dd_agent_go_test(
