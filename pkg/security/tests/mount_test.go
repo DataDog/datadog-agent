@@ -69,12 +69,30 @@ func TestMount(t *testing.T) {
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
 
-	var mntID atomic.Uint32
-	t.Run("mount", func(t *testing.T) {
-		err = test.GetProbeEvent(func() error {
+	var (
+		mntID       atomic.Uint32
+		mounted     bool
+		releaseFile *os.File
+	)
+	defer func() {
+		if releaseFile != nil {
+			_ = releaseFile.Close()
+		}
+		if mounted {
+			_ = syscall.Unmount(dstMntPath, syscall.MNT_DETACH)
+		}
+	}()
+
+	ensureMounted := func(t *testing.T) {
+		t.Helper()
+		if mounted {
+			return
+		}
+		err := test.GetProbeEvent(func() error {
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
+			mounted = true
 			return nil
 		}, func(event *model.Event) bool {
 			if event.ProcessContext.Pid != testSuitePid {
@@ -95,9 +113,20 @@ func TestMount(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if releaseFile == nil {
+			releaseFile, err = os.Create(path.Join(dstMntPath, "test-release"))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	t.Run("mount", func(t *testing.T) {
+		ensureMounted(t)
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
+		ensureMounted(t)
 		file := testDrive.Path(dstMntBasename, "test-mount")
 
 		f, err := os.Create(file)
@@ -118,18 +147,14 @@ func TestMount(t *testing.T) {
 		}, "test_rule")
 	})
 
-	releaseFile, err := os.Create(path.Join(dstMntPath, "test-release"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer releaseFile.Close()
-
 	t.Run("umount", func(t *testing.T) {
+		ensureMounted(t)
 		err = test.GetProbeEvent(func() error {
 			// Test umount
 			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
 				return fmt.Errorf("could not unmount test-mount: %w", err)
 			}
+			mounted = false
 			return nil
 		}, func(event *model.Event) bool {
 			if event.ProcessContext.Pid != testSuitePid {
@@ -144,6 +169,15 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
+		if releaseFile == nil {
+			ensureMounted(t)
+		}
+		if mounted {
+			if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
+				t.Fatalf("could not unmount test-mount: %v", err)
+			}
+			mounted = false
+		}
 		test.WaitSignalFromRule(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -360,8 +394,17 @@ func testMountSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// we need to wait for the mount events of the hierarchy B to be processed
-	time.Sleep(5 * time.Second)
+	// wait for the mount events of hierarchy B to be processed
+	assert.Eventually(t, func() bool {
+		for _, mntInfo := range mounts {
+			if strings.HasSuffix(mntInfo.Mountpoint, "rootB/tmpfs-mount") || strings.HasSuffix(mntInfo.Mountpoint, "rootB/test-bind-target") {
+				if _, _, _, err := mountResolver.ResolveMount(uint32(mntInfo.ID), pid); err != nil {
+					return false
+				}
+			}
+		}
+		return true
+	}, 5*time.Second, 50*time.Millisecond)
 
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
 		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
@@ -441,6 +484,10 @@ func TestMountEvent(t *testing.T) {
 	tmpfsMountPointName := "tmpfs_mnt"
 	bindMountPointName := "bind_mnt"
 	bindMountSourceName := "bind_src"
+	bindSubdirNestedName := "nested"
+	bindSubdirSourceMountPointName := "bind_subdir_src_mnt"
+	bindSubdirRootMountPointName := "bind_subdir_root_mnt"
+	bindSubdirNestedMountPointName := "bind_subdir_nested_mnt"
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -450,6 +497,14 @@ func TestMountEvent(t *testing.T) {
 		{
 			ID:         "test_mount_bind",
 			Expression: fmt.Sprintf(`mount.mountpoint.path == "{{.Root}}/%s" && mount.source.path == "{{.Root}}/%s" && mount.fs_type == "%s" && process.file.path == "%s"`, bindMountPointName, bindMountSourceName, testDrive.FSType(), executable),
+		},
+		{
+			ID:         "test_mount_bind_subdir_root",
+			Expression: fmt.Sprintf(`mount.mountpoint.path == "{{.Root}}/%s" && mount.source.path == "{{.Root}}/%s" && mount.fs_type == "%s" && process.file.path == "%s"`, bindSubdirRootMountPointName, bindSubdirSourceMountPointName, testDrive.FSType(), executable),
+		},
+		{
+			ID:         "test_mount_bind_subdir_nested",
+			Expression: fmt.Sprintf(`mount.mountpoint.path == "{{.Root}}/%s" && mount.source.path == "{{.Root}}/%s/%s" && mount.fs_type == "%s" && process.file.path == "%s"`, bindSubdirNestedMountPointName, bindSubdirSourceMountPointName, bindSubdirNestedName, testDrive.FSType(), executable),
 		},
 		{
 			ID:         "test_mount_in_container_root",
@@ -464,17 +519,36 @@ func TestMountEvent(t *testing.T) {
 	defer test.CloseTest()
 
 	tmpfsMountPointPath := testDrive.Path(tmpfsMountPointName)
-	if err = os.Mkdir(tmpfsMountPointPath, 0755); err != nil {
+	if err = os.MkdirAll(tmpfsMountPointPath, 0755); err != nil {
 		t.Fatal(err)
 	}
 
 	bindMountPointPath := testDrive.Path(bindMountPointName)
-	if err = os.Mkdir(bindMountPointPath, 0755); err != nil {
+	if err = os.MkdirAll(bindMountPointPath, 0755); err != nil {
 		t.Fatal(err)
 	}
 
 	bindMountSourcePath := testDrive.Path(bindMountSourceName)
-	if err = os.Mkdir(bindMountSourcePath, 0755); err != nil {
+	if err = os.MkdirAll(bindMountSourcePath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = os.MkdirAll(filepath.Join(bindMountSourcePath, bindSubdirNestedName), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	bindSubdirSourceMountPointPath := testDrive.Path(bindSubdirSourceMountPointName)
+	if err = os.MkdirAll(bindSubdirSourceMountPointPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	bindSubdirRootMountPointPath := testDrive.Path(bindSubdirRootMountPointName)
+	if err = os.MkdirAll(bindSubdirRootMountPointPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	bindSubdirNestedMountPointPath := testDrive.Path(bindSubdirNestedMountPointName)
+	if err = os.MkdirAll(bindSubdirNestedMountPointPath, 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -547,6 +621,84 @@ func TestMountEvent(t *testing.T) {
 		}, "test_mount_bind")
 	})
 
+	t.Run("mount-bind-from-subdir-source", func(t *testing.T) {
+		sourceSubdirMount := newTestMount(
+			bindSubdirSourceMountPointPath,
+			withSource(bindMountSourcePath),
+			withFlags(syscall.MS_BIND),
+		)
+		if err := sourceSubdirMount.mount(); err != nil {
+			t.Fatal(err)
+		}
+		defer sourceSubdirMount.unmount(syscall.MNT_FORCE)
+
+		t.Run("bind-source-root", func(t *testing.T) {
+			bindFromSubdirRoot := newTestMount(
+				bindSubdirRootMountPointPath,
+				withSource(bindSubdirSourceMountPointPath),
+				withFlags(syscall.MS_BIND),
+			)
+
+			test.WaitSignalFromRule(t, func() error {
+				if err := bindFromSubdirRoot.mount(); err != nil {
+					return err
+				}
+				return bindFromSubdirRoot.unmount(syscall.MNT_FORCE)
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_mount_bind_subdir_root")
+				assertFieldEqual(t, event, "mount.mountpoint.path", bindSubdirRootMountPointPath)
+				assertFieldEqual(t, event, "mount.source.path", bindSubdirSourceMountPointPath)
+				assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())
+				assertFieldEqual(t, event, "process.file.path", executable)
+
+				if !ebpfLessEnabled {
+					assertFieldEqual(t, event, "mount.root.path", "/"+bindMountSourceName)
+					assertSerializedFieldEqual(t, event, "$.mount.mp.path", bindSubdirRootMountPointPath)
+					assertSerializedFieldEqual(t, event, "$.mount.root.path", "/"+bindMountSourceName)
+				}
+
+				test.validateMountSchema(t, event)
+				validateSyscallContext(t, event, "$.syscall.mount.path")
+				validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+				validateSyscallContext(t, event, "$.syscall.mount.fs_type")
+			}, "test_mount_bind_subdir_root")
+		})
+
+		t.Run("bind-nested-subdir", func(t *testing.T) {
+			nestedSourcePath := filepath.Join(bindSubdirSourceMountPointPath, bindSubdirNestedName)
+			bindFromSubdirNested := newTestMount(
+				bindSubdirNestedMountPointPath,
+				withSource(nestedSourcePath),
+				withFlags(syscall.MS_BIND),
+			)
+
+			test.WaitSignalFromRule(t, func() error {
+				if err := bindFromSubdirNested.mount(); err != nil {
+					return err
+				}
+				return bindFromSubdirNested.unmount(syscall.MNT_FORCE)
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_mount_bind_subdir_nested")
+				assertFieldEqual(t, event, "mount.mountpoint.path", bindSubdirNestedMountPointPath)
+				assertFieldEqual(t, event, "mount.source.path", nestedSourcePath)
+				assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())
+				assertFieldEqual(t, event, "process.file.path", executable)
+
+				if !ebpfLessEnabled {
+					expectedRoot := "/" + bindMountSourceName + "/" + bindSubdirNestedName
+					assertFieldEqual(t, event, "mount.root.path", expectedRoot)
+					assertSerializedFieldEqual(t, event, "$.mount.mp.path", bindSubdirNestedMountPointPath)
+					assertSerializedFieldEqual(t, event, "$.mount.root.path", expectedRoot)
+				}
+
+				test.validateMountSchema(t, event)
+				validateSyscallContext(t, event, "$.syscall.mount.path")
+				validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+				validateSyscallContext(t, event, "$.syscall.mount.fs_type")
+			}, "test_mount_bind_subdir_nested")
+		})
+	})
+
 	const dockerMountDest = "/host_root"
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
@@ -570,6 +722,7 @@ func TestMountEvent(t *testing.T) {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err
 			}
+			defer wrapperTruePositive.stop()
 			if _, err := wrapperTruePositive.stop(); err != nil {
 				return err
 			}
@@ -599,7 +752,7 @@ func TestMountEvent(t *testing.T) {
 		})
 
 		legitimateSourcePath := testDrive.Path("legitimate_source")
-		if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
+		if err = os.MkdirAll(legitimateSourcePath, 0755); err != nil {
 			t.Fatal(err)
 		}
 
@@ -612,6 +765,7 @@ func TestMountEvent(t *testing.T) {
 			if _, err := wrapperFalsePositive.start(); err != nil {
 				return err
 			}
+			defer wrapperFalsePositive.stop()
 			if _, err := wrapperFalsePositive.stop(); err != nil {
 				return err
 			}
@@ -835,6 +989,12 @@ func TestMountSnapshotSubmountOfMovedBindSubdir(t *testing.T) {
 	if err := unix.Mount(env.srcDir, parent, "", unix.MS_BIND, ""); err != nil {
 		t.Fatal(err)
 	}
+	mountedParent := parent
+	defer func() {
+		_ = unix.Unmount(filepath.Join(mountedParent, "inner"), unix.MNT_DETACH)
+		_ = unix.Unmount(mountedParent, unix.MNT_DETACH)
+	}()
+
 	inner := filepath.Join(parent, "inner")
 	if err := os.Mkdir(inner, 0o755); err != nil {
 		t.Fatal(err)
@@ -863,8 +1023,7 @@ func TestMountSnapshotSubmountOfMovedBindSubdir(t *testing.T) {
 	if err := unix.Mount(parent, moved, "", unix.MS_MOVE, ""); err != nil {
 		t.Fatal(err)
 	}
-	defer unix.Unmount(moved, unix.MNT_DETACH)
-	defer unix.Unmount(filepath.Join(moved, "inner"), unix.MNT_DETACH)
+	mountedParent = moved
 
 	expected := filepath.Join(moved, "inner", "mnt-snapshot-moved-parent")
 	test.WaitSignalFromRule(t, func() error {

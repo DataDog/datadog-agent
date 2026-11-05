@@ -39,6 +39,10 @@ func fsconfigStr(fd int, cmd uint, key string, value string, aux int) (err error
 func TestFsmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
@@ -111,6 +115,7 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			defer unix.Close(mountfd)
 
 			file := fmt.Sprintf("/proc/%d/fd/%d/test-open", os.Getpid(), mountfd)
 			cmd := exec.Command("touch", file)
@@ -119,7 +124,6 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			defer unix.Close(mountfd)
 
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -144,6 +148,7 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			defer unix.Close(mountfd)
 
 			file := fmt.Sprintf("/proc/%d/fd/%d/test-mkdir", os.Getpid(), mountfd)
 			cmd := exec.Command("mkdir", file)
@@ -152,7 +157,6 @@ func TestFsmount(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			defer unix.Close(mountfd)
 
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {

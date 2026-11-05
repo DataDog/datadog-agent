@@ -62,6 +62,7 @@ func TmpMountFdAt(fd int, at string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer unix.Close(openfd)
 
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
@@ -73,6 +74,7 @@ func TmpMountFdAt(fd int, at string) (int, error) {
 
 	err = unix.MoveMount(mountfd, "", fd, at, unix.MOVE_MOUNT_F_EMPTY_PATH)
 	if err != nil {
+		unix.Close(mountfd)
 		return 0, err
 	}
 
@@ -91,6 +93,12 @@ func getMountID(path string) (uint32, error) {
 	}
 
 	for _, mnt := range mounts {
+		if mnt.Mountpoint == path {
+			return uint32(mnt.ID), nil
+		}
+	}
+
+	for _, mnt := range mounts {
 		mountDevice := unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))
 		if mountDevice == stat.Dev {
 			return uint32(mnt.ID), nil
@@ -102,6 +110,10 @@ func getMountID(path string) (uint32, error) {
 
 func TestOpenTree(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
 
 	if !openTreeIsSupported() {
 		t.Skip("open_tree syscall is not supported on this platform")
@@ -128,6 +140,11 @@ func TestOpenTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if test != nil {
+			test.CloseTest()
+		}
+	}()
 
 	// Mount the following directory struct in /tmp:
 	// + /tmp/<tmpdir>        (tmpfs, 1MB)
@@ -140,7 +157,6 @@ func TestOpenTree(t *testing.T) {
 	mountIDsToPath := make(map[uint32]string)
 
 	dir := t.TempDir()
-	tounmount = append(tounmount, dir)
 
 	fdRoot, err := TmpMountAt(dir)
 	if err != nil {
@@ -148,6 +164,14 @@ func TestOpenTree(t *testing.T) {
 		t.Skip(err)
 	}
 	defer unix.Close(fdRoot)
+	tounmount = append(tounmount, dir)
+	defer func() {
+		for i := len(tounmount) - 1; i >= 0; i-- {
+			if err := unix.Unmount(tounmount[i], syscall.MNT_DETACH); err != nil {
+				t.Logf("failed to unmount %s: %v", tounmount[i], err)
+			}
+		}
+	}()
 
 	rootMountID, err := getMountID(dir)
 	if err != nil {
@@ -158,9 +182,6 @@ func TestOpenTree(t *testing.T) {
 	mountSubDir := func(subdir string) {
 		fullpath := dir + "/" + subdir
 		err = os.Mkdir(fullpath, 0755)
-
-		tounmount = append(tounmount, fullpath)
-
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -169,6 +190,7 @@ func TestOpenTree(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer unix.Close(fd)
+		tounmount = append(tounmount, fullpath)
 
 		if id, err := getMountID(fullpath); err != nil {
 			t.Fatal(err)
@@ -179,15 +201,6 @@ func TestOpenTree(t *testing.T) {
 
 	mountSubDir("tmp1")
 	mountSubDir("tmp2")
-
-	defer func() {
-		for i := len(tounmount) - 1; i >= 0; i-- {
-			err = unix.Unmount(tounmount[i], syscall.MNT_DETACH)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-	}()
 
 	type mountEvent struct {
 		srcMountID uint32
@@ -304,11 +317,11 @@ func TestOpenTree(t *testing.T) {
 	})
 
 	test.CloseTest()
+	test = nil
 	test, err = newTestModule(t, nil, execRules)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.CloseTest()
 
 	t.Run("execution-from-detached-mount", func(t *testing.T) {
 		srcPath := which(t, "true")

@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -890,4 +891,146 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	require.ErrorIs(t, parentErrEv.Error, assert.AnError)
 	assert.NotContains(t, appNode.Files["tmp"].Children, "parent-bad")
 	assert.Len(t, anomalies, 1)
+}
+
+func TestResolveMountSourcePath(t *testing.T) {
+	mr, err := mount.NewResolver(&statsd.NoOpClient{}, nil, mount.ResolverOpts{})
+	require.NoError(t, err)
+
+	pr := path.NewResolver(nil, mr)
+	fh := &EBPFFieldHandlers{
+		resolvers: &resolvers.EBPFResolvers{
+			MountResolver: mr,
+			PathResolver:  pr,
+		},
+	}
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       1,
+		MountPointStr: "/",
+		Path:          "/",
+		RootStr:       "/",
+	}))
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       10,
+		ParentPathKey: model.PathKey{MountID: 1},
+		MountPointStr: "/mnt/base",
+		RootStr:       "/",
+	}))
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       20,
+		ParentPathKey: model.PathKey{MountID: 1},
+		MountPointStr: "/target",
+		RootStr:       "/a",
+	}))
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       30,
+		MountPointStr: "/",
+		Path:          "/",
+		RootStr:       "/a/b",
+	}))
+
+	tests := []struct {
+		name               string
+		mountID            uint32
+		parentMountID      uint32
+		bindSrcMountID     uint32
+		mountPointStr      string
+		rootStr            string
+		expectedSourcePath string
+		expectedRootPath   string
+	}{
+		{
+			name:               "bind from root-mounted source subdirectory",
+			mountID:            11,
+			parentMountID:      1,
+			bindSrcMountID:     10,
+			mountPointStr:      "/dst1",
+			rootStr:            "/src",
+			expectedSourcePath: "/mnt/base/src",
+			expectedRootPath:   "/src",
+		},
+		{
+			name:               "bind from root-mounted source root",
+			mountID:            12,
+			parentMountID:      1,
+			bindSrcMountID:     10,
+			mountPointStr:      "/dst2",
+			rootStr:            "/",
+			expectedSourcePath: "/mnt/base",
+			expectedRootPath:   "/",
+		},
+		{
+			name:               "bind of non-root source mount root",
+			mountID:            21,
+			parentMountID:      1,
+			bindSrcMountID:     20,
+			mountPointStr:      "/dst3",
+			rootStr:            "/a",
+			expectedSourcePath: "/target",
+			expectedRootPath:   "/a",
+		},
+		{
+			name:               "bind of nested directory under non-root source mount",
+			mountID:            22,
+			parentMountID:      1,
+			bindSrcMountID:     20,
+			mountPointStr:      "/dst4",
+			rootStr:            "/a/b",
+			expectedSourcePath: "/target/b",
+			expectedRootPath:   "/a/b",
+		},
+		{
+			name:               "bind of deeply nested directory under non-root source mount",
+			mountID:            23,
+			parentMountID:      1,
+			bindSrcMountID:     20,
+			mountPointStr:      "/dst5",
+			rootStr:            "/a/b/c",
+			expectedSourcePath: "/target/b/c",
+			expectedRootPath:   "/a/b/c",
+		},
+		{
+			name:               "bind of pivoted subdir root mount",
+			mountID:            31,
+			parentMountID:      30,
+			bindSrcMountID:     30,
+			mountPointStr:      "/host_root",
+			rootStr:            "/a/b",
+			expectedSourcePath: "/",
+			expectedRootPath:   "/a/b",
+		},
+		{
+			name:               "bind of nested directory under pivoted subdir root mount",
+			mountID:            32,
+			parentMountID:      30,
+			bindSrcMountID:     30,
+			mountPointStr:      "/sub",
+			rootStr:            "/a/b/c",
+			expectedSourcePath: "/c",
+			expectedRootPath:   "/a/b/c",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ev := model.NewFakeEvent()
+			ev.FieldHandlers = fh
+			ev.Mount = model.MountEvent{
+				Mount: model.Mount{
+					MountID:        tc.mountID,
+					ParentPathKey:  model.PathKey{MountID: tc.parentMountID},
+					BindSrcMountID: tc.bindSrcMountID,
+					MountPointStr:  tc.mountPointStr,
+					RootStr:        tc.rootStr,
+				},
+			}
+			require.NoError(t, mr.Insert(ev.Mount.Mount))
+
+			assert.Equal(t, tc.expectedSourcePath, fh.ResolveMountSourcePath(ev, &ev.Mount))
+			assert.NoError(t, ev.Mount.MountSourcePathResolutionError)
+			assert.Equal(t, tc.expectedRootPath, fh.ResolveMountRootPath(ev, &ev.Mount))
+			assert.NoError(t, ev.Mount.MountRootPathResolutionError)
+		})
+	}
 }

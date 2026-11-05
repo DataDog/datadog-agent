@@ -548,7 +548,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, depth int) (string
 	// the parent mount, which differ when the parent is a bind mount of a sub directory
 	if mount.Origin != model.MountOriginProcfs && mount.Origin != model.MountOriginListmount {
 		if parent := mr.lookupByMountID(mount.ParentPathKey.MountID); parent != nil {
-			mountPointStr = trimMountRoot(mountPointStr, parent.RootStr)
+			mountPointStr = TrimMountRoot(mountPointStr, parent.RootStr)
 		}
 	}
 	mountPointStr = path.Join(parentMountPath, mountPointStr)
