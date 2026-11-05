@@ -345,6 +345,67 @@ func TestCheckSamplerObservesMonotonicCountsPerSource(t *testing.T) {
 	assertObservedContextKey(t, handle.calls[1])
 }
 
+func bucketSample(name, pod string, value int64, ts float64) *metrics.HistogramBucket {
+	tags := []string{"env:prod"}
+	if pod != "" {
+		tags = append(tags, "pod:"+pod)
+	}
+	return &metrics.HistogramBucket{Name: name, Value: value, LowerBound: 1, UpperBound: 2, Monotonic: true, Tags: tags, Timestamp: ts, MultipleBuckets: true}
+}
+
+func TestCheckSamplerMergesHistogramBucketsPerSource(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newStripTestSampler("check:0", newStrippedIdentityTable())
+	matcher := stripPodMatcher(t, "my.hist")
+	flushMatcher := metricname.NewMatcher(nil, false)
+	merger := newTestCheckOutputMerger()
+
+	// Monotonic bucket counts keep their previous value per source: three sources with counts far apart, one of
+	// them without the pod tag, strip to one sketch whose count is the sum of each source's increase.
+	var sketches metrics.SketchSeriesList
+	for i, run := range []map[string]int64{{"a": 10, "b": 1000, "": 100000}, {"a": 15, "b": 1002, "": 100004}} {
+		for pod, value := range run {
+			cs.addBucket(bucketSample("my.hist", pod, value, float64(100+i)), matcher)
+		}
+		// An ordinary histogram of the same name keeps its tags: its statistics can't be merged.
+		cs.addSample(podSample("my.hist", metrics.HistogramType, "a", 1, float64(100+i)), matcher)
+		cs.commit(float64(100+i)+0.5, &flushMatcher)
+		out := flushSampler(cs)
+		assert.Empty(t, out.mergedSeries)
+		assert.Empty(t, out.sketches)
+		merger.mergeSketches(out.mergedSketches)
+	}
+	merger.drain(nil, &sketches)
+
+	require.Len(t, sketches, 1)
+	assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(sketches[0].Tags))
+	require.Len(t, sketches[0].Points, 1, "the first run has no previous counts")
+	assert.Equal(t, int64(101), sketches[0].Points[0].Ts, "stamped at the commit")
+	assert.Equal(t, int64(5+2+4), sketches[0].Points[0].Sketch.Basic.Cnt)
+}
+
+func TestCheckSamplerRestripsHistogramBuckets(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newStripTestSampler("check:0", newStrippedIdentityTable())
+	key := cs.contextResolver.trackContext(bucketSample("my.hist", "a", 1, 100), filterlistimpl.NewNoopTagMatcher())
+	histogram := cs.contextResolver.trackContext(podSample("my.hist", metrics.HistogramType, "b", 1, 100), filterlistimpl.NewNoopTagMatcher())
+
+	// A gauge with the same name and tags as a source of buckets shares its context, whichever came first.
+	gaugeFirst := cs.contextResolver.trackContext(podSample("my.hist", metrics.GaugeType, "c", 1, 100), filterlistimpl.NewNoopTagMatcher())
+	cs.contextResolver.trackContext(bucketSample("my.hist", "c", 1, 100), filterlistimpl.NewNoopTagMatcher())
+
+	// A rule added later strips bucket contexts, which report the same metric type as ordinary histograms.
+	for range 2 { // the same rules sent again change nothing
+		cs.restrip(stripPodMatcher(t, "my.hist"))
+		_, stripped := strippedTags(cs, key)
+		assert.True(t, stripped)
+		_, stripped = strippedTags(cs, histogram)
+		assert.False(t, stripped)
+		_, stripped = strippedTags(cs, gaugeFirst)
+		assert.True(t, stripped, "a context is stripped once it gets buckets, whichever type created it")
+	}
+}
+
 // Context keys don't include the metric type: samples of different types with the same name and tags share a
 // context, whichever came first.
 func TestCheckSamplerStripsOnlyMergeableOutputOfSharedContexts(t *testing.T) {
@@ -400,6 +461,18 @@ func TestCheckSamplerStripsOnlyMergeableOutputOfSharedContexts(t *testing.T) {
 		assert.Len(t, out.mergedSketches, 1)
 	})
 
+	t.Run("histogram then buckets", func(t *testing.T) {
+		cs := newStripTestSampler("check:0", newStrippedIdentityTable())
+		matcher := stripPodMatcher(t, "my.metric")
+		cs.addSample(podSample("my.metric", metrics.HistogramType, "a", 1, 100), matcher)
+		cs.addBucket(&metrics.HistogramBucket{Name: "my.metric", Value: 3, LowerBound: 1, UpperBound: 2, Tags: []string{"env:prod", "pod:a"}, Timestamp: 100}, matcher)
+		cs.commit(101, &flushMatcher)
+		out := flushSampler(cs)
+
+		require.Len(t, out.mergedSketches, 1, "buckets are stripped once they reach a context, whichever type created it")
+		assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(out.mergedSketches[0].sketch.Tags))
+		assert.Empty(t, out.mergedSeries, "histogram statistics can't be merged")
+	})
 }
 
 // flushThrough commits a sampler, and sends its output through a merger.

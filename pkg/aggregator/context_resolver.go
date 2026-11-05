@@ -326,7 +326,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 // type whose series can't be merged keeps the context's series from being merged. The resolver's buffers must hold
 // the context's tags.
 func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
-	if !stripsAtOutput(metricSampleContext.GetMetricType()) {
+	_, fromBuckets := metricSampleContext.(*metrics.HistogramBucket)
+	mtype := metricSampleContext.GetMetricType()
+	if !stripsAtOutput(mtype, fromBuckets) {
 		context.stripFlags.set(unmergeableSeries, true)
 		return
 	}
@@ -434,12 +436,15 @@ func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 }
 
 // stripsAtOutput returns whether check samplers strip the tags of a metric type from their output: types whose
-// sources' points add up, so that the check output merger can merge them. Monotonic counts keep state per source,
-// which stays per source because check samplers aggregate sources with their full tags.
-func stripsAtOutput(mtype metrics.MetricType) bool {
+// sources' points add up, so that the check output merger can merge them. Monotonic counts and monotonic histogram
+// buckets keep state per source, which stays per source because check samplers aggregate sources with their full
+// tags. Histogram buckets report HistogramType, like ordinary histograms, whose statistics can't be merged.
+func stripsAtOutput(mtype metrics.MetricType, fromHistogramBuckets bool) bool {
 	switch mtype {
 	case metrics.DistributionType, metrics.CounterType, metrics.CountType, metrics.MonotonicCountType:
 		return true
+	case metrics.HistogramType:
+		return fromHistogramBuckets
 	}
 	return false
 }
