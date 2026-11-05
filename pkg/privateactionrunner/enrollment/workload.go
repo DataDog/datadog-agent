@@ -52,7 +52,11 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 	}
 	ddSite := parconfig.Site(cfg)
 	runnerName := agentIdentifier.Hostname + "-" + time.Now().UTC().Format("20060102150405")
-	client := opms.NewPublicClient(cfg, parconfig.APIBaseURL(cfg, ddSite), nil)
+	endpoint, err := parconfig.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	client := opms.NewPublicClient(cfg, endpoint, nil)
 	response, err := client.EnrollWithWorkloadToken(ctx, token, par.CreateRunnerRequest{
 		RunnerName:    runnerName,
 		RunnerModes:   []modes.Mode{modes.ModePull},
