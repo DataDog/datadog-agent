@@ -105,7 +105,7 @@
       type: func() lib.Pair[int,string]
   pointer:
     elem: lib.Pair[string,int]
-- offset: "0x0019d830"
+- offset: "0x0019e1d8"
   size: 8
   kind: struct
   nameEntry: lib.Box[float64] (exported)
@@ -120,7 +120,7 @@
         - name: Value (exported)
           type: float64
           offset: 0
-- offset: "0x0019d588"
+- offset: "0x0019df30"
   size: 8
   kind: struct
   nameEntry: lib.Box[int] (exported)
@@ -135,7 +135,7 @@
         - name: Value (exported)
           type: int
           offset: 0
-- offset: "0x0019d610"
+- offset: "0x0019dfb8"
   size: 16
   kind: struct
   nameEntry: lib.Box[string] (exported)
@@ -150,7 +150,7 @@
         - name: Value (exported)
           type: string
           offset: 0
-- offset: "0x00179330"
+- offset: "0x00179ad8"
   size: 8
   kind: struct
   nameEntry: lib.ImmutableSet[go.shape.string] (exported)
@@ -162,7 +162,7 @@
         - name: items
           type: map[go.shape.string]bool
           offset: 0
-- offset: "0x001792b8"
+- offset: "0x00179a60"
   size: 8
   kind: struct
   nameEntry: lib.ImmutableSet[string] (exported)
@@ -174,7 +174,7 @@
         - name: items
           type: map[string]bool
           offset: 0
-- offset: "0x001be0b8"
+- offset: "0x001beaf0"
   size: 24
   kind: struct
   nameEntry: lib.Pair[bool,string] (exported)
@@ -192,7 +192,7 @@
         - name: Second (exported)
           type: string
           offset: 8
-- offset: "0x001be3d8"
+- offset: "0x001bee10"
   size: 16
   kind: struct
   nameEntry: lib.Pair[float64,float64] (exported)
@@ -210,7 +210,7 @@
         - name: Second (exported)
           type: float64
           offset: 8
-- offset: "0x001be1f8"
+- offset: "0x001bec30"
   size: 24
   kind: struct
   nameEntry: lib.Pair[int,string] (exported)
@@ -228,7 +228,7 @@
         - name: Second (exported)
           type: string
           offset: 8
-- offset: "0x001be018"
+- offset: "0x001bea50"
   size: 24
   kind: struct
   nameEntry: lib.Pair[string,bool] (exported)
@@ -246,7 +246,7 @@
         - name: Second (exported)
           type: bool
           offset: 16
-- offset: "0x001be158"
+- offset: "0x001beb90"
   size: 24
   kind: struct
   nameEntry: lib.Pair[string,int] (exported)
@@ -286,7 +286,7 @@
       type: func()
   pointer:
     elem: lib_v2.V2Type
-- offset: "0x0019d8b8"
+- offset: "0x0019e260"
   size: 8
   kind: struct
   nameEntry: lib_v2.V2GenericBox[int] (exported)
@@ -301,7 +301,7 @@
         - name: Value (exported)
           type: int
           offset: 0
-- offset: "0x00157a70"
+- offset: "0x001580d8"
   size: 0
   kind: struct
   nameEntry: lib_v2.V2Type (exported)
@@ -349,7 +349,7 @@
       type: func() string
   pointer:
     elem: lib2.Wrapper[string]
-- offset: "0x001be478"
+- offset: "0x001beeb0"
   size: 24
   kind: struct
   nameEntry: lib2.Wrapper[float64] (exported)
@@ -367,7 +367,7 @@
         - name: Inner (exported)
           type: lib.Box[float64]
           offset: 16
-- offset: "0x001be298"
+- offset: "0x001becd0"
   size: 24
   kind: struct
   nameEntry: lib2.Wrapper[int] (exported)
@@ -385,7 +385,7 @@
         - name: Inner (exported)
           type: lib.Box[int]
           offset: 16
-- offset: "0x001be338"
+- offset: "0x001bed70"
   size: 32
   kind: struct
   nameEntry: lib2.Wrapper[string] (exported)
@@ -519,7 +519,7 @@
       type: func(string) bool
   pointer:
     elem: main.typeWithGenerics[string]
-- offset: "0x001b03c0"
+- offset: "0x001b0df8"
   size: 16
   kind: struct
   nameEntry: main.Pair[int,bool] (exported)
@@ -534,7 +534,7 @@
         - name: Value (exported)
           type: bool
           offset: 8
-- offset: "0x001b0450"
+- offset: "0x001b0e88"
   size: 24
   kind: struct
   nameEntry: main.Pair[string,int] (exported)
@@ -549,7 +549,7 @@
         - name: Value (exported)
           type: int
           offset: 16
-- offset: "0x0015e808"
+- offset: "0x0015eed0"
   size: 16
   kind: interface
   nameEntry: main.behavior
@@ -559,7 +559,7 @@
   interfaceMethods:
     - name: DoSomething (exported)
       type: func() string
-- offset: "0x001bf6f8"
+- offset: "0x001c0130"
   size: 48
   kind: struct
   nameEntry: main.bigStruct
@@ -577,14 +577,14 @@
         - name: writer
           type: io.Writer
           offset: 32
-- offset: "0x0013a050"
+- offset: "0x0013a670"
   size: 8
   kind: int
   nameEntry: main.celsius
   name: main.celsius
   pkg: main
   ptrToThis: "0x00039e48"
-- offset: "0x001e7838"
+- offset: "0x001e8270"
   size: 80
   kind: struct
   nameEntry: main.contextImpl
@@ -608,7 +608,7 @@
         - name: secrets
           type: fmt.Stringer
           offset: 64
-- offset: "0x0016d7b0"
+- offset: "0x0016dee0"
   size: 8
   kind: struct
   nameEntry: main.deepMap1
@@ -620,7 +620,7 @@
         - name: a
           type: map[int]*main.deepMap2
           offset: 0
-- offset: "0x0016d738"
+- offset: "0x0016de68"
   size: 8
   kind: struct
   nameEntry: main.deepMap2
@@ -632,7 +632,7 @@
         - name: a
           type: map[int]*main.deepMap3
           offset: 0
-- offset: "0x0016d6c0"
+- offset: "0x0016ddf0"
   size: 8
   kind: struct
   nameEntry: main.deepMap3
@@ -644,7 +644,7 @@
         - name: a
           type: map[int]*main.deepMap4
           offset: 0
-- offset: "0x0016d648"
+- offset: "0x0016dd78"
   size: 8
   kind: struct
   nameEntry: main.deepMap4
@@ -656,7 +656,7 @@
         - name: a
           type: map[int]*main.deepMap5
           offset: 0
-- offset: "0x0016d5d0"
+- offset: "0x0016dd00"
   size: 8
   kind: struct
   nameEntry: main.deepMap5
@@ -668,7 +668,7 @@
         - name: a
           type: map[int]*main.deepMap6
           offset: 0
-- offset: "0x0016d558"
+- offset: "0x0016dc88"
   size: 8
   kind: struct
   nameEntry: main.deepMap6
@@ -680,7 +680,7 @@
         - name: a
           type: map[int]*main.deepMap7
           offset: 0
-- offset: "0x0016d4e0"
+- offset: "0x0016dc10"
   size: 8
   kind: struct
   nameEntry: main.deepMap7
@@ -692,7 +692,7 @@
         - name: a
           type: map[int]*main.deepMap8
           offset: 0
-- offset: "0x0016d468"
+- offset: "0x0016db98"
   size: 8
   kind: struct
   nameEntry: main.deepMap8
@@ -704,7 +704,7 @@
         - name: a
           type: map[int]*main.deepMap9
           offset: 0
-- offset: "0x0016d3f0"
+- offset: "0x0016db20"
   size: 8
   kind: struct
   nameEntry: main.deepMap9
@@ -716,7 +716,7 @@
         - name: a
           type: map[int]interface {}
           offset: 0
-- offset: "0x0016dbe8"
+- offset: "0x0016e318"
   size: 8
   kind: struct
   nameEntry: main.deepPtr1
@@ -728,7 +728,7 @@
         - name: a
           type: '*main.deepPtr2'
           offset: 0
-- offset: "0x0016db70"
+- offset: "0x0016e2a0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr2
@@ -740,7 +740,7 @@
         - name: a
           type: '*main.deepPtr3'
           offset: 0
-- offset: "0x0016daf8"
+- offset: "0x0016e228"
   size: 8
   kind: struct
   nameEntry: main.deepPtr3
@@ -752,7 +752,7 @@
         - name: a
           type: '*main.deepPtr4'
           offset: 0
-- offset: "0x0016da80"
+- offset: "0x0016e1b0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr4
@@ -764,7 +764,7 @@
         - name: a
           type: '*main.deepPtr5'
           offset: 0
-- offset: "0x0016da08"
+- offset: "0x0016e138"
   size: 8
   kind: struct
   nameEntry: main.deepPtr5
@@ -776,7 +776,7 @@
         - name: a
           type: '*main.deepPtr6'
           offset: 0
-- offset: "0x0016d990"
+- offset: "0x0016e0c0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr6
@@ -788,7 +788,7 @@
         - name: a
           type: '*main.deepPtr7'
           offset: 0
-- offset: "0x0016d918"
+- offset: "0x0016e048"
   size: 8
   kind: struct
   nameEntry: main.deepPtr7
@@ -800,7 +800,7 @@
         - name: a
           type: '*main.deepPtr8'
           offset: 0
-- offset: "0x0016d8a0"
+- offset: "0x0016dfd0"
   size: 8
   kind: struct
   nameEntry: main.deepPtr8
@@ -812,7 +812,7 @@
         - name: a
           type: '*main.deepPtr9'
           offset: 0
-- offset: "0x0016d828"
+- offset: "0x0016df58"
   size: 16
   kind: struct
   nameEntry: main.deepPtr9
@@ -824,7 +824,7 @@
         - name: a
           type: interface {}
           offset: 0
-- offset: "0x0016e020"
+- offset: "0x0016e750"
   size: 24
   kind: struct
   nameEntry: main.deepSlice1
@@ -836,7 +836,7 @@
         - name: a
           type: '[]*main.deepSlice2'
           offset: 0
-- offset: "0x0016dfa8"
+- offset: "0x0016e6d8"
   size: 24
   kind: struct
   nameEntry: main.deepSlice2
@@ -848,7 +848,7 @@
         - name: a
           type: '[]*main.deepSlice3'
           offset: 0
-- offset: "0x0016df30"
+- offset: "0x0016e660"
   size: 24
   kind: struct
   nameEntry: main.deepSlice3
@@ -860,7 +860,7 @@
         - name: a
           type: '[]*main.deepSlice4'
           offset: 0
-- offset: "0x0016deb8"
+- offset: "0x0016e5e8"
   size: 24
   kind: struct
   nameEntry: main.deepSlice4
@@ -872,7 +872,7 @@
         - name: a
           type: '[]*main.deepSlice5'
           offset: 0
-- offset: "0x0016de40"
+- offset: "0x0016e570"
   size: 24
   kind: struct
   nameEntry: main.deepSlice5
@@ -884,7 +884,7 @@
         - name: a
           type: '[]*main.deepSlice6'
           offset: 0
-- offset: "0x0016ddc8"
+- offset: "0x0016e4f8"
   size: 24
   kind: struct
   nameEntry: main.deepSlice6
@@ -896,7 +896,7 @@
         - name: a
           type: '[]*main.deepSlice7'
           offset: 0
-- offset: "0x0016dd50"
+- offset: "0x0016e480"
   size: 24
   kind: struct
   nameEntry: main.deepSlice7
@@ -908,7 +908,7 @@
         - name: a
           type: '[]*main.deepSlice8'
           offset: 0
-- offset: "0x0016dcd8"
+- offset: "0x0016e408"
   size: 24
   kind: struct
   nameEntry: main.deepSlice8
@@ -920,7 +920,7 @@
         - name: a
           type: '[]*main.deepSlice9'
           offset: 0
-- offset: "0x0016dc60"
+- offset: "0x0016e390"
   size: 24
   kind: struct
   nameEntry: main.deepSlice9
@@ -932,7 +932,7 @@
         - name: a
           type: '[]interface {}'
           offset: 0
-- offset: "0x001e7910"
+- offset: "0x001e8348"
   size: 112
   kind: struct
   nameEntry: main.esotericHeap
@@ -956,7 +956,7 @@
         - name: a
           type: atomic.Int32
           offset: 104
-- offset: "0x00201108"
+- offset: "0x00201c40"
   size: 64
   kind: struct
   nameEntry: main.esotericStack
@@ -986,7 +986,7 @@
         - name: foo
           type: func()
           offset: 56
-- offset: "0x0019ab90"
+- offset: "0x0019b538"
   size: 16
   kind: struct
   nameEntry: main.firstBehavior
@@ -1001,7 +1001,7 @@
         - name: s
           type: string
           offset: 0
-- offset: "0x00216018"
+- offset: "0x00216b50"
   size: 136
   kind: struct
   nameEntry: main.largeGenericType[int]
@@ -1040,7 +1040,7 @@
         - name: Value (exported)
           type: int
           offset: 128
-- offset: "0x00216160"
+- offset: "0x00216c98"
   size: 144
   kind: struct
   nameEntry: main.largeGenericType[string]
@@ -1079,14 +1079,14 @@
         - name: Value (exported)
           type: string
           offset: 128
-- offset: "0x0013a090"
+- offset: "0x0013a6b0"
   size: 8
   kind: int
   nameEntry: main.namedInt
   name: main.namedInt
   pkg: main
   ptrToThis: "0x0003a668"
-- offset: "0x0019f140"
+- offset: "0x0019fae8"
   size: 24
   kind: struct
   nameEntry: main.nestedStruct
@@ -1101,7 +1101,7 @@
         - name: anotherString
           type: string
           offset: 8
-- offset: "0x0019f020"
+- offset: "0x0019f9c8"
   size: 16
   kind: struct
   nameEntry: main.node
@@ -1116,7 +1116,7 @@
         - name: b
           type: '*main.node'
           offset: 8
-- offset: "0x0016d210"
+- offset: "0x0016d940"
   size: 16
   kind: struct
   nameEntry: main.otherFirstBehavior
@@ -1128,7 +1128,7 @@
         - name: s
           type: string
           offset: 0
-- offset: "0x0016d288"
+- offset: "0x0016d9b8"
   size: 8
   kind: struct
   nameEntry: main.otherSecondBehavior
@@ -1140,14 +1140,14 @@
         - name: i
           type: int
           offset: 0
-- offset: "0x0013a0d0"
+- offset: "0x0013a6f0"
   size: 8
   kind: int
   nameEntry: main.score
   name: main.score
   pkg: main
   ptrToThis: "0x0003a780"
-- offset: "0x0019ac18"
+- offset: "0x0019b5c0"
   size: 8
   kind: struct
   nameEntry: main.secondBehavior
@@ -1162,7 +1162,7 @@
         - name: i
           type: int
           offset: 0
-- offset: "0x0019f0b0"
+- offset: "0x0019fa58"
   size: 16
   kind: struct
   nameEntry: main.smallStruct
@@ -1177,7 +1177,7 @@
         - name: Y (exported)
           type: int
           offset: 8
-- offset: "0x0015e870"
+- offset: "0x0015ef38"
   size: 16
   kind: interface
   nameEntry: main.something
@@ -1187,7 +1187,7 @@
   interfaceMethods:
     - name: Do (exported)
       type: func()
-- offset: "0x00157650"
+- offset: "0x00157cb8"
   size: 0
   kind: struct
   nameEntry: main.somethingImpl
@@ -1196,7 +1196,7 @@
   ptrToThis: "0x0003a880"
   struct:
     fields: []
-- offset: "0x0016d300"
+- offset: "0x0016da30"
   size: 16
   kind: struct
   nameEntry: main.structWithAny
@@ -1208,7 +1208,7 @@
         - name: a
           type: interface {}
           offset: 0
-- offset: "0x0016d378"
+- offset: "0x0016daa8"
   size: 8
   kind: struct
   nameEntry: main.structWithMap
@@ -1220,7 +1220,7 @@
         - name: m
           type: map[int]int
           offset: 0
-- offset: "0x0016e098"
+- offset: "0x0016e7c8"
   size: 16
   kind: struct
   nameEntry: main.tinyStruct
@@ -1232,7 +1232,7 @@
         - name: Name (exported)
           type: string
           offset: 0
-- offset: "0x0019d698"
+- offset: "0x0019e040"
   size: 8
   kind: struct
   nameEntry: main.typeWithGenerics[int]
@@ -1247,7 +1247,7 @@
         - name: Value (exported)
           type: int
           offset: 0
-- offset: "0x0019d720"
+- offset: "0x0019e0c8"
   size: 16
   kind: struct
   nameEntry: main.typeWithGenerics[string]
