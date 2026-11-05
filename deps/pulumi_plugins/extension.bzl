@@ -1,4 +1,13 @@
-"""Fetches the Pulumi plugins of the SDKs in a `go.sum`, laid out as `pulumi plugin install` does."""
+"""Fetches the Pulumi plugins of the SDKs in a `go.sum`, laid out as `pulumi plugin install` does.
+
+Like `pulumi plugin install`, which asks each SDK which plugin it needs, this reads the npm package of each `pulumi-*`
+SDK in `go_sum`, at the SDK's version, e.g. `github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0` maps to
+https://registry.npmjs.org/@pulumi/eks/4.4.0:
+- its `pulumi` field (Pulumi's `PulumiPluginJSON`) tells whether it's a plugin (`resource`) and names it,
+- its `repository.url` gives the GitHub release to fetch, checked against the sums the release publishes,
+- its `dependencies` listed in `npm_dependencies` are plugins it loads itself, e.g. `@pulumi/kubernetes` for `eks`.
+npm metadata and release sums are recorded as facts in `MODULE.bazel.lock`, so that they're fetched only once.
+"""
 
 load("@bazel_lib//lib:base64.bzl", "base64")
 load("@bazel_lib//lib:repo_utils.bzl", "repo_utils")
@@ -110,11 +119,12 @@ def _impl(mctx):
                         plugins,
                         facts,
                     )
-    _hub(name = "pulumi_plugins", plugins = sorted(plugins.values()))
+    name = "pulumi_plugins"
+    _hub(name = name, plugins = sorted(plugins.values()))
     return mctx.extension_metadata(
         facts = facts,
         reproducible = True,
-        root_module_direct_deps = ["pulumi_plugins"],
+        root_module_direct_deps = [name],
         root_module_direct_dev_deps = [],
     )
 
