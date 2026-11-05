@@ -11242,7 +11242,7 @@ register_same_ancestor:
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.uid: "false"
+                process.ancestors.uid: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.is_exec: "true"
@@ -11460,8 +11460,8 @@ register_same_ancestor:
                 process.ancestors.uid: "false"
             r10:
                 open.file.path: "true"
-                process.ancestors.file.name: "false"
-                process.ancestors.uid: "false"
+                process.ancestors.file.name: "true"
+                process.ancestors.uid: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.is_exec: "false"
@@ -11546,7 +11546,7 @@ register_same_ancestor:
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.uid: "false"
+                process.ancestors.uid: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.is_exec: "false"
@@ -11631,7 +11631,7 @@ register_same_ancestor:
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.uid: "false"
+                process.ancestors.uid: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.is_exec: "false"
@@ -11716,7 +11716,7 @@ register_same_ancestor:
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.uid: "false"
+                process.ancestors.uid: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.is_exec: "false"
@@ -11823,8 +11823,8 @@ register_same_ancestor:
                 process.ancestors.uid: "false"
             r10:
                 open.file.path: "true"
-                process.ancestors.file.name: "false"
-                process.ancestors.uid: "false"
+                process.ancestors.file.name: "true"
+                process.ancestors.uid: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.is_exec: "false"

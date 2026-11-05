@@ -72,10 +72,10 @@ field_reference_length_and_root_domain:
                 - =1@14+1
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "false"
             r2:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "false"
             refs:
                 open.flags: "true"
@@ -103,7 +103,7 @@ field_reference_length_and_root_domain:
                 open.file.path: "true"
                 open.flags: "true"
             r2:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             refs:
                 open.flags: "false"
@@ -128,7 +128,7 @@ field_reference_length_and_root_domain:
                 - open.file.path="/d/datadoghq.co.uk"@19+14
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             r2:
                 open.file.path: "true"
@@ -147,10 +147,10 @@ field_reference_length_and_root_domain:
         - result: false
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             r2:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             refs:
                 open.flags: "false"
@@ -2877,8 +2877,8 @@ string_array_vs_array:
         exec:
             accept_mode: r0
     discarders_report:
-        exec.argv: 'panic: runtime error: invalid memory address or nil pointer dereference'
-        exec.envs: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        exec.argv: supported
+        exec.envs: supported
         exec.file.name: 'invalid: r0'
     event_types:
         - exec
@@ -3066,17 +3066,17 @@ string_array_vs_array:
                 - exec.envs=["x"]@18+9
           partials:
             r0:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r1:
                 exec.argv: "true"
                 exec.envs: "true"
             r2:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r3:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r4:
                 exec.argv: "true"
                 exec.file.name: "true"
@@ -3099,17 +3099,17 @@ string_array_vs_array:
             - r5
           partials:
             r0:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r1:
                 exec.argv: "true"
                 exec.envs: "true"
             r2:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r3:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r4:
                 exec.argv: "true"
                 exec.file.name: "true"
@@ -3132,17 +3132,17 @@ string_array_vs_array:
             - r5
           partials:
             r0:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r1:
                 exec.argv: "true"
                 exec.envs: "true"
             r2:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r3:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r4:
                 exec.argv: "true"
                 exec.file.name: "true"
@@ -3165,17 +3165,17 @@ string_array_vs_array:
             - r5
           partials:
             r0:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r1:
                 exec.argv: "true"
                 exec.envs: "true"
             r2:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r3:
-                exec.argv: "false"
-                exec.envs: "false"
+                exec.argv: "true"
+                exec.envs: "true"
             r4:
                 exec.argv: "true"
                 exec.file.name: "true"
@@ -3890,8 +3890,8 @@ string_case_insensitive_dns:
             r14:
                 dns.question.name.length: "false"
             r15:
-                dns.question.name: "false"
-                dns.question.name.root_domain: "false"
+                dns.question.name: "true"
+                dns.question.name.root_domain: "true"
             r16:
                 dns.question.name: "true"
                 dns.question.name.root_domain: "true"
@@ -4001,8 +4001,8 @@ string_case_insensitive_dns:
             r14:
                 dns.question.name.length: "false"
             r15:
-                dns.question.name: "false"
-                dns.question.name.root_domain: "false"
+                dns.question.name: "true"
+                dns.question.name.root_domain: "true"
             r16:
                 dns.question.name: "true"
                 dns.question.name.root_domain: "true"
@@ -4181,8 +4181,8 @@ string_case_insensitive_dns:
             r14:
                 dns.question.name.length: "true"
             r15:
-                dns.question.name: "false"
-                dns.question.name.root_domain: "false"
+                dns.question.name: "true"
+                dns.question.name.root_domain: "true"
             r16:
                 dns.question.name: "true"
                 dns.question.name.root_domain: "true"
@@ -6880,8 +6880,8 @@ string_extension_values_and_arrays:
                 exec.argv: "true"
                 exec.file.extension: "true"
             r12:
-                exec.argv0: "false"
-                exec.file.extension: "false"
+                exec.argv0: "true"
+                exec.file.extension: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6957,8 +6957,8 @@ string_extension_values_and_arrays:
                 exec.argv: "true"
                 exec.file.extension: "true"
             r12:
-                exec.argv0: "false"
-                exec.file.extension: "false"
+                exec.argv0: "true"
+                exec.file.extension: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7010,8 +7010,8 @@ string_extension_values_and_arrays:
                 exec.argv: "true"
                 exec.file.extension: "true"
             r12:
-                exec.argv0: "false"
-                exec.file.extension: "false"
+                exec.argv0: "true"
+                exec.file.extension: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7073,8 +7073,8 @@ string_extension_values_and_arrays:
                 exec.argv: "true"
                 exec.file.extension: "true"
             r12:
-                exec.argv0: "false"
-                exec.file.extension: "false"
+                exec.argv0: "true"
+                exec.file.extension: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7117,8 +7117,8 @@ string_extension_values_and_arrays:
                 exec.argv: "false"
                 exec.file.extension: "false"
             r10:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r11:
                 exec.argv: "true"
                 exec.file.extension: "true"
@@ -7161,14 +7161,14 @@ string_extension_values_and_arrays:
                 exec.argv: "false"
                 exec.file.extension: "false"
             r10:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r11:
                 exec.argv: "true"
                 exec.file.extension: "true"
             r12:
-                exec.argv0: "false"
-                exec.file.extension: "false"
+                exec.argv0: "true"
+                exec.file.extension: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7220,8 +7220,8 @@ string_extension_values_and_arrays:
                 exec.argv: "true"
                 exec.file.extension: "true"
             r12:
-                exec.argv0: "false"
-                exec.file.extension: "false"
+                exec.argv0: "true"
+                exec.file.extension: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7268,14 +7268,14 @@ string_extension_values_and_arrays:
                 exec.argv: "false"
                 exec.file.extension: "false"
             r10:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r11:
                 exec.argv: "true"
                 exec.file.extension: "true"
             r12:
-                exec.argv0: "false"
-                exec.file.extension: "false"
+                exec.argv0: "true"
+                exec.file.extension: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7524,26 +7524,26 @@ string_field_references:
             r4:
                 open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "true"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7570,30 +7570,30 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "false"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7623,30 +7623,30 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
                 open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "false"
             r9:
                 open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "false"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7672,30 +7672,30 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "false"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
                 open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "false"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7721,30 +7721,30 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "false"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
                 open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "false"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7770,30 +7770,30 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "false"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
                 open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "false"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7819,28 +7819,28 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "false"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "false"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
                 open.file.name: "true"
           scoped_counts:
@@ -7869,30 +7869,30 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "false"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "true"
             r14:
-                open.file.name: "false"
+                open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7918,30 +7918,30 @@ string_field_references:
                 open.file.name: "true"
                 process.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r4:
-                open.file.path: "false"
+                open.file.path: "true"
             r5:
-                open.file.path: "false"
+                open.file.path: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
             r8:
                 open.file.path: "false"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.file.name: "false"
+                open.file.name: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.file.name: "false"
+                open.file.name: "true"
             r13:
                 open.file.name: "true"
                 open.file.name.length: "false"
             r14:
                 open.file.name: "true"
             r15:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -8166,8 +8166,8 @@ string_field_vs_field:
             - r9
           partials:
             r0:
-                rename.file.destination.name: "false"
-                rename.file.name: "false"
+                rename.file.destination.name: "true"
+                rename.file.name: "true"
             r1:
                 rename.file.destination.name: "true"
                 rename.file.name: "true"
@@ -8181,8 +8181,8 @@ string_field_vs_field:
                 rename.file.destination.path: "true"
                 rename.file.path: "true"
             r6:
-                rename.file.group: "false"
-                rename.file.user: "false"
+                rename.file.group: "true"
+                rename.file.user: "true"
             r8:
                 process.file.name: "true"
                 rename.file.name: "true"
@@ -8268,8 +8268,8 @@ string_field_vs_field:
                 - rename.file.group=""@20+17
           partials:
             r0:
-                rename.file.destination.name: "false"
-                rename.file.name: "false"
+                rename.file.destination.name: "true"
+                rename.file.name: "true"
             r1:
                 rename.file.destination.name: "true"
                 rename.file.name: "true"
@@ -8315,8 +8315,8 @@ string_field_vs_field:
                 - rename.file.name="a"@21+16
           partials:
             r0:
-                rename.file.destination.name: "false"
-                rename.file.name: "false"
+                rename.file.destination.name: "true"
+                rename.file.name: "true"
             r1:
                 rename.file.destination.name: "true"
                 rename.file.name: "true"
@@ -8362,8 +8362,8 @@ string_field_vs_field:
                 - rename.file.name=""@21+16
           partials:
             r0:
-                rename.file.destination.name: "false"
-                rename.file.name: "false"
+                rename.file.destination.name: "true"
+                rename.file.name: "true"
             r1:
                 rename.file.destination.name: "true"
                 rename.file.name: "true"
@@ -16643,8 +16643,8 @@ string_length:
             r6:
                 open.file.name.length: "true"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
                 open.file.name.length: "true"
                 open.file.path.length: "true"
@@ -16699,11 +16699,11 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r9:
                 open.file.name.length: "false"
             r10:
@@ -16758,11 +16758,11 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r9:
                 open.file.name.length: "true"
             r10:
@@ -16826,11 +16826,11 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r9:
                 open.file.name.length: "false"
             r10:
@@ -16881,8 +16881,8 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
                 open.file.name.length: "true"
                 open.file.path.length: "true"
@@ -16939,11 +16939,11 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r9:
                 open.file.name.length: "false"
             r10:
@@ -16992,11 +16992,11 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r9:
                 open.file.name.length: "false"
             r10:
@@ -17051,11 +17051,11 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r9:
                 open.file.name.length: "true"
             r10:
@@ -17104,11 +17104,11 @@ string_length:
             r6:
                 open.file.name.length: "false"
             r7:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r8:
-                open.file.name.length: "false"
-                open.file.path.length: "false"
+                open.file.name.length: "true"
+                open.file.path.length: "true"
             r9:
                 open.file.name.length: "false"
             r10:
@@ -17239,8 +17239,8 @@ string_load_errors:
             field_stats:
                 open.file.name: 3
     discarders_report:
-        exec.args_flags: 'panic: runtime error: invalid memory address or nil pointer dereference'
-        exec.envs: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        exec.args_flags: supported
+        exec.envs: supported
         open.file.name: supported
     event_types:
         - exec
@@ -18186,8 +18186,8 @@ string_overrides_exec_file_path:
             r39:
                 exec.file.extension: "true"
             r40:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r41:
                 exec.file.extension: "true"
             r42:
@@ -18384,8 +18384,8 @@ string_overrides_exec_file_path:
             r39:
                 exec.file.extension: "true"
             r40:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r41:
                 exec.file.extension: "false"
             r42:
@@ -18606,8 +18606,8 @@ string_overrides_exec_file_path:
             r39:
                 exec.file.extension: "false"
             r40:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r41:
                 exec.file.extension: "false"
             r42:
@@ -18998,8 +18998,8 @@ string_overrides_exec_file_path:
             r39:
                 exec.file.extension: "false"
             r40:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r41:
                 exec.file.extension: "false"
             r42:
@@ -19230,8 +19230,8 @@ string_overrides_exec_file_path:
             r39:
                 exec.file.extension: "false"
             r40:
-                exec.argv: "false"
-                exec.file.extension: "false"
+                exec.argv: "true"
+                exec.file.extension: "true"
             r41:
                 exec.file.extension: "false"
             r42:
@@ -23158,7 +23158,7 @@ string_variable_arrays_vs_fields:
         dns.response.cnames: 'invalid: q_in_var'
         exec.argv: 'invalid: setter'
         exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
-        open.file.name: 'invalid: path_pattern_var'
+        open.file.name: supported
         open.file.path: 'invalid: path_in_var'
     event_types:
         - dns
@@ -23227,21 +23227,21 @@ string_variable_arrays_vs_fields:
                 - dns.question.name="a.com"@0+17
           partials:
             cnames_in_var:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
             q_eq_interp:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_eq_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_in_var:
                 dns.question.name: "true"
             q_not_in_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             str_in_cnames:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
             str_in_var:
                 dns.question.name: "true"
             var_in_cnames:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -23260,15 +23260,15 @@ string_variable_arrays_vs_fields:
                 - ="setter"@18+8
           partials:
             argv_in_var:
-                exec.argv: "false"
+                exec.argv: "true"
             file_in_var:
-                exec.file.name: "false"
+                exec.file.name: "true"
             setter:
                 exec.file.name: "true"
             str_in_argv:
                 exec.argv: "false"
             var_in_argv:
-                exec.argv: "false"
+                exec.argv: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -23292,21 +23292,21 @@ string_variable_arrays_vs_fields:
                 - dns.response.cnames=["A.com" "b"]@11+19
           partials:
             cnames_in_var:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
             q_eq_interp:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_eq_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_in_var:
                 dns.question.name: "true"
             q_not_in_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             str_in_cnames:
                 dns.response.cnames: "true"
             str_in_var:
                 dns.question.name: "true"
             var_in_cnames:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -23323,21 +23323,21 @@ string_variable_arrays_vs_fields:
             - str_in_var
           partials:
             cnames_in_var:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
             q_eq_interp:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_eq_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_in_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_not_in_var:
                 dns.question.name: "true"
             str_in_cnames:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
             str_in_var:
                 dns.question.name: "true"
             var_in_cnames:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -23357,21 +23357,21 @@ string_variable_arrays_vs_fields:
                 - dns.question.name="a.com"@0+17
           partials:
             cnames_in_var:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
             q_eq_interp:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_eq_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             q_in_var:
                 dns.question.name: "true"
             q_not_in_var:
-                dns.question.name: "false"
+                dns.question.name: "true"
             str_in_cnames:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
             str_in_var:
                 dns.question.name: "true"
             var_in_cnames:
-                dns.response.cnames: "false"
+                dns.response.cnames: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -23435,7 +23435,7 @@ string_variable_arrays_vs_fields:
             argv_in_var:
                 exec.argv: "true"
             file_in_var:
-                exec.file.name: "false"
+                exec.file.name: "true"
             setter:
                 exec.file.name: "false"
             str_in_argv:
@@ -23452,15 +23452,15 @@ string_variable_arrays_vs_fields:
         - result: false
           partials:
             argv_in_var:
-                exec.argv: "false"
+                exec.argv: "true"
             file_in_var:
-                exec.file.name: "false"
+                exec.file.name: "true"
             setter:
                 exec.file.name: "false"
             str_in_argv:
                 exec.argv: "false"
             var_in_argv:
-                exec.argv: "false"
+                exec.argv: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -23495,9 +23495,9 @@ string_variable_arrays_vs_fields:
         - result: false
           partials:
             path_in_var:
-                open.file.name: "false"
+                open.file.name: "true"
             path_pattern_var:
-                open.file.path: "false"
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -23693,33 +23693,33 @@ string_variable_interpolation:
             - use_neq_var
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 0
             process.pid: 0
@@ -23774,27 +23774,27 @@ string_variable_interpolation:
                 - open.file.name="hello"@0+14
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
                 open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
@@ -23825,33 +23825,33 @@ string_variable_interpolation:
                 - open.file.name="world"@0+14
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
                 open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -23880,31 +23880,31 @@ string_variable_interpolation:
             use_both:
                 open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -23926,33 +23926,33 @@ string_variable_interpolation:
             - use_neq_var
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -23981,19 +23981,19 @@ string_variable_interpolation:
                 - open.file.name="aa"@0+14
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
                 open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
@@ -24001,13 +24001,13 @@ string_variable_interpolation:
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -24034,33 +24034,33 @@ string_variable_interpolation:
                 - open.file.name="7"@0+14
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
                 open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -24087,33 +24087,33 @@ string_variable_interpolation:
                 - open.file.name="n42"@0+14
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
                 open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -24142,19 +24142,19 @@ string_variable_interpolation:
                 - open.file.name="aa"@0+14
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
                 open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
@@ -24162,13 +24162,13 @@ string_variable_interpolation:
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -24190,33 +24190,33 @@ string_variable_interpolation:
             - use_neq_var
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -24238,33 +24238,33 @@ string_variable_interpolation:
             - use_neq_var
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -24286,33 +24286,33 @@ string_variable_interpolation:
             - use_neq_var
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "false"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "false"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "false"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0
@@ -24350,33 +24350,33 @@ string_variable_interpolation:
                 - ="x"@50+3
           partials:
             use_both:
-                open.file.name: "false"
+                open.file.name: "true"
             use_eq_var:
-                open.file.name: "false"
+                open.file.name: "true"
             use_global:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist:
-                open.file.name: "false"
+                open.file.name: "true"
             use_ilist_length:
                 open.file.name: "true"
             use_in:
-                open.file.name: "false"
+                open.file.name: "true"
             use_int:
-                open.file.name: "false"
+                open.file.name: "true"
             use_length:
                 open.file.name: "true"
             use_list:
-                open.file.name: "false"
+                open.file.name: "true"
             use_list_length:
                 open.file.name: "true"
             use_mix:
-                open.file.path: "false"
+                open.file.path: "true"
             use_neq_var:
                 open.file.name: "true"
             use_not_in:
                 open.file.name: "true"
             use_scalar:
-                open.file.name: "false"
+                open.file.name: "true"
           scoped_counts:
             process.ilist: 1
             process.pid: 0

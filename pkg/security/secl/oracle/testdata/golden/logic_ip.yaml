@@ -7209,18 +7209,18 @@ logic_and_or_not_basic:
             r5:
                 open.file.path: "false"
             r6:
-                open.file.path: "false"
-                open.flags: "false"
+                open.file.path: "true"
+                open.flags: "true"
             r7:
                 open.file.path: "false"
-                open.flags: "false"
+                open.flags: "true"
             r8:
                 open.file.path: "true"
             r9:
                 open.file.path: "true"
             r10:
-                open.file.path: "false"
-                open.flags: "false"
+                open.file.path: "true"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7271,7 +7271,7 @@ logic_and_or_not_basic:
             r5:
                 open.file.path: "false"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             r7:
                 open.file.path: "false"
@@ -7281,7 +7281,7 @@ logic_and_or_not_basic:
             r9:
                 open.file.path: "true"
             r10:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "false"
           scoped_counts:
             process.pid: 0
@@ -7323,17 +7323,17 @@ logic_and_or_not_basic:
                 open.file.path: "true"
             r6:
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r7:
-                open.file.path: "false"
-                open.flags: "false"
+                open.file.path: "true"
+                open.flags: "true"
             r8:
                 open.file.path: "false"
             r9:
                 open.file.path: "false"
             r10:
                 open.file.path: "false"
-                open.flags: "false"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7381,7 +7381,7 @@ logic_and_or_not_basic:
                 open.file.path: "true"
                 open.flags: "true"
             r7:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "false"
             r8:
                 open.file.path: "false"
@@ -7440,17 +7440,17 @@ logic_and_or_not_basic:
             r5:
                 open.file.path: "false"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             r7:
                 open.file.path: "false"
-                open.flags: "false"
+                open.flags: "true"
             r8:
                 open.file.path: "true"
             r9:
                 open.file.path: "true"
             r10:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "false"
           scoped_counts:
             process.pid: 0
@@ -7496,8 +7496,8 @@ logic_and_or_not_basic:
                 open.file.path: "true"
                 open.flags: "true"
             r7:
-                open.file.path: "false"
-                open.flags: "false"
+                open.file.path: "true"
+                open.flags: "true"
             r8:
                 open.file.path: "false"
             r9:
@@ -9078,14 +9078,14 @@ logic_bool_fields:
                 open.file.in_upper_layer: "true"
                 open.flags: "true"
             r25:
-                open.file.in_upper_layer: "false"
+                open.file.in_upper_layer: "true"
                 open.flags: "true"
             r26:
                 open.file.path: "true"
                 open.flags: "true"
             r27:
-                open.file.path: "false"
-                open.flags: "false"
+                open.file.path: "true"
+                open.flags: "true"
             r28:
                 open.flags: "true"
             r29:
@@ -9256,8 +9256,8 @@ logic_bool_fields:
                 open.file.in_upper_layer: "true"
                 open.file.mount_visible: "true"
             r21:
-                open.file.in_upper_layer: "false"
-                open.file.mount_visible: "false"
+                open.file.in_upper_layer: "true"
+                open.file.mount_visible: "true"
             r22:
                 open.file.in_upper_layer: "true"
                 open.file.mount_visible: "true"
@@ -9269,14 +9269,14 @@ logic_bool_fields:
                 open.file.in_upper_layer: "true"
                 open.flags: "true"
             r25:
-                open.file.in_upper_layer: "false"
+                open.file.in_upper_layer: "true"
                 open.flags: "true"
             r26:
                 open.file.path: "true"
                 open.flags: "true"
             r27:
-                open.file.path: "false"
-                open.flags: "false"
+                open.file.path: "true"
+                open.flags: "true"
             r28:
                 open.flags: "true"
             r29:
@@ -9398,8 +9398,8 @@ logic_bool_fields:
                 open.file.in_upper_layer: "true"
                 open.file.mount_visible: "true"
             r21:
-                open.file.in_upper_layer: "false"
-                open.file.mount_visible: "false"
+                open.file.in_upper_layer: "true"
+                open.file.mount_visible: "true"
             r22:
                 open.file.in_upper_layer: "true"
                 open.file.mount_visible: "true"
@@ -9411,11 +9411,11 @@ logic_bool_fields:
                 open.file.in_upper_layer: "true"
                 open.flags: "true"
             r25:
-                open.file.in_upper_layer: "false"
+                open.file.in_upper_layer: "true"
                 open.flags: "true"
             r26:
-                open.file.path: "false"
-                open.flags: "false"
+                open.file.path: "true"
+                open.flags: "true"
             r27:
                 open.file.path: "true"
                 open.flags: "true"
@@ -9593,17 +9593,17 @@ logic_bool_fields:
                 open.file.mount_visible: "true"
                 open.flags: "true"
             r24:
-                open.file.in_upper_layer: "false"
-                open.flags: "false"
+                open.file.in_upper_layer: "true"
+                open.flags: "true"
             r25:
                 open.file.in_upper_layer: "true"
                 open.flags: "true"
             r26:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             r27:
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r28:
                 open.flags: "true"
             r29:
@@ -9749,16 +9749,16 @@ logic_bool_fields:
                 open.file.mount_visible: "true"
                 open.flags: "false"
             r24:
-                open.file.in_upper_layer: "false"
-                open.flags: "false"
+                open.file.in_upper_layer: "true"
+                open.flags: "true"
             r25:
                 open.file.in_upper_layer: "true"
                 open.flags: "true"
             r26:
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r27:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             r28:
                 open.flags: "false"
@@ -9890,13 +9890,13 @@ logic_bool_fields:
                 open.file.in_upper_layer: "true"
                 open.flags: "true"
             r25:
-                open.file.in_upper_layer: "false"
+                open.file.in_upper_layer: "true"
                 open.flags: "true"
             r26:
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r27:
-                open.file.path: "false"
+                open.file.path: "true"
                 open.flags: "true"
             r28:
                 open.flags: "false"
@@ -11410,8 +11410,8 @@ logic_nondeterministic_operands:
                 open.file.mount_visible: "true"
                 open.file.path: "true"
             r27:
-                open.file.in_upper_layer: "false"
-                open.file.mount_visible: "false"
+                open.file.in_upper_layer: "true"
+                open.file.mount_visible: "true"
                 open.file.path: "true"
             r28:
                 open.file.in_upper_layer: "true"
@@ -11578,7 +11578,7 @@ logic_nondeterministic_operands:
                 open.file.mount_visible: "true"
                 open.file.path: "true"
             r27:
-                open.file.in_upper_layer: "false"
+                open.file.in_upper_layer: "true"
                 open.file.mount_visible: "true"
                 open.file.path: "true"
             r28:
@@ -11719,7 +11719,7 @@ logic_nondeterministic_operands:
                 open.file.path: "true"
             r27:
                 open.file.in_upper_layer: "true"
-                open.file.mount_visible: "false"
+                open.file.mount_visible: "true"
                 open.file.path: "false"
             r28:
                 open.file.in_upper_layer: "true"
@@ -11831,7 +11831,7 @@ logic_nondeterministic_operands:
                 open.file.path: "true"
             r27:
                 open.file.in_upper_layer: "true"
-                open.file.mount_visible: "false"
+                open.file.mount_visible: "true"
                 open.file.path: "false"
             r28:
                 open.file.in_upper_layer: "true"
@@ -13226,9 +13226,9 @@ logic_precedence_and_parens:
                 open.file.name: "true"
                 open.flags: "false"
             r7:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "false"
+                open.flags: "true"
             r8:
                 open.file.name: "true"
                 open.file.path: "true"
@@ -13297,7 +13297,7 @@ logic_precedence_and_parens:
                 open.file.name: "true"
                 open.flags: "true"
             r7:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.file.path: "false"
                 open.flags: "true"
             r8:
@@ -13354,7 +13354,7 @@ logic_precedence_and_parens:
             r7:
                 open.file.name: "true"
                 open.file.path: "false"
-                open.flags: "false"
+                open.flags: "true"
             r8:
                 open.file.name: "true"
                 open.file.path: "true"
@@ -13507,7 +13507,7 @@ logic_precedence_and_parens:
                 open.file.name: "true"
                 open.flags: "true"
             r7:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.file.path: "true"
                 open.flags: "true"
             r8:

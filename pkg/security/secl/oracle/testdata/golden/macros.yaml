@@ -3513,9 +3513,12 @@ macro_used_twice_in_rule:
                     - scalar:2
     approvers:
         open:
-            accept_mode: twice_expr
+            approvers:
+                open.file.name:
+                    - scalar:"x"
+                    - scalar:"y"
             field_stats:
-                open.file.name: 1
+                open.file.name: 2
     discarders_report:
         open.file.name: supported
         open.flags: 'invalid: twice'
@@ -3542,8 +3545,7 @@ macro_used_twice_in_rule:
         - twice
         - twice_expr
     approvers_all:
-        - accept_mode open=twice_expr
-        - field_stats open.file.name=1
+        - field_stats open.file.name=2
     policy_rules:
         - policy0/twice accepted=true disabled=false expression="open.file.name in names && process.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/twice_expr accepted=true disabled=false expression="is_x && (is_x || open.flags == 1) && !(is_x && open.flags == 2)" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -3564,7 +3566,7 @@ macro_used_twice_in_rule:
                 open.file.name: "true"
                 process.file.name: "true"
             twice_expr:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
           scoped_counts:
             process.pid: 0
@@ -3576,8 +3578,8 @@ macro_used_twice_in_rule:
                 open.file.name: "true"
                 process.file.name: "false"
             twice_expr:
-                open.file.name: "false"
-                open.flags: "false"
+                open.file.name: "true"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -3610,8 +3612,8 @@ macro_used_twice_in_rule:
                 open.file.name: "true"
                 process.file.name: "true"
             twice_expr:
-                open.file.name: "false"
-                open.flags: "false"
+                open.file.name: "true"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -3635,7 +3637,7 @@ macro_used_twice_in_rule:
                 open.file.name: "true"
                 process.file.name: "true"
             twice_expr:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
           scoped_counts:
             process.pid: 0
@@ -3881,11 +3883,9 @@ macro_values_macro_in_variable_rule:
         - result: false
           partials:
             reader:
-                exec.file.name: "false"
+                exec.file.name: "true"
             reader_in:
                 exec.file.name: "false"
-          discarders:
-            - exec:exec.file.name="a"
           scoped_counts:
             process.pid: 0
           variables:
@@ -3947,7 +3947,7 @@ macro_values_macro_in_variable_rule:
                 - ="zzz"@38+5
           partials:
             reader:
-                exec.file.name: "false"
+                exec.file.name: "true"
             reader_in:
                 exec.file.name: "true"
           scoped_counts:

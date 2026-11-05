@@ -1043,7 +1043,7 @@ int_arith_plus_minus:
             r5:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r6:
                 open.flags: "true"
                 process.pid: "true"
@@ -1166,7 +1166,7 @@ int_arith_plus_minus:
             r5:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r6:
                 open.flags: "true"
                 process.pid: "false"
@@ -1188,7 +1188,7 @@ int_arith_plus_minus:
             r11:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r12:
                 open.flags: "true"
                 process.ppid: "true"
@@ -1279,7 +1279,7 @@ int_arith_plus_minus:
             r5:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r6:
                 open.flags: "true"
                 process.pid: "false"
@@ -1301,7 +1301,7 @@ int_arith_plus_minus:
             r11:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r12:
                 open.flags: "true"
                 process.ppid: "true"
@@ -1430,7 +1430,7 @@ int_arith_plus_minus:
             r11:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r12:
                 open.flags: "true"
                 process.ppid: "true"
@@ -1531,7 +1531,7 @@ int_arith_plus_minus:
             r5:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r6:
                 open.flags: "true"
                 process.pid: "false"
@@ -1553,7 +1553,7 @@ int_arith_plus_minus:
             r11:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r12:
                 open.flags: "true"
                 process.ppid: "true"
@@ -1654,7 +1654,7 @@ int_arith_plus_minus:
             r5:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r6:
                 open.flags: "true"
                 process.pid: "false"
@@ -1676,7 +1676,7 @@ int_arith_plus_minus:
             r11:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r12:
                 open.flags: "true"
                 process.ppid: "true"
@@ -1772,7 +1772,7 @@ int_arith_plus_minus:
             r5:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r6:
                 open.flags: "true"
                 process.pid: "false"
@@ -1794,7 +1794,7 @@ int_arith_plus_minus:
             r11:
                 open.flags: "true"
                 process.pid: "true"
-                process.ppid: "false"
+                process.ppid: "true"
             r12:
                 open.flags: "true"
                 process.ppid: "false"
@@ -5267,8 +5267,8 @@ int_bit_on_both_sides:
                 process.uid: "true"
             r3:
                 open.flags: "true"
-                process.gid: "false"
-                process.uid: "false"
+                process.gid: "true"
+                process.uid: "true"
             r4:
                 open.flags: "true"
                 process.cap_effective: "false"
@@ -5409,8 +5409,8 @@ int_bit_on_both_sides:
                 process.uid: "true"
             r3:
                 open.flags: "true"
-                process.gid: "false"
-                process.uid: "false"
+                process.gid: "true"
+                process.uid: "true"
             r4:
                 open.flags: "true"
                 process.cap_effective: "false"
@@ -5444,12 +5444,12 @@ int_bit_on_both_sides:
           partials:
             r0:
                 open.flags: "true"
-                process.gid: "false"
-                process.uid: "false"
+                process.gid: "true"
+                process.uid: "true"
             r3:
                 open.flags: "true"
-                process.gid: "false"
-                process.uid: "false"
+                process.gid: "true"
+                process.uid: "true"
             r4:
                 open.flags: "true"
                 process.cap_effective: "true"
@@ -7827,9 +7827,7 @@ int_cmp_cross_event_fields:
                     - range:1000
     approvers:
         chown:
-            accept_mode: r1
-            field_stats:
-                chown.file.destination.uid: 1
+            accept_mode: r0
     discarders_report:
         chown.file.destination.gid: 'invalid: r0'
         chown.file.destination.uid: supported
@@ -7860,8 +7858,7 @@ int_cmp_cross_event_fields:
         - r2
         - r3
     approvers_all:
-        - accept_mode chown=r1
-        - field_stats chown.file.destination.uid=1
+        - accept_mode chown=r0
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="chown.file.destination.uid == process.uid" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="chown.file.destination.gid != process.gid" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -7913,14 +7910,14 @@ int_cmp_cross_event_fields:
             - r1
           partials:
             r0:
-                chown.file.destination.uid: "false"
-                process.uid: "false"
+                chown.file.destination.uid: "true"
+                process.uid: "true"
             r1:
                 chown.file.destination.gid: "true"
                 process.gid: "true"
             r2:
-                chown.file.destination.uid: "false"
-                chown.file.uid: "false"
+                chown.file.destination.uid: "true"
+                chown.file.uid: "true"
             r3:
                 chown.file.destination.gid: "false"
                 chown.file.destination.uid: "false"
@@ -7945,8 +7942,8 @@ int_cmp_cross_event_fields:
                 chown.file.destination.gid: "true"
                 process.gid: "true"
             r2:
-                chown.file.destination.uid: "false"
-                chown.file.uid: "false"
+                chown.file.destination.uid: "true"
+                chown.file.uid: "true"
             r3:
                 chown.file.destination.gid: "true"
                 chown.file.destination.uid: "false"
@@ -10662,7 +10659,7 @@ int_duration_arithmetic_two_timestamps:
         open:
             accept_mode: r0
     discarders_report:
-        open.file.change_time: 'invalid: r1'
+        open.file.change_time: supported
         open.file.modification_time: 'invalid: r0'
         process.created_at: none
     event_types:
@@ -10706,14 +10703,14 @@ int_duration_arithmetic_two_timestamps:
                 open.file.change_time: "true"
                 process.created_at: "true"
             r1:
-                open.file.modification_time: "false"
-                process.created_at: "false"
+                open.file.modification_time: "true"
+                process.created_at: "true"
             r2:
                 open.file.modification_time: "true"
                 process.created_at: "true"
             r3:
-                open.file.modification_time: "false"
-                process.created_at: "false"
+                open.file.modification_time: "true"
+                process.created_at: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -10721,19 +10718,17 @@ int_duration_arithmetic_two_timestamps:
         - result: false
           partials:
             r0:
-                open.file.change_time: "false"
-                process.created_at: "false"
+                open.file.change_time: "true"
+                process.created_at: "true"
             r1:
-                open.file.modification_time: "false"
-                process.created_at: "false"
+                open.file.modification_time: "true"
+                process.created_at: "true"
             r2:
-                open.file.modification_time: "false"
-                process.created_at: "false"
+                open.file.modification_time: "true"
+                process.created_at: "true"
             r3:
-                open.file.modification_time: "false"
-                process.created_at: "false"
-          discarders:
-            - open:process.created_at=89200000000000
+                open.file.modification_time: "true"
+                process.created_at: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -10747,8 +10742,8 @@ int_duration_arithmetic_two_timestamps:
             - r2
           partials:
             r0:
-                open.file.change_time: "false"
-                process.created_at: "false"
+                open.file.change_time: "true"
+                process.created_at: "true"
             r1:
                 open.file.modification_time: "true"
                 process.created_at: "true"
@@ -10756,8 +10751,8 @@ int_duration_arithmetic_two_timestamps:
                 open.file.modification_time: "true"
                 process.created_at: "true"
             r3:
-                open.file.modification_time: "false"
-                process.created_at: "false"
+                open.file.modification_time: "true"
+                process.created_at: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -10773,8 +10768,8 @@ int_duration_arithmetic_two_timestamps:
             - r3
           partials:
             r0:
-                open.file.change_time: "false"
-                process.created_at: "false"
+                open.file.change_time: "true"
+                process.created_at: "true"
             r1:
                 open.file.modification_time: "true"
                 process.created_at: "true"
@@ -11600,13 +11595,13 @@ int_duration_constants:
                 open.flags: "true"
                 process.pid: "true"
             r1:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r2:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r3:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r4:
                 open.flags: "true"
@@ -11633,7 +11628,7 @@ int_duration_constants:
                 open.flags: "true"
                 process.pid: "true"
             r12:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
           scoped_counts:
             process.pid: 0
@@ -11676,13 +11671,13 @@ int_duration_constants:
                 open.flags: "true"
                 process.pid: "false"
             r1:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r2:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r3:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r4:
                 open.flags: "true"
@@ -11709,7 +11704,7 @@ int_duration_constants:
                 open.flags: "true"
                 process.pid: "true"
             r12:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
           scoped_counts:
             process.pid: 0
@@ -11739,13 +11734,13 @@ int_duration_constants:
                 open.flags: "true"
                 process.pid: "false"
             r1:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r2:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r3:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
             r4:
                 open.flags: "true"
@@ -11772,7 +11767,7 @@ int_duration_constants:
                 open.flags: "true"
                 process.pid: "true"
             r12:
-                open.flags: "true"
+                open.flags: "false"
                 process.pid: "false"
           scoped_counts:
             process.pid: 0
@@ -15651,8 +15646,8 @@ int_scalar_field_vs_array_field:
             r26:
                 open.flags: "true"
             r27:
-                open.flags: "false"
-                process.uid: "false"
+                open.flags: "true"
+                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -15773,7 +15768,7 @@ int_scalar_field_vs_array_field:
                 process.pid: "true"
             r13:
                 open.flags: "true"
-                process.ancestors.pid: "false"
+                process.ancestors.pid: "true"
                 process.uid: "true"
             r16:
                 open.flags: "true"
@@ -15807,8 +15802,8 @@ int_scalar_field_vs_array_field:
             r26:
                 open.flags: "false"
             r27:
-                open.flags: "false"
-                process.uid: "false"
+                open.flags: "true"
+                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -15878,7 +15873,7 @@ int_scalar_field_vs_array_field:
                 process.pid: "true"
             r13:
                 open.flags: "true"
-                process.ancestors.pid: "false"
+                process.ancestors.pid: "true"
                 process.uid: "true"
             r16:
                 open.flags: "true"
@@ -15912,8 +15907,8 @@ int_scalar_field_vs_array_field:
             r26:
                 open.flags: "false"
             r27:
-                open.flags: "false"
-                process.uid: "false"
+                open.flags: "true"
+                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -16108,8 +16103,8 @@ int_scalar_field_vs_array_field:
             r26:
                 open.flags: "true"
             r27:
-                open.flags: "false"
-                process.uid: "false"
+                open.flags: "true"
+                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -16270,8 +16265,8 @@ int_scalar_field_vs_array_field:
             r26:
                 open.flags: "false"
             r27:
-                open.flags: "false"
-                process.uid: "false"
+                open.flags: "true"
+                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -16399,7 +16394,7 @@ int_scalar_field_vs_array_field:
                 process.pid: "true"
             r13:
                 open.flags: "true"
-                process.ancestors.pid: "false"
+                process.ancestors.pid: "true"
                 process.uid: "true"
             r16:
                 open.flags: "true"
@@ -16433,8 +16428,8 @@ int_scalar_field_vs_array_field:
             r26:
                 open.flags: "true"
             r27:
-                open.flags: "false"
-                process.uid: "false"
+                open.flags: "true"
+                process.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:

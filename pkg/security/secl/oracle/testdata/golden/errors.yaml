@@ -35114,7 +35114,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35202,7 +35202,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35283,7 +35283,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35364,7 +35364,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35444,10 +35444,10 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r47:
-                open.file.name: "false"
-                open.flags: "false"
+                open.file.name: "true"
+                open.flags: "true"
             r48:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r49:
                 open.file.name: "true"
@@ -35538,7 +35538,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35619,7 +35619,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35707,7 +35707,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35788,7 +35788,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35869,7 +35869,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -35957,7 +35957,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -36045,7 +36045,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -36113,11 +36113,11 @@ pattern_and_regexp_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r47:
-                open.file.name: "false"
-                open.flags: "false"
+                open.file.name: "true"
+                open.flags: "true"
             r48:
-                open.file.name: "false"
-                open.flags: "false"
+                open.file.name: "true"
+                open.flags: "true"
             r49:
                 open.file.name: "true"
                 open.flags: "false"
@@ -36200,7 +36200,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -36276,8 +36276,8 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
-                open.flags: "false"
+                open.file.name: "true"
+                open.flags: "true"
             r50:
                 open.file.name: "false"
             r51:
@@ -36351,10 +36351,10 @@ pattern_and_regexp_errors:
                 open.file.name: "false"
                 open.flags: "false"
             r47:
-                open.file.name: "false"
-                open.flags: "false"
+                open.file.name: "true"
+                open.flags: "true"
             r48:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r49:
                 open.file.name: "true"
@@ -36440,7 +36440,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -36516,7 +36516,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -36599,7 +36599,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -36682,7 +36682,7 @@ pattern_and_regexp_errors:
                 open.file.name: "true"
                 open.flags: "false"
             r49:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r50:
                 open.file.name: "false"
@@ -50022,12 +50022,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50045,17 +50045,17 @@ unknown_fields_constants_and_variables:
                 open.file.name: "false"
                 open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50095,12 +50095,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50116,19 +50116,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50159,12 +50159,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50180,19 +50180,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50231,12 +50231,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50252,19 +50252,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50295,12 +50295,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50316,19 +50316,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50367,12 +50367,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50388,19 +50388,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50440,12 +50440,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "true"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50461,19 +50461,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50513,12 +50513,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50534,19 +50534,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50577,12 +50577,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -50598,19 +50598,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50641,12 +50641,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "true"
@@ -50662,19 +50662,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50715,12 +50715,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "true"
@@ -50736,19 +50736,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50779,12 +50779,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "true"
@@ -50800,19 +50800,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50853,12 +50853,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "true"
@@ -50874,19 +50874,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50927,12 +50927,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "true"
@@ -50948,19 +50948,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -50991,12 +50991,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51012,19 +51012,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51055,12 +51055,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r21:
                 open.file.name.length: "false"
@@ -51076,19 +51076,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51119,12 +51119,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r21:
                 open.file.name.length: "false"
@@ -51140,19 +51140,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51183,12 +51183,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51204,19 +51204,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51257,12 +51257,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51278,19 +51278,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "true"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51321,12 +51321,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51342,19 +51342,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51385,12 +51385,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51408,17 +51408,17 @@ unknown_fields_constants_and_variables:
                 open.file.name: "false"
                 open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51458,12 +51458,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51479,19 +51479,19 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
                 open.file.name: "true"
                 open.flags: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51531,12 +51531,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51554,17 +51554,17 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51604,12 +51604,12 @@ unknown_fields_constants_and_variables:
                 open.file.name: "true"
                 open.flags: "false"
             r18:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r19:
-                open.file.name: "false"
+                open.file.name: "true"
             r20:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r21:
                 open.file.name.length: "false"
@@ -51625,9 +51625,9 @@ unknown_fields_constants_and_variables:
                 open.flags: "false"
             r37:
                 open.file.name: "false"
-                open.flags: "false"
+                open.flags: "true"
             r38:
-                open.file.name: "false"
+                open.file.name: "true"
                 open.flags: "false"
             r39:
                 open.file.name: "true"
@@ -51635,9 +51635,9 @@ unknown_fields_constants_and_variables:
             r42:
                 open.file.name: "false"
             r43:
-                open.file.name: "false"
+                open.file.name: "true"
             r44:
-                open.file.name: "false"
+                open.file.name: "true"
             r45:
                 open.file.name: "false"
           scoped_counts:
@@ -51994,8 +51994,8 @@ variable_reference_errors:
         connect.addr.ip: 'invalid: setter_cidr'
         connect.addr.port: supported
         exec.argv: 'invalid: r35'
-        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
-        open.file.name: 'invalid: r10'
+        exec.file.name: supported
+        open.file.name: supported
         open.flags: 'invalid: setter_all'
     event_types:
         - bpf
@@ -52165,23 +52165,23 @@ variable_reference_errors:
                 - open.flags=7@0+10
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
                 open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52195,11 +52195,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52253,23 +52253,23 @@ variable_reference_errors:
                 - ="setter"@18+8
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52283,11 +52283,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52346,21 +52346,21 @@ variable_reference_errors:
             r2:
                 open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
                 open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52374,11 +52374,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52435,23 +52435,23 @@ variable_reference_errors:
                 - open.flags=7@0+10
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
                 open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
                 open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52465,11 +52465,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52522,23 +52522,23 @@ variable_reference_errors:
                 - open.file.name="pre-abc-7"@0+14
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
                 open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52552,11 +52552,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52609,23 +52609,23 @@ variable_reference_errors:
                 - open.file.name="x"@0+14
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
                 open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52639,11 +52639,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52696,21 +52696,21 @@ variable_reference_errors:
                 - open.flags=1@0+10
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
                 open.flags: "true"
             r13:
@@ -52726,11 +52726,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52784,23 +52784,23 @@ variable_reference_errors:
                 - ="bool-var"@31+10
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "true"
             r14:
@@ -52814,11 +52814,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52872,23 +52872,23 @@ variable_reference_errors:
                 - ="bool-var2"@39+11
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52902,11 +52902,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -52960,23 +52960,23 @@ variable_reference_errors:
                 - ="len1"@42+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -52990,11 +52990,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53048,23 +53048,23 @@ variable_reference_errors:
                 - ="len2"@45+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53078,11 +53078,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53136,23 +53136,23 @@ variable_reference_errors:
                 - ="len3"@45+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53166,11 +53166,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53224,23 +53224,23 @@ variable_reference_errors:
                 - ="len4"@43+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53254,11 +53254,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "true"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53312,23 +53312,23 @@ variable_reference_errors:
                 - ="lit1"@41+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53342,11 +53342,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "true"
             r43:
@@ -53400,23 +53400,23 @@ variable_reference_errors:
                 - ="lit2"@50+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53430,11 +53430,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53480,23 +53480,23 @@ variable_reference_errors:
         - result: false
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53510,11 +53510,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53560,23 +53560,23 @@ variable_reference_errors:
         - result: false
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53590,11 +53590,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53648,23 +53648,23 @@ variable_reference_errors:
                 - ="lit5"@39+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53678,11 +53678,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53736,23 +53736,23 @@ variable_reference_errors:
                 - ="lit6"@35+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53766,11 +53766,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53824,23 +53824,23 @@ variable_reference_errors:
                 - ="lit7"@34+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53854,11 +53854,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -53912,23 +53912,23 @@ variable_reference_errors:
                 - ="lit8"@39+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -53942,11 +53942,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54000,23 +54000,23 @@ variable_reference_errors:
                 - ="lit9"@39+6
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54030,11 +54030,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54088,23 +54088,23 @@ variable_reference_errors:
                 - ="lit10"@42+7
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54118,11 +54118,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54176,23 +54176,23 @@ variable_reference_errors:
                 - ="lit11"@44+7
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54206,11 +54206,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54264,23 +54264,23 @@ variable_reference_errors:
                 - ="lit12"@40+7
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54294,11 +54294,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54352,23 +54352,23 @@ variable_reference_errors:
                 - ="lit13"@40+7
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54382,11 +54382,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54432,23 +54432,23 @@ variable_reference_errors:
         - result: false
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54462,11 +54462,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54520,23 +54520,23 @@ variable_reference_errors:
                 - ="lit15"@38+7
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54550,11 +54550,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54600,23 +54600,23 @@ variable_reference_errors:
         - result: false
           partials:
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.name: "false"
+                open.file.name: "true"
             r5:
-                open.file.name: "false"
+                open.file.name: "true"
             r6:
-                open.file.name: "false"
+                open.file.name: "true"
             r8:
-                open.file.name: "false"
+                open.file.name: "true"
             r9:
-                open.file.name: "false"
+                open.file.name: "true"
             r10:
-                open.flags: "false"
+                open.flags: "true"
             r11:
-                open.file.name: "false"
+                open.file.name: "true"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.file.name: "false"
             r14:
@@ -54630,11 +54630,11 @@ variable_reference_errors:
             r20:
                 open.file.name: "false"
             r23:
-                open.file.name: "false"
+                open.file.name: "true"
             r24:
-                open.file.name: "false"
+                open.file.name: "true"
             r39:
-                open.file.name: "false"
+                open.file.name: "true"
             r42:
                 open.file.name: "false"
             r43:
@@ -54690,7 +54690,7 @@ variable_reference_errors:
                 exec.file.name: "true"
             r36:
                 exec.argv: "true"
-                exec.file.name: "false"
+                exec.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -54704,12 +54704,10 @@ variable_reference_errors:
         - result: false
           partials:
             r35:
-                exec.file.name: "false"
+                exec.file.name: "true"
             r36:
                 exec.argv: "true"
-                exec.file.name: "false"
-          discarders:
-            - exec:exec.file.name="a-a"
+                exec.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -54796,7 +54794,7 @@ variable_reference_errors:
         - result: false
           partials:
             r26:
-                connect.addr.ip: "false"
+                connect.addr.ip: "true"
                 connect.addr.port: "true"
             setter_cidr:
                 connect.addr.port: "false"

@@ -825,7 +825,7 @@ field_reference_in_string:
     discarders_report:
         exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
         open.file.name: 'invalid: r1'
-        open.file.path: 'invalid: r2'
+        open.file.path: supported
     event_types:
         - exec
         - open
@@ -868,13 +868,13 @@ field_reference_in_string:
                 - open.file.name="x"@0+14
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
             r2:
                 open.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -913,11 +913,11 @@ field_reference_in_string:
             r1:
                 open.file.path: "true"
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
                 open.file.path: "true"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -933,13 +933,13 @@ field_reference_in_string:
                 - open.file.path="/tmp/a"@0+14
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
                 open.file.path: "true"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -948,13 +948,13 @@ field_reference_in_string:
         - result: false
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -963,13 +963,13 @@ field_reference_in_string:
         - result: false
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -978,13 +978,13 @@ field_reference_in_string:
         - result: false
           partials:
             r1:
-                open.file.path: "false"
+                open.file.path: "true"
             r2:
-                open.file.name: "false"
+                open.file.name: "true"
             r3:
-                open.file.path: "false"
+                open.file.path: "true"
             r6:
-                open.file.path: "false"
+                open.file.path: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1442,7 +1442,7 @@ global_arrays_value_and_append:
                 open.file.path: 1
     discarders_report:
         mkdir.file.destination.mode: 'invalid: in_s'
-        mkdir.file.name: 'invalid: in_i'
+        mkdir.file.name: supported
         open.file.path: supported
     event_types:
         - mkdir
@@ -1536,9 +1536,9 @@ global_arrays_value_and_append:
             lit_not_in_i:
                 mkdir.file.name: "false"
             notin_i:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             notin_s:
-                mkdir.file.name: "false"
+                mkdir.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1607,9 +1607,9 @@ global_arrays_value_and_append:
             lit_not_in_i:
                 mkdir.file.name: "false"
             notin_i:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             notin_s:
-                mkdir.file.name: "false"
+                mkdir.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -1639,11 +1639,11 @@ global_arrays_value_and_append:
             in_fiapp:
                 mkdir.file.name: "false"
             in_i:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             in_iapp:
                 mkdir.file.name: "false"
             in_s:
-                mkdir.file.name: "false"
+                mkdir.file.name: "true"
             in_sapp:
                 mkdir.file.name: "false"
             lit_in_i:
@@ -1700,7 +1700,7 @@ global_arrays_value_and_append:
             in_iapp:
                 mkdir.file.name: "false"
             in_s:
-                mkdir.file.name: "false"
+                mkdir.file.name: "true"
             in_sapp:
                 mkdir.file.name: "false"
             lit_in_i:
@@ -1710,7 +1710,7 @@ global_arrays_value_and_append:
             lit_not_in_i:
                 mkdir.file.name: "true"
             notin_i:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             notin_s:
                 mkdir.file.name: "true"
           scoped_counts:
@@ -1773,11 +1773,11 @@ global_arrays_value_and_append:
             in_fiapp:
                 mkdir.file.name: "true"
             in_i:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             in_iapp:
                 mkdir.file.name: "true"
             in_s:
-                mkdir.file.name: "false"
+                mkdir.file.name: "true"
             in_sapp:
                 mkdir.file.name: "true"
             lit_in_i:
@@ -1877,11 +1877,11 @@ global_arrays_value_and_append:
             in_fiapp:
                 mkdir.file.name: "true"
             in_i:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             in_iapp:
                 mkdir.file.name: "true"
             in_s:
-                mkdir.file.name: "false"
+                mkdir.file.name: "true"
             in_sapp:
                 mkdir.file.name: "true"
             lit_in_i:
@@ -1981,11 +1981,11 @@ global_arrays_value_and_append:
             in_fiapp:
                 mkdir.file.name: "true"
             in_i:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             in_iapp:
                 mkdir.file.name: "true"
             in_s:
-                mkdir.file.name: "false"
+                mkdir.file.name: "true"
             in_sapp:
                 mkdir.file.name: "true"
             lit_in_i:
@@ -2106,15 +2106,15 @@ global_int_comparisons_against_field:
             - gt
           partials:
             arith:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             arith2:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             eq:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             gt:
                 mkdir.file.destination.mode: "true"
             lt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2144,15 +2144,15 @@ global_int_comparisons_against_field:
             - eq
           partials:
             arith:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             arith2:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             eq:
                 mkdir.file.destination.mode: "true"
             gt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             lt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2169,13 +2169,13 @@ global_int_comparisons_against_field:
             arith:
                 mkdir.file.destination.mode: "true"
             arith2:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             eq:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             gt:
                 mkdir.file.destination.mode: "true"
             lt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2188,13 +2188,13 @@ global_int_comparisons_against_field:
             - lt
           partials:
             arith:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             arith2:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             eq:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             gt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             lt:
                 mkdir.file.destination.mode: "true"
           scoped_counts:
@@ -2211,15 +2211,15 @@ global_int_comparisons_against_field:
             - arith2
           partials:
             arith:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             arith2:
                 mkdir.file.destination.mode: "true"
             eq:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             gt:
                 mkdir.file.destination.mode: "true"
             lt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2249,15 +2249,15 @@ global_int_comparisons_against_field:
             - eq
           partials:
             arith:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             arith2:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             eq:
                 mkdir.file.destination.mode: "true"
             gt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
             lt:
-                mkdir.file.destination.mode: "false"
+                mkdir.file.destination.mode: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -2534,7 +2534,7 @@ global_scalar_types:
             check_bool_not:
                 mkdir.file.path: "true"
             check_concat:
-                mkdir.file.path: "false"
+                mkdir.file.path: "true"
             check_empty:
                 mkdir.file.path: "true"
             check_in_string:
@@ -2642,7 +2642,7 @@ global_scalar_types:
             check_bool_not:
                 mkdir.file.path: "true"
             check_concat:
-                mkdir.file.path: "false"
+                mkdir.file.path: "true"
             check_empty:
                 mkdir.file.path: "true"
             check_in_string:
@@ -2688,7 +2688,7 @@ global_scalar_types:
             check_bool_not:
                 mkdir.file.path: "false"
             check_concat:
-                mkdir.file.path: "false"
+                mkdir.file.path: "true"
             check_empty:
                 mkdir.file.path: "false"
             check_in_string:
@@ -10927,18 +10927,16 @@ variable_ip_values:
         - result: false
           partials:
             cidr_in_ips:
-                connect.addr.ip: "false"
+                connect.addr.ip: "true"
                 connect.addr.port: "true"
             in_ips:
-                connect.addr.ip: "false"
+                connect.addr.ip: "true"
                 connect.addr.port: "false"
             in_ips_p:
-                connect.addr.ip: "false"
+                connect.addr.ip: "true"
                 connect.addr.port: "false"
             setter:
                 connect.addr.ip: "false"
-          discarders:
-            - connect:connect.addr.ip=8.8.8.8/32
           scoped_counts:
             process.ips_p: 1
             process.pid: 0
