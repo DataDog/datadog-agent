@@ -86,6 +86,7 @@ cc_library(
 # gazelle:exclude **/testdata/**/*.go
 # ======= END TESTDATA EXCLUDES =======
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/genresources //pkg/proto/pbgo/genresources
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor //pkg/proto/pbgo/privateactionrunner/executor
@@ -321,6 +322,7 @@ write_source_files(
         "//pkg/proto/pbgo/core:remoteconfig_gen",
         "//pkg/proto/pbgo/core:write_pb_go",
         "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go",
+        "//pkg/proto/pbgo/genresources:write_pb_go",
         "//pkg/proto/pbgo/languagedetection:write_pb_go",
         "//pkg/proto/pbgo/mocks/core:api_mockgen",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",

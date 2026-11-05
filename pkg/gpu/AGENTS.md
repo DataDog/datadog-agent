@@ -21,6 +21,7 @@ pkg/gpu/
 ├── context.go         # systemContext holds GPU device info, caches
 ├── cuda/              # CUDA binary parsing (fatbin, cubin, symbols)
 ├── safenvml/          # Safe wrapper around NVML library
+├── resources/         # GPU resource models and publication
 ├── ebpf/              # eBPF program and types
 ├── containers/        # Container detection for GPU workloads
 └── config/            # Configuration
@@ -217,6 +218,19 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
 - `DeviceCache.Refresh` keeps a previously enumerated physical GPU when that index returns `NVML_ERROR_GPU_IS_LOST`. No lost-state attribute is added to `DeviceInfo`; callers that need the current state must query NVML. Any other per-device error still drops that index.
+
+### Static resource publication (`resources/`)
+
+- The GPU core check owns the feature-gated publisher and invokes it after its
+  existing cache refresh. Consume cached `DeviceInfo`; do not add another
+  enumeration, static query pass or background scheduler.
+- NVML handles must not escape into publisher state. Share hardware-formatting
+  helpers with other collectors to preserve metric/resource join formats.
+- The check sender acknowledges submission, not delivery. Periodic full refresh
+  repairs missed events; it is not safe to advance destructive scope watermarks
+  based on sender submission.
+- A failed virtualization query does not establish mode `none`, even if the
+  device cache's enum has its default zero value.
 
 ### NVML test mocks (`testutil/`)
 - Use `safenvml/testutil.SetupMockNVML` as the main setup entry point outside

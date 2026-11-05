@@ -10,6 +10,28 @@ description: |-
 tags:
 - template_section:Common
 properties:
+  resources:
+    node_type: section
+    type: object
+    visibility: public
+    description: GPU inventory publication settings.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Publish physical NVIDIA GPU inventory.
+      ttl:
+        node_type: setting
+        type: string
+        default: 15m
+        format: duration
+        visibility: public
+        description: |-
+          How long GPU inventory remains available without an update.
+          TTL cannot be shorter than three collection intervals. If it is,
+          it is automatically modified to satisfy that restriction.
   enabled:
     node_type: setting
     type: boolean
