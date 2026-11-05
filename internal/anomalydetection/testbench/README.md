@@ -12,7 +12,7 @@ dda inv -- anomalydetection.launch-testbench --build
 dda inv -- anomalydetection.launch-testbench
 
 # Use a custom scenarios directory
-dda inv -- anomalydetection.launch-testbench --scenarios-dir /path/to/scenarios
+dda inv -- anomalydetection.launch-testbench --local --scenarios-dir /path/to/scenarios
 ```
 
 Then open `http://localhost:5173` in your browser.
@@ -33,6 +33,45 @@ cd internal/anomalydetection/testbench/ui
 npm install  # first time only
 npm run dev
 ```
+
+## LLMObs datasets
+
+Use any compatible LLMObs dataset for testbench replay or evaluation. Dataset
+membership and recording references are shared with the evaluation worker.
+
+```bash
+dda inv anomalydetection.list-datasets
+
+# Open a dataset in the testbench; optionally select one scenario.
+dda inv anomalydetection.launch-testbench --build --dataset "my-recordings" --scenario "my-scenario"
+
+# Evaluate locally, or submit the same dataset and settings to the worker.
+dda inv anomalydetection.eval-scenarios --dataset "my-recordings" --config params.json
+dda inv anomalydetection.eval-ddeval --dataset "my-recordings" --config params.json
+```
+
+`--dataset` accepts a name or UUID and reads its latest version. If omitted, it
+defaults to `observer-metric-types-2026-10-26`. Both evaluators default to project
+`observer-log-ad` on `datadoghq.com`. Local replay accepts other `--site` values;
+the remote command targets the production DDBuild worker. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+
+Use local evaluation for detector iteration and visual investigation, and DDEval
+for worker execution and shared experiment results. DDEval also accepts the older
+`--testbench-config` spelling of `--config`.
+
+Each row must provide `scenario` and `recording` (`uri`, `sha256`, and optionally
+`episode_member`). ZIPs contain episode metadata and Parquet files; the loader
+verifies and caches them. F1 evaluation requires fault timing metadata.
+
+Provide `DD_API_KEY` and `DD_APP_KEY`, or prefix commands with
+`dd-auth --domain app.datadoghq.com --`. S3 uses local AWS credentials
+(`--aws-profile NAME`). Use `--local --scenarios-dir PATH` to replay existing files.
+
+Results include an `inspect_command` to open the recording and settings. The UI
+stops with Ctrl-C; `--api-port` and `--ui-port` allow additional instances.
+Headless replay streams by default and fails if input cannot be replayed in order.
+`--retain-parquet` explicitly enables retained sorting for diagnosis. Interactive
+replay retains all data, so detections can differ.
 
 ## Evals
 
@@ -131,7 +170,7 @@ dda inv -- anomalydetection.launch-testbench
 dda inv -- anomalydetection.launch-testbench --only bocpd,time_cluster
 
 # Run on a different port
-dda inv -- anomalydetection.launch-testbench --http :9090
+dda inv -- anomalydetection.launch-testbench --api-port 9090
 
 # Log anomaly focus: skip parquet metrics and trace stats (faster)
 dda inv -- anomalydetection.launch-testbench --logs-only
@@ -176,7 +215,7 @@ go tool pprof /tmp/observer.cpu.pprof
 
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --logs-only
 
-# Fall back to retained loading and global sorting for unordered local recordings
+# Explicitly use retained loading and global sorting for diagnosis
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --retain-parquet
 
 # Verbose output (includes anomaly detail, member series, titles)
