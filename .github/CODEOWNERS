@@ -993,6 +993,8 @@
 
 /rtloader/ @DataDog/agent-runtimes
 
+/runbooks/ @DataDog/agent-build
+
 /tasks/                                                         @DataDog/agent-devx
 /tasks/macos.py                                                 @DataDog/windows-products
 /tasks/msi.py                                                   @DataDog/windows-products
