@@ -2004,10 +2004,7 @@ func TestStatusReportsFileTailedUnderSeveralPaths(t *testing.T) {
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	defer launcher.cleanup()
-	go func() {
-		for range launcher.pipelineProvider.NextPipelineChan() {
-		}
-	}()
+	drainPipeline(t, launcher.pipelineProvider.NextPipelineChan())
 
 	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
 	linkSource := sources.NewLogSource("app-link", &config.LogsConfig{Type: config.FileType, Path: linkPath})
@@ -2045,10 +2042,7 @@ func TestStatusReportsDrainingTailerSharingRotatedFile(t *testing.T) {
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	defer launcher.cleanup()
-	go func() {
-		for range launcher.pipelineProvider.NextPipelineChan() {
-		}
-	}()
+	drainPipeline(t, launcher.pipelineProvider.NextPipelineChan())
 
 	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
 	rotatedSource := sources.NewLogSource("app-rotated", &config.LogsConfig{Type: config.FileType, Path: rotatedPath})
@@ -2084,10 +2078,7 @@ func TestStatusReportsEveryDrainingTailerAfterRepeatedRotations(t *testing.T) {
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	defer launcher.cleanup()
-	go func() {
-		for range launcher.pipelineProvider.NextPipelineChan() {
-		}
-	}()
+	drainPipeline(t, launcher.pipelineProvider.NextPipelineChan())
 
 	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
 	rotatedSource := sources.NewLogSource("app-rotated", &config.LogsConfig{Type: config.FileType, Path: path + ".*"})
@@ -2118,4 +2109,25 @@ func TestStatusReportsEveryDrainingTailerAfterRepeatedRotations(t *testing.T) {
 	}
 	require.Equal(t, 2, draining, "both files rotated away from app.log should still be draining")
 	assert.Len(t, source.Messages.GetMessages(), 2, "each draining tailer shares its file with a tailer on a rotated name")
+}
+
+// drainPipeline discards messages sent to ch until the test ends, so tailers never block on it.
+// It stops after the test's deferred calls, which leaves tailers able to flush while they stop.
+func drainPipeline(t *testing.T, ch <-chan *message.Message) {
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			select {
+			case <-ch:
+			case <-done:
+				return
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		close(done)
+		<-stopped
+	})
 }
