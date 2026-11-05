@@ -241,9 +241,10 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	}
 	// A saved API-key runner is disposable. Enroll a new WIF runner on startup,
 	// leaving the old identity file untouched until enrollment succeeds.
-	// Cluster Agent replacement needs shared-Secret coordination.
+	// Shared-Secret Cluster Agents coordinate replacement while loading the identity.
 	if p.wifEnrollmentEnabled() && p.coreConfig.GetBool(par.SelfEnroll) &&
-		flavor.GetFlavor() != flavor.ClusterAgent && persistedIdentity != nil && !persistedIdentity.WIFEnrolled {
+		(flavor.GetFlavor() != flavor.ClusterAgent || !p.coreConfig.GetBool(par.IdentityUseK8sSecret)) &&
+		persistedIdentity != nil && !persistedIdentity.WIFEnrolled {
 		persistedIdentity = nil
 	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
@@ -605,7 +606,7 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 
 // wifEnrollmentEnabled applies the opt-in only to the primary intake WIF configuration.
 func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
-	return p.coreConfig.GetBool(par.WIFEnrollment) && p.coreConfig.GetString("delegated_auth.org_uuid") != ""
+	return enrollment.UsesWIF(p.coreConfig)
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner.

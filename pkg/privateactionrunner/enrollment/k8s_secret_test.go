@@ -72,7 +72,7 @@ func TestWaitForLeaderAndSecret_RetriesTransientThenSucceeds(t *testing.T) {
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, false,
 	)
 
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestWaitForLeaderAndSecret_HandlesAlternatingTransientAndNotFound(t *testin
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, false,
 	)
 
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestWaitForLeaderAndSecret_ExitsOnContextCancel(t *testing.T) {
 
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, false,
 	)
 
 	require.Error(t, err)
@@ -160,7 +160,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilWhenBecomesLeader(t *testing.T) {
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, false,
 	)
 
 	require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilIfAlreadyLeader(t *testing.T) {
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, false,
 	)
 
 	require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestWaitForLeaderAndSecret_FailsImmediatelyOnNonTransientError(t *testing.T
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, false,
 	)
 
 	require.Error(t, err)

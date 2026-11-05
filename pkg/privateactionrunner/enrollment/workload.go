@@ -24,6 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
+// UsesWIF selects workload enrollment only for the primary intake WIF identity.
+func UsesWIF(cfg configmodel.Reader) bool {
+	return cfg.GetBool(parconfig.WIFEnrollment) && cfg.GetString("delegated_auth.org_uuid") != ""
+}
+
 // EnrollWithWorkloadToken enrolls a new runner using its primary intake WIF
 // identity. Like API-key enrollment, the caller persists the key only on success.
 // It makes one attempt, without API-key fallback or existing-runner migration.
