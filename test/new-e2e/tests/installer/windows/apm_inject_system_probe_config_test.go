@@ -28,7 +28,8 @@ type testSystemProbeConfig struct {
 }
 
 // TestSystemProbeConfig tests that system-probe is enabled when apm-inject
-// is installed with host instrumentation.
+// is installed with host instrumentation, and when the install script enables
+// Cloud Network Monitoring.
 func TestSystemProbeConfig(t *testing.T) {
 	e2e.Run(t, &testSystemProbeConfig{},
 		e2e.WithProvisioner(
@@ -91,9 +92,38 @@ func (s *testSystemProbeConfig) TestStandaloneInstallDoesNotStartSystemProbe() {
 	s.assertNotRunningUnderProcmgr(sysprobeProcmgrProcess)
 }
 
+// TestInstallScriptEnablesNetworkMonitoring tests that DD_SYSTEM_PROBE_NETWORK_ENABLED
+// enables Cloud Network Monitoring in system-probe.yaml and that system-probe starts.
+func (s *testSystemProbeConfig) TestInstallScriptEnablesNetworkMonitoring() {
+	output, err := s.InstallScript().Run(
+		WithExtraEnvVars(map[string]string{
+			"DD_SYSTEM_PROBE_NETWORK_ENABLED": "true",
+		}),
+	)
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+	s.Require().NoErrorf(err, "failed to run the install script: %s", output)
+
+	cfg := s.readSystemProbeConfig()
+	networkCfg, ok := cfg["network_config"].(map[string]interface{})
+	s.Require().True(ok, "network_config key missing in system-probe.yaml, got: %v", cfg)
+	s.Require().Equal(true, networkCfg["enabled"], "network_config.enabled should be true")
+
+	s.assertManagedByProcmgr(sysprobeProcmgrProcess)
+}
+
 // assertSystemProbeEnabled reads system-probe.yaml and asserts that
 // windows_crash_detection.enabled is true.
 func (s *testSystemProbeConfig) assertSystemProbeEnabled() {
+	cfg := s.readSystemProbeConfig()
+	wcdCfg, ok := cfg["windows_crash_detection"].(map[string]interface{})
+	s.Require().True(ok, "windows_crash_detection key missing in system-probe.yaml, got: %v", cfg)
+	s.Require().Equal(true, wcdCfg["enabled"], "windows_crash_detection.enabled should be true")
+}
+
+// readSystemProbeConfig reads and unmarshals system-probe.yaml from the Agent's config root.
+func (s *testSystemProbeConfig) readSystemProbeConfig() map[string]interface{} {
 	host := s.Env().RemoteHost
 	configRoot, err := windowsAgent.GetConfigRootFromRegistry(host)
 	s.Require().NoError(err)
@@ -104,8 +134,5 @@ func (s *testSystemProbeConfig) assertSystemProbeEnabled() {
 
 	cfg := map[string]interface{}{}
 	s.Require().NoError(yaml.Unmarshal(configBytes, &cfg), "failed to unmarshal system-probe.yaml")
-
-	wcdCfg, ok := cfg["windows_crash_detection"].(map[string]interface{})
-	s.Require().True(ok, "windows_crash_detection key missing in system-probe.yaml, got: %v", cfg)
-	s.Require().Equal(true, wcdCfg["enabled"], "windows_crash_detection.enabled should be true")
+	return cfg
 }
