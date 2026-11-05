@@ -673,11 +673,19 @@ func AddStrippedKeys(strippedKeys []string) {
 	})
 
 	if len(strippedKeys) > 0 {
+		quotedKeys := make([]string, len(strippedKeys))
+		lowerQuotedKeys := make([]string, len(strippedKeys))
+		for i, key := range strippedKeys {
+			quotedKeys[i] = regexp.QuoteMeta(key)
+			lowerQuotedKeys[i] = regexp.QuoteMeta(strings.ToLower(key))
+		}
 		replacer := matchYAMLKey(
-			fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")),
+			fmt.Sprintf("(%s)", strings.Join(quotedKeys, "|")),
 			strippedKeys,
 			[]byte(`$1 "********"`),
 		)
+		// Data-object scrubbing matches YAMLKeyRegex against strings.ToLower(key).
+		replacer.YAMLKeyRegex = regexp.MustCompile(fmt.Sprintf(`^(%s)$`, strings.Join(lowerQuotedKeys, "|")))
 		// We add the new replacer to the default scrubber and to the list of dynamicReplacers so any new
 		// scubber will inherit it.
 		DefaultScrubber.AddReplacer(SingleLine, replacer)
