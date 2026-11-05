@@ -146,7 +146,7 @@ func OTLPTracesToConcentratorInputsWithObfuscationAndFilter(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, tagKeys)
+		ddSpan := transform.OtelSpanToDDSpanMinimalWithTagKeys(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, tagKeys)
 		if obfuscator != nil {
 			obfuscateSpanForConcentrator(obfuscator, ddSpan, conf)
 		}

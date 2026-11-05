@@ -37,7 +37,7 @@ func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
 	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && !conf.HasFeature("disable_operation_and_resource_name_logic_v2")
 }
 
-// otelSpanToDDSpanMinimal is the internal implementation shared by OtelSpanToDDSpanMinimal and
+// otelSpanToDDSpanMinimal is the internal implementation shared by OtelSpanToDDSpanMinimalWithTagKeys and
 // OtelSpanToDDSpan, accepting a pre-created accessor to avoid repeated allocation.
 func otelSpanToDDSpanMinimal(
 	otelspan ptrace.Span,
@@ -166,9 +166,27 @@ func NewOTelSpanTagKeys(peerTagKeys, primaryTagKeys []string) OTelSpanTagKeys {
 
 // OtelSpanToDDSpanMinimal converts an OTel span to a DD span with only the minimal fields
 // needed for APM stats calculation. Only use with OTLPTracesToConcentratorInputs.
+//
+// Deprecated: use OtelSpanToDDSpanMinimalWithTagKeys, which reuses tag selections
+// across spans. This wrapper rebuilds them on every call and is kept so that
+// pkg/trace/otel versions built against the previous signature keep compiling.
+func OtelSpanToDDSpanMinimal(
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	isTopLevel, topLevelByKind bool,
+	conf *config.AgentConfig,
+	peerTagKeys []string,
+	primaryTagKeys []string,
+) *pb.Span {
+	return OtelSpanToDDSpanMinimalWithTagKeys(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, NewOTelSpanTagKeys(peerTagKeys, primaryTagKeys))
+}
+
+// OtelSpanToDDSpanMinimalWithTagKeys converts an OTel span to a DD span with only the minimal fields
+// needed for APM stats calculation. Only use with OTLPTracesToConcentratorInputs.
 // tagKeys selects the peer and span-derived primary tags to copy into Meta; prepare
 // it once with NewOTelSpanTagKeys and reuse it across spans.
-func OtelSpanToDDSpanMinimal(
+func OtelSpanToDDSpanMinimalWithTagKeys(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
