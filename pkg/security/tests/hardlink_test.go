@@ -12,11 +12,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -114,6 +117,11 @@ func runHardlinkTests(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig_exec")
 			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
+			if p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
+				res, err := p.Resolvers.DentryResolver.ResolveFromCache(event.Exec.FileEvent.PathKey, dentry.CallerFileHardLink)
+				assert.NoError(t, err)
+				assert.Equal(t, "orig-touch", path.Base(res))
+			}
 		}, "test_rule_orig_exec")
 
 		test.WaitSignalFromRule(t, func() error {
@@ -122,6 +130,11 @@ func runHardlinkTests(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_exec")
 			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
+			if p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
+				res, err := p.Resolvers.DentryResolver.ResolveFromCache(event.Exec.FileEvent.PathKey, dentry.CallerFileHardLink)
+				assert.NoError(t, err)
+				assert.Equal(t, "my-touch", path.Base(res))
+			}
 		}, "test_rule_link_exec")
 	})
 }

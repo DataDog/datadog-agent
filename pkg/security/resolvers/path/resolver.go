@@ -29,7 +29,7 @@ func NewResolver(dentryResolver *dentry.Resolver, mountResolver mount.ResolverIn
 	return &Resolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 
-// fileCaller returns the dentry resolution caller of a file, files with hard links bypass the dentry cache
+// fileCaller returns the dentry resolution caller of a file
 func fileCaller(e *model.FileFields) dentry.Caller {
 	if e.HasHardLinks() {
 		return dentry.CallerFileHardLink
@@ -39,12 +39,12 @@ func fileCaller(e *model.FileFields) dentry.Caller {
 
 // ResolveBasename resolves an inode/mount ID pair to a file basename
 func (r *Resolver) ResolveBasename(e *model.FileFields) string {
-	return r.dentryResolver.ResolveName(e.PathKey, !e.HasHardLinks(), fileCaller(e))
+	return r.dentryResolver.ResolveName(e.PathKey, true, fileCaller(e))
 }
 
 // ResolveDentryFilePath resolves an inode/mount ID pair to a path
 func (r *Resolver) ResolveDentryFilePath(e *model.FileFields) (string, error) {
-	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks(), fileCaller(e))
+	pathStr, err := r.dentryResolver.Resolve(e.PathKey, true, fileCaller(e))
 	if err != nil {
 		if _, mountErr := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(mountErr, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("dentry resolution failed (mount_id=%d invalid: %w): %w", e.MountID, mountErr, err)}

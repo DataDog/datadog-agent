@@ -173,7 +173,9 @@ static __always_inline int sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PR
     }
 
     // at this point we have both the source and target dentry so we can check for approvers
-    syscall->state = approve_syscall(syscall, link_approvers);
+    if (syscall->state != DISCARDED) {
+        syscall->state = approve_syscall(syscall, link_approvers);
+    }
 
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_LINK)) {
         syscall->retval = retval;

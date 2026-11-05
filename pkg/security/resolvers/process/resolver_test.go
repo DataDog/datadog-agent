@@ -399,6 +399,8 @@ func TestOrphanExec(t *testing.T) {
 	// X(pid:3)
 	resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsPathnameStrResolved)
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsBasenameStrResolved)
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
 
