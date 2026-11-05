@@ -90,7 +90,7 @@ nav:
   - Platforms and interoperability:
     - Go modules:
       - Add nested modules: impl/platform/go-module/add.md
-- Development workflow:
+- Development:
   - dev/index.md
   - Environments:
     - Local setup:

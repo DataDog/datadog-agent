@@ -11,4 +11,4 @@ Each topic keeps its concepts, tutorials, task guides, conventions, and referenc
 | Subsystem development | [DogStatsD internals](subsystem/telemetry/dogstatsd.md). |
 | Platforms and interoperability | [Add nested Go modules](platform/go-module/add.md). |
 
-For runtime behavior and system interactions, see [Architecture](../arch/index.md). For setup, builds, testing, and debugging, see [Development workflow](../dev/index.md). Repository-wide requirements are in [Contributing](../contrib/index.md).
+For runtime behavior and system interactions, see [Architecture](../arch/index.md). For setup, builds, testing, and debugging, see [Development](../dev/index.md). Repository-wide requirements are in [Contributing](../contrib/index.md).

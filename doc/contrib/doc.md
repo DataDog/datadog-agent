@@ -17,12 +17,12 @@ Choose the collection by the question a page answers:
 | [Home](../index.md) | Orient readers through getting started, a topic directory, and learning paths that link to canonical material throughout the site. | `doc/` |
 | [Architecture](../arch/index.md) | Explain the Agent's runtime responsibilities, boundaries, data and control flows, and behavior across environments and configurations so readers can reason about the effects of changes. | `doc/arch/` |
 | [Implementation](../impl/index.md) | Explain how to implement and extend Agent functionality through its frameworks, interfaces, conventions, and subsystems. | `doc/impl/` |
-| [Development workflow](../dev/index.md) | Explain how to set up, build, test, debug, and maintain the tools and infrastructure used for development. | `doc/dev/` |
+| [Development](../dev/index.md) | Explain how to set up, build, test, debug, and maintain the tools and infrastructure used for development. | `doc/dev/` |
 | [Contributing](index.md) | State repository-wide requirements and processes for proposing, preparing, reviewing, and accepting changes. | `doc/contrib/` |
 
 Classify content by the question it answers rather than its level of detail. For example, configuration resolution and propagation belong in Architecture; declaring a setting and looking up schema keywords belong together in Implementation.
 
-Keep topic-specific requirements with their topic. Contributing can state a repository-wide validation policy and link to Development workflow for instructions on producing the required evidence.
+Keep topic-specific requirements with their topic. Contributing can state a repository-wide validation policy and link to Development for instructions on producing the required evidence.
 
 ### Document types
 
@@ -48,7 +48,7 @@ Use the [topic directory](../topic.md) and links between topic overviews to conn
 
 ### Independent navigation roots
 
-Architecture, Implementation, and Development workflow are peer navigation roots. Entering a root shows that collection's subject tabs and sidebars. Home and Contributing use ordinary sidebars.
+Architecture, Implementation, and Development are peer navigation roots. Entering a root shows that collection's subject tabs and sidebars. Home and Contributing use ordinary sidebars.
 
 Expand existing collections with topics and nested sidebar sections before adding another root. A new root should serve a substantial collection that needs its own tabs, with a landing page and a clear return route to the main docs. Nested roots are not supported. See the [navigation roots reference](../dev/tool/doc.md#navigation-roots) for configuration and behavior.
 

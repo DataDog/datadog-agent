@@ -11,14 +11,14 @@ This site documents how the Agent works, how to extend it, and how to develop an
 | --- | --- |
 | [Architecture](arch/index.md) | Understand the Agent's runtime behavior, interactions, and the effects of changes. This collection is being rebuilt. |
 | [Implementation](impl/index.md) | Implement and extend Agent functionality using its frameworks, interfaces, and conventions. |
-| [Development workflow](dev/index.md) | Set up an environment, build, test, debug, and maintain development tooling. |
+| [Development](dev/index.md) | Set up an environment, build, test, debug, and maintain development tooling. |
 | [Contributing](contrib/index.md) | Follow the repository's contribution process and shared standards. |
 
 Each topic brings its explanations, tutorials, procedures, guidelines, and reference material together. Use its overview for a recommended reading order and its sidebar for related pages.
 
 ## Navigation
 
-Architecture, Implementation, and Development workflow each have their own tabs and sidebars. Select **Back to main docs** to return to the main collections. Search covers the entire site, including other collections.
+Architecture, Implementation, and Development each have their own tabs and sidebars. Select **Back to main docs** to return to the main collections. Search covers the entire site, including other collections.
 
 Desktop readers can also use keyboard shortcuts:
 

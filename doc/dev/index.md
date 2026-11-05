@@ -1,6 +1,6 @@
-# Development workflow
+# Development
 
-Development workflow explains how to perform and validate development work. Each activity brings its procedures, infrastructure descriptions, troubleshooting guidance, and tool reference together.
+Development explains how to set up, perform, and validate development work. Each activity brings its procedures, infrastructure descriptions, troubleshooting guidance, and tool reference together.
 
 | Activity | Start here |
 | --- | --- |

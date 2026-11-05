@@ -76,7 +76,7 @@ The target repository comes from `repo_url` in `mkdocs.yml`. The source ref is s
 
 ## Navigation roots
 
-The repository-defined `extra.navigation_roots` setting gives selected top-level sections independent navigation within the same generated site. [Architecture](../../arch/index.md), [Implementation](../../impl/index.md), and [Development workflow](../index.md) use this setting. Each configured entry identifies a section by its first child's generated URL, rather than by its display title, so renaming the section does not change the match.
+The repository-defined `extra.navigation_roots` setting gives selected top-level sections independent navigation within the same generated site. [Architecture](../../arch/index.md), [Implementation](../../impl/index.md), and [Development](../index.md) use this setting. Each configured entry identifies a section by its first child's generated URL, rather than by its display title, so renaming the section does not change the match.
 
 | Setting | Meaning |
 | --- | --- |
