@@ -1143,13 +1143,24 @@ func TestRefreshKueueCheckNodes(t *testing.T) {
 func TestWithoutKueueWorkloads(t *testing.T) {
 	workloadsOnly := &pb.KubeMetadataStreamResponse{KueueWorkloads: []*pb.KueueWorkload{{Name: "w"}}}
 	mixed := &pb.KubeMetadataStreamResponse{
-		NamespaceMetadata: []*pb.NamespaceMetadata{{Namespace: "ns"}},
-		KueueWorkloads:    []*pb.KueueWorkload{{Name: "w"}},
+		IsFullState:           true,
+		Mappings:              []*pb.PodServiceMapping{{PodName: "p"}},
+		NamespaceMetadata:     []*pb.NamespaceMetadata{{Namespace: "ns"}},
+		KueueQueues:           []*pb.KueueQueue{{Name: "q"}},
+		KueueResourceFlavors:  []*pb.KueueResourceFlavor{{Name: "f"}},
+		KueueWorkloads:        []*pb.KueueWorkload{{Name: "w"}},
+		KaiPodGroups:          []*pb.KAIPodGroup{{Name: "pg"}},
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{{Name: "a"}},
 	}
 	other := &pb.KubeMetadataStreamResponse{KueueQueues: []*pb.KueueQueue{{Name: "q"}}}
 
 	assert.Nil(t, withoutKueueWorkloads(workloadsOnly))
-	assert.True(t, proto.Equal(&pb.KubeMetadataStreamResponse{NamespaceMetadata: mixed.NamespaceMetadata}, withoutKueueWorkloads(mixed)))
+
+	expected := proto.Clone(mixed).(*pb.KubeMetadataStreamResponse)
+	expected.KueueWorkloads = nil
+	scoped := withoutKueueWorkloads(mixed)
+	assert.True(t, proto.Equal(expected, scoped), "every field but the Workloads is kept")
+	assert.Same(t, mixed.NamespaceMetadata[0], scoped.NamespaceMetadata[0], "fields are shared, not cloned")
 	assert.Len(t, mixed.KueueWorkloads, 1, "shared responses are not modified")
 	assert.Same(t, other, withoutKueueWorkloads(other))
 }

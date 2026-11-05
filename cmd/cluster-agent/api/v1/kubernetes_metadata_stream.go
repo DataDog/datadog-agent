@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -908,16 +908,29 @@ func (s nodeMetadataState) diffResponse(previous nodeMetadataState) *pb.KubeMeta
 	return resp
 }
 
+// kueueWorkloadsField is the field that withoutKueueWorkloads leaves out.
+var kueueWorkloadsField = (&pb.KubeMetadataStreamResponse{}).ProtoReflect().Descriptor().Fields().ByName("kueue_workloads")
+
 // withoutKueueWorkloads returns a shared diff without its Kueue Workloads, or
 // nil if nothing else changed.
 func withoutKueueWorkloads(resp *pb.KubeMetadataStreamResponse) *pb.KubeMetadataStreamResponse {
 	if len(resp.KueueWorkloads) == 0 {
 		return resp
 	}
-	// Shared responses are immutable, so clear the Workloads of a copy.
-	scoped := proto.Clone(resp).(*pb.KubeMetadataStreamResponse)
-	scoped.KueueWorkloads = nil
-	if proto.Size(scoped) == 0 {
+	// Shared responses are immutable, so a shallow copy can reuse every other
+	// field without cloning it. Copying the populated fields generically keeps
+	// fields added to the message later.
+	scoped := &pb.KubeMetadataStreamResponse{}
+	dst := scoped.ProtoReflect()
+	empty := true
+	resp.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		if fd != kueueWorkloadsField {
+			dst.Set(fd, v)
+			empty = false
+		}
+		return true
+	})
+	if empty {
 		return nil
 	}
 	return scoped
