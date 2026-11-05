@@ -59,6 +59,15 @@ uninstall_without_installer() {
     $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
     $sudo_cmd launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
     $sudo_cmd launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+    # bootout returns before a job has left the domain. Wait up to 30 seconds for each, as the
+    # installer's pre-remove does, so the Agent is stopped before its files are removed.
+    for label in com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane com.datadoghq.installer; do
+        attempts=0
+        while [ $attempts -lt 30 ] && $sudo_cmd launchctl print "system/$label" >/dev/null 2>&1; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+    done
 
     printf "${BLUE}\n    - Stopping GUI for logged-in users...\n${NC}"
     for logged_user in $(who | awk '{print $1}' | sort -u); do
