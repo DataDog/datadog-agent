@@ -17,6 +17,7 @@ import (
 
 type pipelineStubDetector struct {
 	name       string
+	ref        observer.SeriesRef
 	ready      bool
 	calls      int
 	detected   []observer.MetricKind
@@ -44,7 +45,7 @@ func (d *pipelineStubDetector) Detect(
 	d.aggregates = append(d.aggregates, filter.Aggregations...)
 	return observer.DetectionResult{Anomalies: []observer.Anomaly{{
 		Timestamp: 1,
-		SourceRef: &observer.QueryHandle{Ref: observer.SeriesRef(d.calls), Aggregate: observer.AggregateAverage},
+		SourceRef: &observer.QueryHandle{Ref: d.ref, Aggregate: observer.AggregateAverage},
 	}}}
 }
 
@@ -83,6 +84,25 @@ func newScriptedPipelineMatcher(
 			return prediction
 		},
 	)
+}
+
+func newPipelineEngine(
+	t *testing.T,
+	s *timeSeriesStorage,
+	predictions ...observer.MetricKind,
+) (*engine, *MetricPipeline, *pipelineStubDetector) {
+	registration, detector := newPipelineStub(observer.STABLE, "pipeline")
+	pipeline, err := newMetricPipeline(
+		[]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()),
+	)
+	require.NoError(t, err)
+	pipeline.matcher = newScriptedPipelineMatcher(3, 3, 1, predictions...)
+	engine := newEngine(engineConfig{
+		storage:                    s,
+		detectors:                  []detectorRegistration{{detector: pipeline}},
+		trackDetectorOutputHistory: true,
+	})
+	return engine, pipeline, detector
 }
 
 func addPipelinePoints(s *timeSeriesStorage, key uint64, start, end int64, metricType metrics.MetricType) observer.SeriesRef {
@@ -417,6 +437,78 @@ func TestMetricPipelineReplayParity(t *testing.T) {
 		found += len(got)
 	}
 	require.Positive(t, found, "fixture must exercise anomaly output")
+}
+
+func TestEngineMetricPipelineDetectionAndKinds(t *testing.T) {
+	s := newDetectorTestStorage()
+	ref := addPipelineValues(s, 1, 1, 40, 10)
+	p, _ := newScanMWPipelineWithMatcher(t,
+		testScanMWPipelineConfig(), 30, 30, 3,
+		observer.STABLE, observer.UNKNOWN, observer.UNKNOWN, observer.UNKNOWN, observer.STABLE,
+	)
+	e := newEngine(engineConfig{
+		storage:                    s,
+		detectors:                  []detectorRegistration{{detector: p}},
+		trackDetectorOutputHistory: true,
+	})
+
+	// Detection precedes matching, so the first advance assigns the initial
+	// kind and the next pass performs cold-start detection.
+	e.Advance(40)
+	addPipelineValues(s, 1, 41, 42, 100)
+	result := e.Advance(42)
+	accepted := len(result.anomalies)
+	require.Positive(t, accepted, "initial assignment preserves cold-start detection")
+	kind, _ := s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+
+	for ts := int64(43); ts <= 48; ts++ {
+		addPipelineValues(s, 1, ts, ts, 100)
+		result = e.Advance(ts)
+		accepted += len(result.anomalies)
+	}
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+	require.True(t, p.series[ref].reactivated)
+
+	require.Len(t, e.DetectorOutputAnomalies(), accepted,
+		"record emitted outputs exactly once without suppressed candidates")
+
+	p.advanceKinds(s, 48)
+	e.resetAnalysisState()
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.UNSET, kind, "replay reset clears committed kinds")
+
+	e.Reset()
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.UNSET, kind, "analysis restart clears committed kinds")
+	require.Empty(t, p.series)
+	require.Empty(t, p.matcher.(*metricKindMatcher).series)
+	require.EqualValues(t, 6, s.PointCountUpTo(ref, 6), "kind reset retains observations")
+}
+
+func TestEngineMetricPipelineBaseline(t *testing.T) {
+	newStorage := func() *timeSeriesStorage {
+		s := newDetectorTestStorage()
+		addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+		return s
+	}
+
+	disabled, _, _ := newPipelineEngine(t, newStorage(), observer.STABLE)
+	require.Len(t, disabled.Advance(3).anomalies, 1)
+
+	enabled, pipeline, _ := newPipelineEngine(t, newStorage(), observer.STABLE)
+	enabled.baseline = newBaselineController(
+		BaselineConfig{Enabled: true, DurationSec: 10, MuteNoisyMetrics: true},
+		detectorNames(enabled.detectors),
+	)
+	require.Empty(t, enabled.Advance(3).anomalies)
+	require.Len(t, enabled.baseline.detectors["pipeline"].pendingHashes, 1)
+	// The stub ignores storage, so its post-baseline emission is irrelevant to muting.
+	enabled.Advance(13)
+	require.Len(t, enabled.baseline.mutedHashes, 1)
+	require.Zero(t, enabled.storage.TotalSeriesCount())
+	require.Empty(t, pipeline.series)
 }
 
 func BenchmarkMetricPipeline(b *testing.B) {
