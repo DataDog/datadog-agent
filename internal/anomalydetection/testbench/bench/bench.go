@@ -394,7 +394,10 @@ func (tb *Bench) LoadScenario(name string) error {
 		}
 	}
 
-	tb.resetAllState()
+	if err := tb.resetAllState(); err != nil {
+		tb.mu.Unlock()
+		return err
+	}
 
 	tb.mu.Unlock()
 	tb.broadcastStatus()
@@ -447,7 +450,9 @@ func (tb *Bench) LoadScenario(name string) error {
 		// timestamp without resetting or walking retained storage.
 		tb.finishStreamLocked()
 	} else {
-		tb.rerunDetectorsLocked()
+		if err := tb.rerunDetectorsLocked(); err != nil {
+			return loadFailed(err)
+		}
 	}
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
@@ -731,7 +736,7 @@ func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetecto
 }
 
 // resetAllState resets engine state via DebugView.Reset.
-func (tb *Bench) resetAllState() {
+func (tb *Bench) resetAllState() error {
 	tb.baselineMu.Lock()
 	tb.baselineFrozen = false
 	tb.baselineWindowEndSec = 0
@@ -741,7 +746,7 @@ func (tb *Bench) resetAllState() {
 	if tb.config.StreamParquet {
 		storageCfg = streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
 	}
-	tb.debug.Reset(tb.settings, storageCfg)
+	return tb.debug.Reset(tb.settings, storageCfg)
 }
 
 // catalogEntries includes testbench-only adapters in addition to production
@@ -867,13 +872,16 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 
 // rerunDetectorsLocked re-runs all detectors and correlators on current data.
 // Caller must hold lock.
-func (tb *Bench) rerunDetectorsLocked() {
+func (tb *Bench) rerunDetectorsLocked() error {
 	// Reset engine with current settings (clears all storage).
-	tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies))
+	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)); err != nil {
+		return err
+	}
 
 	tb.feedRawObservations()
 	tb.addRawMetricTelemetry()
 	tb.finishStreamLocked()
+	return nil
 }
 
 func (tb *Bench) feedRawObservations() {
@@ -1349,7 +1357,10 @@ func (tb *Bench) ToggleComponent(name string) error {
 	tb.settings.Enabled[name] = !current
 
 	if tb.ready {
-		tb.rerunDetectorsLocked()
+		if err := tb.rerunDetectorsLocked(); err != nil {
+			tb.mu.Unlock()
+			return err
+		}
 	}
 
 	tb.mu.Unlock()
@@ -1369,7 +1380,10 @@ func (tb *Bench) loadDemoScenario() error {
 	tb.ready = false
 	tb.loadedScenario = "demo"
 
-	tb.resetAllState()
+	if err := tb.resetAllState(); err != nil {
+		tb.mu.Unlock()
+		return err
+	}
 
 	fmt.Println("Generating demo scenario data...")
 
@@ -1449,7 +1463,10 @@ func (tb *Bench) loadDemoScenario() error {
 	}
 	fmt.Printf("  Generated %d demo log entries\n", len(tb.rawLogs))
 
-	tb.rerunDetectorsLocked()
+	if err := tb.rerunDetectorsLocked(); err != nil {
+		tb.mu.Unlock()
+		return err
+	}
 	sv := tb.debug.StateView()
 	rs := tb.replayStats
 	fmt.Printf("Demo scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
