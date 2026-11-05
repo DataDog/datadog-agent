@@ -172,8 +172,21 @@ static __always_inline int __sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t 
         }
 
         trans_len = bpf_ntohs(ip6h.payload_len) - sizeof(struct ipv6hdr);
-        copy_in6_addr_from_stack(&tup->saddr_h, &tup->saddr_l, &ip6h.saddr);
-        copy_in6_addr_from_stack(&tup->daddr_h, &tup->daddr_l, &ip6h.daddr);
+        // Read the fields directly: on CO-RE, &ip6h.saddr becomes a register-offset stack
+        // pointer, which older verifiers (4.4) reject.
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        tup->saddr_h = ((u64)ip6h.saddr.in6_u.u6_addr32[1] << 32) | ip6h.saddr.in6_u.u6_addr32[0];
+        tup->saddr_l = ((u64)ip6h.saddr.in6_u.u6_addr32[3] << 32) | ip6h.saddr.in6_u.u6_addr32[2];
+        tup->daddr_h = ((u64)ip6h.daddr.in6_u.u6_addr32[1] << 32) | ip6h.daddr.in6_u.u6_addr32[0];
+        tup->daddr_l = ((u64)ip6h.daddr.in6_u.u6_addr32[3] << 32) | ip6h.daddr.in6_u.u6_addr32[2];
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        tup->saddr_h = ((u64)ip6h.saddr.in6_u.u6_addr32[0] << 32) | ip6h.saddr.in6_u.u6_addr32[1];
+        tup->saddr_l = ((u64)ip6h.saddr.in6_u.u6_addr32[2] << 32) | ip6h.saddr.in6_u.u6_addr32[3];
+        tup->daddr_h = ((u64)ip6h.daddr.in6_u.u6_addr32[0] << 32) | ip6h.daddr.in6_u.u6_addr32[1];
+        tup->daddr_l = ((u64)ip6h.daddr.in6_u.u6_addr32[2] << 32) | ip6h.daddr.in6_u.u6_addr32[3];
+#else
+#error "Fix your compiler's __BYTE_ORDER__?!"
+#endif
     }
 #endif // !COMPILE_RUNTIME || FEATURE_TCPV6_ENABLED || FEATURE_UDPV6_ENABLED
     else {

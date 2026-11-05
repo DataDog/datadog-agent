@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -501,7 +502,9 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
-	p.logger.Info("==> API Host : " + cfg.DDApiHost)
+	if endpoint, err := url.Parse(cfg.APIBaseURL); err == nil {
+		p.logger.Info("==> API Host : " + endpoint.Host)
+	}
 	p.logger.Info("==> URN : " + cfg.Urn)
 
 	keysManager := p.getKeysManager()
