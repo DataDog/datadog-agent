@@ -36,7 +36,7 @@ require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.30.0
 	code.cloudfoundry.org/bbs/models v1.25.0
-	code.cloudfoundry.org/garden v0.9.0
+	code.cloudfoundry.org/garden v0.10.0
 	code.cloudfoundry.org/lager/v3 v3.93.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
@@ -497,21 +497,21 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.3
 	istio.io/client-go v1.31.3
-	k8s.io/api v0.37.1
-	k8s.io/apiextensions-apiserver v0.37.1
-	k8s.io/apimachinery v0.37.1
+	k8s.io/api v0.37.2
+	k8s.io/apiextensions-apiserver v0.37.2
+	k8s.io/apimachinery v0.37.2
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.8.1
-	k8s.io/cli-runtime v0.37.1
-	k8s.io/client-go v0.37.1
-	k8s.io/component-base v0.37.1
+	k8s.io/cli-runtime v0.37.2
+	k8s.io/client-go v0.37.2
+	k8s.io/component-base v0.37.2
 	k8s.io/cri-api v0.37.2
-	k8s.io/cri-client v0.37.1
+	k8s.io/cri-client v0.37.2
 	k8s.io/klog/v2 v2.140.0
-	k8s.io/kube-aggregator v0.37.1
+	k8s.io/kube-aggregator v0.37.2
 	k8s.io/kube-state-metrics/v2 v2.20.0
-	k8s.io/kubectl v0.37.1
-	k8s.io/kubelet v0.37.1
-	k8s.io/metrics v0.37.1
+	k8s.io/kubectl v0.37.2
+	k8s.io/kubelet v0.37.2
+	k8s.io/metrics v0.37.2
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	pgregory.net/rapid v1.3.0
 	sigs.k8s.io/custom-metrics-apiserver v1.37.0
@@ -1055,14 +1055,14 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.8.2 // indirect
-	k8s.io/apiserver v0.37.1 // indirect
+	k8s.io/apiserver v0.37.2 // indirect
 	k8s.io/cloud-provider v0.37.1 // indirect
-	k8s.io/component-helpers v0.37.1 // indirect
+	k8s.io/component-helpers v0.37.2 // indirect
 	k8s.io/csi-translation-lib v0.37.1 // indirect
-	k8s.io/kms v0.37.1 // indirect
+	k8s.io/kms v0.37.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
 	k8s.io/sample-controller v0.37.1 // indirect
-	k8s.io/streaming v0.37.1 // indirect
+	k8s.io/streaming v0.37.2 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	mvdan.cc/sh/v3 v3.14.1 // indirect

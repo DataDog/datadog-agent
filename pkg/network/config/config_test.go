@@ -749,3 +749,33 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
 }
+
+func TestNetNSContainerAttributionDefaults(t *testing.T) {
+	mock.NewSystemProbe(t)
+	cfg := New()
+
+	assert.False(t, cfg.EnableNetNSContainerAttribution)
+	assert.Equal(t, []string{"ztunnel"}, cfg.NetNSContainerAttributionOwnerImages)
+	assert.Equal(t, []string{"vault-agent", "vault-agent-init", "cloud-sql-proxy"}, cfg.NetNSContainerAttributionIgnoredContainers)
+	assert.Equal(t, []int{15008}, cfg.NetNSContainerAttributionPorts)
+}
+
+func TestNetNSContainerAttributionPorts(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  any
+		want []int
+	}{
+		{"custom ports", []int{15008, 15009}, []int{15008, 15009}},
+		{"invalid ports are dropped", []int{0, 15008, 70000}, []int{15008}},
+		{"empty falls back to the default", []int{}, []int{15008}},
+		{"only invalid ports fall back to the default", []int{-1, 70000}, []int{15008}},
+		{"unparseable falls back to the default", "not-a-port-list", []int{15008}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockSystemProbe := mock.NewSystemProbe(t)
+			mockSystemProbe.SetInTest("network_config.netns_container_attribution_ports", tc.set)
+			assert.Equal(t, tc.want, New().NetNSContainerAttributionPorts)
+		})
+	}
+}

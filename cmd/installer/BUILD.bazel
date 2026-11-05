@@ -26,6 +26,10 @@ dd_agent_go_binary(
         "@platforms//os:windows": ["//cmd/installer/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
+    basename = select({
+        "@platforms//os:windows": "datadog-installer",
+        "//conditions:default": "",
+    }),
     embed = [":installer_lib"],
     gc_linkopts = select({
         "@platforms//os:linux": [
