@@ -85,3 +85,23 @@ func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.S
 		delete(m, ts)
 	}
 }
+
+// flushIf removes from the map every sketch for which release returns a function, and calls that function with it.
+func (m sketchMap) flushIf(release func(ts int64, ck ckey.ContextKey) func(ckey.ContextKey, metrics.SketchPoint)) {
+	for ts, byCtx := range m {
+		for ck, as := range byCtx {
+			f := release(ts, ck)
+			if f == nil {
+				continue
+			}
+			f(ck, metrics.SketchPoint{
+				Sketch: as.Finish(),
+				Ts:     ts,
+			})
+			delete(byCtx, ck)
+		}
+		if len(byCtx) == 0 {
+			delete(m, ts)
+		}
+	}
+}

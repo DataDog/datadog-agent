@@ -92,12 +92,12 @@ func TestCheckSamplerStripsFilteredOutput(t *testing.T) {
 	matcher := stripPodMatcher(t, "my.counter", "my.dist")
 	flushMatcher := metricname.NewMatcher(nil, false)
 
-	// Two sources in one instance strip to the same series.
+	// Two sources in one instance strip to the same series. Their samples are submitted in the second of the commit.
 	for _, pod := range []string{"a", "b"} {
 		cs.addSample(podSample("my.counter", metrics.CounterType, pod, 1, 100.1), matcher)
 		cs.addSample(podSample("my.dist", metrics.DistributionType, pod, 1, 100.1), matcher)
 	}
-	cs.commit(101.4, &flushMatcher)
+	cs.commit(100.4, &flushMatcher)
 	out := flushSampler(cs)
 
 	assert.Empty(t, out.series)
@@ -108,13 +108,50 @@ func TestCheckSamplerStripsFilteredOutput(t *testing.T) {
 		assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(s.Tags))
 	}
 
-	require.Len(t, out.mergedSketches, 2)
+	require.Len(t, out.mergedSketches, 2, "filtered sketches are released at the commit, not held for the next one")
 	assert.Equal(t, out.mergedSketches[0].key, out.mergedSketches[1].key)
 	for _, s := range out.mergedSketches {
 		assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(s.sketch.Tags))
 		require.Len(t, s.sketch.Points, 1)
 		assert.Equal(t, int64(100), s.sketch.Points[0].Ts)
 	}
+}
+
+func TestCheckSamplerStampsFilteredSketchesAtCommit(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newStripTestSampler("check:0", newStrippedIdentityTable())
+	matcher := stripPodMatcher(t, "my.dist")
+	flushMatcher := metricname.NewMatcher(nil, false)
+
+	// One run submits samples over several seconds.
+	for _, ts := range []float64{97.5, 98.5, 99.1} {
+		cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, ts), matcher)
+	}
+	cs.commit(99.3, &flushMatcher)
+	_, sketches := cs.flushMerged()
+
+	require.Len(t, sketches, 1)
+	points := sketches[0].sketch.Points
+	require.Len(t, points, 1, "the run's samples are merged into one point")
+	assert.Equal(t, int64(99), points[0].Ts)
+	assert.Equal(t, int64(3), points[0].Sketch.Basic.Cnt)
+}
+
+func TestCheckSamplerKeepsUnfilteredSketchesPerSecond(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newStripTestSampler("check:0", newStrippedIdentityTable())
+	matcher := stripPodMatcher(t, "other.metric")
+	flushMatcher := metricname.NewMatcher(nil, false)
+
+	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 98.5), matcher)
+	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 99.1), matcher)
+	cs.commit(99.3, &flushMatcher)
+	out := flushSampler(cs)
+
+	assert.Empty(t, out.mergedSketches)
+	require.Len(t, out.sketches, 1)
+	require.Len(t, out.sketches[0].Points, 1, "the commit second is held until the next commit, as without filtering")
+	assert.Equal(t, int64(98), out.sketches[0].Points[0].Ts)
 }
 
 func TestStrippedIdentitiesAreSharedAndReleased(t *testing.T) {
@@ -157,10 +194,11 @@ func TestCheckSamplerRestripsWhenRulesChange(t *testing.T) {
 	require.True(t, stripped)
 	assert.ElementsMatch(t, []string{"env:prod"}, tags)
 
-	// The rule is removed: the context's output keeps its full tags, and doesn't go to the merger.
+	// The rule is removed: the context's output keeps its full tags, and its sketches are released per second again.
 	cs.restrip(filterlistimpl.NewNoopTagMatcher())
 	_, stripped = strippedTags(cs, key)
 	require.False(t, stripped)
+	assert.False(t, cs.releasesAtCommit(key))
 	assert.Empty(t, cs.contextResolver.resolver.stripped.byKey)
 	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 100.1), filterlistimpl.NewNoopTagMatcher())
 	cs.commit(101.3, &flushMatcher)

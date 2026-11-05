@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 const checksSourceTypeName = "System"
@@ -123,6 +124,13 @@ func (cs *CheckSampler) mergedIdentity(ck ckey.ContextKey, ctx *Context) (ckey.C
 		return stripped.key, stripped.Tags()
 	}
 	return ck, ctx.Tags()
+}
+
+// releasesAtCommit returns whether a context's sketches are all released at every commit, stamped at the commit,
+// instead of per second of submission.
+func (cs *CheckSampler) releasesAtCommit(ck ckey.ContextKey) bool {
+	ctx, ok := cs.contextResolver.get(ck)
+	return ok && ctx.mergesAtOutput()
 }
 
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
@@ -266,15 +274,49 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.M
 	}
 }
 
+// commitSketches releases the sketches from before the commit second. The sketches of contexts merged at output are
+// all released, merged into one point stamped at the commit, so that they can be merged with other sources' commits
+// in the same second.
 func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname.Matcher) {
+	commitTs := int64(timestamp)
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-
-	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
-		if p.Sketch == nil {
-			return
+	perSecond := func(ck ckey.ContextKey, p metrics.SketchPoint) {
+		if p.Sketch != nil {
+			pointsByCtx[ck] = append(pointsByCtx[ck], p)
 		}
-		pointsByCtx[ck] = append(pointsByCtx[ck], p)
-	})
+	}
+
+	merges := cs.contextResolver.resolver.anyStrippedMetric()
+	if !merges {
+		cs.sketchMap.flushBefore(commitTs, perSecond)
+	} else {
+		var atCommit map[ckey.ContextKey]*quantile.Sketch
+		stampAtCommit := func(ck ckey.ContextKey, p metrics.SketchPoint) {
+			if p.Sketch == nil {
+				return
+			}
+			if atCommit == nil {
+				atCommit = make(map[ckey.ContextKey]*quantile.Sketch)
+			}
+			if sketch, ok := atCommit[ck]; ok {
+				sketch.Merge(quantile.Default(), p.Sketch)
+			} else {
+				atCommit[ck] = p.Sketch
+			}
+		}
+		cs.sketchMap.flushIf(func(ts int64, ck ckey.ContextKey) func(ckey.ContextKey, metrics.SketchPoint) {
+			if cs.releasesAtCommit(ck) {
+				return stampAtCommit
+			}
+			if ts < commitTs {
+				return perSecond
+			}
+			return nil
+		})
+		for ck, sketch := range atCommit {
+			pointsByCtx[ck] = []metrics.SketchPoint{{Sketch: sketch, Ts: commitTs}}
+		}
+	}
 	for ck, points := range pointsByCtx {
 		ctx, ok := cs.contextResolver.get(ck)
 		if !ok {
@@ -287,7 +329,7 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
-		if ctx.mergesAtOutput() {
+		if merges && ctx.mergesAtOutput() {
 			var key ckey.ContextKey
 			key, series.Tags = cs.mergedIdentity(ck, ctx)
 			cs.mergedSketches = append(cs.mergedSketches, mergedSketch{key: key, sketch: series})

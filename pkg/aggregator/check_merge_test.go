@@ -46,7 +46,7 @@ func TestCheckOutputMergerSumsCountersInTheSameSecond(t *testing.T) {
 	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.2, Value: 1})})
 	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.7, Value: 2}, metrics.Point{Ts: 101.1, Value: 4})})
 	m.mergeSeries([]*metrics.Serie{filteredCounter(2, metrics.Point{Ts: 100.5, Value: 8})})
-	m.flush(&series, nil)
+	m.flush(200, &series, nil)
 
 	require.Len(t, series, 2)
 	byKey := seriesByKey(series)
@@ -60,7 +60,7 @@ func TestCheckOutputMergerMergesSketchesInTheSameSecond(t *testing.T) {
 
 	m.mergeSketches([]mergedSketch{filteredSketch(1, 100, 1, 2)})
 	m.mergeSketches([]mergedSketch{filteredSketch(1, 100, 3), filteredSketch(1, 101, 4)})
-	m.flush(nil, &sketches)
+	m.flush(200, nil, &sketches)
 
 	require.Len(t, sketches, 1)
 	points := sketches[0].Points
@@ -71,6 +71,52 @@ func TestCheckOutputMergerMergesSketchesInTheSameSecond(t *testing.T) {
 	assert.Equal(t, int64(1), points[1].Sketch.Basic.Cnt)
 }
 
+func TestCheckOutputMergerHoldsTheFlushSecond(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 99.9, Value: 1}, metrics.Point{Ts: 100.1, Value: 2})})
+	m.mergeSketches([]mergedSketch{filteredSketch(1, 100, 1)})
+	m.flush(100, &series, &sketches)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, []metrics.Point{{Ts: 99, Value: 1}}, series[0].Points)
+	require.Empty(t, sketches)
+
+	// Another check instance commits into the held second after the flush.
+	series, sketches = nil, nil
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.8, Value: 4})})
+	m.mergeSketches([]mergedSketch{filteredSketch(1, 100, 2)})
+	m.flush(115, &series, &sketches)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, []metrics.Point{{Ts: 100, Value: 6}}, series[0].Points)
+	require.Len(t, sketches, 1)
+	assert.Equal(t, int64(2), sketches[0].Points[0].Sketch.Basic.Cnt)
+}
+
+func TestCheckOutputMergerDrainSendsHeldPoints(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.1, Value: 2})})
+	m.mergeSketches([]mergedSketch{filteredSketch(1, 100, 1)})
+	m.flush(100, &series, &sketches)
+	require.Empty(t, series)
+	require.Empty(t, sketches)
+
+	m.drain(&series, &sketches)
+	assert.Len(t, series, 1)
+	assert.Len(t, sketches, 1)
+
+	series, sketches = nil, nil
+	m.drain(&series, &sketches)
+	assert.Empty(t, series)
+	assert.Empty(t, sketches)
+}
+
 func TestCheckOutputMergerKeepsSeriesOfDifferentTypesApart(t *testing.T) {
 	m := newCheckOutputMerger()
 	var series metrics.Series
@@ -79,7 +125,7 @@ func TestCheckOutputMergerKeepsSeriesOfDifferentTypesApart(t *testing.T) {
 	count := filteredCounter(1, metrics.Point{Ts: 100, Value: 2})
 	count.MType = metrics.APICountType
 	m.mergeSeries([]*metrics.Serie{rate, count})
-	m.flush(&series, nil)
+	m.flush(200, &series, nil)
 
 	require.Len(t, series, 2, "values of different types are never added up")
 	for _, s := range series {
@@ -96,7 +142,7 @@ func TestCheckOutputMergerKeepsTheSeriesOfAContextApart(t *testing.T) {
 	sum := filteredCounter(1, metrics.Point{Ts: 100, Value: 2})
 	sum.NameSuffix = ".sum"
 	m.mergeSeries([]*metrics.Serie{count, sum})
-	m.flush(&series, nil)
+	m.flush(200, &series, nil)
 
 	require.Len(t, series, 2)
 }
@@ -115,7 +161,7 @@ func TestCheckOutputMergerMergesMetadata(t *testing.T) {
 	secondSketch.sketch.NoIndex = true
 	m.mergeSeries([]*metrics.Serie{first, second})
 	m.mergeSketches([]mergedSketch{firstSketch, secondSketch})
-	m.flush(&series, &sketches)
+	m.flush(200, &series, &sketches)
 
 	require.Len(t, series, 1)
 	assert.True(t, series[0].NoIndex, "a series isn't indexed if any of its sources asks not to")

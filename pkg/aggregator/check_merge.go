@@ -31,8 +31,12 @@ var tlmCheckMergeConflicts = telemetryimpl.GetCompatComponent().NewCounter("aggr
 // Samplers hand the merger the output of the contexts a rule strips, of the types that can be stripped. Other
 // output doesn't go through the merger.
 //
-// Every flush sends what the samplers committed since the previous one: points for one second are merged when the
-// same flush collects them.
+// The merger sends each second of a series once, which rests on these:
+//   - Samplers stamp everything they hand the merger at commit, and the aggregator's run loop handles commits and
+//     flushes one at a time, stamping commits with the time it handles them (handleSenderSample). So with a clock
+//     that only moves forward, a commit handled after a flush is stamped at or after its cutoff, and a flush can
+//     send the seconds before its cutoff and hold the rest for the next flush.
+//   - Every flush collects everything committed since the previous one, so two commits in one second are merged.
 type checkOutputMerger struct {
 	series   map[serieMergeKey]*metrics.Serie
 	sketches map[ckey.ContextKey]*metrics.SketchSeries
@@ -153,14 +157,53 @@ func mergeSketchPoint(points []metrics.SketchPoint, point metrics.SketchPoint) [
 	return append(points, point)
 }
 
-// flush sends every point, merged, and empties the merger.
-func (m *checkOutputMerger) flush(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+// flush sends the points from seconds before cutoff, and holds the others for a later flush.
+func (m *checkOutputMerger) flush(cutoff int64, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	m.send(func(ts int64) bool { return ts < cutoff }, seriesSink, sketchesSink)
+}
+
+// drain sends every point, for when no flush follows to send the points flush would hold.
+func (m *checkOutputMerger) drain(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	m.send(func(int64) bool { return true }, seriesSink, sketchesSink)
+}
+
+func (m *checkOutputMerger) send(ready func(ts int64) bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	for key, serie := range m.series {
-		seriesSink.Append(serie)
-		delete(m.series, key)
+		sent, held := splitPoints(serie.Points, func(p metrics.Point) bool { return ready(int64(p.Ts)) })
+		if len(sent) > 0 {
+			out := *serie
+			out.Points = sent
+			seriesSink.Append(&out)
+		}
+		if len(held) == 0 {
+			delete(m.series, key)
+		} else {
+			serie.Points = held
+		}
 	}
 	for key, sketch := range m.sketches {
-		sketchesSink.Append(sketch)
-		delete(m.sketches, key)
+		sent, held := splitPoints(sketch.Points, func(p metrics.SketchPoint) bool { return ready(p.Ts) })
+		if len(sent) > 0 {
+			out := *sketch
+			out.Points = sent
+			sketchesSink.Append(&out)
+		}
+		if len(held) == 0 {
+			delete(m.sketches, key)
+		} else {
+			sketch.Points = held
+		}
 	}
+}
+
+// splitPoints partitions points into those ready to send and those to hold, keeping their order.
+func splitPoints[P any](points []P, isReady func(P) bool) (ready, held []P) {
+	for _, p := range points {
+		if isReady(p) {
+			ready = append(ready, p)
+		} else {
+			held = append(held, p)
+		}
+	}
+	return ready, held
 }

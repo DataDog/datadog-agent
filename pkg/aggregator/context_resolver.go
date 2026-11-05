@@ -40,8 +40,8 @@ func (c *Context) stripsAtOutput() bool {
 	return c.stripFlags&strippable != 0
 }
 
-// mergesAtOutput returns whether the context's output that can be stripped goes to the check output merger: a rule
-// strips it.
+// mergesAtOutput returns whether the context's output that can be stripped goes to the check output merger, stamped
+// at commit: a rule strips it.
 func (c *Context) mergesAtOutput() bool {
 	return c.strippedIdentityRef != 0
 }
@@ -348,6 +348,11 @@ func (cr *contextResolver) strippedOf(context *Context) (*strippedIdentity, bool
 		return nil, false
 	}
 	return cr.stripped.get(context.strippedIdentityRef), true
+}
+
+// anyStrippedMetric returns whether a rule strips any context at output.
+func (cr *contextResolver) anyStrippedMetric() bool {
+	return cr.stripped != nil && len(cr.stripped.byKey) > 0
 }
 
 // restrip updates the identity every context strips to at output, after the rules changed.
