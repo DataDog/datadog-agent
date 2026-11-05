@@ -49,101 +49,106 @@ theme:
 
 nav:
 - Home:
-  - About: index.md
-  - Setup:
-    - Required: setup/required.md
-    - Optional: setup/optional.md
-    - Manual: setup/manual.md
-- How-to:
-  - Build:
-    - Standalone agents: how-to/build/standalone.md
-    - Distribution packages: how-to/build/distributions.md
-  - Test:
-    - Unit tests: how-to/test/unit.md
-    - Static analysis: how-to/test/static-analysis.md
-    - End-to-end tests:
-      - how-to/test/e2e/index.md
-      - Running tests: how-to/test/e2e/running.md
-      - Writing tests: how-to/test/e2e/writing.md
-      - Test dependencies: how-to/test/e2e/dependencies.md
-      - Custom AMIs: how-to/test/e2e/custom-amis.md
-    - Manual QA: 
-      - how-to/test/manual-qa/index.md
-      - AWS: 
-        - VM: how-to/test/manual-qa/aws-vm.md 
-        - Docker: how-to/test/manual-qa/aws-docker.md
-        - EKS: how-to/test/manual-qa/aws-eks.md
-        - ECS: how-to/test/manual-qa/aws-ecs.md
-        - Kind: how-to/test/manual-qa/aws-kind.md
-      - Azure: 
-        - VM: how-to/test/manual-qa/azure-vm.md
-      - GCP: 
-        - VM: how-to/test/manual-qa/gcp-vm.md
-      
-  - Go:
-    - Add nested modules: how-to/go/modules.md
-  - Component framework:
-    - Use components in binaries: how-to/components/using-components.md
-    - Create bundles: how-to/components/creating-bundles.md
-    - Use optional dependencies: how-to/components/optional-dependencies.md
-    - Add flare data: how-to/components/flares.md
-    - Add a status provider: how-to/components/status.md
-  - Agent schema:
-    - Add and document settings: how-to/agent-schema/settings.md
-    - Validate and generate output: how-to/agent-schema/workflows.md
-  - Checks:
-    - Run JMXFetch: how-to/run-jmxfetch.md
-  - Debug agents:
-    - how-to/debug-agents/index.md
-    - Linux: how-to/debug-agents/linux.md
-    - Windows: how-to/debug-agents/windows.md
-  - Memory profiling:
-    - Overview: how-to/memory-profiling/overview.md
-    - Go: how-to/memory-profiling/go.md
-    - Python: how-to/memory-profiling/python.md
-    - C++: how-to/memory-profiling/c++.md
-- Tutorials:
-  - Component framework:
-    - Create a component: tutorials/components/creating-components.md
-    - Test a component: tutorials/components/testing.md
-  - Develop:
-    - Environment usage: tutorials/dev/env.md
-    - Lab environments:
-      - tutorials/dev/lab/index.md
-      - Kind: tutorials/dev/lab/kind.md
-- Guidelines:
-  - Contributing: guidelines/contributing.md
-  - Documentation: guidelines/docs.md
-  - Component framework: guidelines/components.md
-  - Languages:
-    - Go: guidelines/languages/go.md
-    - Rust: guidelines/languages/RUST.md
-  - Testing:
-    - Test categories: guidelines/testing/test-categories.md
-  - Conventions:
-    - Logging: guidelines/conventions/logging.md
-- Reference:
-  - Component framework:
-    - Status providers: reference/components/status.md
-  - Agent schema:
-    - Keywords: reference/agent-schema/keywords.md
-    - CLI commands: reference/agent-schema/cli.md
-  - Images:
-    - Developer environment: reference/images/dev.md
-    - Builders: reference/images/builders.md
-  - Agent buildables:
-    - Agent components: reference/builds/components.md
-  - Developer docs: reference/docs.md
+  - About these docs: index.md
+  - Getting started: start.md
+  - Browse by topic: topic.md
+  - Learning paths: learn.md
 - Architecture:
-  - Home: architecture/index.md
-  - Component framework:
-    - architecture/components/index.md
-    - Fx: architecture/components/fx.md
-  - Agent schema:
-    - architecture/agent-schema/index.md
-    - Annotated examples: architecture/agent-schema/examples.md
-  - DogStatsD:
-    - Internals: architecture/dogstatsd/internals.md
+  - arch/index.md
+- Implementation:
+  - impl/index.md
+  - Shared frameworks:
+    - Component framework:
+      - impl/framework/component/index.md
+      - Concepts:
+        - Dependency injection with Fx: impl/framework/component/concept/fx.md
+      - Tutorials:
+        - Create a component: impl/framework/component/tutorial/create.md
+        - Test a component: impl/framework/component/tutorial/test.md
+      - How-to guides:
+        - Use components in binaries: impl/framework/component/how-to/use.md
+        - Create bundles: impl/framework/component/how-to/bundle.md
+        - Use optional dependencies: impl/framework/component/how-to/optional-dependency.md
+        - Add flare data: impl/framework/component/how-to/flare.md
+        - Add a status provider: impl/framework/component/how-to/status.md
+      - Guidelines: impl/framework/component/guideline.md
+      - Reference:
+        - Status providers: impl/framework/component/reference/status.md
+    - Configuration schemas and settings:
+      - impl/framework/config/index.md
+      - Annotated examples: impl/framework/config/example.md
+      - Add and document settings: impl/framework/config/setting.md
+      - Validate and generate output: impl/framework/config/workflow.md
+      - Reference:
+        - Keywords: impl/framework/config/reference/keyword.md
+        - CLI commands: impl/framework/config/reference/cli.md
+  - Integrations and checks:
+    - Run checks with JMXFetch: impl/check/jmxfetch.md
+  - Subsystem development:
+    - Telemetry pipelines:
+      - DogStatsD internals: impl/subsystem/telemetry/dogstatsd.md
+  - Platforms and interoperability:
+    - Go modules:
+      - Add nested modules: impl/platform/go-module/add.md
+- Development:
+  - dev/index.md
+  - Environments:
+    - Local setup:
+      - Required: dev/env/setup/required.md
+      - Optional: dev/env/setup/optional.md
+      - Manual: dev/env/setup/manual.md
+    - Development environments:
+      - Environment usage: dev/env/dev/usage.md
+      - Image reference: dev/env/dev/image.md
+    - Lab environments:
+      - dev/env/lab/index.md
+      - Kind: dev/env/lab/kind.md
+  - Building:
+    - Standalone agents: dev/build/standalone.md
+    - Distribution packages: dev/build/package.md
+    - Agent buildables: dev/build/component.md
+    - Build images: dev/build/image.md
+  - Testing:
+    - Choosing a test approach: dev/test/category.md
+    - Unit tests: dev/test/unit.md
+    - Static analysis: dev/test/static-analysis.md
+    - End-to-end tests:
+      - dev/test/e2e/index.md
+      - Running tests: dev/test/e2e/run.md
+      - Writing tests: dev/test/e2e/write.md
+      - Test dependencies: dev/test/e2e/dependency.md
+      - Custom AMIs: dev/test/e2e/ami.md
+    - Manual QA:
+      - dev/test/qa/index.md
+      - AWS:
+        - VM: dev/test/qa/aws/vm.md
+        - Docker: dev/test/qa/aws/docker.md
+        - EKS: dev/test/qa/aws/eks.md
+        - ECS: dev/test/qa/aws/ecs.md
+        - Kind: dev/test/qa/aws/kind.md
+      - Azure:
+        - VM: dev/test/qa/azure/vm.md
+      - GCP:
+        - VM: dev/test/qa/gcp/vm.md
+  - Debugging:
+    - Debug agents:
+      - dev/debug/agent/index.md
+      - Linux: dev/debug/agent/linux.md
+      - Windows: dev/debug/agent/windows.md
+    - Memory profiling:
+      - Overview: dev/debug/memory/index.md
+      - Go: dev/debug/memory/go.md
+      - Python: dev/debug/memory/python.md
+      - C++: dev/debug/memory/cpp.md
+  - Maintaining tooling:
+    - Documentation platform: dev/tool/doc.md
+- Contributing:
+  - Contribution process: contrib/index.md
+  - Code standards:
+    - Go: contrib/code/go.md
+    - Rust: contrib/code/rust.md
+    - Logging: contrib/code/log.md
+  - Documentation standards: contrib/doc.md
 
 watch:
 - .go-version
@@ -275,7 +280,13 @@ markdown_extensions:
 
 extra:
   navigation_roots:
-  - url: architecture/
+  - url: arch/
+    back_label: Back to main docs
+    back_key: b
+  - url: impl/
+    back_label: Back to main docs
+    back_key: b
+  - url: dev/
     back_label: Back to main docs
     back_key: b
   social:

@@ -196,7 +196,7 @@ def python(ctx, show_versions=False):
 
     print(
         "Remember to set up pre-commit to lint your files before committing: "
-        "https://datadoghq.dev/datadog-agent/setup/optional/#pre-commit-hooks"
+        "https://datadoghq.dev/datadog-agent/dev/env/setup/optional/#pre-commit-hooks"
     )
 
     if show_versions:
@@ -233,7 +233,7 @@ def releasenote(ctx):
             if not github.contains_release_note(pr_id):
                 print(
                     f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one using 'reno'"
-                    ", see https://datadoghq.dev/datadog-agent/guidelines/contributing/#reno"
+                    ", see https://datadoghq.dev/datadog-agent/contrib/#reno"
                     ", or apply the label 'changelog/no-changelog' to the PR.",
                     file=sys.stderr,
                 )

@@ -497,7 +497,7 @@ def add_replaces(ctx, path, replaces: Iterable[str]):
 @task
 def create_module(ctx, path: str, no_verify: bool = False):
     """
-    Create a new Go module following the steps at https://datadoghq.dev/datadog-agent/how-to/go/modules/.
+    Create a new Go module following the steps at https://datadoghq.dev/datadog-agent/impl/platform/go-module/add/.
     - packages: Comma separated list of packages the will use the new module
     """
 

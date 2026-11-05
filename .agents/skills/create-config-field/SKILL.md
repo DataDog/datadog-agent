@@ -18,11 +18,11 @@ published to SchemaStore, and the runtime config validation.
 
 Consult these references only when the instructions below do not provide enough detail for the current task:
 
-- For guidance on adding, documenting, or publishing settings, read the [settings how-to](../../../doc/how-to/agent-schema/settings.md).
-- For unfamiliar keywords or validation rules, read the [keyword reference](../../../doc/reference/agent-schema/keywords.md).
-- For complex nested settings or the distinction between sections and object values, read the [annotated examples](../../../doc/architecture/agent-schema/examples.md).
-- For command arguments, read the [CLI reference](../../../doc/reference/agent-schema/cli.md).
-- For schema terminology and design rationale, read the [schema overview](../../../doc/architecture/agent-schema/index.md).
+- For guidance on adding, documenting, or publishing settings, read the [settings how-to](../../../doc/impl/framework/config/setting.md).
+- For unfamiliar keywords or validation rules, read the [keyword reference](../../../doc/impl/framework/config/reference/keyword.md).
+- For complex nested settings or the distinction between sections and object values, read the [annotated examples](../../../doc/impl/framework/config/example.md).
+- For command arguments, read the [CLI reference](../../../doc/impl/framework/config/reference/cli.md).
+- For schema terminology and design rationale, read the [schema overview](../../../doc/impl/framework/config/index.md).
 
 ## Where settings live
 
@@ -131,11 +131,11 @@ insert the node where it belongs logically, not at the end of the file.
 dda inv schema.lint
 ```
 
-If the change requires generated Go code or a configuration-example preview, consult the relevant workflow for [regenerating Go code](../../../doc/how-to/agent-schema/workflows.md#validate-changes-and-regenerate-go-code) or [generating configuration examples](../../../doc/how-to/agent-schema/workflows.md#generate-configuration-examples).
+If the change requires generated Go code or a configuration-example preview, consult the relevant workflow for [regenerating Go code](../../../doc/impl/framework/config/workflow.md#validate-changes-and-regenerate-go-code) or [generating configuration examples](../../../doc/impl/framework/config/workflow.md#generate-configuration-examples).
 
 ## Keyword quick reference
 
-Full up-to-date details in `doc/reference/agent-schema/keywords.md`.
+Full up-to-date details in `doc/impl/framework/config/reference/keyword.md`.
 
 | Keyword | Where | Notes |
 |---|---|---|

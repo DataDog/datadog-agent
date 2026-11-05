@@ -17,11 +17,18 @@ def cmd(app: Application, *, check: bool) -> None:
     """
     Build documentation.
     """
+    import yaml
     from dda.utils.fs import Path
     from dda.utils.process import EnvVars
     from utils.docs.constants import SOURCE_DATE_EPOCH
     from utils.docs.deps import DEPENDENCIES
     from utils.docs.links import check_links
+    from utils.docs.navigation import validate_navigation_roots
+
+    try:
+        validate_navigation_roots(Path("mkdocs.yml"))
+    except (OSError, ValueError, yaml.YAMLError) as error:
+        app.abort(str(error))
 
     group_dir = Path(__file__).parent.parent
     venv_path = app.config.storage.join("venvs", group_dir.id).data

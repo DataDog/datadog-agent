@@ -106,7 +106,7 @@ Run the same command after adding, removing, or renaming a `.go` file (tests inc
 - Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
   arrive in **fakeintake**. By default it forwards payloads to `dddev` org account.
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
-  (intake mock), `doc/how-to/test/e2e/` (setup, running, dependencies, AMIs)
+  (intake mock), `doc/dev/test/e2e/` (setup, running, dependencies, AMIs)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`, or use the `/run-e2e`
   skill, which runs the test in a `dda env dev` sandbox and triages setup failures
@@ -132,7 +132,7 @@ derives the keypair name from the container username; use the host instead.
 
 ### Manual QA
 - When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.
-- Full guide (scenarios, commands, stack lifecycle): `doc/how-to/test/manual-qa/index.md`
+- Full guide (scenarios, commands, stack lifecycle): `doc/dev/test/qa/index.md`
 
 ### Linting
 - Go: `dda inv linter.go` (see the `dda inv` table above)
@@ -206,7 +206,8 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
-`doc/guidelines/` (contributing, coding style, components, etc.).
+`doc/contrib/`, along with topic-specific guidance such as
+`doc/impl/framework/component/guideline.md`.
 
 When re-landing a reverted PR, generate a new release note with `reno new`
 rather than restoring the original file. reno keys notes by the UID in the

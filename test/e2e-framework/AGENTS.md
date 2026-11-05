@@ -86,8 +86,8 @@ There is no generic runtime install: `PackageManager.RuntimeInstallDocker`
 (Docker and docker-compose) is the only one, for GCP, Azure and local VMs, 
 and it fails on AWS. Add new dependencies to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
-`doc/how-to/test/e2e/custom-amis.md` and
-`doc/how-to/test/e2e/dependencies.md`.
+`doc/dev/test/e2e/ami.md` and
+`doc/dev/test/e2e/dependency.md`.
 
 ### Kubernetes internet access
 
