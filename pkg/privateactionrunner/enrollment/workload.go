@@ -26,7 +26,7 @@ import (
 
 // UsesWIF selects workload enrollment only for the primary intake WIF identity.
 func UsesWIF(cfg configmodel.Reader) bool {
-	return cfg.GetBool(parconfig.WIFEnrollment) && cfg.GetString("delegated_auth.org_uuid") != ""
+	return cfg.GetString("delegated_auth.org_uuid") != ""
 }
 
 // EnrollWithWorkloadToken enrolls a new runner using its primary intake WIF

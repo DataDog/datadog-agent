@@ -1,0 +1,6 @@
+features:
+  - |
+    Private Action Runner self-enrollment automatically uses WIF when primary
+    intake uses delegated authentication. No separate WIF enrollment setting
+    is required. PAR must still be enabled and its intake mapping must permit
+    enrollment. Requests denied by WIF do not fall back to API-key enrollment.

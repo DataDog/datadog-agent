@@ -10,6 +10,7 @@ package privateactionrunnerimpl
 import (
 	"context"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
@@ -61,7 +63,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 		// WIF must not validate or send these credentials, even with API-key-only mode off.
 		"api_key": "ENC[unused-intake-key]", par.APIKeyOnlyEnrollment: false,
 		"delegated_auth.org_uuid": "test-org",
-		par.WIFEnrollment:         true, par.SelfEnroll: true, par.IdentityFilePath: identityPath,
+		par.SelfEnroll:            true, par.IdentityFilePath: identityPath,
 	}
 	cfg := coreconfig.NewMockWithOverrides(t, overrides)
 	hostname, _ := hostnamemock.NewMock("test-host")
@@ -105,9 +107,9 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 	require.Equal(t, "ENC[unused-intake-key]", cfg.GetString("api_key"))
 
 	// A new component/config simulates restart: reuse the file, not runtime config writes.
-	for _, enabled := range []bool{true, false} {
+	for _, primaryOrg := range []string{"test-org", ""} {
 		overrides["api_key"] = "rotated-intake-key"
-		overrides[par.WIFEnrollment] = enabled
+		overrides["delegated_auth.org_uuid"] = primaryOrg
 		restartConfig := coreconfig.NewMockWithOverrides(t, overrides)
 		restarted := &PrivateActionRunner{coreConfig: restartConfig, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
 		recovered, err := restarted.getRunnerConfig(context.Background())
@@ -139,7 +141,7 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 				"dd_url": server.URL, "skip_ssl_validation": true, "api_key": "intake-key",
 				"delegated_auth.org_uuid": "test-org",
-				par.WIFEnrollment:         true, par.SelfEnroll: true, par.IdentityFilePath: identityPath,
+				par.SelfEnroll:            true, par.IdentityFilePath: identityPath,
 			})
 			tokenCalls := 0
 			auth := &delegatedauthmock.Mock{GetWorkloadTokenFunc: func(context.Context, string, common.WorkloadTokenRequest) (string, error) {
@@ -182,4 +184,36 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 			require.True(t, os.IsNotExist(err))
 		})
 	}
+}
+
+func TestPrimaryWIFDoesNotEnablePAR(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"delegated_auth.org_uuid": "test-org", par.Enabled: false,
+	})
+	_, err := NewComponent(Requires{Config: cfg, Log: logmock.New(t)})
+	require.ErrorIs(t, err, privateactionrunner.ErrNotEnabled)
+}
+
+func TestPrimaryWIFKeepsExplicitRunnerIdentity(t *testing.T) {
+	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
+	key, _, err := util.GenerateKeys()
+	require.NoError(t, err)
+	encoded, err := key.MarshalJSON()
+	require.NoError(t, err)
+	urn := util.MakeRunnerURN("us1", 42, "configured-runner")
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"delegated_auth.org_uuid": "test-org", par.SelfEnroll: true,
+		par.URN: urn, par.PrivateKey: base64.RawURLEncoding.EncodeToString(encoded),
+		par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
+	})
+	hostname, _ := hostnamemock.NewMock("test-host")
+	auth := &delegatedauthmock.Mock{GetWorkloadTokenFunc: func(context.Context, string, common.WorkloadTokenRequest) (string, error) {
+		t.Fatal("explicit identities do not self-enroll")
+		return "", nil
+	}}
+	runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
+	resolved, err := runner.getRunnerConfig(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, urn, resolved.Urn)
+	require.True(t, resolved.PrivateKey.Equal(key.Key))
 }

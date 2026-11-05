@@ -35,6 +35,7 @@ func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T)
 			"private_action_runner.split_enabled": false,
 			"private_action_runner.self_enroll":   true,
 			"private_action_runner.private_key":   "invalid-key",
+			"delegated_auth.org_uuid":             "test-org",
 		})
 		t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
 		// Dependencies are deliberately absent: disabled startup must not use them.

@@ -604,7 +604,8 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
-// wifEnrollmentEnabled applies the opt-in only to the primary intake WIF configuration.
+// wifEnrollmentEnabled follows primary intake authentication. WIF configured
+// only for another endpoint (for example logs) does not select PAR enrollment.
 func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
 	return enrollment.UsesWIF(p.coreConfig)
 }

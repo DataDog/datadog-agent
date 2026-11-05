@@ -65,8 +65,11 @@ func TestWIFReenrollment(t *testing.T) {
 			defer server.Close()
 			overrides := map[string]interface{}{
 				"delegated_auth.org_uuid": "test-org", "dd_url": server.URL, "skip_ssl_validation": true,
-				"api_key": "old-key", par.WIFEnrollment: scenario != "WIF disabled",
+				"api_key":      "old-key",
 				par.SelfEnroll: scenario != "self-enrollment disabled", par.IdentityFilePath: identityPath,
+			}
+			if scenario == "WIF disabled" {
+				overrides["delegated_auth.org_uuid"] = ""
 			}
 			cfg := coreconfig.NewMockWithOverrides(t, overrides)
 			key, _, err := util.GenerateKeys()
@@ -122,9 +125,9 @@ func TestWIFReenrollment(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, saved.WIFEnrolled)
 				require.Empty(t, saved.APIKeyHash)
-				for _, enabled := range []bool{true, false} {
+				for _, primaryOrg := range []string{"test-org", ""} {
 					overrides["api_key"] = "rotated-intake-key"
-					overrides[par.WIFEnrollment] = enabled
+					overrides["delegated_auth.org_uuid"] = primaryOrg
 					restart := &PrivateActionRunner{coreConfig: coreconfig.NewMockWithOverrides(t, overrides), delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
 					reused, err := restart.getRunnerConfig(context.Background())
 					require.NoError(t, err)

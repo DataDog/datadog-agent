@@ -32,7 +32,15 @@ properties:
     visibility: public
     description: |-
       Automatically enroll the Private Action Runner on startup.
-      Requires an app_key with Actions API Enable and the following permissions:
+      When primary intake WIF is configured through delegated_auth.org_uuid,
+      use its mapping's PAR enrollment permission. A saved non-WIF identity is
+      replaced by a new WIF runner after successful enrollment. Cluster Agent
+      replicas share the replacement through the identity Secret. Failed enrollment
+      stops PAR startup without changing the saved identity or falling back to
+      API-key enrollment.
+      Otherwise, use the configured API-key enrollment mode.
+      API-key and application-key enrollment (api_key_only_enrollment: false)
+      requires an app_key with Actions API Enable and the following permissions:
         - Connection Write
         - Private Action Write
   task_concurrency:
@@ -166,20 +174,6 @@ properties:
       custom resource actions allow non-native API groups and deny Kubernetes native API
       groups. When explicitly set, including to an empty list, only exact matches are
       allowed.
-  wif_enrollment:
-    node_type: setting
-    type: boolean
-    default: false
-    description: |-
-      Use the primary intake WIF identity for Private Action Runner enrollment.
-      With self_enroll enabled, replace a saved non-WIF runner with a new WIF
-      runner on startup. Requires primary intake WIF configured through
-      delegated_auth.org_uuid and PAR enrollment permission on the matched mapping.
-      For Cluster Agent shared identities, the leader enrolls and updates the
-      existing Secret; followers wait for that WIF identity. Failed enrollment
-      leaves the saved identity intact and does not fall back to API-key enrollment.
-      Later restarts reuse the WIF identity, including after intake-key rotation
-      or disabling this setting.
   api_key_only_enrollment:
     node_type: setting
     type: boolean
