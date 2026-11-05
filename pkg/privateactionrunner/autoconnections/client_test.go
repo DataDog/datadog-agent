@@ -56,6 +56,25 @@ func (m *mockTagsProvider) GetTags(ctx context.Context, runnerID, hostname strin
 	return tags
 }
 
+func TestNewConnectionsAPIClientEndpointSelection(t *testing.T) {
+	for _, tc := range []struct {
+		fakeIntake, site, wantURL string
+	}{
+		{"false", "datadoghq.eu", "https://api.datadoghq.eu"},
+		{"false", "", "https://api."},
+		{"true", "datadoghq.eu", "http://fake-intake.example.test:8080"},
+	} {
+		t.Run(tc.fakeIntake+"/"+tc.site, func(t *testing.T) {
+			t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", tc.fakeIntake)
+			cfg := mock.New(t)
+			cfg.SetInTest("dd_url", "http://fake-intake.example.test:8080/")
+			client, err := NewConnectionsAPIClient(cfg, tc.site, "test-api-key", "test-app-key")
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantURL, client.baseUrl)
+		})
+	}
+}
+
 func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	cfg := mock.New(t)
 	apiKey := "test-api-key"
@@ -70,6 +89,29 @@ func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	assert.NotEmpty(t, client.baseUrl)
 	assert.Equal(t, "test-api-key", client.apiKey)
 	assert.Equal(t, "test-app-key", client.appKey)
+}
+
+func TestConnectionsUsePAROverride(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		assert.Equal(t, "/prefix"+createConnectionEndpoint, r.URL.Path)
+		assert.Equal(t, "api-key", r.Header.Get("DD-API-KEY"))
+		assert.Equal(t, "app-key", r.Header.Get("DD-APPLICATION-KEY"))
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+	cfg := mock.New(t)
+	cfg.SetInTest("private_action_runner.par_dd_url", server.URL+"/prefix/")
+	cfg.SetInTest("private_action_runner.enabled", true)
+	cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
+	client, err := NewConnectionsAPIClient(cfg, "datadoghq.eu", "api-key", "app-key")
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = client.CreateConnection(ctx, ConnectionDefinition{IntegrationType: "HTTP", Credentials: CredentialConfig{Type: "HTTPNoAuth"}}, "runner", "runner-name", nil)
+	require.Error(t, err)
+	assert.EqualValues(t, 1, requests.Load())
 }
 
 func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
