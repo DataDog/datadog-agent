@@ -32,12 +32,14 @@ properties:
     visibility: public
     description: |-
       Automatically enroll the Private Action Runner on startup.
-      Primary intake WIF configured through delegated_auth.org_uuid
-      selects workload-token enrollment using the mapping's PAR enrollment permission.
-      A saved node identity is replaced when its WIF organization or site differs
-      or is missing. The replacement gets a new runner ID and private key.
-      Failed enrollment stops PAR startup without changing the saved identity or
-      falling back to API-key enrollment. Later restarts reuse the identity while the WIF organization and site match.
+      When primary intake WIF is configured through delegated_auth.org_uuid,
+      use its mapping's PAR enrollment permission. A saved identity is replaced
+      when its WIF organization or site differs or is missing. The replacement
+      gets a new runner ID and private key. Cluster Agent replicas share the
+      replacement through the identity Secret. Failed enrollment stops PAR
+      startup without changing the saved identity or falling back to API-key
+      enrollment. Later restarts reuse the identity while the WIF organization
+      and site match.
       Otherwise, use the configured API-key enrollment mode.
       API-key and application-key enrollment (api_key_only_enrollment: false)
       requires an app_key with Actions API Enable and the following permissions:

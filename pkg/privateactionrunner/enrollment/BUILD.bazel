@@ -39,6 +39,7 @@ dd_agent_go_test(
     name = "enrollment_test",
     srcs = [
         "enrollment_test.go",
+        "k8s_reenrollment_test.go",
         "k8s_secret_test.go",
         "storage_test.go",
         "workload_cluster_test.go",
