@@ -163,3 +163,59 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
                 self.assertIn(label, postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
         # The installer daemon is Fleet's, not the Agent's: the fallback does not install it.
         self.assertNotIn("com.datadoghq.installer", postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
+
+    def test_postinst_fallback_fails_fast_instead_of_hanging(self):
+        # A job launchd cannot spawn, such as one whose account is missing, blocks
+        # `launchctl kickstart`, and Installer.app aborts the install after waiting on it. The
+        # fallback checks the configuration and the account before loading anything, and relies on
+        # RunAtLoad rather than kickstart to start the jobs.
+        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
+        fallback = postinst.split("install_fallback_launchdaemons() {", 1)[1].split("\n}\n", 1)[0]
+
+        self.assertNotIn("launchctl kickstart", postinst)
+        config_check = fallback.find('[ ! -f "$INSTALL_DIR/etc/datadog.yaml" ]')
+        account_check = fallback.find("if ! ensure_ddagent_user; then")
+        bootstrap = fallback.find("launchctl bootstrap")
+        self.assertNotEqual(config_check, -1)
+        self.assertNotEqual(account_check, -1)
+        self.assertLess(config_check, bootstrap)
+        self.assertLess(account_check, bootstrap)
+        # The fallback never fails the install: macOS installs have only ever warned.
+        self.assertTrue(postinst.rstrip().endswith("exit 0"))
+        for label in [
+            "com.datadoghq.procmgr",
+            "com.datadoghq.agent",
+            "com.datadoghq.sysprobe",
+            "com.datadoghq.data-plane",
+            "com.datadoghq.installer",
+        ]:
+            with self.subTest(job=label):
+                definition = (
+                    REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist"
+                ).read_text()
+                self.assertRegex(definition, r"<key>RunAtLoad</key>\s*<true/>")
+
+    def test_postinst_sets_up_the_account_as_the_installer_does(self):
+        # ensure_ddagent_user is the shell copy of ensureAgentUser, for when the installer could not
+        # run: both must set the same properties on the Agent's account.
+        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
+        hook = (REPO_ROOT / "pkg/fleet/installer/packages/datadog_agent_darwin_dmg.go").read_text()
+
+        for attribute, value in [
+            ("RealName", '"Datadog Agent"'),
+            ("UserShell", "/usr/bin/false"),
+            ("NFSHomeDirectory", "/var/empty"),
+            ("IsHidden", "1"),
+            ("PrimaryGroupID", "1"),
+            ("Password", "'*'"),
+        ]:
+            with self.subTest(attribute=attribute):
+                self.assertIn(f'dscl . -create "/Users/$DDAGENT_USER" {attribute} {value}', postinst)
+                self.assertIn(f'"/Users/" + agentUser, "{attribute}", "{value.strip(chr(39)).strip(chr(34))}"', hook)
+        self.assertIn('dscl . -delete "/Users/$DDAGENT_USER" AuthenticationAuthority', postinst)
+        self.assertIn('"AuthenticationAuthority"', hook)
+        self.assertIn("for group in admin wheel staff; do", postinst)
+        self.assertIn('[]string{"admin", "wheel", "staff"}', hook)
+        self.assertIn("uid=450", postinst)
+        self.assertIn('[ "$uid" -ge 500 ]', postinst)
+        self.assertIn("for uid := 450; uid < 500; uid++", hook)

@@ -27,12 +27,67 @@ exec > $LOG_FILE 2>&1
 FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"
 FALLBACK_JOBS="com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane"
 
+# The account the Agent's jobs run as. launchd cannot start them without it.
+DDAGENT_USER="_dd-agent"
+
+# ensure_ddagent_user creates the Agent's account if it is missing and enforces its properties, as
+# ensureAgentUser in pkg/fleet/installer/packages/datadog_agent_darwin_dmg.go does: the two must
+# agree. It is here for when the installer could not run at all; when the installer ran, it already
+# did the same with the same commands. It returns non-zero if the account is missing or could not
+# be set up.
+ensure_ddagent_user() {
+    if ! id -u "$DDAGENT_USER" >/dev/null 2>&1; then
+        echo "# Creating $DDAGENT_USER"
+        uid=450
+        while dscl . -list /Users UniqueID | awk '{print $2}' | grep -qx "$uid"; do
+            uid=$((uid + 1))
+        done
+        if [ "$uid" -ge 500 ]; then
+            echo "ERROR: No free UID in 450-499 for $DDAGENT_USER"
+            return 1
+        fi
+        dscl . -create "/Users/$DDAGENT_USER" || return 1
+        dscl . -create "/Users/$DDAGENT_USER" RealName "Datadog Agent" || return 1
+        dscl . -create "/Users/$DDAGENT_USER" UniqueID "$uid" || return 1
+    fi
+    dscl . -create "/Users/$DDAGENT_USER" UserShell /usr/bin/false || return 1
+    dscl . -create "/Users/$DDAGENT_USER" NFSHomeDirectory /var/empty || return 1
+    dscl . -create "/Users/$DDAGENT_USER" IsHidden 1 || return 1
+    dscl . -create "/Users/$DDAGENT_USER" PrimaryGroupID 1 || return 1
+    dscl . -create "/Users/$DDAGENT_USER" Password '*' || return 1
+    dscl . -delete "/Users/$DDAGENT_USER" AuthenticationAuthority 2>/dev/null || true
+    for group in admin wheel staff; do
+        if dseditgroup -o checkmember -m "$DDAGENT_USER" "$group" >/dev/null 2>&1; then
+            echo "Removing $DDAGENT_USER from group $group"
+            dseditgroup -o edit -d "$DDAGENT_USER" "$group" || return 1
+        fi
+    done
+    existing_uid=$(id -u "$DDAGENT_USER" 2>/dev/null) || return 1
+    if [ "$existing_uid" -ge 500 ]; then
+        echo "WARNING: $DDAGENT_USER has UID $existing_uid, in the interactive range; it is kept so file ownership stays valid"
+    fi
+    if sysadminctl -secureTokenStatus "$DDAGENT_USER" 2>&1 | grep -q "ENABLED"; then
+        echo "WARNING: $DDAGENT_USER has a Secure Token; daemon accounts should not hold one"
+    fi
+}
+
 # install_fallback_launchdaemons installs and loads the Agent's stable LaunchDaemons without the
 # installer: copy, chown, chmod, enable, bootstrap, as versions before the installer did. Every job
 # is reloaded, even one already loaded from the shipped definition: it only runs after the installer
 # failed, which may have left a job on its way out of the domain. Every job is attempted even if an
 # earlier one fails; it returns non-zero if any of them is not loaded at the end.
+#
+# No job is loaded on a fresh install, which has no configuration to run with, nor without the
+# Agent's account, which launchd cannot start them without.
 install_fallback_launchdaemons() {
+    if [ ! -f "$INSTALL_DIR/etc/datadog.yaml" ]; then
+        echo "ERROR: The installer failed on a fresh install; the Agent is not configured and was not started. Re-run the install."
+        return 1
+    fi
+    if ! ensure_ddagent_user; then
+        echo "ERROR: $DDAGENT_USER could not be set up; not loading the Agent's LaunchDaemons."
+        return 1
+    fi
     failed=""
     for label in $FALLBACK_JOBS; do
         src="$FALLBACK_JOBS_DIR/$label.plist"
@@ -60,12 +115,13 @@ install_fallback_launchdaemons() {
         chown root:wheel "$dst"
         chmod 644 "$dst"
         launchctl enable "system/$label" 2>/dev/null || true
+        # Every job sets RunAtLoad, so bootstrapping it starts it. It is not kickstarted on top: a
+        # job launchd cannot spawn would block that call.
         if ! launchctl bootstrap system "$dst" 2>&1; then
             echo "ERROR: Failed to bootstrap $label."
             failed="$failed $label"
             continue
         fi
-        launchctl kickstart "system/$label" 2>/dev/null || true
     done
     if [ -n "$failed" ]; then
         echo "ERROR: Could not install these LaunchDaemons:$failed"
