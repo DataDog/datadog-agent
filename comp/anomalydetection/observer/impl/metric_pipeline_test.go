@@ -511,6 +511,126 @@ func TestEngineMetricPipelineBaseline(t *testing.T) {
 	require.Empty(t, pipeline.series)
 }
 
+func TestEngineMetricWorkflowReplayParity(t *testing.T) {
+	for _, pipeline := range []bool{false, true} {
+		for _, baseline := range []struct {
+			name string
+			cfg  BaselineConfig
+		}{
+			{"disabled", BaselineConfig{}},
+			{"default", DefaultBaselineConfig()},
+			{"enabled_without_muting", BaselineConfig{Enabled: true, DurationSec: 30}},
+		} {
+			t.Run(fmt.Sprintf("pipeline=%t/%s", pipeline, baseline.name), func(t *testing.T) {
+				settings := ComponentSettings{
+					UseMetricPipeline: pipeline,
+					Enabled:           map[string]bool{"bocpd": false, "scanmw": true},
+				}
+				newWorkflow := func() *engine {
+					detectors, _, _, _, _, err := defaultCatalog().Instantiate(settings)
+					require.NoError(t, err)
+					return newEngine(engineConfig{
+						storage:                    newDetectorTestStorage(),
+						detectors:                  detectors,
+						scorer:                     newAnomalyScorerBase(DefaultAnomalyScorerConfig()),
+						baseline:                   baseline.cfg,
+						trackAnomalyHistory:        true,
+						trackDetectorOutputHistory: true,
+					})
+				}
+				live, replay := newWorkflow(), newWorkflow()
+				var advances []int64
+				for ts := int64(1); ts <= 2000; ts++ {
+					value := 100.0
+					if ts > 1200 && ts <= 1600 {
+						value = 1000
+					}
+					for _, e := range []*engine{live, replay} {
+						e.storage.AddWithKeyAndHostComposite("work", "metric", "", value, ts,
+							tagset.CompositeTags{}, 1, metrics.GaugeType)
+					}
+					if ts%20 == 0 {
+						live.Advance(ts)
+						advances = append(advances, ts)
+					}
+				}
+				replay.ReplayWithLiveSchedule(advances)
+				require.NotEmpty(t, live.DetectorOutputAnomalies(), "fixture must exercise real detector emissions")
+				require.NotEmpty(t, live.StateView().Anomalies(), "fixture must pass baseline qualification")
+				require.Equal(t, live.DetectorOutputAnomalies(), replay.DetectorOutputAnomalies())
+				require.Equal(t, live.StateView().Anomalies(), replay.StateView().Anomalies())
+				require.Equal(t, live.StateView().ScoreState(), replay.StateView().ScoreState())
+				replay.resetAnalysisState()
+				replay.ReplayWithLiveSchedule(advances)
+				require.Equal(t, live.DetectorOutputAnomalies(), replay.DetectorOutputAnomalies())
+				require.Equal(t, live.StateView().ScoreState(), replay.StateView().ScoreState())
+			})
+		}
+	}
+}
+
+func TestEngineMetricWorkflowNoisyBaselineReset(t *testing.T) {
+	for _, pipeline := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pipeline=%t", pipeline), func(t *testing.T) {
+			s := newDetectorTestStorage()
+			ref := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+			e, p, detector := newPipelineEngine(t, s, observer.STABLE)
+			detector.ref = ref
+			if !pipeline {
+				e.SetDetectors([]detectorRegistration{{detector: detector}})
+			}
+			cfg := DefaultBaselineConfig()
+			cfg.DurationSec = 10
+			e.baseline = newBaselineController(cfg, detectorNames(e.detectors))
+			require.Empty(t, e.Advance(3).anomalies)
+			require.Len(t, e.baseline.detectors["pipeline"].pendingHashes, 1)
+			e.resetAnalysisState()
+			require.Empty(t, e.baseline.detectors["pipeline"].pendingHashes)
+			require.Equal(t, cfg, e.baseline.config)
+			require.EqualValues(t, 3, s.PointCountUpTo(ref, 3))
+			require.Empty(t, e.Advance(3).anomalies)
+			e.Advance(13)
+			require.Len(t, e.baseline.mutedHashes, 1)
+			require.Zero(t, s.TotalSeriesCount())
+			require.Empty(t, p.series)
+			require.Contains(t, detector.removed, ref)
+		})
+	}
+}
+
+func TestEngineMetricPipelineEvictionAndReplacement(t *testing.T) {
+	s := newDetectorTestStorage()
+	s.cfg.InactiveSeriesTTLSeconds = 10
+	s.cfg.InactiveSeriesCheckIntervalSeconds = 1
+	ref := addPipelineValues(s, 1, 1, 40, 100)
+	p := newScanMWPipeline(t, DefaultScanMWConfig())
+	e := newEngine(engineConfig{storage: s, detectors: []detectorRegistration{{detector: p}}})
+	e.Advance(40)
+	e.Advance(41)
+	require.Contains(t, p.series, ref)
+	require.NotEmpty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	e.Advance(60)
+	require.Zero(t, s.TotalSeriesCount())
+	require.Empty(t, p.series)
+	require.Empty(t, p.matcher.(*metricKindMatcher).series)
+	require.Empty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	require.Empty(t, e.DetectorOutputAnomalies(), "production must not retain detector history")
+
+	ref = addPipelineValues(s, 1, 61, 100, 100)
+	e.Advance(100)
+	replacement := newScanMWPipeline(t, DefaultScanMWConfig())
+	e.SetDetectors([]detectorRegistration{{detector: replacement}})
+	e.Reset()
+	kind, ok := s.SeriesKind(ref)
+	require.True(t, ok)
+	require.Equal(t, observer.UNSET, kind)
+	require.EqualValues(t, 40, s.PointCountUpTo(ref, 100))
+	e.Advance(100)
+	e.Advance(101)
+	require.Contains(t, replacement.series, ref)
+	require.NotEmpty(t, replacement.registrations[0].detector.(*ScanMWDetector).series)
+}
+
 func BenchmarkMetricPipeline(b *testing.B) {
 	for _, numSeries := range []int{5, 200, 2000} {
 		for _, mode := range []string{"fresh_data", "unchanged_data"} {
