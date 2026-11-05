@@ -343,7 +343,6 @@ func TestMetricPipelineInitialHistoricalOutput(t *testing.T) {
 	result := p.Detect(s, 40, observer.DetectionFilter{})
 	require.NotEmpty(t, result.Anomalies, "initial assignment keeps normal cold-start detection")
 	require.Less(t, result.Anomalies[0].Timestamp, int64(40))
-	require.Empty(t, p.rawOutputs)
 }
 
 func TestMetricPipelineReactivationCutoff(t *testing.T) {
@@ -371,7 +370,7 @@ func TestMetricPipelineReactivationCutoff(t *testing.T) {
 
 	suppressed := p.Detect(s, 46, observer.DetectionFilter{})
 	require.Empty(t, suppressed.Anomalies)
-	require.NotEmpty(t, p.rawOutputs, "historical candidates stay available for diagnostics")
+	require.True(t, p.series[ref].reactivated)
 	require.NotEmpty(t, scan.series, "suppression must not prevent detector state updates")
 
 	addPipelineValues(s, 1, 47, 56, 200)
@@ -380,7 +379,6 @@ func TestMetricPipelineReactivationCutoff(t *testing.T) {
 	require.Greater(t, fresh.Anomalies[0].Timestamp, int64(46))
 
 	p.Reset()
-	require.Empty(t, p.rawOutputs)
 }
 
 func TestMetricPipelineReplayParity(t *testing.T) {

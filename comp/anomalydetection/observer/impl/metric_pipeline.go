@@ -48,7 +48,6 @@ type MetricPipeline struct {
 	cachedRefs    []observer.SeriesRef
 	cachedGen     uint64
 	scratch       []observer.Point
-	rawOutputs    []observer.Anomaly
 }
 
 func newMetricPipeline(
@@ -142,7 +141,6 @@ func (p *MetricPipeline) Detect(
 	filter observer.DetectionFilter,
 ) observer.DetectionResult {
 	var result observer.DetectionResult
-	p.rawOutputs = p.rawOutputs[:0]
 	for i := range p.registrations {
 		detectorFilter, ok := pipelineDetectionFilter(&p.registrations[i], filter)
 		if !ok {
@@ -156,7 +154,6 @@ func (p *MetricPipeline) Detect(
 			}
 			state := p.series[anomaly.SourceRef.Ref]
 			if state != nil && state.reactivated && anomaly.Timestamp <= state.outputAfter {
-				p.rawOutputs = append(p.rawOutputs, anomaly)
 				continue
 			}
 			result.Anomalies = append(result.Anomalies, anomaly)
@@ -270,7 +267,6 @@ func (p *MetricPipeline) RemoveSeries(refs []observer.SeriesRef) {
 	for _, ref := range refs {
 		delete(p.series, ref)
 	}
-	p.rawOutputs = nil
 	p.cachedRefs = nil
 	p.cachedGen = 0
 }
@@ -286,5 +282,4 @@ func (p *MetricPipeline) Reset() {
 	p.cachedRefs = nil
 	p.cachedGen = 0
 	p.scratch = p.scratch[:0]
-	p.rawOutputs = nil
 }

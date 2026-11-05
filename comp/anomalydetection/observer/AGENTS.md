@@ -198,8 +198,7 @@ requirements stay independent. Transitions clean the previous detector state,
 commit the successor kind, and reuse retained history.
 
 After reactivation to a supported kind, only anomalies after the cutoff are
-emitted; suppressed candidates remain in raw-output diagnostics. Direct `UNSET`
-assignments are not gated.
+emitted. Direct `UNSET` assignments are not gated.
 
 ### Non-blocking ingestion
 
