@@ -79,3 +79,4 @@ end
 # This setting can be overriden per-project (which is the case for the agent builds)
 use_git_caching false
 
+fatal_licensing_warnings true

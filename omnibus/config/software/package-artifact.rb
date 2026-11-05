@@ -3,6 +3,7 @@ name 'package-artifact'
 description "Helper to package an XZ build artifact to deb/rpm/..."
 
 always_build true
+license :project_license
 
 build do
   input_dir = ENV['OMNIBUS_PACKAGE_ARTIFACT_DIR']

@@ -7,6 +7,8 @@ require './lib/ostools.rb'
 
 name 'datadog-agent-integrations-py3'
 
+license :project_license
+
 dependency 'python3'
 
 python_version = "3.13"

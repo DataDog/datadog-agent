@@ -4,6 +4,7 @@ description "Generate and configure init scripts packaging"
 
 always_build true
 skip_transitive_dependency_licensing true
+license :project_license
 
 build do
   destdir = ENV["OMNIBUS_BASE_DIR"] || "/"

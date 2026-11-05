@@ -4,6 +4,8 @@ description "Generate and configure DDOT init scripts packaging"
 
 always_build true
 
+license :project_license
+
 build do
   # This is horrible.
   destdir = "/"

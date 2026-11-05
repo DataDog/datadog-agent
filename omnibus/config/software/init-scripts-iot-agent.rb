@@ -4,6 +4,8 @@ description 'Generate and configure init scripts packaging'
 
 always_build true
 
+license :project_license
+
 build do
   if debian_target?
     # Installs: etc/init/datadog-agent.conf (upstart) and lib/systemd/system/datadog-agent.service.
