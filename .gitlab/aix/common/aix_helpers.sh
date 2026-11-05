@@ -8,9 +8,7 @@ export AIX_SSH_DEST="$AIX_USER@$AIX_HOST"
 # Non-sensitive CI/GitLab environment variables forwarded to the AIX host, so
 # that remote commands run with the pipeline context. Don't forward the whole environment
 # to avoid passing secrets, which are only needed in the CI runner.
-# GITHUB_TOKEN is the exception: a short-lived read-only token (minted on the
-# runner by dd-octo-sts) that the host needs to authenticate its fetches to
-# github.com — see aix_remote.yml and aix_git_setup.sh.
+# GITHUB_TOKEN is a short-lived read-only token to fetch from public repos
 AIX_FORWARDED_ENV_VARS=(
     CI_PIPELINE_ID
     CI_PIPELINE_SOURCE
@@ -36,12 +34,7 @@ aix_ci_env_exports() {
     done
 }
 
-# Refresh the GitHub token when it may be stale: dd-octo-sts tokens live 1h
-# and aix_run_cmd can be called well after before_script minted it (e.g. the
-# packaging build on a cold host, where provisioning runs between the mint and
-# 00-checkout's fetches of integrations-core and saluki). If minting fails
-# (e.g. the GitLab ID token expired mid-job), keep the previous token: the
-# fetch then falls back to anonymous, which is no worse than today.
+# Refresh the GitHub token when it may be stale
 AIX_GITHUB_TOKEN_MAX_AGE=1800
 
 aix_refresh_github_token() {
@@ -77,9 +70,7 @@ aix_run_cmd() {
     # pipeline context.
     script="$(aix_ci_env_exports)
 $script"
-    # Never let git prompt for credentials on the host: there is nobody to
-    # answer, so a prompt hangs the job until the 2h timeout (as seen when
-    # GitHub started requiring auth for anonymous git-over-HTTPS fetches).
+    # Disable interactive prompts
     script="export GIT_TERMINAL_PROMPT=0
 $script"
     local encoded
@@ -91,14 +82,9 @@ $script"
     # the script file is kept on failure to help with debugging
     local script_file
     script_file="/tmp/aix_run_cmd_${CI_PIPELINE_ID}_${CI_JOB_ID}_$(date +%s).sh"
-    # Write the decoded script with mode 600: it may contain the forwarded
-    # GITHUB_TOKEN (a short-lived read-only credential), and on failure the
-    # file is intentionally kept for debugging. The subshell scopes the
-    # umask to the script file so it doesn't affect what the script itself
-    # creates.
     # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple ssh options
     ssh -tt $AIX_SSH_COMMON_OPTS $AIX_SSH_DEST \
-        "(umask 077; echo $encoded | openssl enc -base64 -d -A > '$script_file') && bash '$script_file'; rc=\$?; [ \$rc -eq 0 ] && rm -f '$script_file' || echo \"script kept at $script_file for debugging\"; exit \$rc"
+        "echo $encoded | openssl enc -base64 -d -A > '$script_file' && bash '$script_file'; rc=\$?; [ \$rc -eq 0 ] && rm -f '$script_file' || echo \"script kept at $script_file for debugging\"; exit \$rc"
 }
 
 copy_file_from_aix() {

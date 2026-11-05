@@ -35,13 +35,6 @@
     AIX_GIT_REMOTE: "https://github.com/DataDog/datadog-agent.git"
     GIT_DEPTH: 1
   before_script:
-    # Mint a short-lived read-only GitHub token so that the fetches run by the
-    # AIX host on github.com (agent, integrations-core, saluki) are
-    # authenticated: GitHub may otherwise challenge anonymous git-over-HTTPS
-    # with a 401 (Oct 2026 changelog), which used to hang the jobs for 2h at a
-    # credential prompt. The token is forwarded to the host by aix_run_cmd
-    # (AIX_FORWARDED_ENV_VARS) and consumed by the credential helper that
-    # aix_git_setup.sh installs on the host.
     - !reference [.setup_github_token_read]
     - test -n "$GITHUB_TOKEN"
     # Record the mint time so aix_run_cmd can refresh the token if a job runs
