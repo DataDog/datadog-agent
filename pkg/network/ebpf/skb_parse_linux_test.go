@@ -10,6 +10,7 @@ package ebpf
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -60,6 +61,11 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, prog)
+
+	// Older kernels can't test-run socket filters; any other error still fails below.
+	if _, err := prog.Run(&ebpf.RunOptions{Data: make([]byte, 14)}); errors.Is(err, ebpf.ErrNotSupported) {
+		t.Skipf("kernel can't test-run socket filters: %s", err)
+	}
 
 	resSize := int(seedMap.ValueSize())
 	require.Equal(t, 8+3*resSize, int(outMap.ValueSize()))
