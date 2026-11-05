@@ -2366,6 +2366,240 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				return checkOverrideResult(t, expected, got)
 			},
 		},
+		{
+			name: "P0.DR set action private=true, P1.CR same set action private=false + new action => P1.CR keeps P0 set action + new action",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							policies, _ := testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "imds_v1_usage",
+												Expression: "exec.file.path == \"/etc/default/foo\"",
+												Disabled:   true,
+												Actions: []*ActionDefinition{
+													{
+														Set: &SetDefinition{
+															Name:         "imds_v1_usage_services",
+															Field:        "process.file.path",
+															DefaultValue: "",
+															Append:       true,
+															Private:      true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "imds_v1_usage",
+												Expression: "exec.file.path == \"/etc/default/foo\"",
+												Combine:    OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+												Actions: []*ActionDefinition{
+													{
+														Set: &SetDefinition{
+															Name:         "imds_v1_usage_services",
+															Field:        "process.file.path",
+															DefaultValue: "",
+															Append:       true,
+															Private:      false,
+														},
+													},
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR2",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+							return policies, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"imds_v1_usage": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID:         "imds_v1_usage",
+								Expression: "exec.file.path == \"/etc/default/foo\"",
+								Combine:    OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Set: &SetDefinition{
+											Name:         "imds_v1_usage_services",
+											Field:        "process.file.path",
+											DefaultValue: "",
+											Append:       true,
+											Private:      true,
+										},
+									},
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR2",
+										},
+									},
+								},
+							},
+							Policy: PolicyInfo{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR set action private=true, P1.CR stale duplicate + distinct write to same variable => P1.CR keeps both distinct writes",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							policies, _ := testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "imds_v1_usage",
+												Expression: "exec.file.path == \"/etc/default/foo\"",
+												Disabled:   true,
+												Actions: []*ActionDefinition{
+													{
+														Set: &SetDefinition{
+															Name:         "imds_v1_usage_services",
+															Field:        "process.file.path",
+															DefaultValue: "",
+															Append:       true,
+															Private:      true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "imds_v1_usage",
+												Expression: "exec.file.path == \"/etc/default/foo\"",
+												Combine:    OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+												Actions: []*ActionDefinition{
+													{
+														Set: &SetDefinition{
+															Name:         "imds_v1_usage_services",
+															Field:        "process.file.path",
+															DefaultValue: "",
+															Append:       true,
+															Private:      false,
+														},
+													},
+													{
+														Set: &SetDefinition{
+															Name:         "imds_v1_usage_services",
+															Field:        "process.parent.file.path",
+															DefaultValue: "",
+															Append:       true,
+															Private:      false,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+							return policies, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"imds_v1_usage": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID:         "imds_v1_usage",
+								Expression: "exec.file.path == \"/etc/default/foo\"",
+								Combine:    OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Set: &SetDefinition{
+											Name:         "imds_v1_usage_services",
+											Field:        "process.file.path",
+											DefaultValue: "",
+											Append:       true,
+											Private:      true,
+										},
+									},
+									{
+										Set: &SetDefinition{
+											Name:         "imds_v1_usage_services",
+											Field:        "process.parent.file.path",
+											DefaultValue: "",
+											Append:       true,
+											Private:      true,
+										},
+									},
+								},
+							},
+							Policy: PolicyInfo{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
 	}
 
 	replacePolicyTestCases := []struct {
