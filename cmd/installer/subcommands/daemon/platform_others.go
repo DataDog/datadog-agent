@@ -9,14 +9,7 @@ package daemon
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
-
-// daemonEnabledOnPlatform reports whether this platform lets the daemon run with the given
-// configuration. Only macOS requires an opt-in.
-func daemonEnabledOnPlatform(model.Reader) bool {
-	return true
-}
 
 // daemonEnabledBeforeStart lets the daemon start outside macOS, where startDaemon checks
 // remote_updates once the daemon's components are built, as it always has.

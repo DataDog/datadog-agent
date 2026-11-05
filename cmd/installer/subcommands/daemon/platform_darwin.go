@@ -21,36 +21,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// macOSFleetEnabledKey opts a macOS host into running the installer daemon. Every .dmg install
-// loads the daemon's LaunchDaemon, but the daemon only does anything once this is set.
-const macOSFleetEnabledKey = "installer.macos_fleet.enabled"
-
-// daemonEnabledOnPlatform reports whether this platform lets the daemon run with the given
-// configuration. On macOS it has to be opted into (macOSFleetEnabledKey).
-func daemonEnabledOnPlatform(cfg model.Reader) bool {
-	return cfg.GetBool(macOSFleetEnabledKey)
-}
-
-// daemonEnabled reports whether the daemon should run with the given configuration. The daemon
-// cannot start without remote configuration, which is off by default on some sites, so an opted-in
-// host without it does not run the daemon either.
+// daemonEnabled reports whether the daemon should run with the given configuration: with
+// remote_updates, as on other platforms, and with remote configuration, which it cannot start
+// without and which is off by default on some sites.
 func daemonEnabled(cfg model.Reader) bool {
-	return cfg.GetBool("remote_updates") && daemonEnabledOnPlatform(cfg) && pkgconfigutils.IsRemoteConfigEnabled(cfg)
+	return cfg.GetBool("remote_updates") && pkgconfigutils.IsRemoteConfigEnabled(cfg)
 }
 
 // daemonEnabledBeforeStart loads only the configuration and reports whether the daemon should run,
-// so a host that has not opted in, or has no remote configuration, exits before any component that needs remote configuration or
-// the run directory is built. Every .dmg install loads the daemon's job, and launchd relaunches it
-// whenever it exits unsuccessfully, so a component failing to build there would loop.
+// so a host without remote_updates or remote configuration exits before any component that needs
+// remote configuration or the run directory is built. Every .dmg install loads the daemon's job,
+// and launchd relaunches it whenever it exits unsuccessfully, so a component failing to build there
+// would loop.
 func daemonEnabledBeforeStart(global *command.GlobalParams) (enabled bool, err error) {
 	err = fxutil.OneShot(func(cfg config.Component, logger logdef.Component) {
 		enabled = daemonEnabled(cfg)
 		switch {
 		case enabled:
-		case cfg.GetBool("remote_updates") && daemonEnabledOnPlatform(cfg):
+		case cfg.GetBool("remote_updates"):
 			logger.Warnf("Datadog installer is enabled but remote configuration is disabled, exiting")
 		default:
-			logger.Infof("Datadog installer is not enabled on this platform, exiting")
+			logger.Infof("Datadog installer is not enabled, exiting: it needs remote_updates")
 		}
 	},
 		fx.Supply(core.BundleParams{
