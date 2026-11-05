@@ -16,13 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// sharedFileMessagePrefix keys the status message per tailer.
-	sharedFileMessagePrefix = "sharedFile:"
-	// drainingTailerSuffix tells a tailer draining a rotated file from its replacement, which
-	// has the same ID.
-	drainingTailerSuffix = " (rotated, draining)"
-)
+// drainingTailerSuffix tells a tailer draining a rotated file from its replacement, which has the
+// same ID.
+const drainingTailerSuffix = " (rotated, draining)"
+
+// sharedFileMessageKey keys the status message per tailer instance: tailers draining files
+// rotated away from one path have the same ID.
+func sharedFileMessageKey(t *tailer.Tailer) string {
+	return fmt.Sprintf("sharedFile:%p", t)
+}
 
 // tailedFile is a tailer, named as on the status page, with the file it reads.
 type tailedFile struct {
@@ -38,18 +40,18 @@ type tailedFile struct {
 // rotated name.
 func (s *Launcher) reportSharedFiles() {
 	previous := s.sharedFileMessages
-	s.sharedFileMessages = make(map[string]*config.Messages, len(previous))
+	s.sharedFileMessages = make(map[*tailer.Tailer]*config.Messages, len(previous))
 	for _, group := range groupBySameFile(s.tailers.All(), s.rotatedTailers) {
 		if len(group) > 1 {
 			for _, member := range group {
-				s.recordSharedFile(member, group, previous[member.id] == nil)
+				s.recordSharedFile(member, group, previous[member.tailer] == nil)
 			}
 		}
 	}
 	// Clear what no longer applies, including a message whose source was replaced.
-	for id, messages := range previous {
-		if s.sharedFileMessages[id] != messages {
-			messages.RemoveMessage(sharedFileMessagePrefix + id)
+	for t, messages := range previous {
+		if s.sharedFileMessages[t] != messages {
+			messages.RemoveMessage(sharedFileMessageKey(t))
 		}
 	}
 }
@@ -70,8 +72,8 @@ func (s *Launcher) recordSharedFile(member tailedFile, group []tailedFile, isNew
 	slices.Sort(others)
 	message := fmt.Sprintf("%s reads the same file as %s, so logs from this file may be sent up to %d times. Check for overlapping log configurations, symlinks or hardlinks.",
 		member.id, strings.Join(others, ", "), len(group))
-	messages.AddMessage(sharedFileMessagePrefix+member.id, message)
-	s.sharedFileMessages[member.id] = messages
+	messages.AddMessage(sharedFileMessageKey(member.tailer), message)
+	s.sharedFileMessages[member.tailer] = messages
 	if isNew {
 		log.Warn(message)
 	}
@@ -79,8 +81,8 @@ func (s *Launcher) recordSharedFile(member tailedFile, group []tailedFile, isNew
 
 // clearSharedFiles removes every shared-file status message, when the launcher stops.
 func (s *Launcher) clearSharedFiles() {
-	for id, messages := range s.sharedFileMessages {
-		messages.RemoveMessage(sharedFileMessagePrefix + id)
+	for t, messages := range s.sharedFileMessages {
+		messages.RemoveMessage(sharedFileMessageKey(t))
 	}
 	s.sharedFileMessages = nil
 }

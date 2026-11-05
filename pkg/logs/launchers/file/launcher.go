@@ -80,7 +80,7 @@ type Launcher struct {
 	stopOnce                  sync.Once
 
 	// Status messages about files several tailers read, keyed by tailer. See reportSharedFiles.
-	sharedFileMessages map[string]*config.Messages
+	sharedFileMessages map[*tailer.Tailer]*config.Messages
 }
 
 const (

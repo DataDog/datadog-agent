@@ -2071,3 +2071,51 @@ func TestStatusReportsDrainingTailerSharingRotatedFile(t *testing.T) {
 	require.Len(t, source.Messages.GetMessages(), 1, "only the draining tailer shares a file, not the one on the new file")
 	assert.Contains(t, source.Messages.GetMessages()[0], rotatedPath)
 }
+
+// Two rotations before close_timeout leave two tailers draining files rotated away from the same
+// path, so they have the same ID. Each one shares a different file with a tailer on a rotated
+// name, and each overlap must be reported.
+func TestStatusReportsEveryDrainingTailerAfterRepeatedRotations(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	require.NoError(t, os.WriteFile(path, []byte("first\n"), 0o644))
+
+	launcher := createLauncher(t, launcherTestOptions{})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	defer launcher.cleanup()
+	go func() {
+		for range launcher.pipelineProvider.NextPipelineChan() {
+		}
+	}()
+
+	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
+	rotatedSource := sources.NewLogSource("app-rotated", &config.LogsConfig{Type: config.FileType, Path: path + ".*"})
+	launcher.activeSources = []*sources.LogSource{source, rotatedSource}
+	scan := func() {
+		launcher.resolveScan(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	}
+	// rotate moves app.log.1 to app.log.2 and app.log to app.log.1, then recreates app.log.
+	rotate := func(content string) {
+		if _, err := os.Stat(path + ".1"); err == nil {
+			require.NoError(t, os.Rename(path+".1", path+".2"))
+		}
+		require.NoError(t, os.Rename(path, path+".1"))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	}
+
+	scan()
+	rotate("second\n")
+	scan()
+	rotate("third\n")
+	scan()
+
+	draining := 0
+	for _, rotated := range launcher.rotatedTailers {
+		if rotated.GetID() == path {
+			draining++
+		}
+	}
+	require.Equal(t, 2, draining, "both files rotated away from app.log should still be draining")
+	assert.Len(t, source.Messages.GetMessages(), 2, "each draining tailer shares its file with a tailer on a rotated name")
+}
