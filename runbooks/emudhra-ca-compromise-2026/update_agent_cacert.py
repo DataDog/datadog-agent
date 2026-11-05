@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Replace Datadog Agent CA bundles with the latest Mozilla extract, then
-strip roots that still anchor the compromised eMudhra intermediates.
+"""Remove the roots that anchor the compromised eMudhra intermediates from the
+CA bundles shipped with Datadog Agent 7.
 
-The curl.se extract dated 2026-11-05 still ships emSign Root CA - G1.
-Dropping that file in unchanged does not remove the cross-sign path.
+By default only those roots are removed and everything else in each bundle,
+including certificates added on the host, is kept. --latest instead replaces
+each bundle with the current Mozilla extract from curl.se, minus the same roots.
 
-Dry run writes nothing. Rollback restores the newest backup this script made.
+Only bundles the Agent ships are written. Dry run writes nothing. Rollback
+restores the newest backup this script made.
 """
 
 import argparse
 import base64
+import glob
 import hashlib
 import os
 import re
@@ -36,6 +39,19 @@ REQUIRED = {
     "CB3CCBB76031E5E0138F8DD39A23F9DE47FFC35E43C1144CEA27D46A5AB1CB5F": "DigiCert Global Root G2",
 }
 
+# Relative to the install directory: Linux layout, then Windows.
+SHIPPED = (
+    "embedded/ssl/certs/cacert.pem",
+    "embedded/ssl/cert.pem",
+    "embedded/lib/python3*/site-packages/certifi/cacert.pem",
+    "embedded/lib/python3*/site-packages/pip/_vendor/certifi/cacert.pem",
+    "embedded/lib/python3*/site-packages/botocore/cacert.pem",
+    "embedded3/ssl/certs/cacert.pem",
+    "embedded3/ssl/cert.pem",
+    "embedded3/Lib/site-packages/certifi/cacert.pem",
+    "embedded3/Lib/site-packages/pip/_vendor/certifi/cacert.pem",
+    "embedded3/Lib/site-packages/botocore/cacert.pem",
+)
 BUNDLE_NAMES = ("cacert.pem", "cert.pem", "ca-certificates.crt", "cacerts.txt")
 BLOCK = re.compile(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.S)
 MIN_PARSED = 10
@@ -79,60 +95,75 @@ def _get(url):
         return resp.read()
 
 
-def clean_bundle(text):
-    """Return PEM text with distrusted roots removed. Refuse a bundle that
-    does not still contain both Datadog anchors."""
-    matches = list(BLOCK.finditer(text))
-    if len(matches) < MIN_PARSED:
-        die(f"source bundle has only {len(matches)} certificates")
-    removed = []
-    cut = []
-    kept = set()
-    for m in matches:
+def fingerprints(text):
+    return {fp for fp in map(fingerprint, BLOCK.findall(text)) if fp}
+
+
+def labels(text):
+    """Map fingerprint to the comment line just above each certificate."""
+    out, prev = {}, 0
+    for m in BLOCK.finditer(text):
+        lines = [s.strip().lstrip("#").strip() for s in text[prev : m.start()].splitlines()]
+        lines = [s for s in lines if s and set(s) != {"="} and not s.startswith(("MD5", "SHA1", "SHA256"))]
+        label = lines[-1] if lines else "(no label)"
+        if label.startswith("Label:"):
+            label = label[len("Label:") :].strip().strip('"')
+        out[fingerprint(m.group(0))] = label
+        prev = m.end()
+    return out
+
+
+def strip_distrusted(text):
+    removed, out, prev = [], [], 0
+    for m in BLOCK.finditer(text):
         fp = fingerprint(m.group(0))
-        if fp in DISTRUST:
-            removed.append(DISTRUST[fp])
-            cut.append(m.span())
-        elif fp:
-            kept.add(fp)
-    out, prev = [], 0
-    for start, end in cut:
-        out.append(text[prev:start])
-        prev = end
+        if fp not in DISTRUST:
+            continue
+        removed.append(DISTRUST[fp])
+        out.append(text[prev : m.start()])
+        prev = m.end()
         while prev < len(text) and text[prev] == "\n":
             prev += 1
     out.append(text[prev:])
     cleaned = "".join(out)
     if cleaned and not cleaned.endswith("\n"):
         cleaned += "\n"
-    fps = set()
-    for block in BLOCK.findall(cleaned):
-        fp = fingerprint(block)
-        if fp:
-            fps.add(fp)
+    return cleaned, removed
+
+
+def load_error(text):
+    # Only the PEM blocks: cadata must be ASCII, and Mozilla's comments are not.
+    try:
+        ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_verify_locations(cadata="\n".join(BLOCK.findall(text)))
+    except (ssl.SSLError, ValueError) as exc:
+        return str(exc)
+    return None
+
+
+def clean_source(text):
+    """Strip the Mozilla extract used by --latest and refuse a result that
+    lost a Datadog anchor or that OpenSSL cannot load."""
+    before = len(BLOCK.findall(text))
+    if before < MIN_PARSED:
+        die(f"source bundle has only {before} certificates")
+    cleaned, removed = strip_distrusted(text)
+    fps = fingerprints(cleaned)
     if fps & set(DISTRUST):
         die("a distrusted root survived the clean step")
     missing = [name for fp, name in REQUIRED.items() if fp not in fps]
     if missing:
         die("cleaned bundle is missing {}".format(", ".join(missing)))
-    # Only the PEM blocks: cadata must be ASCII, and Mozilla's comments are not.
-    try:
-        ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_verify_locations(cadata="\n".join(BLOCK.findall(cleaned)))
-    except (ssl.SSLError, ValueError) as exc:
-        die(f"cleaned bundle does not load in OpenSSL ({exc}); nothing written")
-    return cleaned, removed, len(matches), len(fps)
+    problem = load_error(cleaned)
+    if problem:
+        die(f"cleaned bundle does not load in OpenSSL ({problem}); nothing written")
+    return cleaned, removed, before, len(fps)
 
 
-def iter_bundles(root):
-    real_root = os.path.realpath(root)
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        # Never walk out of the install via a directory symlink.
-        dirnames[:] = [d for d in dirnames if not os.path.islink(os.path.join(dirpath, d))]
-        for name in sorted(filenames):
-            if name not in BUNDLE_NAMES:
-                continue
-            path = os.path.join(dirpath, name)
-            yield path, real_root
+def shipped_bundles(root):
+    paths = set()
+    for pattern in SHIPPED:
+        paths.update(glob.glob(os.path.join(root, *pattern.split("/"))))
+    return sorted(paths)
 
 
 def readable_bundle(path, real_root):
@@ -151,6 +182,20 @@ def readable_bundle(path, real_root):
     return text, None
 
 
+def report_others(root, shipped):
+    real_root = os.path.realpath(root)
+    shipped = {os.path.normcase(os.path.abspath(p)) for p in shipped}
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [d for d in dirnames if not os.path.islink(os.path.join(dirpath, d))]
+        for name in sorted(filenames):
+            path = os.path.join(dirpath, name)
+            if name not in BUNDLE_NAMES or os.path.normcase(os.path.abspath(path)) in shipped:
+                continue
+            text, _ = readable_bundle(path, real_root)
+            if text is not None:
+                print(f"  not touched (not shipped with the Agent) {path}")
+
+
 def copy_owner(path, st):
     # Windows has no os.chown; files there inherit the directory ACL.
     if not hasattr(os, "chown"):
@@ -161,56 +206,75 @@ def copy_owner(path, st):
         pass
 
 
-def apply_bundles(root, cleaned, dry_run):
+def write_bundle(path, new, stamp):
+    backup = f"{path}{BACKUP_MARK}{stamp}"
+    if os.path.exists(backup):
+        backup = f"{backup}-{os.getpid()}"
+    tmp = None
+    try:
+        st = os.stat(path)
+        shutil.copy2(path, backup)
+        copy_owner(backup, st)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".cacert-", suffix=".tmp")
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(new.encode("latin-1"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        shutil.copymode(path, tmp)
+        copy_owner(tmp, st)
+        os.replace(tmp, path)
+    except OSError as exc:
+        for leftover in (tmp, backup):
+            if leftover and os.path.exists(leftover):
+                try:
+                    os.unlink(leftover)
+                except OSError:
+                    pass
+        die(f"could not rewrite {path} ({exc}); left untouched")
+    return backup
+
+
+def apply_bundles(root, latest, dry_run):
+    """Scrub each shipped bundle, or replace it with latest when given."""
     stamp = time.strftime("%Y%m%d%H%M%S")
+    real_root = os.path.realpath(root)
     changed = skipped = 0
-    seen = False
-    for path, real_root in iter_bundles(root):
-        seen = True
+    paths = shipped_bundles(root)
+    if not paths:
+        die(f"no Agent CA bundles found under {root}")
+    latest_fps = fingerprints(latest) if latest is not None else None
+    for path in paths:
         text, reason = readable_bundle(path, real_root)
         if reason:
             skipped += 1
             print(f"  SKIPPED {path}\n    {reason}")
             continue
-        if text == cleaned:
+        if latest is None:
+            new, removed = strip_distrusted(text)
+        else:
+            new = latest
+        if new == text:
             print(f"  unchanged {path}")
             continue
-        old_n = len(BLOCK.findall(text))
-        new_n = len(BLOCK.findall(cleaned))
-        if dry_run:
-            changed += 1
-            print(f"  would replace {path} ({old_n} -> {new_n} certs)")
+        problem = load_error(new)
+        if problem:
+            skipped += 1
+            print(f"  SKIPPED {path}\n    result would not load in OpenSSL ({problem})")
             continue
-        backup = f"{path}{BACKUP_MARK}{stamp}"
-        if os.path.exists(backup):
-            backup = f"{backup}-{os.getpid()}"
-        tmp = None
-        try:
-            st = os.stat(path)
-            shutil.copy2(path, backup)
-            copy_owner(backup, st)
-            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".cacert-", suffix=".tmp")
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(cleaned.encode("latin-1"))
-                handle.flush()
-                os.fsync(handle.fileno())
-            shutil.copymode(path, tmp)
-            copy_owner(tmp, st)
-            os.replace(tmp, path)
-            tmp = None
-        except OSError as exc:
-            for leftover in (tmp, backup):
-                if leftover and os.path.exists(leftover):
-                    try:
-                        os.unlink(leftover)
-                    except OSError:
-                        pass
-            die(f"could not rewrite {path} ({exc}); left untouched")
+        old_n, new_n = len(BLOCK.findall(text)), len(BLOCK.findall(new))
+        verb = "would replace" if dry_run else "replaced"
+        print(f"  {verb} {path} ({old_n} -> {new_n} certs)")
+        if latest is None:
+            print("    removes: {}".format(", ".join(dict.fromkeys(removed))))
+        else:
+            names = labels(text)
+            for fp in sorted(fingerprints(text) - latest_fps):
+                kind = "distrusted" if fp in DISTRUST else "not in the extract"
+                print(f"    drops ({kind}): {names.get(fp, '(no label)')} {fp[:16]}")
+        if not dry_run:
+            print(f"    backup: {write_bundle(path, new, stamp)}")
         changed += 1
-        print(f"  replaced {path} ({old_n} -> {new_n} certs)")
-        print(f"    backup: {backup}")
-    if not seen:
-        die(f"no CA bundles found under {root}")
+    report_others(root, paths)
     return changed, skipped
 
 
@@ -259,34 +323,39 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     default_dir = r"C:\Program Files\Datadog\Datadog Agent" if os.name == "nt" else "/opt/datadog-agent"
     parser.add_argument("-p", "--install-dir", default=default_dir)
-    parser.add_argument("-c", "--bundle", help="local cacert PEM instead of downloading")
+    parser.add_argument("-l", "--latest", action="store_true", help="replace with the Mozilla extract")
+    parser.add_argument("-c", "--bundle", help="with --latest: local cacert PEM instead of downloading")
     parser.add_argument("-n", "--dry-run", action="store_true")
     parser.add_argument("-r", "--rollback", action="store_true")
     args = parser.parse_args()
     root = args.install_dir
     if not os.path.isdir(root):
         die(f"install dir {root} does not exist")
-    if args.rollback and args.bundle:
-        die("--rollback does not take --bundle")
+    if args.rollback and (args.bundle or args.latest):
+        die("--rollback does not take --latest or --bundle")
+    if args.bundle and not args.latest:
+        die("--bundle needs --latest")
     if args.rollback:
         n = rollback(root, args.dry_run)
         verb = "would be restored" if args.dry_run else "restored"
         print(f"{n} bundle(s) {verb}.")
         return
-    if args.bundle:
-        try:
-            raw = open(args.bundle, "rb").read().decode("latin-1")
-        except OSError as exc:
-            die(f"cannot read {args.bundle} ({exc})")
-        source = args.bundle
-    else:
-        raw, source = fetch_latest()
-    cleaned, removed, before, after = clean_bundle(raw)
-    dropped = ", ".join(removed) if removed else "nothing"
-    print(f"Source {source}: {before} certs, removed {dropped}, {after} remain")
+    latest = None
+    if args.latest:
+        if args.bundle:
+            try:
+                raw = open(args.bundle, "rb").read().decode("latin-1")
+            except OSError as exc:
+                die(f"cannot read {args.bundle} ({exc})")
+            source = args.bundle
+        else:
+            raw, source = fetch_latest()
+        latest, removed, before, after = clean_source(raw)
+        dropped = ", ".join(removed) if removed else "nothing"
+        print(f"Source {source}: {before} certs, removed {dropped}, {after} remain")
     if args.dry_run:
         print("Dry run: no bundle will be written.")
-    changed, skipped = apply_bundles(root, cleaned, args.dry_run)
+    changed, skipped = apply_bundles(root, latest, args.dry_run)
     verb = "would be replaced" if args.dry_run else "replaced"
     print(f"{changed} bundle(s) {verb}, {skipped} skipped.")
 

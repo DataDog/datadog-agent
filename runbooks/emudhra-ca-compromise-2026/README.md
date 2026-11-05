@@ -1,28 +1,37 @@
-# Agent 7 — update the embedded CA bundle (eMudhra, 2026)
+# Agent 7 — remove the compromised eMudhra roots from the embedded CA bundles (2026)
 
-Replaces every trust bundle shipped inside a Datadog Agent 7 install with the
-current Mozilla extract from curl.se, then deletes roots that still anchor the
-compromised eMudhra intermediates. Dry run and rollback are built in.
+Removes the roots that still anchor the compromised eMudhra intermediates from
+the CA bundles shipped inside a Datadog Agent 7 install. Everything else in
+each bundle is kept, including certificates added on the host, such as a
+corporate proxy CA. With `--latest`, each bundle is instead replaced by the
+current Mozilla extract from curl.se, minus the same roots. Dry run and
+rollback are built in.
 
 This is not a substitute for upgrading to 7.84.6 or later. That release also
 rejects the compromised intermediate keys inside embedded Python, and on
-Windows it stops trusting them through the Windows certificate store. Replacing
+Windows it stops trusting them through the Windows certificate store. Editing
 PEM files does not add those checks. The Go Agent on Linux reads the operating
 system trust store unless `SSL_CERT_FILE` is set. The Go Agent on Windows reads
 the Windows certificate store.
 
 ## What gets written
 
-Under the install directory (default `/opt/datadog-agent`, or
-`C:\Program Files\Datadog\Datadog Agent` on Windows), regular files named
-`cacert.pem`, `cert.pem`, `ca-certificates.crt`, or `cacerts.txt` that contain
-at least 10 certificates. Symlinks are left alone.
+Only the bundles the Agent ships, relative to the install directory (default
+`/opt/datadog-agent`, or `C:\Program Files\Datadog\Datadog Agent` on Windows):
 
-The source is the newest `cacert-YYYY-MM-DD.pem` linked from
-https://curl.se/docs/caextract.html, checked against the published `.sha256`.
-As of 2026-11-05 that extract still contains **emSign Root CA - G1**. The
-script removes it, plus these if a future extract or an old on-disk bundle
-still has them:
+| Linux | Windows |
+|---|---|
+| `embedded/ssl/certs/cacert.pem` | `embedded3\ssl\certs\cacert.pem` |
+| `embedded/ssl/cert.pem` (a symlink, left alone) | `embedded3\ssl\cert.pem` |
+| `embedded/lib/python3.*/site-packages/certifi/cacert.pem` | `embedded3\Lib\site-packages\certifi\cacert.pem` |
+| the same under `pip/_vendor/certifi/` | the same under `pip\_vendor\certifi\` |
+| the same under `botocore/` | the same under `botocore\` |
+
+Other bundles under the install directory, such as those of integrations or
+packages installed later, are listed as `not touched` and never written.
+Files with fewer than 10 certificates and symlinks are skipped.
+
+These roots are removed:
 
 - AAA Certificate Services
 - emSign Root CA - G1
@@ -30,10 +39,18 @@ still has them:
 - emSign Root CA - C1
 - emSign ECC Root CA - C3
 
-It refuses to install a result that is missing USERTrust RSA Certification
-Authority or DigiCert Global Root G2, or that OpenSSL cannot load.
+AAA has to go because the six compromised intermediates are cross-signed by it.
 
-Each replaced file is copied to `<file>.pre-cert-update-<YYYYmmddHHMMSS>`
+`--latest` uses the newest `cacert-YYYY-MM-DD.pem` linked from
+https://curl.se/docs/caextract.html, checked against the published `.sha256`.
+As of 2026-11-05 that extract still contains emSign Root CA - G1, so it is
+removed there too. The script refuses an extract whose result is missing
+USERTrust RSA Certification Authority or DigiCert Global Root G2, or that
+OpenSSL cannot load. A replaced bundle loses every certificate that is not in
+the extract; the dry run lists each one as `drops (not in the extract)`, so
+check that list for CAs you added yourself.
+
+Each written file is copied to `<file>.pre-cert-update-<YYYYmmddHHMMSS>`
 beside it. On Linux, mode and owner are kept. On Windows the new file inherits
 the directory ACL like the original did, but its owner becomes the
 Administrators group instead of SYSTEM.
@@ -41,20 +58,21 @@ Administrators group instead of SYSTEM.
 ## Usage
 
 Download the script and run it with the Agent's own Python, as root on Linux.
-The script needs nothing beyond the standard library. On hosts without access
-to GitHub or curl.se, download the script and a `cacert.pem` elsewhere, copy
-them over, and pass the PEM with `-c`.
+The script needs nothing beyond the standard library, and the default mode
+needs no network access. On hosts without access to GitHub, download it
+elsewhere and copy it over.
 
 ```sh
 curl -O https://raw.githubusercontent.com/DataDog/datadog-agent/main/runbooks/emudhra-ca-compromise-2026/update_agent_cacert.py
 PY=/opt/datadog-agent/embedded/bin/python3
 sudo "$PY" update_agent_cacert.py -n       # dry run
-sudo "$PY" update_agent_cacert.py          # download, replace
+sudo "$PY" update_agent_cacert.py          # remove the distrusted roots
 sudo "$PY" update_agent_cacert.py -r       # restore the newest backup of each file
 ```
 
-`-c <file>` uses a PEM you already have instead of downloading. `-p <dir>` is
-the install directory. `-n` with `-r` previews the rollback.
+`--latest` (`-l`) replaces with the Mozilla extract instead; add `-c <file>` to
+use a PEM you already have instead of downloading. `-p <dir>` is the install
+directory. `-n` with `-r` previews the rollback.
 
 On Windows, from an elevated PowerShell:
 
@@ -100,13 +118,21 @@ context.
 
 ## Tests
 
-`tests/test_update.sh` runs the script against a fake install built from a
-Mozilla extract at `/tmp/cacert-latest.pem` (override with `CACERT_SRC`). It
-covers refusing a source OpenSSL cannot load, dry run, apply, mode
-preservation, skipped symlinks and small files, a no-op second apply, and
-rollback.
+`tests/test_update.sh` runs the script against fake Linux and Windows installs
+built from a Mozilla extract at `/tmp/cacert-latest.pem` (override with
+`CACERT_SRC`) plus the fixtures in `tests/fixtures/`: the real emSign Root CA -
+G1 and a self-signed stand-in for a CA added on the host. It covers the
+refusals (no Agent bundles, `-c` without `--latest`, a source OpenSSL cannot
+load), scrub keeping the added CA, a bundle outside the shipped list left
+alone, mode and symlink preservation, a no-op second run, `--latest` listing
+what it drops, and rollback after both modes.
 
 ## Checked on Agent 7.84.5
+
+These runs replaced each bundle with the Mozilla extract, which is what
+`--latest` does now. The default mode removes the same roots, including AAA
+from botocore's bundle, which is the only root the test chain anchors to there;
+it is covered by `tests/test_update.sh` but was not rerun on these hosts.
 
 ### Linux
 

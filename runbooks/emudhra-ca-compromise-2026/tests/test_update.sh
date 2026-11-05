@@ -1,9 +1,10 @@
 #!/bin/bash
-# Hermetic checks against a fake Agent install, built from a real Mozilla
-# extract (CACERT_SRC, default /tmp/cacert-latest.pem).
+# Hermetic checks against fake Agent installs, built from a real Mozilla
+# extract (CACERT_SRC, default /tmp/cacert-latest.pem) plus the fixtures.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+FIX=$ROOT/tests/fixtures
 PY=${PYTHON:-python3}
 SRC=${CACERT_SRC:-/tmp/cacert-latest.pem}
 WORK=$(mktemp -d)
@@ -14,89 +15,95 @@ if [ ! -f "$SRC" ]; then
   exit 1
 fi
 
-install=$WORK/opt/datadog-agent
-mkdir -p "$install/embedded/ssl/certs" \
-  "$install/embedded/lib/python3.12/site-packages/certifi" \
-  "$install/embedded/lib/python3.12/site-packages/pip/_vendor/certifi" \
-  "$install/embedded/ssl/certs/not-a-store"
+run() { "$PY" "$ROOT/update_agent_cacert.py" "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
 
-# The trailing line makes every installed bundle differ from the cleaned
-# result, even when the source has no distrusted roots left.
+# Every installed bundle carries a distrusted root and a CA added on the host,
+# whatever the source extract contains.
 ORIG=$WORK/orig.pem
-{ cat "$SRC"; echo "# stale"; } > "$ORIG"
-cp "$ORIG" "$install/embedded/ssl/certs/cacert.pem"
-cp "$ORIG" "$install/embedded/ssl/cert.pem"
-cp "$ORIG" "$install/embedded/lib/python3.12/site-packages/certifi/cacert.pem"
-cp "$ORIG" "$install/embedded/lib/python3.12/site-packages/pip/_vendor/certifi/cacert.pem"
+cat "$SRC" "$FIX/emsign-root-ca-g1.crt" "$FIX/custom-ca.crt" > "$ORIG"
+
+install=$WORK/opt/datadog-agent
+site=$install/embedded/lib/python3.12/site-packages
+mkdir -p "$install/embedded/ssl/certs" "$site/certifi" "$site/pip/_vendor/certifi" "$site/botocore" "$site/vendorlib"
+SHIPPED=(
+  "$install/embedded/ssl/certs/cacert.pem"
+  "$site/certifi/cacert.pem"
+  "$site/pip/_vendor/certifi/cacert.pem"
+  "$site/botocore/cacert.pem"
+)
+for f in "${SHIPPED[@]}"; do cp "$ORIG" "$f"; done
 chmod 0640 "$install/embedded/ssl/certs/cacert.pem"
+ln -s certs/cacert.pem "$install/embedded/ssl/cert.pem"
+# A bundle from a package the Agent does not ship must never be written.
+cp "$ORIG" "$site/vendorlib/cacert.pem"
 
-# A file with too few certificates is not a trust store and must be left alone.
-head -n 30 "$SRC" > "$install/embedded/ssl/certs/not-a-store/cacert.pem"
-tiny_before=$(cksum "$install/embedded/ssl/certs/not-a-store/cacert.pem")
-
-# A symlink must not be rewritten, and its target must not change.
-echo "outside" > "$WORK/outside.pem"
-ln -s "$WORK/outside.pem" "$install/embedded/ssl/certs/linked-cacert.pem"
-# The walker keys on the filename, so the symlink has to be one of the bundle names.
-rm "$install/embedded/ssl/certs/linked-cacert.pem"
-ln -s "$WORK/outside.pem" "$install/embedded/lib/python3.12/site-packages/certifi/ca-certificates.crt"
-
-# The expected result is derived from the source, so any Mozilla extract works.
-check_cleaned() {
-  "$PY" - "$ROOT" "$SRC" "$1" <<'PY'
+check() {
+  "$PY" - "$ROOT" "$SRC" "$ORIG" "$FIX/custom-ca.crt" "$@" <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
 import update_agent_cacert as u
 
-def fps(path):
-    text = open(path, encoding="latin-1").read()
-    return [u.fingerprint(b) for b in u.BLOCK.findall(text)]
-
-want = {fp for fp in fps(sys.argv[2]) if fp not in u.DISTRUST}
-got = fps(sys.argv[3])
-assert not set(got) & set(u.DISTRUST), "distrusted root still present"
-assert set(u.REQUIRED) <= set(got), "anchor missing"
-assert set(got) == want and len(got) == len(want), (len(got), len(want))
+src, orig, custom, mode, path = sys.argv[2:7]
+read = lambda p: open(p, encoding="latin-1").read()
+got = read(path)
+if mode == "scrubbed":
+    assert u.fingerprints(got) == u.fingerprints(read(orig)) - set(u.DISTRUST), path
+    assert u.fingerprints(read(custom)) <= u.fingerprints(got), "custom CA lost"
+elif mode == "latest":
+    assert got == u.clean_source(read(src))[0], path
 PY
 }
 
-echo "=== a source OpenSSL cannot load is refused ==="
+echo "=== refusals ==="
+mkdir "$WORK/empty"
+if run -n -p "$WORK/empty"; then fail "empty install accepted"; fi
+if run -n -c "$SRC" -p "$install"; then fail "--bundle accepted without --latest"; fi
 BAD=$WORK/bad.pem
 { cat "$SRC"; echo "-----BEGIN CERTIFICATE-----"; printf 'not a certificate' | base64; echo "-----END CERTIFICATE-----"; } > "$BAD"
-if "$PY" "$ROOT/update_agent_cacert.py" -c "$BAD" -p "$install"; then
-  echo "corrupt source was accepted" >&2
-  exit 1
-fi
-cmp -s "$ORIG" "$install/embedded/ssl/certs/cacert.pem"
-if ls "$install/embedded/ssl/certs"/cacert.pem.pre-cert-update-* 2>/dev/null; then
-  echo "backup written for a refused source" >&2
-  exit 1
-fi
+if run --latest -c "$BAD" -p "$install"; then fail "corrupt source accepted"; fi
+for f in "${SHIPPED[@]}"; do cmp -s "$ORIG" "$f" || fail "$f changed by a refused run"; done
+if ls "$install/embedded/ssl/certs"/cacert.pem.pre-cert-update-* 2>/dev/null; then fail "backup written by a refused run"; fi
 
-echo "=== dry run ==="
-out=$("$PY" "$ROOT/update_agent_cacert.py" -n -c "$SRC" -p "$install")
+echo "=== scrub dry run ==="
+out=$(run -n -p "$install")
 echo "$out"
-echo "$out" | grep -q "4 bundle(s) would be replaced"
-cmp -s "$ORIG" "$install/embedded/ssl/certs/cacert.pem"
+echo "$out" | grep -q "4 bundle(s) would be replaced, 1 skipped"
+echo "$out" | grep -q "not touched (not shipped with the Agent) $site/vendorlib/cacert.pem"
+for f in "${SHIPPED[@]}"; do cmp -s "$ORIG" "$f"; done
 
-echo "=== apply ==="
-"$PY" "$ROOT/update_agent_cacert.py" -c "$SRC" -p "$install"
+echo "=== scrub ==="
+run -p "$install"
+for f in "${SHIPPED[@]}"; do check scrubbed "$f"; done
 mode=$("$PY" -c 'import os,sys;print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$install/embedded/ssl/certs/cacert.pem")
-[ "$mode" = "640" ]
-check_cleaned "$install/embedded/ssl/certs/cacert.pem"
-[ "$(cksum "$install/embedded/ssl/certs/not-a-store/cacert.pem")" = "$tiny_before" ]
-[ "$(cat "$WORK/outside.pem")" = "outside" ]
-ls "$install/embedded/ssl/certs"/cacert.pem.pre-cert-update-* >/dev/null
-ls "$install/embedded/ssl"/cert.pem.pre-cert-update-* >/dev/null
+[ "$mode" = "640" ] || fail "mode $mode"
+[ -L "$install/embedded/ssl/cert.pem" ] || fail "symlink replaced"
+cmp -s "$ORIG" "$site/vendorlib/cacert.pem" || fail "vendor bundle written"
+run -p "$install" | grep -q "0 bundle(s) replaced"
 
-echo "=== second apply is a no-op ==="
-out=$("$PY" "$ROOT/update_agent_cacert.py" -c "$SRC" -p "$install")
-echo "$out" | grep -q "0 bundle(s) replaced"
+echo "=== rollback ==="
+run -n -r -p "$install" | grep -q "4 bundle(s) would be restored"
+run -r -p "$install"
+for f in "${SHIPPED[@]}"; do cmp -s "$ORIG" "$f" || fail "$f not restored"; done
 
-echo "=== rollback dry run then rollback ==="
-"$PY" "$ROOT/update_agent_cacert.py" -n -r -p "$install" | grep -q "would be restored"
-"$PY" "$ROOT/update_agent_cacert.py" -r -p "$install"
-cmp -s "$ORIG" "$install/embedded/ssl/certs/cacert.pem"
-cmp -s "$ORIG" "$install/embedded/ssl/cert.pem"
+echo "=== --latest ==="
+out=$(run --latest -n -c "$SRC" -p "$install")
+echo "$out"
+echo "$out" | grep -q "drops (not in the extract): Example Corp Proxy CA (test fixture)"
+echo "$out" | grep -q "drops (distrusted): emSign Root CA - G1"
+run --latest -c "$SRC" -p "$install"
+for f in "${SHIPPED[@]}"; do check latest "$f"; done
+cmp -s "$ORIG" "$site/vendorlib/cacert.pem" || fail "vendor bundle written"
+run -r -p "$install"
+for f in "${SHIPPED[@]}"; do cmp -s "$ORIG" "$f" || fail "$f not restored after --latest"; done
+
+echo "=== Windows layout ==="
+win=$WORK/win
+mkdir -p "$win/embedded3/ssl/certs" "$win/embedded3/Lib/site-packages/certifi"
+cp "$ORIG" "$win/embedded3/ssl/cert.pem"
+cp "$ORIG" "$win/embedded3/ssl/certs/cacert.pem"
+cp "$ORIG" "$win/embedded3/Lib/site-packages/certifi/cacert.pem"
+run -p "$win" | grep -q "3 bundle(s) replaced, 0 skipped"
+check scrubbed "$win/embedded3/ssl/cert.pem"
 
 echo "ok"
