@@ -112,7 +112,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 			for _, action := range rd2.Def.Actions {
 				duplicated := false
 				for _, a := range rd1.Def.Actions {
-					if reflect.DeepEqual(action, a) {
+					if reflect.DeepEqual(action, a) || (action != nil && a != nil && action.Set != nil && a.Set != nil && action.Set.Name == a.Set.Name && action.Set.Scope == a.Set.Scope) {
 						duplicated = true
 						break
 					}
