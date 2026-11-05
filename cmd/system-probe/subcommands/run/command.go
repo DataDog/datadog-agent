@@ -118,7 +118,13 @@ type cliParams struct {
 	pidfilePath string
 }
 
-const configSyncTimeout = 10 * time.Second
+const (
+	// configSyncTimeout is the timeout of each config sync request to the core agent
+	configSyncTimeout = 3 * time.Second
+	// configSyncOnInitTimeout is how long config sync retries at startup before failing,
+	// leaving time for the core agent to start its IPC server
+	configSyncOnInitTimeout = 30 * time.Second
+)
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -242,6 +248,7 @@ func getSharedFxOption(coreAgentIPC bool) fx.Option {
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncOnInitTimeout)),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
