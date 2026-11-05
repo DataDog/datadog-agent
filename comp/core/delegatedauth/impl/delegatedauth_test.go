@@ -1169,7 +1169,8 @@ func TestMergeIntoAdditionalEndpointsMatchesByIndexOnValueCollision(t *testing.T
 		lastWrittenValue: "shared-key",
 	}
 
-	comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
+	require.NoError(t, comp.validateAdditionalEndpointTarget(instance))
+	require.NoError(t, comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false))
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	require.Len(t, got["https://collision-org.datadoghq.com"], 2)
@@ -1197,7 +1198,8 @@ func TestMergeIntoAdditionalEndpointsFallsBackToValueScanWhenIndexStale(t *testi
 		lastWrittenValue: "DELA[reordered-org-uuid, aws]",
 	}
 
-	comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
+	require.NoError(t, comp.validateAdditionalEndpointTarget(instance))
+	require.NoError(t, comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false))
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.ElementsMatch(t, []string{"some-static-key", "resolved-key"}, got["https://reordered-org.datadoghq.com"])
@@ -1222,7 +1224,8 @@ func TestMergeIntoAdditionalEndpointsLeavesDomainUnchangedWhenNoMatch(t *testing
 		lastWrittenValue: "DELA[no-match-org-uuid, aws]", // never present in the list
 	}
 
-	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key", false)
+	require.ErrorIs(t, comp.validateAdditionalEndpointTarget(instance), errWritebackTargetChanged)
+	require.ErrorIs(t, comp.mergeIntoAdditionalEndpoints(instance, "fetched-key", false), errWritebackTargetChanged)
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, []string{"some-static-key"}, got["https://no-match-org.datadoghq.com"])
@@ -1267,7 +1270,8 @@ func TestMergeIntoAdditionalEndpointsListHandlesJSONString(t *testing.T) {
 		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 
-	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
+	require.NoError(t, comp.validateAdditionalEndpointTarget(instance))
+	require.NoError(t, comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false))
 
 	got, ok := common.NormalizeListShapeEntries(mockConfig.Get("logs_config.additional_endpoints"))
 	require.True(t, ok)
@@ -1359,7 +1363,8 @@ func TestMergeIntoAdditionalEndpointsListLeavesListUnchangedWhenNoMatch(t *testi
 		lastWrittenValue: "DELA[logs-org-uuid, aws]", // never present in the list
 	}
 
-	comp.mergeIntoAdditionalEndpointsList(instance, "fetched-key", false)
+	require.ErrorIs(t, comp.validateAdditionalEndpointTarget(instance), errWritebackTargetChanged)
+	require.ErrorIs(t, comp.mergeIntoAdditionalEndpointsList(instance, "fetched-key", false), errWritebackTargetChanged)
 
 	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
 	require.True(t, ok)
@@ -1390,7 +1395,8 @@ func TestMergeIntoAdditionalEndpointsListMatchesByIndexOnValueCollision(t *testi
 		lastWrittenValue: "shared-key",
 	}
 
-	comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+	require.NoError(t, comp.validateAdditionalEndpointTarget(instance))
+	require.NoError(t, comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false))
 
 	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
 	require.True(t, ok)
@@ -1418,12 +1424,46 @@ func TestMergeIntoAdditionalEndpointsListFallsBackToValueScanWhenIndexStale(t *t
 		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 
-	comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+	require.NoError(t, comp.validateAdditionalEndpointTarget(instance))
+	require.NoError(t, comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false))
 
 	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
 	require.True(t, ok)
 	require.Len(t, got, 1)
 	assert.Equal(t, "resolved-key", got[0].(map[string]any)["api_key"])
+}
+
+func TestEndpointLookupSkipsNonMapListEntries(t *testing.T) {
+	for _, index := range []int{-1, 0, 3} {
+		t.Run(fmt.Sprintf("index_%d", index), func(t *testing.T) {
+			const configKey = "logs_config.additional_endpoints"
+			const directive = "DELA[logs-org-uuid, aws]"
+			entry := map[string]any{"API_KEY": directive, "host": "logs.datadoghq.com"}
+			identity, ok := common.ListEntryIdentity(entry)
+			require.True(t, ok)
+			mockConfig := mock.New(t)
+			mockConfig.SetInTest(configKey, []any{nil, "unrelated", entry})
+			comp := &delegatedAuthComponent{config: mockConfig}
+			instance := &authInstance{
+				endpointRegistration: endpointRegistration{
+					additionalEndpointsListConfigKey: configKey,
+					listEntryIndex:                   index,
+					additionalEndpointIdentity:       identity,
+					originalDirective:                directive,
+				},
+				lastWrittenValue: "previous-key",
+			}
+
+			require.NoError(t, comp.validateAdditionalEndpointTarget(instance))
+			require.NoError(t, comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false))
+			entries, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
+			require.True(t, ok)
+			require.Len(t, entries, 3)
+			assert.Nil(t, entries[0])
+			assert.Equal(t, "unrelated", entries[1])
+			assert.Equal(t, map[string]any{"API_KEY": "resolved-key", "host": "logs.datadoghq.com"}, entries[2])
+		})
+	}
 }
 
 // updateInjectingConfig completes another config write immediately before the atomic update.
@@ -1732,6 +1772,7 @@ func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) 
 	}})
 
 	instance := &authInstance{
+		provider: &failingProvider{},
 		endpointRegistration: endpointRegistration{
 			additionalEndpointsListConfigKey: configKey,
 			listEntryIndex:                   0,
@@ -1740,7 +1781,11 @@ func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) 
 		},
 		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
-	(&delegatedAuthComponent{config: mockConfig}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+	comp := &delegatedAuthComponent{config: mockConfig}
+	_, err := comp.authenticate(context.Background(), instance)
+	require.ErrorIs(t, err, errWritebackTargetChanged)
+	assert.Zero(t, instance.provider.(*failingProvider).calls)
+	require.ErrorIs(t, comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false), errWritebackTargetChanged)
 
 	got, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
 	require.True(t, ok)
@@ -1804,7 +1849,8 @@ func TestMergeIntoAdditionalEndpointsHealsEntryRevertedByRace(t *testing.T) {
 		lastWrittenValue: "wif-key-v1", // stale relative to config, per the scenario above
 	}
 
-	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v2", false)
+	require.NoError(t, comp.validateAdditionalEndpointTarget(instance))
+	require.NoError(t, comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v2", false))
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, []string{"wif-key-v2"}, got["https://reverted-org.datadoghq.com"],

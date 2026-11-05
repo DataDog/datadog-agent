@@ -781,34 +781,15 @@ func (d *delegatedAuthComponent) validateAdditionalEndpointTarget(instance *auth
 		if !ok {
 			return fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, instance.additionalEndpointsListConfigKey)
 		}
-		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
-			if entry, ok := entries[instance.listEntryIndex].(map[string]any); ok {
-				if _, matches := listEntryMatches(instance, entry); matches {
-					return nil
-				}
-			}
-		}
-		for _, entry := range entries {
-			if entry, ok := entry.(map[string]any); ok {
-				if _, matches := listEntryMatches(instance, entry); matches {
-					return nil
-				}
-			}
+		if index, _ := findListEntry(instance, entries); index >= 0 {
+			return nil
 		}
 		return fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, instance.additionalEndpointsListConfigKey)
 
 	case instance.additionalEndpointDomain != "":
 		keys := d.config.GetStringMapStringSlice(instance.additionalEndpointsConfigKey)[instance.additionalEndpointDomain]
-		if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
-			value := keys[instance.additionalEndpointKeyIndex]
-			if value == instance.lastWrittenValue || value == instance.originalDirective {
-				return nil
-			}
-		}
-		for _, value := range keys {
-			if value == instance.lastWrittenValue || value == instance.originalDirective {
-				return nil
-			}
+		if findMapKey(instance, keys) >= 0 {
+			return nil
 		}
 		return fmt.Errorf("%w: previous value missing for %s", errWritebackTargetChanged, instance.additionalEndpointDomain)
 	}
@@ -834,6 +815,44 @@ func newAuthInstance(params delegatedauth.InstanceParams, providerConfig common.
 		providerRegion:       providerRegion,
 		lastWrittenValue:     params.AdditionalEndpointDirective,
 	}
+}
+
+// findMapKey prefers the recorded index to distinguish equal keys, then scans for
+// the last written value or the original directive restored by a racing write.
+func findMapKey(instance *authInstance, keys []string) int {
+	if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
+		if value := keys[instance.additionalEndpointKeyIndex]; value == instance.lastWrittenValue || value == instance.originalDirective {
+			return instance.additionalEndpointKeyIndex
+		}
+	}
+	for index, value := range keys {
+		if value == instance.lastWrittenValue || value == instance.originalDirective {
+			return index
+		}
+	}
+	return -1
+}
+
+// findListEntry prefers the recorded index, then scans matching credentials and route
+// identities. Non-map entries are skipped; the API-key field retains its original casing.
+func findListEntry(instance *authInstance, entries []any) (int, string) {
+	if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
+		if entry, ok := entries[instance.listEntryIndex].(map[string]any); ok {
+			if field, matches := listEntryMatches(instance, entry); matches {
+				return instance.listEntryIndex, field
+			}
+		}
+	}
+	for index, rawEntry := range entries {
+		entry, ok := rawEntry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if field, matches := listEntryMatches(instance, entry); matches {
+			return index, field
+		}
+	}
+	return -1, ""
 }
 
 func listEntryMatches(instance *authInstance, entry map[string]any) (string, bool) {
@@ -899,26 +918,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 
 		keys := merged[domain]
 
-		// Prefer the recorded index; fall back to a value-only scan if the list was reordered or
-		// the index wasn't provided. Matching by value alone is ambiguous when another entry
-		// under the same domain (e.g. a static key equal to this instance's fallback value)
-		// happens to share the same string.
-		matchIndex := -1
-		if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
-			if v := keys[instance.additionalEndpointKeyIndex]; v == instance.lastWrittenValue || v == instance.originalDirective {
-				matchIndex = instance.additionalEndpointKeyIndex
-			}
-		}
-		if matchIndex == -1 {
-			for i, key := range keys {
-				// Also match originalDirective in case a racing write reverted the entry.
-				if key == instance.lastWrittenValue || key == instance.originalDirective {
-					matchIndex = i
-					break
-				}
-			}
-		}
-
+		matchIndex := findMapKey(instance, keys)
 		if matchIndex == -1 {
 			updateErr = fmt.Errorf("%w: previous value missing for %s", errWritebackTargetChanged, domain)
 			return nil, false
@@ -969,34 +969,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		merged := make([]any, len(entries))
 		copy(merged, entries)
 
-		// Prefer the recorded index; fall back to a value-only scan if the list was reordered.
-		// Non-map entries (preserved as-is by NormalizeListShapeEntries) can never match and are
-		// skipped rather than causing a type-assertion panic.
-		matchIndex := -1
-		apiKeyField := ""
-		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
-			if entryMap, ok := entries[instance.listEntryIndex].(map[string]any); ok {
-				if field, ok := listEntryMatches(instance, entryMap); ok {
-					matchIndex = instance.listEntryIndex
-					apiKeyField = field
-				}
-			}
-		}
-		if matchIndex == -1 {
-			for i, entry := range entries {
-				entryMap, ok := entry.(map[string]any)
-				if !ok {
-					continue
-				}
-				// Also match originalDirective in case a racing write reverted the entry.
-				if field, ok := listEntryMatches(instance, entryMap); ok {
-					matchIndex = i
-					apiKeyField = field
-					break
-				}
-			}
-		}
-
+		matchIndex, apiKeyField := findListEntry(instance, entries)
 		if matchIndex == -1 {
 			updateErr = fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, configKey)
 			return nil, false
