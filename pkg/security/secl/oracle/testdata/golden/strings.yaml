@@ -7383,9 +7383,12 @@ string_field_references:
             event_type: open
             fields:
                 - open.file.name
+                - open.file.name.length
             field_values:
                 open.file.name:
                     - scalar:"q"
+                open.file.name.length:
+                    - scalar:2
         r14:
             event_type: open
             fields:
@@ -7405,6 +7408,7 @@ string_field_references:
             accept_mode: r0
     discarders_report:
         open.file.name: supported
+        open.file.name.length: 'invalid: r0'
         open.file.path: 'invalid: r0'
         process.file.name: none
     event_types:
@@ -7421,6 +7425,8 @@ string_field_references:
             - variable:"%{process.gid}"
             - variable:"%{process.uid}"
             - variable:"pre-%{process.file.name}-post"
+        open.file.name.length:
+            - scalar:2
         open.file.path:
             - glob:"/bin/*"
             - scalar:"/bin/%{process.file.name}"
@@ -7500,6 +7506,9 @@ string_field_references:
             r8:
                 - open.file.path="/bin/sh"@0+14
                 - ="/bin/*"@20+8
+            r13:
+                - open.file.name.length=2@2+21
+                - =2@28+1
           partials:
             r0:
                 open.file.name: "true"
@@ -7530,6 +7539,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "true"
             r14:
                 open.file.name: "false"
             r15:
@@ -7579,6 +7589,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "false"
             r14:
                 open.file.name: "false"
             r15:
@@ -7631,6 +7642,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "false"
             r14:
                 open.file.name: "false"
             r15:
@@ -7679,6 +7691,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "false"
             r14:
                 open.file.name: "false"
             r15:
@@ -7727,6 +7740,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "false"
             r14:
                 open.file.name: "false"
             r15:
@@ -7775,6 +7789,7 @@ string_field_references:
                 open.file.name: "true"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "false"
             r14:
                 open.file.name: "false"
             r15:
@@ -7823,6 +7838,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "false"
             r14:
                 open.file.name: "false"
             r15:
@@ -7838,6 +7854,10 @@ string_field_references:
           second_listener:
             - r1
             - r13
+          matching_values:
+            r13:
+                - open.file.name.length=2@2+21
+                - =2@28+1
           partials:
             r0:
                 open.file.name: "true"
@@ -7868,6 +7888,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "true"
             r14:
                 open.file.name: "false"
             r15:
@@ -7916,6 +7937,7 @@ string_field_references:
                 open.file.name: "false"
             r13:
                 open.file.name: "true"
+                open.file.name.length: "false"
             r14:
                 open.file.name: "true"
             r15:
@@ -16604,6 +16626,7 @@ string_length:
                 - open.file.name.length=6@5+21
             r13:
                 - open.file.name.length=6@0+21
+                - open.file.name.length=6@27+21
           partials:
             r0:
                 open.file.path.length: "true"
@@ -16659,6 +16682,7 @@ string_length:
                 - =4@25+1
             r13:
                 - open.file.name.length=1@0+21
+                - open.file.name.length=1@27+21
           partials:
             r0:
                 open.file.path.length: "false"
@@ -16717,6 +16741,7 @@ string_length:
                 - =3@26+1
             r13:
                 - open.file.name.length=3@0+21
+                - open.file.name.length=3@27+21
           partials:
             r0:
                 open.file.path.length: "false"
@@ -16784,6 +16809,7 @@ string_length:
                 - open.file.name.length=0@5+21
             r13:
                 - open.file.name.length=0@0+21
+                - open.file.name.length=0@27+21
           partials:
             r0:
                 open.file.path.length: "false"
@@ -16838,6 +16864,7 @@ string_length:
                 - =4@25+1
             r13:
                 - open.file.name.length=2@0+21
+                - open.file.name.length=2@27+21
           partials:
             r0:
                 open.file.path.length: "false"
@@ -16895,6 +16922,7 @@ string_length:
                 - =4@25+1
             r13:
                 - open.file.name.length=8@0+21
+                - open.file.name.length=8@27+21
           partials:
             r0:
                 open.file.path.length: "true"
@@ -16947,6 +16975,7 @@ string_length:
                 - =4@25+1
             r13:
                 - open.file.name.length=4@0+21
+                - open.file.name.length=4@27+21
           partials:
             r0:
                 open.file.path.length: "false"
@@ -17005,6 +17034,7 @@ string_length:
                 - =3@26+1
             r13:
                 - open.file.name.length=3@0+21
+                - open.file.name.length=3@27+21
           partials:
             r0:
                 open.file.path.length: "false"
@@ -17057,6 +17087,7 @@ string_length:
                 - =4@25+1
             r13:
                 - open.file.name.length=5@0+21
+                - open.file.name.length=5@27+21
           partials:
             r0:
                 open.file.path.length: "false"
@@ -17105,9 +17136,7 @@ string_load_errors:
           rule `r13` error: rule syntax error: int expected: 1:26: open.file.name.length =~ "a"
                                    ^
         - 'rule `r14` error: rule compilation error: unable to apply pattern on non static value `open.file.name`'
-        - |-
-          rule `r15` error: rule syntax error: field 'no.such.field' doesn't exist: 1:19: open.file.name == %{no.such.field}
-                            ^
+        - 'rule `r15` error: rule compilation error: field `no.such.field` not found'
         - |-
           rule `r16` error: rule syntax error: field 'no.such.field' doesn't exist: 1:19: open.file.name == "%{no.such.field}"
                             ^
