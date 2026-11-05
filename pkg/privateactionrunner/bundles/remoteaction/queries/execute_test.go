@@ -8,7 +8,6 @@ package com_datadoghq_remoteaction_queries
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -54,13 +53,15 @@ func setDevelopmentTracing(t *testing.T, enabled bool) func() {
 	return devtracing.SetEnabledForTest(enabled)
 }
 
-func resultDeliveryInputs() map[string]interface{} {
+// sessionInfoInputs is an arbitrary session_info object. The bundle transports it
+// verbatim and interprets no field, so the fixture mixes nested objects, arrays, nulls
+// and a future field alongside the identity and limits an integration would read.
+func sessionInfoInputs() map[string]interface{} {
 	return map[string]interface{}{
-		"runId":           testRunID,
-		"taskId":          testTaskID,
-		"artifactVersion": 1,
-		"uploadId":        testUploadID,
-		"baseUrl":         testBaseURL,
+		"runId":    testRunID,
+		"taskId":   testTaskID,
+		"uploadId": testUploadID,
+		"baseUrl":  testBaseURL,
 		"limits": map[string]interface{}{
 			"maxFileBytes":   33554432,
 			"maxResultBytes": 107374182400, // 100 GiB, the backend-owned result cap.
@@ -70,6 +71,8 @@ func resultDeliveryInputs() map[string]interface{} {
 			"maxPages":       128,
 			"timeoutMs":      30000,
 		},
+		"futureField": map[string]interface{}{"nested": []interface{}{1, nil, map[string]interface{}{"deep": []interface{}{true}}}},
+		"nullField":   nil,
 	}
 }
 
@@ -84,24 +87,21 @@ func metadataEvent(sequence uint64) *pb.RemoteQueryExecuteChunk {
 	}
 }
 
-func finalEvent(sequence uint64, receipt *pb.RemoteQueryUploadReceipt, attributes map[string]string) *pb.RemoteQueryExecuteChunk {
+func finalEvent(sequence uint64, receipt []byte, attributes map[string]string) *pb.RemoteQueryExecuteChunk {
 	return &pb.RemoteQueryExecuteChunk{
 		ChunkIndex: int32(sequence),
 		Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
-			Status:        "SUCCEEDED",
-			UploadReceipt: receipt,
-			Attributes:    attributes,
+			Status:            "SUCCEEDED",
+			UploadReceiptJson: receipt,
+			Attributes:        attributes,
 		}}},
 	}
 }
 
-func validReceipt() *pb.RemoteQueryUploadReceipt {
-	return &pb.RemoteQueryUploadReceipt{
-		UploadId:   testUploadID,
-		PageCount:  3,
-		TotalRows:  123456,
-		TotalBytes: 987654,
-	}
+// validReceipt is an arbitrary receipt object: the bundle forwards it as uploadReceipt
+// without interpreting any field.
+func validReceipt() []byte {
+	return []byte(`{"uploadId":"` + testUploadID + `","pageCount":3,"totalRows":123456,"totalBytes":987654}`)
 }
 
 func finalMarker(sequence uint64) *pb.RemoteQueryExecuteChunk {
@@ -119,11 +119,11 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	})
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":          "SELECT city, country FROM cities ORDER BY city",
-		"includeSchema":  true,
-		"resultDelivery": resultDeliveryInputs(),
+		"integration":   "postgres",
+		"target":        map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":         "SELECT city, country FROM cities ORDER BY city",
+		"includeSchema": true,
+		"session_info":  sessionInfoInputs(),
 	}), &privateconnection.PrivateCredentials{Tokens: []privateconnection.PrivateCredentialsToken{{Name: "password", Value: "secret-value"}}})
 
 	require.NoError(t, err)
@@ -135,86 +135,141 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, "SELECT city, country FROM cities ORDER BY city", client.request.GetQuery())
 	assert.True(t, client.request.GetIncludeSchema())
 
-	// The AgentSecure request carries only the typed paged-JSON contract fields: no
-	// operation, format, or COPY-era field. The fixed operation is emitted by the
-	// Agent's native request mapping after the request crosses the boundary.
-	delivery := client.request.GetResultDelivery()
-	require.NotNil(t, delivery)
-	assert.Equal(t, testRunID, delivery.GetRunId())
-	assert.Equal(t, testTaskID, delivery.GetTaskId())
-	assert.Equal(t, int32(1), delivery.GetArtifactVersion())
-	assert.Equal(t, testUploadID, delivery.GetUploadId())
-	assert.Equal(t, testBaseURL, delivery.GetBaseUrl())
-	require.NotNil(t, delivery.GetLimits())
-	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxFileBytes())
-	assert.Equal(t, int64(107374182400), delivery.GetLimits().GetMaxResultBytes())
-	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxRowBytes())
-	assert.Equal(t, int64(1024), delivery.GetLimits().GetMaxColumns())
-	assert.Equal(t, int64(1048576), delivery.GetLimits().GetMaxSchemaBytes())
-	assert.Equal(t, int64(128), delivery.GetLimits().GetMaxPages())
-	assert.Equal(t, int64(30000), delivery.GetLimits().GetTimeoutMs())
+	// The AgentSecure request carries the integration, target, query, includeSchema and
+	// the opaque session_info bytes: no operation, format, or COPY-era field, and no
+	// typed delivery. The fixed operation is emitted by the Agent's native request
+	// mapping after the request crosses the boundary.
+	require.NotEmpty(t, client.request.GetSessionInfoJson())
+	expectedSessionInfo, err := json.Marshal(sessionInfoInputs())
+	require.NoError(t, err)
+	assert.JSONEq(t, string(expectedSessionInfo), string(client.request.GetSessionInfoJson()))
+	// Exact number text survives (no float64 round trip of the 100 GiB cap).
+	assert.Contains(t, string(client.request.GetSessionInfoJson()), `"maxResultBytes":107374182400`)
 
-	// The delivery handle carries the base URL; the session has no upload token, so no
-	// token key appears anywhere in the AgentSecure request, and the private credential
-	// tokens never reach it either.
+	// The private credential tokens never reach the AgentSecure request.
 	requestEvidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
-	assert.NotContains(t, string(requestEvidence), "token")
-	assert.Contains(t, string(requestEvidence), testBaseURL)
 	assert.NotContains(t, string(requestEvidence), "secret-value")
 
 	out, ok := output.(map[string]interface{})
 	require.True(t, ok)
-	// The AP action output matches the strict AP metadata schema exactly:
-	// status and uploadReceipt and nothing else. Progress metadata and agent
+	// The AP action output is exactly status and uploadReceipt, the receipt being the
+	// integration's object verbatim. Progress metadata and agent
 	// timing stay on the internal AgentSecure stream events.
 	assert.Equal(t, map[string]interface{}{
 		"status": "SUCCEEDED",
 		"uploadReceipt": map[string]interface{}{
 			"uploadId":   testUploadID,
-			"pageCount":  int64(3),
-			"totalRows":  int64(123456),
-			"totalBytes": int64(987654),
+			"pageCount":  json.Number("3"),
+			"totalRows":  json.Number("123456"),
+			"totalBytes": json.Number("987654"),
 		},
 	}, out)
 	assertNoBulkDataFields(t, out)
 
 	encoded, err := json.Marshal(out)
 	require.NoError(t, err)
+	assert.JSONEq(t, `{"status":"SUCCEEDED","uploadReceipt":{"uploadId":"`+testUploadID+`","pageCount":3,"totalRows":123456,"totalBytes":987654}}`, string(encoded))
 	assert.NotContains(t, string(encoded), "token")
 	assert.NotContains(t, string(encoded), "STARTED")
 	assert.NotContains(t, string(encoded), "stats.rowsEmitted")
 	assert.NotContains(t, string(encoded), "agent_total_stream_ms")
 }
 
-// TestExecuteActionDropsStaleUploadTokenFromInputs proves the session-id contract on
-// the AP action input: the backend resultDelivery carries no token, and a stale
-// producer still including one is tolerated (the input decoding is not strict) but
-// the value never reaches the AgentSecure request.
-func TestExecuteActionDropsStaleUploadTokenFromInputs(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
-		finalMarker(1),
-	}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-	staleDelivery := resultDeliveryInputs()
-	staleDelivery["token"] = "stale-upload-token"
-
+// TestExecuteActionRejectsRetiredResultDeliveryInput proves the retired typed input is no
+// alias for session_info: a task carrying only resultDelivery has no session_info and
+// never creates the bridge client, and a stray resultDelivery next to session_info is
+// ignored as an unknown execute-mode field, never forwarded.
+func TestExecuteActionRejectsRetiredResultDeliveryInput(t *testing.T) {
+	action := NewExecuteAction(func() (BridgeClient, error) {
+		require.Fail(t, "bridge client should not be created without session_info")
+		return nil, nil
+	})
 	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
 		"integration":    "postgres",
 		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
 		"query":          "SELECT city, country FROM cities ORDER BY city",
-		"resultDelivery": staleDelivery,
+		"resultDelivery": sessionInfoInputs(),
 	}), nil)
+	require.Error(t, err)
+	var parErr util.PARError
+	require.ErrorAs(t, err, &parErr)
+	assert.Equal(t, "invalid remote query action inputs", parErr.Message)
 
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, validReceipt(), nil), finalMarker(1)}}
+	_, err = NewExecuteAction(func() (BridgeClient, error) { return client, nil }).Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"session_info":   map[string]interface{}{"a": 1},
+		"resultDelivery": map[string]interface{}{"stale-upload-token": "x"},
+	}), nil)
 	require.NoError(t, err)
-	require.NotNil(t, client.request)
-	require.NotNil(t, client.request.GetResultDelivery())
+	assert.JSONEq(t, `{"a":1}`, string(client.request.GetSessionInfoJson()))
 	evidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
 	assert.NotContains(t, string(evidence), "stale-upload-token")
-	assert.NotContains(t, string(evidence), "token")
+}
+
+// TestExecuteActionForwardsArbitrarySessionInfo proves the bundle checks only that
+// session_info is one bounded JSON object: any nested key, array, null and unknown
+// future field — including values no consumer would accept — reaches AgentSecure
+// unchanged, so the transport cannot reintroduce field enumeration.
+func TestExecuteActionForwardsArbitrarySessionInfo(t *testing.T) {
+	shapes := []map[string]interface{}{
+		{},
+		{"protocol": "future-v9", "artifactVersion": 7, "baseUrl": "http://169.254.169.254/", "limits": "not-an-object"},
+		{"nested": []interface{}{nil, []interface{}{}, map[string]interface{}{"k": nil}}, "big": json.Number("123456789012345678901234567890")},
+		sessionInfoInputs(),
+	}
+	for _, shape := range shapes {
+		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, validReceipt(), nil), finalMarker(1)}}
+		_, err := NewExecuteAction(func() (BridgeClient, error) { return client, nil }).Run(context.Background(), taskWithInputs(map[string]interface{}{
+			"integration":  "postgres",
+			"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+			"query":        "SELECT 1 AS value",
+			"session_info": shape,
+		}), nil)
+
+		require.NoError(t, err)
+		expected, err := json.Marshal(shape)
+		require.NoError(t, err)
+		assert.JSONEq(t, string(expected), string(client.request.GetSessionInfoJson()))
+	}
+}
+
+// TestExecuteActionRejectsInvalidSessionInfoBeforeRPC proves only the generic transport
+// contract is enforced before the bridge client is created: session_info is required, a
+// JSON object, and bounded.
+func TestExecuteActionRejectsInvalidSessionInfoBeforeRPC(t *testing.T) {
+	tests := map[string]interface{}{
+		"null":      nil,
+		"string":    "secret-value",
+		"array":     []interface{}{map[string]interface{}{"a": 1}},
+		"number":    1,
+		"oversized": map[string]interface{}{"a": strings.Repeat("x", sessionInfoMaxBytes)},
+	}
+	for name, sessionInfo := range tests {
+		t.Run(name, func(t *testing.T) {
+			action := NewExecuteAction(func() (BridgeClient, error) {
+				require.Fail(t, "bridge client should not be created for invalid session_info")
+				return nil, nil
+			})
+
+			_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+				"integration":  "postgres",
+				"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+				"query":        "SELECT city, country FROM cities ORDER BY city",
+				"session_info": sessionInfo,
+			}), nil)
+
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
+			assert.NotContains(t, err.Error(), "secret-value")
+		})
+	}
 }
 
 func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
@@ -225,10 +280,10 @@ func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1"},
-		"query":          "SELECT city, country FROM cities ORDER BY city",
-		"resultDelivery": resultDeliveryInputs(),
+		"integration":  "postgres",
+		"target":       map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1"},
+		"query":        "SELECT city, country FROM cities ORDER BY city",
+		"session_info": sessionInfoInputs(),
 	}), nil)
 
 	require.NoError(t, err)
@@ -262,7 +317,7 @@ func TestExecuteActionRejectsDatabaseInstanceWithDbnameTargetBeforeRPC(t *testin
 				_, err = action.Run(context.Background(), resolveOnlyTaskWithInputs(inputs), nil)
 			} else {
 				inputs["query"] = "SELECT city, country FROM cities ORDER BY city"
-				inputs["resultDelivery"] = resultDeliveryInputs()
+				inputs["session_info"] = sessionInfoInputs()
 				_, err = action.Run(context.Background(), taskWithInputs(inputs), nil)
 			}
 
@@ -299,10 +354,10 @@ func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.
 			})
 
 			_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-				"integration":    "postgres",
-				"target":         tt.target,
-				"query":          "SELECT city, country FROM cities ORDER BY city",
-				"resultDelivery": resultDeliveryInputs(),
+				"integration":  "postgres",
+				"target":       tt.target,
+				"query":        "SELECT city, country FROM cities ORDER BY city",
+				"session_info": sessionInfoInputs(),
 			}), nil)
 
 			require.Error(t, err)
@@ -314,46 +369,27 @@ func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.
 	}
 }
 
-// TestExecuteActionRejectsMissingResultDeliveryBeforeRPC proves a run cannot dispatch
-// without the backend-injected upload handle: there is no inline fallback path.
-func TestExecuteActionRejectsMissingResultDeliveryBeforeRPC(t *testing.T) {
-	tests := []struct {
-		name           string
-		resultDelivery map[string]interface{}
-	}{
-		{name: "missing delivery", resultDelivery: nil},
-		{name: "missing limits", resultDelivery: map[string]interface{}{
-			"runId": testRunID, "taskId": testTaskID, "artifactVersion": 1,
-			"uploadId": testUploadID, "baseUrl": testBaseURL,
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			action := NewExecuteAction(func() (BridgeClient, error) {
-				require.Fail(t, "bridge client should not be created without resultDelivery")
-				return nil, nil
-			})
+// TestExecuteActionRejectsMissingSessionInfoBeforeRPC proves a run cannot dispatch
+// without the backend-injected session_info: there is no inline fallback path.
+func TestExecuteActionRejectsMissingSessionInfoBeforeRPC(t *testing.T) {
+	action := NewExecuteAction(func() (BridgeClient, error) {
+		require.Fail(t, "bridge client should not be created without session_info")
+		return nil, nil
+	})
 
-			inputs := map[string]interface{}{
-				"integration": "postgres",
-				"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-				"query":       "SELECT city, country FROM cities ORDER BY city",
-			}
-			if tt.resultDelivery != nil {
-				inputs["resultDelivery"] = tt.resultDelivery
-			}
+	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration": "postgres",
+		"target":      map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":       "SELECT city, country FROM cities ORDER BY city",
+	}), nil)
 
-			_, err := action.Run(context.Background(), taskWithInputs(inputs), nil)
-
-			require.Error(t, err)
-			var parErr util.PARError
-			require.ErrorAs(t, err, &parErr)
-			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
-		})
-	}
+	require.Error(t, err)
+	var parErr util.PARError
+	require.ErrorAs(t, err, &parErr)
+	assert.Equal(t, "invalid remote query action inputs", parErr.Message)
 }
 
-func TestExecuteActionFailsClosedWhenFinalReceiptIsMissingOrMismatched(t *testing.T) {
+func TestExecuteActionFailsClosedWhenFinalReceiptIsMissingOrNotAnObject(t *testing.T) {
 	t.Run("missing receipt", func(t *testing.T) {
 		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
 			finalEvent(0, nil, nil),
@@ -362,10 +398,10 @@ func TestExecuteActionFailsClosedWhenFinalReceiptIsMissingOrMismatched(t *testin
 		action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
 		_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-			"integration":    "postgres",
-			"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-			"query":          "SELECT city, country FROM cities ORDER BY city",
-			"resultDelivery": resultDeliveryInputs(),
+			"integration":  "postgres",
+			"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+			"query":        "SELECT city, country FROM cities ORDER BY city",
+			"session_info": sessionInfoInputs(),
 		}), nil)
 
 		require.Error(t, err)
@@ -374,27 +410,61 @@ func TestExecuteActionFailsClosedWhenFinalReceiptIsMissingOrMismatched(t *testin
 		assert.Contains(t, parErr.Message, "missing upload receipt")
 	})
 
-	t.Run("receipt uploadId mismatch", func(t *testing.T) {
-		mismatched := validReceipt()
-		mismatched.UploadId = "upload-other"
-		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-			finalEvent(0, mismatched, nil),
-			finalMarker(1),
-		}}
-		action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+	for name, receipt := range map[string][]byte{
+		"array":     []byte(`[1]`),
+		"string":    []byte(`"x"`),
+		"null":      []byte(`null`),
+		"truncated": []byte(`{"a":`),
+		"oversized": []byte(`{"a":"` + strings.Repeat("x", uploadReceiptMaxBytes) + `"}`),
+	} {
+		t.Run("invalid receipt "+name, func(t *testing.T) {
+			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+				finalEvent(0, receipt, nil),
+				finalMarker(1),
+			}}
+			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
-		_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-			"integration":    "postgres",
-			"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-			"query":          "SELECT city, country FROM cities ORDER BY city",
-			"resultDelivery": resultDeliveryInputs(),
+			_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+				"integration":  "postgres",
+				"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+				"query":        "SELECT city, country FROM cities ORDER BY city",
+				"session_info": sessionInfoInputs(),
+			}), nil)
+
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Equal(t, "remote query AgentSecure streaming RPC response was invalid", parErr.ExternalMessage)
+		})
+	}
+}
+
+// TestExecuteActionForwardsArbitraryReceiptUnchanged proves the receipt is transported as
+// an arbitrary bounded object: both currently defined shapes and any future shape —
+// nested arrays, nulls, exact big numbers — reach the AP output with every key intact,
+// and the bundle does not compare the receipt with the request.
+func TestExecuteActionForwardsArbitraryReceiptUnchanged(t *testing.T) {
+	receipts := []string{
+		`{"objectIds":["` + testObjectID1 + `","` + testObjectID2 + `"],"pageCount":2,"totalRows":42,"totalBytes":4096}`,
+		`{"uploadId":"upload-other","pageCount":1,"totalRows":2,"totalBytes":18}`,
+		`{"future":{"nested":[1,null,{"deep":[]}]},"big":123456789012345678901234567890,"n":null}`,
+		`{}`,
+	}
+	for _, receipt := range receipts {
+		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, []byte(receipt), nil), finalMarker(1)}}
+		output, err := NewExecuteAction(func() (BridgeClient, error) { return client, nil }).Run(context.Background(), taskWithInputs(map[string]interface{}{
+			"integration":  "postgres",
+			"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+			"query":        "SELECT 1 AS value",
+			"session_info": sessionInfoInputs(),
 		}), nil)
 
-		require.Error(t, err)
-		var parErr util.PARError
-		require.ErrorAs(t, err, &parErr)
-		assert.Contains(t, parErr.Message, "uploadId does not match")
-	})
+		require.NoError(t, err)
+		encoded, err := json.Marshal(output)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"status":"SUCCEEDED","uploadReceipt":`+receipt+`}`, string(encoded))
+		assert.Equal(t, strings.Contains(receipt, "123456789012345678901234567890"), strings.Contains(string(encoded), "123456789012345678901234567890"), "number text must survive exactly")
+	}
 }
 
 func TestExecuteActionRejectsStreamProtocolViolations(t *testing.T) {
@@ -438,10 +508,10 @@ func TestExecuteActionRejectsStreamProtocolViolations(t *testing.T) {
 			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
 			_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-				"integration":    "postgres",
-				"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-				"query":          "SELECT city, country FROM cities ORDER BY city",
-				"resultDelivery": resultDeliveryInputs(),
+				"integration":  "postgres",
+				"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+				"query":        "SELECT city, country FROM cities ORDER BY city",
+				"session_info": sessionInfoInputs(),
 			}), nil)
 
 			require.Error(t, err)
@@ -465,10 +535,10 @@ func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	})
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
-		"query":          "SELECT 1 AS value",
-		"resultDelivery": resultDeliveryInputs(),
+		"integration":  "postgres",
+		"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
+		"query":        "SELECT 1 AS value",
+		"session_info": sessionInfoInputs(),
 	}), nil)
 
 	// Terminal errors propagate through the AP output envelope without a receipt.
@@ -492,11 +562,11 @@ func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
 	})
 
 	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
-		"query":          "SELECT secret FROM private_table",
-		"resultDelivery": resultDeliveryInputs(),
-		"bad":            make(chan struct{}),
+		"integration":  "postgres",
+		"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "secret-db"},
+		"query":        "SELECT secret FROM private_table",
+		"session_info": sessionInfoInputs(),
+		"bad":          make(chan struct{}),
 	}), nil)
 
 	require.Error(t, err)
@@ -589,11 +659,11 @@ func TestExecuteActionExplicitFalseResolveOnlyRunsExecute(t *testing.T) {
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
 	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":          "SELECT city, country FROM cities ORDER BY city",
-		"resultDelivery": resultDeliveryInputs(),
-		"resolveOnly":    false,
+		"integration":  "postgres",
+		"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":        "SELECT city, country FROM cities ORDER BY city",
+		"session_info": sessionInfoInputs(),
+		"resolveOnly":  false,
 	}), nil)
 
 	require.NoError(t, err)
@@ -604,7 +674,7 @@ func TestExecuteActionExplicitFalseResolveOnlyRunsExecute(t *testing.T) {
 
 // TestExecuteActionResolveOnlyRejectsExecuteOnlyFieldsBeforeRPC proves the resolveOnly
 // mode is side-effect-free by construction: a resolve-mode input carrying any
-// execute-only field — query, includeSchema, or resultDelivery — never creates the
+// execute-only field — query, includeSchema, or session_info — never creates the
 // bridge client. Rejection is presence-based: the empty-string, explicit-false, and
 // null variants are contract violations too, mirroring the retired standalone
 // resolve action's DisallowUnknownFields structural guarantee.
@@ -630,12 +700,12 @@ func TestExecuteActionResolveOnlyRejectsExecuteOnlyFieldsBeforeRPC(t *testing.T)
 			extra: map[string]interface{}{"includeSchema": false},
 		},
 		{
-			name:  "resultDelivery",
-			extra: map[string]interface{}{"resultDelivery": resultDeliveryInputs()},
+			name:  "session_info",
+			extra: map[string]interface{}{"session_info": sessionInfoInputs()},
 		},
 		{
-			name:  "resultDelivery null but present",
-			extra: map[string]interface{}{"resultDelivery": nil},
+			name:  "session_info null but present",
+			extra: map[string]interface{}{"session_info": nil},
 		},
 	}
 
@@ -929,16 +999,11 @@ func TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit(t *testing.T) {
 	const actionPlatformOutputLimitBytes = 15 * 1024 * 1024
 	stream := &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{
 		metadataEvent(0),
-		finalEvent(1, &pb.RemoteQueryUploadReceipt{
-			UploadId:   "upload-01k",
-			PageCount:  128,
-			TotalRows:  1099511627776,
-			TotalBytes: 10737418240,
-		}, map[string]string{"stats.rowsEmitted": "1099511627776", "agent_total_stream_ms": "12.345"}),
+		finalEvent(1, []byte(`{"uploadId":"upload-01k","pageCount":128,"totalRows":1099511627776,"totalBytes":10737418240}`), map[string]string{"stats.rowsEmitted": "1099511627776", "agent_total_stream_ms": "12.345"}),
 		finalMarker(2),
 	}}
 
-	output, err := remoteQueryExecuteOutputFromStream(stream, &ResultDeliveryInputs{UploadID: testUploadID}, false)
+	output, err := remoteQueryExecuteOutputFromStream(stream)
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCEEDED", output["status"])
 	assert.Len(t, output, 2, "output keys are exactly status and uploadReceipt")
@@ -1066,10 +1131,10 @@ func miniTracerEnvTraceIdentity(t *testing.T, ctx context.Context) (traceID, par
 // executeInputsForTraceContextTests is the minimal valid execute-mode input.
 func executeInputsForTraceContextTests() map[string]interface{} {
 	return map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":          "SELECT 1 AS value",
-		"resultDelivery": resultDeliveryInputs(),
+		"integration":  "postgres",
+		"target":       map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":        "SELECT 1 AS value",
+		"session_info": sessionInfoInputs(),
 	}
 }
 
@@ -1236,9 +1301,10 @@ func TestExecuteActionDevelopmentSpanWrapsExecution(t *testing.T) {
 	assert.Equal(t, activeParentID, span.ParentID())
 	assert.Equal(t, float64(2), span.Tag("_sampling_priority_v1"))
 
-	// Tags: the run's identity, the integration, and the terminal status only.
-	assert.Equal(t, testRunID, span.Tag("run_id"))
-	assert.Equal(t, testTaskID, span.Tag("task_id"))
+	// Tags: the integration and the terminal status only; the opaque session_info is
+	// never read for tags.
+	assert.Nil(t, span.Tag("run_id"))
+	assert.Nil(t, span.Tag("task_id"))
 	assert.Equal(t, "postgres", span.Tag("integration"))
 	assert.Equal(t, "SUCCEEDED", span.Tag("status"))
 
@@ -1250,6 +1316,7 @@ func TestExecuteActionDevelopmentSpanWrapsExecution(t *testing.T) {
 	assert.NotContains(t, string(spanEvidence), "localhost")
 	assert.NotContains(t, string(spanEvidence), testUploadID)
 	assert.NotContains(t, string(spanEvidence), testBaseURL)
+	assert.NotContains(t, string(spanEvidence), testRunID)
 
 	// The request's trace context is the span's own identity, so the integration's
 	// spans nest beneath the agent_execute span rather than beside it.
@@ -1324,336 +1391,3 @@ const (
 	testObjectID1 = "0b9d2f4e-6a1c-4d3b-9f7e-1a2b3c4d5e6f"
 	testObjectID2 = "7c1e8a90-52d4-4b6f-8e3a-9d0c1b2a3f45"
 )
-
-// sessionlessResultDeliveryInputs is the sessionless-v1 AP input: protocol and a strict
-// scanSensitiveData boolean, no uploadId.
-func sessionlessResultDeliveryInputs(scan interface{}) map[string]interface{} {
-	delivery := resultDeliveryInputs()
-	delete(delivery, "uploadId")
-	delivery["protocol"] = "sessionless-v1"
-	delivery["scanSensitiveData"] = scan
-	limits := delivery["limits"].(map[string]interface{})
-	limits["maxResultBytes"] = 1073741824
-	limits["maxFileBytes"] = 16777216
-	limits["maxRowBytes"] = 16777216
-	return delivery
-}
-
-func sessionlessReceipt(objectIDs ...string) *pb.RemoteQueryUploadReceipt {
-	return &pb.RemoteQueryUploadReceipt{
-		Protocol:   "sessionless-v1",
-		ObjectIds:  objectIDs,
-		PageCount:  int64(len(objectIDs)),
-		TotalRows:  42,
-		TotalBytes: 4096,
-	}
-}
-
-func sessionlessExecuteInputs(delivery map[string]interface{}) map[string]interface{} {
-	return map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-		"query":          "SELECT city FROM cities",
-		"includeSchema":  false,
-		"resultDelivery": delivery,
-	}
-}
-
-// TestExecuteActionForwardsSessionlessDeliveryAndMapsReceipt proves the discriminated
-// shape end to end: the AgentSecure request carries the protocol and the explicit scan
-// flag (including an explicit false) with no upload ID, and the final receipt is mapped to
-// the exact AP camelCase uploadReceipt with the ordered object references.
-func TestExecuteActionForwardsSessionlessDeliveryAndMapsReceipt(t *testing.T) {
-	for _, scan := range []bool{true, false} {
-		t.Run(fmt.Sprintf("scan=%t", scan), func(t *testing.T) {
-			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-				metadataEvent(0),
-				finalEvent(1, sessionlessReceipt(testObjectID1, testObjectID2), nil),
-				finalMarker(2),
-			}}
-			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-			output, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(sessionlessResultDeliveryInputs(scan))), nil)
-
-			require.NoError(t, err)
-			delivery := client.request.GetResultDelivery()
-			require.NotNil(t, delivery)
-			assert.Equal(t, "sessionless-v1", delivery.GetProtocol())
-			require.NotNil(t, delivery.ScanSensitiveData, "explicit false must keep its presence")
-			assert.Equal(t, scan, delivery.GetScanSensitiveData())
-			assert.Empty(t, delivery.GetUploadId())
-			assert.Equal(t, testRunID, delivery.GetRunId())
-			assert.Equal(t, int64(1073741824), delivery.GetLimits().GetMaxResultBytes())
-
-			assert.Equal(t, map[string]interface{}{
-				"status": "SUCCEEDED",
-				"uploadReceipt": map[string]interface{}{
-					"protocol":   "sessionless-v1",
-					"objectIds":  []string{testObjectID1, testObjectID2},
-					"pageCount":  int64(2),
-					"totalRows":  int64(42),
-					"totalBytes": int64(4096),
-				},
-			}, output)
-		})
-	}
-}
-
-// TestExecuteActionEmptySessionlessReceiptSerializesEmptyList proves an empty no-schema
-// result reports objectIds as [] and never null.
-func TestExecuteActionEmptySessionlessReceiptSerializesEmptyList(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1"}, nil),
-		finalMarker(1),
-	}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-	output, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(sessionlessResultDeliveryInputs(true))), nil)
-
-	require.NoError(t, err)
-	encoded, err := json.Marshal(output)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"status":"SUCCEEDED","uploadReceipt":{"protocol":"sessionless-v1","objectIds":[],"pageCount":0,"totalRows":0,"totalBytes":0}}`, string(encoded))
-}
-
-// TestExecuteActionRejectsMalformedSessionlessDeliveryBeforeRPC proves the sessionless
-// input is strict and fails before an Agent IPC client is created: mixed shapes, unknown
-// fields, wrong boolean/protocol types and a missing flag are all refused.
-func TestExecuteActionRejectsMalformedSessionlessDeliveryBeforeRPC(t *testing.T) {
-	tests := []struct {
-		name   string
-		mutate func(d map[string]interface{})
-	}{
-		{name: "uploadId alongside protocol", mutate: func(d map[string]interface{}) { d["uploadId"] = testUploadID }},
-		{name: "empty uploadId alongside protocol", mutate: func(d map[string]interface{}) { d["uploadId"] = "" }},
-		{name: "null uploadId alongside protocol", mutate: func(d map[string]interface{}) { d["uploadId"] = nil }},
-		{name: "unknown field", mutate: func(d map[string]interface{}) { d["bucketName"] = "b" }},
-		{name: "unknown limits field", mutate: func(d map[string]interface{}) { d["limits"].(map[string]interface{})["extra"] = 1 }},
-		{name: "scan flag missing", mutate: func(d map[string]interface{}) { delete(d, "scanSensitiveData") }},
-		{name: "scan flag null", mutate: func(d map[string]interface{}) { d["scanSensitiveData"] = nil }},
-		{name: "scan flag string", mutate: func(d map[string]interface{}) { d["scanSensitiveData"] = "true" }},
-		{name: "scan flag number", mutate: func(d map[string]interface{}) { d["scanSensitiveData"] = 1 }},
-		{name: "unknown protocol", mutate: func(d map[string]interface{}) { d["protocol"] = "sessionless-v2" }},
-		{name: "empty protocol", mutate: func(d map[string]interface{}) { d["protocol"] = "" }},
-		{name: "null protocol", mutate: func(d map[string]interface{}) { d["protocol"] = nil }},
-		{name: "numeric protocol", mutate: func(d map[string]interface{}) { d["protocol"] = 1 }},
-		{name: "missing limits", mutate: func(d map[string]interface{}) { delete(d, "limits") }},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			action := NewExecuteAction(func() (BridgeClient, error) {
-				require.Fail(t, "bridge client should not be created for a malformed sessionless delivery")
-				return nil, nil
-			})
-			delivery := sessionlessResultDeliveryInputs(true)
-			tt.mutate(delivery)
-
-			_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(delivery)), nil)
-
-			require.Error(t, err)
-			var parErr util.PARError
-			require.ErrorAs(t, err, &parErr)
-			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
-		})
-	}
-}
-
-// TestExecuteActionRejectsScanFlagOnSessionBackedDelivery proves the default shape cannot
-// carry a sessionless-only field: that would be a mixed shape.
-func TestExecuteActionRejectsScanFlagOnSessionBackedDelivery(t *testing.T) {
-	for _, scan := range []interface{}{true, false, nil} {
-		delivery := resultDeliveryInputs()
-		delivery["scanSensitiveData"] = scan
-		action := NewExecuteAction(func() (BridgeClient, error) {
-			require.Fail(t, "bridge client should not be created for a mixed delivery")
-			return nil, nil
-		})
-
-		_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(delivery)), nil)
-
-		require.Error(t, err)
-		var parErr util.PARError
-		require.ErrorAs(t, err, &parErr)
-		assert.Equal(t, "invalid remote query action inputs", parErr.Message)
-	}
-}
-
-// TestExecuteActionSessionBackedDeliveryRequestIsUnchanged proves the default session
-// shape still forwards no protocol or scan flag.
-func TestExecuteActionSessionBackedDeliveryRequestIsUnchanged(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, validReceipt(), nil), finalMarker(1)}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-	_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(resultDeliveryInputs())), nil)
-
-	require.NoError(t, err)
-	delivery := client.request.GetResultDelivery()
-	assert.Empty(t, delivery.GetProtocol())
-	assert.Nil(t, delivery.ScanSensitiveData)
-	assert.Equal(t, testUploadID, delivery.GetUploadId())
-}
-
-// TestExecuteActionFailsClosedOnInvalidSessionlessReceipt proves the receipt crossing
-// back is validated against the frozen shape and the requested delivery shape, and that
-// the two shapes never cross.
-func TestExecuteActionFailsClosedOnInvalidSessionlessReceipt(t *testing.T) {
-	manyIDs := make([]string, 129)
-	for i := range manyIDs {
-		manyIDs[i] = fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
-	}
-	withMutation := func(mutate func(r *pb.RemoteQueryUploadReceipt)) *pb.RemoteQueryUploadReceipt {
-		r := sessionlessReceipt(testObjectID1, testObjectID2)
-		mutate(r)
-		return r
-	}
-	tests := []struct {
-		name          string
-		includeSchema bool
-		receipt       *pb.RemoteQueryUploadReceipt
-		wantErr       string
-	}{
-		{name: "missing protocol", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.Protocol = "" }), wantErr: "protocol does not match"},
-		{name: "wrong protocol", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.Protocol = "sessionless-v2" }), wantErr: "protocol does not match"},
-		{name: "session receipt for sessionless run", receipt: validReceipt(), wantErr: "protocol does not match"},
-		{name: "uploadId carried", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.UploadId = testUploadID }), wantErr: "must not carry uploadId"},
-		{name: "bad uuid", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[1] = "not-a-uuid" }), wantErr: "must be UUIDs"},
-		{name: "empty reference", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = "" }), wantErr: "must be UUIDs"},
-		{name: "path injection", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = "../" + testObjectID1 }), wantErr: "must be UUIDs"},
-		{name: "duplicate", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[1] = testObjectID1 }), wantErr: "must be unique"},
-		{name: "uppercase uuid is not normalized", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = strings.ToUpper(testObjectID1) }), wantErr: "must be UUIDs"},
-		{name: "mixed-case uuid", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) {
-			r.ObjectIds[1] = testObjectID2[:8] + strings.ToUpper(testObjectID2[8:])
-		}), wantErr: "must be UUIDs"},
-		{name: "more than 128 references", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", ObjectIds: manyIDs, PageCount: 129}, wantErr: "more than 128"},
-		{name: "negative rows", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.TotalRows = -1 }), wantErr: "must not be negative"},
-		{name: "page count mismatch", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.PageCount = 1 }), wantErr: "pageCount must equal"},
-		{name: "empty list with pages", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", PageCount: 1}, wantErr: "pageCount must equal"},
-		{name: "empty list with rows", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", TotalRows: 1}, wantErr: "zero rows and bytes"},
-		{name: "empty list with bytes", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", TotalBytes: 1}, wantErr: "zero rows and bytes"},
-		{name: "empty list with requested schema", includeSchema: true, receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1"}, wantErr: "requested schema"},
-		{name: "missing receipt", receipt: nil, wantErr: "missing upload receipt"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, tt.receipt, nil), finalMarker(1)}}
-			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-			inputs := sessionlessExecuteInputs(sessionlessResultDeliveryInputs(true))
-			inputs["includeSchema"] = tt.includeSchema
-
-			output, err := action.Run(context.Background(), taskWithInputs(inputs), nil)
-
-			require.Error(t, err)
-			assert.Nil(t, output)
-			var parErr util.PARError
-			require.ErrorAs(t, err, &parErr)
-			assert.Contains(t, parErr.Message, tt.wantErr)
-		})
-	}
-}
-
-// TestExecuteActionAcceptsSchemaPageSessionlessReceipt proves a requested schema is
-// satisfied by one page reference, the counterpart of the empty-list rejection.
-func TestExecuteActionAcceptsSchemaPageSessionlessReceipt(t *testing.T) {
-	receipt := &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", ObjectIds: []string{testObjectID1}, PageCount: 1, TotalBytes: 40}
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, receipt, nil), finalMarker(1)}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-	inputs := sessionlessExecuteInputs(sessionlessResultDeliveryInputs(true))
-	inputs["includeSchema"] = true
-
-	_, err := action.Run(context.Background(), taskWithInputs(inputs), nil)
-
-	require.NoError(t, err)
-}
-
-// TestExecuteActionRejectsSessionlessFieldsOnSessionBackedReceipt proves a session-backed
-// run cannot be completed with a receipt that smuggles the sessionless fields.
-func TestExecuteActionRejectsSessionlessFieldsOnSessionBackedReceipt(t *testing.T) {
-	for name, mutate := range map[string]func(r *pb.RemoteQueryUploadReceipt){
-		"protocol":  func(r *pb.RemoteQueryUploadReceipt) { r.Protocol = "sessionless-v1" },
-		"objectIds": func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds = []string{testObjectID1} },
-	} {
-		t.Run(name, func(t *testing.T) {
-			receipt := validReceipt()
-			mutate(receipt)
-			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, receipt, nil), finalMarker(1)}}
-			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-			_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(resultDeliveryInputs())), nil)
-
-			require.Error(t, err)
-			var parErr util.PARError
-			require.ErrorAs(t, err, &parErr)
-			assert.Contains(t, parErr.Message, "must not carry sessionless fields")
-		})
-	}
-}
-
-// TestResultDeliveryInputsRejectAliasedOrDuplicatedDiscriminators proves a case-aliased or
-// duplicated discriminating field can never decode as a value yet read as absent and fall
-// back to the session-backed shape, and that mixed uploadId spellings are refused. The
-// errors are sanitized: they never echo the offending key or value.
-func TestResultDeliveryInputsRejectAliasedOrDuplicatedDiscriminators(t *testing.T) {
-	const sessionless = `"protocol":"sessionless-v1","runId":"r","taskId":"t","artifactVersion":1,"baseUrl":"https://dd.datad0g.com/x","scanSensitiveData":true,"limits":{"maxFileBytes":1,"maxResultBytes":1,"maxRowBytes":1,"maxColumns":1,"maxSchemaBytes":1,"maxPages":1,"timeoutMs":1}`
-	const session = `"runId":"r","taskId":"t","artifactVersion":1,"uploadId":"upload-secret","baseUrl":"https://dd.datad0g.com/x","limits":{"maxFileBytes":1,"maxResultBytes":1,"maxRowBytes":1,"maxColumns":1,"maxSchemaBytes":1,"maxPages":1,"timeoutMs":1}`
-	tests := []struct {
-		name    string
-		body    string
-		wantErr string
-	}{
-		{name: "protocol alias on a session body", body: `{"Protocol":"sessionless-v1",` + session + `}`, wantErr: "field names must be spelled exactly"},
-		{name: "protocol alias replacing protocol", body: `{"PROTOCOL":"sessionless-v1",` + sessionless[len(`"protocol":"sessionless-v1",`):] + `}`, wantErr: "field names must be spelled exactly"},
-		{name: "scan flag alias", body: `{` + strings.Replace(sessionless, `"scanSensitiveData"`, `"ScanSensitiveData"`, 1) + `}`, wantErr: "field names must be spelled exactly"},
-		{name: "scan flag alias on a session body", body: `{"scansensitivedata":true,` + session + `}`, wantErr: "field names must be spelled exactly"},
-		{name: "uploadId alias beside protocol", body: `{"uploadID":"upload-secret",` + sessionless + `}`, wantErr: "field names must be spelled exactly"},
-		{name: "uploadId alias on session body", body: `{` + strings.Replace(session, `"uploadId"`, `"UploadId"`, 1) + `}`, wantErr: "field names must be spelled exactly"},
-		{name: "duplicate protocol", body: `{"protocol":"sessionless-v1",` + sessionless + `}`, wantErr: "contains a duplicate field"},
-		{name: "duplicate scan flag", body: `{"scanSensitiveData":false,` + sessionless + `}`, wantErr: "contains a duplicate field"},
-		{name: "duplicate uploadId", body: `{"uploadId":"x",` + session + `}`, wantErr: "contains a duplicate field"},
-		{name: "duplicate runId in sessionless", body: `{"runId":"other",` + sessionless + `}`, wantErr: "contains a duplicate field"},
-		{name: "limits alias in sessionless", body: `{` + strings.Replace(sessionless, `"maxPages"`, `"MaxPages"`, 1) + `}`, wantErr: "resultDelivery.limits field names must be spelled exactly"},
-		{name: "limits duplicate in sessionless", body: `{` + strings.Replace(sessionless, `"limits":{`, `"limits":{"maxPages":2,`, 1) + `}`, wantErr: "resultDelivery.limits contains a duplicate field"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var delivery ResultDeliveryInputs
-			err := json.Unmarshal([]byte(tt.body), &delivery)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-			assert.NotContains(t, err.Error(), "upload-secret")
-		})
-	}
-
-	t.Run("canonical sessionless and session bodies still decode", func(t *testing.T) {
-		var delivery ResultDeliveryInputs
-		require.NoError(t, json.Unmarshal([]byte(`{`+sessionless+`}`), &delivery))
-		require.NoError(t, validateDeliveryInputs(&delivery))
-		assert.True(t, delivery.sessionless())
-
-		delivery = ResultDeliveryInputs{}
-		require.NoError(t, json.Unmarshal([]byte(`{`+session+`}`), &delivery))
-		require.NoError(t, validateDeliveryInputs(&delivery))
-		assert.False(t, delivery.sessionless())
-	})
-}
-
-// TestExecuteActionRejectsAliasedProtocolBeforeRPC proves the case alias cannot downgrade a
-// sessionless input into the session-backed shape end to end: it fails before any RPC.
-func TestExecuteActionRejectsAliasedProtocolBeforeRPC(t *testing.T) {
-	for _, alias := range []string{"Protocol", "PROTOCOL"} {
-		delivery := sessionlessResultDeliveryInputs(true)
-		delete(delivery, "protocol")
-		delivery[alias] = "sessionless-v1"
-		delivery["uploadId"] = testUploadID
-		action := NewExecuteAction(func() (BridgeClient, error) {
-			require.Fail(t, "bridge client should not be created for an aliased discriminator")
-			return nil, nil
-		})
-
-		_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(delivery)), nil)
-
-		require.Error(t, err)
-		var parErr util.PARError
-		require.ErrorAs(t, err, &parErr)
-		assert.Equal(t, "invalid remote query action inputs", parErr.Message)
-	}
-}

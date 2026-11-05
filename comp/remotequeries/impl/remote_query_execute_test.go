@@ -30,7 +30,7 @@ func executeTestRequest(t *testing.T) RemoteQueryExecuteRequest {
 	t.Helper()
 	req, err := NewRemoteQueryExecuteRequest("postgres",
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
-		"SELECT * FROM arbitrary_table", false, pagedTestDelivery())
+		"SELECT * FROM arbitrary_table", false, pagedTestSessionInfo())
 	require.NoError(t, err)
 	return req
 }
@@ -136,7 +136,7 @@ func traceContextExecuteRequest(t *testing.T, traceContext *RemoteQueryTraceCont
 	t.Helper()
 	req, err := NewRemoteQueryExecuteRequest("postgres",
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
-		"SELECT 1 AS value", false, pagedTestDelivery())
+		"SELECT 1 AS value", false, pagedTestSessionInfo())
 	require.NoError(t, err)
 	req.TraceContext = traceContext
 	return req.internal()

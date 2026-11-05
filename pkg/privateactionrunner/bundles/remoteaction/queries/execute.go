@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -71,11 +70,9 @@ const (
 	// execution; the integration's producer and upload spans nest beneath it.
 	developmentExecuteOperation = "remote_queries.agent_execute"
 
-	// The development span's identity tags: the run's identity and its terminal
-	// status only — never the query text, the target, or any credential, token,
-	// or upload instruction.
-	developmentRunIDTag       = "run_id"
-	developmentTaskIDTag      = "task_id"
+	// The development span's tags: the integration and the terminal status only —
+	// never the query text, the target, the opaque session_info, or any credential,
+	// token, or upload instruction.
 	developmentIntegrationTag = "integration"
 	developmentStatusTag      = "status"
 
@@ -88,7 +85,7 @@ const (
 // span wrapping one remote-query execution, continuing the runner's trace: the
 // span is a child of the action.run span active on ctx (read through the
 // mini-tracer's environment contract), inherits the trace's sampling priority,
-// and is tagged with the run's identity only. It returns the span (nil when
+// and is tagged with the integration only. It returns the span (nil when
 // development tracing is disabled), the context carrying it, and the trace
 // context the AgentSecure request must propagate: the span's own identity when
 // the span is real, so the integration's spans nest beneath the agent_execute
@@ -110,10 +107,6 @@ func startDevelopmentExecutionSpan(ctx context.Context, inputs ExecuteInputs) (*
 		carrier[tracer.DefaultPriorityHeader] = strconv.FormatInt(int64(runnerTraceContext.GetSamplingPriority()), 10)
 	}
 	span, spanCtx := tracer.StartSpanFromPropagatedContext(ctx, developmentExecuteOperation, carrier)
-	if delivery := inputs.ResultDelivery; delivery != nil {
-		span.SetTag(developmentRunIDTag, delivery.RunID)
-		span.SetTag(developmentTaskIDTag, delivery.TaskID)
-	}
 	span.SetTag(developmentIntegrationTag, inputs.Integration)
 	if spanTraceContext := remoteQueryTraceContextFromSpan(span); spanTraceContext != nil {
 		return span, spanCtx, spanTraceContext
@@ -178,7 +171,7 @@ type BridgeClientFactory func() (BridgeClient, error)
 
 // ExecuteAction runs the single Remote Queries AP action in one of two modes selected
 // by the resolveOnly input. The default execute mode dispatches customer SQL through
-// the streaming AgentSecure execute RPC with the backend-injected upload contract.
+// the streaming AgentSecure execute RPC with the backend-injected session_info.
 // The resolveOnly mode is the side-effect-free target resolution: the Agent re-runs
 // the same integration matcher execute uses and answers the structured zero/one/many
 // outcome; a matched answer carries the status only, because there is no resolve-time
@@ -193,34 +186,41 @@ func NewExecuteAction(newBridgeClient BridgeClientFactory) *ExecuteAction {
 	return &ExecuteAction{newBridgeClient: newBridgeClient}
 }
 
+// Transport bounds of the opaque session_info input and upload receipt output. The bundle
+// only checks that each is one JSON object within its size bound; it never inspects a
+// nested field, so the integration and the worker own every semantic check.
+const (
+	sessionInfoMaxBytes   = 64 << 10
+	uploadReceiptMaxBytes = 16 << 10
+)
+
 // ExecuteInputs is the AP action input injected by the backend: the integration,
-// target, query, the explicit includeSchema flag, and the backend-owned
-// resultDelivery (authoritative run/task identity, artifact version, scoped upload
-// instructions, and effective limits). The input carries no credentials: the org
-// API/application keys are read by the integration from Agent config, and the session
-// is identified solely by its upload id — there is no per-session upload token.
+// target, query, the explicit includeSchema flag, and the backend-owned session_info —
+// one arbitrary JSON object that the bundle and the Agent transport to the integration
+// verbatim and never interpret. The input carries no credentials: the org
+// API/application keys are read by the integration from Agent config.
 // resolveOnly selects the side-effect-free resolution mode; when true the input is
 // target-only and the execute-only fields are forbidden (see validateResolveOnlyInputs).
 type ExecuteInputs struct {
-	Integration    string                `json:"integration"`
-	Target         TargetInputs          `json:"target"`
-	Query          string                `json:"query"`
-	IncludeSchema  bool                  `json:"includeSchema"`
-	ResultDelivery *ResultDeliveryInputs `json:"resultDelivery"`
-	ResolveOnly    bool                  `json:"resolveOnly"`
+	Integration   string          `json:"integration"`
+	Target        TargetInputs    `json:"target"`
+	Query         string          `json:"query"`
+	IncludeSchema bool            `json:"includeSchema"`
+	SessionInfo   json.RawMessage `json:"session_info"`
+	ResolveOnly   bool            `json:"resolveOnly"`
 
 	// Presence of the execute-only fields on the wire. Resolve mode forbids those
-	// fields by presence — an empty query or a null resultDelivery is still a
+	// fields by presence — an empty query or a null session_info is still a
 	// contract violation — so the decode records presence alongside the values.
-	querySet          bool
-	includeSchemaSet  bool
-	resultDeliverySet bool
+	querySet         bool
+	includeSchemaSet bool
+	sessionInfoSet   bool
 }
 
 // UnmarshalJSON decodes the AP action input tolerantly — execute-mode inputs keep
 // accepting unknown fields, exactly as before — while recording whether the
 // execute-only fields were present on the wire, so validateResolveOnlyInputs can
-// distinguish "absent" from "present but zero-valued".
+// distinguish "absent" from "present but zero-valued". session_info stays raw bytes.
 func (i *ExecuteInputs) UnmarshalJSON(data []byte) error {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -228,172 +228,29 @@ func (i *ExecuteInputs) UnmarshalJSON(data []byte) error {
 	}
 
 	var wire struct {
-		Integration    string                `json:"integration"`
-		Target         TargetInputs          `json:"target"`
-		Query          string                `json:"query"`
-		IncludeSchema  bool                  `json:"includeSchema"`
-		ResultDelivery *ResultDeliveryInputs `json:"resultDelivery"`
-		ResolveOnly    bool                  `json:"resolveOnly"`
+		Integration   string          `json:"integration"`
+		Target        TargetInputs    `json:"target"`
+		Query         string          `json:"query"`
+		IncludeSchema bool            `json:"includeSchema"`
+		SessionInfo   json.RawMessage `json:"session_info"`
+		ResolveOnly   bool            `json:"resolveOnly"`
 	}
 	if err := json.Unmarshal(data, &wire); err != nil {
 		return err
 	}
 
 	*i = ExecuteInputs{
-		Integration:    wire.Integration,
-		Target:         wire.Target,
-		Query:          wire.Query,
-		IncludeSchema:  wire.IncludeSchema,
-		ResultDelivery: wire.ResultDelivery,
-		ResolveOnly:    wire.ResolveOnly,
+		Integration:   wire.Integration,
+		Target:        wire.Target,
+		Query:         wire.Query,
+		IncludeSchema: wire.IncludeSchema,
+		SessionInfo:   wire.SessionInfo,
+		ResolveOnly:   wire.ResolveOnly,
 	}
 	_, i.querySet = raw["query"]
 	_, i.includeSchemaSet = raw["includeSchema"]
-	_, i.resultDeliverySet = raw["resultDelivery"]
+	_, i.sessionInfoSet = raw["session_info"]
 	return nil
-}
-
-// resultDeliveryProtocolSessionlessV1 is the explicit opt-in discriminator of the
-// sessionless POC delivery and receipt shape. The default session-backed shape has no
-// protocol key.
-const resultDeliveryProtocolSessionlessV1 = "sessionless-v1"
-
-// Bounds of the sessionless-v1 upload receipt, matching the frozen contract.
-const (
-	sessionlessMaxReceiptObjects = 128
-	sessionlessMaxReceiptBytes   = 16384
-)
-
-// objectIDPattern is the canonical lowercase hyphenated UUID form of a landing object
-// reference. References are never normalized: an uppercase alias is rejected.
-var objectIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-
-// ResultDeliveryInputs is the backend-injected result delivery. Two mutually exclusive
-// shapes exist: the default session-backed shape (no protocol key, uploadId required)
-// and the opt-in sessionless-v1 shape (protocol and a strict boolean scanSensitiveData,
-// no uploadId). The sessionless shape is decoded strictly — unknown fields and wrong
-// types fail — while the session-backed shape keeps its tolerant decode. The Agent
-// remains the authoritative value validator.
-type ResultDeliveryInputs struct {
-	Protocol          string                `json:"protocol"`
-	RunID             string                `json:"runId"`
-	TaskID            string                `json:"taskId"`
-	ArtifactVersion   int64                 `json:"artifactVersion"`
-	UploadID          string                `json:"uploadId"`
-	BaseURL           string                `json:"baseUrl"`
-	ScanSensitiveData *bool                 `json:"scanSensitiveData"`
-	Limits            *DeliveryLimitsInputs `json:"limits"`
-
-	// Wire key presence, recorded by UnmarshalJSON so a mixed shape fails closed even
-	// when a stray value is null or empty.
-	protocolSet bool
-	scanSet     bool
-	uploadIDSet bool
-}
-
-// UnmarshalJSON records the presence of the discriminating keys and decodes the
-// sessionless-v1 shape strictly. Without a protocol key the decode is the unchanged
-// tolerant session-backed decode.
-func (d *ResultDeliveryInputs) UnmarshalJSON(data []byte) error {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	// The presence checks below use exact key names, but Go's decoder matches field
-	// names case-insensitively and keeps the last of a duplicate. The discriminating keys
-	// must therefore never appear as a variant spelling or twice, in either shape, or a
-	// case alias could decode as a value yet read as absent and downgrade to the
-	// session-backed shape (or smuggle a mixed uploadId).
-	if err := checkExactDeliveryKeys(data, "resultDelivery", "protocol", "scanSensitiveData", "uploadId"); err != nil {
-		return err
-	}
-	_, protocolSet := raw["protocol"]
-	_, scanSet := raw["scanSensitiveData"]
-	_, uploadIDSet := raw["uploadId"]
-
-	type deliveryAlias ResultDeliveryInputs
-	var wire deliveryAlias
-	if protocolSet {
-		// The sessionless shape is exact: every name spelled exactly and unique, in the
-		// delivery object and in its limits.
-		if err := checkExactDeliveryKeys(data, "resultDelivery", resultDeliveryInputKeys...); err != nil {
-			return err
-		}
-		if limits, ok := raw["limits"]; ok && !bytes.Equal(bytes.TrimSpace(limits), []byte("null")) {
-			if err := checkExactDeliveryKeys(limits, "resultDelivery.limits", deliveryLimitsInputKeys...); err != nil {
-				return err
-			}
-		}
-		decoder := json.NewDecoder(bytes.NewReader(data))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&wire); err != nil {
-			return err
-		}
-	} else if err := json.Unmarshal(data, &wire); err != nil {
-		return err
-	}
-	*d = ResultDeliveryInputs(wire)
-	d.protocolSet = protocolSet
-	d.scanSet = scanSet
-	d.uploadIDSet = uploadIDSet
-	return nil
-}
-
-var (
-	resultDeliveryInputKeys = []string{"protocol", "runId", "taskId", "artifactVersion", "uploadId", "baseUrl", "scanSensitiveData", "limits"}
-	deliveryLimitsInputKeys = []string{"maxFileBytes", "maxResultBytes", "maxRowBytes", "maxColumns", "maxSchemaBytes", "maxPages", "timeoutMs"}
-)
-
-// checkExactDeliveryKeys rejects, among the canonical names only, a duplicated key and a
-// differently-cased spelling of a canonical name; other names are left to the caller. The
-// errors are sanitized: they name the object, never the offending key or value.
-func checkExactDeliveryKeys(data []byte, object string, canonical ...string) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
-		return errors.New(object + " must be an object")
-	}
-	seen := make(map[string]struct{}, len(canonical))
-	for decoder.More() {
-		token, err := decoder.Token()
-		key, ok := token.(string)
-		if err != nil || !ok {
-			return errors.New(object + " is malformed")
-		}
-		isCanonical := false
-		for _, name := range canonical {
-			if key == name {
-				isCanonical = true
-			} else if strings.EqualFold(key, name) {
-				return errors.New(object + " field names must be spelled exactly")
-			}
-		}
-		if isCanonical {
-			if _, duplicate := seen[key]; duplicate {
-				return errors.New(object + " contains a duplicate field")
-			}
-			seen[key] = struct{}{}
-		}
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
-			return errors.New(object + " is malformed")
-		}
-	}
-	return nil
-}
-
-// sessionless reports whether the delivery selected the sessionless-v1 shape.
-func (d *ResultDeliveryInputs) sessionless() bool {
-	return d != nil && d.Protocol == resultDeliveryProtocolSessionlessV1
-}
-
-type DeliveryLimitsInputs struct {
-	MaxFileBytes   int64 `json:"maxFileBytes"`
-	MaxResultBytes int64 `json:"maxResultBytes"`
-	MaxRowBytes    int64 `json:"maxRowBytes"`
-	MaxColumns     int64 `json:"maxColumns"`
-	MaxSchemaBytes int64 `json:"maxSchemaBytes"`
-	MaxPages       int64 `json:"maxPages"`
-	TimeoutMs      int64 `json:"timeoutMs"`
 }
 
 type TargetInputs struct {
@@ -476,41 +333,29 @@ func validateTargetInputs(target TargetInputs) error {
 	return nil
 }
 
-// validateDeliveryInputs performs the structural presence checks the bundle can do
-// without duplicating the Agent's authoritative value validation: a run cannot produce
-// page files without the backend-injected upload handle and limits.
-func validateDeliveryInputs(delivery *ResultDeliveryInputs) error {
-	if delivery == nil {
-		return errors.New("resultDelivery is required")
+// validateJSONObject is the generic transport check shared by the session_info input and
+// the upload receipt output: one syntactically valid JSON object within maxBytes. No
+// nested content is inspected. Errors name the field and never echo its content.
+func validateJSONObject(name string, data []byte, maxBytes int) ([]byte, error) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return nil, errors.New(name + " is required")
 	}
-	if delivery.Limits == nil {
-		return errors.New("resultDelivery.limits is required")
+	if len(trimmed) > maxBytes {
+		return nil, fmt.Errorf("%s must not exceed %d bytes", name, maxBytes)
 	}
-	if !delivery.protocolSet {
-		// The session-backed shape cannot carry a sessionless-only field.
-		if delivery.scanSet {
-			return errors.New("resultDelivery.scanSensitiveData requires resultDelivery.protocol")
-		}
-		return nil
+	if trimmed[0] != '{' || !json.Valid(trimmed) {
+		return nil, errors.New(name + " must be a JSON object")
 	}
-	if delivery.Protocol != resultDeliveryProtocolSessionlessV1 {
-		return errors.New("resultDelivery.protocol must be omitted or " + resultDeliveryProtocolSessionlessV1)
-	}
-	if delivery.uploadIDSet {
-		return errors.New("resultDelivery.uploadId must not be set for protocol " + resultDeliveryProtocolSessionlessV1)
-	}
-	if delivery.ScanSensitiveData == nil {
-		return errors.New("resultDelivery.scanSensitiveData is required")
-	}
-	return nil
+	return trimmed, nil
 }
 
 // validateResolveOnlyInputs is the targeted strict validation of the resolveOnly
 // mode: a resolution dispatch carries exactly the integration and target, so the
-// execute-only fields — query, includeSchema, and resultDelivery — are forbidden.
+// execute-only fields — query, includeSchema, and session_info — are forbidden.
 // Presence-based rejection is the conditional equivalent of the structural
 // guarantee the retired standalone resolve action enforced by decoding with
-// DisallowUnknownFields: a resolve-mode task cannot carry SQL or upload instructions
+// DisallowUnknownFields: a resolve-mode task cannot carry SQL or session info
 // even when their values are empty, because the fields themselves are the contract
 // violation. The check runs after decode but before the bridge client is ever
 // created, so a malformed task never reaches the Agent IPC.
@@ -521,8 +366,8 @@ func validateResolveOnlyInputs(inputs ExecuteInputs) error {
 	if inputs.includeSchemaSet {
 		return errors.New("resolveOnly input must not carry includeSchema")
 	}
-	if inputs.resultDeliverySet {
-		return errors.New("resolveOnly input must not carry resultDelivery")
+	if inputs.sessionInfoSet {
+		return errors.New("resolveOnly input must not carry session_info")
 	}
 	return nil
 }
@@ -553,7 +398,7 @@ func (a *ExecuteAction) Run(
 				"invalid remote query action inputs",
 			)
 		}
-	} else if err := validateDeliveryInputs(inputs.ResultDelivery); err != nil {
+	} else if _, err := validateJSONObject("session_info", inputs.SessionInfo, sessionInfoMaxBytes); err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(
 			errors.New("invalid remote query action inputs"),
 			"invalid remote query action inputs",
@@ -610,7 +455,7 @@ func dispatchRemoteQueryExecute(ctx context.Context, client BridgeClient, inputs
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
-	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.ResultDelivery, inputs.IncludeSchema)
+	output, err := remoteQueryExecuteOutputFromStream(stream)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
 	}
@@ -620,7 +465,7 @@ func dispatchRemoteQueryExecute(ctx context.Context, client BridgeClient, inputs
 // remoteQueryExecuteRequestFromInputs maps the AP action input to the credential-free
 // AgentSecure request. The fixed operation is emitted by the Agent's native request
 // mapping; the bundle carries the integration, target, query, the explicit includeSchema
-// flag, and the backend-owned result delivery. The active trace context rides along
+// flag, and the backend-owned session_info bytes, unchanged. The active trace context rides along
 // as optional observability metadata: with development tracing it is the wrapping
 // agent_execute span's own identity, so the integration's spans nest beneath it;
 // otherwise it is the runner's identity read from the mini-tracer's environment
@@ -638,28 +483,8 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs, traceContext *pb.
 		Query:         inputs.Query,
 		IncludeSchema: inputs.IncludeSchema,
 	}
-	if delivery := inputs.ResultDelivery; delivery != nil {
-		protoDelivery := &pb.RemoteQueryResultDelivery{
-			Protocol:          delivery.Protocol,
-			RunId:             delivery.RunID,
-			TaskId:            delivery.TaskID,
-			ArtifactVersion:   int32(delivery.ArtifactVersion),
-			UploadId:          delivery.UploadID,
-			BaseUrl:           delivery.BaseURL,
-			ScanSensitiveData: delivery.ScanSensitiveData,
-		}
-		if limits := delivery.Limits; limits != nil {
-			protoDelivery.Limits = &pb.RemoteQueryUploadLimits{
-				MaxFileBytes:   limits.MaxFileBytes,
-				MaxResultBytes: limits.MaxResultBytes,
-				MaxRowBytes:    limits.MaxRowBytes,
-				MaxColumns:     limits.MaxColumns,
-				MaxSchemaBytes: limits.MaxSchemaBytes,
-				MaxPages:       limits.MaxPages,
-				TimeoutMs:      limits.TimeoutMs,
-			}
-		}
-		req.ResultDelivery = protoDelivery
+	if len(inputs.SessionInfo) > 0 {
+		req.SessionInfoJson = []byte(inputs.SessionInfo)
 	}
 	req.TraceContext = traceContext
 	return req
@@ -712,17 +537,14 @@ func remoteQueryTraceContextFromContext(ctx context.Context) *pb.RemoteQueryTrac
 }
 
 // remoteQueryExecuteOutputFromStream consumes the AgentSecure stream and builds the
-// AP action output. The output matches the strict AP metadata schema exactly:
+// AP action output. The output matches the AP metadata schema exactly:
 // {status, uploadReceipt} on success and {status, error{code, message}} on terminal
-// error — no other key, because the AP output validation rejects unknown fields.
+// error — no other top-level key.
 // Progress metadata and agent timing stay on the internal AgentSecure stream events;
 // bulk result bytes never appear because the integration uploads page files directly.
-// A successful final must carry the compact receipt in the requested delivery shape: a
-// session-backed receipt's uploadId must match the injected upload session, and a
-// sessionless-v1 receipt is {protocol, objectIds, pageCount, totalRows, totalBytes}
-// validated against the frozen shape (see sessionlessUploadReceiptOutput). The two shapes
-// never cross: a receipt of the other shape is refused.
-func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], delivery *ResultDeliveryInputs, includeSchema bool) (map[string]interface{}, error) {
+// A successful final must carry the compact receipt: an arbitrary bounded JSON object the
+// bundle forwards as uploadReceipt without interpreting any field (see uploadReceiptOutput).
+func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk]) (map[string]interface{}, error) {
 	if stream == nil {
 		return nil, errors.New("remote query response stream missing")
 	}
@@ -785,108 +607,36 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		return nil, errors.New("remote query response stream final event missing status")
 	}
 
-	receipt := finalEvent.GetUploadReceipt()
-	if receipt == nil {
-		return nil, errors.New("remote query response stream final event missing upload receipt")
+	receipt, err := uploadReceiptOutput(finalEvent.GetUploadReceiptJson())
+	if err != nil {
+		return nil, err
 	}
-	if delivery.sessionless() {
-		receiptOutput, err := sessionlessUploadReceiptOutput(receipt, includeSchema)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]interface{}{
-			"status":        finalEvent.GetStatus(),
-			"uploadReceipt": receiptOutput,
-		}, nil
-	}
-	if receipt.GetProtocol() != "" || len(receipt.GetObjectIds()) != 0 {
-		return nil, errors.New("remote query upload receipt must not carry sessionless fields for a session-backed delivery")
-	}
-	requestedUploadID := ""
-	if delivery != nil {
-		requestedUploadID = delivery.UploadID
-	}
-	if receipt.GetUploadId() == "" {
-		return nil, errors.New("remote query upload receipt missing uploadId")
-	}
-	if requestedUploadID != "" && receipt.GetUploadId() != requestedUploadID {
-		return nil, errors.New("remote query upload receipt uploadId does not match the requested upload session")
-	}
-
-	output := map[string]interface{}{
-		"status": finalEvent.GetStatus(),
-		"uploadReceipt": map[string]interface{}{
-			"uploadId":   receipt.GetUploadId(),
-			"pageCount":  receipt.GetPageCount(),
-			"totalRows":  receipt.GetTotalRows(),
-			"totalBytes": receipt.GetTotalBytes(),
-		},
-	}
-	return output, nil
+	return map[string]interface{}{
+		"status":        finalEvent.GetStatus(),
+		"uploadReceipt": receipt,
+	}, nil
 }
 
-// sessionlessUploadReceiptOutput maps the typed sessionless-v1 receipt to the AP output
-// receipt in its exact camelCase shape and fails closed on any contract violation:
-// protocol must be sessionless-v1, no session uploadId may appear, objectIds must be
-// canonical, unique UUIDs (at most 128, an ordered list), the counts must be
-// non-negative with pageCount equal to the number of references, an empty list is only a
-// zero-page/zero-row/zero-byte result without a requested schema, and the serialized
-// receipt must stay within 16 KiB. The counts and references are claims, not proof the
-// pages exist or were scanned: the Agent adds no scanning stamp and the worker reads the
-// objects back.
-func sessionlessUploadReceiptOutput(receipt *pb.RemoteQueryUploadReceipt, includeSchema bool) (map[string]interface{}, error) {
-	if receipt.GetProtocol() != resultDeliveryProtocolSessionlessV1 {
-		return nil, errors.New("remote query upload receipt protocol does not match the requested sessionless delivery")
+// uploadReceiptOutput maps the opaque receipt bytes to the AP output receipt: one
+// bounded JSON object, decoded generically so every nested key, array, null and unknown
+// future field survives unchanged and numbers keep their exact text. The bundle checks
+// nothing about the receipt's contents — the worker validates it against its own
+// configured execution path.
+func uploadReceiptOutput(receiptJSON []byte) (map[string]interface{}, error) {
+	if len(receiptJSON) == 0 {
+		return nil, errors.New("remote query response stream final event missing upload receipt")
 	}
-	if receipt.GetUploadId() != "" {
-		return nil, errors.New("remote query sessionless upload receipt must not carry uploadId")
-	}
-	objectIDs := receipt.GetObjectIds()
-	if len(objectIDs) > sessionlessMaxReceiptObjects {
-		return nil, fmt.Errorf("remote query sessionless upload receipt must not reference more than %d objects", sessionlessMaxReceiptObjects)
-	}
-	seen := make(map[string]struct{}, len(objectIDs))
-	for _, id := range objectIDs {
-		if !objectIDPattern.MatchString(id) {
-			return nil, errors.New("remote query sessionless upload receipt objectIds must be UUIDs")
-		}
-		if _, duplicate := seen[id]; duplicate {
-			return nil, errors.New("remote query sessionless upload receipt objectIds must be unique")
-		}
-		seen[id] = struct{}{}
-	}
-	if receipt.GetPageCount() < 0 || receipt.GetTotalRows() < 0 || receipt.GetTotalBytes() < 0 {
-		return nil, errors.New("remote query sessionless upload receipt counts must not be negative")
-	}
-	if receipt.GetPageCount() != int64(len(objectIDs)) {
-		return nil, errors.New("remote query sessionless upload receipt pageCount must equal the number of objectIds")
-	}
-	if len(objectIDs) == 0 {
-		if includeSchema {
-			return nil, errors.New("remote query sessionless upload receipt without objects cannot satisfy a requested schema")
-		}
-		if receipt.GetTotalRows() != 0 || receipt.GetTotalBytes() != 0 {
-			return nil, errors.New("remote query sessionless upload receipt without objects must report zero rows and bytes")
-		}
-	}
-	// A non-nil slice so an empty reference list serializes as [] and never as null.
-	refs := make([]string, len(objectIDs))
-	copy(refs, objectIDs)
-	output := map[string]interface{}{
-		"protocol":   resultDeliveryProtocolSessionlessV1,
-		"objectIds":  refs,
-		"pageCount":  receipt.GetPageCount(),
-		"totalRows":  receipt.GetTotalRows(),
-		"totalBytes": receipt.GetTotalBytes(),
-	}
-	serialized, err := json.Marshal(output)
+	trimmed, err := validateJSONObject("remote query upload receipt", receiptJSON, uploadReceiptMaxBytes)
 	if err != nil {
-		return nil, errors.New("remote query sessionless upload receipt could not be serialized")
+		return nil, err
 	}
-	if len(serialized) > sessionlessMaxReceiptBytes {
-		return nil, fmt.Errorf("remote query sessionless upload receipt must not exceed %d bytes", sessionlessMaxReceiptBytes)
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	decoder.UseNumber()
+	var receipt map[string]interface{}
+	if err := decoder.Decode(&receipt); err != nil {
+		return nil, errors.New("remote query upload receipt is malformed")
 	}
-	return output, nil
+	return receipt, nil
 }
 
 // remoteQueryErrorOutput propagates a terminal error event without a receipt. The error
@@ -906,7 +656,7 @@ func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]inte
 // remoteQueryResolveRequestFromInputs maps the resolveOnly AP action input to the
 // credential-free AgentSecure resolve request: exactly the integration and the
 // target, mirroring execute's target mapping. The resolve request mapping carries
-// no query and no result delivery, so the side-effect-free guarantee holds by
+// no query and no session_info, so the side-effect-free guarantee holds by
 // construction of the mapping as well as of the input contract.
 func remoteQueryResolveRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryResolveRequest {
 	return &pb.RemoteQueryResolveRequest{

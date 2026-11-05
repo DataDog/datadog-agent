@@ -375,7 +375,7 @@ func TestRemoteQueryExecuteServiceClickHouseDatabaseInstanceTarget(t *testing.T)
 	})
 	runner.instance = "server: localhost\ndatabase_identifier:\n  template: $rq_database_instance\ntags:\n  - rq_database_instance:rq-ch-a1\npassword: secret-value\n"
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
-	req, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{DatabaseInstance: "rq-ch-a1"}, "SELECT 'hello world' AS message", false, pagedTestDelivery())
+	req, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{DatabaseInstance: "rq-ch-a1"}, "SELECT 'hello world' AS message", false, pagedTestSessionInfo())
 	require.NoError(t, err)
 
 	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
