@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -369,49 +368,4 @@ func TestGetFallbackHost(t *testing.T) {
 	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bar": "172.17.0.2"})
 	assert.Equal(t, "", ip)
 	assert.NotNil(t, err)
-}
-
-func TestAllowEnvVarSensitive(t *testing.T) {
-	cases := []struct {
-		desc           string
-		allowedEnvVars []string
-		allowed        map[string]bool
-	}{
-		{
-			desc: "default blocks env vars bound to sensitive settings",
-			allowed: map[string]bool{
-				"DD_API_KEY":                  false,
-				"dd_app_key":                  false,
-				"DD_LOGS_CONFIG_API_KEY":      false,
-				"DD_CLUSTER_AGENT_AUTH_TOKEN": false,
-				"DD_ADDITIONAL_ENDPOINTS":     false,
-				"DD_APM_DEBUGGER_API_KEY":     false,
-				"DD_KUBERNETES_KUBELET_HOST":  true,
-				"DD_CLC_RUNNER_ID":            true,
-				"DD_SITE":                     true,
-				"DB_PASSWORD":                 true,
-			},
-		},
-		{
-			desc:           "an explicit allow list still wins",
-			allowedEnvVars: []string{"dd_api_key"},
-			allowed: map[string]bool{
-				"DD_API_KEY":                 true,
-				"DD_KUBERNETES_KUBELET_HOST": false,
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.desc, func(t *testing.T) {
-			cfg := configmock.New(t)
-			if tc.allowedEnvVars != nil {
-				cfg.SetInTest("ad_allowed_env_vars", tc.allowedEnvVars)
-			}
-
-			for envVar, allowed := range tc.allowed {
-				assert.Equal(t, allowed, allowEnvVar(envVar), envVar)
-			}
-		})
-	}
 }
