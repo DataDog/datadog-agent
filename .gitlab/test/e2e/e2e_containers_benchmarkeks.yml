@@ -56,8 +56,8 @@
     when: on_success
 
 # First rules of the jobs of the benchmark: the pipelines it never runs in, and its automatic run, disabled for now.
-# To run the benchmark automatically again, uncomment the line below and remove
-# new-e2e-containers-benchmarkeks-instructions.
+# To run the benchmark automatically again, uncomment the line below and the automatic run rule of
+# new-e2e-containers-benchmarkeks-pr-comment, and remove new-e2e-containers-benchmarkeks-instructions.
 .on_benchmarkeks_automatic_run:
   - !reference [.except_benchmarkeks_unsupported]
   # - !reference [.on_benchmarkeks_changes]
@@ -197,9 +197,10 @@ new-e2e-containers-benchmarkeks-pr-comment:
   extends: .dd_octo_sts
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    # Also after a failure of the benchmark, which is how it reports a regression
-    - changes: *benchmarkeks_changes
-      when: always
+    # Automatic run, disabled for now (see .on_benchmarkeks_automatic_run): also after a failure of the benchmark, which
+    # is how it reports a regression
+    # - changes: *benchmarkeks_changes
+    #   when: always
     # On a manual run, the benchmark is allowed to fail: this job runs after it whatever its result
     - !reference [.on_benchmarkeks_manual_run]
   needs:
