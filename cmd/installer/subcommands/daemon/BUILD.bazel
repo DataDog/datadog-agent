@@ -62,6 +62,7 @@ go_library(
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
             "//pkg/config/model",
+            "//pkg/config/utils",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -90,6 +91,7 @@ go_library(
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
             "//pkg/config/model",
+            "//pkg/config/utils",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:js": [
