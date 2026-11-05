@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
+	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	nfconfigmock "github.com/DataDog/datadog-agent/comp/netflow/config/mock"
@@ -66,7 +67,10 @@ func replaceWithDummyFlowProcessor(srv *Server) *dummyFlowProcessor {
 var testOptions = fx.Options(
 	fxutil.Component(fxutil.ProvideComponentConstructor(NewComponent)),
 	nfconfigmock.MockModule(),
-	forwardermock.MockModule(),
+	fx.Provide(func(t testing.TB) (forwarder.Component, forwardermock.MockComponent) {
+		mock := forwardermock.New(t)
+		return mock, mock
+	}),
 	demultiplexerimpl.MockModule(),
 	defaultforwardermock.MockModule(),
 	core.MockBundle(),
@@ -124,7 +128,10 @@ func TestNewComponentSkipsAggregatorWhenDisabled(t *testing.T) {
 		fxutil.FxAgentBase(),
 		fxutil.Component(fxutil.ProvideComponentConstructor(NewComponent)),
 		nfconfigmock.MockModule(),
-		forwardermock.MockModule(),
+		fx.Provide(func(t testing.TB) (forwarder.Component, forwardermock.MockComponent) {
+			mock := forwardermock.New(t)
+			return mock, mock
+		}),
 		demultiplexerimpl.MockModule(),
 		defaultforwardermock.MockModule(),
 		core.MockBundle(),
