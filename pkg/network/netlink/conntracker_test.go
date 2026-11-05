@@ -9,8 +9,11 @@ package netlink
 
 import (
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"net/netip"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +23,58 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
+
+type initializationTracker struct {
+	Conntracker
+	closed chan struct{}
+}
+
+func (t *initializationTracker) Close() { close(t.closed) }
+
+func TestInitializeConntrackerTimeout(t *testing.T) {
+	for _, succeeds := range []bool{true, false} {
+		t.Run(fmt.Sprintf("success=%t", succeeds), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				release := make(chan struct{})
+				tracker := &initializationTracker{closed: make(chan struct{})}
+				got, err := initializeConntracker(time.Second, func() (Conntracker, error) {
+					<-release
+					if succeeds {
+						return tracker, nil
+					}
+					return nil, errors.New("initialization failed")
+				})
+				require.Error(t, err)
+				require.Nil(t, got)
+				close(release)
+				synctest.Wait()
+				if succeeds {
+					select {
+					case <-tracker.closed:
+					default:
+						t.Fatal("late tracker was not closed")
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestInitializeConntrackerResult(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		tracker := &initializationTracker{closed: make(chan struct{})}
+		got, err := initializeConntracker(time.Second, func() (Conntracker, error) { return tracker, nil })
+		require.NoError(t, err)
+		require.Same(t, tracker, got)
+		synctest.Wait()
+		select {
+		case <-tracker.closed:
+			t.Fatal("returned tracker was closed")
+		default:
+		}
+		tracker.Close()
+	})
+}
 
 func TestIsNat(t *testing.T) {
 	src := "1.1.1.1"

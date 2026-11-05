@@ -129,27 +129,40 @@ func isNetlinkConntrackSupported() bool {
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
 func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
-	var (
-		err         error
-		conntracker Conntracker
-	)
-
 	if !isNetlinkConntrackSupported() {
 		return nil, ErrNotPermitted
 	}
 
-	done := make(chan struct{})
+	return initializeConntracker(config.ConntrackInitTimeout, func() (Conntracker, error) {
+		return newConntrackerOnce(config, telemetrycomp)
+	})
+}
 
+func initializeConntracker(timeout time.Duration, initialize func() (Conntracker, error)) (Conntracker, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	type result struct {
+		tracker Conntracker
+		err     error
+	}
+	results := make(chan result)
 	go func() {
-		conntracker, err = newConntrackerOnce(config, telemetrycomp)
-		done <- struct{}{}
+		tracker, err := initialize()
+		select {
+		case results <- result{tracker, err}:
+			// Ownership transfers to the caller only after it receives the result.
+		case <-ctx.Done():
+			if tracker != nil {
+				tracker.Close()
+			}
+		}
 	}()
 
 	select {
-	case <-done:
-		return conntracker, err
-	case <-time.After(config.ConntrackInitTimeout):
-		return nil, fmt.Errorf("could not initialize conntrack after: %s", config.ConntrackInitTimeout)
+	case r := <-results:
+		return r.tracker, r.err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("could not initialize conntrack after: %s", timeout)
 	}
 }
 
