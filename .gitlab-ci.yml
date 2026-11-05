@@ -1023,9 +1023,6 @@ workflow:
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e_tests
     when: never
-  - <<: *if_pr_skip_e2e_tests
-    when: manual
-    allow_failure: true
   - !reference [.except_light_pipeline]
   - <<: *if_pr_skip_e2e_tests
     when: manual
@@ -1319,9 +1316,6 @@ workflow:
 .except_disable_e2e_tests:
   - <<: *if_disable_e2e_tests
     when: never
-  - <<: *if_pr_skip_e2e_tests
-    when: manual
-    allow_failure: true
 
 .on_macos_files_change:
   - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
