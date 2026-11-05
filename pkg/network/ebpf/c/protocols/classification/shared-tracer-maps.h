@@ -115,8 +115,14 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
     // event that tcp_close and the socket filter processing the FIN packet
     // execute at the same time, there is a chance that none of the callers
     // of this function will ever see both flags set.
-    // We assume this is rare and OK since we're using an LRU map which will
-    // eventually evict the leaked entry if it ever reaches capacity.
+    // We assume this is rare and OK since leaked entries are reclaimed by the
+    // userspace map cleaner (see setupConnectionProtocolMapCleaner in
+    // pkg/network/tracer/tracer.go), which periodically scans the map and
+    // deletes entries older than the connection-protocol TTL. Note that
+    // `connection_protocol` is a plain hash map, *not* an LRU map: once it is
+    // full, further inserts fail with E2BIG (surfaced via the
+    // bpf_map_update_with_telemetry error counters) rather than silently
+    // evicting the oldest entry.
     //
     // Note that we could instead have a reference count field and increment it
     // attomically using the __sync_fetch_and_add builtin, which produces a
@@ -127,7 +133,7 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
     //
     // In any case, even if we were using atomic operations, there is still a
     // chance of leak we can't avoid in the context of kprobe misses, so it's ok
-    // to rely on the LRU in those cases.
+    // to rely on the userspace map cleaner in those cases.
     stack->flags |= deletion_flag;
     if (!(stack->flags&FLAG_TCP_CLOSE_DELETION) ||
         !(stack->flags&FLAG_SOCKET_FILTER_DELETION)) {

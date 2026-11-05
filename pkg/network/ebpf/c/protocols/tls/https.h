@@ -2,6 +2,7 @@
 #define __HTTPS_H
 
 #ifdef COMPILE_CORE
+#include "protocols/classification/tls-misclassification-counters.h"
 #include "ktypes.h"
 #define MINORBITS	20
 #define MINORMASK	((1U << MINORBITS) - 1)
@@ -55,6 +56,13 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
         proto = PROTOCOL_AMQP;
     } else if (is_redis(buffer, len)) {
         proto = PROTOCOL_REDIS;
+        // TLS-misclassification diagnostics (jmw/tls-misclassification). Second uninstrumented
+        // is_redis() call site. Note this one runs on *decrypted* bytes, so a match here may be a
+        // legitimate Redis-inside-TLS classification rather than a false positive — which is
+        // exactly why it is counted separately from the dispatcher.
+        if (is_tls_diag_enabled()) {
+            tls_diag_count(TLS_DIAG_CTR_USM_TLS_REDIS);
+        }
     } else if (is_mysql(t, buffer, len)) {
         proto = PROTOCOL_MYSQL;
     }

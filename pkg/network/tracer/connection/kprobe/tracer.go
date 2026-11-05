@@ -173,6 +173,8 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	var closeProtocolClassifierSocketFilterFn func()
 	classificationSupported := ClassificationSupported(config)
 	util.AddBoolConst(&mgrOpts, "protocol_classification_enabled", classificationSupported)
+	// Gated on kernel version: when false the verifier prunes the diagnostic branches entirely.
+	util.AddBoolConst(&mgrOpts, "tls_diag_enabled", classificationSupported && util.TLSDiagnosticsSupported())
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
