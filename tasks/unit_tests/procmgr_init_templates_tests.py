@@ -659,7 +659,7 @@ exit 90
         self.assertLess(
             text.index('service datadog-agent-action stop'), text.index('service datadog-agent-procmgr stop')
         )
-        # Boot starts each init script on its own. The action script must follow procmgr or its one check selects monolithic mode.
+        # Boot starts each init script on its own, so the action script declares the same order as the core script.
         action = SYSV_ACTION.read_text()
         action_start = re.search(r'^# Should-Start:(.*)$', action, re.MULTILINE)
         action_stop = re.search(r'^# Should-Stop:(.*)$', action, re.MULTILINE)

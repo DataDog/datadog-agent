@@ -68,27 +68,19 @@ procmgr_enabled()
 	)
 }
 
-# A pid file can exist before dd-procmgrd is listening.
-procmgr_running()
+# One read, no wait: a dd-procmgrd still running after an opt-out can start par-control.
+procmgr_listening()
 {
-	attempt=0
-	while [ "$attempt" -lt 10 ]; do
-		# 00010000: listening. 0001: stream socket. 01: listener state.
-		if awk '
-			$4 == "00010000" &&
-			$5 == "0001" &&
-			$6 == "01" &&
-			$NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
-				ready = 1
-			}
-			END { exit !ready }
-		' /proc/net/unix; then
-			return 0
-		fi
-		attempt=$((attempt + 1))
-		sleep 1
-	done
-	return 1
+	# 00010000: listening. 0001: stream socket. 01: listener state.
+	awk '
+		$4 == "00010000" &&
+		$5 == "0001" &&
+		$6 == "01" &&
+		$NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
+			ready = 1
+		}
+		END { exit !ready }
+	' /proc/net/unix
 }
 
 #
@@ -127,7 +119,8 @@ do_start()
 #
 start_and_wait()
 {
-	if procmgr_enabled && procmgr_running; then
+	if procmgr_enabled || procmgr_listening; then
+		# The core Agent starts par-control through dd-procmgrd. In split mode this runner stands down.
 		log_daemon_msg "Starting $DESC (split mode from config)" "$NAME"
 	else
 		log_daemon_msg "Starting $DESC (monolithic mode)" "$NAME"

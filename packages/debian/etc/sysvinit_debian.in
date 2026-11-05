@@ -75,7 +75,7 @@ start_and_wait()
 					service datadog-agent-process start
 					service datadog-agent-trace start
 					service datadog-agent-security start
-					# Start procmgr first: the action service decides split mode from it.
+					# In split mode, par-control runs under dd-procmgrd.
 					service datadog-agent-procmgr start
 					service datadog-agent-action start
 					return 0

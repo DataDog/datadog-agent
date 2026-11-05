@@ -23,12 +23,15 @@ UPSTART_TEMPLATES = (
 INSTALLER_PROCMGR_DEFAULTS = '/etc/datadog-agent/datadog-agent-procmgr'
 ADMIN_PROCMGR_DEFAULTS = '/etc/default/datadog-agent-procmgr'
 SOCKET = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
+UNIX_HEADER = 'Num       RefCount Protocol Flags    Type St Inode Path\n'
 LISTENING = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {SOCKET}\n'
-# Each case disables procmgr, so the action job must not wait for its socket.
+# Same path, but a connected socket: not a listener.
+CONNECTED = f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {SOCKET}\n'
+# Each case disables procmgr, so without a listening socket the action job forces the monolithic runner.
 PROCMGR_DISABLED = (
     ('not installed', {'procmgr_installed': False}),
-    ('installer opt-out', {'installer_defaults': 'DATADOG_ENABLED=no\n'}),
-    ('admin opt-out', {'admin_defaults': 'DATADOG_ENABLED=no\n'}),
+    ('installer opt-out', {'procmgr_installed': True, 'installer_defaults': 'DATADOG_ENABLED=no\n'}),
+    ('admin opt-out', {'procmgr_installed': True, 'admin_defaults': 'DATADOG_ENABLED=no\n'}),
 )
 
 
@@ -57,11 +60,9 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
         running=False,
         setpriv=True,
         unix_row=None,
-        socket_after=None,
-        procmgr_installed=True,
+        procmgr_installed=False,
         installer_defaults=None,
         admin_defaults=None,
-        polls=10,
         **env,
     ):
         import fcntl
@@ -119,25 +120,13 @@ from pathlib import Path
 sleeps = Path(os.environ['SLEEPS'])
 with sleeps.open('a') as stream:
     stream.write('1\\n')
-child = Path(os.environ['CHILD_PID'])
-unix = Path(os.environ['UNIX_TABLE'])
-table = unix.read_text() if unix.exists() else ''
-listening = '00010000' in table and 'dd-procmgrd.sock' in table
-# The socket poll runs before the runner exists. Later sleeps still wait for it.
-polls = len(sleeps.read_text().splitlines())
-if not listening and polls <= int(os.environ['POLLS']) and not child.exists():
-    # Publish the listener after this failed poll, so the next read can succeed.
-    if os.environ.get('SOCKET_AFTER') == str(polls):
-        unix.write_text(os.environ['SOCKET_ROW'])
-    raise SystemExit(0)
 deadline = time.monotonic() + 5
+child = Path(os.environ['CHILD_PID'])
 while not child.exists():
     assert time.monotonic() < deadline, 'launcher did not spawn a child'
     time.sleep(0.005)
 pid = int(child.read_text())
-lines = sleeps.read_text().splitlines()
-liveness = len(lines) - (0 if listening else int(os.environ['POLLS']))
-should_exit = os.environ['RUNNER_EXIT'] != 'running' and liveness > int(os.environ['EXIT_AFTER'])
+should_exit = os.environ['RUNNER_EXIT'] != 'running' and len(sleeps.read_text().splitlines()) > int(os.environ['EXIT_AFTER'])
 if should_exit and os.environ['SPAWN_ERROR'] == '0':
     os.kill(pid, signal.SIGKILL if os.environ['RUNNER_EXIT'] == 'signal' else signal.SIGUSR1)
 if should_exit or os.environ['SPAWN_ERROR'] != '0':
@@ -171,8 +160,7 @@ AS_AGENT=yes PATH=/usr/bin:/bin exec "$shell" -c "$command" "$@"
             daemon = commands / 'start-stop-daemon'
             self.executable(
                 daemon,
-                '''case " $* " in *" --exec $PROCMGR "*) echo "$*" >> "$PROCMGR_CALLS"; exit "$PROCMGR_STATUS" ;; esac
-echo "$* split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-unset}" >> "$CALLS"
+                '''echo "$* split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-unset}" >> "$CALLS"
 case " $* " in *" --exec "*) ;; *) exit 90 ;; esac
 case "$1" in
     --status)
@@ -220,8 +208,7 @@ log_warning_msg() { echo "WARNING: $*"; }
             script = script.replace('/sbin/start-stop-daemon', str(daemon))
             script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
             unix_table = root / 'unix'
-            if unix_row is not None:
-                unix_table.write_text('Num       RefCount Protocol Flags    Type St Inode Path\n' + unix_row)
+            unix_table.write_text(UNIX_HEADER + (unix_row or ''))
             script = script.replace('/proc/net/unix', str(unix_table))
             rendered = root / 'init-script'
             rendered.write_text(script)
@@ -238,16 +225,7 @@ log_warning_msg() { echo "WARNING: $*"; }
                 'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
                 'PIDFILE': str(pidfile),
                 'CALLS': str(calls),
-                'PROCMGR': str(root / 'embedded/bin/dd-procmgrd'),
-                'PROCMGR_CALLS': str(root / 'procmgr-calls'),
-                'PROCMGR_STATUS': '1',
-                'UNIX_TABLE': str(unix_table),
-                'SOCKET_AFTER': '' if socket_after is None else str(socket_after),
-                'SOCKET_ROW': 'Num       RefCount Protocol Flags    Type St Inode Path\n'
-                '0000000000000000: 00000002 00000000 00010000 0001 01 12345 '
-                '/var/run/datadog-procmgrd/dd-procmgrd.sock\n',
                 'SLEEPS': str(sleeps),
-                'POLLS': str(polls),
                 'COUNT': str(root / 'count'),
                 'STATUSES': statuses,
                 'CHECK_ERROR': '0',
@@ -287,16 +265,14 @@ log_warning_msg() { echo "WARNING: $*"; }
             with self.subTest(setpriv=setpriv):
                 result, calls, sleeps, _ = self.run_sysv(setpriv=setpriv)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(sleeps, ['1'] * 12)
+                self.assertEqual(sleeps, ['1', '1'])
                 self.assertEqual(calls.count('--status'), 3)
                 self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
                 self.assertIn('monolithic mode', result.stdout)
                 self.assertNotIn('WARNING', result.stdout)
 
-    def test_start_defers_split_mode_to_config_when_procmgr_runs(self):
-        socket = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
-        listening = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {socket}\n'
-        result, calls, sleeps, _ = self.run_sysv(unix_row=listening)
+    def test_start_defers_split_mode_to_config_when_procmgr_is_enabled(self):
+        result, calls, sleeps, _ = self.run_sysv(procmgr_installed=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
         self.assertNotIn('split=false', calls)
@@ -304,28 +280,34 @@ log_warning_msg() { echo "WARNING: $*"; }
         self.assertNotIn('monolithic', result.stdout)
         self.assertEqual(sleeps, ['1', '1'])
 
-    def test_sysv_split_waits_until_the_socket_listens(self):
-        result, calls, sleeps, _ = self.run_sysv(socket_after=3)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
-        self.assertNotIn('split=false', calls)
-        self.assertIn('split mode from config', result.stdout)
-        self.assertNotIn('monolithic', result.stdout)
-        # Three failed polls, then the listener appears, then two live samples of the runner.
-        self.assertEqual(sleeps, ['1'] * 5)
-
-    def test_sysv_skips_the_socket_wait_when_procmgr_is_disabled(self):
+    def test_sysv_forces_monolithic_when_procmgr_is_disabled(self):
         for name, procmgr in PROCMGR_DISABLED:
             with self.subTest(name):
-                result, calls, sleeps, _ = self.run_sysv(unix_row=LISTENING, polls=0, **procmgr)
+                result, calls, sleeps, _ = self.run_sysv(**procmgr)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
                 self.assertIn('monolithic mode', result.stdout)
                 self.assertEqual(sleeps, ['1', '1'])
 
+    def test_sysv_defers_to_config_when_a_disabled_procmgr_still_listens(self):
+        for name, procmgr in PROCMGR_DISABLED:
+            with self.subTest(name):
+                result, calls, sleeps, _ = self.run_sysv(unix_row=LISTENING, **procmgr)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+                self.assertNotIn('split=false', calls)
+                self.assertIn('split mode from config', result.stdout)
+                self.assertEqual(sleeps, ['1', '1'])
+
+    def test_sysv_ignores_a_socket_that_is_not_listening(self):
+        result, calls, _, _ = self.run_sysv(unix_row=CONNECTED)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+        self.assertIn('monolithic mode', result.stdout)
+
     def test_sysv_admin_procmgr_defaults_override_the_installer_opt_out(self):
         result, calls, sleeps, _ = self.run_sysv(
-            unix_row=LISTENING,
+            procmgr_installed=True,
             installer_defaults='DATADOG_ENABLED=no\n',
             admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
         )
@@ -333,37 +315,6 @@ log_warning_msg() { echo "WARNING: $*"; }
         self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
         self.assertNotIn('leaked', calls)
         self.assertEqual(sleeps, ['1', '1'])
-
-    def test_sysv_split_follows_the_listening_socket(self):
-        socket = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
-        cases = (
-            ('absent', None, False),
-            (
-                'connected',
-                f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {socket}\n',
-                False,
-            ),
-            (
-                'other-path',
-                '0000000000000000: 00000002 00000000 00010000 0001 01 12345 /tmp/other.sock\n',
-                False,
-            ),
-            (
-                'not-listening',
-                f'0000000000000000: 00000002 00000000 00000000 0001 01 12345 {socket}\n',
-                False,
-            ),
-        )
-        for name, row, ready in cases:
-            with self.subTest(socket=name):
-                result, calls, _, _ = self.run_sysv(unix_row=row)
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                if ready:
-                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
-                    self.assertIn('split mode from config', result.stdout)
-                else:
-                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
-                    self.assertIn('monolithic mode', result.stdout)
 
     def test_start_accepts_clean_exit_and_removes_pidfile(self):
         for setpriv in (True, False):
@@ -374,7 +325,7 @@ log_warning_msg() { echo "WARNING: $*"; }
                     self.assertIn('exited cleanly', result.stdout)
                     self.assertNotIn('result=1', result.stdout)
                     self.assertFalse(pid_exists)
-                    self.assertEqual(len(sleeps), int(after) + 11)
+                    self.assertEqual(len(sleeps), int(after) + 1)
 
     def test_clean_exit_does_not_hide_pid_cleanup_failure(self):
         result, _, _, pid_exists = self.run_sysv(RUNNER_EXIT='0', REMOVE_ERROR='2')
@@ -389,44 +340,44 @@ log_warning_msg() { echo "WARNING: $*"; }
                     result, _, sleeps, _ = self.run_sysv(RUNNER_EXIT=outcome, EXIT_AFTER=after)
                     self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                     self.assertNotIn('exited cleanly', result.stdout)
-                    self.assertEqual(len(sleeps), int(after) + 11)
+                    self.assertEqual(len(sleeps), int(after) + 1)
 
     def test_start_fails_if_live_child_never_matches(self):
         result, _, sleeps, _ = self.run_sysv(statuses='1')
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(len(sleeps), 15)
+        self.assertEqual(len(sleeps), 5)
 
     def test_start_fails_on_status_error(self):
         result, _, sleeps, _ = self.run_sysv(statuses='4')
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(sleeps, ['1'] * 11)
+        self.assertEqual(sleeps, ['1'])
 
     def test_start_allows_delayed_pidfile(self):
         result, _, sleeps, _ = self.run_sysv(statuses='3 0 0')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(sleeps), 13)
+        self.assertEqual(len(sleeps), 3)
 
     def test_start_times_out_without_pidfile(self):
         result, _, sleeps, _ = self.run_sysv(statuses='3')
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(len(sleeps), 15)
+        self.assertEqual(len(sleeps), 5)
 
     def test_already_running_does_not_spawn_or_wait(self):
         result, calls, sleeps, _ = self.run_sysv(running=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('--start', calls)
-        self.assertEqual(sleeps, ['1'] * 10)
+        self.assertEqual(sleeps, [])
 
     def test_start_check_error_is_not_already_running(self):
         result, calls, sleeps, _ = self.run_sysv(CHECK_ERROR='4')
         self.assertEqual(result.returncode, 1)
         self.assertNotIn('--start', calls)
-        self.assertEqual(sleeps, ['1'] * 10)
+        self.assertEqual(sleeps, [])
 
     def test_failed_spawn_without_pidfile_is_not_a_clean_exit(self):
         result, _, sleeps, pid_exists = self.run_sysv(SPAWN_ERROR='2')
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(sleeps, ['1'] * 11)
+        self.assertEqual(sleeps, ['1'])
         self.assertFalse(pid_exists)
         self.assertNotIn('exited cleanly', result.stdout)
 
@@ -452,7 +403,7 @@ log_warning_msg() { echo "WARNING: $*"; }
         result, calls, sleeps, _ = self.run_sysv('restart', running=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertLess(calls.index('--stop'), calls.index('--start'))
-        self.assertEqual(sleeps, ['1'] * 12)
+        self.assertEqual(sleeps, ['1', '1'])
 
     @unittest.skipUnless(
         sys.platform == 'linux'
@@ -486,7 +437,7 @@ sys.exit(int(sys.argv[1]))
             script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(root / 'datadog-agent-procmgr'))
             # Keep a host dd-procmgrd socket from switching this test to split mode.
             unix_table = root / 'unix'
-            unix_table.touch()
+            unix_table.write_text(UNIX_HEADER)
             script = script.replace('/proc/net/unix', str(unix_table))
             script = script.replace(
                 '. /lib/lsb/init-functions',
@@ -522,7 +473,7 @@ log_failure_msg() { echo "$*"; }''',
                     finally:
                         service('stop')
 
-    def run_upstart(self, template, row, procmgr_installed=True, installer_defaults=None, admin_defaults=None):
+    def run_upstart(self, template, unix_row=None, procmgr_installed=True, installer_defaults=None, admin_defaults=None):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             binary = root / 'embedded/bin/privateactionrunner'
@@ -536,8 +487,7 @@ log_failure_msg() { echo "$*"; }''',
             script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
             logfile = root / 'errors.log'
             unix_table = root / 'unix'
-            if row is not None:
-                unix_table.write_text('Num       RefCount Protocol Flags    Type St Inode Path\n' + row)
+            unix_table.write_text(UNIX_HEADER + (unix_row or ''))
             script = script.replace('/proc/net/unix', str(unix_table))
             script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
             script = script.replace(ADMIN_PROCMGR_DEFAULTS, str(admin))
@@ -574,8 +524,6 @@ done
 exit 98
 ''',
             )
-            sleeps = root / 'sleeps'
-            self.executable(root / 'sleep', f'echo "$1" >> "{sleeps}"\n')
             # Upstart runs script blocks with sh -e.
             result = subprocess.run(
                 [shutil.which('bash'), '-e', '-c', script],
@@ -591,38 +539,13 @@ exit 98
             )
             output = result.stdout + (logfile.read_text() if logfile.exists() else '')
             received = su_env.read_text() if su_env.exists() else ''
-            return result, output, sleeps.read_text().splitlines() if sleeps.exists() else [], received
+            return result, output, received
 
     def test_upstart_script_forces_monolithic_only_without_procmgr(self):
-        cases = (
-            ('absent', None, False, 'false', 'monolithic mode'),
-            ('listening', LISTENING, True, 'true', 'split mode from config'),
-            (
-                'connected',
-                f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {SOCKET}\n',
-                False,
-                'false',
-                'monolithic mode',
-            ),
-            (
-                'other-path',
-                '0000000000000000: 00000002 00000000 00010000 0001 01 12345 /tmp/other.sock\n',
-                False,
-                'false',
-                'monolithic mode',
-            ),
-            (
-                'not-listening',
-                f'0000000000000000: 00000002 00000000 00000000 0001 01 12345 {SOCKET}\n',
-                False,
-                'false',
-                'monolithic mode',
-            ),
-        )
         for template in UPSTART_TEMPLATES:
             text = template.read_text()
             self.assertIn(SOCKET, text)
-            self.assertIn('$4 == "00010000"', text)
+            self.assertNotIn('sleep', text.split('\nscript\n', 1)[1].split('end script', 1)[0])
             self.assertNotIn('initctl', text)
             if template.name.startswith('upstart_debian'):
                 self.assertNotIn('\nsetuid ', f'\n{text}')
@@ -630,41 +553,39 @@ exit 98
                 self.assertIn('--chuid dd-agent', command)
                 self.assertIn('--pidfile /nonexistent', command)
                 self.assertNotIn('--background', command)
-            for name, row, ready, split, mode in cases:
-                with self.subTest(template=template.name, socket=name):
-                    result, output, _, _ = self.run_upstart(template, row)
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn(mode, output)
-                    # Red Hat su clears the environment, so an inherited true does not reach the runner.
-                    if template.name.startswith('upstart_redhat') and ready:
-                        self.assertNotIn('split=false', output)
-                    else:
-                        self.assertIn(f'split={split}', output)
-                    self.assertNotIn('not supported', output)
-
-    def test_upstart_skips_the_socket_wait_when_procmgr_is_disabled(self):
-        for template in UPSTART_TEMPLATES:
+            with self.subTest(template=template.name, procmgr='enabled'):
+                result, output, _ = self.run_upstart(template)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('split mode from config', output)
+                self.assertNotIn('split=false', output)
+                # Red Hat su clears the environment, so an inherited true does not reach the runner.
+                if template.name.startswith('upstart_debian'):
+                    self.assertIn('split=true', output)
             for name, procmgr in PROCMGR_DISABLED:
-                with self.subTest(template=template.name, procmgr=name):
-                    result, output, sleeps, _ = self.run_upstart(template, LISTENING, **procmgr)
+                for socket, row in (('absent', None), ('connected', CONNECTED)):
+                    with self.subTest(template=template.name, procmgr=name, socket=socket):
+                        result, output, _ = self.run_upstart(template, row, **procmgr)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('monolithic mode', output)
+                        self.assertIn('split=false', output)
+                        self.assertNotIn('not supported', output)
+                with self.subTest(template=template.name, procmgr=name, socket='listening'):
+                    result, output, _ = self.run_upstart(template, LISTENING, **procmgr)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn('monolithic mode', output)
-                    self.assertIn('split=false', output)
-                    self.assertEqual(sleeps, [])
+                    self.assertIn('split mode from config', output)
+                    self.assertNotIn('split=false', output)
 
     def test_upstart_admin_procmgr_defaults_override_the_installer_opt_out(self):
         for template in UPSTART_TEMPLATES:
             with self.subTest(template=template.name):
-                result, output, sleeps, su_env = self.run_upstart(
+                result, output, su_env = self.run_upstart(
                     template,
-                    LISTENING,
                     installer_defaults='DATADOG_ENABLED=no\n',
                     admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('split mode from config', output)
                 self.assertNotIn('leaked', output)
-                self.assertEqual(sleeps, [])
                 # su clears the environment before the runner, so the runner output cannot show this leak.
                 if template.name.startswith('upstart_redhat'):
                     self.assertIn('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=true', su_env)

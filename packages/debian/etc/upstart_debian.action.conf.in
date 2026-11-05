@@ -29,32 +29,24 @@ script
       [ "$DATADOG_ENABLED" != "no" ]
     )
   }
-  # start/running is only the procmgr shell. Wait until dd-procmgrd is listening.
-  # Without that socket, fall back to the monolithic runner.
-  procmgr_running=false
-  if procmgr_enabled; then
-    attempt=0
-    while [ "$attempt" -lt 10 ]; do
-      # 00010000: listening. 0001: stream socket. 01: listener state.
-      if awk '
-        $4 == "00010000" &&
-        $5 == "0001" &&
-        $6 == "01" &&
-        $NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
-          ready = 1
-        }
-        END { exit !ready }
-      ' /proc/net/unix; then
-        procmgr_running=true
-        break
-      fi
-      attempt=$((attempt + 1))
-      sleep 1
-    done
-  fi
-  if [ "$procmgr_running" = true ]; then
+  # One read, no wait: a dd-procmgrd still running after an opt-out can start par-control.
+  procmgr_listening() {
+    # 00010000: listening. 0001: stream socket. 01: listener state.
+    awk '
+      $4 == "00010000" &&
+      $5 == "0001" &&
+      $6 == "01" &&
+      $NF == "/var/run/datadog-procmgrd/dd-procmgrd.sock" {
+        ready = 1
+      }
+      END { exit !ready }
+    ' /proc/net/unix
+  }
+  if procmgr_enabled || procmgr_listening; then
+    # The core Agent starts par-control through dd-procmgrd. In split mode this runner stands down.
     echo "Starting Datadog Private Action Runner (split mode from config)"
   else
+    # Without dd-procmgrd, split mode cannot run par-control, so use the monolithic runner.
     export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
     echo "Starting Datadog Private Action Runner in monolithic mode"
   fi
