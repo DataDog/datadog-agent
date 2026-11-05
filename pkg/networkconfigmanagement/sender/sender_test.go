@@ -16,7 +16,6 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -174,32 +173,55 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 	}
 }
 
-func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
+func TestNCMSender_SendConfigContentSize(t *testing.T) {
 	tests := []struct {
-		name              string
-		extractedMetadata profile.ExtractedMetadata
-		configType        types.ConfigType
-		tags              []string
-		expectedMetrics   []expectedMetric
+		name            string
+		content         []byte
+		configType      types.ConfigType
+		tags            []string
+		expectedMetrics []expectedMetric
 	}{
 		{
-			name: "Config size metric submitted if present",
-			extractedMetadata: profile.ExtractedMetadata{
-				ConfigSize: 300,
-			},
-			configType: ncmRunningConfigTypeTag,
-			tags:       []string{"device_id:10.0.0.1", "config_type:running"},
+			name:       "Running config content size submitted in bytes",
+			content:    []byte("hostname test-01"), // 16 bytes
+			configType: types.RUNNING,
+			tags:       []string{"device_ip:10.0.0.1"},
 			expectedMetrics: []expectedMetric{
 				{
 					submissionType: "Gauge",
-					name:           ncmConfigSizeMetric,
-					value:          300,
+					name:           ncmConfigContentBytesMetric,
+					value:          16,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, ncmRunningConfigTypeTag},
 				},
 			},
 		},
 		{
-			name:            "Nothing extracted - no metrics expected",
-			expectedMetrics: []expectedMetric{},
+			name:       "Startup config is tagged with its own config type",
+			content:    []byte("hostname test-01"), // 16 bytes
+			configType: types.STARTUP,
+			tags:       []string{"device_ip:10.0.0.1"},
+			expectedMetrics: []expectedMetric{
+				{
+					submissionType: "Gauge",
+					name:           ncmConfigContentBytesMetric,
+					value:          16,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, ncmStartupConfigTypeTag},
+				},
+			},
+		},
+		{
+			name:       "Empty config content is reported as zero",
+			content:    []byte{},
+			configType: types.RUNNING,
+			tags:       []string{"device_ip:10.0.0.1"},
+			expectedMetrics: []expectedMetric{
+				{
+					submissionType: "Gauge",
+					name:           ncmConfigContentBytesMetric,
+					value:          0,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, ncmRunningConfigTypeTag},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -209,10 +231,11 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 
 			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock(), "test-agent-host")
 			sender.SetDeviceTags(tt.tags)
-			sender.SendMetricsFromExtractedMetadata(tt.extractedMetadata, tt.configType)
+
+			sender.SendConfigContentSize(len(tt.content), tt.configType)
 
 			for _, metric := range tt.expectedMetrics {
-				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", tt.tags)
+				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", metric.tags)
 			}
 		})
 	}
