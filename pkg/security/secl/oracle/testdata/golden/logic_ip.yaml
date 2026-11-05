@@ -2754,6 +2754,8 @@ ip_connect_basic:
             field_values:
                 connect.addr.ip:
                     - ip:10.0.0.0/8
+                connect.addr.is_public:
+                    - scalar:true
     approvers:
         connect:
             accept_mode: r0
@@ -2809,6 +2811,7 @@ ip_connect_basic:
             - ip:fe80::/10
         connect.addr.is_public:
             - scalar:false
+            - scalar:true
             - scalar:true
             - scalar:true
         connect.addr.port:
@@ -5456,7 +5459,7 @@ ip_connect_basic:
 ip_load_errors:
     load_errors:
         - |-
-          rule `r0` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: connect.addr.ip == "10.0.0.1"
+          rule `r0` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: connect.addr.ip == "10.0.0.1"
           ^
         - |-
           rule `r10` error: rule syntax error: int expected: 1:53: connect.addr.ip == 10.0.0.1 && connect.addr.port == "a"
@@ -5509,10 +5512,9 @@ ip_load_errors:
         - |-
           rule `r27` error: rule syntax error: bool expected: 1:2: !connect.addr.ip
            ^
-        - 'rule `r28` error: syntax error `1:31: unexpected token "<EOF>" (expected BooleanExpression)`'
-        - 'rule `r29` error: syntax error `1:31: unexpected token "|" (expected BooleanExpression)`'
-        - 'rule `r2` error: syntax error `1:24: unexpected token "10.0.0.1" (expected Array)`'
-        - 'rule `r30` error: syntax error `1:29: unexpected token "<EOF>" (expected ")")`'
+        - 'rule `r28` error: syntax error `1:31: expected operand after `&&`, found end of expression`'
+        - 'rule `r29` error: syntax error `1:31: expected operand after `||`, found `|``'
+        - 'rule `r30` error: syntax error `1:29: expected `)`, found end of expression, to close the `(` at 1:1`'
         - |-
           rule `r31` error: rule syntax error: invalid IP '300.0.0.1': 1:20: connect.addr.ip == 300.0.0.1
                              ^
@@ -5524,11 +5526,8 @@ ip_load_errors:
                              ^
         - 'rule `r34` error: rule compilation error: expression with multiple event types is not supported'
         - 'rule `r35` error: rule compilation error: expression with multiple event types is not supported'
-        - 'rule `r3` error: syntax error `1:35: unexpected token "<EOF>" (expected "]")`'
-        - 'rule `r4` error: syntax error `1:46: unexpected token "<EOF>" (expected "]")`'
-        - 'rule `r5` error: syntax error `1:38: unexpected token "<EOF>" (expected "]")`'
         - |-
-          rule `r6` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: connect.addr.ip == 10
+          rule `r6` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: connect.addr.ip == 10
           ^
         - |-
           rule `r7` error: rule syntax error: array of *eval.StringValuesEvaluator expected: 1:20: connect.addr.ip in ["10.0.0.0/8"]
@@ -5536,7 +5535,7 @@ ip_load_errors:
         - |-
           rule `r8` error: rule syntax error: operator `=~` unknown: 1:1: connect.addr.ip =~ 10.0.0.0/8
           ^
-        - 'rule `r9` error: syntax error `1:29: unexpected token "," (expected "]")`'
+        - 'rule `r9` error: syntax error `1:31: expected member of an array of IPs, found string `"a"``'
     rules:
         r1:
             event_type: connect
@@ -5545,6 +5544,35 @@ ip_load_errors:
             field_values:
                 connect.addr.ip:
                     - ip:10.0.0.0/8
+        r2:
+            event_type: connect
+            fields:
+                - connect.addr.ip
+            field_values:
+                connect.addr.ip:
+                    - ip:10.0.0.1/32
+        r3:
+            event_type: open
+            fields:
+                - open.file.in_upper_layer
+            field_values:
+                open.file.in_upper_layer:
+                    - :true
+        r4:
+            event_type: open
+            fields:
+                - open.file.in_upper_layer
+            field_values:
+                open.file.in_upper_layer:
+                    - :false
+                    - :true
+        r5:
+            event_type: open
+            fields:
+                - open.file.in_upper_layer
+            field_values:
+                open.file.in_upper_layer:
+                    - :true
         r12:
             event_type: connect
             fields:
@@ -5555,21 +5583,36 @@ ip_load_errors:
     approvers:
         connect:
             accept_mode: r1
+        open:
+            accept_mode: r3
     discarders_report:
         connect.addr.ip: supported
+        open.file.in_upper_layer: supported
     event_types:
         - connect
+        - open
     field_values:
         connect.addr.ip:
             - ip:10.0.0.0/8
             - ip:10.0.0.0/8
+            - ip:10.0.0.1/32
+        open.file.in_upper_layer:
+            - :false
+            - :true
+            - :true
+            - :true
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r2 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r3 r30 r31 r32 r33 r34 r35 r4 r5 r6 r7 r8 r9]
     rule_ids:
         - r1
         - r12
+        - r2
+        - r3
+        - r4
+        - r5
     approvers_all:
         - accept_mode connect=r1
+        - accept_mode open=r3
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="connect.addr.ip == \"10.0.0.1\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="connect.addr.ip in 10.0.0.0/8" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -5625,6 +5668,8 @@ ip_load_errors:
           partials:
             r1:
                 connect.addr.ip: "true"
+            r2:
+                connect.addr.ip: "false"
             r12:
                 connect.addr.ip: "true"
           scoped_counts:
@@ -5664,6 +5709,8 @@ ip_packet_fields:
                 - packet.destination.is_public
                 - packet.source.is_public
             field_values:
+                packet.destination.is_public:
+                    - scalar:true
                 packet.source.is_public:
                     - scalar:false
         r4:
@@ -5692,6 +5739,8 @@ ip_packet_fields:
             - :<nil>
             - ip:10.0.0.0/8
             - ip:10.0.0.1/32
+        packet.destination.is_public:
+            - scalar:true
         packet.destination.port:
             - scalar:53
         packet.source.ip:
@@ -7469,8 +7518,8 @@ logic_bool_arrays:
           rule `r5` error: rule syntax error: bool expected: 1:3: (!process.ancestors.is_thread) && open.file.path == "/p"
             ^
         - |-
-          rule `r6` error: rule syntax error: bool expected: 1:2: (process.ancestors.is_thread && process.is_thread) && open.file.path == "/p"
-           ^
+          rule `r6` error: rule syntax error: bool expected: 1:1: (process.ancestors.is_thread && process.is_thread) && open.file.path == "/p"
+          ^
         - |-
           rule `r7` error: rule syntax error: bool expected: 1:2: (process.ancestors.is_thread || process.is_thread) && open.file.path == "/p"
            ^
@@ -7811,10 +7860,10 @@ logic_bool_arrays:
                 - =false@32+5
                 - process.ancestors.is_thread=false@1+27
             r8:
-                - open.file.path="/p"@67+14
-                - ="/p"@85+4
                 - open.file.path="/p"@40+14
                 - ="/p"@58+4
+                - open.file.path="/p"@67+14
+                - ="/p"@85+4
                 - =true@32+4
                 - process.ancestors.is_thread=true@1+27
             r11:
@@ -7837,9 +7886,9 @@ logic_bool_arrays:
                 - ="/p"@72+4
                 - process.is_thread=false@1+17
             r18:
+                - =false@35+5
                 - open.file.path="/p"@83+14
                 - ="/p"@101+4
-                - =false@35+5
                 - =2@76+1
             r20:
                 - open.file.path="/p"@31+14
@@ -7947,10 +7996,10 @@ logic_bool_arrays:
                 - =false@32+5
                 - process.ancestors.is_thread=false@1+27
             r8:
-                - open.file.path="/p"@67+14
-                - ="/p"@85+4
                 - open.file.path="/p"@40+14
                 - ="/p"@58+4
+                - open.file.path="/p"@67+14
+                - ="/p"@85+4
                 - =true@32+4
                 - process.ancestors.is_thread=true@1+27
             r11:
@@ -7973,9 +8022,9 @@ logic_bool_arrays:
                 - ="/p"@72+4
                 - process.is_thread=true@1+17
             r18:
+                - =false@35+5
                 - open.file.path="/p"@83+14
                 - ="/p"@101+4
-                - =false@35+5
                 - =2@76+1
             r20:
                 - open.file.path="/p"@31+14
@@ -8076,10 +8125,10 @@ logic_bool_arrays:
                 - =false@32+5
                 - process.ancestors.is_thread=false@1+27
             r8:
-                - open.file.path="/p"@67+14
-                - ="/p"@85+4
                 - open.file.path="/p"@40+14
                 - ="/p"@58+4
+                - open.file.path="/p"@67+14
+                - ="/p"@85+4
                 - =true@32+4
                 - process.ancestors.is_thread=true@1+27
             r11:
@@ -8316,10 +8365,10 @@ logic_bool_arrays:
                 - open.file.path="/p"@44+14
                 - ="/p"@62+4
             r10:
-                - open.file.path="/p"@74+14
-                - ="/p"@92+4
                 - process.is_thread=false@43+17
                 - =false@64+5
+                - open.file.path="/p"@74+14
+                - ="/p"@92+4
             r11:
                 - open.file.path="/p"@71+14
                 - ="/p"@89+4
@@ -8489,6 +8538,8 @@ logic_bool_fields:
                 - open.file.in_upper_layer
                 - open.flags
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.flags:
                     - scalar:1
         r12:
@@ -8507,6 +8558,8 @@ logic_bool_fields:
                 - open.file.in_upper_layer
                 - open.flags
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.flags:
                     - scalar:1
         r14:
@@ -8541,6 +8594,8 @@ logic_bool_fields:
                 - open.file.in_upper_layer
                 - open.file.mount_visible
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_visible:
                     - scalar:true
         r18:
@@ -8549,6 +8604,8 @@ logic_bool_fields:
                 - open.file.in_upper_layer
                 - open.file.mount_visible
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_visible:
                     - scalar:true
         r19:
@@ -8556,6 +8613,9 @@ logic_bool_fields:
             fields:
                 - open.file.in_upper_layer
                 - open.file.mount_visible
+            field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
         r20:
             event_type: open
             fields:
@@ -8723,6 +8783,11 @@ logic_bool_fields:
             - scalar:false
             - scalar:false
             - scalar:false
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
             - scalar:true
             - scalar:true
             - scalar:true
@@ -9989,15 +10054,13 @@ logic_matching_values_arrays:
                 - process.ancestors.file.name=["bash" "systemd" ""]@0+27
                 - ="bash"@32+6
             r2:
-                - open.file.path="/p"@113+14
-                - ="/p"@131+4
                 - process.file.name="curl"@1+17
                 - ="curl"@22+6
-                - open.file.path="/p"@113+14
-                - ="/p"@131+4
                 - process.file.name="curl"@1+17
                 - ="curl"@22+6
                 - ="systemd"@66+9
+                - open.file.path="/p"@113+14
+                - ="/p"@131+4
                 - =0@107+1
             r4:
                 - ="bash"@31+6
@@ -10061,7 +10124,7 @@ logic_matching_values_arrays:
                 process.ancestors.file.name: "false"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "false"
+                process.ancestors.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -10078,12 +10141,8 @@ logic_matching_values_arrays:
                 - open.file.path="/zz"@54+14
                 - ="/zz"@72+5
             r5:
-                - ="bash"@31+6
-                - process.ancestors.file.name=["bash" "systemd" ""]@41+27
                 - open.file.path="/zz"@111+14
                 - ="/zz"@129+5
-                - ="systemd"@72+9
-                - process.ancestors.file.name=["bash" "systemd" ""]@41+27
           partials:
             r0:
                 open.file.path: "false"
@@ -10894,7 +10953,11 @@ logic_nondeterministic_operands:
                 - open.file.mount_detached
                 - open.file.mount_visible
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_detached:
+                    - scalar:true
+                open.file.mount_visible:
                     - scalar:true
         r24:
             event_type: open
@@ -10903,7 +10966,11 @@ logic_nondeterministic_operands:
                 - open.file.mount_detached
                 - open.file.mount_visible
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_detached:
+                    - scalar:true
+                open.file.mount_visible:
                     - scalar:true
         r25:
             event_type: open
@@ -10912,6 +10979,8 @@ logic_nondeterministic_operands:
                 - open.file.mount_visible
                 - open.file.path
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_visible:
                     - scalar:true
                 open.file.path:
@@ -10923,6 +10992,8 @@ logic_nondeterministic_operands:
                 - open.file.mount_visible
                 - open.file.path
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_visible:
                     - scalar:true
                 open.file.path:
@@ -10934,6 +11005,8 @@ logic_nondeterministic_operands:
                 - open.file.mount_visible
                 - open.file.path
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_visible:
                     - scalar:true
                 open.file.path:
@@ -10945,6 +11018,10 @@ logic_nondeterministic_operands:
                 - open.file.mount_visible
                 - open.flags
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
+                open.file.mount_visible:
+                    - scalar:true
                 open.flags:
                     - scalar:1
                     - scalar:2
@@ -10973,10 +11050,19 @@ logic_nondeterministic_operands:
             - scalar:true
             - scalar:true
             - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
         open.file.mount_detached:
             - scalar:true
             - scalar:true
         open.file.mount_visible:
+            - scalar:true
+            - scalar:true
+            - scalar:true
             - scalar:true
             - scalar:true
             - scalar:true
@@ -11991,6 +12077,7 @@ logic_or_bool_field_static_operand:
                 - open.file.in_upper_layer
             field_values:
                 open.file.in_upper_layer:
+                    - scalar:true
                     - scalar:false
         r1:
             event_type: open
@@ -12005,6 +12092,8 @@ logic_or_bool_field_static_operand:
                 - open.file.in_upper_layer
                 - open.flags
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.flags:
                     - scalar:1
         r3:
@@ -12013,6 +12102,8 @@ logic_or_bool_field_static_operand:
                 - open.file.in_upper_layer
                 - open.file.path
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.path:
                     - scalar:"/a"
         r4:
@@ -12022,6 +12113,7 @@ logic_or_bool_field_static_operand:
                 - open.flags
             field_values:
                 open.file.in_upper_layer:
+                    - scalar:true
                     - scalar:false
                 open.flags:
                     - scalar:1
@@ -12085,6 +12177,8 @@ logic_or_bool_field_static_operand:
                 - open.file.mount_visible
                 - open.flags
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_visible:
                     - scalar:true
                 open.flags:
@@ -12096,6 +12190,8 @@ logic_or_bool_field_static_operand:
                 - open.file.mount_visible
                 - open.file.path
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
                 open.file.mount_visible:
                     - scalar:true
                 open.file.path:
@@ -12107,6 +12203,7 @@ logic_or_bool_field_static_operand:
                 - open.flags
             field_values:
                 open.file.mount_detached:
+                    - scalar:true
                     - scalar:false
                 open.flags:
                     - scalar:3
@@ -12117,11 +12214,17 @@ logic_or_bool_field_static_operand:
                 - open.file.mount_detached
                 - open.flags
             field_values:
+                open.file.in_upper_layer:
+                    - scalar:true
+                open.file.mount_detached:
+                    - scalar:true
                 open.flags:
                     - scalar:3
     approvers:
         open:
-            accept_mode: r0
+            accept_mode: r1
+            field_stats:
+                open.file.in_upper_layer: 1
     discarders_report:
         open.file.in_upper_layer: supported
         open.file.mount_detached: 'invalid: r0'
@@ -12137,8 +12240,17 @@ logic_or_bool_field_static_operand:
             - scalar:false
             - scalar:true
             - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
+            - scalar:true
         open.file.mount_detached:
             - scalar:false
+            - scalar:true
+            - scalar:true
         open.file.mount_visible:
             - scalar:true
             - scalar:true
@@ -12180,7 +12292,8 @@ logic_or_bool_field_static_operand:
         - r8
         - r9
     approvers_all:
-        - accept_mode open=r0
+        - accept_mode open=r1
+        - field_stats open.file.in_upper_layer=1
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.in_upper_layer || false" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="open.file.in_upper_layer || true" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -12977,18 +13090,10 @@ logic_precedence_and_parens:
                     - scalar:3
     approvers:
         open:
-            approvers:
-                open.file.name:
-                    - scalar:"a"
-                open.file.path:
-                    - scalar:"/z"
-                open.flags:
-                    - scalar:1
-                    - scalar:2
+            accept_mode: r4
             field_stats:
-                open.file.name: 2
-                open.file.path: 1
-                open.flags: 6
+                open.file.name: 1
+                open.flags: 3
     discarders_report:
         open.file.name: supported
         open.file.path: 'invalid: r0'
@@ -13040,9 +13145,9 @@ logic_precedence_and_parens:
         - r7
         - r8
     approvers_all:
-        - field_stats open.file.name=2
-        - field_stats open.file.path=1
-        - field_stats open.flags=6
+        - accept_mode open=r4
+        - field_stats open.file.name=1
+        - field_stats open.flags=3
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.flags == 1 || open.flags == 2 && open.file.name == \"a\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="(open.flags == 1 || open.flags == 2) && open.file.name == \"a\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -13136,11 +13241,13 @@ logic_precedence_and_parens:
           matched:
             - r0
             - r1
+            - r2
             - r4
             - r6
           second_listener:
             - r0
             - r1
+            - r2
             - r4
             - r6
           matching_values:
@@ -13154,6 +13261,9 @@ logic_precedence_and_parens:
                 - =2@34+1
                 - open.file.name="a"@40+14
                 - ="a"@58+3
+            r2:
+                - open.flags=2@44+10
+                - =2@58+1
             r4:
                 - open.flags=2@19+10
                 - =2@33+1
@@ -13171,7 +13281,7 @@ logic_precedence_and_parens:
                 open.flags: "true"
             r2:
                 open.file.name: "true"
-                open.flags: "false"
+                open.flags: "true"
             r3:
                 open.file.name: "true"
                 open.flags: "false"
@@ -13193,7 +13303,7 @@ logic_precedence_and_parens:
             r8:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -13253,7 +13363,15 @@ logic_precedence_and_parens:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
-        - result: false
+        - result: true
+          matched:
+            - r2
+          second_listener:
+            - r2
+          matching_values:
+            r2:
+                - open.flags=2@44+10
+                - =2@58+1
           partials:
             r0:
                 open.file.name: "true"
@@ -13263,7 +13381,7 @@ logic_precedence_and_parens:
                 open.flags: "true"
             r2:
                 open.file.name: "true"
-                open.flags: "false"
+                open.flags: "true"
             r3:
                 open.file.name: "true"
                 open.flags: "false"
@@ -13285,17 +13403,22 @@ logic_precedence_and_parens:
             r8:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
         - result: true
           matched:
+            - r4
             - r7
           second_listener:
+            - r4
             - r7
           matching_values:
+            r4:
+                - open.file.path="/z"@63+14
+                - ="/z"@81+4
             r7:
                 - open.file.path="/z"@47+14
                 - ="/z"@65+4
@@ -13315,7 +13438,7 @@ logic_precedence_and_parens:
             r4:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r5:
                 open.file.name: "true"
                 open.file.path: "true"
@@ -13337,18 +13460,28 @@ logic_precedence_and_parens:
             process.pid: 0(true) own=0(true)
         - result: true
           matched:
+            - r4
             - r6
             - r7
+            - r8
           second_listener:
+            - r4
             - r6
             - r7
+            - r8
           matching_values:
+            r4:
+                - open.file.path="/z"@63+14
+                - ="/z"@81+4
             r6:
                 - open.file.name="a"@22+14
                 - ="a"@40+3
             r7:
                 - open.file.path="/z"@47+14
                 - ="/z"@65+4
+            r8:
+                - open.file.path="/z"@47+14
+                - ="/z"@65+4
           partials:
             r0:
                 open.file.name: "true"
@@ -13365,7 +13498,7 @@ logic_precedence_and_parens:
             r4:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r5:
                 open.file.name: "true"
                 open.file.path: "true"
@@ -13380,18 +13513,28 @@ logic_precedence_and_parens:
             r8:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 0(true) own=0(true)
         - result: true
           matched:
+            - r4
             - r7
+            - r8
           second_listener:
+            - r4
             - r7
+            - r8
           matching_values:
+            r4:
+                - open.file.path="/z"@63+14
+                - ="/z"@81+4
             r7:
+                - open.file.path="/z"@47+14
+                - ="/z"@65+4
+            r8:
                 - open.file.path="/z"@47+14
                 - ="/z"@65+4
           partials:
@@ -13410,7 +13553,7 @@ logic_precedence_and_parens:
             r4:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r5:
                 open.file.name: "true"
                 open.file.path: "true"
@@ -13425,7 +13568,7 @@ logic_precedence_and_parens:
             r8:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -13447,7 +13590,7 @@ logic_precedence_and_parens:
             r4:
                 open.file.name: "true"
                 open.file.path: "true"
-                open.flags: "false"
+                open.flags: "true"
             r5:
                 open.file.name: "true"
                 open.file.path: "true"
@@ -13473,211 +13616,184 @@ logic_static_constants:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r1:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r2:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r3:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r4:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r5:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r6:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r7:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r8:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r9:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r10:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r11:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r12:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r13:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r14:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r15:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r16:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r17:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r18:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r19:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r20:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r21:
             event_type: open
             fields:
                 - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r22:
             event_type: open
             fields:
                 - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r23:
             event_type: open
             fields:
                 - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r24:
             event_type: open
             fields:
                 - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r25:
             event_type: open
             fields:
                 - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r26:
             event_type: open
             fields:
@@ -13686,55 +13802,54 @@ logic_static_constants:
             field_values:
                 open.file.path:
                     - scalar:"/p"
+                open.flags:
+                    - scalar:1
         r27:
             event_type: open
             fields:
                 - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r28:
             event_type: open
             fields:
                 - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
         r29:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r30:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r31:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r32:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r33:
             event_type: open
             fields:
                 - open.file.path
-                - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/p"
@@ -13742,7 +13857,6 @@ logic_static_constants:
             event_type: open
             fields:
                 - open.file.path
-                - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/p"
@@ -13750,7 +13864,6 @@ logic_static_constants:
             event_type: open
             fields:
                 - open.file.path
-                - open.flags
             field_values:
                 open.file.path:
                     - scalar:"/p"
@@ -13758,55 +13871,43 @@ logic_static_constants:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r37:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r38:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:7
                     - scalar:7
         r39:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:7
                     - scalar:7
         r40:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r41:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
     approvers:
         open:
@@ -13829,6 +13930,14 @@ logic_static_constants:
             - scalar:"/p"
             - scalar:"/p"
         open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
             - scalar:1
             - scalar:1
             - scalar:1
@@ -14170,13 +14279,10 @@ logic_static_constants:
                 open.flags: "true"
             r33:
                 open.file.path: "true"
-                open.flags: "true"
             r34:
                 open.file.path: "true"
-                open.flags: "true"
             r35:
                 open.file.path: "true"
-                open.flags: "true"
             r36:
                 open.flags: "true"
             r37:
@@ -14309,13 +14415,10 @@ logic_static_constants:
                 open.flags: "true"
             r33:
                 open.file.path: "true"
-                open.flags: "true"
             r34:
                 open.file.path: "true"
-                open.flags: "true"
             r35:
                 open.file.path: "true"
-                open.flags: "true"
             r36:
                 open.flags: "false"
             r37:
@@ -14419,13 +14522,10 @@ logic_static_constants:
                 open.flags: "true"
             r33:
                 open.file.path: "false"
-                open.flags: "true"
             r34:
                 open.file.path: "false"
-                open.flags: "true"
             r35:
                 open.file.path: "false"
-                open.flags: "true"
             r36:
                 open.flags: "false"
             r37:

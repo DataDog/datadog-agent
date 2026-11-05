@@ -5560,7 +5560,8 @@ int_bit_or_xor:
                 - open.flags
             field_values:
                 open.flags:
-                    - bitmask:3
+                    - bitmask:1
+                    - bitmask:2
                     - scalar:3
         r13:
             event_type: open
@@ -5593,8 +5594,9 @@ int_bit_or_xor:
             - bitmask:1
             - bitmask:1
             - bitmask:1
+            - bitmask:1
             - bitmask:2
-            - bitmask:3
+            - bitmask:2
             - bitmask:3
             - bitmask:64
             - bitmask:64
@@ -5714,12 +5716,14 @@ int_bit_or_xor:
             - r4
             - r6
             - r8
+            - r12
             - r13
           second_listener:
             - r3
             - r4
             - r6
             - r8
+            - r12
             - r13
           matching_values:
             r8:
@@ -5749,7 +5753,7 @@ int_bit_or_xor:
             r11:
                 open.flags: "false"
             r12:
-                open.flags: "false"
+                open.flags: "true"
             r13:
                 open.flags: "true"
             r14:
@@ -5948,9 +5952,7 @@ int_bit_or_xor:
             process.pid: 0(true) own=0(true)
 int_boolean_composition:
     load_errors:
-        - |-
-          rule `r5` error: rule syntax error: int expected: 1:40: open.flags >= 0 && (process.pid > 5 == true)
-                                                 ^
+        - 'rule `r5` error: syntax error `1:37: comparisons can''t be chained, add parentheses`'
     rules:
         r0:
             event_type: open
@@ -6255,7 +6257,7 @@ int_boolean_composition:
                 process.uid: "true"
             r4:
                 open.flags: "true"
-                process.pid: "false"
+                process.pid: "true"
                 process.uid: "true"
             r6:
                 open.flags: "true"
@@ -6286,8 +6288,6 @@ int_boolean_composition:
             r0:
                 - open.flags=0@0+10
                 - =0@14+1
-                - process.pid=100@20+11
-                - =1@34+1
                 - process.pid=100@59+11
                 - =100@74+3
             r1:
@@ -6322,7 +6322,7 @@ int_boolean_composition:
                 process.uid: "true"
             r4:
                 open.flags: "true"
-                process.pid: "false"
+                process.pid: "true"
                 process.uid: "true"
             r6:
                 open.flags: "false"
@@ -6403,14 +6403,19 @@ int_boolean_composition:
         - result: true
           matched:
             - r2
+            - r4
           second_listener:
             - r2
+            - r4
           matching_values:
             r2:
                 - open.flags=0@0+10
                 - =0@14+1
                 - process.uid=0@42+11
                 - =0@58+1
+            r4:
+                - open.flags=0@0+10
+                - =0@14+1
           partials:
             r0:
                 open.flags: "true"
@@ -6428,7 +6433,7 @@ int_boolean_composition:
                 process.uid: "false"
             r4:
                 open.flags: "true"
-                process.pid: "false"
+                process.pid: "true"
                 process.uid: "true"
             r6:
                 open.flags: "false"
@@ -11147,7 +11152,7 @@ int_duration_array_fields:
 int_duration_array_reversed_and_misc:
     load_errors:
         - |-
-          rule `r6` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: open.flags >= 0 && (process.ancestors.created_at == 1h)
+          rule `r6` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: open.flags >= 0 && (process.ancestors.created_at == 1h)
           ^
     rules:
         r0:
@@ -12908,7 +12913,7 @@ int_errors_unknown_and_misplaced:
                                  ^
         - 'rule `r15` error: rule compilation error: field `NOSUCH` not found'
         - 'rule `r16` error: rule compilation error: field `NOSUCH` not found'
-        - 'rule `r17` error: rule compilation error: array of unsupported identifiers (ident type: `%!s(<nil>)`)'
+        - 'rule `r17` error: rule compilation error: `NOSUCH` is not a constant, the members of an array of identifiers have to be constants'
         - 'rule `r18` error: rule compilation error: field `NOSUCH` not found'
         - |-
           rule `r19` error: rule syntax error: int expected: 1:34: open.flags >= 0 && (open.flags & true == 1)
@@ -15116,7 +15121,7 @@ int_scalar_field_vs_array_field:
         - |-
           rule `r14` error: rule syntax error: int expected: 1:21: open.flags >= 0 && (process.ancestors.pid + 1 > process.uid)
                               ^
-        - 'rule `r15` error: syntax error `1:59: unexpected token ")" (expected "]")`'
+        - 'rule `r15` error: rule compilation error: `process.pid` is not a constant, the members of an array of identifiers have to be constants'
     rules:
         r0:
             event_type: open
@@ -17035,8 +17040,8 @@ int_type_errors:
         - |-
           rule `r11` error: rule syntax error: array of int expected: 1:16: process.pid in ["a"]
                          ^
-        - 'rule `r12` error: syntax error `1:18: unexpected token "," (expected "]")`'
-        - 'rule `r13` error: syntax error `1:20: unexpected token "," (expected "]")`'
+        - 'rule `r12` error: syntax error `1:20: expected member of an array of integers, found string `"a"``'
+        - 'rule `r13` error: syntax error `1:22: expected member of an array of strings, found integer `1``'
         - |-
           rule `r14` error: rule syntax error: array of int expected: 1:16: process.pid in process.file.name
                          ^
@@ -17070,7 +17075,7 @@ int_type_errors:
         - |-
           rule `r24` error: rule syntax error: int expected: 1:14: open.flags ^ "a" == 1
                        ^
-        - 'rule `r26` error: syntax error `1:23: unexpected token "="`'
+        - 'rule `r26` error: syntax error `1:23: comparisons can''t be chained, add parentheses`'
         - |-
           rule `r27` error: rule syntax error: bool expected: 1:1: process.pid + 1
           ^
@@ -17096,8 +17101,10 @@ int_type_errors:
           rule `r33` error: rule syntax error: array of int expected: 1:9: 1 allin process.pid
                   ^
         - 'rule `r34` error: no event in the rule definition'
-        - 'rule `r35` error: syntax error `1:15: unexpected token "[" (expected Comparison)`'
-        - 'rule `r36` error: syntax error `1:25: unexpected token "[" (expected Comparison)`'
+        - 'rule `r35` error: no event in the rule definition'
+        - |-
+          rule `r36` error: rule syntax error: int expected: 1:25: process.ancestors.pid > [1]
+                                  ^
         - |-
           rule `r3` error: rule syntax error: int expected: 1:15: process.pid + "a" == 1
                         ^

@@ -7929,7 +7929,7 @@ string_field_vs_field:
         - 'rule `r10` error: rule compilation error: unable to apply pattern on non static value `rename.file.destination.path`'
         - 'rule `r11` error: rule compilation error: unable to apply pattern on non static value `rename.file.destination.path`'
         - 'rule `r5` error: rule compilation error: unable to apply pattern on non static value `rename.file.destination.name`'
-        - 'rule `r7` error: syntax error `1:51: unexpected token "<EOF>" (expected "]")`'
+        - 'rule `r7` error: rule compilation error: `rename.file.destination.name` is not a constant, the members of an array of identifiers have to be constants'
     rules:
         r0:
             event_type: rename
@@ -8419,7 +8419,7 @@ string_field_vs_field:
             process.pid: 0(true) own=0(true)
 string_field_vs_field_link_open:
     load_errors:
-        - 'rule `r5` error: syntax error `1:37: unexpected token "," (expected "]")`'
+        - 'rule `r5` error: syntax error `1:39: expected member of an array of identifiers, found string `"z"``'
     rules:
         r0:
             event_type: link
@@ -14511,7 +14511,6 @@ string_in_lists:
         r0:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14520,7 +14519,6 @@ string_in_lists:
         r1:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14529,7 +14527,6 @@ string_in_lists:
         r2:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14537,7 +14534,6 @@ string_in_lists:
         r3:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14547,7 +14543,6 @@ string_in_lists:
         r4:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14556,7 +14551,6 @@ string_in_lists:
         r5:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14565,7 +14559,6 @@ string_in_lists:
         r6:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14576,7 +14569,6 @@ string_in_lists:
         r7:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14588,34 +14580,24 @@ string_in_lists:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"passwd"
-                    - scalar:"shadow"
                     - scalar:"passwd"
                     - scalar:"shadow"
         r9:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"passwd"
-                    - scalar:"shadow"
                     - scalar:"passwd"
                     - scalar:"shadow"
         r10:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a.txt"
-                    - scalar:"b*"
-                    - scalar:"d.log"
                     - scalar:"a.txt"
                     - scalar:"b*"
                     - scalar:"d.log"
@@ -14623,12 +14605,8 @@ string_in_lists:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a.txt"
-                    - scalar:"b*"
-                    - scalar:"d.log"
                     - scalar:"a.txt"
                     - scalar:"b*"
                     - scalar:"d.log"
@@ -14636,55 +14614,39 @@ string_in_lists:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:""
-                    - scalar:"x"
                     - scalar:""
                     - scalar:"x"
         r13:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:""
-                    - scalar:"x"
                     - scalar:""
                     - scalar:"x"
         r14:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"é.txt"
-                    - scalar:"日本語"
                     - scalar:"é.txt"
                     - scalar:"日本語"
         r15:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a"
                     - scalar:"a"
         r16:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a.txt"
-                    - regex:"^b.*"
-                    - pattern:"c*"
-                    - scalar:"d*"
                     - scalar:"a.txt"
                     - regex:"^b.*"
                     - pattern:"c*"
@@ -14693,14 +14655,8 @@ string_in_lists:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a.txt"
-                    - scalar:"b*"
-                    - pattern:"c*"
-                    - regex:"^d\\\\."
-                    - scalar:"é.txt"
                     - scalar:"a.txt"
                     - scalar:"b*"
                     - pattern:"c*"
@@ -14710,14 +14666,8 @@ string_in_lists:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a.txt"
-                    - scalar:"b*"
-                    - pattern:"c*"
-                    - regex:"^d\\\\."
-                    - scalar:"é.txt"
                     - scalar:"a.txt"
                     - scalar:"b*"
                     - pattern:"c*"
@@ -14726,7 +14676,6 @@ string_in_lists:
         r19:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14736,7 +14685,6 @@ string_in_lists:
         r20:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14746,7 +14694,6 @@ string_in_lists:
         r21:
             event_type: open
             fields:
-                - open.file.name
                 - open.file.path
             field_values:
                 open.file.path:
@@ -14757,10 +14704,8 @@ string_in_lists:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"a"
                     - scalar:"a"
         r23:
             event_type: open
@@ -14768,16 +14713,17 @@ string_in_lists:
                 - open.file.name
                 - open.file.path
             field_values:
+                open.file.name:
+                    - scalar:"passwd"
+                    - scalar:"shadow"
                 open.file.path:
                     - glob:"/etc/*"
         r24:
             event_type: open
             fields:
                 - open.file.name
-                - open.file.name
             field_values:
                 open.file.name:
-                    - scalar:"passwd"
                     - scalar:"passwd"
     approvers:
         open:
@@ -14785,7 +14731,7 @@ string_in_lists:
             field_stats:
                 open.file.path: 1
     discarders_report:
-        open.file.name: supported
+        open.file.name: 'invalid: r0'
         open.file.path: supported
     event_types:
         - open
@@ -14823,6 +14769,8 @@ string_in_lists:
             - scalar:"passwd"
             - scalar:"passwd"
             - scalar:"passwd"
+            - scalar:"passwd"
+            - scalar:"shadow"
             - scalar:"shadow"
             - scalar:"shadow"
             - scalar:"x"
@@ -14978,28 +14926,20 @@ string_in_lists:
                 - ="passwd"@49+8
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "true"
             r1:
-                open.file.name: "true"
                 open.file.path: "false"
             r2:
-                open.file.name: "true"
                 open.file.path: "true"
             r3:
-                open.file.name: "true"
                 open.file.path: "true"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "true"
             r7:
-                open.file.name: "true"
                 open.file.path: "false"
             r8:
                 open.file.name: "true"
@@ -15024,13 +14964,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "true"
             r20:
-                open.file.name: "true"
                 open.file.path: "false"
             r21:
-                open.file.name: "true"
                 open.file.path: "true"
             r22:
                 open.file.name: "true"
@@ -15079,28 +15016,20 @@ string_in_lists:
                 - ="/etc/*"@33+8
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "true"
             r1:
-                open.file.name: "true"
                 open.file.path: "false"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "true"
             r7:
-                open.file.name: "true"
                 open.file.path: "false"
             r8:
                 open.file.name: "true"
@@ -15125,13 +15054,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -15167,28 +15093,20 @@ string_in_lists:
             - r22
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15213,13 +15131,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -15264,28 +15179,20 @@ string_in_lists:
                 - ="x"@23+3
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "true"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15310,13 +15217,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -15365,28 +15269,20 @@ string_in_lists:
                 - ="/var/**"@35+9
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15411,13 +15307,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "true"
             r20:
-                open.file.name: "true"
                 open.file.path: "false"
             r21:
-                open.file.name: "true"
                 open.file.path: "true"
             r22:
                 open.file.name: "true"
@@ -15461,28 +15354,20 @@ string_in_lists:
                 - ="/root/*"@47+9
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15507,13 +15392,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "true"
             r20:
-                open.file.name: "true"
                 open.file.path: "false"
             r21:
-                open.file.name: "true"
                 open.file.path: "true"
             r22:
                 open.file.name: "true"
@@ -15555,28 +15437,20 @@ string_in_lists:
                 - ="^b.*"@29+6
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15601,13 +15475,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -15651,28 +15522,20 @@ string_in_lists:
                 - ="/var/**"@35+9
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15697,13 +15560,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "true"
             r20:
-                open.file.name: "true"
                 open.file.path: "false"
             r21:
-                open.file.name: "true"
                 open.file.path: "true"
             r22:
                 open.file.name: "true"
@@ -15749,28 +15609,20 @@ string_in_lists:
                 - open.file.name="a.txt"@0+14
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15795,13 +15647,10 @@ string_in_lists:
             r18:
                 open.file.name: "false"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -15843,28 +15692,20 @@ string_in_lists:
                 - ="^b.*"@29+6
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15889,13 +15730,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -15939,28 +15777,20 @@ string_in_lists:
                 - open.file.name="cde"@0+14
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -15985,13 +15815,10 @@ string_in_lists:
             r18:
                 open.file.name: "false"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -16030,28 +15857,20 @@ string_in_lists:
                 - open.file.name="d.log"@0+14
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -16076,13 +15895,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -16118,28 +15934,20 @@ string_in_lists:
             - r22
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -16164,13 +15972,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -16206,28 +16011,20 @@ string_in_lists:
             - r22
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -16252,13 +16049,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -16298,28 +16092,20 @@ string_in_lists:
                 - =""@19+2
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -16344,13 +16130,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -16394,28 +16177,20 @@ string_in_lists:
                 - open.file.name="é.txt"@0+14
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -16440,13 +16215,10 @@ string_in_lists:
             r18:
                 open.file.name: "false"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -16488,28 +16260,20 @@ string_in_lists:
                 - ="日本語"@29+11
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -16534,13 +16298,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "true"
@@ -16580,28 +16341,20 @@ string_in_lists:
                 - ="a"@19+3
           partials:
             r0:
-                open.file.name: "true"
                 open.file.path: "false"
             r1:
-                open.file.name: "true"
                 open.file.path: "true"
             r2:
-                open.file.name: "true"
                 open.file.path: "false"
             r3:
-                open.file.name: "true"
                 open.file.path: "false"
             r4:
-                open.file.name: "true"
                 open.file.path: "false"
             r5:
-                open.file.name: "true"
                 open.file.path: "true"
             r6:
-                open.file.name: "true"
                 open.file.path: "false"
             r7:
-                open.file.name: "true"
                 open.file.path: "true"
             r8:
                 open.file.name: "false"
@@ -16626,13 +16379,10 @@ string_in_lists:
             r18:
                 open.file.name: "true"
             r19:
-                open.file.name: "true"
                 open.file.path: "false"
             r20:
-                open.file.name: "true"
                 open.file.path: "true"
             r21:
-                open.file.name: "true"
                 open.file.path: "false"
             r22:
                 open.file.name: "false"
@@ -17347,7 +17097,7 @@ string_load_errors:
         - |-
           rule `r0` error: rule syntax error: string expected: 1:19: open.file.name == 1
                             ^
-        - 'rule `r10` error: syntax error `1:35: unexpected token "<EOF>" (expected "]")`'
+        - 'rule `r10` error: rule compilation error: `open.file.path` is not a constant, the members of an array of identifiers have to be constants'
         - |-
           rule `r12` error: rule syntax error: int expected: 1:26: open.file.name.length == "a"
                                    ^
@@ -17361,7 +17111,7 @@ string_load_errors:
         - |-
           rule `r16` error: rule syntax error: field 'no.such.field' doesn't exist: 1:19: open.file.name == "%{no.such.field}"
                             ^
-        - 'rule `r17` error: syntax error `1:19: lexer: invalid input text "''a''"`'
+        - 'rule `r17` error: syntax error `1:19: unexpected character `''` (and 1 more errors)`'
         - |-
           rule `r18` error: rule syntax error: int expected: 1:1: open.file.name + "a" == "b"
           ^
@@ -17400,7 +17150,9 @@ string_load_errors:
           rule `r2` error: rule syntax error: string expected: 1:19: open.file.name =~ 1
                             ^
         - 'rule `r30` error: rule compilation error: field `exec.argv.length` not found'
-        - 'rule `r31` error: syntax error `1:14: unexpected token "a" (expected Array)`'
+        - |-
+          rule `r31` error: rule syntax error: array of string expected: 1:14: exec.argv in "a"
+                       ^
         - |-
           rule `r32` error: rule syntax error: array of string expected: 1:14: exec.argv in open.file.path
                        ^
@@ -17411,7 +17163,7 @@ string_load_errors:
         - 'rule `r3` error: rule compilation error: regexp not supported on path `open.file.path`'
         - 'rule `r4` error: rule compilation error: regexp not supported on path `open.file.path`'
         - 'rule `r5` error: rule compilation error: invalid regexp `(`: error parsing regexp: missing closing ): `(`'
-        - 'rule `r6` error: syntax error `1:23: unexpected token "," (expected "]")`'
+        - 'rule `r6` error: syntax error `1:25: expected member of an array of strings, found integer `1``'
         - |-
           rule `r7` error: rule syntax error: array of string expected: 1:19: open.file.name in [1, 2]
                             ^

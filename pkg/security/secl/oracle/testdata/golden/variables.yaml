@@ -235,7 +235,7 @@ action_filter:
             process.pid: 2(true) own=2(true)
 action_filter_errors:
     load_errors:
-        - 'rule `bad_syntax` error: filter `open.flags ==` error: 1:14: unexpected token "<EOF>" (expected Comparison)'
+        - 'rule `bad_syntax` error: filter `open.flags ==` error: 1:14: expected operand after `==`, found end of expression'
         - |-
           rule `unknown_var` error: filter `${nothing} == 1` error: rule syntax error: variable 'nothing' doesn't exist: 1:1: ${nothing} == 1
           ^
@@ -992,7 +992,7 @@ field_reference_in_string:
             process.pid: 0(true) own=0(true)
 global_array_length_and_index:
     load_errors:
-        - 'rule `idx_outside_string` error: syntax error `1:35: unexpected token "["`'
+        - 'rule `idx_outside_string` error: syntax error `1:35: expected `&&`, `||` or end of expression, found `[`, missing `&&` or `||`?`'
     rules:
         count_var:
             event_type: mkdir
@@ -8420,7 +8420,7 @@ set_expression_errors:
         - expression 'exec.file.name' with event type `exec` is not compatible with 'open' rules
         - 'expression ''open.flags + 1'' for variable ''v3'': incompatible types: expression returns int but default_value is string'
         - 'failed to compile action expression: field `open.nothing` not found'
-        - 'failed to parse action expression: 1:13: unexpected token "<EOF>" (expected BitOperation)'
+        - 'failed to parse action expression: 1:13: expected operand after `+`, found end of expression'
     rules:
         good:
             event_type: open
@@ -10664,9 +10664,9 @@ variable_in_rule_without_set:
             process.pid: 0(true) own=0(true)
 variable_ip_values:
     load_errors:
-        - 'rule `same_net` error: syntax error `1:21: unexpected token "${last_ip}" (expected <ident> ("," <ident>)* "]")`'
+        - 'rule `same_net` error: syntax error `1:21: expected array member, found variable `${last_ip}``'
         - |-
-          rule `same` error: rule syntax error: unknown entity '*ast.Comparison': 0:0: connect.addr.ip == ${last_ip}
+          rule `same` error: rule syntax error: unknown entity '*ast.ScalarCompareExpr': 0:0: connect.addr.ip == ${last_ip}
           ^
     rules:
         cidr_in_ips:

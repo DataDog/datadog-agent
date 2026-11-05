@@ -3705,11 +3705,9 @@ array_index_argv:
                     - :""
     approvers:
         open:
-            approvers:
-                open.file.path:
-                    - scalar:"/t"
+            accept_mode: r12
             field_stats:
-                open.file.path: 18
+                open.file.path: 12
     discarders_report:
         open.file.path: supported
         process.argv: none
@@ -3784,7 +3782,8 @@ array_index_argv:
         - r8
         - r9
     approvers_all:
-        - field_stats open.file.path=18
+        - accept_mode open=r12
+        - field_stats open.file.path=12
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.path == \"/t\" && process.argv[0] == \"-c\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="open.file.path == \"/t\" && process.argv[1] == \"ls\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -4305,7 +4304,7 @@ array_index_errors:
         - |-
           rule `int_vs_string` error: rule syntax error: int expected: 1:55: open.file.path == "/t" && process.ancestors.uid[0] == "a"
                                                                 ^
-        - 'rule `negative` error: syntax error `1:40: unexpected token "-1"`'
+        - 'rule `negative` error: syntax error `1:39: expected `&&`, `||` or end of expression, found `[`, missing `&&` or `||`?`'
         - |-
           rule `not_array_string` error: rule syntax error: failed to create array index accessor: field 'process.file.name' is not an array type or array type is not supported for index access: 1:27: open.file.path == "/t" && process.file.name[0] == "a"
                                     ^
@@ -5787,153 +5786,123 @@ iterator_in_macros:
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
             field_values:
                 open.file.path:
                     - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"sshd"
         r1:
             event_type: open
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
             field_values:
                 open.file.path:
                     - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"sshd"
         r2:
             event_type: open
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
                 - process.ancestors.uid
-                - process.parent.file.name
             field_values:
                 open.file.path:
                     - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"sshd"
         r3:
             event_type: open
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
-        r4:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
-        r5:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
-        r6:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
-        r7:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
-        r8:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
-        r9:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.parent.file.name
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
-        r10:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
-                - process.ancestors.uid
-                - process.ancestors.uid
-                - process.parent.file.name
             field_values:
                 open.file.path:
                     - scalar:"/t"
                 process.ancestors.file.name:
                     - scalar:"bash"
                     - scalar:"zsh"
+        r4:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.ancestors.file.name
+            field_values:
+                open.file.path:
+                    - scalar:"/t"
+                process.ancestors.file.name:
                     - scalar:"bash"
                     - scalar:"zsh"
+        r5:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.ancestors.length
+            field_values:
+                open.file.path:
+                    - scalar:"/t"
+                process.ancestors.length:
+                    - range:3
+        r6:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.ancestors.file.name
+                - process.ancestors.length
+            field_values:
+                open.file.path:
+                    - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"sshd"
+                process.ancestors.length:
+                    - range:3
+        r7:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.parent.file.name
+            field_values:
+                open.file.path:
+                    - scalar:"/t"
+                process.parent.file.name:
                     - scalar:"bash"
                     - scalar:"zsh"
+        r8:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.ancestors.file.name
+            field_values:
+                open.file.path:
+                    - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"sshd"
+                    - scalar:"bash"
+                    - scalar:"zsh"
+        r9:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.ancestors.file.name
+                - process.ancestors.length
+            field_values:
+                open.file.path:
+                    - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"sshd"
+                process.ancestors.length:
+                    - range:3
+        r10:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.ancestors.file.name
+                - process.ancestors.uid
+            field_values:
+                open.file.path:
+                    - scalar:"/t"
+                process.ancestors.file.name:
                     - scalar:"bash"
                     - scalar:"zsh"
         r11:
@@ -5941,23 +5910,11 @@ iterator_in_macros:
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
                 - process.ancestors.uid
-                - process.ancestors.uid
-                - process.parent.file.name
             field_values:
                 open.file.path:
                     - scalar:"/t"
                 process.ancestors.file.name:
-                    - scalar:"bash"
-                    - scalar:"zsh"
-                    - scalar:"bash"
-                    - scalar:"zsh"
-                    - scalar:"bash"
-                    - scalar:"zsh"
                     - scalar:"bash"
                     - scalar:"zsh"
         r12:
@@ -5965,23 +5922,11 @@ iterator_in_macros:
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
                 - process.ancestors.uid
-                - process.ancestors.uid
-                - process.parent.file.name
             field_values:
                 open.file.path:
                     - scalar:"/t"
                 process.ancestors.file.name:
-                    - scalar:"bash"
-                    - scalar:"zsh"
-                    - scalar:"bash"
-                    - scalar:"zsh"
-                    - scalar:"bash"
-                    - scalar:"zsh"
                     - scalar:"bash"
                     - scalar:"zsh"
         r13:
@@ -5989,23 +5934,11 @@ iterator_in_macros:
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.file.name
-                - process.ancestors.length
                 - process.ancestors.uid
-                - process.ancestors.uid
-                - process.parent.file.name
             field_values:
                 open.file.path:
                     - scalar:"/t"
                 process.ancestors.file.name:
-                    - scalar:"bash"
-                    - scalar:"zsh"
-                    - scalar:"bash"
-                    - scalar:"zsh"
-                    - scalar:"bash"
-                    - scalar:"zsh"
                     - scalar:"bash"
                     - scalar:"zsh"
     approvers:
@@ -6018,7 +5951,9 @@ iterator_in_macros:
     discarders_report:
         open.file.path: supported
         process.ancestors.file.name: none
+        process.ancestors.length: none
         process.ancestors.uid: none
+        process.parent.file.name: none
     event_types:
         - open
     macro_ids:
@@ -6050,9 +5985,28 @@ iterator_in_macros:
             - scalar:"bash"
             - scalar:"bash"
             - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"sshd"
+            - scalar:"sshd"
+            - scalar:"sshd"
+            - scalar:"sshd"
+            - scalar:"sshd"
+            - scalar:"sshd"
             - scalar:"zsh"
             - scalar:"zsh"
             - scalar:"zsh"
+            - scalar:"zsh"
+            - scalar:"zsh"
+            - scalar:"zsh"
+            - scalar:"zsh"
+        process.ancestors.length:
+            - range:3
+            - range:3
+            - range:3
+        process.parent.file.name:
+            - scalar:"bash"
             - scalar:"zsh"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [r0 r1 r10 r11 r12 r13 r2 r3 r4 r5 r6 r7 r8 r9]
@@ -6092,6 +6046,7 @@ iterator_in_macros:
         - result: true
           matched:
             - r0
+            - r2
             - r3
             - r5
             - r6
@@ -6103,6 +6058,7 @@ iterator_in_macros:
             - r12
           second_listener:
             - r0
+            - r2
             - r3
             - r5
             - r6
@@ -6114,6 +6070,13 @@ iterator_in_macros:
             - r12
           matching_values:
             r0:
+                - open.file.path="/t"@0+14
+                - ="/t"@18+4
+            r2:
+                - open.file.path="/t"@0+14
+                - ="/t"@18+4
+                - open.file.path="/t"@0+14
+                - ="/t"@18+4
                 - open.file.path="/t"@0+14
                 - ="/t"@18+4
             r3:
@@ -6154,87 +6117,52 @@ iterator_in_macros:
             r0:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r1:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r2:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r3:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r4:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r6:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r7:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
                 process.parent.file.name: "true"
             r8:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r9:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r12:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r13:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6242,6 +6170,7 @@ iterator_in_macros:
         - result: true
           matched:
             - r0
+            - r2
             - r3
             - r5
             - r6
@@ -6252,6 +6181,7 @@ iterator_in_macros:
             - r11
           second_listener:
             - r0
+            - r2
             - r3
             - r5
             - r6
@@ -6262,6 +6192,11 @@ iterator_in_macros:
             - r11
           matching_values:
             r0:
+                - open.file.path="/t"@0+14
+                - ="/t"@18+4
+            r2:
+                - open.file.path="/t"@0+14
+                - ="/t"@18+4
                 - open.file.path="/t"@0+14
                 - ="/t"@18+4
             r3:
@@ -6296,87 +6231,52 @@ iterator_in_macros:
             r0:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r1:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r2:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r3:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r4:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r6:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r7:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
                 process.parent.file.name: "true"
             r8:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r9:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r12:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r13:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6419,87 +6319,52 @@ iterator_in_macros:
             r0:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r1:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r2:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r3:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r4:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r6:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r7:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
                 process.parent.file.name: "false"
             r8:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r9:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r12:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r13:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6522,87 +6387,52 @@ iterator_in_macros:
             r0:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r1:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r2:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r3:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r4:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
                 process.ancestors.length: "false"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r6:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
+                process.ancestors.file.name: "false"
+                process.ancestors.length: "false"
             r7:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
                 process.parent.file.name: "false"
             r8:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r9:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r12:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r13:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6635,87 +6465,52 @@ iterator_in_macros:
             r0:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r1:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r2:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r3:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r4:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r6:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
+                process.ancestors.file.name: "false"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r7:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
                 process.parent.file.name: "false"
             r8:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r9:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r12:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r13:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6738,87 +6533,52 @@ iterator_in_macros:
             r0:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r1:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r2:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r3:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r4:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
                 process.ancestors.length: "false"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r6:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
+                process.ancestors.file.name: "false"
+                process.ancestors.length: "false"
             r7:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
                 process.parent.file.name: "false"
             r8:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r9:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r12:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r13:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -6841,140 +6601,92 @@ iterator_in_macros:
             r0:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r1:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r2:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r3:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r4:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r5:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
                 process.ancestors.length: "false"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r6:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
+                process.ancestors.file.name: "false"
+                process.ancestors.length: "false"
             r7:
                 open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
                 process.parent.file.name: "false"
             r8:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r9:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
                 process.ancestors.length: "true"
-                process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r10:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r11:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
             r12:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "true"
-                process.parent.file.name: "true"
             r13:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.length: "true"
                 process.ancestors.uid: "false"
-                process.parent.file.name: "true"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 1(true) own=1(true)
 iterator_macro_with_registers_error_and_ok:
+    load_errors:
+        - 'rule `macro_and_inline_other_register` error: rule compilation error: iterator variable error: iterator variable limit to one per rule'
+        - 'rule `two_macro_registers` error: rule compilation error: iterator variable error: iterator variable limit to one per rule'
     rules:
-        macro_and_inline_other_register:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.uid
-                - process.ancestors.uid
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
         macro_and_inline_register:
             event_type: open
             fields:
                 - open.file.path
                 - process.ancestors.file.name
                 - process.ancestors.uid
-                - process.ancestors.uid
             field_values:
                 open.file.path:
                     - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"a"
         one_macro_register:
             event_type: open
             fields:
                 - open.file.path
                 - process.ancestors.file.name
-                - process.ancestors.uid
             field_values:
                 open.file.path:
                     - scalar:"/t"
-        two_macro_registers:
-            event_type: open
-            fields:
-                - open.file.path
-                - process.ancestors.file.name
-                - process.ancestors.uid
-            field_values:
-                open.file.path:
-                    - scalar:"/t"
+                process.ancestors.file.name:
+                    - scalar:"a"
     approvers:
         open:
             approvers:
                 open.file.path:
                     - scalar:"/t"
             field_stats:
-                open.file.path: 4
+                open.file.path: 2
     discarders_report:
         open.file.path: supported
+        process.ancestors.file.name: none
         process.ancestors.uid: none
     event_types:
         - open
@@ -6985,17 +6697,16 @@ iterator_macro_with_registers_error_and_ok:
         open.file.path:
             - scalar:"/t"
             - scalar:"/t"
-            - scalar:"/t"
-            - scalar:"/t"
+        process.ancestors.file.name:
+            - scalar:"a"
+            - scalar:"a"
     policies:
         - policy0(oracle) internal_type= type= version= replace= [macro_and_inline_other_register macro_and_inline_register one_macro_register two_macro_registers]
     rule_ids:
-        - macro_and_inline_other_register
         - macro_and_inline_register
         - one_macro_register
-        - two_macro_registers
     approvers_all:
-        - field_stats open.file.path=4
+        - field_stats open.file.path=2
     policy_rules:
         - policy0/one_macro_register accepted=true disabled=false expression="open.file.path == \"/t\" && reg_a_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/two_macro_registers accepted=true disabled=false expression="open.file.path == \"/t\" && reg_a_macro && reg_b_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -7004,29 +6715,24 @@ iterator_macro_with_registers_error_and_ok:
     steps:
         - result: true
           matched:
+            - one_macro_register
             - macro_and_inline_register
-            - macro_and_inline_other_register
           second_listener:
+            - one_macro_register
             - macro_and_inline_register
-            - macro_and_inline_other_register
           matching_values:
-            macro_and_inline_other_register:
-                - open.file.path="/t"@0+14
-                - ="/t"@18+4
-                - open.file.path="/t"@0+14
-                - ="/t"@18+4
-                - =1@69+1
             macro_and_inline_register:
                 - open.file.path="/t"@0+14
                 - ="/t"@18+4
                 - open.file.path="/t"@0+14
                 - ="/t"@18+4
                 - =1@69+1
+            one_macro_register:
+                - open.file.path="/t"@0+14
+                - ="/t"@18+4
+                - open.file.path="/t"@0+14
+                - ="/t"@18+4
           partials:
-            macro_and_inline_other_register:
-                open.file.path: "true"
-                process.ancestors.file.name: "false"
-                process.ancestors.uid: "false"
             macro_and_inline_register:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
@@ -7034,11 +6740,6 @@ iterator_macro_with_registers_error_and_ok:
             one_macro_register:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.uid: "true"
-            two_macro_registers:
-                open.file.path: "true"
-                process.ancestors.file.name: "false"
-                process.ancestors.uid: "true"
           scoped_counts:
             process.pid: 0
           variables:
@@ -7047,16 +6748,10 @@ iterator_macro_with_registers_error_and_ok:
           matched:
             - one_macro_register
             - macro_and_inline_register
-            - macro_and_inline_other_register
           second_listener:
             - one_macro_register
             - macro_and_inline_register
-            - macro_and_inline_other_register
           matching_values:
-            macro_and_inline_other_register:
-                - open.file.path="/t"@0+14
-                - ="/t"@18+4
-                - =1@69+1
             macro_and_inline_register:
                 - open.file.path="/t"@0+14
                 - ="/t"@18+4
@@ -7065,10 +6760,6 @@ iterator_macro_with_registers_error_and_ok:
                 - open.file.path="/t"@0+14
                 - ="/t"@18+4
           partials:
-            macro_and_inline_other_register:
-                open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.uid: "true"
             macro_and_inline_register:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
@@ -7076,21 +6767,12 @@ iterator_macro_with_registers_error_and_ok:
             one_macro_register:
                 open.file.path: "true"
                 process.ancestors.file.name: "true"
-                process.ancestors.uid: "true"
-            two_macro_registers:
-                open.file.path: "true"
-                process.ancestors.file.name: "true"
-                process.ancestors.uid: "false"
           scoped_counts:
             process.pid: 0
           variables:
             process.pid: 2(true) own=2(true)
         - result: false
           partials:
-            macro_and_inline_other_register:
-                open.file.path: "true"
-                process.ancestors.file.name: "false"
-                process.ancestors.uid: "false"
             macro_and_inline_register:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
@@ -7098,11 +6780,8 @@ iterator_macro_with_registers_error_and_ok:
             one_macro_register:
                 open.file.path: "true"
                 process.ancestors.file.name: "false"
-                process.ancestors.uid: "true"
-            two_macro_registers:
-                open.file.path: "true"
-                process.ancestors.file.name: "false"
-                process.ancestors.uid: "false"
+          discarders:
+            - open:process.ancestors.file.name=[""]
           scoped_counts:
             process.pid: 0
           variables:
@@ -9450,11 +9129,9 @@ register_cross_field_split_vs_same:
                     - scalar:"b"
     approvers:
         open:
-            approvers:
-                open.file.path:
-                    - scalar:"/t"
+            accept_mode: r3
             field_stats:
-                open.file.path: 4
+                open.file.path: 3
     discarders_report:
         open.file.path: supported
         process.ancestors.file.name: none
@@ -9480,7 +9157,8 @@ register_cross_field_split_vs_same:
         - r2
         - r3
     approvers_all:
-        - field_stats open.file.path=4
+        - accept_mode open=r3
+        - field_stats open.file.path=3
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.path == \"/t\" && process.ancestors.file.name == \"a\" && process.ancestors.uid == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="open.file.path == \"/t\" && process.ancestors[X].file.name == \"a\" && process.ancestors[X].uid == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -10726,8 +10404,8 @@ register_load_errors:
             process.pid: 1(true) own=1(true)
 register_register_names:
     load_errors:
-        - 'rule `r1` error: syntax error `1:48: lexer: invalid input text ".file.name == \"a..."`'
-        - 'rule `r5` error: syntax error `1:47: lexer: invalid input text ".file.name == \"c..."`'
+        - 'rule `r1` error: syntax error `1:44: expected `&&`, `||` or end of expression, found `[`, missing `&&` or `||`? (and 1 more errors)`'
+        - 'rule `r5` error: syntax error `1:44: expected `&&`, `||` or end of expression, found `[`, missing `&&` or `||`? (and 1 more errors)`'
     rules:
         r0:
             event_type: open
@@ -11114,11 +10792,9 @@ register_same_ancestor:
                     - scalar:"sudo"
     approvers:
         open:
-            approvers:
-                open.file.path:
-                    - scalar:"/t"
+            accept_mode: r5
             field_stats:
-                open.file.path: 16
+                open.file.path: 5
     discarders_report:
         open.file.path: supported
         process.ancestors.file.name: none
@@ -11191,7 +10867,8 @@ register_same_ancestor:
         - r8
         - r9
     approvers_all:
-        - field_stats open.file.path=16
+        - accept_mode open=r5
+        - field_stats open.file.path=5
     policy_rules:
         - policy0/r0 accepted=true disabled=false expression="open.file.path == \"/t\" && process.ancestors[A].file.name == \"sshd\" && process.ancestors[A].uid == 0" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
         - policy0/r1 accepted=true disabled=false expression="open.file.path == \"/t\" && process.ancestors[A].file.name == \"bash\" && process.ancestors[A].uid == 0" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
@@ -11267,8 +10944,6 @@ register_same_ancestor:
                 - ="/t"@18+4
                 - =1000@98+4
             r5:
-                - open.file.path="/t"@0+14
-                - ="/t"@18+4
                 - =7@98+1
             r6:
                 - open.file.path="/t"@0+14

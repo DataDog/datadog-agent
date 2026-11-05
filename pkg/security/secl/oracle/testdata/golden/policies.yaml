@@ -1141,7 +1141,7 @@ disabled_later_policy_does_not_disable:
             process.pid: 0(true) own=0(true)
 disabled_rule_without_expression:
     load_errors:
-        - 'rule `d` error: syntax error `1:1: unexpected token "<EOF>"`'
+        - 'rule `d` error: syntax error `1:1: empty expression`'
         - 'rule `e` error: no rule expression'
     rules:
         a:
@@ -1899,7 +1899,7 @@ policies_listing_and_empty_policy:
     load_errors:
         - 'error loading policy `policy1` from source `oracle`: the policy is empty'
         - 'error loading policy `policy5` from source `oracle`: yaml: mapping values are not allowed in this context'
-        - 'rule `bad` error: syntax error `1:14: unexpected token "<EOF>" (expected Comparison)`'
+        - 'rule `bad` error: syntax error `1:14: expected operand after `==`, found end of expression`'
     filtered_rules:
         - filtered
         - filtered
@@ -1908,28 +1908,22 @@ policies_listing_and_empty_policy:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         p1:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:3
                     - scalar:3
         p3:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:5
                     - scalar:5
     approvers:
         open:
@@ -2134,37 +2128,29 @@ policy_rule_definition_errors:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:2
                     - scalar:2
         group_ok:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:2
                     - scalar:2
         ok:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
         r5:
             event_type: open
             fields:
                 - open.flags
-                - open.flags
             field_values:
                 open.flags:
-                    - scalar:1
                     - scalar:1
     approvers:
         open:
@@ -3271,21 +3257,18 @@ rule_cache_disabled_same_expression_twice:
             process.pid: 0(true) own=0(true)
 rule_cache_same_expression_twice:
     load_errors:
-        - 'rule `g` error: syntax error `1:27: unexpected token "<EOF>" (expected Expression ")")`'
-        - 'rule `h` error: syntax error `1:27: unexpected token "<EOF>" (expected Expression ")")`'
+        - 'rule `g` error: syntax error `1:27: expected operand after `(`, found end of expression`'
+        - 'rule `h` error: syntax error `1:27: expected operand after `(`, found end of expression`'
     rules:
         a:
             event_type: open
             fields:
                 - open.file.name
                 - open.flags
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"o"
                 open.flags:
-                    - scalar:1
-                    - scalar:2
                     - scalar:1
                     - scalar:2
         b:
@@ -3293,13 +3276,10 @@ rule_cache_same_expression_twice:
             fields:
                 - open.file.name
                 - open.flags
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"o"
                 open.flags:
-                    - scalar:1
-                    - scalar:2
                     - scalar:1
                     - scalar:2
         c:
@@ -3307,13 +3287,10 @@ rule_cache_same_expression_twice:
             fields:
                 - open.file.name
                 - open.flags
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"o"
                 open.flags:
-                    - scalar:1
-                    - scalar:2
                     - scalar:1
                     - scalar:2
         d:
@@ -3324,6 +3301,8 @@ rule_cache_same_expression_twice:
             field_values:
                 open.file.name:
                     - scalar:"o"
+                open.flags:
+                    - scalar:1
         e:
             event_type: open
             fields:
@@ -3332,17 +3311,17 @@ rule_cache_same_expression_twice:
             field_values:
                 open.file.name:
                     - scalar:"o"
+                open.flags:
+                    - scalar:1
         f:
             event_type: open
             fields:
                 - open.file.name
                 - open.flags
-                - open.flags
             field_values:
                 open.file.name:
                     - scalar:"p"
                 open.flags:
-                    - scalar:9
                     - scalar:9
     approvers:
         open:
@@ -3365,6 +3344,8 @@ rule_cache_same_expression_twice:
             - scalar:"o"
             - scalar:"p"
         open.flags:
+            - scalar:1
+            - scalar:1
             - scalar:1
             - scalar:1
             - scalar:1
