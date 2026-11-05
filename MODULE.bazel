@@ -324,7 +324,11 @@ archive_override(
     patch_strip = 1,
     # Adds MSBuild + the VC project system, and whole-tree filegroups, so MSBuild-driven
     # builds (CPython) can run against the same hermetic toolchain as rules_cc.
-    patches = ["//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch"],
+    patches = [
+        "//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch",
+        "//bazel/patches:toolchains_msvc/0002-pin-channel-manifests-as-facts.patch",  # Dragnalith/toolchains_msvc#6
+        "//bazel/patches:toolchains_msvc/0003-strip-forward-slash-installers-prefix.patch",  # Dragnalith/toolchains_msvc#5
+    ],
     sha256 = "1ab52698bd8b1eac2e005a07e25e62538daed471e9657586213b88d7cd7cb14d",
     strip_prefix = "toolchains_msvc-8e2aa4624bbb5a53a94f135e90995f307875d1ad",
     urls = ["https://github.com/Dragnalith/toolchains_msvc/archive/8e2aa4624bbb5a53a94f135e90995f307875d1ad.tar.gz"],
