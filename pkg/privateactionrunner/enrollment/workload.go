@@ -10,6 +10,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
@@ -23,6 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
+
+// MatchesWIFConfig reports whether the identity was enrolled for the configured
+// WIF organization and site. Missing enrollment metadata is not a match.
+func (identity *PersistedIdentity) MatchesWIFConfig(cfg configmodel.Reader) bool {
+	return identity.WIFOrgUUID != "" &&
+		strings.EqualFold(identity.WIFOrgUUID, cfg.GetString("delegated_auth.org_uuid")) &&
+		identity.WIFSite == parconfig.Site(cfg)
+}
 
 // EnrollWithWorkloadToken enrolls a new node runner using its primary intake WIF
 // identity. Like API-key enrollment, the caller persists the key only on success.
