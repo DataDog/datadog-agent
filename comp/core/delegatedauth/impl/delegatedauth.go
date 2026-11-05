@@ -191,22 +191,11 @@ func NewComponent() Provides {
 	}
 }
 
-// newBackoff creates an ExponentialBackOff configured for delegated auth refresh.
-// It uses the refresh interval as the initial interval and caps at maxBackoffInterval.
-func newBackoff(refreshInterval time.Duration) *backoff.ExponentialBackOff {
+// newBackoff creates a delegated-auth retry backoff with the given initial and maximum intervals.
+func newBackoff(initialInterval, maxInterval time.Duration) *backoff.ExponentialBackOff {
 	b := backoff.NewExponentialBackOff()
-	b.InitialInterval = refreshInterval
-	b.MaxInterval = maxBackoffInterval
-	b.Multiplier = 2.0
-	b.RandomizationFactor = backoffRandomizationFactor
-	b.Reset()
-	return b
-}
-
-func newStartupBackoff() *backoff.ExponentialBackOff {
-	b := backoff.NewExponentialBackOff()
-	b.InitialInterval = startupRetryInitialInterval
-	b.MaxInterval = startupRetryMaxInterval
+	b.InitialInterval = initialInterval
+	b.MaxInterval = maxInterval
 	b.Multiplier = 2.0
 	b.RandomizationFactor = backoffRandomizationFactor
 	b.Reset()
@@ -439,7 +428,7 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 	instance.provider = tokenProvider
 	instance.authConfig = authConfig
 	instance.refreshInterval = refreshInterval
-	instance.backoff = newBackoff(refreshInterval)
+	instance.backoff = newBackoff(refreshInterval, maxBackoffInterval)
 	instance.refreshCtx = refreshCtx
 	instance.refreshCancel = refreshCancel
 	instance.done = make(chan struct{})
@@ -515,7 +504,7 @@ func (d *delegatedAuthComponent) runStartupRecovery(params delegatedauth.Instanc
 	}()
 
 	clk := d.componentClock()
-	retryBackoff := newStartupBackoff()
+	retryBackoff := newBackoff(startupRetryInitialInterval, startupRetryMaxInterval)
 	for {
 		nextInterval := retryBackoff.NextBackOff()
 		retryTimer := clk.Timer(nextInterval)

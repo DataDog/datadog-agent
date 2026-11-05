@@ -153,7 +153,7 @@ func TestBackgroundRefreshContextHandling(t *testing.T) {
 func TestNewBackoff(t *testing.T) {
 	refreshInterval := 15 * time.Minute
 
-	b := newBackoff(refreshInterval)
+	b := newBackoff(refreshInterval, maxBackoffInterval)
 
 	// Verify backoff is configured correctly
 	assert.Equal(t, refreshInterval, b.InitialInterval, "InitialInterval should match refresh interval")
@@ -171,7 +171,7 @@ func TestNewBackoff(t *testing.T) {
 
 func TestBackoffExponentialGrowth(t *testing.T) {
 	refreshInterval := 15 * time.Minute
-	b := newBackoff(refreshInterval)
+	b := newBackoff(refreshInterval, maxBackoffInterval)
 
 	// Simulate multiple failures and verify exponential growth
 	// Note: Due to jitter, we can only verify approximate bounds
@@ -190,7 +190,7 @@ func TestBackoffExponentialGrowth(t *testing.T) {
 }
 
 func TestStartupBackoff(t *testing.T) {
-	b := newStartupBackoff()
+	b := newBackoff(startupRetryInitialInterval, startupRetryMaxInterval)
 
 	assert.Equal(t, startupRetryInitialInterval, b.InitialInterval)
 	assert.Equal(t, startupRetryMaxInterval, b.MaxInterval)
@@ -908,7 +908,7 @@ func TestNewBackoffWithNegativeInterval(t *testing.T) {
 	// This verifies the fix for P1: non-positive refresh intervals should not cause panics
 
 	// Test with zero interval - should work with backoff's default behavior
-	b := newBackoff(0)
+	b := newBackoff(0, maxBackoffInterval)
 	require.NotNil(t, b, "backoff should be created even with zero interval")
 
 	// Test that NextBackOff doesn't panic
@@ -1013,7 +1013,7 @@ func TestRefreshIntervalValidation(t *testing.T) {
 			}
 
 			// Create backoff and verify the interval is within expected bounds
-			b := newBackoff(refreshInterval)
+			b := newBackoff(refreshInterval, maxBackoffInterval)
 			interval := b.NextBackOff()
 
 			assert.GreaterOrEqual(t, interval, tt.expectedBounds.min,
@@ -1573,7 +1573,7 @@ func TestAtomicWritebackPreservesPriorUpdate(t *testing.T) {
 			originalDirective:            "DELA[our-org-uuid, aws]",
 		},
 		lastWrittenValue: "DELA[our-org-uuid, aws]",
-		backoff:          newBackoff(time.Hour),
+		backoff:          newBackoff(time.Hour, maxBackoffInterval),
 	}
 	comp := &delegatedAuthComponent{
 		config:    racy,
@@ -1606,7 +1606,7 @@ func TestWritebackBlockedByHigherPrioritySource(t *testing.T) {
 			originalDirective:            "DELA[our-org-uuid, aws]",
 		},
 		lastWrittenValue: "DELA[our-org-uuid, aws]",
-		backoff:          newBackoff(time.Hour),
+		backoff:          newBackoff(time.Hour, maxBackoffInterval),
 	}
 	comp := &delegatedAuthComponent{config: mockConfig}
 
