@@ -18,6 +18,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -73,7 +74,7 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	seeds := [][]byte{make([]byte, resSize), bytes.Repeat([]byte{0xa5}, resSize)}
 	frames := skbParseFrames()
 
-	var runs, bulkRuns int
+	var runs, bulkRuns, rejected int
 	key := uint32(0)
 	for _, f := range frames {
 		for n := 0; n <= len(f.data); n++ {
@@ -84,6 +85,10 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 				in := append(make([]byte, 14), f.data[:n]...)
 				in[12], in[13] = 0x08, 0x00
 				_, err := prog.Run(&ebpf.RunOptions{Data: in})
+				if testRunRejectsShortIPv4(in, err) {
+					rejected++
+					continue
+				}
 				require.NoError(t, err)
 				out := make([]byte, outMap.ValueSize())
 				require.NoError(t, outMap.Lookup(&key, &out))
@@ -111,7 +116,7 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d frames, %d runs, %d on the bulk path", len(frames), runs, bulkRuns)
+	t.Logf("%d frames, %d runs, %d on the bulk path, %d short IPv4 inputs rejected by test-run", len(frames), runs, bulkRuns, rejected)
 
 	// Sanity check the harness offsets on one frame: an IPv4 TCP frame parses to its source port.
 	require.NoError(t, seedMap.Put(&key, seeds[0]))
@@ -122,6 +127,12 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	require.NoError(t, outMap.Lookup(&key, &out))
 	require.Equal(t, uint64(1), binary.NativeEndian.Uint64(out[8:16]))
 	require.Equal(t, uint16(40000), binary.NativeEndian.Uint16(out[8+skbParseSport:]))
+}
+
+// testRunRejectsShortIPv4 reports whether err is the EINVAL newer kernels return from
+// BPF_PROG_TEST_RUN for an ETH_P_IP frame without a full IPv4 header: a harness limit, not parser behavior.
+func testRunRejectsShortIPv4(in []byte, err error) bool {
+	return errors.Is(err, unix.EINVAL) && binary.BigEndian.Uint16(in[12:14]) == unix.ETH_P_IP && len(in)-14 < 20
 }
 
 func ethHdr(proto uint16) []byte {
