@@ -21,60 +21,53 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// TestTheMacOSDaemonIsOptIn pins that the installer daemon does nothing on macOS until the host
-// opts in, and that the key it reads is a registered setting.
-func TestTheMacOSDaemonIsOptIn(t *testing.T) {
+// TestTheMacOSDaemonRunsByDefault pins that remote_updates defaults to true on macOS, as on other
+// platforms, so the daemon runs whenever remote configuration is enabled.
+func TestTheMacOSDaemonRunsByDefault(t *testing.T) {
 	cfg := configmock.New(t)
-	assert.False(t, daemonEnabledOnPlatform(cfg), "the daemon must be off by default on macOS")
+	assert.True(t, cfg.GetBool("remote_updates"), "remote_updates must be on by default")
 
-	cfg.SetInTest(macOSFleetEnabledKey, true)
-	assert.True(t, daemonEnabledOnPlatform(cfg))
+	cfg.SetInTest("remote_configuration.enabled", true)
+	assert.True(t, daemonEnabled(cfg))
+	cfg.SetInTest("remote_configuration.enabled", false)
+	assert.False(t, daemonEnabled(cfg))
 }
 
-// TestTheMacOSDaemonNeedsRemoteUpdatesTheOptInAndRemoteConfiguration pins that the daemon runs only
-// with all three set.
-func TestTheMacOSDaemonNeedsRemoteUpdatesTheOptInAndRemoteConfiguration(t *testing.T) {
+// TestTheMacOSDaemonNeedsRemoteUpdatesAndRemoteConfiguration pins that the daemon runs only with
+// both set.
+func TestTheMacOSDaemonNeedsRemoteUpdatesAndRemoteConfiguration(t *testing.T) {
 	for _, tc := range []struct {
-		remoteUpdates, optIn, remoteConfiguration, enabled bool
+		remoteUpdates, remoteConfiguration, enabled bool
 	}{
-		{remoteUpdates: true, optIn: true, remoteConfiguration: true, enabled: true},
-		{remoteUpdates: true, optIn: true, remoteConfiguration: false, enabled: false},
-		{remoteUpdates: true, optIn: false, remoteConfiguration: true, enabled: false},
-		{remoteUpdates: false, optIn: true, remoteConfiguration: true, enabled: false},
-		{remoteUpdates: false, optIn: false, remoteConfiguration: true, enabled: false},
+		{remoteUpdates: true, remoteConfiguration: true, enabled: true},
+		{remoteUpdates: true, remoteConfiguration: false, enabled: false},
+		{remoteUpdates: false, remoteConfiguration: true, enabled: false},
+		{remoteUpdates: false, remoteConfiguration: false, enabled: false},
 	} {
 		cfg := configmock.New(t)
 		cfg.SetInTest("remote_updates", tc.remoteUpdates)
-		cfg.SetInTest(macOSFleetEnabledKey, tc.optIn)
 		cfg.SetInTest("remote_configuration.enabled", tc.remoteConfiguration)
-		assert.Equal(t, tc.enabled, daemonEnabled(cfg), "remote_updates=%t opt-in=%t remote_configuration=%t", tc.remoteUpdates, tc.optIn, tc.remoteConfiguration)
+		assert.Equal(t, tc.enabled, daemonEnabled(cfg), "remote_updates=%t remote_configuration=%t", tc.remoteUpdates, tc.remoteConfiguration)
 	}
 }
 
-// TestTheMacOSDaemonChecksTheOptInBeforeStarting pins that the check reads datadog.yaml without the
-// daemon's components, so a host with remote configuration disabled exits cleanly, opted in or not,
-// instead of failing to build the updater.
-func TestTheMacOSDaemonChecksTheOptInBeforeStarting(t *testing.T) {
+// TestTheMacOSDaemonChecksRemoteUpdatesBeforeStarting pins that the check reads datadog.yaml without
+// the daemon's components, so a host without remote_updates or with remote configuration disabled
+// exits cleanly instead of failing to build the updater.
+func TestTheMacOSDaemonChecksRemoteUpdatesBeforeStarting(t *testing.T) {
 	for _, tc := range []struct {
-		name                string
-		remoteConfiguration bool
-		optIn               bool
-		enabled             bool
+		name    string
+		config  string
+		enabled bool
 	}{
-		{name: "not opted in, remote configuration disabled", remoteConfiguration: false, optIn: false},
-		{name: "opted in, remote configuration disabled", remoteConfiguration: false, optIn: true},
-		{name: "opted in", remoteConfiguration: true, optIn: true, enabled: true},
+		{name: "remote_updates left at its default", config: "remote_configuration:\n  enabled: true\n", enabled: true},
+		{name: "remote_updates disabled", config: "remote_updates: false\nremote_configuration:\n  enabled: true\n"},
+		{name: "remote_updates enabled, remote configuration disabled", config: "remote_updates: true\nremote_configuration:\n  enabled: false\n"},
+		{name: "remote_updates enabled", config: "remote_updates: true\nremote_configuration:\n  enabled: true\n", enabled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			config := fmt.Sprintf(`api_key: "0000000000"
-remote_configuration:
-  enabled: %t
-installer:
-  log_file: %s
-  macos_fleet:
-    enabled: %t
-`, tc.remoteConfiguration, filepath.Join(dir, "updater.log"), tc.optIn)
+			config := fmt.Sprintf("api_key: \"0000000000\"\ninstaller:\n  log_file: %s\n%s", filepath.Join(dir, "updater.log"), tc.config)
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(config), 0o600))
 
 			enabled, err := daemonEnabledBeforeStart(&command.GlobalParams{ConfFilePath: filepath.Join(dir, "datadog.yaml")})
