@@ -173,3 +173,37 @@ func TestTagCacheKeysOnConnectionTags(t *testing.T) {
 		assert.Equal(t, want[uint16(conn.Laddr.Port)], chunks[0].GetConnectionsTags(conn.TagsIdx))
 	}
 }
+
+// A connection reattributed to its netns's container keeps the proxy's PID but not its process tags, so it must
+// not share a cached tag set with that PID's own connections.
+func TestTagCacheKeysOnReattribution(t *testing.T) {
+	tg := taggerfxmock.SetupFakeTagger(t)
+	d := newFixtureSender(t, 600, tg)
+
+	const pid = 5555
+	tg.SetTags(taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(pid)), "test", nil, nil, []string{"process:proxy"}, nil)
+	conns := sameEntityConns(4, pid, nil)
+	proxyContainer := intern.GetByString("proxy-container")
+	conns[1].NetNSOriginalContainerID = proxyContainer
+	conns[2].Tags = []*intern.Value{intern.GetByString("env:prod")}
+	conns[3].Tags = []*intern.Value{intern.GetByString("env:prod")}
+	conns[3].NetNSOriginalContainerID = proxyContainer
+	want := map[uint16][]string{
+		conns[0].SPort: {"process:proxy"},
+		conns[1].SPort: nil,
+		conns[2].SPort: {"env:prod", "process:proxy"},
+		conns[3].SPort: {"env:prod"},
+	}
+
+	chunks := decodeChunks(t, collectPayloads(d.batches(&network.Connections{BufferedData: network.BufferedData{Conns: conns}}, 1)))
+	require.Len(t, chunks, 1)
+	require.Len(t, chunks[0].Connections, 4)
+	for _, conn := range chunks[0].Connections {
+		got := chunks[0].GetConnectionsTags(conn.TagsIdx)
+		if w := want[uint16(conn.Laddr.Port)]; w == nil {
+			assert.Empty(t, got, "port %d", conn.Laddr.Port)
+		} else {
+			assert.Equal(t, w, got, "port %d", conn.Laddr.Port)
+		}
+	}
+}

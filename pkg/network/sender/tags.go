@@ -64,15 +64,22 @@ type chunkTagCache struct {
 	container map[*intern.Value]int32
 	// pid holds connections without formatTags tags; conn holds the rest,
 	// keyed by connKey.
-	pid    map[uint32]int32
+	pid    map[pidTagKey]int32
 	conn   map[string]int32
 	keyBuf []byte
+}
+
+// pidTagKey identifies the tags a PID contributes: a reattributed connection's PID belongs to the proxy, so it
+// contributes fewer tags than the same PID's own connections.
+type pidTagKey struct {
+	pid          uint32
+	reattributed bool
 }
 
 func newChunkTagCache() *chunkTagCache {
 	return &chunkTagCache{
 		container: make(map[*intern.Value]int32),
-		pid:       make(map[uint32]int32),
+		pid:       make(map[pidTagKey]int32),
 		conn:      make(map[string]int32),
 	}
 }
@@ -83,11 +90,17 @@ func (c *chunkTagCache) reset() {
 	clear(c.conn)
 }
 
-// connKey encodes every input of the connection tag set: the PID and the
-// sorted formatTags indices. It sorts tagIndexes in place.
-func (c *chunkTagCache) connKey(pid uint32, tagIndexes []int32) []byte {
+// connKey encodes every input of the connection tag set: the PID, whether the
+// connection is reattributed, and the sorted formatTags indices. It sorts
+// tagIndexes in place.
+func (c *chunkTagCache) connKey(pid uint32, reattributed bool, tagIndexes []int32) []byte {
 	slices.Sort(tagIndexes)
 	c.keyBuf = binary.LittleEndian.AppendUint32(c.keyBuf[:0], pid)
+	if reattributed {
+		c.keyBuf = append(c.keyBuf, 1)
+	} else {
+		c.keyBuf = append(c.keyBuf, 0)
+	}
 	for _, idx := range tagIndexes {
 		c.keyBuf = binary.LittleEndian.AppendUint32(c.keyBuf, uint32(idx))
 	}
@@ -150,39 +163,49 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 	tagIndexes, tagChecksum := formatTags(nc, tagsSet, dynamicTags)
 	builder.SetTagsChecksum(tagChecksum)
 
+	reattributed := nc.NetNSOriginalContainerID != nil
 	if len(tagIndexes) == 0 {
-		idx, ok := cache.pid[nc.Pid]
+		pk := pidTagKey{pid: nc.Pid, reattributed: reattributed}
+		idx, ok := cache.pid[pk]
 		if !ok {
-			idx = d.connectionTagsIndex(nc.Pid, nil, connectionsTagsEncoder)
-			cache.pid[nc.Pid] = idx
+			idx = d.connectionTagsIndex(nc.Pid, reattributed, nil, connectionsTagsEncoder)
+			cache.pid[pk] = idx
 		}
 		builder.SetTagsIdx(idx)
 		return
 	}
-	key := cache.connKey(nc.Pid, tagIndexes)
+	key := cache.connKey(nc.Pid, reattributed, tagIndexes)
 	idx, ok := cache.conn[string(key)]
 	if !ok {
-		idx = d.connectionTagsIndex(nc.Pid, tagsSet.Subset(tagIndexes), connectionsTagsEncoder)
+		idx = d.connectionTagsIndex(nc.Pid, reattributed, tagsSet.Subset(tagIndexes), connectionsTagsEncoder)
 		cache.conn[string(key)] = idx
 	}
 	builder.SetTagsIdx(idx)
 }
 
-func (d *directSender) connectionTagsIndex(pid uint32, tagsStr []string, connectionsTagsEncoder model.TagEncoder) int32 {
+func (d *directSender) connectionTagsIndex(pid uint32, reattributed bool, tagsStr []string, connectionsTagsEncoder model.TagEncoder) int32 {
 	if pid > 0 {
+		// a socket reattributed to its network namespace's container is still owned by the proxy
+		// process, so the PID's service context and process tags describe the proxy, not the pod
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
-			serviceTags = dsc.extractor.GetServiceContext(int32(pid))
+			if !reattributed {
+				serviceTags = dsc.extractor.GetServiceContext(int32(pid))
+			}
+			// process_name is kept for reattributed connections: it names the socket's owning process
+			// (for example ztunnel), not a service, and lets users find proxied traffic
 			if processName := dsc.processNameExtractor.GetProcessName(int32(pid)); processName != "" {
 				tagsStr = append(tagsStr, "process_name:"+processName)
 			}
 		}
 		tagsStr = append(tagsStr, serviceTags...)
-		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(pid)))
-		if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
-			log.Debugf("error getting tags for process %v: %v", pid, err)
-		} else {
-			tagsStr = append(tagsStr, processTags...)
+		if !reattributed {
+			processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(pid)))
+			if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
+				log.Debugf("error getting tags for process %v: %v", pid, err)
+			} else {
+				tagsStr = append(tagsStr, processTags...)
+			}
 		}
 	}
 	if len(tagsStr) > 0 {
