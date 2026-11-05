@@ -53,6 +53,10 @@ without editing the shared configuration, add this to the workspace's gitignored
 common --downloader_config=
 ```
 
+GitHub-hosted jobs that run Bazel set this override during setup because those
+runners cannot access the Datadog intranet. It also applies to Bazel calls made
+through `dda inv` and inside the devcontainer.
+
 Go module proxy configuration is separate; this setting only affects Bazel
 archive downloads.
 
