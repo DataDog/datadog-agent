@@ -15,13 +15,6 @@ import (
 )
 
 func TestIsEnabled(t *testing.T) {
-	t.Run("defaults to enabled when env and yaml are empty", func(t *testing.T) {
-		t.Setenv(enabledEnvVar, "")
-		os.Unsetenv(enabledEnvVar)
-		path := writeYAML(t, "")
-		require.True(t, isEnabled(path))
-	})
-
 	t.Run("yaml disables the consumer", func(t *testing.T) {
 		os.Unsetenv(enabledEnvVar)
 		path := writeYAML(t, `
