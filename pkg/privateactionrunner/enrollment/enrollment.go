@@ -113,7 +113,11 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, par.APIBaseURL(cfg, ddSite), extraHeaders)
+	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	publicClient := opms.NewPublicClient(cfg, endpoint, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -154,9 +158,6 @@ func SelfEnroll(
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
 	ddSite := par.Site(cfg)
-	if ddSite == "" {
-		ddSite = "datadoghq.com"
-	}
 	apiKey := cfg.GetString("api_key")
 	extraHeaders := cfg.GetStringMapString(par.OPMSExtraHeaders)
 
@@ -197,7 +198,11 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, par.APIBaseURL(cfg, ddSite), extraHeaders)
+	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	publicClient := opms.NewPublicClient(cfg, endpoint, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
