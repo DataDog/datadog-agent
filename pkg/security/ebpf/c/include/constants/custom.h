@@ -48,7 +48,6 @@ enum SOCKET_APPROVER_KEYS {
 
 enum DENTRY_RESOLVER_KEYS {
     DR_DENTRY_RESOLVER_KERN_KEY,
-    DR_AD_FILTER_KEY,
     DR_DENTRY_RESOLVER_KERN_INPUTS,
     DR_ERPC_KEY,
 };
@@ -137,8 +136,6 @@ enum CREDENTIAL_SOURCE {
 #define FSTYPE_LEN 16
 
 #define SYSCALL_ENCODING_TABLE_SIZE 64 // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-#define SYSCALL_MONITOR_TYPE_DUMP 1
-#define SYSCALL_MONITOR_TYPE_DRIFT 2
 
 // reasons for sending a syscall monitor event, mirrored by model.SyscallDriftEventReason
 #define SYSCALL_MONITOR_REASON_NONE 0
@@ -154,9 +151,6 @@ enum CREDENTIAL_SOURCE {
 #define SELINUX_WRITE_BUFFER_LEN 64
 #define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0
 #define SELINUX_ENFORCE_STATUS_ENFORCE_KEY 1
-
-#define EXIT_SYSCALL_KEY 1
-#define EXECVE_SYSCALL_KEY 2
 
 #ifndef USE_RING_BUFFER
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
@@ -197,12 +191,6 @@ enum CREDENTIAL_SOURCE {
 
 #define OTEL_SPAN_ATTRS_MAX_ENTRIES 4096
 
-static __always_inline u64 is_cgroup_activity_dumps_enabled() {
-    u64 cgroup_activity_dumps_enabled;
-    LOAD_CONSTANT("cgroup_activity_dumps_enabled", cgroup_activity_dumps_enabled);
-    return cgroup_activity_dumps_enabled != 0;
-}
-
 #define CGROUP_DEFAULT 1
 #define CGROUP_CENTOS_7 2
 
@@ -238,28 +226,10 @@ static __attribute__((always_inline)) u32 get_netns() {
     return (u32)netns;
 }
 
-static __attribute__((always_inline)) u64 get_syscall_monitor_event_period() {
-    u64 syscall_monitor_event_period;
-    LOAD_CONSTANT("syscall_monitor_event_period", syscall_monitor_event_period);
-    return syscall_monitor_event_period;
-}
-
 static __attribute__((always_inline)) u64 is_send_signal_available() {
     u64 send_signal;
     LOAD_CONSTANT("send_signal", send_signal);
     return send_signal;
-};
-
-static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
-    u64 anomaly;
-    LOAD_CONSTANT("anomaly_syscalls", anomaly);
-    return anomaly;
-};
-
-static __attribute__((always_inline)) u64 is_syscall_monitor_enabled() {
-    u64 enabled;
-    LOAD_CONSTANT("syscall_monitor_enabled", enabled);
-    return enabled;
 };
 
 static __attribute__((always_inline)) u64 is_raw_syscall_kill_enabled() {

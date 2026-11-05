@@ -94,11 +94,22 @@ func sampleCookieMapSize(cfg *config.Config) int {
 }
 
 const (
+	// ActivityDumpSource defines the source of activity dumps
+	ActivityDumpSource = "runtime-security-agent"
+
 	metricSourceRuntime = iota
 	metricSourceReplay
 	metricSourceRelated
 	metricSourceCount
 )
+
+func perFormatStorageRequests(requests []config.StorageRequest) map[config.StorageFormat][]config.StorageRequest {
+	perFormatRequests := make(map[config.StorageFormat][]config.StorageRequest)
+	for _, request := range requests {
+		perFormatRequests[request.Format] = append(perFormatRequests[request.Format], request)
+	}
+	return perFormatRequests
+}
 
 // insertionErrorKey identifies an unexpected activity-tree insertion failure by
 // event type and a bounded error-type label.
@@ -1940,26 +1951,6 @@ func (m *ManagerV2) purgeOrphanedCookies() int {
 	return removed
 }
 
-// LookupEventInProfiles lookups event in profiles.
-// NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds
-// profiles from activity dump samples. The profile lookup/filtering logic from V1 is not
-// applicable to the V2 lifecycle.
-func (m *ManagerV2) LookupEventInProfiles(_ *model.Event) {}
-
-// HasActiveActivityDump returns true if the given event has an active dump.
-// NO-OP in V2: Always returns false. V2 doesn't use the traditional activity dump mechanism
-// with kernel-space traced cgroups. Instead, it builds profiles directly from activity dump samples.
-func (m *ManagerV2) HasActiveActivityDump(_ *model.Event) bool { return false }
-
-// HandleCGroupTracingEvent handles a cgroup tracing event.
-// NO-OP in V2: V2 doesn't use cgroup tracing events from kernel space. Profiles are built
-// from activity dump samples instead.
-func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {}
-
-// SyncTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups.
-// NO-OP in V2: V2 doesn't manage kernel-space traced cgroups maps.
-func (m *ManagerV2) SyncTracedCgroups() {}
-
 // ListActivityDumps lists the activity dumps.
 // NO-OP in V2: V2 doesn't expose individual activity dumps through this API.
 func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
@@ -1969,12 +1960,6 @@ func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.Activ
 // StopActivityDump stops an active activity dump.
 // NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
 func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	return nil, nil
-}
-
-// DumpActivity dumps the activity.
-// NO-OP in V2: V2 doesn't support on-demand activity dumping through this API.
-func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	return nil, nil
 }
 

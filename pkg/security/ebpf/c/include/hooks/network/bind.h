@@ -87,14 +87,6 @@ static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CA
 
     fill_cgroup_context(entry, &event->cgroup);
 
-    // v1: check if this PID is traced by an activity dump
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(event->process.pid, bpf_ktime_get_ns(), NULL);
-    if (config) {
-        if (mask_has_event(config->event_mask, EVENT_BIND)) {
-            event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-        }
-    }
-
     span_fill_tail_call(ctx, prog_type);
 
 pop_and_exit:

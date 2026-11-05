@@ -160,14 +160,6 @@ struct capset_event_t {
     u64 cap_permitted;
 };
 
-struct cgroup_tracing_event_t {
-    struct kevent_t event;
-    struct cgroup_context_t cgroup;
-    struct activity_dump_config config;
-    u64 cookie;
-    u32 pid;
-};
-
 struct cgroup_write_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -718,7 +710,6 @@ union event_t {
     struct setuid_event_t setuid;
     struct setgid_event_t setgid;
     struct capset_event_t capset;
-    struct cgroup_tracing_event_t cgroup_tracing;
     struct cgroup_write_event_t cgroup_write;
     struct utimes_event_t utimes;
     struct chmod_event_t chmod;

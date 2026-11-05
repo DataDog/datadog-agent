@@ -10,6 +10,5 @@ package config
 
 func (c *RuntimeSecurityConfig) sanitizePlatform() {
 	// Force the disable of features unavailable on Windows
-	c.ActivityDumpEnabled = false
-	c.SecurityProfileEnabled = false
+	c.SecurityProfileV2Enabled = false
 }

@@ -282,7 +282,6 @@ static __always_inline int _sys_open_ret_impl(void *ctx, struct syscall_cache_t 
     event->syscall_ctx.id = syscall->ctx_id;
     event->event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
                          (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
-                         (syscall->resolver.flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
                          (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0);
     event->file = syscall->open.file;
     event->flags = syscall->open.flags;

@@ -19,7 +19,7 @@ static int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, enum TAI
 }
 
 static int __attribute__((always_inline)) resolve_dentry(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
-    return tail_call_dr_progs(ctx, prog_type, DR_AD_FILTER_KEY);
+    return tail_call_dr_progs(ctx, prog_type, DR_DENTRY_RESOLVER_KERN_KEY);
 }
 
 static int __attribute__((always_inline)) resolve_dentry_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
