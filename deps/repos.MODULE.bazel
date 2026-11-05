@@ -142,6 +142,26 @@ http_archive(
 )
 
 http_archive(
+    name = "checkpolicy",
+    build_file = "//deps:checkpolicy.BUILD.bazel",
+    sha256 = "9b81bfceef7fa9d02f9872e56a786f343dc58ef4b5713dce0d5c416e5b84cefa",
+    strip_prefix = "checkpolicy-3.11",
+    urls = [
+        "https://github.com/SELinuxProject/selinux/releases/download/3.11/checkpolicy-3.11.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "semodule_utils",
+    build_file = "//deps:semodule_utils.BUILD.bazel",
+    sha256 = "0c574e15413ff7ed660c45e011befe248bb89eaa273db6f56eb297d61deb2ed6",
+    strip_prefix = "semodule-utils-3.11",
+    urls = [
+        "https://github.com/SELinuxProject/selinux/releases/download/3.11/semodule-utils-3.11.tar.gz",
+    ],
+)
+
+http_archive(
     name = "libselinux",
     build_file = "//deps:libselinux.BUILD.bazel",
     sha256 = "73d419c6e20e874adaa4019372cbd097eecf4d276e13f27ec5e67d35c0bd203c",
@@ -270,20 +290,6 @@ http_archive(
 )
 
 http_archive(
-    name = "libxml2",
-    files = {
-        "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
-        "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
-        "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
-    },
-    sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821",
-    strip_prefix = "libxml2-2.15.4",
-    urls = [
-        "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
-    ],
-)
-
-http_archive(
     name = "libxslt",
     files = {
         "config-linux-x86_64.h": "//deps:libxslt/config-linux-x86_64.h",
@@ -367,16 +373,29 @@ http_archive(
 http_archive(
     name = "krb5",
     files = {
-        "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
+        "BUILD.bazel": "//deps/krb5:krb5.BUILD.bazel",
+        "autoconf-linux-arm64.h": "//deps/krb5:autoconf-linux-arm64.h",
+        "autoconf-linux-x86_64.h": "//deps/krb5:autoconf-linux-x86_64.h",
+        "src/clients/kinit/BUILD.bazel": "//deps/krb5:src_clients_kinit.BUILD.bazel",
+        "src/lib/BUILD.bazel": "//deps/krb5:src_lib.BUILD.bazel",
+        "src/lib/crypto/BUILD.bazel": "//deps/krb5:src_lib_crypto.BUILD.bazel",
+        "src/lib/gssapi/BUILD.bazel": "//deps/krb5:src_lib_gssapi.BUILD.bazel",
+        "src/lib/krb5/BUILD.bazel": "//deps/krb5:src_lib_krb5.BUILD.bazel",
+        "src/plugins/BUILD.bazel": "//deps/krb5:src_plugins.BUILD.bazel",
+        "src/util/BUILD.bazel": "//deps/krb5:src_util.BUILD.bazel",
     },
     patch_strip = 1,
     patches = [
-        "//deps:krb5/0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
+        "//deps/krb5:0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
+        "//deps/krb5:0002-Avoid-null-dereference-in-krb5_rd_cred.patch",
+        "//deps/krb5:0003-Avoid-another-null-dereference-in-krb5_rd_cred.patch",
+        "//deps/krb5:0004-compile_et-allow-overriding-the-name-in-file-header.patch",
+        "//deps/krb5:0005-Resolve-LIBDIR-token-from-the-loaded-library-on-Unix.patch",
     ],
-    sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
-    strip_prefix = "krb5-1.21.3",
+    sha256 = "3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13",
+    strip_prefix = "krb5-1.22.2",
     urls = [
-        "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
+        "https://kerberos.org/dist/krb5/1.22/krb5-1.22.2.tar.gz",
     ],
 )
 
@@ -396,6 +415,7 @@ http_archive(
     patch_strip = 1,
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
+        "//deps/openssl:0002-Strip-the-build-root-from-the-embedded-compiler-flags.patch",
     ],
     sha256 = "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
     strip_prefix = "openssl-3.5.9",

@@ -1,0 +1,9 @@
+description: Script with comment containing only whitespace exits cleanly.
+input:
+  script: |+
+    #
+    #
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

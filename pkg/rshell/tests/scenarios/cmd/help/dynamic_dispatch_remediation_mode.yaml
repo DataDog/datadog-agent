@@ -1,0 +1,12 @@
+description: help systemctl in remediation mode dispatches to systemctl's real --help usage text.
+skip_assert_against_bash: true
+input:
+  mode: remediation
+  script: |+
+    help systemctl
+expect:
+  stdout_contains:
+    - "Usage: systemctl [OPTION]... COMMAND [UNIT]..."
+    - "list-units"
+  stderr: |+
+  exit_code: 0

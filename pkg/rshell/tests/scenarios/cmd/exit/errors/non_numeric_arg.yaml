@@ -1,0 +1,11 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: exit with non-numeric argument returns error.
+input:
+  script: |+
+    exit abc
+expect:
+  stdout: ""
+  stderr_contains:
+    - "numeric argument required"
+  exit_code: 2

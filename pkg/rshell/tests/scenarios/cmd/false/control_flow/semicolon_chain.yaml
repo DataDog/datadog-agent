@@ -1,0 +1,9 @@
+description: Commands after false separated by semicolons still execute.
+input:
+  script: |+
+    false; echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

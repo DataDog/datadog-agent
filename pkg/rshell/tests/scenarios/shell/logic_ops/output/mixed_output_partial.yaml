@@ -1,0 +1,11 @@
+description: Only executed commands in a mixed chain produce output.
+input:
+  script: |+
+    echo a && false || echo c && echo d
+expect:
+  stdout: |+
+    a
+    c
+    d
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+# parsePingDuration supports float seconds (e.g. "0.5") for iputils compatibility.
+# DNS fails immediately on the unresolvable host so the test exits fast.
+description: "ping -W with float seconds value is accepted"
+input:
+  script: |+
+    ping -c 1 -W 0.5 no-such-host-xyzzy.invalid
+expect:
+  stdout: ""
+  stderr_contains: ["ping:"]
+  exit_code: 1
+skip_assert_against_bash: true

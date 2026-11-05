@@ -1,0 +1,10 @@
+description: Stderr can be redirected to /dev/null.
+input:
+  script: |+
+    echo "visible"
+    cat nonexistent_file 2>/dev/null
+expect:
+  stdout: |+
+    visible
+  stderr: ""
+  exit_code: 1

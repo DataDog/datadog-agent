@@ -35,17 +35,23 @@ winlibs_toolchain = rule(
     },
 )
 
+_WINE_TOOLS = Label("@rules_wine//wine:tools_toolchain_type")
+
 def _wine_llvm_toolchain_impl(ctx):
-    wmc = ctx.attr._wmc[DefaultInfo].files_to_run
-    nls = ctx.files._nls
+    tools = ctx.toolchains[_WINE_TOOLS].wine_tools
+    if not tools.nls:
+        fail("Linux Wine tools are required to compile message tables")
+    wmc = tools.wmc
+    nls_dir = "--nls-dir={}".format(tools.nls.dirname)
+    data = tools.files
 
     def compile_messagetable(actions, src, basename, h_out):
         res_out = actions.declare_file("{}.res".format(basename))
-        nls_dir = "--nls-dir={}".format(nls[0].dirname)
+        inputs = depset([src], transitive = [data])
         actions.run(
             executable = wmc,
             arguments = [nls_dir, "-O", "res", "-o", res_out.path, src.path],
-            inputs = [src] + nls,
+            inputs = inputs,
             outputs = [res_out],
             mnemonic = "Wmc",
             progress_message = "Compiling message table %{input} into %{output}",
@@ -53,7 +59,7 @@ def _wine_llvm_toolchain_impl(ctx):
         actions.run(
             executable = wmc,
             arguments = [nls_dir, "-i", "-H", h_out.path, "-o", "/dev/null", src.path],  # discard .rc file
-            inputs = [src] + nls,
+            inputs = inputs,
             outputs = [h_out],
             mnemonic = "Wmc",
             progress_message = "Compiling message table %{input} into %{output}",
@@ -79,7 +85,6 @@ wine_llvm_toolchain = rule(
     implementation = _wine_llvm_toolchain_impl,
     attrs = {
         "_llvm": attr.label(default = "//:llvm", cfg = "exec", executable = True, allow_files = True),
-        "_nls": attr.label(default = "@wine_wmc//:nls", cfg = "exec", allow_files = True),
-        "_wmc": attr.label(default = "@wine_wmc//:wmc", cfg = "exec", executable = True, allow_files = True),
     },
+    toolchains = [_WINE_TOOLS],
 )

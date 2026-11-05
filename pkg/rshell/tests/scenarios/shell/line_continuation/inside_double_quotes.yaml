@@ -1,0 +1,11 @@
+description: Line continuation inside double quotes joins lines without adding space.
+input:
+  script: |+
+    echo "hel\
+    lo \
+    world"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

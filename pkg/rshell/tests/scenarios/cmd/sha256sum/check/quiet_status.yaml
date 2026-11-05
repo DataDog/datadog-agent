@@ -1,0 +1,16 @@
+description: sha256sum quiet and status modes suppress successful check output.
+setup:
+  files:
+    - path: config
+      content: "abc"
+    - path: checksums
+      content: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  config\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sha256sum --check --quiet checksums
+    sha256sum --check --status checksums
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 0

@@ -181,3 +181,21 @@ func TestIdentifyResources(t *testing.T) {
 	assert.EqualValues(t, expectedPreferredResources, actualPreferredResources)
 	assert.EqualValues(t, expectedOtherResources, actualOtherResources)
 }
+
+func TestVerifyForInventoryHelmReleaseConfigMaps(t *testing.T) {
+	collectorInventory := inventory.NewCollectorInventory(mockconfig.New(t), nil, nil)
+
+	d := &DiscoveryCollector{}
+	_, err := d.VerifyForInventory("helm-releases-configmaps", "", collectorInventory)
+	assert.Error(t, err, "helm-releases-configmaps must not be supported when configmaps are not discovered")
+
+	// helm-releases-configmaps is not an API resource: it is supported when configmaps are.
+	d.SetCache(DiscoveryCache{
+		CollectorForVersion: map[CollectorVersion]struct{}{
+			{GroupVersion: "v1", Kind: "configmaps"}: {},
+		},
+	})
+	collector, err := d.VerifyForInventory("helm-releases-configmaps", "", collectorInventory)
+	require.NoError(t, err)
+	assert.Equal(t, "v1/helm-releases-configmaps", collector.Metadata().FullName())
+}

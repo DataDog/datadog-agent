@@ -1,0 +1,13 @@
+description: "sort -b skips blanks past empty field boundary with -t separator."
+setup:
+  files:
+    - path: data.txt
+      content: "\t\tabc\tz\naaaa\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -t '	' -k 1.4b,4b data.txt
+expect:
+  stdout: "\t\tabc\tz\naaaa\n"
+  stderr: ""
+  exit_code: 0
