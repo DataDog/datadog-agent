@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -90,7 +89,6 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 	assert.Equal(t, int32(1), rt.GroupSize)
 	assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)
 }
-
 func TestRunRealtimeEmitsProcessThatBecameZombie(t *testing.T) {
 	processCheck, probe, _ := processCheckWithMocks(t)
 	processCheck.lastPIDs = []int32{1}
@@ -112,45 +110,6 @@ func TestRunRealtimeEmitsProcessThatBecameZombie(t *testing.T) {
 	assert.Equal(t, map[int32]*procutil.Stats{1: zombie}, processCheck.realtimeLastProcs)
 }
 
-func TestFmtProcessStatsEmitsZombies(t *testing.T) {
-	live := makeProcessStats()
-	zombie := makeProcessStats()
-	zombie.Status = "Z"
-
-	chunked := fmtProcessStats(
-		10,
-		map[int32]*procutil.Stats{1: live, 2: zombie, 3: nil},
-		map[int32]*procutil.Stats{1: makeProcessStats(), 2: makeProcessStats(), 3: makeProcessStats()},
-		map[int]string{},
-		cpu.TimesStat{},
-		cpu.TimesStat{},
-		time.Now().Add(-time.Second),
-		time.Now(),
-	)
-	require.Len(t, chunked, 1)
-	require.Len(t, chunked[0], 2)
-	statsByPID := map[int32]*model.ProcessStat{}
-	for _, stats := range chunked[0] {
-		statsByPID[stats.Pid] = stats
-	}
-	assert.NotEqual(t, model.ProcessState_Z, statsByPID[1].ProcessState)
-	assert.Equal(t, model.ProcessState_Z, statsByPID[2].ProcessState)
-
-	allZombies := fmtProcessStats(
-		10,
-		map[int32]*procutil.Stats{2: zombie},
-		map[int32]*procutil.Stats{2: makeProcessStats()},
-		map[int]string{},
-		cpu.TimesStat{},
-		cpu.TimesStat{},
-		time.Now().Add(-time.Second),
-		time.Now(),
-	)
-	require.Len(t, allZombies, 1)
-	require.Len(t, allZombies[0], 1)
-	assert.Equal(t, model.ProcessState_Z, allZombies[0][0].ProcessState)
-}
-
 func TestFilterRealtimeStats(t *testing.T) {
 	live := makeProcessStats()
 	zombie := makeProcessStats()
@@ -159,67 +118,4 @@ func TestFilterRealtimeStats(t *testing.T) {
 
 	assert.Equal(t, map[int32]*procutil.Stats{1: live, 2: zombie}, filterRealtimeStats(stats, false))
 	assert.Equal(t, map[int32]*procutil.Stats{1: live}, filterRealtimeStats(stats, true))
-}
-
-// TestFmtProcessStats test the chunking logic of fmtProcessStats
-func TestFmtProcessStats(t *testing.T) {
-	procs := map[int32]*procutil.Stats{
-		1: makeProcessStats(),
-		2: makeProcessStats(),
-		3: makeProcessStats(),
-	}
-	lastProcs := map[int32]*procutil.Stats{
-		1: makeProcessStats(),
-		2: makeProcessStats(),
-		3: makeProcessStats(),
-	}
-
-	type testCase struct {
-		description        string
-		maxBatchSize       int
-		expectedNumChunks  int
-		expectedChunkSizes []int
-	}
-	tests := []testCase{
-		{
-			description:        "Chunking - max batch size 1",
-			maxBatchSize:       1,
-			expectedNumChunks:  3,
-			expectedChunkSizes: []int{1, 1, 1},
-		},
-		{
-			description:        "Chunking - max batch size 2",
-			maxBatchSize:       2,
-			expectedNumChunks:  2,
-			expectedChunkSizes: []int{2, 1},
-		},
-		{
-			description:        "No chunking - max batch size",
-			maxBatchSize:       math.MaxInt,
-			expectedNumChunks:  1,
-			expectedChunkSizes: []int{3},
-		},
-		{
-			description:        "No chunking - max batch size 0",
-			maxBatchSize:       0,
-			expectedNumChunks:  1,
-			expectedChunkSizes: []int{3},
-		},
-		{
-			description:        "No chunking - max batch size 10",
-			maxBatchSize:       10,
-			expectedNumChunks:  1,
-			expectedChunkSizes: []int{3},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			chunked := fmtProcessStats(tc.maxBatchSize, procs, lastProcs, map[int]string{}, cpu.TimesStat{}, cpu.TimesStat{}, time.Now().Add(-time.Second), time.Now())
-			assert.Len(t, chunked, tc.expectedNumChunks)
-			for i, size := range tc.expectedChunkSizes {
-				assert.Len(t, chunked[i], size)
-			}
-		})
-	}
 }

@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -130,30 +129,23 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 		return nil, nil
 	}
 
-	groupSize := len(containers) / c.maxBatchSize
-	if len(containers)%c.maxBatchSize != 0 {
-		groupSize++
-	}
-
-	// For no chunking, set groupsize as 1 to ensure one chunk
+	runMaxBatchSize := c.maxBatchSize
 	if options != nil && options.NoChunking {
-		groupSize = 1
+		runMaxBatchSize = len(containers)
 	}
 
-	chunked := chunkContainers(containers, groupSize)
-	messages := make([]model.MessageBody, 0, groupSize)
 	groupID := nextGroupID()
-	for i := 0; i < groupSize; i++ {
-		messages = append(messages, &model.CollectorContainer{
+	messages := chunkMessages(containers, runMaxBatchSize, func(chunk []*model.Container, groupSize int32) model.MessageBody {
+		return &model.CollectorContainer{
 			HostName:          c.hostInfo.HostName,
 			NetworkId:         c.networkID,
 			Info:              c.hostInfo.SystemInfo,
-			Containers:        chunked[i],
+			Containers:        chunk,
 			GroupId:           groupID,
-			GroupSize:         int32(groupSize),
+			GroupSize:         groupSize,
 			ContainerHostType: c.hostInfo.ContainerHostType,
-		})
-	}
+		}
+	})
 
 	numContainers := float64(len(containers))
 	agentNameTag := "agent:" + flavor.GetFlavor()
@@ -164,22 +156,3 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 // Cleanup frees any resource held by the ContainerCheck before the agent exits
 func (c *ContainerCheck) Cleanup() {}
-
-// chunkContainers formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
-func chunkContainers(containers []*model.Container, chunks int) [][]*model.Container {
-	perChunk := int(math.Ceil(float64(len(containers)) / float64(chunks)))
-	chunked := make([][]*model.Container, 0, chunks)
-	chunk := make([]*model.Container, 0, perChunk)
-
-	for _, ctr := range containers {
-		chunk = append(chunk, ctr)
-		if len(chunk) == perChunk {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.Container, 0, perChunk)
-		}
-	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
-}

@@ -7,9 +7,13 @@ package checks
 
 import (
 	"errors"
+	"slices"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 // RunnerConfig implements config for runners that work with CheckWithRealTime
@@ -106,4 +110,56 @@ func getRtRatio(checkInterval, rtInterval time.Duration) (int, error) {
 		return -1, errors.New("check interval should be divisible by RT interval")
 	}
 	return int(checkInterval / rtInterval), nil
+}
+
+func getRuntimeMaxBatchSize(totalCount int, maxBatchSize int) int {
+	if maxBatchSize <= 0 {
+		return totalCount
+	}
+	return min(totalCount, maxBatchSize)
+}
+
+func getGroupSize(totalCount int, chunkSize int) int {
+	chunkCount := totalCount / chunkSize
+	if totalCount%chunkSize != 0 {
+		chunkCount++
+	}
+	return chunkCount
+}
+
+func getChunkSize(totalCount int, groupSize int) int {
+	if groupSize == 0 {
+		return 1
+	}
+	chunkSize := totalCount / groupSize
+	if totalCount%groupSize != 0 {
+		chunkSize++
+	}
+	return max(chunkSize, 1)
+}
+
+func chunkMessages[T any](items []T, maxBatchSize int, msgFunc func(chunk []T, groupSize int32) model.MessageBody) []model.MessageBody {
+	runMaxBatchSize := getRuntimeMaxBatchSize(len(items), maxBatchSize)
+	groupSize := getGroupSize(len(items), runMaxBatchSize)
+	chunked := slices.Chunk(items, runMaxBatchSize)
+	messages := make([]model.MessageBody, 0, groupSize)
+	for chunk := range chunked {
+		messages = append(messages, msgFunc(chunk, int32(groupSize)))
+	}
+	return messages
+}
+
+func chunkMessages2[T, T2 any](items []T, pairedItems []T2, maxBatchSize int, msgFunc func(chunk []T, pairChunk []T2, groupSize int32) model.MessageBody) []model.MessageBody {
+	runMaxBatchSize := getRuntimeMaxBatchSize(len(items), maxBatchSize)
+	groupSize := getGroupSize(len(items), runMaxBatchSize)
+	chunked := slices.Chunk(items, runMaxBatchSize)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	pairChunkSize := getChunkSize(len(pairedItems), groupSize)
+	pairChunked := slices.Chunk(pairedItems, pairChunkSize)
+
+	for chunk, pairChunk := range ddslices.ZipIter(chunked, pairChunked) {
+		messages = append(messages, msgFunc(chunk, pairChunk, int32(groupSize)))
+	}
+	return messages
 }
