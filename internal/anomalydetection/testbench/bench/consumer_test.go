@@ -103,3 +103,38 @@ func TestRetainedReplayInterleavesRawObservations(t *testing.T) {
 	bench.feedRawObservations()
 	require.Equal(t, want, recorder.events)
 }
+
+type workflowResetRecorder struct {
+	observerimpl.DebugView
+	settings []observerimpl.ComponentSettings
+}
+
+func (r *workflowResetRecorder) Reset(settings observerimpl.ComponentSettings, _ observerimpl.StorageConfig) error {
+	r.settings = append(r.settings, settings)
+	return nil
+}
+
+func TestWorkflowSurvivesTestbenchReset(t *testing.T) {
+	for _, pipeline := range []bool{false, true} {
+		recorder := &workflowResetRecorder{}
+		tb := &Bench{
+			debug:    recorder,
+			settings: observerimpl.ComponentSettings{UseMetricPipeline: pipeline, Enabled: map[string]bool{}},
+		}
+		for _, streaming := range []bool{false, true} {
+			tb.config.StreamParquet = streaming
+			require.NoError(t, tb.resetAllState())
+			tb.settings.Enabled["log_pattern_extractor"] = false
+			require.NoError(t, tb.resetAllState())
+		}
+		require.Len(t, recorder.settings, 4)
+		for _, settings := range recorder.settings {
+			require.Equal(t, pipeline, settings.UseMetricPipeline)
+		}
+		for _, entry := range tb.catalogEntries() {
+			if pipeline {
+				require.NotEqual(t, "detector", entry.Kind, "inactive legacy detectors are not UI controls")
+			}
+		}
+	}
+}

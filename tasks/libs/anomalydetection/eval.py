@@ -227,18 +227,37 @@ def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
 # --- Combo helpers ---
 
 
-def _full_stack_combo(force_disable: list | None = None, force_enable: list | None = None) -> dict:
+def workflow_detectors(use_metric_pipeline: bool = False) -> list[str]:
+    """Return the selectable detector workflow."""
+    return ["metric_pipeline"] if use_metric_pipeline else DETECTORS
+
+
+def validate_workflow_components(use_metric_pipeline: bool, *selections: str) -> None:
+    """Reject local searches over inactive metric detectors."""
+    names = {name.strip() for selection in selections for name in selection.split(",") if name.strip()}
+    inactive = set(DETECTORS) if use_metric_pipeline else {"metric_pipeline"}
+    if rejected := names & inactive:
+        raise ValueError(f"Components unavailable in the selected workflow: {', '.join(sorted(rejected))}")
+
+
+def _full_stack_combo(
+    force_disable: list | None = None, force_enable: list | None = None, use_metric_pipeline: bool = False
+) -> dict:
     """All ablation components plus force-enabled supported components."""
     fd = set(force_disable or [])
     fe_cors = {c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd}
     return {
-        "detectors": sorted(d for d in DETECTORS if d not in fd),
+        "detectors": sorted(d for d in workflow_detectors(use_metric_pipeline) if d not in fd),
         "correlators": sorted({c for c in ABLATION_CORRELATORS if c not in fd} | fe_cors),
     }
 
 
-def _anchor_combos(force_disable: list | None = None, force_enable: list | None = None) -> list[dict]:
+def _anchor_combos(
+    force_disable: list | None = None, force_enable: list | None = None, use_metric_pipeline: bool = False
+) -> list[dict]:
     """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable."""
+    if use_metric_pipeline:
+        return []
     fd = set(force_disable or [])
     fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
     fe_cors = sorted(c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd)
@@ -263,6 +282,7 @@ def random_component_combinations(
     force_enable: list = None,
     force_disable: list = None,
     exclude_combo_keys: set | None = None,
+    use_metric_pipeline: bool = False,
 ) -> list:
     """Generate up to n distinct random component combinations.
 
@@ -272,9 +292,10 @@ def random_component_combinations(
     force_enable = set(force_enable or [])
     force_disable = set(force_disable or [])
 
-    det_pool = [d for d in DETECTORS if d not in force_disable]
+    detectors = workflow_detectors(use_metric_pipeline)
+    det_pool = [d for d in detectors if d not in force_disable]
     cor_pool = [c for c in ABLATION_CORRELATORS if c not in force_disable]
-    forced_dets = sorted(d for d in force_enable if d in DETECTORS and d not in force_disable)
+    forced_dets = sorted(d for d in force_enable if d in detectors and d not in force_disable)
     forced_cors = sorted(c for c in force_enable if c in SUPPORTED_CORRELATORS and c not in force_disable)
 
     rng = random.Random(seed)
@@ -448,6 +469,8 @@ def _build_optuna_config(
             result[name] = _component_base_config(name, False)
 
     for name in components:
+        if name == "metric_pipeline":
+            continue
         params = _component_base_config(name, True)
         if name not in locked:
             params.update(_sample_component_params(trial, name))
