@@ -21,6 +21,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -83,6 +84,7 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
+		schemanoopfx.Module(),
 		hostnameinterface.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)

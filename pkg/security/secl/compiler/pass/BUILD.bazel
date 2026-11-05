@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "pass",
+    srcs = [
+        "macros.go",
+        "pass.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/security/secl/compiler/ast"],
+)
+
+dd_agent_go_test(
+    name = "pass_test",
+    srcs = ["macros_test.go"],
+    embed = [":pass"],
+    deps = [
+        "//pkg/security/secl/compiler/ast",
+        "//pkg/security/secl/compiler/parser",
+        "@com_github_stretchr_testify//require",
+    ],
+)

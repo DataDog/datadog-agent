@@ -31,7 +31,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -646,9 +645,9 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 		case configuredRetention == 0:
 			// Keep the detector-derived retention.
 		case configuredRetention < 0:
-			pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s; using %s derived from enabled detector windows", configuredRetention, requiredRetention)
+			logging.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s; using %s derived from enabled detector windows", configuredRetention, requiredRetention)
 		case configuredRetention < requiredRetention:
-			pkglog.Warnf("anomaly_detection.storage.point_retention=%s is below the %s required by enabled detector windows; using %s", configuredRetention, requiredRetention, requiredRetention)
+			logging.Warnf("anomaly_detection.storage.point_retention=%s is below the %s required by enabled detector windows; using %s", configuredRetention, requiredRetention, requiredRetention)
 		default:
 			storageCfg.PointRetentionSecs = int64(configuredRetention.Seconds())
 		}
@@ -656,7 +655,7 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_ttl") {
 		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_ttl")
 		if d < 0 {
-			pkglog.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
+			logging.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
 		} else {
 			storageCfg.InactiveSeriesTTLSeconds = int64(d.Seconds())
 		}
@@ -664,7 +663,7 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_check_interval") {
 		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_check_interval")
 		if d < 0 {
-			pkglog.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
+			logging.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
 		} else {
 			storageCfg.InactiveSeriesCheckIntervalSeconds = int64(d.Seconds())
 		}
@@ -857,9 +856,9 @@ type seriesDetectorAdapter struct {
 	windowSec int64
 
 	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
-	// ScanWelchDetector, and ScanMWDetector: storage.SeriesGeneration() only
-	// advances when a brand-new series key is created, so we can avoid the
-	// per-Detect full-map series scan on steady-state cardinality.
+	// ScanWelchDetector, and ScanMWDetector: SeriesGeneration changes on series
+	// admission/removal and filterable metadata updates, not ordinary point writes.
+	// Reuse the selection while that generation is unchanged.
 	cachedRefs []observerdef.SeriesRef
 	cachedGen  uint64
 

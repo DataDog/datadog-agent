@@ -9,7 +9,9 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"testing"
@@ -23,11 +25,19 @@ import (
 )
 
 func readSysctlValue(name string) (string, error) {
-	data, err := os.ReadFile(path.Join("/proc/sys", name))
+	file, err := os.Open(path.Join("/proc/sys", name))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error opening file: %w", err)
 	}
-	return string(data), nil
+	defer file.Close()
+
+	var buf [64]byte
+	n, err := file.Read(buf[:])
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("error reading file: %w", err)
+	}
+
+	return string(buf[:n]), nil
 }
 
 func writeSysctlValue(name string, value string) error {
@@ -76,11 +86,6 @@ func TestSysctlEvent(t *testing.T) {
 		}
 	}()
 
-	// make sure the correct value is set before the test starts
-	if err := writeSysctlValue("kernel/kptr_restrict", "1"); err != nil {
-		t.Fatalf("couldn't set kernel/kptr_restrict: %v", err)
-	}
-
 	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
@@ -88,6 +93,10 @@ func TestSysctlEvent(t *testing.T) {
 	defer test.CloseTest()
 
 	t.Run("test_sysctl_write", func(t *testing.T) {
+		if err := writeSysctlValue("kernel/kptr_restrict", "1"); err != nil {
+			t.Fatalf("couldn't set kernel/kptr_restrict: %v", err)
+		}
+
 		test.WaitSignalFromRule(t, func() error {
 			return writeSysctlValue("kernel/kptr_restrict", "0")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -102,6 +111,10 @@ func TestSysctlEvent(t *testing.T) {
 	})
 
 	t.Run("test_sysctl_read", func(t *testing.T) {
+		if err := writeSysctlValue("kernel/kptr_restrict", "0"); err != nil {
+			t.Fatalf("couldn't set kernel/kptr_restrict: %v", err)
+		}
+
 		test.WaitSignalFromRule(t, func() error {
 			_, err := readSysctlValue("kernel/kptr_restrict")
 			return err

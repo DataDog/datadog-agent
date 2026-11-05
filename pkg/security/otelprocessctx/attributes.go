@@ -10,13 +10,8 @@ package otelprocessctx
 import (
 	"fmt"
 
-	commonpb "go.opentelemetry.io/proto/slim/otlp/common/v1"
-	processcontextpb "go.opentelemetry.io/proto/slim/otlp/processcontext/v1development"
-
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 )
-
-type ProcessContext = *processcontextpb.ProcessContext
 
 // KeySchemaVersion returns the thread-local record schema version the process
 // published, e.g. "nodejs_v1_dev" for the Node.js writer. Absent for the plain
@@ -30,52 +25,68 @@ func KeySchemaVersion(ctx ProcessContext) (string, error) {
 func KeyAttributeKeyMap(ctx ProcessContext) ([]string, error) {
 	attr := "threadlocal.attribute_key_map"
 
-	value := findAttribute(ctx.GetAttributes(), attr)
+	value := findAttribute(ctx, attr)
 	if value == nil {
 		return nil, fmt.Errorf("unknown attribute %s", attr)
 	}
 
-	entries := value.GetArrayValue().GetValues()
-	keys := make([]string, len(entries))
-	for i, entry := range entries {
-		keys[i] = entry.GetStringValue()
-	}
-	return keys, nil
+	keys := make([]string, 0, len(value.array))
+	return append(keys, value.array...), nil
 }
 
 // TracerMetadata mirrors libdatadog's TracerMetadata::to_otel_process_ctx.
 // SchemaVersion and LogsCollected have no process context counterpart.
 func TracerMetadata(ctx ProcessContext) tracermetadata.TracerMetadata {
-	resource := ctx.GetResource().GetAttributes()
+	var resource, attributes []keyValue
+	if ctx != nil {
+		resource, attributes = ctx.resource, ctx.attributes
+	}
 	return tracermetadata.TracerMetadata{
-		RuntimeID:      findAttribute(resource, "service.instance.id").GetStringValue(),
-		TracerLanguage: findAttribute(resource, "telemetry.sdk.language").GetStringValue(),
-		TracerVersion:  findAttribute(resource, "telemetry.sdk.version").GetStringValue(),
-		Hostname:       findAttribute(resource, "host.name").GetStringValue(),
-		ServiceName:    findAttribute(resource, "service.name").GetStringValue(),
-		ServiceEnv:     findAttribute(resource, "deployment.environment.name").GetStringValue(),
-		ServiceVersion: findAttribute(resource, "service.version").GetStringValue(),
-		ContainerID:    findAttribute(resource, "container.id").GetStringValue(),
-		ProcessTags:    findAttribute(ctx.GetAttributes(), "datadog.process_tags").GetStringValue(),
+		RuntimeID:      findAttributeIn(resource, "service.instance.id").stringValue(),
+		TracerLanguage: findAttributeIn(resource, "telemetry.sdk.language").stringValue(),
+		TracerVersion:  findAttributeIn(resource, "telemetry.sdk.version").stringValue(),
+		Hostname:       findAttributeIn(resource, "host.name").stringValue(),
+		ServiceName:    findAttributeIn(resource, "service.name").stringValue(),
+		ServiceEnv:     findAttributeIn(resource, "deployment.environment.name").stringValue(),
+		ServiceVersion: findAttributeIn(resource, "service.version").stringValue(),
+		ContainerID:    findAttributeIn(resource, "container.id").stringValue(),
+		ProcessTags:    findAttributeIn(attributes, "datadog.process_tags").stringValue(),
 	}
 }
 
 // stringAttribute returns the value of the string attribute named key, or an
 // error if ctx published none by that name.
 func stringAttribute(ctx ProcessContext, key string) (string, error) {
-	value := findAttribute(ctx.GetAttributes(), key)
+	value := findAttribute(ctx, key)
 	if value == nil {
 		return "", fmt.Errorf("unknown attribute %s", key)
 	}
-	return value.GetStringValue(), nil
+	return value.stringValue(), nil
 }
 
-// findAttribute returns the value of the attribute named key among attrs, or nil if
-// attrs has none by that name.
-func findAttribute(attrs []*commonpb.KeyValue, key string) *commonpb.AnyValue {
+// stringValue returns the string member of v, or "" if v is nil or holds another.
+func (v *anyValue) stringValue() string {
+	if v == nil || v.kind != anyValueString {
+		return ""
+	}
+	return v.str
+}
+
+// findAttribute returns the value of the first attribute named key in ctx, or nil if
+// ctx has none by that name or it carries no value.
+func findAttribute(ctx ProcessContext, key string) *anyValue {
+	if ctx == nil {
+		return nil
+	}
+	return findAttributeIn(ctx.attributes, key)
+}
+
+// findAttributeIn returns the value of the first attribute named key among attrs,
+// or nil if attrs has none by that name or it carries no value.
+func findAttributeIn(attrs []keyValue, key string) *anyValue {
 	for _, kv := range attrs {
-		if kv.GetKey() == key {
-			return kv.GetValue()
+		if kv.key == key {
+			return kv.value
 		}
 	}
 	return nil

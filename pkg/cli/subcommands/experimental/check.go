@@ -20,8 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	configschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -129,13 +129,13 @@ func checkYAMLSyntax(path string) (bool, []string, error) {
 	return true, warnings, nil
 }
 
-func runSchema(configPath string) ([]configschema.Violation, error) {
+func runSchema(schemaComp schema.Component, configPath string) ([]*model.Violation, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read config file %s: %w", configPath, err)
 	}
 
-	return configschema.ValidateYAML(data, model.CoreSchema)
+	return schemaComp.ValidateYAML(data, model.CoreSchema)
 }
 
 // validateAPIKey validates the format of a Datadog API key.
@@ -246,7 +246,7 @@ func checkEnabledProducts(cfg config.Component) (bool, []string) {
 	return !noneEnabled, lines
 }
 
-func runConfigCheck(_ log.Component, cfg config.Component, noAPICheck bool) error {
+func runConfigCheck(_ log.Component, cfg config.Component, schemaComp schema.Component, noAPICheck bool) error {
 	configPath := cfg.ConfigFileUsed()
 	hasErrors := false
 	out := os.Stdout
@@ -272,15 +272,15 @@ func runConfigCheck(_ log.Component, cfg config.Component, noAPICheck bool) erro
 	// 3. Schema validation against the core agent JSON Schema.
 	// Validates the config file directly so that Viper-injected defaults are not
 	// included (only user-supplied values are checked).
-	schemaErrors, err := runSchema(configPath)
+	schemaErrors, err := runSchema(schemaComp, configPath)
 	if err != nil {
 		fmt.Fprintf(out, "[ERR] impossible to validate config: %s\n", err)
 		hasErrors = true
 	} else {
 		if len(schemaErrors) != 0 {
 			fmt.Fprintf(out, "[ERR]   Agent configuration is invalid:\n")
-			for _, err := range schemaErrors {
-				fmt.Fprintf(out, "\t- %s\n", err.Message)
+			for _, schemaErr := range schemaErrors {
+				fmt.Fprintf(out, "\t- %s\n", schemaErr.Message)
 			}
 		} else {
 			fmt.Fprintf(out, "[OK]   Agent configuration is valid\n")

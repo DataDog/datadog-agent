@@ -273,14 +273,19 @@ func weightRoot(s *pb.Span) float32 {
 		return 1
 	}
 	clientRate, ok := s.Metrics[KeySamplingRateGlobal]
-	if !ok || clientRate <= 0.0 || clientRate > 1.0 {
+	// Negated range checks so NaN, for which every comparison is false, is rejected.
+	if !ok || !(clientRate > 0.0 && clientRate <= 1.0) {
 		clientRate = 1
 	}
 	preSamplerRate, ok := s.Metrics[KeySamplingRatePreSampler]
-	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
+	if !ok || !(preSamplerRate > 0.0 && preSamplerRate <= 1.0) {
 		preSamplerRate = 1
 	}
-	return float32(1.0 / (preSamplerRate * clientRate))
+	w := float32(1.0 / (preSamplerRate * clientRate))
+	if math.IsInf(float64(w), 0) {
+		return 1
+	}
+	return w
 }
 
 func weightRootV1(s *idx.InternalSpan) float32 {
@@ -288,14 +293,19 @@ func weightRootV1(s *idx.InternalSpan) float32 {
 		return 1
 	}
 	clientRate, ok := s.GetAttributeAsFloat64(KeySamplingRateGlobal)
-	if !ok || clientRate <= 0.0 || clientRate > 1.0 {
+	// Negated range checks so NaN, for which every comparison is false, is rejected.
+	if !ok || !(clientRate > 0.0 && clientRate <= 1.0) {
 		clientRate = 1
 	}
 	preSamplerRate, ok := s.GetAttributeAsFloat64(KeySamplingRatePreSampler)
-	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
+	if !ok || !(preSamplerRate > 0.0 && preSamplerRate <= 1.0) {
 		preSamplerRate = 1
 	}
-	return float32(1.0 / (preSamplerRate * clientRate))
+	w := float32(1.0 / (preSamplerRate * clientRate))
+	if math.IsInf(float64(w), 0) {
+		return 1
+	}
+	return w
 }
 
 func getMetric(s *pb.Span, k string) (float64, bool) {

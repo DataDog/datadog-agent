@@ -102,6 +102,7 @@ import (
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
+	schemafx "github.com/DataDog/datadog-agent/comp/core/schema/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
@@ -183,7 +184,6 @@ import (
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
-	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -444,7 +444,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
 			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithSchema(schemafx.Module())),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
@@ -618,7 +618,6 @@ func getSharedFxOption() fx.Option {
 		configstreamfx.Module(),
 		logondurationfx.Module(),
 		healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
-		tracetelemetryfx.Module(),
 		dataplanepreflightmodefx.Module(),
 	)
 }

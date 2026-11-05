@@ -8,8 +8,8 @@ package observerimpl
 import (
 	"math"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -155,7 +155,7 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 		config.MaxRunLength = defaults.MaxRunLength
 	}
 	if config.MaxRunLength < config.WarmupPoints {
-		pkglog.Warnf("[observer] BOCPD max_run_length=%d is below warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
+		logging.Warnf("BOCPD max_run_length=%d is below warmup_points=%d; using %d", config.MaxRunLength, config.WarmupPoints, config.WarmupPoints)
 		config.MaxRunLength = config.WarmupPoints
 	}
 	if config.PriorVarianceScale <= 0 {
