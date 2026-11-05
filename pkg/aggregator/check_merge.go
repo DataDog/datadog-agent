@@ -40,11 +40,20 @@ var tlmCheckMergeConflicts = telemetryimpl.GetCompatComponent().NewCounter("aggr
 //   - Every flush collects everything committed since the previous one, so two commits in one second are merged.
 //   - A rule change that starts stripping a metric makes its output come to the merger: its points committed in the
 //     change's second move to the next second, which output sent before the change can't have used.
+//   - After a backward clock step, a point at or before the latest second sent moves to the second after it. A step
+//     of maxShift or more resets the latest second sent instead: moving output until the clock catches up would
+//     leave series empty for as long, and sending a second again is the lesser harm. Points the step left held for
+//     later seconds stay held, and merge with the commits that reach their seconds again, unless they're more than
+//     maxHold ahead of a flush's cutoff.
 type checkOutputMerger struct {
 	series   map[serieMergeKey]*metrics.Serie
 	sketches map[ckey.ContextKey]*metrics.SketchSeries
+	// lastSent is the latest second the merger has sent, or less after a long backward clock step.
+	lastSent int64
 	// notBefore is, for metrics a rule change started stripping, the second after the change.
 	notBefore map[string]int64
+	// maxShift is how far, in seconds, a point can move to a later second.
+	maxShift int64
 
 	logThrottling util.SimpleThrottler
 }
@@ -67,11 +76,18 @@ type serieMergeKey struct {
 	mtype metrics.APIMetricType
 }
 
-func newCheckOutputMerger() *checkOutputMerger {
+// maxHold is how far, in seconds, ahead of a flush's cutoff points can be held: only a backward clock step gets them
+// that far ahead, and the clock won't reach them soon.
+const maxHold = int64(time.Hour / time.Second)
+
+// newCheckOutputMerger returns a merger that moves points by at most maxShift, the flush interval, and at least a
+// second.
+func newCheckOutputMerger(maxShift time.Duration) *checkOutputMerger {
 	return &checkOutputMerger{
 		series:    make(map[serieMergeKey]*metrics.Serie),
 		sketches:  make(map[ckey.ContextKey]*metrics.SketchSeries),
 		notBefore: make(map[string]int64),
+		maxShift:  max(1, int64(maxShift/time.Second)),
 
 		logThrottling: util.NewSimpleThrottler(5, 5*time.Minute, ""),
 	}
@@ -135,10 +151,18 @@ func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 	}
 }
 
-// unsentSecond returns the second a point of a metric is sent in: its own, unless a rule change started stripping the
-// metric in it.
+// unsentSecond returns the second a point of a metric is sent in: its own, unless the merger has already sent it, or
+// a rule change started stripping the metric in it. Then it's the next second the point can use, if that's at most
+// maxShift later. A point maxShift or more before the latest second sent resets it.
 func (m *checkOutputMerger) unsentSecond(name string, ts int64) int64 {
-	return max(ts, m.notBefore[name])
+	if m.lastSent-ts >= m.maxShift {
+		m.lastSent = ts - 1 // the clock stepped back further than points can move: follow it
+	}
+	moveTo := max(m.lastSent+1, m.notBefore[name])
+	if moveTo-ts > m.maxShift {
+		return ts
+	}
+	return max(ts, moveTo)
 }
 
 // mergeSource returns the origin of a merged series: the lowest of its sources', so that it doesn't depend on
@@ -179,9 +203,10 @@ func (m *checkOutputMerger) startedStripping(second int64, names []string) {
 	}
 }
 
-// flush sends the points from seconds before cutoff, and holds the others for a later flush.
+// flush sends the points from seconds before cutoff, and holds the others for a later flush, unless they're more than
+// maxHold after cutoff.
 func (m *checkOutputMerger) flush(cutoff int64, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
-	m.send(func(ts int64) bool { return ts < cutoff }, seriesSink, sketchesSink)
+	m.send(func(ts int64) bool { return ts < cutoff || ts > cutoff+maxHold }, seriesSink, sketchesSink)
 	// Commits from now on are stamped at or after cutoff.
 	for name, second := range m.notBefore {
 		if second <= cutoff {
@@ -198,6 +223,9 @@ func (m *checkOutputMerger) drain(seriesSink metrics.SerieSink, sketchesSink met
 func (m *checkOutputMerger) send(ready func(ts int64) bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	for key, serie := range m.series {
 		sent, held := splitPoints(serie.Points, func(p metrics.Point) bool { return ready(int64(p.Ts)) })
+		for _, p := range sent {
+			m.lastSent = max(m.lastSent, int64(p.Ts))
+		}
 		if len(sent) > 0 {
 			out := *serie
 			out.Points = sent
@@ -211,6 +239,9 @@ func (m *checkOutputMerger) send(ready func(ts int64) bool, seriesSink metrics.S
 	}
 	for key, sketch := range m.sketches {
 		sent, held := splitPoints(sketch.Points, func(p metrics.SketchPoint) bool { return ready(p.Ts) })
+		for _, p := range sent {
+			m.lastSent = max(m.lastSent, p.Ts)
+		}
 		if len(sent) > 0 {
 			out := *sketch
 			out.Points = sent
