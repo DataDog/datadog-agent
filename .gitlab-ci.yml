@@ -408,10 +408,11 @@ variables:
 
   SKIP_WINDOWS: "false"
 
-  # Opt all jobs in to Kubernetes VPA (Auto mode). VPA-enabled jobs default to the
-  # vpa-template-cpu-p70-10percent-2x-oom-min-cap template: memory doubles after an OOM kill, with a memory floor.
+  # Opt all jobs in to Kubernetes VPA and force the OOM-aware template: Auto mode, memory doubles after an
+  # OOM kill, with a memory floor. Without the override, the datadog-agent-runner-* fleet uses builtin-max-cpu (Off).
   # Memory is sized by the VPA: only set KUBERNETES_MEMORY_* on jobs that also set DD_DISABLE_VPA: "true" (break-glass).
   DD_ENABLE_VPA: "true"
+  DD_VPA_TEMPLATE_OVERWRITE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
 
 #
 # Condition mixins for simplification of rules
