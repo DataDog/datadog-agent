@@ -56,11 +56,12 @@ This also applies to indirect usage — do not shell out to `go build` or
 `go test` for compilation checks. If you need to verify that code compiles,
 build the relevant component with `dda inv *.build`.
 
-### Bits Code sandboxes
+### Bazel dependency downloads
 
-Before invoking Bazel or `dda inv test` in a Datadog Bits Code sandbox, follow
-[Bazel's sandbox setup instructions](bazel/AGENTS.md#bits-code-sandboxes) to enable
-the existing ADMS archive mirror for that checkout.
+ADMS is enabled by default for Bazel dependency downloads through
+`common --config=adms` in `.bazelrc`. If the Datadog intranet is unavailable,
+remove or comment out that line before invoking Bazel or `dda inv test`.
+See [Bazel's ADMS guidance](bazel/AGENTS.md#adms-dependency-mirror) for a local override.
 
 ### Common Commands
 

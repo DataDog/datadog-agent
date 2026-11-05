@@ -33,20 +33,21 @@ is no interactive Vault login, so a token must be injected via the
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
 
-## Bits Code sandboxes
+## ADMS dependency mirror
 
-Before running `bazel` or `dda inv test` in a Datadog Bits Code sandbox with
-ADMS access, add this line once to the workspace's gitignored `user.bazelrc`,
-preserving any existing settings. Skip this setup if a custom downloader or an
-explicit mirror opt-out is already configured:
+The workspace `.bazelrc` enables ADMS unconditionally with `common --config=adms`.
+This uses the existing archive mirror for dependencies such as `rules_pkg`,
+including in Bits Code sandboxes where direct GitHub downloads are blocked.
+
+ADMS requires access to the Datadog intranet. If it is unavailable, remove or
+comment out `common --config=adms` in `.bazelrc`. To disable the mirror locally
+without editing the shared configuration, add this to the workspace's gitignored
+`user.bazelrc`, preserving any existing settings:
 
 ```text
-common --config=adms
+common --downloader_config=
 ```
 
-This uses the existing ADMS archive mirror for dependencies such as `rules_pkg`
-when direct GitHub downloads are blocked. Bazel reads the configuration through
-its normal rc import. Remove the line to undo this sandbox-local setup.
 Go module proxy configuration is separate; this setting only affects Bazel
 archive downloads.
 
