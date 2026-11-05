@@ -60,6 +60,8 @@ from tasks.libs.anomalydetection.eval import (
     print_eval_scenarios_summary,
     print_eval_tp_summary,
     random_component_combinations,
+    validate_workflow_components,
+    workflow_detectors,
 )
 from tasks.libs.anomalydetection.eval import (
     AWS_PROFILE as AWS_VAULT_PROFILE,
@@ -139,6 +141,7 @@ def launch_testbench(
     only: str = "",
     api_port: int = 8080,
     ui_port: int = 5173,
+    use_metric_pipeline: bool = False,
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -162,6 +165,7 @@ def launch_testbench(
         dataset: LLMObs dataset name or UUID; reads its latest version.
         local: Use existing files under scenarios_dir without reading LLMObs.
         scenario: Select and open one recording in the interactive testbench.
+        use_metric_pipeline: Opt into kind-routed metrics; legacy is the default.
     """
     if not local:
         try:
@@ -184,7 +188,7 @@ def launch_testbench(
         raise Exit("--open-pprof supports one profile type at a time; choose --mem-profile or --cpu-profile")
 
     flags = []
-    for enabled, flag in [(verbose, "--verbose"), (logs_only, "--logs-only")]:
+    for enabled, flag in [(use_metric_pipeline, "--use-metric-pipeline"), (verbose, "--verbose"), (logs_only, "--logs-only")]:
         if enabled:
             flags.append(flag)
     if allowed_types:
@@ -620,6 +624,7 @@ def eval_scenarios(
     aws_profile: str = "",
     local: bool = False,
     retain_parquet: bool = False,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Replay recordings from the latest LLMObs dataset and score existing fault F1.
 
@@ -628,6 +633,7 @@ def eval_scenarios(
     --scenarios-dir without consulting LLMObs.
     --only automatically includes anomaly_scorer; --config takes precedence.
     Completed results include a command to inspect the same recording/settings.
+    use_metric_pipeline is local-only and independent of component params.
     """
     dataset_info = None
     if not local:
@@ -641,6 +647,7 @@ def eval_scenarios(
         scenarios_dir = str(root)
         scenarios = ",".join(selected)
         print(f"Dataset: {dataset_info['name']} (latest), {len(selected)} scenarios")
+    validate_workflow_components(use_metric_pipeline, only)
     scenarios_to_run = _require_local_scenarios(scenario or scenarios)
 
     only_flag = ""
@@ -680,6 +687,7 @@ def eval_scenarios(
         output_path = os.path.join(scenario_output_dir, f"observer-eval-{name}.json")
         scenario_logger.step(name)
 
+        workflow_flag = " --use-metric-pipeline" if use_metric_pipeline else ""
         scenario_start = time.monotonic()
         command_args = [
             "bin/anomalydetection-testbench",
@@ -694,6 +702,8 @@ def eval_scenarios(
             command_args += ["--config", config]
         elif only_flag:
             command_args += ["--only", only_flag]
+        if workflow_flag:
+            command_args.append(workflow_flag)
         try:
             _run_headless_replay(
                 ctx,
@@ -799,7 +809,12 @@ def eval_scenarios(
 
     f1_scores: list[float] = [float(r["f1"]) for r in results]
     main_score = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
-    main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}, "component_configs": config_obj}
+    main_report = {
+        "use_metric_pipeline": use_metric_pipeline,
+        "score": main_score,
+        "metadata": {r["name"]: r for r in results},
+        "component_configs": config_obj,
+    }
     if dataset_info:
         main_report["dataset"] = {"id": dataset_info["id"], "name": dataset_info["name"]}
     with open(main_report_path, "w") as f:
@@ -818,6 +833,7 @@ def eval_tp(
     sigma: float = 30.0,
     only: str = "",
     build: bool = True,
+    use_metric_pipeline: bool = False,
 ):
     """
     Runs TP metric scoring: replays scenarios with the testbench passthrough adapter and scores
@@ -830,13 +846,17 @@ def eval_tp(
         dda inv anomalydetection.eval-tp --only bocpd,passthrough --scenario example # explicit
 
     Args:
+        use_metric_pipeline: Opt into the metric pipeline independently of component params (local only).
         scenario: Run a single scenario (e.g. "213_pagerduty"). Required; recordings must already exist locally.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
         only: Comma-separated components to enable (passed as --only to testbench). Auto-adds passthrough.
     """
+    validate_workflow_components(use_metric_pipeline, only)
     scenarios_to_run = _require_local_scenarios(scenario)
 
+    if not only and use_metric_pipeline:
+        only = "metric_pipeline"
     if not only:
         print(color_message("--only is required (e.g. --only scanmw)", Color.RED))
         return
@@ -870,6 +890,7 @@ def eval_tp(
             f" --scenarios-dir {shlex.quote(scenarios_dir)}"
             f" --only {shlex.quote(only_flag)}"
             f" --verbose"
+            f"{' --use-metric-pipeline' if use_metric_pipeline else ''}"
         )
 
         if not os.path.isfile(output_path):
@@ -913,6 +934,7 @@ def eval_combinations(
     force_enable: str = "",
     force_disable: str = "",
     scenarios: str = "",
+    use_metric_pipeline: bool = False,
 ):
     """
     Run Gaussian F1 eval on n component combinations and rank them.
@@ -930,6 +952,7 @@ def eval_combinations(
         <output_dir>/report.json             - all combos ranked by score, plus best_combination
 
     Args:
+        use_metric_pipeline: Opt into the metric pipeline independently of component params (local only).
         n: Total combinations to evaluate: one full-stack plus (n - 1) random
             (default: 10). Use n=1 for only the full-stack baseline.
         output_dir: Root directory for per-combo results and summary. If this
@@ -949,6 +972,9 @@ def eval_combinations(
         dda inv anomalydetection.eval-combinations --n 5 --output-dir /tmp/ablation --scenarios example
         dda inv anomalydetection.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch --scenarios example
     """
+    validate_workflow_components(use_metric_pipeline, force_enable, force_disable)
+    if use_metric_pipeline and "metric_pipeline" in {name.strip() for name in force_disable.split(",")}:
+        raise Exit("The metric pipeline cannot be disabled through component selections")
     scenario_names = _require_local_scenarios(scenarios)
 
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
@@ -971,7 +997,7 @@ def eval_combinations(
     if force_disable_list:
         print(color_message(f"Force-disabled: {', '.join(force_disable_list)}", Color.BLUE))
 
-    full_combo = _full_stack_combo(force_disable_list, force_enable_list)
+    full_combo = _full_stack_combo(force_disable_list, force_enable_list, use_metric_pipeline=use_metric_pipeline)
     full_key = (tuple(full_combo["detectors"]), tuple(full_combo["correlators"]))
     random_count = max(0, n - 1)
     random_combos = random_component_combinations(
@@ -980,6 +1006,7 @@ def eval_combinations(
         force_enable=force_enable_list,
         force_disable=force_disable_list,
         exclude_combo_keys={full_key},
+        use_metric_pipeline=use_metric_pipeline,
     )
     combos = [full_combo] + random_combos
     print(
@@ -1024,6 +1051,7 @@ def eval_combinations(
                 scenario_output_dir=scenario_output_dir,
                 scenarios=scenarios,
                 _logger=combo_logger.child(len(scenario_names), "Scenario"),
+                use_metric_pipeline=use_metric_pipeline,
             )
         except Exception as e:
             combo_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
@@ -1075,6 +1103,7 @@ def eval_combinations(
     with open(report_path, "w") as f:
         json.dump(
             {
+                "use_metric_pipeline": use_metric_pipeline,
                 "score": max_score,
                 "avg_eval_score": avg_score,
                 "seed": seed,
@@ -1135,6 +1164,7 @@ def _bayesian_evaluation_inputs(
     scenarios: str,
     lock: str,
     eval_backend: str,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Return the score-affecting inputs used to validate resumable runs."""
     selected_scenarios = sorted(_require_local_scenarios(scenarios)) if eval_backend == "local" else []
@@ -1146,6 +1176,8 @@ def _bayesian_evaluation_inputs(
         "timeout": int(timeout),
         "locked_components": sorted(c.strip() for c in lock.split(",") if c.strip()),
     }
+    if eval_backend == "local":
+        inputs["use_metric_pipeline"] = use_metric_pipeline
     return inputs
 
 
@@ -1165,6 +1197,7 @@ def _run_bayesian_runs(
     run_logger: StepLogger | None = None,
     step_label_prefix: str = "",
     resume: bool = False,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Run M independent Bayesian optimisations on a fixed component set.
 
@@ -1180,6 +1213,7 @@ def _run_bayesian_runs(
         scenarios=scenarios,
         lock=lock,
         eval_backend=eval_backend,
+        use_metric_pipeline=use_metric_pipeline,
     )
 
     for ri in range(m_runs):
@@ -1226,6 +1260,7 @@ def _run_bayesian_runs(
                 scenarios=scenarios,
                 eval_backend=eval_backend,
                 _logger=trial_logger,
+                use_metric_pipeline=use_metric_pipeline,
             )
 
         run_failed = report is None or report.get("completed_trials", 0) == 0
@@ -1288,6 +1323,7 @@ def eval_bayesian(
     ddeval_workflow_timeout: int = 7200,
     resume: bool = False,
     _logger: StepLogger | None = None,
+    use_metric_pipeline: bool = False,
 ):
     """
     Run Bayesian hyperparameter optimization (Optuna TPE) for a fixed set of observer components.
@@ -1306,6 +1342,7 @@ def eval_bayesian(
         <output_dir>/best_config.json          - best config used
 
     Args:
+        use_metric_pipeline: Opt into the metric pipeline independently of component params (local only).
         components: Comma-separated component names to enable (default: all).
         lock: Comma-separated components to enable but not tune (keep at Go defaults).
         only: Tune only the listed components; lock everything else. Mutually exclusive with --lock.
@@ -1342,6 +1379,11 @@ def eval_bayesian(
     """
     import pickle
 
+    if use_metric_pipeline and eval_backend != "local":
+        raise Exit("--use-metric-pipeline is supported only for local evaluation")
+    validate_workflow_components(use_metric_pipeline, components, only, lock)
+    detectors = workflow_detectors(use_metric_pipeline)
+
     sigma = float(sigma)
 
     try:
@@ -1362,8 +1404,8 @@ def eval_bayesian(
     components_list = [c.strip() for c in components.split(",") if c.strip()]
 
     if only_list:
-        default_components = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
-        known_components = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
+        default_components = detectors + ABLATION_CORRELATORS + EXTRACTORS
+        known_components = detectors + SUPPORTED_CORRELATORS + EXTRACTORS
         unknown_only = set(only_list) - set(known_components)
         if unknown_only:
             print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
@@ -1383,14 +1425,14 @@ def eval_bayesian(
         locked_set = {c for c in components_list if c not in set(only_list)}
     else:
         if not components_list:
-            components_list = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
+            components_list = detectors + ABLATION_CORRELATORS + EXTRACTORS
         locked_set = {c.strip() for c in lock.split(",") if c.strip()}
 
     if not components_list:
         print(color_message("Error: at least one component is required (--components)", Color.RED))
         return
 
-    unknown = (set(components_list) | locked_set) - set(DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS)
+    unknown = (set(components_list) | locked_set) - set(detectors + SUPPORTED_CORRELATORS + EXTRACTORS)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
         return
@@ -1440,6 +1482,7 @@ def eval_bayesian(
         scenarios=scenarios,
         lock=",".join(sorted(locked_set)),
         eval_backend=eval_backend,
+        use_metric_pipeline=use_metric_pipeline,
     )
 
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
@@ -1503,6 +1546,7 @@ def eval_bayesian(
                 timeout=timeout,
                 scenarios=scenarios,
                 _logger=trial_logger.child(len(scenarios_list), "Scenario"),
+                use_metric_pipeline=use_metric_pipeline,
             )
         except Exception as e:
             failure_reason = f"{eval_backend} eval raised {type(e).__name__}: {e}"
@@ -1817,6 +1861,7 @@ def eval_pipeline(
     ddeval_testbench_binary_s3_uri: str = "",
     ddeval_testbench_sha256: str = "",
     ddeval_workflow_timeout: int = 7200,
+    use_metric_pipeline: bool = False,
 ):
     """
     Full pipeline fine-tuning: Bayesian search over component combinations, then deep tuning on the winner.
@@ -1835,6 +1880,7 @@ def eval_pipeline(
         <output_dir>/report.json                - best combo, best HP config, final score
 
     Args:
+        use_metric_pipeline: Opt into the metric pipeline independently of component params (local only).
         n_combos: Target number of combinations to evaluate in Step 1 (default: 10).
         n_trials_search: Optuna trials per combination during the search phase (default: 5).
         n_trials_tune: Optuna trials for the final fine-tuning pass on the winner (default: 20).
@@ -1871,6 +1917,11 @@ def eval_pipeline(
             --ddeval-testbench-sha256 <sha256> \
             --n-combos 3 --n-trials-search 2 --n-trials-tune 3
     """
+    validate_workflow_components(use_metric_pipeline, force_enable, force_disable)
+    if use_metric_pipeline and "metric_pipeline" in {name.strip() for name in force_disable.split(",")}:
+        raise Exit("The metric pipeline cannot be disabled through component selections")
+    if use_metric_pipeline and eval_backend != "local":
+        raise Exit("--use-metric-pipeline is supported only for local evaluation")
     sigma = float(sigma)
     if eval_backend == "ddeval":
         if scenarios:
@@ -1914,7 +1965,7 @@ def eval_pipeline(
     force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
     force_disable_list = [c.strip() for c in force_disable.split(",") if c.strip()]
 
-    all_known = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
+    all_known = workflow_detectors(use_metric_pipeline) + ABLATION_CORRELATORS + EXTRACTORS
     unknown = set(force_enable_list + force_disable_list) - set(all_known)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
@@ -1927,8 +1978,12 @@ def eval_pipeline(
     elif not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
-    full_combo = _full_stack_combo(force_disable=force_disable_list, force_enable=force_enable_list)
-    anchor_list = _anchor_combos(force_disable=force_disable_list, force_enable=force_enable_list)
+    full_combo = _full_stack_combo(
+        force_disable=force_disable_list, force_enable=force_enable_list, use_metric_pipeline=use_metric_pipeline
+    )
+    anchor_list = _anchor_combos(
+        force_disable=force_disable_list, force_enable=force_enable_list, use_metric_pipeline=use_metric_pipeline
+    )
     fixed_combos = [full_combo] + anchor_list
     fixed_keys = {(tuple(c["detectors"]), tuple(c["correlators"])) for c in fixed_combos}
     combo_seed = rng.randint(0, 2**32 - 1)
@@ -1939,6 +1994,7 @@ def eval_pipeline(
         force_enable=force_enable_list,
         force_disable=force_disable_list,
         exclude_combo_keys=fixed_keys,
+        use_metric_pipeline=use_metric_pipeline,
     )
     combos = fixed_combos + random_combos
     actual_n_combos = len(combos)
@@ -2015,6 +2071,7 @@ def eval_pipeline(
             run_logger=run_logger,
             step_label_prefix=combo_label,
             resume=resume,
+            use_metric_pipeline=use_metric_pipeline,
         )
 
         combo_results.append(
@@ -2068,6 +2125,7 @@ def eval_pipeline(
             scenarios=scenarios,
             lock="",
             eval_backend=eval_backend,
+            use_metric_pipeline=use_metric_pipeline,
         )
         tune_result = _load_completed_bayesian_report(
             tune_dir,
@@ -2094,6 +2152,7 @@ def eval_pipeline(
             timeout=timeout,
             scenarios=scenarios,
             eval_backend=eval_backend,
+            use_metric_pipeline=use_metric_pipeline,
         )
 
     if not tune_result or tune_result.get("completed_trials", 0) == 0:
@@ -2104,6 +2163,7 @@ def eval_pipeline(
     best_config_path = os.path.join(tune_dir, "best_config.json")
 
     report = {
+        "use_metric_pipeline": use_metric_pipeline,
         "score": final_score,
         "seed": seed,
         "force_enable": force_enable_list,
@@ -2143,7 +2203,8 @@ def eval_pipeline(
         print(
             color_message(
                 f"    dda inv anomalydetection.eval-scenarios --config {shlex.quote(best_config_path)}"
-                f" --scenarios {shlex.quote(scenarios)} --scenarios-dir {shlex.quote(scenarios_dir)}",
+                f" --scenarios {shlex.quote(scenarios)} --scenarios-dir {shlex.quote(scenarios_dir)}"
+                f"{' --use-metric-pipeline' if use_metric_pipeline else ''}",
                 Color.BOLD,
             )
         )
@@ -2171,6 +2232,7 @@ def eval_component(
     lock: str = "",
     timeout: int = 300,
     scenarios: str = "",
+    use_metric_pipeline: bool = False,
 ):
     """
     Evaluate whether adding a component improves observer accuracy via Bayesian optimization.
@@ -2186,6 +2248,7 @@ def eval_component(
         <output_dir>/report.json                   - comparison report with KEEP/DISCARD recommendation
 
     Args:
+        use_metric_pipeline: Opt into the metric pipeline independently of component params (local only).
         component: Component to evaluate (any detector, correlator, or extractor).
         n_subsets: Number of random detector/correlator subsets (default: 5).
         n_trials: Optuna trials per Bayesian run (default: 5).
@@ -2209,7 +2272,12 @@ def eval_component(
         dda inv --feat anomalydetection anomalydetection.eval-component --component bocpd --timeout 120 --scenarios example
         dda inv --feat anomalydetection anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
-    all_known = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
+    validate_workflow_components(use_metric_pipeline, component, enable, disable, lock)
+    if use_metric_pipeline and "metric_pipeline" in {name.strip() for name in disable.split(",")}:
+        raise Exit("The metric pipeline cannot be disabled through component selections")
+    if component == "metric_pipeline":
+        raise Exit("Compare metric workflows in separate runs; the pipeline cannot be ablated as a component")
+    all_known = workflow_detectors(use_metric_pipeline) + SUPPORTED_CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
         return
@@ -2244,8 +2312,12 @@ def eval_component(
     is_extractor = component in EXTRACTORS
     force_disable_subsets: list[str] = sorted(set(([] if is_extractor else [component]) + force_disable_extra_list))
 
-    full_stack = _full_stack_combo(force_disable=force_disable_subsets, force_enable=force_enable_list)
-    anchor_subsets = _anchor_combos(force_disable=force_disable_subsets, force_enable=force_enable_list)
+    full_stack = _full_stack_combo(
+        force_disable=force_disable_subsets, force_enable=force_enable_list, use_metric_pipeline=use_metric_pipeline
+    )
+    anchor_subsets = _anchor_combos(
+        force_disable=force_disable_subsets, force_enable=force_enable_list, use_metric_pipeline=use_metric_pipeline
+    )
     fixed_subsets = [full_stack] + anchor_subsets
     fixed_keys = {(tuple(s["detectors"]), tuple(s["correlators"])) for s in fixed_subsets}
     random_count = max(0, n_subsets - len(fixed_subsets))
@@ -2255,6 +2327,7 @@ def eval_component(
         force_enable=force_enable_list,
         force_disable=force_disable_subsets,
         exclude_combo_keys=fixed_keys,
+        use_metric_pipeline=use_metric_pipeline,
     )
     subsets = fixed_subsets + random_subsets
     if len(subsets) < n_subsets:
@@ -2361,6 +2434,7 @@ def eval_component(
                 lock=lock_for_run,
                 run_logger=run_logger,
                 step_label_prefix=f"{variant} / {subset_label}",
+                use_metric_pipeline=use_metric_pipeline,
             )
 
             variant_results[variant].append(
@@ -2400,6 +2474,7 @@ def eval_component(
             shutil.copy2(src, best_config_path)
 
     final_report = {
+        "use_metric_pipeline": use_metric_pipeline,
         "component": component,
         "tune_evaluated_component": tune_evaluated_component,
         "recommendation": aggregated["recommendation"],

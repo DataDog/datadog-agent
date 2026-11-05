@@ -163,8 +163,9 @@ type StatusResponse struct {
 
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
-	Components map[string]bool `json:"components"`
-	LogsOnly   bool            `json:"logsOnly"`
+	UseMetricPipeline bool            `json:"useMetricPipeline"`
+	Components        map[string]bool `json:"components"`
+	LogsOnly          bool            `json:"logsOnly"`
 }
 
 // Bench is the main controller for the observer test bench.
@@ -759,7 +760,17 @@ func (tb *Bench) resetAllState() error {
 // catalogEntries includes testbench-only adapters in addition to production
 // observer components.
 func (tb *Bench) catalogEntries() []observerimpl.CatalogEntry {
-	return observerimpl.TestbenchCatalogEntries()
+	entries := observerimpl.TestbenchCatalogEntries()
+	if !tb.settings.UseMetricPipeline {
+		return entries
+	}
+	filtered := make([]observerimpl.CatalogEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Kind != "detector" {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // correlationsLocked returns production correlations plus testbench-only
@@ -855,8 +866,9 @@ func (tb *Bench) GetStatus() StatusResponse {
 		ScenarioEnd:           scenarioEndPtr,
 		EpisodeInfo:           tb.episodeInfo,
 		ServerConfig: ServerConfig{
-			Components: compMap,
-			LogsOnly:   tb.config.LogsOnly,
+			Components:        compMap,
+			UseMetricPipeline: tb.settings.UseMetricPipeline,
+			LogsOnly:          tb.config.LogsOnly,
 		},
 		Baseline: baselineInfo,
 	}
