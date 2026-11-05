@@ -41,7 +41,7 @@ intake mapping in an enabled org as RC-authorized; no mapping permission field o
 custom OIDC setup is required.
 
 The end-to-end onboarding runbook is maintained in
-[experimental](https://github.com/DataDog/experimental/tree/main/users/devin.andrews/rc-secrets-aws-poc).
+[experimental](https://github.com/ddoghq-sandbox/experimental/tree/main/users/devin.andrews/rc-secrets-aws-poc).
 This draft is based on an integration branch containing current main and the
 existing x509/protocol prerequisites; it adds no OIDC implementation.
 
