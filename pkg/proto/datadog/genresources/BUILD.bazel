@@ -1,0 +1,17 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "genresources_proto",
+    srcs = ["genericresource.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+    deps = ["@protobuf//:timestamp_proto"],
+)
+
+go_proto_library(
+    name = "genresources_go_proto",
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/genresources",
+    proto = ":genresources_proto",
+    visibility = ["//visibility:public"],
+)

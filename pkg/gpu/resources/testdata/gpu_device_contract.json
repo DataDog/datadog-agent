@@ -1,0 +1,119 @@
+{
+  "source": "https://github.com/ddoghq/dd-source/blob/8d8ac212b4500f7f25c24023072e79f9b2178700/domains/redapl/shared/udm/specs/resources/generic/gpu_device.yaml",
+  "resource_type": "gpu_device",
+  "host_relationship": {
+    "references": "host_v2",
+    "type": "contains",
+    "direction": "inbound",
+    "source": ".hostname"
+  },
+  "properties": {
+    "hostname": {
+      "type": "string",
+      "required": true
+    },
+    "gpu_uuid": {
+      "type": "string",
+      "required": true
+    },
+    "gpu_vendor": {
+      "type": "string"
+    },
+    "gpu_device": {
+      "type": "string"
+    },
+    "board_part_number": {
+      "type": "string"
+    },
+    "gpu_board_serial": {
+      "type": "string"
+    },
+    "gpu_architecture": {
+      "type": "string"
+    },
+    "compute_capability": {
+      "type": "string"
+    },
+    "core_count": {
+      "type": "int32"
+    },
+    "memory_total_bytes": {
+      "type": "int64"
+    },
+    "memory_bus_width": {
+      "type": "int32"
+    },
+    "bar1_total_bytes": {
+      "type": "int64"
+    },
+    "gpu_driver_version": {
+      "type": "string"
+    },
+    "gpu_virtualization_mode": {
+      "type": "string"
+    },
+    "gpu_pci_bus_id": {
+      "type": "string"
+    },
+    "pci_device_id": {
+      "type": "string"
+    },
+    "pci_subsystem_id": {
+      "type": "string"
+    },
+    "pcie_path": {
+      "type": "array"
+    },
+    "gpu_numa_node": {
+      "type": "int32"
+    },
+    "gpu_fabric_guid": {
+      "type": "string"
+    },
+    "gpu_fabric_cluster_uuid": {
+      "type": "string"
+    },
+    "gpu_fabric_clique_id": {
+      "type": "int64"
+    },
+    "nvlink_domain": {
+      "type": "string"
+    },
+    "nvlink_link_count": {
+      "type": "int32"
+    },
+    "nvlink_bandwidth_mode": {
+      "type": "string"
+    },
+    "rack": {
+      "type": "string"
+    },
+    "gpu_chassis_serial": {
+      "type": "string"
+    },
+    "gpu_slot_number": {
+      "type": "int32"
+    },
+    "gpu_tray_index": {
+      "type": "int32"
+    },
+    "gpu_module_id": {
+      "type": "int32"
+    },
+    "platform": {
+      "type": "object"
+    },
+    "host_link": {
+      "type": "object"
+    },
+    "gpu_peers": {
+      "type": "array"
+    },
+    "switch_connections": {
+      "type": "array"
+    },
+    "unresolved_nvlinks": {
+      "type": "array"
+    }
+  }
+}

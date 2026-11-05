@@ -9,6 +9,8 @@
 package gpu
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"strings"
 
@@ -70,4 +72,39 @@ func VirtualizationModeToString(mode nvml.GpuVirtualizationMode) string {
 // functions, when present, represent auxiliary devices such as audio.
 func PCIInfoToBusID(pciInfo nvml.PciInfo) string {
 	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
+}
+
+// FabricClusterUUIDFromNVMLInfo formats the native fabric UUID for GPU tags.
+func FabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
+	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
+}
+
+// FabricInfoToTags returns the completed fabric identity used by GPU tags.
+func FabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
+	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
+		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
+		fabricInfo.ClusterUuid == [16]uint8{} {
+		return "", 0, false
+	}
+
+	return FabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
+}
+
+// PlatformFabricGUID formats the NVLink fabric GUID like nvidia-smi
+// ("0x" + the first 8 bytes, little endian), or "" when not reported.
+func PlatformFabricGUID(info nvml.PlatformInfo) string {
+	guid := binary.LittleEndian.Uint64(info.IbGuid[:8])
+	if guid == 0 {
+		return ""
+	}
+	return fmt.Sprintf("0x%016x", guid)
+}
+
+// PlatformChassisSerial returns the NUL-padded chassis serial as a string.
+func PlatformChassisSerial(info nvml.PlatformInfo) string {
+	serial := info.ChassisSerialNumber[:]
+	if end := bytes.IndexByte(serial, 0); end >= 0 {
+		serial = serial[:end]
+	}
+	return strings.TrimSpace(string(serial))
 }

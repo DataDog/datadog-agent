@@ -214,12 +214,23 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion          uint32
-	UUID               string
-	Name               string
-	CoreCount          int
-	Architecture       nvml.DeviceArchitecture
-	VirtualizationMode nvml.GpuVirtualizationMode
+	SMVersion              uint32
+	UUID                   string
+	Name                   string
+	CoreCount              int
+	Architecture           nvml.DeviceArchitecture
+	VirtualizationMode     nvml.GpuVirtualizationMode
+	VirtualizationModeName string
+	DriverVersion          string
+	MemoryBusWidth         uint32
+	BoardSerial            string
+	ChassisSerial          string
+	FabricGUID             string
+	FabricClusterUUID      string
+	FabricCliqueID         uint32
+	SlotNumber             uint8
+	TrayIndex              uint8
+	ModuleID               uint8
 	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
 	PCIBusID string
 
@@ -318,6 +329,11 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 	if err := device.fillPhysicalDeviceData(safeDev); err != nil {
 		return nil, fmt.Errorf("error filling physical device data: %w", err)
+	}
+	if driverVersion, err := lib.SystemGetDriverVersion(); err == nil {
+		device.DriverVersion = driverVersion
+	} else {
+		singleton.logDeviceWarning(device.UUID, "cannot get driver version: %v", err)
 	}
 
 	// Queried after the required fills, so a device that is already unusable
@@ -418,6 +434,7 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.Architecture = d.Architecture
 		// MIG instances share their parent's PCI function.
 		migChildDevice.PCIBusID = d.PCIBusID
+		migChildDevice.MemoryBusWidth = d.MemoryBusWidth
 		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
 		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
@@ -537,6 +554,7 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 
 	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
 		d.VirtualizationMode = virtualizationMode
+		d.VirtualizationModeName = gpuutil.VirtualizationModeToString(virtualizationMode)
 	} else {
 		singleton.logDeviceWarning(d.UUID, "cannot get virtualization mode: %v", err)
 	}
@@ -551,8 +569,34 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 	}
 
 	d.fillNVLinkDataFromNVML(dev)
+	d.fillStaticAttributes(dev)
 
 	return nil
+}
+
+func (d *DeviceInfo) fillStaticAttributes(dev SafeDevice) {
+	if width, err := dev.GetMemoryBusWidth(); err == nil {
+		d.MemoryBusWidth = width
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get memory bus width: %v", err)
+	}
+	if serial, err := dev.GetSerial(); err == nil {
+		d.BoardSerial = strings.TrimSpace(serial)
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get board serial: %v", err)
+	}
+	if platform, err := dev.GetPlatformInfo(); err == nil {
+		d.FabricGUID = gpuutil.PlatformFabricGUID(platform)
+		d.ChassisSerial = gpuutil.PlatformChassisSerial(platform)
+		d.SlotNumber, d.TrayIndex, d.ModuleID = platform.SlotNumber, platform.TrayIndex, platform.ModuleId
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get platform info: %v", err)
+	}
+	if fabric, err := dev.GetGpuFabricInfo(); err == nil {
+		d.FabricClusterUUID, d.FabricCliqueID, _ = gpuutil.FabricInfoToTags(fabric)
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get fabric info: %v", err)
+	}
 }
 
 func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
