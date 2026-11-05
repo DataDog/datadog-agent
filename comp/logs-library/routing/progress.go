@@ -63,6 +63,7 @@ type sourceProgress struct {
 	seenGenerations    map[uint64]bool // true after that producer retires
 	queue              []*record
 	hasAdmittedRecords bool // Remains true after the queue drains.
+	invalidSelection   bool // Checkpoints cannot advance past an invalid barrier.
 }
 
 // NewProgress creates bounded in-memory progress state and a bounded queue to
@@ -218,6 +219,9 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 			}
 		}
 		source.hasAdmittedRecords = true
+		if r.generation == 0 {
+			source.invalidSelection = true
+		}
 		source.queue = append(source.queue, r)
 	}
 	if r.done {
@@ -339,6 +343,8 @@ func (p *Progress) Invalidate(token uint64) {
 		r.selectionPending = false
 		r.groups = nil
 		r.remaining = map[string]struct{}{"": {}}
+		p.sources[r.identifier].invalidSelection = true
+		p.advance(r)
 	}
 }
 
@@ -391,8 +397,9 @@ func (p *Progress) CompleteGroup(group string, payload *message.Payload) {
 	}
 }
 
-// advance releases only a completed source prefix. Records from an obsolete
+// advance publishes only a completed source prefix. Records from an obsolete
 // generation may release resources but cannot write the replacement checkpoint.
+// Completed records behind an invalid barrier release capacity without publishing.
 func (p *Progress) advance(r *record) {
 	if r.identifier == "" {
 		delete(p.records, r.meta.RoutingToken())
@@ -413,14 +420,36 @@ func (p *Progress) advance(r *record) {
 		}
 		p.notifySpace()
 	}
+	if !source.invalidSelection {
+		return
+	}
+	// An invalid barrier can never resolve. Retain it and unfinished records,
+	// but completed records after it can no longer contribute a checkpoint.
+	blocked := false
+	retained := source.queue[:0]
+	for _, queued := range source.queue {
+		if queued.generation == 0 {
+			blocked = true
+		}
+		if blocked && queued.done {
+			delete(p.records, queued.meta.RoutingToken())
+			continue
+		}
+		retained = append(retained, queued)
+	}
+	if len(retained) != len(source.queue) {
+		clear(source.queue[len(retained):])
+		source.queue = retained
+		p.notifySpace()
+	}
 }
 
 // RetireSource marks one producer stopped after all its decoder output has
 // been admitted. A drained queue alone is insufficient evidence of this. Old
 // generation retirement does not release newer ownership; history is released
 // only when every generation for the identifier has retired and the queue is
-// empty. Completed records retained behind a source barrier do not prevent
-// producer retirement. Callers must not retire an active producer.
+// empty. Invalid-selection barriers do not prevent producer retirement.
+// Callers must not retire an active producer.
 func (p *Progress) RetireSource(identifier string, generation uint64) error {
 	if identifier == "" {
 		return nil

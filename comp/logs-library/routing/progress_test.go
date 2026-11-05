@@ -138,14 +138,128 @@ func TestInvalidSelectionHoldsLaterCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.CompleteGroup("a", terminalPayload(later))
-	if p.Pending() != 2 {
-		t.Fatalf("invalid record and later record must retain progress, got %d", p.Pending())
+	if p.Pending() != 1 {
+		t.Fatalf("only the invalid barrier should retain progress, got %d", p.Pending())
 	}
 	select {
 	case <-sink.ch:
 		t.Fatal("advanced past invalid selection")
 	case <-time.After(20 * time.Millisecond):
 	}
+}
+
+func TestInvalidBarriersDoNotRetainDeliveredWindows(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sink := &progressTestSink{ch: make(chan *message.Payload, 8)}
+		p, err := NewProgress(8, sink)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer p.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		for _, id := range []string{"bad-a", "bad-b"} {
+			if err := p.RegisterSource(id, 1); err != nil {
+				t.Fatal(err)
+			}
+			if err := p.HoldInvalid(ctx, progressMessage(id, "invalid")); err != nil {
+				t.Fatal(err)
+			}
+			// Exceed both the per-source and aggregate record windows.
+			for range 16 {
+				m := progressMessage(id, "later")
+				if _, err := p.Register(ctx, m, Selection{Generation: 1}, []string{"a", "b"}); err != nil {
+					t.Fatal(err)
+				}
+				before := p.Pending()
+				p.CompleteGroup("a", terminalPayload(m))
+				if p.Pending() != before {
+					t.Fatal("released a record with a pending group")
+				}
+				p.CompleteGroup("b", terminalPayload(m))
+				p.CompleteGroup("b", terminalPayload(m))
+			}
+			if err := p.RetireSource(id, 1); err != nil {
+				t.Fatal(err)
+			}
+			if err := p.RegisterSource(id, 2); err != nil {
+				t.Fatal(err)
+			}
+			m := progressMessage(id, "replacement")
+			if _, err := p.Reserve(ctx, m, 2); err != nil {
+				t.Fatal(err)
+			}
+			p.CompleteLocal(m.RoutingToken())
+			if err := p.RetireSource(id, 2); err != nil || !p.OwnsSource(id) {
+				t.Fatalf("barrier ownership after replacement retirement: %v", err)
+			}
+		}
+		if p.Pending() != 2 {
+			t.Fatalf("only two barriers should remain: %d", p.Pending())
+		}
+		synctest.Wait()
+		if len(sink.ch) != 0 {
+			t.Fatal("published past an invalid barrier")
+		}
+		healthy := progressMessage("healthy", "1")
+		if _, err := p.Register(ctx, healthy, Selection{Generation: 1}, []string{"a"}); err != nil {
+			t.Fatal(err)
+		}
+		p.CompleteGroup("a", terminalPayload(healthy))
+		if got := nextCheckpoint(t, sink.ch); got != "1" {
+			t.Fatal(got)
+		}
+	})
+}
+
+func TestInvalidationReleasesOnlyCompletedSuffix(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sink := &progressTestSink{ch: make(chan *message.Payload, 4)}
+		p, err := NewProgress(4, sink)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer p.Close()
+		var records []*message.Message
+		for _, offset := range []string{"1", "2", "3", "4"} {
+			m := progressMessage("file", offset)
+			if _, err := p.Reserve(context.Background(), m, 1); err != nil {
+				t.Fatal(err)
+			}
+			records = append(records, m)
+		}
+		p.CompleteLocal(records[1].RoutingToken())
+		p.CompleteLocal(records[3].RoutingToken())
+		admitted := make(chan error, 1)
+		go func() {
+			_, err := p.Reserve(context.Background(), progressMessage("other", "1"), 1)
+			admitted <- err
+		}()
+		synctest.Wait()
+		select {
+		case err := <-admitted:
+			t.Fatalf("full capacity admitted a record: %v", err)
+		default:
+		}
+		p.Invalidate(records[2].RoutingToken())
+		if err := <-admitted; err != nil {
+			t.Fatal(err)
+		}
+		if p.Pending() != 4 {
+			t.Fatalf("suffix cleanup removed unfinished or pre-barrier records: %d", p.Pending())
+		}
+		p.CompleteLocal(records[0].RoutingToken())
+		if got := nextCheckpoint(t, sink.ch); got != "1" {
+			t.Fatal(got)
+		}
+		if got := nextCheckpoint(t, sink.ch); got != "2" {
+			t.Fatal(got)
+		}
+		synctest.Wait()
+		if p.Pending() != 2 || len(sink.ch) != 0 {
+			t.Fatal("invalid barrier failed to retain the safe checkpoint")
+		}
+	})
 }
 
 func TestDirectBookmarkCannotBypassPendingGroup(t *testing.T) {
@@ -752,7 +866,7 @@ func TestProgressInvalidatesSameReservationAndReleasesProducer(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.CompleteLocal(later.RoutingToken())
-	if p.Pending() != 2 || len(sink.ch) != 0 {
+	if p.Pending() != 1 || len(sink.ch) != 0 {
 		t.Fatal("later completion bypassed invalid selection")
 	}
 }
@@ -1052,7 +1166,7 @@ func TestPendingGroupsOnlyIncludesUnresolvedSourceRecipients(t *testing.T) {
 		t.Fatal(err)
 	}
 	completed := register("file:test", "4", []string{"d"})
-	p.CompleteGroup("d", terminalPayload(completed)) // Retained behind pending selection.
+	p.CompleteGroup("d", terminalPayload(completed)) // Released behind the invalid barrier.
 	register("file:other", "1", []string{"c"})
 	register("", "", []string{"anonymous"})
 	p.CompleteGroup("a", terminalPayload(first))
