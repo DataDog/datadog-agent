@@ -1242,7 +1242,7 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 
 	p.probe.DispatchCustomEvent(
 		rule,
-		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...).WithWorkloadID(event.GetWorkloadID()),
 	)
 }
 
