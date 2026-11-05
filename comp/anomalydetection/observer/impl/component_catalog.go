@@ -55,6 +55,7 @@ type componentEntry struct {
 type detectorRegistration struct {
 	detector observerdef.Detector
 	filter   observerdef.DetectionFilter
+	timing   *detectorTiming
 }
 
 // Catalog-only aggregation settings stay separate from detector statistics.

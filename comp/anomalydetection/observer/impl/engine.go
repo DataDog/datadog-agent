@@ -10,6 +10,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -222,8 +223,7 @@ type engine struct {
 	onStorageCapacityHit   func()
 	onAnomalyDedupEvicted  func(reason string, count int)
 	onAdvanceSkipped       func(reason string)
-	onProcessingTime       func(detectorTag string, durationNs float64)
-	onDetectorEmission     func(detector, severity string)
+	onDetectorEmission     func(detector, kind, severity string)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -295,6 +295,9 @@ func newEngine(cfg engineConfig) *engine {
 		sched = &currentBehaviorPolicy{}
 	}
 	validateUniqueExtractorNames(cfg.extractors)
+	for i := range cfg.detectors {
+		cfg.detectors[i].timing = &detectorTiming{}
+	}
 
 	// Include the scorer in correlators so it participates in the normal loop.
 	correlators := cfg.correlators
@@ -776,7 +779,19 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 			storageForDetect = e.instrStorage
 		}
 
-		result := detector.Detect(storageForDetect, upTo, registration.filter)
+		var result observerdef.DetectionResult
+		if _, pipeline := detector.(*MetricPipeline); pipeline {
+			result = detector.Detect(storageForDetect, upTo, registration.filter)
+		} else {
+			start := time.Now()
+			result = detector.Detect(storageForDetect, upTo, registration.filter)
+			duration := time.Since(start)
+			e.mu.Lock()
+			if registration.timing != nil {
+				registration.timing.record(duration)
+			}
+			e.mu.Unlock()
+		}
 		if e.trackDetectorOutputHistory && len(result.Anomalies) > 0 {
 			e.recordDetectorOutputs(detector.Name(), result.Anomalies)
 		}
@@ -832,7 +847,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 				if detectorName == "" {
 					detectorName = detector.Name()
 				}
-				e.onDetectorEmission(detectorName, anomalySeverityLabel(anomalyLevel(anomaly, severityConfig)))
+				e.onDetectorEmission(detectorName, anomaly.MetricKind.String(), anomalySeverityLabel(anomalyLevel(anomaly, severityConfig)))
 			}
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
@@ -1169,6 +1184,9 @@ func (e *engine) SetDetectors(detectors []detectorRegistration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	for i := range detectors {
+		detectors[i].timing = &detectorTiming{}
+	}
 	e.detectors = detectors
 	e.logObservers = nil
 	for _, registration := range e.detectors {
@@ -1210,6 +1228,9 @@ func (e *engine) Reset() {
 	e.lastInactiveSeriesEvictionCheck = 0
 
 	for _, registration := range e.detectors {
+		if registration.timing != nil {
+			*registration.timing = detectorTiming{}
+		}
 		detector := registration.detector
 		if resetter, ok := detector.(interface{ Reset() }); ok {
 			resetter.Reset()
@@ -1286,6 +1307,11 @@ func (e *engine) resetAnalysisState() {
 	e.latestDataTime = 0
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
+	for _, registration := range e.detectors {
+		if registration.timing != nil {
+			*registration.timing = detectorTiming{}
+		}
+	}
 	e.mu.Unlock()
 
 	for _, registration := range e.detectors {
@@ -1492,5 +1518,55 @@ func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult 
 
 	return advanceResult{
 		anomalies: allAnomalies,
+	}
+}
+
+// detectorTiming accumulates calls without retaining per-call samples.
+type detectorTiming struct {
+	duration time.Duration
+	calls    uint64
+}
+
+func (d *detectorTiming) record(duration time.Duration) {
+	d.duration += duration
+	d.calls++
+}
+
+func (d *detectorTiming) publish(t *observerTelemetry, detector, kind string) {
+	if d.calls == 0 {
+		t.recordDetectorTiming(detector, kind, 0, 0)
+		return
+	}
+	t.recordDetectorTiming(detector, kind, float64(d.duration.Nanoseconds())/float64(d.calls), d.calls)
+	*d = detectorTiming{}
+}
+
+// publishMetricKindTelemetry runs on the dispatch loop's single writer.
+func (e *engine) publishMetricKindTelemetry(t *observerTelemetry) {
+	if t == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for kind, count := range e.storage.SeriesCountByKind() {
+		t.metricKindSeriesCount.Set(float64(count), observerdef.MetricKind(kind).String())
+	}
+	for i := range e.detectors {
+		registration := &e.detectors[i]
+		if p, ok := registration.detector.(*MetricPipeline); ok {
+			for from, destinations := range p.drainKindTransitionCounts() {
+				for to, count := range destinations {
+					if count > 0 {
+						t.recordMetricKindTransitions(observerdef.MetricKind(from).String(), observerdef.MetricKind(to).String(), count)
+					}
+				}
+			}
+			for j := range p.registrations {
+				inner := &p.registrations[j]
+				inner.timing.publish(t, inner.detector.Name(), inner.kind.String())
+			}
+		} else if registration.timing != nil {
+			registration.timing.publish(t, registration.detector.Name(), observerdef.UNSET.String())
+		}
 	}
 }

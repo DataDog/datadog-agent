@@ -116,7 +116,8 @@ func TestEngineRecordsDeduplicatedDetectorEmissionsBeforeCorrelation(t *testing.
 	})
 
 	var got []struct{ detector, severity string }
-	e.onDetectorEmission = func(detector, severity string) {
+	e.onDetectorEmission = func(detector, kind, severity string) {
+		require.Equal(t, "unset", kind)
 		got = append(got, struct{ detector, severity string }{detector, severity})
 	}
 
