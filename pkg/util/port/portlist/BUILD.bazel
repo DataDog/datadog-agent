@@ -14,6 +14,7 @@ go_library(
         "poller_linux.go",
         "poller_windows.go",
         "portlist.go",
+        "sockdiag_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/port/portlist",
     visibility = ["//visibility:public"],
@@ -53,6 +54,7 @@ dd_agent_go_test(
         "poller_darwin_test.go",
         "poller_linux_test.go",
         "poller_test.go",
+        "sockdiag_linux_test.go",
     ],
     embed = [":portlist"],
     env_inherit = select({
@@ -64,6 +66,7 @@ dd_agent_go_test(
             "@com_github_google_go_cmp//cmp",
             "@com_github_google_go_cmp//cmp/cmpopts",
             "@org_go4_mem//:mem",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
             "@org_go4_mem//:mem",
@@ -75,6 +78,7 @@ dd_agent_go_test(
             "@com_github_google_go_cmp//cmp",
             "@com_github_google_go_cmp//cmp/cmpopts",
             "@org_go4_mem//:mem",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

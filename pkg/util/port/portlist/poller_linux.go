@@ -28,7 +28,9 @@ import (
 )
 
 func (p *Poller) init() {
-	p.os = newLinuxImpl(p.IncludeLocalhost)
+	li := newLinuxImpl(p.IncludeLocalhost)
+	li.tcpOnly = p.TCPOnly
+	p.os = li
 }
 
 type linuxImpl struct {
@@ -37,6 +39,11 @@ type linuxImpl struct {
 	known            map[string]*portMeta // inode string => metadata
 	br               *bufio.Reader
 	includeLocalhost bool
+	// tcpOnly skips UDP and lists TCP listeners via sock_diag, with /proc/net
+	// as the fallback.
+	tcpOnly bool
+	// inoBuf is scratch space for building "socket:[inode]" keys.
+	inoBuf []byte
 }
 
 type portMeta struct {
@@ -56,6 +63,11 @@ func newLinuxImpl(includeLocalhost bool) *linuxImpl {
 	}
 }
 
+var (
+	procNetTCPFiles = []string{"/proc/net/tcp", "/proc/net/tcp6"}
+	procNetFiles    = []string{"/proc/net/tcp", "/proc/net/tcp6", "/proc/net/udp", "/proc/net/udp6"}
+)
+
 const (
 	v6Localhost = "00000000000000000000000001000000:"
 	v6Any       = "00000000000000000000000000000000:0000"
@@ -74,12 +86,17 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 		pm.keep = false
 	}
 
-	for _, name := range []string{
-		"/proc/net/tcp",
-		"/proc/net/tcp6",
-		"/proc/net/udp",
-		"/proc/net/udp6",
-	} {
+	procFiles := procNetFiles
+	if li.tcpOnly {
+		procFiles = procNetTCPFiles
+		if err := li.appendSockDiagListeners(); err == nil {
+			procFiles = nil
+		} else {
+			log.Debugf("sock_diag listener dump failed, falling back to /proc/net: %v", err)
+		}
+	}
+
+	for _, name := range procFiles {
 		f, err := os.Open(name)
 		if err != nil {
 			if !os.IsNotExist(err) {
@@ -262,19 +279,24 @@ func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 			} else {
 				ip = parseHexIPv4(ipHex)
 			}
-			li.known[string(inoBuf)] = &portMeta{
-				needsProcName: true,
-				keep:          true,
-				port: Port{
-					Proto: proto,
-					Port:  uint16(portv),
-					IP:    ip,
-				},
-			}
+			li.addKnown(string(inoBuf), proto, ip, uint16(portv))
 		}
 	}
 
 	return nil
+}
+
+// addKnown records a newly seen listener, keyed by its "socket:[inode]" string.
+func (li *linuxImpl) addKnown(key, proto string, ip netip.Addr, port uint16) {
+	li.known[key] = &portMeta{
+		needsProcName: true,
+		keep:          true,
+		port: Port{
+			Proto: proto,
+			Port:  port,
+			IP:    ip,
+		},
+	}
 }
 
 // errDone is an internal sentinel error that we found everything we were looking for.

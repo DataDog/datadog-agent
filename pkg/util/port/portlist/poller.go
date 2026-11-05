@@ -23,6 +23,13 @@ type Poller struct {
 	// This field should only be changed before calling Run.
 	IncludeLocalhost bool
 
+	// TCPOnly restricts results to TCP listeners. On Linux it also enumerates
+	// them with a netlink sock_diag LISTEN dump instead of /proc/net, falling
+	// back to /proc/net if the dump fails. Other platforms ignore it.
+	//
+	// This field should only be changed before calling Run.
+	TCPOnly bool
+
 	// os, if non-nil, is an OS-specific implementation of the portlist getting
 	// code. When non-nil, it's responsible for getting the complete list of
 	// cached ports complete with the process name. That is, when set,
