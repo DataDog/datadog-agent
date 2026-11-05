@@ -9,11 +9,22 @@ package file
 
 import (
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// OpenFileInfo describes the file the tailer has open, which is the one it reads even after its
+// path was rotated to another file. It reports false once the tailer has closed it.
+func (t *Tailer) OpenFileInfo() (os.FileInfo, bool) {
+	if t.osFile == nil {
+		return nil, false
+	}
+	info, err := t.osFile.Stat()
+	return info, err == nil
+}
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {

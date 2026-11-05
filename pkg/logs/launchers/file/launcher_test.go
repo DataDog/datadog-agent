@@ -521,6 +521,7 @@ func (suite *BaseLauncherTestSuite) TestStatusShowsRotatedTailerWhileDraining() 
 	// The default close_timeout keeps the old tailer draining for the rest of the test.
 	suite.Require().Len(s.rotatedTailers, 1, "the old tailer should still be draining")
 	suite.ElementsMatch([]string{scanKey, scanKey + rotatedTailerIDSuffix}, statusIDs())
+	suite.Len(suite.source.Messages.GetMessages(), 2, "both tailers read the truncated file, each one must say so")
 
 	// Stopping the launcher stops and forgets every tailer, draining ones included.
 	s.cleanup()
@@ -2040,4 +2041,43 @@ func TestStatusReportsFileTailedUnderSeveralPaths(t *testing.T) {
 	require.Equal(t, 2, launcher.tailers.Count())
 	assert.Empty(t, source.Messages.GetMessages())
 	assert.Empty(t, linkSource.Messages.GetMessages())
+}
+
+// With rename rotation, the tailer draining the old file and a tailer started by another
+// configuration matching the rotated name read the same file.
+func TestStatusReportsDrainingTailerSharingRotatedFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	rotatedPath := path + ".1"
+	require.NoError(t, os.WriteFile(path, []byte("line\n"), 0o644))
+
+	launcher := createLauncher(t, launcherTestOptions{})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	defer launcher.cleanup()
+	go func() {
+		for range launcher.pipelineProvider.NextPipelineChan() {
+		}
+	}()
+
+	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
+	rotatedSource := sources.NewLogSource("app-rotated", &config.LogsConfig{Type: config.FileType, Path: rotatedPath})
+	launcher.activeSources = []*sources.LogSource{source, rotatedSource}
+	scan := func() {
+		launcher.resolveScan(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	}
+
+	scan()
+	require.Equal(t, 1, launcher.tailers.Count())
+
+	require.NoError(t, os.Rename(path, rotatedPath))
+	require.NoError(t, os.WriteFile(path, []byte("new\n"), 0o644))
+	scan()
+	require.Len(t, launcher.rotatedTailers, 1, "the old tailer should still be draining")
+	require.Equal(t, 2, launcher.tailers.Count(), "a tailer for the new file and one for the rotated name")
+
+	require.Len(t, rotatedSource.Messages.GetMessages(), 1)
+	assert.Contains(t, rotatedSource.Messages.GetMessages()[0], path+rotatedTailerIDSuffix)
+	require.Len(t, source.Messages.GetMessages(), 1, "only the draining tailer shares a file, not the one on the new file")
+	assert.Contains(t, source.Messages.GetMessages()[0], rotatedPath)
 }
