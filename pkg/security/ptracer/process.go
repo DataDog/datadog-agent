@@ -72,6 +72,7 @@ type Process struct {
 	FdRes                    *FdResources
 	FsRes                    *FSResources
 	FdToSocket               map[int32]SocketInfo
+	otelProcessCtxNaming     bool
 }
 
 // NewProcess returns a new process
@@ -143,6 +144,7 @@ func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 type ProcessCache struct {
 	pid2Process map[int]*Process
 	tgid2Pid    map[int][]int
+	tgid2OTel   map[int]*otelState
 }
 
 // NewProcessCache returns a new thread cache
@@ -150,6 +152,7 @@ func NewProcessCache() *ProcessCache {
 	return &ProcessCache{
 		pid2Process: make(map[int]*Process),
 		tgid2Pid:    make(map[int][]int),
+		tgid2OTel:   make(map[int]*otelState),
 	}
 }
 
@@ -211,6 +214,8 @@ func (tc *ProcessCache) Remove(process *Process) {
 	delete(tc.pid2Process, process.Pid)
 
 	if process.Pid == process.Tgid {
+		delete(tc.tgid2OTel, process.Pid)
+
 		pids, ok := tc.tgid2Pid[process.Pid]
 		if !ok {
 			return
@@ -233,4 +238,27 @@ func (tc *ProcessCache) Remove(process *Process) {
 // Get return the process entry for the given pid
 func (tc *ProcessCache) Get(pid int) *Process {
 	return tc.pid2Process[pid]
+}
+
+// getOTel returns the OTel thread context registration of the given tgid
+func (tc *ProcessCache) getOTel(tgid int) *otelState {
+	return tc.tgid2OTel[tgid]
+}
+
+// setOTel sets the OTel thread context registration of the given tgid
+func (tc *ProcessCache) setOTel(tgid int, state *otelState) {
+	tc.tgid2OTel[tgid] = state
+}
+
+// unsetOTel unsets the OTel thread context registration of the given tgid
+func (tc *ProcessCache) unsetOTel(tgid int) {
+	delete(tc.tgid2OTel, tgid)
+}
+
+// inheritOTel copies the OTel thread context registration to a forked child
+func (tc *ProcessCache) inheritOTel(ptgid, tgid int) {
+	if state := tc.tgid2OTel[ptgid]; state != nil {
+		inherited := *state
+		tc.tgid2OTel[tgid] = &inherited
+	}
 }

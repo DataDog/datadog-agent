@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, call, patch
 
 from invoke import Result
 
+from tasks.flavor import FipsBackend
 from tasks.libs.common.go import _with_pdb_extldflag, go_build
 
 
@@ -20,7 +21,7 @@ class TestGoBuild(unittest.TestCase):
 
         self.assertEqual(result.exited, 0)
 
-        calls = [call("go build -trimpath main.go", env=None)]
+        calls = [call("go build -trimpath main.go", env={})]
         self.ctx_mock.run.assert_has_calls(calls, any_order=False)
 
     def test_with_gcflags(self):
@@ -29,7 +30,34 @@ class TestGoBuild(unittest.TestCase):
         result = go_build(self.ctx_mock, "main.go", gcflags="-gcflags=all=-N -l")
 
         self.assertEqual(result.exited, 0)
-        calls = [call("go build -gcflags=\"-gcflags=all=-N -l\" -trimpath main.go", env=None)]
+        calls = [call("go build -gcflags=\"-gcflags=all=-N -l\" -trimpath main.go", env={})]
+        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+
+    def test_boringcrypto(self):
+        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
+
+        result = go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "1"}, fips_backend=FipsBackend.boringcrypto)
+
+        self.assertEqual(result.exited, 0)
+        calls = [call("go build -trimpath main.go", env={"CGO_ENABLED": "1", "GOEXPERIMENT": "boringcrypto"})]
+        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+
+    @patch.dict("os.environ", {"GOOS": "linux"})
+    def test_msgo_linux(self):
+        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
+
+        go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "0"}, fips_backend=FipsBackend.msgo)
+
+        calls = [call("go build -trimpath main.go", env={"CGO_ENABLED": "0", "GOEXPERIMENT": "ms_nocgo_opensslcrypto"})]
+        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+
+    @patch.dict("os.environ", {"GOOS": "windows"})
+    def test_msgo_windows(self):
+        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
+
+        go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "1"}, fips_backend=FipsBackend.msgo)
+
+        calls = [call("go build -trimpath main.go", env={"CGO_ENABLED": "1"})]
         self.ctx_mock.run.assert_has_calls(calls, any_order=False)
 
     @unittest.skipIf(sys.platform == "win32", "os.chown not available on Windows")
