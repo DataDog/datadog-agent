@@ -601,8 +601,6 @@ require (
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 
-// TEMPORARY (OTAGENT-1353): drop when the extension's WithConfigOptions lands upstream
-
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
