@@ -26,6 +26,7 @@ go_library(
         "log_metrics_extractor.go",
         "log_pattern_extractor.go",
         "log_tagged_pattern_clusterer.go",
+        "metric_pipeline.go",
         "metric_kind_matcher.go",
         "metrics_detector_bocpd.go",
         "metrics_detector_holt_residual.go",

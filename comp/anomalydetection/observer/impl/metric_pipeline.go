@@ -1,0 +1,198 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package observerimpl
+
+import (
+	"fmt"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+)
+
+// pipelineDetector is a detector owned by one committed-kind registration.
+type pipelineDetector interface {
+	observer.Detector
+	observer.SeriesRemover
+	Reset()
+}
+
+// pipelineRegistration binds one detector instance to a fixed committed kind
+// and input type. Aggregation restrictions may be intersected per call.
+type pipelineRegistration struct {
+	kind         observer.MetricKind
+	metricType   metrics.MetricType
+	detector     pipelineDetector
+	aggregations []observer.Aggregate
+}
+
+// MetricPipeline routes gauges to detectors by their committed kind. It is
+// not constructed by the production catalog yet.
+type MetricPipeline struct {
+	name          string
+	registrations []pipelineRegistration
+	byKind        map[observer.MetricKind]int
+	matcher       observer.MetricKindMatcher
+	window        observer.DetectorPointWindow
+}
+
+func newMetricPipeline(
+	registrations []pipelineRegistration,
+	matcher observer.MetricKindMatcher,
+) (*MetricPipeline, error) {
+	if matcher == nil {
+		return nil, fmt.Errorf("metric pipeline requires a matcher")
+	}
+	p := &MetricPipeline{
+		name:          "metric_pipeline",
+		registrations: make([]pipelineRegistration, 0, len(registrations)),
+		byKind:        make(map[observer.MetricKind]int, len(registrations)),
+		matcher:       matcher,
+		window:        matcher.Window(),
+	}
+	for _, registration := range registrations {
+		if registration.detector == nil {
+			return nil, fmt.Errorf("metric pipeline kind %s has no detector", registration.kind)
+		}
+		if _, exists := p.byKind[registration.kind]; exists {
+			return nil, fmt.Errorf("metric pipeline has duplicate kind %s", registration.kind)
+		}
+		if registration.aggregations != nil {
+			registration.aggregations = append([]observer.Aggregate(nil), registration.aggregations...)
+		}
+		owned := registration
+		p.registrations = append(p.registrations, owned)
+		p.byKind[registration.kind] = len(p.registrations) - 1
+		if p.name == "metric_pipeline" {
+			p.name = registration.detector.Name()
+		}
+		pipelineExpandWindow(&p.window, registration.detector)
+	}
+	return p, nil
+}
+
+// newScanMWMetricPipeline builds the initial kind-routed composition without
+// registering it in the production catalog.
+func newScanMWMetricPipeline(cfg ScanMWConfig) *MetricPipeline {
+	scan := NewScanMWDetector(cfg)
+	registration := pipelineRegistration{
+		kind:         observer.STABLE,
+		metricType:   metrics.GaugeType,
+		detector:     scan,
+		aggregations: []observer.Aggregate{observer.AggregateAverage},
+	}
+	p, err := newMetricPipeline([]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+	if err != nil {
+		// The fixed registration is valid; this is defensive only.
+		panic(err)
+	}
+	return p
+}
+
+func pipelineExpandWindow(window *observer.DetectorPointWindow, detector observer.Detector) {
+	requirement, ok := detector.(observer.DetectorPointWindowRequirement)
+	if !ok {
+		return
+	}
+	points := requirement.DetectorPointWindow()
+	if points.MinPoints > window.MinPoints {
+		window.MinPoints = points.MinPoints
+	}
+	if points.MaxPoints > window.MaxPoints {
+		window.MaxPoints = points.MaxPoints
+	}
+}
+
+// Name preserves the routed algorithm identity for diagnostics and selection.
+func (p *MetricPipeline) Name() string { return p.name }
+
+// Ready reports whether any routed detector is ready.
+func (p *MetricPipeline) Ready() bool {
+	for i := range p.registrations {
+		if p.registrations[i].detector.Ready() {
+			return true
+		}
+	}
+	return false
+}
+
+// DetectorPointWindow reports the broadest detector history requirement. The
+// matcher keeps its own bounded classification window.
+func (p *MetricPipeline) DetectorPointWindow() observer.DetectorPointWindow { return p.window }
+
+// Detect runs each detector under its constructor-bound kind and type.
+func (p *MetricPipeline) Detect(
+	storage observer.StorageReader,
+	dataTime int64,
+	filter observer.DetectionFilter,
+) observer.DetectionResult {
+	var result observer.DetectionResult
+	for i := range p.registrations {
+		detectorFilter, ok := pipelineDetectionFilter(&p.registrations[i], filter)
+		if !ok {
+			continue
+		}
+		detected := p.registrations[i].detector.Detect(storage, dataTime, detectorFilter)
+		result.Anomalies = append(result.Anomalies, detected.Anomalies...)
+	}
+	return result
+}
+
+func pipelineDetectionFilter(
+	registration *pipelineRegistration,
+	filter observer.DetectionFilter,
+) (observer.DetectionFilter, bool) {
+	if filter.MetricKind != nil && *filter.MetricKind != registration.kind {
+		return observer.DetectionFilter{}, false
+	}
+	if filter.MetricType != nil && *filter.MetricType != registration.metricType {
+		return observer.DetectionFilter{}, false
+	}
+	kind, metricType := registration.kind, registration.metricType
+	return observer.DetectionFilter{
+		MetricKind:   &kind,
+		MetricType:   &metricType,
+		Aggregations: intersectAggregations(registration.aggregations, filter.Aggregations),
+	}, true
+}
+
+func intersectAggregations(configured, requested []observer.Aggregate) []observer.Aggregate {
+	if len(requested) == 0 {
+		return append([]observer.Aggregate(nil), configured...)
+	}
+	if len(configured) == 0 {
+		return append([]observer.Aggregate(nil), requested...)
+	}
+	result := make([]observer.Aggregate, 0, min(len(configured), len(requested)))
+	for _, agg := range configured {
+		for _, want := range requested {
+			if agg == want {
+				result = append(result, agg)
+				break
+			}
+		}
+	}
+	return result
+}
+
+// RemoveSeries drops routed detector and matcher state for evicted series.
+func (p *MetricPipeline) RemoveSeries(refs []observer.SeriesRef) {
+	if len(refs) == 0 {
+		return
+	}
+	p.matcher.RemoveSeries(refs)
+	for i := range p.registrations {
+		p.registrations[i].detector.RemoveSeries(refs)
+	}
+}
+
+// Reset clears routed detector and matcher state. Committed kinds are owned by
+// storage and reset by the caller.
+func (p *MetricPipeline) Reset() {
+	p.matcher.Reset()
+	for i := range p.registrations {
+		p.registrations[i].detector.Reset()
+	}
+}
