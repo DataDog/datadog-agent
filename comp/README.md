@@ -231,6 +231,12 @@ status and emit flare data
 
 Package remoteflags provides the Remote Flags component for dynamic feature flag management.
 
+### [comp/core/schema](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/schema)
+
+*Datadog Team*: fleet-automation
+
+Package schema provides a component validating the Agent configurations against their schemas
+
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
 *Datadog Team*: fleet-automation
