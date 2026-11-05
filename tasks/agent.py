@@ -34,6 +34,7 @@ from tasks.libs.common.utils import (
     _resolve_target_platform,
     bin_name,
     get_build_flags,
+    get_embedded_path,
     get_version,
     gitlab_section,
 )
@@ -50,6 +51,45 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
+RC_X509_BUILD_FILES_INSTALL = {
+    "darwin": "@libdd_rc_source//:install_rc_x509_ffi_macos_build_files",
+    "linux": "@libdd_rc_source//:install_rc_x509_ffi_linux_build_files",
+}
+
+
+def install_rc_x509_build_files(embedded_path, target_platform):
+    """Install the native rc-x509 link inputs into an Agent embedded prefix."""
+    if not embedded_path:
+        raise Exit("unable to locate embedded path for the rc-x509 native build inputs", code=1)
+
+    platform_key = "linux" if target_platform.startswith("linux") else target_platform
+    install_target = RC_X509_BUILD_FILES_INSTALL.get(platform_key)
+    if not install_target:
+        raise Exit(f"rc-x509 native build inputs are not supported on {target_platform}", code=1)
+
+    normalized_path = os.path.normpath(os.path.abspath(embedded_path))
+    install_root = (
+        os.path.dirname(normalized_path) if os.path.basename(normalized_path) == "embedded" else normalized_path
+    )
+    native_embedded_path = os.path.join(install_root, "embedded")
+
+    bazel("run", install_target, "--", f"--destdir={install_root}")
+    return native_embedded_path
+
+
+def needs_rc_x509_build_files(build_tags, target_platform, enable_bazel):
+    """Whether a non-Bazel Agent build must install the rc-x509 native link inputs."""
+    return (
+        "rc_x509" in build_tags
+        and (target_platform.startswith("linux") or target_platform == "darwin")
+        and not enable_bazel
+    )
+
+
+def add_rc_x509_cgo_flags(env, native_embedded_path):
+    """Add the rc-x509 header and static-library directories to a Go build environment."""
+    env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" -I{os.path.join(native_embedded_path, 'include')}"
+    env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" -L{os.path.join(native_embedded_path, 'lib')}"
 
 
 @task
@@ -123,6 +163,13 @@ def build(
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
 
+    rc_x509_embedded_path = None
+    if needs_rc_x509_build_files(build_tags, target_platform, enable_bazel):
+        if embedded_path is None:
+            embedded_path = get_embedded_path(ctx)
+        with gitlab_section("Install rc-x509 native build inputs", collapsed=True):
+            rc_x509_embedded_path = install_rc_x509_build_files(embedded_path, target_platform)
+
     if enable_bazel:
         if exclude_rtloader:
             raise Exit(
@@ -173,6 +220,8 @@ def build(
         include_python="python" in build_tags,
         platform=target_platform,
     )
+    if rc_x509_embedded_path:
+        add_rc_x509_cgo_flags(env, rc_x509_embedded_path)
 
     if target_platform == 'win32':
         # Important for x-compiling

@@ -307,7 +307,88 @@ core,github.com/DataDog/gohai/processes,MIT,"Copyright (c) 2014-2015, Datadog <i
 core,github.com/DataDog/gohai/processes/gops,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/utils,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/jsonapi,Apache-2.0,"Copyright [2022-Present] Datadog, Inc"
+core,github.com/DataDog/libdd-rc/ffi-hosts/go/internal/libddrcffi,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
+core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
+core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
+core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/protocol,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
+core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/signature,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
+core,github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509,Apache-2.0,"Copyright 2026-Present Datadog, Inc."
 core,github.com/DataDog/mmh3,MIT,"Copyright (c) 2017 Datadog, Inc."
+core,github.com/DataDog/rshell/allowedpaths,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/allowedpaths/internal/fsstat,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/allowedpaths/internal/writeopen,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/awk,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/break,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/cat,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/cd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/continue,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/cut,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/df,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/du,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/echo,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/exit,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/false,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/find,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/free,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/grep,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/head,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/help,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/diskstats,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/flagparser,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/loopctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/meminfo,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/ntfsmft,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procfd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procinfo,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procmaps,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procnetroute,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procnetsocket,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procpath,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procsyskernel,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/sizeparse,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/sysinfo,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/vmstat,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/winnet,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/winpoll,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/ip,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/journalctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/jq,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/logrotate,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/ls,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/lsof,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/ntfsdu,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/ping,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/pmap,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/printf,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/ps,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/pwd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/read,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/rm,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/sed,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/sha256sum,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/sort,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/ss,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/stat,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/strings_cmd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/systemctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/tail,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/tee,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/testcmd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/tr,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/true,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/truncate,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/uname,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/uniq,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/uptime,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/vmstat,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/wc,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/xargs,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/internal/interpoption,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/internal/systemd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/internal/version,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/interp,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/privilegedhelper,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 Datadog, Inc"
@@ -319,6 +400,7 @@ core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@dat
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | Copyright (c) 2012 The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
 core,github.com/Masterminds/goutils,Apache-2.0,Copyright 2014 Alexander Okoli
+core,github.com/Masterminds/semver,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/semver/v3,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/sprig/v3,MIT,Copyright (C) 2013-2020 Masterminds
 core,github.com/Microsoft/go-winio,MIT,Copyright (c) 2015 Microsoft
@@ -938,6 +1020,7 @@ core,github.com/cloudflare/circl/sign/slhdsa,BSD-3-Clause,Copyright (c) 2009 The
 core,github.com/cloudflare/circl/simd/keccakf1600,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/xof,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/xof/k12,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
+core,github.com/cloudfoundry-community/go-cfclient/v2,MIT,Copyright (c) 2017 Long Nguyen
 core,github.com/cloudfoundry/go-cfclient/v3/client,MIT,Copyright (c) 2017 Long Nguyen
 core,github.com/cloudfoundry/go-cfclient/v3/config,MIT,Copyright (c) 2017 Long Nguyen
 core,github.com/cloudfoundry/go-cfclient/v3/internal/check,MIT,Copyright (c) 2017 Long Nguyen
@@ -951,6 +1034,11 @@ core,github.com/cncf/xds/go/udpa/annotations,Apache-2.0,Copyright 2020 Envoyprox
 core,github.com/cncf/xds/go/xds/annotations/v3,Apache-2.0,Copyright 2020 Envoyproxy Authors
 core,github.com/cncf/xds/go/xds/core/v3,Apache-2.0,Copyright 2020 Envoyproxy Authors
 core,github.com/codegangsta/inject,MIT,Copyright (c) 2013 Jeremy Saenz
+core,github.com/coder/websocket,ISC,Copyright (c) 2025 Coder
+core,github.com/coder/websocket/internal/bpool,ISC,Copyright (c) 2025 Coder
+core,github.com/coder/websocket/internal/errd,ISC,Copyright (c) 2025 Coder
+core,github.com/coder/websocket/internal/util,ISC,Copyright (c) 2025 Coder
+core,github.com/coder/websocket/internal/wsjs,ISC,Copyright (c) 2025 Coder
 core,github.com/containerd/cgroups/v3,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup1/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -1445,6 +1533,7 @@ core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,"C
 core,github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/runtime,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/utilities,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/h2non/filetype,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers/isobmff,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/types,MIT,Copyright (c) Tomas Aparicio
@@ -1927,6 +2016,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadata
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/ibmcloud/classic,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/k8snode,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/kubeadm,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/openshift,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/openstack/nova,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/oraclecloud,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2630,6 +2720,7 @@ core,github.com/uptrace/bun/internal/tagparser,BSD-2-Clause,Copyright (c) 2021 V
 core,github.com/uptrace/bun/migrate,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/migrate/sqlschema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/schema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/urfave/negroni/v3,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/urfave/negroni/v3,MIT,Copyright (c) 2025 Jeremy Saenz
 core,github.com/valyala/fastjson,MIT,Copyright (c) 2018 Aliaksandr Valialkin
 core,github.com/valyala/fastjson/fastfloat,MIT,Copyright (c) 2018 Aliaksandr Valialkin
@@ -2988,6 +3079,8 @@ core,go.opentelemetry.io/ebpf-profiler/pacmask,Apache-2.0,Copyright The OpenTele
 core,go.opentelemetry.io/ebpf-profiler/periodiccaller,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/process,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/process/processcontext,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/processcontext,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/processcontext/v1development,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/processmanager,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/processmanager/ebpf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/processmanager/ebpfapi,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3004,6 +3097,7 @@ core,go.opentelemetry.io/ebpf-profiler/support,Apache-2.0,Copyright The OpenTele
 core,go.opentelemetry.io/ebpf-profiler/times,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tls,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tracer,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/traceutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/util,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3132,6 +3226,7 @@ core,go.opentelemetry.io/otel/semconv/v1.37.0/rpcconv,Apache-2.0,Copyright The O
 core,go.opentelemetry.io/otel/semconv/v1.38.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.40.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.41.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.42.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.43.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.43.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.43.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3152,6 +3247,9 @@ core,go.opentelemetry.io/proto/otlp/metrics/v1,Apache-2.0,Copyright The OpenTele
 core,go.opentelemetry.io/proto/otlp/processcontext/v1development,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/resource/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/slim/otlp/common/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/slim/otlp/processcontext/v1development,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/slim/otlp/resource/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.temporal.io/api/activity/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/batch/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
 core,go.temporal.io/api/callback/v1,MIT,Copyright (c) 2025 Temporal Technologies Inc.  All rights reserved
@@ -3291,6 +3389,7 @@ core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors.
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/net/context,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/html,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/html/atom,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/html/charset,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved

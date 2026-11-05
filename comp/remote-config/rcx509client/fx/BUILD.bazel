@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = [
+        "fx.go",
+        "fx_unsupported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/fx",
+    visibility = ["//visibility:public"],
+    # The x509 client is not built into FIPS-flavor Agents or on Windows yet. The
+    # FIPS settings are more specific than the platform keys below, so Bazel
+    # selects them first.
+    deps = ["//pkg/util/fxutil"] + select({
+        "//packages/agent:linux_arm64_fips": [],
+        "//packages/agent:linux_x86_64_fips": [],
+        "@rules_go//go/platform:darwin": [
+            "//comp/remote-config/rcx509client/def",
+            "//comp/remote-config/rcx509client/impl",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/remote-config/rcx509client/def",
+            "//comp/remote-config/rcx509client/impl",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),  # keep
+)
