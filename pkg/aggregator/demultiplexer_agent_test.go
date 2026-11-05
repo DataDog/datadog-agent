@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -377,6 +378,53 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	require.Equal(t, "Agent Shutdown", shutdownEvent.EventType)
 
 	s.AssertExpectations(t)
+}
+
+func TestAcquireLockOrTimeout(t *testing.T) {
+	t.Run("uncontended lock with an already-expired deadline", func(t *testing.T) {
+		d := &AgentDemultiplexer{}
+		ctx, cancel := context.WithTimeout(context.Background(), 0)
+		defer cancel()
+
+		require.True(t, d.acquireLockOrTimeout(ctx), "an uncontended lock must be acquired even past the deadline (aggregator_stop_timeout: 0)")
+		d.m.Unlock()
+	})
+
+	t.Run("contended lock released after the deadline expires", func(t *testing.T) {
+		d := &AgentDemultiplexer{}
+		d.m.Lock()
+
+		acquired := make(chan struct{})
+		released := make(chan struct{})
+		d.abandonedLockAcquiredHook = func() {
+			close(acquired)
+		}
+		d.abandonedLockReleasedHook = func() {
+			close(released)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		require.False(t, d.acquireLockOrTimeout(ctx), "should give up once the deadline expires")
+
+		d.m.Unlock()
+
+		select {
+		case <-acquired:
+		case <-time.After(time.Second):
+			require.FailNow(t, "timed out waiting for background lock acquisition")
+		}
+
+		select {
+		case <-released:
+		case <-time.After(time.Second):
+			require.FailNow(t, "timed out waiting for background lock release")
+		}
+
+		require.True(t, d.m.TryLock(), "the lock acquired after giving up must still be released, not held forever")
+		d.m.Unlock()
+	})
 }
 
 func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemultiplexer, *MockSerializerIterableSerie) {
