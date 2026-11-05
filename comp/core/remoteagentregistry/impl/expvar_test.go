@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/expvarcompat"
 )
 
+// compatibilityTelemetry mirrors Saluki's RAR telemetry, not its separate /compat/metrics endpoint.
 const compatibilityTelemetry = `
 # TYPE dogstatsd__udp_packets counter
 dogstatsd__udp_packets{state="ok"} 10
@@ -31,7 +32,8 @@ dogstatsd__uds_packets{transport="unixgram",state="ok"} 30
 dogstatsd__uds_packets{transport="unix",state="error"} 4
 dogstatsd__uds_packets{transport="tcp",state="ok"} 100
 # TYPE dogstatsd__uds_origin_detection_error counter
-dogstatsd__uds_origin_detection_error 3
+dogstatsd__uds_origin_detection_error{reason="zero_pid"} 2
+dogstatsd__uds_origin_detection_error{reason="invalid_credentials"} 1
 # TYPE dogstatsd__processed counter
 dogstatsd__processed{message_type="metrics",state="ok",origin="host"} 40
 dogstatsd__processed{message_type="metrics",state="error",origin="host"} 5
@@ -264,6 +266,103 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 	assert.Equal(t, int64(17), values["agent-data-plane"]["dogstatsd_udp_packets"])
 }
 
+func TestRemoteExpvarProcessInstanceSurvivesReregistrationAndPIDReuse(t *testing.T) {
+	provides, _, cfg, _, ipcComp := buildComponent(t)
+	cfg.SetInTest("remote_agent.registry.query_timeout", 100*time.Millisecond)
+	component := provides.Comp.(*remoteAgentRegistry)
+	register := func(processID, raw string) *testRemoteAgentServer {
+		agent := buildRemoteAgent(t, ipcComp, adpAgentFlavor, "Agent Data Plane", "1",
+			withTelemetryProvider("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} "+raw+"\n"),
+		)
+		agent.ProcessInstanceID = processID
+		sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
+		require.NoError(t, err)
+		agent.registeredSessionID = sessionID
+		return agent
+	}
+	read := func() int64 {
+		component.expvarCache.values = nil
+		return component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_udp_packets"]
+	}
+
+	first := register("process-a", "10")
+	assert.Equal(t, int64(10), read())
+	registered := component.GetRegisteredAgents()
+	require.Len(t, registered, 1)
+	firstIdentity := remoteAgentIdentity(registered[0])
+
+	// The same process re-registers after Core read expvars during an absence.
+	first.Stop()
+	component.agentMapMu.Lock()
+	clear(component.agentMap)
+	component.agentMapMu.Unlock()
+	assert.Equal(t, int64(10), read())
+	assert.Len(t, component.expvarCache.counters, 1, "retain the last raw baseline while the process is absent")
+
+	second := register("process-a", "10")
+	assert.Equal(t, int64(10), read(), "do not count an unchanged raw value twice")
+	second.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 12\n"
+	assert.Equal(t, int64(12), read())
+
+	// PID 1 is reused before the old registration disappears. The new process's
+	// first value exceeds the old raw value, so a decrease cannot signal a reset.
+	second.Stop()
+	third := register("process-b", "20")
+	assert.Equal(t, int64(32), read(), "both process lifetimes contribute independently")
+
+	component.agentMapMu.Lock()
+	delete(component.agentMap, second.registeredSessionID)
+	component.agentMapMu.Unlock()
+	assert.Equal(t, int64(32), read(), "keep the old process baseline while a replacement is active")
+	assert.Len(t, component.expvarCache.counters, 2)
+
+	// A briefly absent old process can still return while the new one is active.
+	returning := register("process-a", "12")
+	assert.Equal(t, int64(32), read(), "do not count the returning process twice")
+	returning.Stop()
+	component.agentMapMu.Lock()
+	delete(component.agentMap, returning.registeredSessionID)
+	component.agentMapMu.Unlock()
+	for key, state := range component.expvarCache.counters {
+		if key.agentIdentity == firstIdentity {
+			state.lastSeen = time.Now().Add(-remoteExpvarReplacedIdleTTL - time.Second)
+		}
+	}
+	assert.Equal(t, int64(32), read(), "retire the old generation exactly once after the grace period")
+	assert.Len(t, component.expvarCache.counters, 1)
+	assert.Equal(t, int64(12), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_udp_packets"])
+	third.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 21\n"
+	assert.Equal(t, int64(33), read())
+}
+
+func TestRemoteExpvarPrefersNewestSessionForOneProcess(t *testing.T) {
+	provides, _, _, _, ipcComp := buildComponent(t)
+	component := provides.Comp.(*remoteAgentRegistry)
+	register := func(raw string) *testRemoteAgentServer {
+		agent := buildRemoteAgent(t, ipcComp, adpAgentFlavor, "Agent Data Plane", "1",
+			withTelemetryProvider("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} "+raw+"\n"),
+		)
+		agent.ProcessInstanceID = "same-process"
+		sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
+		require.NoError(t, err)
+		agent.registeredSessionID = sessionID
+		return agent
+	}
+	oldSession := register("10")
+	assert.Equal(t, int64(10), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_udp_packets"])
+
+	// Both sessions are still valid for the same process. A stale response from
+	// the older session must not be mistaken for a counter reset.
+	oldSession.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 20\n"
+	newSession := register("12")
+	component.expvarCache.values = nil
+	assert.Equal(t, int64(12), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_udp_packets"])
+	assert.Len(t, component.expvarCache.counters, 1)
+	newSession.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 13\n"
+	component.expvarCache.values = nil
+	assert.Equal(t, int64(13), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_udp_packets"])
+}
+
 func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 	provides, _, _, _, ipcComp := buildComponent(t)
 	component := provides.Comp.(*remoteAgentRegistry)
@@ -324,6 +423,35 @@ func TestRemoteExpvarValuesHonorCallerContext(t *testing.T) {
 	assert.Less(t, time.Since(start), time.Second, "the caller's deadline should bound the remote queries, not the query timeout")
 	assert.Empty(t, values)
 	assert.Nil(t, component.expvarCache.values, "a snapshot cut short by the caller should not be cached for other callers")
+}
+
+func TestRemoteExpvarOriginStateExpiresWhenIdentifiedAgentIsAbsent(t *testing.T) {
+	provides, _, _, _, ipcComp := buildComponent(t)
+	component := provides.Comp.(*remoteAgentRegistry)
+	agent := buildRemoteAgent(t, ipcComp, adpAgentFlavor, "Agent Data Plane", "1",
+		withTelemetryProvider("# TYPE dogstatsd__processed counter\ndogstatsd__processed{message_type=\"metrics\",state=\"ok\",origin=\"worker\"} 5\n"),
+	)
+	agent.ProcessInstanceID = "process-a"
+	sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
+	require.NoError(t, err)
+	agent.registeredSessionID = sessionID
+	assert.Equal(t, int64(5), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_metric_packets"])
+
+	agent.Stop()
+	component.agentMapMu.Lock()
+	clear(component.agentMap)
+	component.agentMapMu.Unlock()
+	component.expvarCache.values = nil
+	assert.Equal(t, int64(5), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_metric_packets"])
+	assert.Len(t, component.expvarCache.counters, 1, "retain the origin baseline for a short registration gap")
+
+	for _, state := range component.expvarCache.counters {
+		state.lastSeen = time.Now().Add(-remoteExpvarOriginIdleTTL - time.Second)
+	}
+	component.expvarCache.values = nil
+	assert.Equal(t, int64(5), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_metric_packets"])
+	assert.Empty(t, component.expvarCache.counters, "absent origins must not be retained indefinitely")
+	assert.Equal(t, int64(5), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_metric_packets"])
 }
 
 func TestMappedRemoteValuesMergeWithoutPublishingNewExpvars(t *testing.T) {
