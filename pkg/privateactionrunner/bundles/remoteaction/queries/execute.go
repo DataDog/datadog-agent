@@ -264,8 +264,9 @@ const (
 	sessionlessMaxReceiptBytes   = 16384
 )
 
-// objectIDPattern is the canonical hyphenated UUID form of a landing object reference.
-var objectIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+// objectIDPattern is the canonical lowercase hyphenated UUID form of a landing object
+// reference. References are never normalized: an uppercase alias is rejected.
+var objectIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // ResultDeliveryInputs is the backend-injected result delivery. Two mutually exclusive
 // shapes exist: the default session-backed shape (no protocol key, uploadId required)
@@ -298,6 +299,14 @@ func (d *ResultDeliveryInputs) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	// The presence checks below use exact key names, but Go's decoder matches field
+	// names case-insensitively and keeps the last of a duplicate. The discriminating keys
+	// must therefore never appear as a variant spelling or twice, in either shape, or a
+	// case alias could decode as a value yet read as absent and downgrade to the
+	// session-backed shape (or smuggle a mixed uploadId).
+	if err := checkExactDeliveryKeys(data, "resultDelivery", "protocol", "scanSensitiveData", "uploadId"); err != nil {
+		return err
+	}
 	_, protocolSet := raw["protocol"]
 	_, scanSet := raw["scanSensitiveData"]
 	_, uploadIDSet := raw["uploadId"]
@@ -305,6 +314,16 @@ func (d *ResultDeliveryInputs) UnmarshalJSON(data []byte) error {
 	type deliveryAlias ResultDeliveryInputs
 	var wire deliveryAlias
 	if protocolSet {
+		// The sessionless shape is exact: every name spelled exactly and unique, in the
+		// delivery object and in its limits.
+		if err := checkExactDeliveryKeys(data, "resultDelivery", resultDeliveryInputKeys...); err != nil {
+			return err
+		}
+		if limits, ok := raw["limits"]; ok && !bytes.Equal(bytes.TrimSpace(limits), []byte("null")) {
+			if err := checkExactDeliveryKeys(limits, "resultDelivery.limits", deliveryLimitsInputKeys...); err != nil {
+				return err
+			}
+		}
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&wire); err != nil {
@@ -317,6 +336,48 @@ func (d *ResultDeliveryInputs) UnmarshalJSON(data []byte) error {
 	d.protocolSet = protocolSet
 	d.scanSet = scanSet
 	d.uploadIDSet = uploadIDSet
+	return nil
+}
+
+var (
+	resultDeliveryInputKeys = []string{"protocol", "runId", "taskId", "artifactVersion", "uploadId", "baseUrl", "scanSensitiveData", "limits"}
+	deliveryLimitsInputKeys = []string{"maxFileBytes", "maxResultBytes", "maxRowBytes", "maxColumns", "maxSchemaBytes", "maxPages", "timeoutMs"}
+)
+
+// checkExactDeliveryKeys rejects, among the canonical names only, a duplicated key and a
+// differently-cased spelling of a canonical name; other names are left to the caller. The
+// errors are sanitized: they name the object, never the offending key or value.
+func checkExactDeliveryKeys(data []byte, object string, canonical ...string) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
+		return errors.New(object + " must be an object")
+	}
+	seen := make(map[string]struct{}, len(canonical))
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok {
+			return errors.New(object + " is malformed")
+		}
+		isCanonical := false
+		for _, name := range canonical {
+			if key == name {
+				isCanonical = true
+			} else if strings.EqualFold(key, name) {
+				return errors.New(object + " field names must be spelled exactly")
+			}
+		}
+		if isCanonical {
+			if _, duplicate := seen[key]; duplicate {
+				return errors.New(object + " contains a duplicate field")
+			}
+			seen[key] = struct{}{}
+		}
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return errors.New(object + " is malformed")
+		}
+	}
 	return nil
 }
 
@@ -789,11 +850,10 @@ func sessionlessUploadReceiptOutput(receipt *pb.RemoteQueryUploadReceipt, includ
 		if !objectIDPattern.MatchString(id) {
 			return nil, errors.New("remote query sessionless upload receipt objectIds must be UUIDs")
 		}
-		key := strings.ToLower(id)
-		if _, duplicate := seen[key]; duplicate {
+		if _, duplicate := seen[id]; duplicate {
 			return nil, errors.New("remote query sessionless upload receipt objectIds must be unique")
 		}
-		seen[key] = struct{}{}
+		seen[id] = struct{}{}
 	}
 	if receipt.GetPageCount() < 0 || receipt.GetTotalRows() < 0 || receipt.GetTotalBytes() < 0 {
 		return nil, errors.New("remote query sessionless upload receipt counts must not be negative")

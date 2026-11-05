@@ -460,10 +460,6 @@ func TestValidateSessionlessUploadReceipt(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, ids, 128)
 	})
-	t.Run("uppercase hex uuid", func(t *testing.T) {
-		_, err := ValidateSessionlessUploadReceipt([]byte(sessionlessReceiptJSON(strings.ToUpper(sessionlessObjectID1))), true, nil)
-		require.NoError(t, err)
-	})
 	t.Run("empty without schema", func(t *testing.T) {
 		ids, err := ValidateSessionlessUploadReceipt([]byte(`{"protocol":"sessionless-v1","objectIds":[],"pageCount":0,"totalRows":0,"totalBytes":0}`), false, nil)
 		require.NoError(t, err)
@@ -501,7 +497,16 @@ func TestValidateSessionlessUploadReceipt(t *testing.T) {
 		{name: "uuid without hyphens", receipt: sessionlessReceiptJSON(strings.ReplaceAll(sessionlessObjectID1, "-", "")), wantErr: "must be UUIDs"},
 		{name: "path traversal reference", receipt: sessionlessReceiptJSON("../" + sessionlessObjectID1), wantErr: "must be UUIDs"},
 		{name: "duplicate reference", receipt: sessionlessReceiptJSON(sessionlessObjectID1, sessionlessObjectID1), wantErr: "must be unique"},
-		{name: "duplicate differing only by case", receipt: sessionlessReceiptJSON(sessionlessObjectID1, strings.ToUpper(sessionlessObjectID1)), wantErr: "must be unique"},
+		{name: "uppercase uuid is not normalized", receipt: sessionlessReceiptJSON(strings.ToUpper(sessionlessObjectID1)), wantErr: "must be UUIDs"},
+		{name: "mixed-case uuid", receipt: sessionlessReceiptJSON(sessionlessObjectID1[:8] + strings.ToUpper(sessionlessObjectID1[8:])), wantErr: "must be UUIDs"},
+		{name: "case alias of protocol", receipt: strings.Replace(valid, `"protocol"`, `"Protocol"`, 1), wantErr: "field names must be spelled exactly"},
+		{name: "case alias of objectIds", receipt: strings.Replace(valid, `"objectIds"`, `"objectIDs"`, 1), wantErr: "field names must be spelled exactly"},
+		{name: "case alias of pageCount", receipt: strings.Replace(valid, `"pageCount"`, `"pagecount"`, 1), wantErr: "field names must be spelled exactly"},
+		{name: "duplicate protocol", receipt: `{"protocol":"sessionless-v1",` + valid[1:], wantErr: "contains a duplicate field"},
+		{name: "duplicate objectIds", receipt: `{"objectIds":[],` + valid[1:], wantErr: "contains a duplicate field"},
+		{name: "duplicate pageCount", receipt: `{"pageCount":2,` + valid[1:], wantErr: "contains a duplicate field"},
+		{name: "duplicate totalRows", receipt: `{"totalRows":42,` + valid[1:], wantErr: "contains a duplicate field"},
+		{name: "duplicate totalBytes", receipt: `{"totalBytes":4096,` + valid[1:], wantErr: "contains a duplicate field"},
 		{name: "129 references", receipt: sessionlessReceiptJSON(manyIDs...), wantErr: "more than 128 objects"},
 		{name: "page count mismatch", receipt: strings.Replace(valid, `"pageCount":2`, `"pageCount":1`, 1), wantErr: "pageCount must equal"},
 		{name: "empty list with page count", receipt: `{"protocol":"sessionless-v1","objectIds":[],"pageCount":1,"totalRows":0,"totalBytes":0}`, wantErr: "pageCount must equal"},
@@ -522,4 +527,63 @@ func TestValidateSessionlessUploadReceipt(t *testing.T) {
 			assert.NotContains(t, err.Error(), sessionlessObjectID1)
 		})
 	}
+}
+
+// withDeliveryMember prepends one raw JSON member to the valid sessionless delivery, so a
+// duplicate or case-aliased spelling can be expressed (a Go map cannot hold one).
+func withDeliveryMember(member string) string {
+	return `{` + member + `,` + sessionlessDeliveryJSON[1:]
+}
+
+// TestParseExecuteRequestRejectsAliasedOrDuplicatedDeliveryFields proves the exact-name
+// guard on the new resultDelivery and limits objects: a case alias or a duplicate of a
+// discriminating or limit field is rejected with a sanitized error, so it can never
+// decode as a value yet read as absent and downgrade into the session shape.
+func TestParseExecuteRequestRejectsAliasedOrDuplicatedDeliveryFields(t *testing.T) {
+	const aliased = "resultDelivery field names must be spelled exactly"
+	const duplicate = "resultDelivery contains a duplicate field"
+	tests := []struct {
+		name      string
+		delivery  string
+		wantError string
+	}{
+		{name: "protocol case alias replaces protocol", delivery: strings.Replace(sessionlessDeliveryJSON, `"protocol"`, `"Protocol"`, 1), wantError: aliased},
+		{name: "protocol upper alias beside protocol", delivery: withDeliveryMember(`"PROTOCOL":"sessionless-v1"`), wantError: aliased},
+		{name: "protocol alias on session shape", delivery: strings.Replace(validDeliveryJSON, `{"runId"`, `{"Protocol":"sessionless-v1","runId"`, 1), wantError: aliased},
+		{name: "uploadId case alias beside protocol", delivery: withDeliveryMember(`"uploadID":"upload-proof"`), wantError: aliased},
+		{name: "uploadId case alias on session shape", delivery: strings.Replace(validDeliveryJSON, `"uploadId"`, `"UploadId"`, 1), wantError: aliased},
+		{name: "scan flag case alias", delivery: strings.Replace(sessionlessDeliveryJSON, `"scanSensitiveData"`, `"scansensitivedata"`, 1), wantError: aliased},
+		{name: "runId case alias", delivery: strings.Replace(sessionlessDeliveryJSON, `"runId"`, `"runid"`, 1), wantError: aliased},
+		{name: "duplicate protocol", delivery: withDeliveryMember(`"protocol":"sessionless-v1"`), wantError: duplicate},
+		{name: "duplicate protocol with different value", delivery: withDeliveryMember(`"protocol":"sessionless-v2"`), wantError: duplicate},
+		{name: "duplicate scan flag", delivery: withDeliveryMember(`"scanSensitiveData":false`), wantError: duplicate},
+		{name: "duplicate uploadId", delivery: strings.Replace(validDeliveryJSON, `{"runId"`, `{"uploadId":"other","runId"`, 1), wantError: duplicate},
+		{name: "duplicate runId", delivery: withDeliveryMember(`"runId":"other"`), wantError: duplicate},
+		{name: "limits case alias", delivery: strings.Replace(sessionlessDeliveryJSON, `"maxPages"`, `"MaxPages"`, 1), wantError: "resultDelivery.limits field names must be spelled exactly"},
+		{name: "limits duplicate", delivery: strings.Replace(sessionlessDeliveryJSON, `"limits":{`, `"limits":{"maxPages":1,`, 1), wantError: "resultDelivery.limits contains a duplicate field"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseSessionlessWire(t, tt.delivery)
+			require.Error(t, err)
+			assert.Equal(t, tt.wantError, err.Error())
+			assert.NotContains(t, err.Error(), "upload-proof")
+		})
+	}
+}
+
+// TestParseExecuteRequestKeepsCanonicalDeliveriesValid proves the guard leaves ordinary
+// valid input alone: the canonical sessionless shape with either scan value and the
+// existing session shape still parse.
+func TestParseExecuteRequestKeepsCanonicalDeliveriesValid(t *testing.T) {
+	for _, scan := range []bool{true, false} {
+		parsed, err := parseSessionlessWire(t, sessionlessDeliveryObject(t, "scanSensitiveData", scan, false))
+		require.NoError(t, err)
+		assert.Equal(t, RemoteQueryResultDeliveryProtocolSessionlessV1, parsed.ResultDelivery.Protocol)
+		assert.Equal(t, scan, *parsed.ResultDelivery.ScanSensitiveData)
+	}
+	parsed, err := parseSessionlessWire(t, validDeliveryJSON)
+	require.NoError(t, err)
+	assert.Empty(t, parsed.ResultDelivery.Protocol)
+	assert.Equal(t, "upload-proof", parsed.ResultDelivery.UploadID)
 }

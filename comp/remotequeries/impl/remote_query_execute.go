@@ -77,9 +77,10 @@ const (
 var (
 	remoteQueryUploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-	// remoteQueryObjectIDPattern is the canonical hyphenated UUID form of a landing
-	// object reference.
-	remoteQueryObjectIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	// remoteQueryObjectIDPattern is the canonical lowercase hyphenated UUID form of a
+	// landing object reference. References are never normalized: an uppercase alias is
+	// rejected, not lowercased.
+	remoteQueryObjectIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 	errDeliveryUnknownField = errors.New("resultDelivery contains unknown field")
 	errDeliveryMustBeObject = errors.New("resultDelivery must be an object")
@@ -531,6 +532,13 @@ func (d *remoteQueryResultDeliveryRequestJSON) UnmarshalJSON(data []byte) error 
 	if !isJSONObject(data) {
 		return errDeliveryMustBeObject
 	}
+	// Go's decoder matches field names case-insensitively and keeps the last of a
+	// duplicate, but the discriminator and mixed-shape checks below use exact key
+	// presence. Refuse variant spellings and duplicates first, so a case alias can never
+	// decode as a value yet read as absent and downgrade into the session shape.
+	if err := checkExactJSONKeys(data, "resultDelivery", resultDeliveryWireKeys...); err != nil {
+		return err
+	}
 
 	type deliveryAlias remoteQueryResultDeliveryRequestJSON
 	var delivery deliveryAlias
@@ -563,6 +571,52 @@ func (d *remoteQueryResultDeliveryRequestJSON) UnmarshalJSON(data []byte) error 
 	return nil
 }
 
+// resultDeliveryWireKeys and resultDeliveryLimitsWireKeys are the exact spellings of the
+// resultDelivery and limits objects.
+var (
+	resultDeliveryWireKeys       = []string{"protocol", "runId", "taskId", "artifactVersion", "uploadId", "baseUrl", "scanSensitiveData", "limits"}
+	resultDeliveryLimitsWireKeys = []string{"maxFileBytes", "maxResultBytes", "maxRowBytes", "maxColumns", "maxSchemaBytes", "maxPages", "timeoutMs"}
+)
+
+// checkExactJSONKeys guards the top level of one JSON object whose exact field names are
+// part of a frozen shape. For the canonical names it rejects a duplicated key and a
+// differently-cased spelling of a canonical name (which Go's decoder would otherwise match
+// case-insensitively); unknown names are left to the caller's own unknown-field handling.
+// Errors are sanitized: they name the object, never the offending key or value.
+func checkExactJSONKeys(data []byte, object string, canonical ...string) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
+		return remoteQueryDeliveryTypeError{message: object + " must be an object"}
+	}
+	seen := make(map[string]struct{}, len(canonical))
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok {
+			return remoteQueryDeliveryTypeError{message: object + " is malformed"}
+		}
+		isCanonical := false
+		for _, name := range canonical {
+			if key == name {
+				isCanonical = true
+			} else if strings.EqualFold(key, name) {
+				return remoteQueryDeliveryTypeError{message: object + " field names must be spelled exactly"}
+			}
+		}
+		if isCanonical {
+			if _, duplicate := seen[key]; duplicate {
+				return remoteQueryDeliveryTypeError{message: object + " contains a duplicate field"}
+			}
+			seen[key] = struct{}{}
+		}
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return remoteQueryDeliveryTypeError{message: object + " is malformed"}
+		}
+	}
+	return nil
+}
+
 func isJSONNull(data json.RawMessage) bool {
 	return bytes.Equal(bytes.TrimSpace(data), []byte("null"))
 }
@@ -570,6 +624,9 @@ func isJSONNull(data json.RawMessage) bool {
 func (l *remoteQueryUploadLimitsRequestJSON) UnmarshalJSON(data []byte) error {
 	if !isJSONObject(data) {
 		return errLimitsMustBeObject
+	}
+	if err := checkExactJSONKeys(data, "resultDelivery.limits", resultDeliveryLimitsWireKeys...); err != nil {
+		return err
 	}
 
 	type limitsAlias remoteQueryUploadLimitsRequestJSON
@@ -933,11 +990,14 @@ type sessionlessReceipt struct {
 	TotalBytes *int64    `json:"totalBytes"`
 }
 
+var sessionlessReceiptKeys = []string{"protocol", "objectIds", "pageCount", "totalRows", "totalBytes"}
+
 // ValidateSessionlessUploadReceipt validates a final-event upload_receipt object against
 // the frozen sessionless-v1 shape and returns the ordered object references. It enforces
 // exactly protocol, objectIds, pageCount, totalRows and totalBytes (unknown fields, a
-// session-shaped uploadId, wrong types and missing fields are rejected), canonical and
-// unique UUID references, at most 128 of them, a serialized size of at most 16 KiB, and
+// session-shaped uploadId, case-aliased or duplicated field names, wrong types and missing
+// fields are rejected), canonical lowercase and unique UUID references (never normalized),
+// at most 128 of them, a serialized size of at most 16 KiB, and
 // that an empty reference list is only the zero-page, zero-row, zero-byte result of a
 // run that requested no schema. pageCount must equal the number of references. limits is
 // optional and, when set, bounds the claims by the run's own limits. It validates shape
@@ -948,6 +1008,11 @@ func ValidateSessionlessUploadReceipt(receiptJSON []byte, includeSchema bool, li
 	}
 	if !isJSONObject(receiptJSON) {
 		return nil, errors.New("sessionless upload receipt must be an object")
+	}
+	// Exact field names, no duplicates: the decoder below would otherwise accept case
+	// aliases and silently keep the last of a duplicated member.
+	if err := checkExactJSONKeys(receiptJSON, "sessionless upload receipt", sessionlessReceiptKeys...); err != nil {
+		return nil, err
 	}
 	var receipt sessionlessReceipt
 	if err := decodeStrictJSON(bytes.NewReader(receiptJSON), &receipt); err != nil {
@@ -978,11 +1043,10 @@ func ValidateSessionlessUploadReceipt(receiptJSON []byte, includeSchema bool, li
 		if !remoteQueryObjectIDPattern.MatchString(id) {
 			return nil, errors.New("sessionless upload receipt objectIds must be UUIDs")
 		}
-		key := strings.ToLower(id)
-		if _, duplicate := seen[key]; duplicate {
+		if _, duplicate := seen[id]; duplicate {
 			return nil, errors.New("sessionless upload receipt objectIds must be unique")
 		}
-		seen[key] = struct{}{}
+		seen[id] = struct{}{}
 	}
 	if *receipt.PageCount < 0 || *receipt.TotalRows < 0 || *receipt.TotalBytes < 0 {
 		return nil, errors.New("sessionless upload receipt counts must not be negative")

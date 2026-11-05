@@ -1519,7 +1519,11 @@ func TestExecuteActionFailsClosedOnInvalidSessionlessReceipt(t *testing.T) {
 		{name: "bad uuid", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[1] = "not-a-uuid" }), wantErr: "must be UUIDs"},
 		{name: "empty reference", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = "" }), wantErr: "must be UUIDs"},
 		{name: "path injection", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = "../" + testObjectID1 }), wantErr: "must be UUIDs"},
-		{name: "duplicate", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[1] = strings.ToUpper(testObjectID1) }), wantErr: "must be unique"},
+		{name: "duplicate", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[1] = testObjectID1 }), wantErr: "must be unique"},
+		{name: "uppercase uuid is not normalized", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = strings.ToUpper(testObjectID1) }), wantErr: "must be UUIDs"},
+		{name: "mixed-case uuid", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) {
+			r.ObjectIds[1] = testObjectID2[:8] + strings.ToUpper(testObjectID2[8:])
+		}), wantErr: "must be UUIDs"},
 		{name: "more than 128 references", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", ObjectIds: manyIDs, PageCount: 129}, wantErr: "more than 128"},
 		{name: "negative rows", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.TotalRows = -1 }), wantErr: "must not be negative"},
 		{name: "page count mismatch", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.PageCount = 1 }), wantErr: "pageCount must equal"},
@@ -1581,5 +1585,75 @@ func TestExecuteActionRejectsSessionlessFieldsOnSessionBackedReceipt(t *testing.
 			require.ErrorAs(t, err, &parErr)
 			assert.Contains(t, parErr.Message, "must not carry sessionless fields")
 		})
+	}
+}
+
+// TestResultDeliveryInputsRejectAliasedOrDuplicatedDiscriminators proves a case-aliased or
+// duplicated discriminating field can never decode as a value yet read as absent and fall
+// back to the session-backed shape, and that mixed uploadId spellings are refused. The
+// errors are sanitized: they never echo the offending key or value.
+func TestResultDeliveryInputsRejectAliasedOrDuplicatedDiscriminators(t *testing.T) {
+	const sessionless = `"protocol":"sessionless-v1","runId":"r","taskId":"t","artifactVersion":1,"baseUrl":"https://dd.datad0g.com/x","scanSensitiveData":true,"limits":{"maxFileBytes":1,"maxResultBytes":1,"maxRowBytes":1,"maxColumns":1,"maxSchemaBytes":1,"maxPages":1,"timeoutMs":1}`
+	const session = `"runId":"r","taskId":"t","artifactVersion":1,"uploadId":"upload-secret","baseUrl":"https://dd.datad0g.com/x","limits":{"maxFileBytes":1,"maxResultBytes":1,"maxRowBytes":1,"maxColumns":1,"maxSchemaBytes":1,"maxPages":1,"timeoutMs":1}`
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{name: "protocol alias on a session body", body: `{"Protocol":"sessionless-v1",` + session + `}`, wantErr: "field names must be spelled exactly"},
+		{name: "protocol alias replacing protocol", body: `{"PROTOCOL":"sessionless-v1",` + sessionless[len(`"protocol":"sessionless-v1",`):] + `}`, wantErr: "field names must be spelled exactly"},
+		{name: "scan flag alias", body: `{` + strings.Replace(sessionless, `"scanSensitiveData"`, `"ScanSensitiveData"`, 1) + `}`, wantErr: "field names must be spelled exactly"},
+		{name: "scan flag alias on a session body", body: `{"scansensitivedata":true,` + session + `}`, wantErr: "field names must be spelled exactly"},
+		{name: "uploadId alias beside protocol", body: `{"uploadID":"upload-secret",` + sessionless + `}`, wantErr: "field names must be spelled exactly"},
+		{name: "uploadId alias on session body", body: `{` + strings.Replace(session, `"uploadId"`, `"UploadId"`, 1) + `}`, wantErr: "field names must be spelled exactly"},
+		{name: "duplicate protocol", body: `{"protocol":"sessionless-v1",` + sessionless + `}`, wantErr: "contains a duplicate field"},
+		{name: "duplicate scan flag", body: `{"scanSensitiveData":false,` + sessionless + `}`, wantErr: "contains a duplicate field"},
+		{name: "duplicate uploadId", body: `{"uploadId":"x",` + session + `}`, wantErr: "contains a duplicate field"},
+		{name: "duplicate runId in sessionless", body: `{"runId":"other",` + sessionless + `}`, wantErr: "contains a duplicate field"},
+		{name: "limits alias in sessionless", body: `{` + strings.Replace(sessionless, `"maxPages"`, `"MaxPages"`, 1) + `}`, wantErr: "resultDelivery.limits field names must be spelled exactly"},
+		{name: "limits duplicate in sessionless", body: `{` + strings.Replace(sessionless, `"limits":{`, `"limits":{"maxPages":2,`, 1) + `}`, wantErr: "resultDelivery.limits contains a duplicate field"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var delivery ResultDeliveryInputs
+			err := json.Unmarshal([]byte(tt.body), &delivery)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.NotContains(t, err.Error(), "upload-secret")
+		})
+	}
+
+	t.Run("canonical sessionless and session bodies still decode", func(t *testing.T) {
+		var delivery ResultDeliveryInputs
+		require.NoError(t, json.Unmarshal([]byte(`{`+sessionless+`}`), &delivery))
+		require.NoError(t, validateDeliveryInputs(&delivery))
+		assert.True(t, delivery.sessionless())
+
+		delivery = ResultDeliveryInputs{}
+		require.NoError(t, json.Unmarshal([]byte(`{`+session+`}`), &delivery))
+		require.NoError(t, validateDeliveryInputs(&delivery))
+		assert.False(t, delivery.sessionless())
+	})
+}
+
+// TestExecuteActionRejectsAliasedProtocolBeforeRPC proves the case alias cannot downgrade a
+// sessionless input into the session-backed shape end to end: it fails before any RPC.
+func TestExecuteActionRejectsAliasedProtocolBeforeRPC(t *testing.T) {
+	for _, alias := range []string{"Protocol", "PROTOCOL"} {
+		delivery := sessionlessResultDeliveryInputs(true)
+		delete(delivery, "protocol")
+		delivery[alias] = "sessionless-v1"
+		delivery["uploadId"] = testUploadID
+		action := NewExecuteAction(func() (BridgeClient, error) {
+			require.Fail(t, "bridge client should not be created for an aliased discriminator")
+			return nil, nil
+		})
+
+		_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(delivery)), nil)
+
+		require.Error(t, err)
+		var parErr util.PARError
+		require.ErrorAs(t, err, &parErr)
+		assert.Equal(t, "invalid remote query action inputs", parErr.Message)
 	}
 }
