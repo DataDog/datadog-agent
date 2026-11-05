@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -68,4 +69,10 @@ func TestWriteInstallInfo(t *testing.T) {
 		"install_time": strconv.FormatInt(time.Unix(), 10),
 	}
 	assert.Equal(t, expectedSig, sig)
+
+	if runtime.GOOS != "windows" {
+		stat, err := os.Stat(sigPath)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm(), "install signature must not be world-readable")
+	}
 }

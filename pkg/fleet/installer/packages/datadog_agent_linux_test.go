@@ -30,6 +30,12 @@ func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
 		"the policy directory must not be below the dd-agent-owned config directory")
 }
 
+func TestInstallSignaturePermissions(t *testing.T) {
+	assert.Equal(t, installerFile.Permissions{
+		{Path: "install.json", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
+	}, installSignaturePermissions, "install signatures must be readable only by dd-agent after an install or upgrade")
+}
+
 func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T) {
 	assert.Equal(t, installerFile.Permissions{
 		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},

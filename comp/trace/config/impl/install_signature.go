@@ -101,5 +101,5 @@ func writeInstallSignatureToDisk(path string, s *config.InstallSignatureConfig) 
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, contents, 0644)
+	return os.WriteFile(path, contents, 0640)
 }
