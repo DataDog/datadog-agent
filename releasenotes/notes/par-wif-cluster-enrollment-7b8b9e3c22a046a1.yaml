@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Support WIF enrollment for new Cluster Agent Private Action Runners.
+    Enrollment uses the primary intake WIF identity and requires PAR enrollment
+    permission on its mapping. Replicas share the runner identity through the
+    existing Kubernetes Secret.
