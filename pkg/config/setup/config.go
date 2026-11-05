@@ -355,11 +355,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	// Get global provider config from delegated_auth prefix (used for all instances)
 	providerConfig := defaultProviderConfigForConfig(config)
 
-	startupCtx := ctx
-	cancelStartup := func() {}
-	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
-		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-	}
+	startupCtx, cancelStartup := delegatedAuthStartupContext(ctx, config)
 	defer cancelStartup()
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
@@ -394,6 +390,13 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	configureListShapeAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
 
 	return ctx.Err()
+}
+
+func delegatedAuthStartupContext(ctx context.Context, config pkgconfigmodel.Config) (context.Context, context.CancelFunc) {
+	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
+		return context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	}
+	return ctx, func() {}
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe. The

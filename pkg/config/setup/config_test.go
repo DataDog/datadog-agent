@@ -152,6 +152,59 @@ logs_config:
 	}
 }
 
+func TestDelegatedAuthScansStartupTimeout(t *testing.T) {
+	for _, scan := range []struct {
+		name string
+		run  func(context.Context, pkgconfigmodel.Config, delegatedauth.Component) error
+	}{
+		{"initial", configureDelegatedAuth},
+		{"rescan", func(ctx context.Context, config pkgconfigmodel.Config, comp delegatedauth.Component) error {
+			ConfigureDelegatedAuthEndpoints(ctx, config, comp)
+			return nil
+		}},
+	} {
+		for _, timeout := range []int{-1, 0, 5} {
+			t.Run(fmt.Sprintf("%s/timeout_%d", scan.name, timeout), func(t *testing.T) {
+				config := confFromYAML(t, `
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA[map-org, aws]
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA[list-org, aws]
+`)
+				config.SetInTest("delegated_auth.startup_timeout_secs", timeout)
+				parent, cancelParent := context.WithCancel(context.Background())
+				defer cancelParent()
+				var contexts []context.Context
+				comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, _ delegatedauth.InstanceParams) error {
+					require.NoError(t, ctx.Err())
+					contexts = append(contexts, ctx)
+					return nil
+				}}
+
+				startedAt := time.Now()
+				require.NoError(t, scan.run(parent, config, comp))
+				require.Len(t, contexts, 2)
+				assert.Same(t, contexts[0], contexts[1])
+				require.NoError(t, parent.Err())
+				if timeout > 0 {
+					deadline, ok := contexts[0].Deadline()
+					require.True(t, ok)
+					assert.WithinDuration(t, startedAt.Add(time.Duration(timeout)*time.Second), deadline, time.Second)
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				} else {
+					assert.Same(t, parent, contexts[0])
+					cancelParent()
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				}
+			})
+		}
+	}
+}
+
 type expiringDeadlineContext struct {
 	done chan struct{}
 	once sync.Once

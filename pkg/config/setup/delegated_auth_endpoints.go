@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
@@ -308,11 +307,7 @@ func ConfigureDelegatedAuthEndpoints(ctx context.Context, config pkgconfigmodel.
 
 	providerConfig := defaultProviderConfigForConfig(config)
 
-	startupCtx := ctx
-	cancelStartup := func() {}
-	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
-		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-	}
+	startupCtx, cancelStartup := delegatedAuthStartupContext(ctx, config)
 	defer cancelStartup()
 
 	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
