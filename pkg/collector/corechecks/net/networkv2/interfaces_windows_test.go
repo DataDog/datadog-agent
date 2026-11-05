@@ -10,6 +10,7 @@ package networkv2
 import (
 	"errors"
 	"math"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -146,10 +147,10 @@ excluded_interfaces:
   - vEthernet (Default Switch)
 `)
 
-	ethernetTags := []string{"iface:Ethernet", "iface_type:ethernet", "duplex:full", "vlan_id:10"}
+	ethernetTags := []string{"iface:Ethernet", "iface_type:ethernet", "vlan_id:10"}
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.mtu", float64(1500), "", ethernetTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", ethernetTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.iface.speed", float64(1000), "", ethernetTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.speed", float64(1000), "", append(ethernetTags, "duplex:full"))
 
 	wifiTags := []string{"iface:Wi-Fi", "iface_type:wifi"}
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.mtu", float64(1500), "", wifiTags)
@@ -239,6 +240,49 @@ func TestIfaceType(t *testing.T) {
 			assert.Equal(t, tt.want, tt.details.ifaceType())
 		})
 	}
+}
+
+// TestGetInterfaceDetails reads the interfaces of the host with GetIfTable2Ex, and tests its
+// loopback interface.
+func TestGetInterfaceDetails(t *testing.T) {
+	details, err := getInterfaceDetails()
+	require.NoError(t, err)
+	for _, d := range details {
+		t.Logf("%+v", d)
+		assert.NotZero(t, d.index)
+		assert.NotEmpty(t, d.alias)
+	}
+
+	i := slices.IndexFunc(details, func(d interfaceDetails) bool { return d.ifType == windows.IF_TYPE_SOFTWARE_LOOPBACK })
+	require.NotEqual(t, -1, i, "loopback interface not found")
+	lo := newIfaceInfo(details[i], msftNetAdapter{})
+	assert.Equal(t, "loopback", lo.ifaceType)
+	assert.Equal(t, linkStateUp, lo.link)
+}
+
+// TestQueryNetAdapters queries MSFT_NetAdapter on the host, and tests that it reports driver
+// providers.
+func TestQueryNetAdapters(t *testing.T) {
+	adapters, err := queryNetAdapters()
+	require.NoError(t, err)
+	for _, a := range adapters {
+		t.Logf("%+v", a)
+	}
+	if len(adapters) == 0 {
+		// Some containers have no network adapter that MSFT_NetAdapter reports
+		t.Skip("MSFT_NetAdapter returned no adapter")
+	}
+
+	details, err := getInterfaceDetails()
+	require.NoError(t, err)
+	for _, a := range adapters {
+		// MSFT_NetAdapter keeps disabled adapters, which GetIfTable2Ex leaves out
+		if !slices.ContainsFunc(details, func(d interfaceDetails) bool { return d.index == a.InterfaceIndex }) {
+			t.Logf("adapter %d is not a GetIfTable2Ex interface", a.InterfaceIndex)
+		}
+	}
+	assert.True(t, slices.ContainsFunc(adapters, func(a msftNetAdapter) bool { return a.DriverProvider != "" }),
+		"no adapter has a driver provider")
 }
 
 // TestFormatMacAddress tests that missing and all-zero addresses are left out.

@@ -9,8 +9,9 @@ features:
     whose link rate is ``system.wlan.txrate``.
     The gauges are tagged with ``iface``, ``iface_type`` (``ethernet``,
     ``wifi``, ``cellular``, ``loopback``, ``tunnel``, ``virtual`` or
-    ``other``), and with ``duplex`` and ``vlan_id`` when the interface reports
-    them. The check also adds an
+    ``other``), and with ``vlan_id`` when the interface reports it.
+    ``system.net.iface.speed`` is also tagged with ``duplex`` when the
+    interface reports it. The check also adds an
     ``interfaces`` entry to its inventory metadata with each interface's type,
     MAC address, MTU, duplex and VLAN ID, its description, permanent MAC
     address and driver, and on macOS whether it is built in and its vendor and

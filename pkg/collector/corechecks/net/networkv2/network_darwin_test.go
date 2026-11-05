@@ -237,9 +237,9 @@ excluded_interfaces:
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", wifiTags)
 	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.speed", mock.Anything, "", wifiTags)
 
-	ethernetTags := []string{"iface:en7", "iface_type:ethernet", "duplex:full"}
+	ethernetTags := []string{"iface:en7", "iface_type:ethernet"}
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", ethernetTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.iface.speed", float64(1000), "", ethernetTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.speed", float64(1000), "", append(ethernetTags, "duplex:full"))
 
 	unpluggedTags := []string{"iface:en5", "iface_type:ethernet"}
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.mtu", float64(1500), "", unpluggedTags)
@@ -252,9 +252,9 @@ excluded_interfaces:
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", tunnelTags)
 	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.speed", mock.Anything, "", tunnelTags)
 
-	vlanTags := []string{"iface:vlan0", "iface_type:virtual", "duplex:full", "vlan_id:10"}
+	vlanTags := []string{"iface:vlan0", "iface_type:virtual", "vlan_id:10"}
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", vlanTags)
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.speed", mock.Anything, "", vlanTags)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.speed", mock.Anything, "", append(vlanTags, "duplex:full"))
 
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", []string{"iface:lo0", "iface_type:loopback"})
 	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.up", mock.Anything, "", []string{"iface:bridge0", "iface_type:virtual"})

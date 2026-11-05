@@ -26,14 +26,15 @@ func TestSubmitIfaceMetrics(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	submitIfaceMetrics(mockSender, ifaceInfo{name: "eth", ifaceType: "ethernet", mtu: 9000, link: linkStateUp, speedMbps: 2500, duplex: "full", vlanID: 42})
-	submitIfaceMetrics(mockSender, ifaceInfo{name: "unplugged", ifaceType: "ethernet", mtu: 1500, link: linkStateDown, speedMbps: 1000})
+	submitIfaceMetrics(mockSender, ifaceInfo{name: "unplugged", ifaceType: "ethernet", mtu: 1500, link: linkStateDown, speedMbps: 1000, duplex: "full"})
 	submitIfaceMetrics(mockSender, ifaceInfo{name: "unknown", ifaceType: "wifi", link: linkStateUnknown})
 	submitIfaceMetrics(mockSender, ifaceInfo{name: "wifi", ifaceType: "wifi", mtu: 1500, link: linkStateUp, speedMbps: 866.7})
 
-	ethTags := []string{"iface:eth", "iface_type:ethernet", "duplex:full", "vlan_id:42"}
+	ethTags := []string{"iface:eth", "iface_type:ethernet", "vlan_id:42"}
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.mtu", float64(9000), "", ethTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", ethTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.iface.speed", float64(2500), "", ethTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.speed", float64(2500), "", append(ethTags, "duplex:full"))
+	mockSender.AssertNumberOfCalls(t, "Gauge", 7)
 
 	unpluggedTags := []string{"iface:unplugged", "iface_type:ethernet"}
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(0), "", unpluggedTags)

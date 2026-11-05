@@ -50,9 +50,6 @@ type ifaceInfo struct {
 // tags returns the tags of the interface gauges.
 func (i ifaceInfo) tags() []string {
 	tags := []string{"iface:" + i.name, "iface_type:" + i.ifaceType}
-	if i.duplex != "" {
-		tags = append(tags, "duplex:"+i.duplex)
-	}
 	if i.vlanID != 0 {
 		tags = append(tags, "vlan_id:"+strconv.FormatUint(uint64(i.vlanID), 10))
 	}
@@ -72,7 +69,13 @@ func submitIfaceMetrics(sender sender.Sender, iface ifaceInfo) {
 		// and the speed of a Wi-Fi interface on macOS is a driver estimate rather than the link rate
 		// of system.wlan.txrate.
 		if iface.speedMbps > 0 && iface.ifaceType == "ethernet" {
-			sender.Gauge("system.net.iface.speed", iface.speedMbps, "", tags)
+			// Only the speed gauge has the duplex tag: macOS knows the duplex only while the link
+			// is up, and the tags of the up and MTU gauges must not change when the link goes down.
+			speedTags := tags
+			if iface.duplex != "" {
+				speedTags = append(slices.Clip(tags), "duplex:"+iface.duplex)
+			}
+			sender.Gauge("system.net.iface.speed", iface.speedMbps, "", speedTags)
 		}
 	case linkStateDown:
 		sender.Gauge("system.net.iface.up", 0, "", tags)
@@ -80,7 +83,9 @@ func submitIfaceMetrics(sender sender.Sender, iface ifaceInfo) {
 }
 
 // nicMetadata describes one interface in the "interfaces" check metadata. It leaves out the
-// link state and speed, which change often, because every change sends a new inventory payload.
+// link state and speed, which change the most often. The other fields can still change, such as
+// the duplex while a link goes down, or the MAC address of a Wi-Fi interface; each change sends a
+// new inventory payload, at most once per inventories_min_interval.
 type nicMetadata struct {
 	Name                string `json:"name"`
 	Description         string `json:"description,omitempty"`
