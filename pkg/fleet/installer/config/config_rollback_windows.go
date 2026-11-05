@@ -8,6 +8,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -18,24 +19,78 @@ import (
 	"strings"
 )
 
+const experimentConfigPathsFile = ".experiment-config-paths.json"
+
 var legacyManagedLinkPaths = []string{
 	"managed/datadog-agent/stable",
 	"managed/datadog-agent/experiment",
 }
 
+// normalizeConfigPath matches Windows paths without depending on the casing stored on disk.
+func normalizeConfigPath(filePath string) string {
+	return strings.ToLower(path.Clean("/" + filepath.ToSlash(filePath)))
+}
+
+// recordExperimentConfigPaths persists YAML write targets before any operation can run.
+// Rollback uses these in addition to the usual config patterns so that writes elsewhere
+// under /managed are reverted without purging unrelated YAML files there.
+func recordExperimentConfigPaths(backupPath string, operations Operations) error {
+	configPaths := make([]string, 0, len(operations.FileOperations))
+	for _, operation := range operations.FileOperations {
+		var target string
+		switch operation.FileOperationType {
+		case FileOperationPatch, FileOperationMergePatch, FileOperationJQ:
+			target = operation.FilePath
+		case FileOperationCopy, FileOperationMove:
+			target = operation.DestinationPath
+		default:
+			continue
+		}
+		if getConfigFileSpec(target) == nil || !strings.EqualFold(path.Ext(filepath.ToSlash(target)), ".yaml") {
+			continue
+		}
+		configPaths = append(configPaths, normalizeConfigPath(target))
+	}
+	content, err := json.Marshal(configPaths)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(backupPath, experimentConfigPathsFile), content, 0640)
+}
+
+func readExperimentConfigPaths(sourceRoot *os.Root) (map[string]struct{}, error) {
+	content, err := sourceRoot.ReadFile(experimentConfigPathsFile)
+	if os.IsNotExist(err) {
+		// Backups created before write targets were recorded still use pattern-based cleanup.
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var configPaths []string
+	if err := json.Unmarshal(content, &configPaths); err != nil {
+		return nil, err
+	}
+	paths := make(map[string]struct{}, len(configPaths))
+	for _, configPath := range configPaths {
+		paths[normalizeConfigPath(configPath)] = struct{}{}
+	}
+	return paths, nil
+}
+
 func isManagedConfigYAML(relativePath string) bool {
-	normalizedPath := "/" + filepath.ToSlash(relativePath)
-	if !strings.EqualFold(path.Ext(normalizedPath), ".yaml") {
+	normalizedPath := normalizeConfigPath(relativePath)
+	if path.Ext(normalizedPath) != ".yaml" {
 		return false
 	}
 
-	legacyConfigPath := "/" + filepath.ToSlash(legacyPathPrefix)
+	legacyConfigPath := normalizeConfigPath(legacyPathPrefix)
 	if normalizedPath == legacyConfigPath || strings.HasPrefix(normalizedPath, legacyConfigPath+"/") {
 		return true
 	}
 
 	for _, spec := range allowedConfigFiles {
-		matched, err := path.Match(spec.pattern, normalizedPath)
+		matched, err := path.Match(strings.ToLower(spec.pattern), normalizedPath)
 		if err == nil && matched {
 			return true
 		}
@@ -50,6 +105,11 @@ func removeConfigFilesMissingFromSource(sourcePath, targetPath string) error {
 	}
 	defer sourceRoot.Close()
 
+	experimentConfigPaths, err := readExperimentConfigPaths(sourceRoot)
+	if err != nil {
+		return fmt.Errorf("could not read experiment config paths: %w", err)
+	}
+
 	targetRoot, err := os.OpenRoot(targetPath)
 	if err != nil {
 		return fmt.Errorf("could not open target config directory: %w", err)
@@ -58,7 +118,8 @@ func removeConfigFilesMissingFromSource(sourcePath, targetPath string) error {
 
 	emptiedDirs := make(map[string]struct{})
 	err = walkFiles(targetRoot.FS(), ".", func(relativePath string, _ fs.DirEntry) error {
-		if !isManagedConfigYAML(relativePath) {
+		_, experimentTarget := experimentConfigPaths[normalizeConfigPath(relativePath)]
+		if !experimentTarget && !isManagedConfigYAML(relativePath) {
 			return nil
 		}
 		removed, err := removeConfigFileMissingFromSource(sourceRoot, targetRoot, relativePath)

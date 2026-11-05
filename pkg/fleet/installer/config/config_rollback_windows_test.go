@@ -77,6 +77,27 @@ func TestRemoveConfigFilesMissingFromSourcePreservesNestedUnmanagedYAML(t *testi
 	assert.FileExists(t, nestedUnmanaged)
 }
 
+func TestRemoveConfigFilesMissingFromSourceMatchesWindowsCasing(t *testing.T) {
+	for _, relativePath := range []string{
+		"DATADOG.YAML",
+		"Conf.d/new.d/config.yaml",
+		"Conf.d/snmp.d/Credentials/secret.YAML",
+		"Managed/Datadog-Agent/Stable/customer.YAML",
+	} {
+		t.Run(relativePath, func(t *testing.T) {
+			sourceDir := t.TempDir()
+			targetDir := t.TempDir()
+			configPath := filepath.Join(targetDir, filepath.FromSlash(relativePath))
+			require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0755))
+			require.NoError(t, os.WriteFile(configPath, []byte("enabled: true\n"), 0640))
+
+			// No manifest: the fallback matcher must also handle mixed-case paths.
+			require.NoError(t, removeConfigFilesMissingFromSource(sourceDir, targetDir))
+			assert.NoFileExists(t, configPath)
+		})
+	}
+}
+
 func TestRemoveConfigFilesMissingFromSourcePrunesEmptiedDirs(t *testing.T) {
 	sourceDir := t.TempDir()
 	targetDir := t.TempDir()

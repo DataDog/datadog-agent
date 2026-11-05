@@ -273,6 +273,11 @@ func TestWriteExperimentFailureRollsBack(t *testing.T) {
 			},
 			{
 				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/managed/custom/customer.yaml",
+				Patch:             []byte(`{"enabled":true}`),
+			},
+			{
+				FileOperationType: FileOperationMergePatch,
 				FilePath:          "/security-agent.yaml",
 				Patch:             []byte(`{`),
 			},
@@ -285,6 +290,7 @@ func TestWriteExperimentFailureRollsBack(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "log_level: info\n", string(content))
 	assert.NoFileExists(t, filepath.Join(stablePath, "security-agent.yaml"))
+	assert.NoFileExists(t, filepath.Join(stablePath, "managed", "custom", "customer.yaml"))
 	assert.NoDirExists(t, experimentPath)
 	assertDeploymentID(t, dirs, "", "")
 }
@@ -303,6 +309,113 @@ func TestRemoveExperimentDoesNotRestoreBackupWithoutDeploymentID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "promoted: true\n", string(content))
 	assert.NoDirExists(t, experimentPath)
+}
+
+func TestRemoveExperimentRevertsMixedCaseConfD(t *testing.T) {
+	stablePath := t.TempDir()
+	dirs := &Directories{StablePath: stablePath, ExperimentPath: filepath.Join(t.TempDir(), "experiment")}
+	confDir := filepath.Join(stablePath, "Conf.d")
+	require.NoError(t, os.MkdirAll(confDir, 0755))
+
+	require.NoError(t, dirs.WriteExperiment(t.Context(), Operations{
+		DeploymentID: "mixed-case-config",
+		FileOperations: []FileOperation{{
+			FileOperationType: FileOperationMergePatch,
+			FilePath:          "/conf.d/new.d/config.yaml",
+			Patch:             []byte(`{"enabled":true}`),
+		}},
+	}))
+	configPath := filepath.Join(confDir, "new.d", "config.yaml")
+	require.FileExists(t, configPath)
+
+	require.NoError(t, dirs.RemoveExperiment(t.Context()))
+	assert.NoFileExists(t, configPath)
+	assert.DirExists(t, confDir, "the pre-existing mixed-case directory must be preserved")
+}
+
+func TestRemoveExperimentRevertsManagedWriteTargets(t *testing.T) {
+	for _, operation := range []FileOperation{
+		{FileOperationType: FileOperationPatch, Patch: []byte(`[{"op":"add","path":"/enabled","value":true}]`)},
+		{FileOperationType: FileOperationMergePatch, Patch: []byte(`{"enabled":true}`)},
+		{FileOperationType: FileOperationJQ, Transform: `.enabled = true`},
+		{FileOperationType: FileOperationCopy},
+		{FileOperationType: FileOperationMove},
+	} {
+		t.Run(string(operation.FileOperationType), func(t *testing.T) {
+			stablePath := t.TempDir()
+			experimentPath := filepath.Join(t.TempDir(), "experiment")
+			managedDir := filepath.Join(stablePath, "managed", "Custom")
+			require.NoError(t, os.MkdirAll(managedDir, 0755))
+			sourcePath := filepath.Join(managedDir, "source.yaml")
+			existingPath := filepath.Join(managedDir, "existing.yaml")
+			require.NoError(t, os.WriteFile(sourcePath, []byte("source: true\n"), 0640))
+			require.NoError(t, os.WriteFile(existingPath, []byte("original: true\n"), 0640))
+
+			operation.FilePath = "/managed/custom/customer.yaml"
+			if operation.FileOperationType == FileOperationCopy || operation.FileOperationType == FileOperationMove {
+				operation.FilePath = "/managed/custom/source.yaml"
+				operation.DestinationPath = "/managed/custom/customer.yaml"
+			}
+			dirs := &Directories{StablePath: stablePath, ExperimentPath: experimentPath}
+			require.NoError(t, dirs.WriteExperiment(t.Context(), Operations{
+				DeploymentID: "custom-managed-config",
+				FileOperations: []FileOperation{
+					{FileOperationType: FileOperationMergePatch, FilePath: "/managed/custom/existing.yaml", Patch: []byte(`{"original":false}`)},
+					operation,
+				},
+			}))
+			configPath := filepath.Join(managedDir, "customer.yaml")
+			require.FileExists(t, configPath)
+			unrelatedPath := filepath.Join(managedDir, "unrelated.yaml")
+			require.NoError(t, os.WriteFile(unrelatedPath, []byte("unrelated: true\n"), 0640))
+
+			// A new instance must be able to roll back using only the persisted backup.
+			restarted := &Directories{StablePath: stablePath, ExperimentPath: experimentPath}
+			require.NoError(t, restarted.RemoveExperiment(t.Context()))
+			assert.NoFileExists(t, configPath)
+			assert.FileExists(t, unrelatedPath, "unrelated managed YAML added during the experiment must survive")
+			content, err := os.ReadFile(existingPath)
+			require.NoError(t, err)
+			assert.Equal(t, "original: true\n", string(content))
+			content, err = os.ReadFile(sourcePath)
+			require.NoError(t, err)
+			assert.Equal(t, "source: true\n", string(content), "a moved source must be restored")
+			assert.NoDirExists(t, experimentPath)
+			assert.NoFileExists(t, filepath.Join(stablePath, experimentConfigPathsFile))
+		})
+	}
+}
+
+func TestRemoveExperimentRetainsManifestForRetry(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := filepath.Join(t.TempDir(), "experiment")
+	dirs := &Directories{StablePath: stablePath, ExperimentPath: experimentPath}
+	require.NoError(t, dirs.WriteExperiment(t.Context(), Operations{
+		DeploymentID: "retry-managed-config",
+		FileOperations: []FileOperation{{
+			FileOperationType: FileOperationMergePatch,
+			FilePath:          "/managed/custom/customer.yaml",
+			Patch:             []byte(`{"enabled":true}`),
+		}},
+	}))
+	manifestPath := filepath.Join(experimentPath, experimentConfigPathsFile)
+	manifest, err := os.ReadFile(manifestPath)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(manifestPath, []byte(`{`), 0640))
+
+	err = dirs.RemoveExperiment(t.Context())
+	require.ErrorContains(t, err, "could not read experiment config paths")
+	assertDeploymentID(t, dirs, "", "retry-managed-config")
+	configPath := filepath.Join(stablePath, "managed", "custom", "customer.yaml")
+	assert.FileExists(t, configPath)
+	assert.FileExists(t, manifestPath)
+
+	require.NoError(t, os.WriteFile(manifestPath, manifest, 0640))
+	restarted := &Directories{StablePath: stablePath, ExperimentPath: experimentPath}
+	require.NoError(t, restarted.RemoveExperiment(t.Context()))
+	assert.NoFileExists(t, configPath)
+	assert.NoDirExists(t, experimentPath)
+	assertDeploymentID(t, restarted, "", "")
 }
 
 func TestSecureCreateTargetDirectoryWithSourcePermissions(t *testing.T) {
