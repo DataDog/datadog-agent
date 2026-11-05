@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"mvdan.cc/sh/v3/expand"
@@ -450,5 +451,39 @@ func TestCheckElevatedXargsChildRequiresGrant(t *testing.T) {
 				assert.Equal(t, test.denied, checkHasIssue(report, CheckElevationNotAllowed), "%+v", report)
 			}
 		})
+	}
+}
+
+// TestCheckHelpOfRemediationOnlyBuiltinMatchesRun asserts Check never approves
+// `help <cmd>` for a RemediationOnly builtin outside remediation mode when Run
+// refuses it. The builtins are enumerated from the registry so new ones are
+// covered.
+func TestCheckHelpOfRemediationOnlyBuiltinMatchesRun(t *testing.T) {
+	checkRunner(t) // registers the builtins
+	var names []string
+	for _, name := range builtins.Names() {
+		if meta, ok := builtins.Meta(name); ok && meta.RemediationOnly {
+			names = append(names, name)
+		}
+	}
+	require.NotEmpty(t, names)
+	for _, name := range names {
+		for _, mode := range []Mode{ModeReadOnly, ModeRemediation} {
+			t.Run(name+"/"+string(mode), func(t *testing.T) {
+				script := "help " + name
+				runner := checkRunner(t, allowAllCommandsOpt(), WithMode(mode))
+				result := checkScript(t, runner, script)
+				program, err := ParseScript(script, "")
+				require.NoError(t, err)
+				err = runner.Run(context.Background(), program)
+				assert.Equal(t, err == nil, result.Allowed, "%+v", result)
+				if mode == ModeReadOnly {
+					assert.False(t, result.Allowed, "%+v", result)
+					assert.True(t, checkHasIssue(result, CheckRemediationRequired), "%+v", result)
+				} else {
+					assert.True(t, result.Allowed, "%+v", result)
+				}
+			})
+		}
 	}
 }

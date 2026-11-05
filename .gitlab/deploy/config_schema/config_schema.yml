@@ -23,6 +23,7 @@ generate_config_templates:
     paths:
       - pkg/config/example/
     exclude:
+      - pkg/config/example/README.md
       - pkg/config/example/security-agent.yaml.example
       - pkg/config/example/application_monitoring.yaml.example
 

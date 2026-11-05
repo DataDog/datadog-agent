@@ -44,7 +44,16 @@ type groupedStats struct {
 
 // round a float to an int, uniformly choosing
 // between the lower and upper approximations.
+// NaN and values <= 0 round to 0; values not representable as uint64 saturate.
 func round(f float64) uint64 {
+	// Go leaves float-to-uint64 conversion of out-of-range values
+	// implementation-defined, so clamp before converting.
+	if !(f > 0) {
+		return 0
+	}
+	if f >= 1<<64 {
+		return math.MaxUint64
+	}
 	i := uint64(f)
 	if rand.Float64() < f-float64(i) {
 		i++

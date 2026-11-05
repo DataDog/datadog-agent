@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -60,7 +61,7 @@ func TestValidateReportsUnknownEnvVars(t *testing.T) {
 
 	cfg := NewNodeTreeConfig("datadog", model.CoreSchema)
 	cfg.BuildSchema()
-	cfg.(*ntmConfig).Validate()
+	cfg.(*ntmConfig).Validate(fakeValidator{}, true)
 
 	require.Contains(t, cfg.Warnings(), "Unknown environment variable: DD_UNKNOWN_ENV_TEST_VALIDATE")
 }
@@ -129,6 +130,71 @@ func TestVariousCodepoints(t *testing.T) {
 		for i, expectedCodepoint := range tc.expectedCodepoints {
 			assert.Contains(t, warnings[i], "'"+expectedCodepoint+"'")
 		}
+	}
+}
+
+// fakeValidator is a model.SchemaValidator returning a fixed result. Like the schema component, it returns its own
+// slice, so the violations marked as reverted by the configuration are visible in it.
+type fakeValidator struct {
+	violations []*model.Violation
+	err        error
+}
+
+func (f fakeValidator) ValidateConfig(model.Reader) ([]*model.Violation, error) {
+	return f.violations, f.err
+}
+
+func TestValidateRevertsSchemaViolations(t *testing.T) {
+	cfg := newUnicodeTestConfig(t, "api_key: 1234\nroot_element:\n  nestedKey: abc\n")
+	cfg.warnings = nil
+
+	violations := []*model.Violation{
+		{Message: "at '/api_key': got number, want string", SettingKey: "api_key"},
+		{Message: "invalid root"},
+	}
+	cfg.Validate(fakeValidator{violations: violations}, true)
+
+	// the reverted violation is marked in the validator's slice, a violation without setting can't be reverted
+	assert.True(t, violations[0].WasReverted())
+	assert.False(t, violations[1].WasReverted())
+	assert.Equal(t, "", cfg.GetString("api_key"))
+	assert.Equal(t, "abc", cfg.GetString("root_element.nestedKey"))
+	// Validate also reports unknown DD_* env vars, which depend on the test environment
+	assert.Subset(t, cfg.Warnings(), []string{
+		"invalid value for 'api_key', reverted to default. Error: `at '/api_key': got number, want string`",
+		"invalid configuration: `invalid root`",
+	})
+}
+
+func TestValidateWithoutSchemaEnforcement(t *testing.T) {
+	cfg := newUnicodeTestConfig(t, "api_key: 1234\n")
+	cfg.warnings = nil
+
+	violations := []*model.Violation{
+		{Message: "at '/api_key': got number, want string", SettingKey: "api_key"},
+		{Message: "invalid root"},
+	}
+	cfg.Validate(fakeValidator{violations: violations}, false)
+
+	// the invalid value is reported but kept
+	assert.False(t, violations[0].WasReverted())
+	assert.Equal(t, "1234", cfg.GetString("api_key"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("api_key"))
+	assert.Subset(t, cfg.Warnings(), []string{
+		"invalid value for 'api_key'. Error: `at '/api_key': got number, want string`",
+		"invalid configuration: `invalid root`",
+	})
+}
+
+func TestValidateSchemaError(t *testing.T) {
+	cfg := newUnicodeTestConfig(t, "api_key: abc\n")
+	cfg.warnings = nil
+
+	cfg.Validate(fakeValidator{err: errors.New("no schema")}, true)
+
+	assert.Equal(t, "abc", cfg.GetString("api_key"))
+	for _, warning := range cfg.Warnings() {
+		assert.NotContains(t, warning, "invalid")
 	}
 }
 
@@ -222,7 +288,7 @@ func TestUnexpectedWhitespace(t *testing.T) {
 
 func TestValidateReportsUnexpectedUnicode(t *testing.T) {
 	cfg := newUnicodeTestConfig(t, "api_key: fa\u202akeapikey\n")
-	cfg.Validate()
+	cfg.Validate(fakeValidator{}, true)
 
 	warnings := cfg.Warnings()
 	require.Len(t, warnings, 1)
