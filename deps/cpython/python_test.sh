@@ -3,7 +3,7 @@ set -euo pipefail
 
 python="$1"
 test_script="$2"
-modules_file="$3"
+script_arg="$3"
 shift 3
 
 # The modules are copied out of their Bazel output directory, which breaks their
@@ -15,4 +15,4 @@ for lib in "$@"; do
     esac
 done
 
-LD_LIBRARY_PATH="${lib_dirs}" DYLD_LIBRARY_PATH="${lib_dirs}" exec "${python}" -I "${test_script}" "${modules_file}"
+LD_LIBRARY_PATH="${lib_dirs}" DYLD_LIBRARY_PATH="${lib_dirs}" exec "${python}" -I "${test_script}" "${script_arg}"

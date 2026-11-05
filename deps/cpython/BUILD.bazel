@@ -4,6 +4,8 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_python//python:py_test.bzl", "py_test")
 
 exports_files([
+    "cxx_extension.cpp",
+    "cxx_extension_test.py",
     "gen_sysconfigdata.py",
     "python_test.py",
     "python_test.sh",
