@@ -228,6 +228,10 @@ func TestWriteIdentitySecret_CreatesSecret(t *testing.T) {
 	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
 	assert.NotEmpty(t, secret.Data[privateKeyField])
 	assert.Equal(t, "datadog-cluster-agent", secret.Labels["app.kubernetes.io/name"])
+	assert.NotContains(t, secret.Data, wifEnrolledField)
+	identity, err := parseSecretData(secret, "default", "par-identity")
+	require.NoError(t, err)
+	assert.False(t, identity.WIFEnrolled, "existing secrets without the marker remain readable")
 }
 
 func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {

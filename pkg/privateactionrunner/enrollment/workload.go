@@ -24,16 +24,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// EnrollWithWorkloadToken enrolls a new node runner using its primary intake WIF
+// EnrollWithWorkloadToken enrolls a new runner using its primary intake WIF
 // identity. Like API-key enrollment, the caller persists the key only on success.
 // It makes one attempt, without API-key fallback or existing-runner migration.
 func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth delegatedauth.Component, agentIdentifier *AgentIdentifier) (*Result, error) {
-	if flavor.GetFlavor() != flavor.DefaultAgent && flavor.GetFlavor() != flavor.PrivateActionRunner {
-		return nil, errors.New("WIF enrollment is only supported for node Agent runners")
+	agentFlavor := flavor.GetFlavor()
+	if agentFlavor != flavor.DefaultAgent && agentFlavor != flavor.PrivateActionRunner && agentFlavor != flavor.ClusterAgent {
+		return nil, errors.New("WIF enrollment is only supported for node Agent and Cluster Agent runners")
 	}
 	if auth == nil {
 		return nil, errors.New("WIF enrollment requires the delegated-auth component")
 	}
+	if agentFlavor == flavor.ClusterAgent && agentIdentifier.OrchClusterID == "" {
+		return nil, errors.New("WIF enrollment requires the orchestrator cluster ID for Cluster Agent runners")
+	}
+	runnerNamePrefix := getRunnerNamePrefix(ctx, agentIdentifier)
 	privateJWK, publicJWK, err := util.GenerateKeys()
 	if err != nil {
 		return nil, err
@@ -51,7 +56,12 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 		return nil, fmt.Errorf("request PAR enrollment workload token: %w", err)
 	}
 	ddSite := parconfig.Site(cfg)
-	runnerName := agentIdentifier.Hostname + "-" + time.Now().UTC().Format("20060102150405")
+	runnerName := runnerNamePrefix + "-" + time.Now().UTC().Format("20060102150405")
+	// Replicas share the cluster identity; it is not tied to a particular host.
+	enrollmentHostname := agentIdentifier.Hostname
+	if agentFlavor == flavor.ClusterAgent {
+		enrollmentHostname = ""
+	}
 	endpoint, err := parconfig.APIBaseURL(cfg, ddSite)
 	if err != nil {
 		return nil, err
@@ -61,18 +71,20 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 		RunnerName:    runnerName,
 		RunnerModes:   []modes.Mode{modes.ModePull},
 		PublicKeyPEM:  publicPEM,
-		AgentHostname: agentIdentifier.Hostname,
-		AgentFlavor:   flavor.GetFlavor(),
+		AgentHostname: enrollmentHostname,
+		OrchClusterID: agentIdentifier.OrchClusterID,
+		AgentFlavor:   agentFlavor,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &Result{
-		PrivateKey:  privateJWK.Key.(*ecdsa.PrivateKey),
-		URN:         util.MakeRunnerURN(regions.GetRegionFromDDSite(ddSite), response.OrgID, response.RunnerID),
-		Hostname:    agentIdentifier.Hostname,
-		RunnerName:  runnerName,
-		WIFEnrolled: true,
+		PrivateKey:    privateJWK.Key.(*ecdsa.PrivateKey),
+		URN:           util.MakeRunnerURN(regions.GetRegionFromDDSite(ddSite), response.OrgID, response.RunnerID),
+		Hostname:      enrollmentHostname,
+		OrchClusterID: agentIdentifier.OrchClusterID,
+		RunnerName:    runnerName,
+		WIFEnrolled:   true,
 		// No APIKeyHash: this identity is authorized by WIF, not the rotating intake key.
 	}, nil
 }

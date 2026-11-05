@@ -34,6 +34,7 @@ const (
 	urnField           = "urn"
 	orchClusterIDField = "orch_cluster_id"
 	apiKeyHashField    = "api_key_hash"
+	wifEnrolledField   = "wif_enrolled"
 	secretPollInterval = 1 * time.Second
 )
 
@@ -148,6 +149,7 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 		URN:           string(urn),
 		OrchClusterID: string(secret.Data[orchClusterIDField]),
 		APIKeyHash:    string(secret.Data[apiKeyHashField]),
+		WIFEnrolled:   string(secret.Data[wifEnrolledField]) == "true",
 	}, nil
 }
 
@@ -173,6 +175,9 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		urnField:           []byte(result.URN),
 		orchClusterIDField: []byte(result.OrchClusterID),
 		apiKeyHashField:    []byte(result.APIKeyHash),
+	}
+	if result.WIFEnrolled {
+		data[wifEnrolledField] = []byte("true")
 	}
 
 	newSecret := &corev1.Secret{
