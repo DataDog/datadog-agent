@@ -2682,6 +2682,7 @@ type line struct {
 	pc          uint64
 	line        uint32
 	isStatement bool
+	endSequence bool
 }
 
 type lineData struct {
@@ -8547,21 +8548,29 @@ func pickLineInjectionPC(
 			return 0, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
 				r[0], r[1])
 		}
-		for _, l := range lines.lines {
-			if l.pc < r[0] {
-				continue
-			}
+		for i, l := range lines.lines {
 			if l.pc >= r[1] {
 				break
 			}
-			if l.line == uint32(line) {
-				if l.isStatement {
-					// Statements are preferred as injection points.
-					return l.pc, ir.Issue{}, nil
+			if l.endSequence || l.line != uint32(line) {
+				continue
+			}
+			pc := l.pc
+			if pc < r[0] {
+				// A row's line state lasts until the next row, which may be
+				// an end-of-sequence marker. Use the inline range start only
+				// when that state still covers it, never the predecessor PC.
+				if i+1 < len(lines.lines) && lines.lines[i+1].pc <= r[0] {
+					continue
 				}
-				if nonStmtPc == 0 {
-					nonStmtPc = l.pc
-				}
+				pc = r[0]
+			}
+			if l.isStatement && pc == l.pc {
+				// Prefer genuine statement boundaries over inherited state.
+				return pc, ir.Issue{}, nil
+			}
+			if nonStmtPc == 0 {
+				nonStmtPc = pc
 			}
 		}
 	}
@@ -8913,6 +8922,7 @@ func collectLineDataForRange(
 			pc:          lineEntry.Address,
 			line:        uint32(lineEntry.Line),
 			isStatement: lineEntry.IsStmt,
+			endSequence: lineEntry.EndSequence,
 		})
 		if err := lineReader.Next(&lineEntry); err != nil {
 			return lineData{err: err}

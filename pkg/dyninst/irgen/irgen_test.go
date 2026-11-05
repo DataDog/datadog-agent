@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 func TestCompileUnitFromNameCases(t *testing.T) {
@@ -52,4 +54,136 @@ func TestCompileUnitFromNameCases(t *testing.T) {
 		})
 	}
 
+}
+
+func TestPickLineInjectionPC(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		lines  []line
+		ranges []ir.PCRange
+		want   uint64
+	}{
+		{
+			name: "inherited matching row",
+			lines: []line{
+				{pc: 10, line: 9, isStatement: true},
+				{pc: 30, line: 10},
+			},
+			want: 20,
+		},
+		{
+			name:  "inherited final row",
+			lines: []line{{pc: 10, line: 9}},
+			want:  20,
+		},
+		{
+			name:  "inherited mismatching row",
+			lines: []line{{pc: 10, line: 8}},
+		},
+		{
+			name: "superseded matching row",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 15, line: 8},
+			},
+		},
+		{
+			name: "row ends at range start",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 20, line: 8},
+			},
+		},
+		{
+			name: "gap after sequence end",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 15, line: 9, isStatement: true, endSequence: true},
+				{pc: 25, line: 8},
+			},
+		},
+		{
+			name: "sequence ends at range start",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 20, line: 9, isStatement: true, endSequence: true},
+			},
+		},
+		{
+			name: "sequence ends inside range",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 25, line: 9, isStatement: true, endSequence: true},
+			},
+			want: 20,
+		},
+		{
+			name: "new sequence at range start",
+			lines: []line{
+				{pc: 10, line: 8},
+				{pc: 20, endSequence: true},
+				{pc: 20, line: 9, isStatement: true},
+			},
+			want: 20,
+		},
+		{
+			name: "superseded row at same address",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 10, line: 8},
+			},
+		},
+		{
+			name:  "row starts at range end",
+			lines: []line{{pc: 30, line: 9, isStatement: true}},
+		},
+		{
+			name:  "row starts at range start",
+			lines: []line{{pc: 20, line: 9, isStatement: true}},
+			want:  20,
+		},
+		{
+			name: "prefer statement over inherited row",
+			lines: []line{
+				{pc: 10, line: 9, isStatement: true},
+				{pc: 25, line: 9, isStatement: true},
+			},
+			want: 25,
+		},
+		{
+			name: "prefer statement in later range",
+			lines: []line{
+				{pc: 10, line: 9, isStatement: true},
+				{pc: 45, line: 9, isStatement: true},
+			},
+			ranges: []ir.PCRange{{20, 30}, {40, 50}},
+			want:   45,
+		},
+		{
+			name: "first nonstatement fallback",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 25, line: 9},
+			},
+			want: 20,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ranges := tc.ranges
+			if ranges == nil {
+				ranges = []ir.PCRange{{20, 30}}
+			}
+			root := ir.PCRange{10, 60}
+			pc, issue, err := pickLineInjectionPC(9, ranges, []ir.PCRange{root}, map[ir.PCRange]lineData{
+				root: {lines: tc.lines},
+			})
+			require.NoError(t, err)
+			if tc.want == 0 {
+				require.Equal(t, ir.IssueKindInvalidProbeDefinition, issue.Kind)
+			} else {
+				require.True(t, issue.IsNone(), "%v", issue)
+			}
+			require.Equal(t, tc.want, pc)
+		})
+	}
 }
