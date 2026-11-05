@@ -59,12 +59,13 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
 }
 
 static __always_inline int handle_execve_exit() {
+    pop_current_or_impersonated_exec_syscall();
+
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
     struct exec_pid_transfer_t *transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
     if (transfer && transfer->task == bpf_get_current_task()) {
         bpf_map_delete_elem(&exec_pid_transfer, &tgid);
     }
-    pop_syscall(EVENT_EXEC);
     return 0;
 }
 
@@ -344,8 +345,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
 
 static __always_inline int coredump_common() {
-    // the core can be dumped by any thread of the process, but the flag is only read when the
-    // thread group leader exits, so key it with the pid_tgid of the leader
+    // the core can be dumped by any thread of the process, so key it at the thread-group level
     u64 tgid = bpf_get_current_pid_tgid() >> 32;
     u64 key = (tgid << 32) | tgid;
     u8 in_coredump = 1;
@@ -370,6 +370,7 @@ static __always_inline int handle_exit_group_dead(ctx_t *ctx) {
     u32 pid = pid_tgid;
 
     if (IS_KERNEL_THREAD(pid)) {
+        bpf_map_delete_elem(&kernel_thread_pids, &pid);
         return 0;
     }
 
@@ -436,7 +437,6 @@ int hook_do_exit(ctx_t *ctx) {
     u32 pid = pid_tgid;
 
     if (IS_KERNEL_THREAD(pid)) {
-        bpf_map_delete_elem(&kernel_thread_pids, &pid);
         return 0;
     }
 
@@ -456,7 +456,7 @@ int hook_do_exit(ctx_t *ctx) {
     u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &coredump_key);
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
     if (pid_entry) {
-        if (!in_coredump || exit_code != 0) {
+        if (exit_code != 0 || (tgid == pid && !in_coredump)) {
             pid_entry->exit_code = exit_code;
         }
     } else if (!is_current_kworker_dying()) {
