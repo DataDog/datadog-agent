@@ -487,6 +487,57 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate(
 	suite.Equal("third", string(msg.GetContent()))
 }
 
+// After a rotation the old tailer keeps reading the same path alongside its replacement until it
+// drains or close_timeout elapses. The status page must list both while that lasts.
+func (suite *BaseLauncherTestSuite) TestStatusShowsRotatedTailerWhileDraining() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetInTest("logs_config.close_timeout", 1) // seconds
+
+	s := createLauncher(suite.T(), launcherTestOptions{})
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	defer s.cleanup()
+	tracker := tailers.NewTailerTracker()
+	s.registerTailers(tracker)
+	scan := func() {
+		s.resolveScan(s.fileProvider.FilesToTail(context.Background(), s.validatePodContainerID, s.activeSources, s.registry))
+	}
+	statusIDs := func() []string {
+		ids := []string{}
+		for _, t := range tracker.All() {
+			ids = append(ids, t.GetID())
+		}
+		return ids
+	}
+	scanKey := getScanKey(suite.testPath, suite.source)
+
+	scan()
+	_, err := suite.testFile.WriteString("hello world\n")
+	suite.Require().NoError(err)
+	suite.Equal("hello world", string((<-suite.outputChan).GetContent()))
+	suite.Equal([]string{scanKey}, statusIDs())
+
+	// copytruncate: the file is truncated in place, so both tailers read the very same file.
+	suite.Require().NoError(suite.testFile.Truncate(0))
+	_, err = suite.testFile.Seek(0, 0)
+	suite.Require().NoError(err)
+	_, err = suite.testFile.WriteString("third\n")
+	suite.Require().NoError(err)
+	suite.Require().NoError(suite.testFile.Sync())
+	scan()
+	suite.Equal("third", string((<-suite.outputChan).GetContent()))
+
+	suite.Require().Len(s.rotatedTailers, 1, "the old tailer should still be draining")
+	suite.ElementsMatch([]string{scanKey, scanKey + rotatedTailerIDSuffix}, statusIDs())
+
+	// Once the rotated tailer has drained and the next scan cleans it up, only its replacement is listed.
+	suite.Require().Eventually(s.rotatedTailers[0].IsFinished, 10*time.Second, 50*time.Millisecond)
+	scan()
+	suite.Equal([]string{scanKey}, statusIDs())
+}
+
 func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 	s := suite.s
 	tailerLen := s.tailers.Count()

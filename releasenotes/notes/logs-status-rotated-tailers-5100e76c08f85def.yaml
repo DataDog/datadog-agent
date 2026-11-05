@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The verbose logs agent status (``agent status -v``) now lists file tailers that are still
+    draining a rotated file next to the tailer that replaced them, marked ``(rotated, draining)``.
+    Before, only one tailer appeared per file, even while two were reading the same path.

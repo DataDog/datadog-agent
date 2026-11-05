@@ -38,6 +38,10 @@ import (
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
 
+// rotatedTailerIDSuffix marks, on the status page, a tailer that is still draining a rotated file
+// while its replacement tails the same path.
+const rotatedTailerIDSuffix = " (rotated, draining)"
+
 // Launcher checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Launcher struct {
@@ -78,6 +82,10 @@ type Launcher struct {
 	// Keep the exact message recipients: a tailer's ReplaceableSource can change before cleanup.
 	fingerprintRotationErrors map[string]*config.Messages
 	stopOnce                  sync.Once
+
+	// Guards writes to rotatedTailers, which only the launcher goroutine makes, against the status
+	// page reading it concurrently. See rotatedTailersView.
+	rotatedTailersMu sync.RWMutex
 }
 
 const (
@@ -143,8 +151,56 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType, s.addedSourcesDone, s.removedSourcesDone)
 	s.registry = registry
-	tracker.Add(s.tailers)
+	s.registerTailers(tracker)
 	go s.run()
+}
+
+// registerTailers makes the launcher's tailers visible to the status page through tracker.
+func (s *Launcher) registerTailers(tracker *tailers.TailerTracker) {
+	tracker.Add(s.tailers)
+	tracker.Add(rotatedTailersView{s})
+}
+
+// setRotatedTailers replaces the list of tailers still draining a rotated file.
+func (s *Launcher) setRotatedTailers(rotated []*tailer.Tailer) {
+	s.rotatedTailersMu.Lock()
+	s.rotatedTailers = rotated
+	s.rotatedTailersMu.Unlock()
+}
+
+// addRotatedTailer keeps track of a tailer that drains a rotated file until it is finished.
+func (s *Launcher) addRotatedTailer(t *tailer.Tailer) {
+	s.rotatedTailersMu.Lock()
+	s.rotatedTailers = append(s.rotatedTailers, t)
+	s.rotatedTailersMu.Unlock()
+}
+
+// rotatedTailersView exposes the tailers still draining a rotated file to the status page. They
+// read the same path as the tailer that replaced them, which is in the launcher's tailers
+// container under the same ID, so they are listed under a suffixed ID to tell them apart.
+type rotatedTailersView struct {
+	launcher *Launcher
+}
+
+// Tailers implements tailers.AnyTailerContainer.
+func (v rotatedTailersView) Tailers() []tailers.Tailer {
+	v.launcher.rotatedTailersMu.RLock()
+	defer v.launcher.rotatedTailersMu.RUnlock()
+	result := make([]tailers.Tailer, 0, len(v.launcher.rotatedTailers))
+	for _, t := range v.launcher.rotatedTailers {
+		result = append(result, rotatedTailerStatus{t})
+	}
+	return result
+}
+
+// rotatedTailerStatus is a tailer draining a rotated file, as listed on the status page.
+type rotatedTailerStatus struct {
+	*tailer.Tailer
+}
+
+// GetID returns the tailer's ID, marked as draining a rotated file.
+func (t rotatedTailerStatus) GetID() string {
+	return t.Tailer.GetID() + rotatedTailerIDSuffix
 }
 
 // Stop stops the Scanner and its tailers in parallel,
@@ -217,7 +273,7 @@ func (s *Launcher) cleanup() {
 	for _, tailer := range s.rotatedTailers {
 		stopper.Add(tailer)
 	}
-	s.rotatedTailers = []*tailer.Tailer{}
+	s.setRotatedTailers([]*tailer.Tailer{})
 	for _, tailer := range s.tailers.All() {
 		stopper.Add(tailer)
 		s.tailers.Remove(tailer)
@@ -480,7 +536,7 @@ func (s *Launcher) cleanUpRotatedTailers() {
 			pendingTailers = append(pendingTailers, tailer)
 		}
 	}
-	s.rotatedTailers = pendingTailers
+	s.setRotatedTailers(pendingTailers)
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -719,7 +775,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
 
-	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+	s.addRotatedTailer(oldTailer)
 
 	return false // Will return false regardless and we will let scan() handle it
 }
@@ -746,7 +802,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 
 	// Since newTailer and oldTailer share the same ID, tailers.Add will replace the old tailer.
 	// We will keep track of the rotated tailer until it is finished.
-	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+	s.addRotatedTailer(oldTailer)
 	s.tailers.Add(newTailer)
 
 	return true
