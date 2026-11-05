@@ -31,7 +31,7 @@ still has them:
 - emSign ECC Root CA - C3
 
 It refuses to install a result that is missing USERTrust RSA Certification
-Authority or DigiCert Global Root G2.
+Authority or DigiCert Global Root G2, or that OpenSSL cannot load.
 
 Each replaced file is copied to `<file>.pre-cert-update-<YYYYmmddHHMMSS>`
 beside it. On Linux, mode and owner are kept. On Windows the new file inherits
@@ -102,8 +102,9 @@ context.
 
 `tests/test_update.sh` runs the script against a fake install built from a
 Mozilla extract at `/tmp/cacert-latest.pem` (override with `CACERT_SRC`). It
-covers dry run, apply, mode preservation, skipped symlinks and small files, a
-no-op second apply, and rollback.
+covers refusing a source OpenSSL cannot load, dry run, apply, mode
+preservation, skipped symlinks and small files, a no-op second apply, and
+rollback.
 
 ## Checked on Agent 7.84.5
 

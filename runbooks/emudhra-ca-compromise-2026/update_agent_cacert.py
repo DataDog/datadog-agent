@@ -14,6 +14,7 @@ import hashlib
 import os
 import re
 import shutil
+import ssl
 import sys
 import tempfile
 import time
@@ -114,6 +115,11 @@ def clean_bundle(text):
     missing = [name for fp, name in REQUIRED.items() if fp not in fps]
     if missing:
         die("cleaned bundle is missing {}".format(", ".join(missing)))
+    # Only the PEM blocks: cadata must be ASCII, and Mozilla's comments are not.
+    try:
+        ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_verify_locations(cadata="\n".join(BLOCK.findall(cleaned)))
+    except (ssl.SSLError, ValueError) as exc:
+        die(f"cleaned bundle does not load in OpenSSL ({exc}); nothing written")
     return cleaned, removed, len(matches), len(fps)
 
 

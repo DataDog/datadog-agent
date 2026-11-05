@@ -60,6 +60,19 @@ assert set(got) == want and len(got) == len(want), (len(got), len(want))
 PY
 }
 
+echo "=== a source OpenSSL cannot load is refused ==="
+BAD=$WORK/bad.pem
+{ cat "$SRC"; echo "-----BEGIN CERTIFICATE-----"; printf 'not a certificate' | base64; echo "-----END CERTIFICATE-----"; } > "$BAD"
+if "$PY" "$ROOT/update_agent_cacert.py" -c "$BAD" -p "$install"; then
+  echo "corrupt source was accepted" >&2
+  exit 1
+fi
+cmp -s "$ORIG" "$install/embedded/ssl/certs/cacert.pem"
+if ls "$install/embedded/ssl/certs"/cacert.pem.pre-cert-update-* 2>/dev/null; then
+  echo "backup written for a refused source" >&2
+  exit 1
+fi
+
 echo "=== dry run ==="
 out=$("$PY" "$ROOT/update_agent_cacert.py" -n -c "$SRC" -p "$install")
 echo "$out"
