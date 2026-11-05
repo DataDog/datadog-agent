@@ -1,9 +1,5 @@
 ---
 fixes:
   - |
-    The logs agent status now reports when several tailers read the same file.
-    When configured paths lead to the same file (overlapping log configurations,
-    symlinks or hardlinks), each source involved shows a message naming the other
-    tailers, since the file's logs are sent once per tailer. The verbose status
-    (``agent status -v``) also lists tailers still draining a rotated file next to
-    the tailer that replaced them, marked ``(rotated, draining)``.
+    The logs agent status now warns when several tailers read the same file,
+    which sends its logs more than once.

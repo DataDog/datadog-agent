@@ -488,27 +488,16 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate(
 	suite.Equal("third", string(msg.GetContent()))
 }
 
-// After a rotation the old tailer keeps reading the same path alongside its replacement until it
-// drains or close_timeout elapses. The status page must list both while that lasts.
-func (suite *BaseLauncherTestSuite) TestStatusShowsRotatedTailerWhileDraining() {
+// After a copytruncate the old tailer keeps draining the truncated file while its replacement
+// rereads it from the start, until it drains or close_timeout elapses. Status must say so.
+func (suite *BaseLauncherTestSuite) TestStatusReportsTailerDrainingTruncatedFile() {
 	s := suite.s
-	tracker := tailers.NewTailerTracker()
-	s.registerTailers(tracker)
-	statusIDs := func() []string {
-		ids := []string{}
-		for _, t := range tracker.All() {
-			ids = append(ids, t.GetID())
-		}
-		return ids
-	}
 	scanKey := getScanKey(suite.testPath, suite.source)
 
 	_, err := suite.testFile.WriteString("hello world\n")
 	suite.Require().NoError(err)
 	suite.Equal("hello world", string((<-suite.outputChan).GetContent()))
-	suite.Equal([]string{scanKey}, statusIDs())
 
-	// copytruncate: the file is truncated in place, so both tailers read the very same file.
 	suite.Require().NoError(suite.testFile.Truncate(0))
 	_, err = suite.testFile.Seek(0, 0)
 	suite.Require().NoError(err)
@@ -520,12 +509,13 @@ func (suite *BaseLauncherTestSuite) TestStatusShowsRotatedTailerWhileDraining() 
 
 	// The default close_timeout keeps the old tailer draining for the rest of the test.
 	suite.Require().Len(s.rotatedTailers, 1, "the old tailer should still be draining")
-	suite.ElementsMatch([]string{scanKey, scanKey + rotatedTailerIDSuffix}, statusIDs())
-	suite.Len(suite.source.Messages.GetMessages(), 2, "both tailers read the truncated file, each one must say so")
+	messages := suite.source.Messages.GetMessages()
+	suite.Require().Len(messages, 2, "both tailers read the truncated file, each one must say so")
+	suite.Contains(strings.Join(messages, "\n"), scanKey+drainingTailerSuffix)
 
-	// Stopping the launcher stops and forgets every tailer, draining ones included.
+	// Stopping the launcher stops every tailer and clears the messages.
 	s.cleanup()
-	suite.Empty(statusIDs())
+	suite.Empty(suite.source.Messages.GetMessages())
 }
 
 func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
@@ -2077,7 +2067,7 @@ func TestStatusReportsDrainingTailerSharingRotatedFile(t *testing.T) {
 	require.Equal(t, 2, launcher.tailers.Count(), "a tailer for the new file and one for the rotated name")
 
 	require.Len(t, rotatedSource.Messages.GetMessages(), 1)
-	assert.Contains(t, rotatedSource.Messages.GetMessages()[0], path+rotatedTailerIDSuffix)
+	assert.Contains(t, rotatedSource.Messages.GetMessages()[0], path+drainingTailerSuffix)
 	require.Len(t, source.Messages.GetMessages(), 1, "only the draining tailer shares a file, not the one on the new file")
 	assert.Contains(t, source.Messages.GetMessages()[0], rotatedPath)
 }
