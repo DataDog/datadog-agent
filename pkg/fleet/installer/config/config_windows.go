@@ -74,6 +74,10 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 	err = operations.Apply(ctx, d.StablePath)
 	if err != nil {
+		// No watchdog runs for a failed write, so restore stable now.
+		if rollbackErr := d.RemoveExperiment(ctx); rollbackErr != nil {
+			return fmt.Errorf("error applying operations: %w (rollback failed: %w)", err, rollbackErr)
+		}
 		return fmt.Errorf("error applying operations: %w", err)
 	}
 	return nil

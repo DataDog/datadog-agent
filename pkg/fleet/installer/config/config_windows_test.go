@@ -256,7 +256,7 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertDeploymentID(t, dirs, "experiment-789", "")
 }
 
-func TestWriteExperimentFailureCanBeRolledBack(t *testing.T) {
+func TestWriteExperimentFailureRollsBack(t *testing.T) {
 	stablePath := t.TempDir()
 	experimentPath := filepath.Join(t.TempDir(), "experiment")
 	stableConfigPath := filepath.Join(stablePath, "datadog.yaml")
@@ -279,16 +279,13 @@ func TestWriteExperimentFailureCanBeRolledBack(t *testing.T) {
 		},
 	})
 	require.Error(t, err)
-	assertDeploymentID(t, dirs, "", "failed-experiment")
+	assert.NotContains(t, err.Error(), "rollback failed")
 
 	content, err := os.ReadFile(stableConfigPath)
 	require.NoError(t, err)
-	assert.Equal(t, "log_level: debug\n", string(content))
-
-	require.NoError(t, dirs.RemoveExperiment(t.Context()))
-	content, err = os.ReadFile(stableConfigPath)
-	require.NoError(t, err)
 	assert.Equal(t, "log_level: info\n", string(content))
+	assert.NoFileExists(t, filepath.Join(stablePath, "security-agent.yaml"))
+	assert.NoDirExists(t, experimentPath)
 	assertDeploymentID(t, dirs, "", "")
 }
 
