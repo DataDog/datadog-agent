@@ -126,6 +126,32 @@ func TestBuildIntakeURL(t *testing.T) {
 			ddURL:    "https://custom.example.com",
 			expected: "https://custom.example.com/api/v2/agenthealth",
 		},
+		{
+			name:     "dd_url on a Datadog main intake is mapped to the health intake",
+			ddURL:    "https://agent.datad0g.com",
+			expected: "https://agenthealth-intake.datad0g.com./api/v2/agenthealth",
+		},
+		{
+			name:     "versioned dd_url is mapped to the health intake",
+			ddURL:    "https://7-85-0-app.agent.datadoghq.com",
+			expected: "https://agenthealth-intake.datadoghq.com./api/v2/agenthealth",
+		},
+		{
+			name:     "dd_url site wins over site",
+			site:     "datadoghq.eu",
+			ddURL:    "https://app.us3.datadoghq.com",
+			expected: "https://agenthealth-intake.us3.datadoghq.com./api/v2/agenthealth",
+		},
+		{
+			name:     "MRF customer alias is kept as-is",
+			ddURL:    "https://acme.mrf.datadoghq.com",
+			expected: "https://acme.mrf.datadoghq.com/api/v2/agenthealth",
+		},
+		{
+			name:     "proxy dd_url with trailing slash",
+			ddURL:    "https://proxy.internal:3834/",
+			expected: "https://proxy.internal:3834/api/v2/agenthealth",
+		},
 	}
 
 	for _, tt := range tests {

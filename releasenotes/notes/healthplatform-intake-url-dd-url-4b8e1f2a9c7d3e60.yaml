@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Health Platform: when ``dd_url`` points at a Datadog site (for example
+    ``https://app.us3.datadoghq.com``), health reports are now sent to the
+    health platform intake of that site instead of to ``dd_url`` itself, which
+    rejected them with a 404 and logged a ``Health platform egress: failed to
+    send`` warning on every report. Proxies, custom domains, and customer
+    Multi-Region Failover aliases set in ``dd_url`` are still used as-is.

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -97,9 +98,31 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 	return len(payload), nil
 }
 
+// buildIntakeURL returns the URL health reports are POSTed to.
+//
+// `dd_url` is the main (metrics) intake override. Using it verbatim would send health reports to an
+// intake that does not serve /api/v2/agenthealth (e.g. "https://agent.datad0g.com" answers 404), so
+// when it is set the base URL is derived from it by intakeBaseFromDDURL instead.
 func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
-	baseURL := configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
-	return baseURL + intakeEndpointPath
+	if ddURL := strings.TrimSpace(cfg.GetString("dd_url")); cfg.IsConfigured("dd_url") && ddURL != "" {
+		return intakeBaseFromDDURL(ddURL) + intakeEndpointPath
+	}
+	return configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url") + intakeEndpointPath
+}
+
+// intakeBaseFromDDURL maps a configured `dd_url` to the base URL of the health platform intake.
+//
+// A Datadog-hosted URL (e.g. "https://agent.datad0g.com", "https://app.us3.datadoghq.com") is mapped
+// to the health intake of the same site. Customer-specific Multi-Region Failover aliases, proxies and
+// custom domains are kept as-is: the alias's site does not tell where the org lives, and a proxy is
+// expected to route the request itself.
+func intakeBaseFromDDURL(ddURL string) string {
+	if !configutils.IsMRFAliasURL(ddURL) {
+		if site := configutils.ExtractSiteFromURL(ddURL); site != "" {
+			return configutils.BuildURLWithPrefix(intakeEndpointPrefix, site)
+		}
+	}
+	return strings.TrimRight(ddURL, "/")
 }
 
 func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
