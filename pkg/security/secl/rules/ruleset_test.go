@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
@@ -1083,7 +1083,7 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 
 func TestGetRuleEventType(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		pc := ast.NewParsingContext(false)
+		pc := parser.NewParsingContext(false)
 		rule, err := eval.NewRule("aaa", `open.file.name == "test"`, pc, &eval.Opts{})
 		if err != nil {
 			t.Fatal(err)
@@ -1114,7 +1114,7 @@ func TestGetRuleEventType(t *testing.T) {
 	})
 
 	t.Run("ko", func(t *testing.T) {
-		pc := ast.NewParsingContext(false)
+		pc := parser.NewParsingContext(false)
 		rule, err := eval.NewRule("aaa", `open.file.name == "test" && unlink.file.name == "123"`, pc, &eval.Opts{})
 		if err != nil {
 			t.Fatal(err)
