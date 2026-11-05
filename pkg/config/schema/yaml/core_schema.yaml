@@ -8482,7 +8482,7 @@ properties:
       refresh_interval:
         node_type: setting
         type: string
-        default: 6h0m0s
+        default: 10m
         format: duration
         description: How often routing decisions are refreshed. Jittered by 10 percent, with a
           minimum of 1m.
