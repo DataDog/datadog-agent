@@ -31,25 +31,28 @@ func TestTheMacOSDaemonIsOptIn(t *testing.T) {
 	assert.True(t, daemonEnabledOnPlatform(cfg))
 }
 
-// TestTheMacOSDaemonNeedsRemoteUpdatesAndTheOptIn pins that the daemon runs only with both set.
-func TestTheMacOSDaemonNeedsRemoteUpdatesAndTheOptIn(t *testing.T) {
+// TestTheMacOSDaemonNeedsRemoteUpdatesTheOptInAndRemoteConfiguration pins that the daemon runs only
+// with all three set.
+func TestTheMacOSDaemonNeedsRemoteUpdatesTheOptInAndRemoteConfiguration(t *testing.T) {
 	for _, tc := range []struct {
-		remoteUpdates, optIn, enabled bool
+		remoteUpdates, optIn, remoteConfiguration, enabled bool
 	}{
-		{remoteUpdates: true, optIn: true, enabled: true},
-		{remoteUpdates: true, optIn: false, enabled: false},
-		{remoteUpdates: false, optIn: true, enabled: false},
-		{remoteUpdates: false, optIn: false, enabled: false},
+		{remoteUpdates: true, optIn: true, remoteConfiguration: true, enabled: true},
+		{remoteUpdates: true, optIn: true, remoteConfiguration: false, enabled: false},
+		{remoteUpdates: true, optIn: false, remoteConfiguration: true, enabled: false},
+		{remoteUpdates: false, optIn: true, remoteConfiguration: true, enabled: false},
+		{remoteUpdates: false, optIn: false, remoteConfiguration: true, enabled: false},
 	} {
 		cfg := configmock.New(t)
 		cfg.SetInTest("remote_updates", tc.remoteUpdates)
 		cfg.SetInTest(macOSFleetEnabledKey, tc.optIn)
-		assert.Equal(t, tc.enabled, daemonEnabled(cfg), "remote_updates=%t opt-in=%t", tc.remoteUpdates, tc.optIn)
+		cfg.SetInTest("remote_configuration.enabled", tc.remoteConfiguration)
+		assert.Equal(t, tc.enabled, daemonEnabled(cfg), "remote_updates=%t opt-in=%t remote_configuration=%t", tc.remoteUpdates, tc.optIn, tc.remoteConfiguration)
 	}
 }
 
 // TestTheMacOSDaemonChecksTheOptInBeforeStarting pins that the check reads datadog.yaml without the
-// daemon's components, so a host with remote configuration disabled and no opt-in exits cleanly
+// daemon's components, so a host with remote configuration disabled exits cleanly, opted in or not,
 // instead of failing to build the updater.
 func TestTheMacOSDaemonChecksTheOptInBeforeStarting(t *testing.T) {
 	for _, tc := range []struct {
@@ -59,6 +62,7 @@ func TestTheMacOSDaemonChecksTheOptInBeforeStarting(t *testing.T) {
 		enabled             bool
 	}{
 		{name: "not opted in, remote configuration disabled", remoteConfiguration: false, optIn: false},
+		{name: "opted in, remote configuration disabled", remoteConfiguration: false, optIn: true},
 		{name: "opted in", remoteConfiguration: true, optIn: true, enabled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
