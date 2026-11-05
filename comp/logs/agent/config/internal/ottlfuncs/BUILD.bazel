@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ottlfuncs",
+    srcs = [
+        "doc.go",
+        "func_double.go",
+        "func_has_prefix.go",
+        "func_has_suffix.go",
+        "func_int.go",
+        "func_is_bool.go",
+        "func_is_double.go",
+        "func_is_int.go",
+        "func_is_list.go",
+        "func_is_map.go",
+        "func_is_match.go",
+        "func_is_string.go",
+        "func_len.go",
+        "func_replace_match.go",
+        "func_replace_pattern.go",
+        "func_set.go",
+        "func_string.go",
+        "regex_helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config/internal/ottlfuncs",
+    visibility = [
+        "//comp/logs/agent/config:__subpackages__",
+        "@com_github_datadog_datadog_agent_comp_logs_agent_config//:__subpackages__",
+    ],
+    deps = [
+        "@com_github_gobwas_glob//:glob",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//:ottl",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)

@@ -14,10 +14,11 @@ import (
 	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 	"github.com/valyala/fastjson"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config/internal/ottlfuncs"
 )
 
 func compileOTTLMaskStatement(pattern string) (*OTTLStatement, error) {

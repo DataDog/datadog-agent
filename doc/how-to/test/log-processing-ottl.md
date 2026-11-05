@@ -256,3 +256,45 @@ serialization are timed, while compilation and building the input are excluded.
 These synthetic context benchmarks exclude Agent envelope encoding and network
 costs. They do not compare masking against fastjq or VRL. Raw output is in
 bin/benchmarks/ottl-filtering/masking-benchmarks.log in the experiment checkout.
+
+## Reducing unused function dependencies (2026-11-05)
+
+CI for commit `e236d4e1d07253d8078a3c38fc3c9f7dc79be9c5` reported large
+on-disk package increases. Registering a limited set of functions did not prevent
+upstream `ottlfuncs` from importing XML, grok, and user-agent packages with
+initialization code and data. Those imports reached other binaries through the
+shared logs configuration package.
+
+Production now uses `comp/logs/agent/config/internal/ottlfuncs`, a small subset
+of the upstream v1.3.1 implementations with attribution and license preserved.
+`IsList` and `Len` omit Collector signal slices that the Agent JSON/body context
+cannot return. The OTTL parser and typed getters remain upstream. Supported
+configuration, conversions, matching, masking, and error policies are unchanged.
+The full upstream function registry is used only in compatibility tests and the
+reference benchmark.
+
+With identical default Bazel build flags on macOS/arm64, before and after the
+import change at the same branch revision, executable sizes were:
+
+| Binary | Before (bytes) | After (bytes) | Saved |
+| --- | ---: | ---: | ---: |
+| Agent | 114,668,338 | 113,791,906 | 876,432 bytes (0.836 MiB) |
+| DogStatsD | 27,232,210 | 26,552,594 | 679,616 bytes (0.648 MiB) |
+
+These are executable sizes excluding runfiles, not Linux package/image deltas.
+Both builds used the repository's default release settings. A strings inspection
+found XML, grok, and user-agent package initializers in the before binaries and
+none in the after binaries. The configuration library's production dependency
+graph no longer contains these packages or the Collector log/metric/trace slice
+packages. Repository-wide module tidying also removed the unused requirements
+from consumer modules.
+
+Configuration and processor tests, including upstream compatibility comparisons,
+pass under the race detector. The local Linux/amd64 cross-build cannot resolve a
+Linux C/C++ toolchain for rtloader on this Mac. CI must establish the actual Linux
+and Windows package savings and whether any static size gates still exceed their
+limits. This first reduction does not establish that the package gates pass; the
+upstream OTTL parser and common pdata types still enter shared configuration.
+
+Raw logs, size data, and dependency-query output are under
+`bin/benchmarks/ottl-filtering/size-*` (ignored by Git).

@@ -13,10 +13,11 @@ import (
 	"sync"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 	"github.com/valyala/fastjson"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config/internal/ottlfuncs"
 )
 
 // OTTLCondition is an upstream OTTL predicate compiled for the Agent log context.
@@ -97,8 +98,8 @@ func (c *OTTLContext) attributes() (*fastjson.Value, error) {
 	return c.root, c.parseErr
 }
 
-// Register converters individually: StandardFuncs retains all editors and parsers
-// (including XML, grok and hashing), even though filtering never uses them.
+// Register only the supported factories from the internal upstream subset.
+// Importing upstream ottlfuncs would also retain unrelated package initializers.
 func ottlFilterFunctions() map[string]ottl.Factory[*OTTLContext] {
 	return ottl.CreateFactoryMap(
 		ottlfuncs.NewIsMatchFactory[*OTTLContext](),
