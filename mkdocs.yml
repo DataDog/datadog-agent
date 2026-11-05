@@ -60,7 +60,7 @@ nav:
     - Distribution packages: how-to/build/distributions.md
   - Test:
     - Unit tests: how-to/test/unit.md
-    - OTTL log filtering experiment: how-to/test/log-processing-ottl.md
+    - OTTL log processing experiment: how-to/test/log-processing-ottl.md
     - Static analysis: how-to/test/static-analysis.md
     - End-to-end tests:
       - how-to/test/e2e/index.md

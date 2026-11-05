@@ -21,10 +21,10 @@ const (
 	ottlService     = "ottl-filtering"
 )
 
-// TestOTTLFiltering exercises configuration, file tailing, filtering, and encoding
+// TestOTTLFilteringAndMasking exercises configuration, file tailing, filtering, masking, and encoding
 // through the running Agent. The final retained record is a flush control for
 // the dropped records written before it in the same stream.
-func (s *LinuxFakeintakeSuite) TestOTTLFiltering() {
+func (s *LinuxFakeintakeSuite) TestOTTLFilteringAndMasking() {
 	t := s.T()
 	s.Env().RemoteHost.MustExecute("sudo touch " + ottlLogFilePath)
 	s.Env().RemoteHost.MustExecute("sudo chmod 666 " + ottlLogFilePath)
@@ -38,10 +38,14 @@ func (s *LinuxFakeintakeSuite) TestOTTLFiltering() {
 		`{"env":"dev","message":"drop-source-include"}`,
 		`{"env":"prod","http":{"path":"/health","status":200},"message":"drop-source-exclude"}`,
 		`{"env":"prod","ottl_global_drop":true,"http":{"path":"/checkout","status":503},"message":"drop-global"}`,
+		`{"env":"prod","http":{"path":"/checkout","status":503},"credentials":true,"message":"drop-invalid-mask-target"}`,
+		`{"env":"prod","credentials":`,
 	}
 	malformed := `ottl-invalid-json`
-	retained := `{"env":"prod","http":{"path":"/checkout","status":503},"message":"ottl-kept"}`
-	records := append(append([]string{}, dropped...), malformed, retained)
+	retained := `{"env":"prod","http":{"path":"/checkout","status":503},"token":"secret-global","credentials":{"password":"secret-source"},"id":9007199254740993,"message":"ottl-kept"}`
+	masked := `{"env":"prod","http":{"path":"/checkout","status":503},"token":"***","credentials":{"password":"***"},"id":9007199254740993,"message":"ottl-kept"}`
+	raw := "ottl-raw-raw-secret"
+	records := append(append([]string{}, dropped...), malformed, raw, retained)
 	utils.AppendLog(s, ottlLogFileName, strings.Join(records, "\n"), 1)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -51,8 +55,11 @@ func (s *LinuxFakeintakeSuite) TestOTTLFiltering() {
 		for _, log := range logs {
 			messages = append(messages, log.Message)
 		}
-		require.Contains(c, messages, retained, "the retained JSON must reach intake unchanged")
-		require.Contains(c, messages, malformed, "evaluation errors must keep the message")
+		require.Contains(c, messages, masked, "global and source masking must redact fields without changing integer IDs")
+		require.Contains(c, messages, "ottl-raw-***", "body masking must work on non-JSON messages")
+		assert.NotContains(c, messages, retained, "unredacted JSON must not reach intake")
+		assert.NotContains(c, messages, raw, "unredacted body must not reach intake")
+		require.Contains(c, messages, malformed, "rules with false conditions must leave plain text untouched")
 		for _, record := range dropped {
 			assert.NotContains(c, messages, record, "OTTL-filtered logs must not reach intake")
 		}

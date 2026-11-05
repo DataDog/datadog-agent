@@ -351,12 +351,18 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 		for _, rule := range rules {
 			switch rule.Type {
 			case config.ExcludeAtMatch:
+				if ottlContext != nil {
+					content = ottlContext.Content()
+				}
 				// if this message matches, we ignore it
 				if rule.Regex.Match(content) {
 					msg.RecordProcessingRule(rule.Type, rule.Name)
 					return false
 				}
 			case config.IncludeAtMatch:
+				if ottlContext != nil {
+					content = ottlContext.Content()
+				}
 				// if this message doesn't match, we ignore it
 				if !rule.Regex.Match(content) {
 					return false
@@ -382,7 +388,23 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 					}
 					msg.RecordProcessingRule(rule.Type, rule.Name)
 				}
+			case config.MaskOTTLTransform:
+				if ottlContext == nil {
+					ottlContext = config.AcquireOTTLContext(content)
+				}
+				changed, err := ottlContext.ApplyMask(context.Background(), rule.OTTLStatement)
+				if err != nil {
+					// Masking is fail-closed, matching the original mask_ottl rule.
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					return false
+				}
+				if changed {
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+				}
 			case config.MaskSequences:
+				if ottlContext != nil {
+					content = ottlContext.Content()
+				}
 				var matched bool
 				content, matched = config.ApplyMaskSequence(content, rule)
 				if matched {
@@ -408,6 +430,9 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 				}
 			}
 		}
+	}
+	if ottlContext != nil {
+		content = ottlContext.Content()
 	}
 	msg.SetContent(content)
 	return true // we want to send this message
