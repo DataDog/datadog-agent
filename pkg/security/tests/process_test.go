@@ -2025,7 +2025,17 @@ func TestProcessExit(t *testing.T) {
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
-			time.Sleep(50 * time.Millisecond)
+			require.True(t, leaderZombie, "leader thread did not reach zombie state")
+
+			if err := test.GetProbeEvent(func() error {
+				return exec.Command(syscallTester, "check", "sentinel-leader-exit").Run()
+			}, func(event *model.Event) bool {
+				return event.ProcessContext.ArgsEntry != nil && slices.Contains(event.ProcessContext.ArgsEntry.Values, "sentinel-leader-exit")
+			}, 3*time.Second, model.ExitEventType); err != nil {
+				_ = stdinPipe.Close()
+				_ = cmd.Wait()
+				return err
+			}
 			assert.NotNil(t, resolveProcessCacheEntry(), "process cache entry should remain alive while worker thread is running")
 
 			stdinClosed.Store(true)
