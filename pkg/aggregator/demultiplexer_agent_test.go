@@ -792,6 +792,7 @@ func startTagFilterDemuxWithFilterList(t *testing.T, settings map[string]any, ch
 		"dist.metric":   {Action: "exclude", Tags: []string{"pod"}},
 		"count.metric":  {Action: "exclude", Tags: []string{"pod"}},
 		"countc.metric": {Action: "exclude", Tags: []string{"pod"}},
+		"mono.metric":   {Action: "exclude", Tags: []string{"pod"}},
 	})
 	demux := InitAndStartAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, demuxTestOptions(),
 		deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, filterList, "")
@@ -1019,4 +1020,66 @@ func TestTagFilterListAgentCheckSendsHeldPoints(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, dists)
+}
+
+// TestTagFilterListMergesThroughCheckSenders submits as checks do, through their senders, from two check instances
+// whose metrics strip to the same series.
+func TestTagFilterListMergesThroughCheckSenders(t *testing.T) {
+	demux, s := startTagFilterDemux(t)
+	defer demux.Stop()
+
+	type sent struct{ count, mono float64 }
+	runs := map[checkid.ID][]sent{
+		"openmetrics:pod-a": {{count: 1, mono: 10}, {count: 2, mono: 15}},
+		"openmetrics:pod-b": {{count: 3, mono: 1000}, {count: 4, mono: 1002}},
+	}
+	for id, checkRuns := range runs {
+		sender, err := demux.GetSender(id)
+		require.NoError(t, err)
+		tags := []string{"env:prod", "pod:" + string(id)}
+		for _, run := range checkRuns {
+			sender.Distribution("dist.metric", run.count, "", tags)
+			sender.Count("countc.metric", run.count, "", tags)
+			sender.MonotonicCount("mono.metric", run.mono, "", tags)
+			sender.Gauge("other.metric", 1, "", tags)
+			sender.Commit()
+		}
+	}
+	waitForCheckItems(t, demux)
+	demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
+
+	// total checks that the instances' series are merged into one, which has each second once, and sums it.
+	total := func(name string) (sum float64) {
+		series := seriesNamed(s.series, name)
+		require.Len(t, series, 1, name)
+		assert.ElementsMatch(t, []string{"env:prod"}, strings.Split(series[0].Tags.Join(","), ","), name)
+		assert.Equal(t, metrics.APICountType, series[0].MType, name)
+		seconds := map[int64]bool{}
+		for _, p := range series[0].Points {
+			assert.False(t, seconds[int64(p.Ts)], "%s: second %d sent twice", name, int64(p.Ts))
+			seconds[int64(p.Ts)] = true
+			sum += p.Value
+		}
+		return sum
+	}
+	assert.Equal(t, 1+2+3+4.0, total("countc.metric"))
+	assert.Equal(t, (15-10)+(1002-1000.0), total("mono.metric"), "each instance's own increase, summed")
+
+	var samples int64
+	seconds := map[int64]bool{}
+	for _, sketch := range sketchesNamed(s.sketches, "dist.metric") {
+		assert.ElementsMatch(t, []string{"env:prod"}, strings.Split(sketch.Tags.Join(","), ","))
+		for _, p := range sketch.Points {
+			assert.False(t, seconds[p.Ts], "second %d sent twice", p.Ts)
+			seconds[p.Ts] = true
+			samples += p.Sketch.Basic.Cnt
+		}
+	}
+	assert.Equal(t, int64(4), samples)
+
+	others := map[string]bool{}
+	for _, serie := range seriesNamed(s.series, "other.metric") {
+		others[serie.Tags.Join(",")] = true
+	}
+	assert.Len(t, others, 2, "metrics without a rule keep one series per instance")
 }
