@@ -1,0 +1,28 @@
+description: awk rejects invalid control flow and reserved identifiers before executing actions.
+input:
+  script: |+
+    awk 'function f(){ return /x/ } BEGIN { $0 = "x"; print f(); $0 = "z"; print f(); $0 = ""; exit /x/ }'
+    awk 'function f(BEGINFILE, ENDFILE, switch, case, default) { print BEGINFILE, ENDFILE, switch, case, default } BEGIN { f(1, 2, 3, 4, 5) }'
+    awk 'BEGIN { print "unreachable"; else = 1 }'
+    awk 'BEGIN { in = 1; print in }'
+    awk 'BEGIN { print "unreachable"; switch = 1 }'
+    awk 'function else() { return 1 } BEGIN { print "unreachable" }'
+    awk 'BEGIN { if (0) return; print 1 }'
+    awk 'BEGIN { if (0) next; print 1 }'
+    awk 'END { if (0) next; print 1 }'
+    awk 'function f(){next} BEGIN{f()}'
+expect:
+  stdout: |+
+    1
+    0
+    1 2 3 4 5
+  stderr: |+
+    awk: else is a reserved awk keyword
+    awk: in is a reserved awk keyword
+    awk: switch is a reserved awk keyword
+    awk: else is a reserved awk keyword
+    awk: return is not allowed outside a function
+    awk: next is not allowed in BEGIN or END
+    awk: next is not allowed in BEGIN or END
+    awk: fatal: next is not allowed in BEGIN or END
+  exit_code: 2

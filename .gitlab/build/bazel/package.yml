@@ -1,0 +1,20 @@
+bazel:package:linux-amd64:
+  extends: .bazel:runner:linux-amd64
+  stage: packaging
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["setup_agent_version"]
+  script:
+    - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
+    - export PACKAGE_VERSION
+    - bazel build //packages/agent/linux:debian //packages/agent/linux:rpm
+    - mkdir -p bazel-packages
+    - BAZEL_PACKAGE_BIN="$(bazel info bazel-bin)/packages/agent/linux"
+    - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent_*.deb bazel-packages/
+    - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent-*.rpm bazel-packages/
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - bazel-packages/
+  allow_failure: true

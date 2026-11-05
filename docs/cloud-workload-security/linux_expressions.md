@@ -59,6 +59,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
+| `setns` | Kernel | A thread joined an existing namespace | 7.86 |
 | `setrlimit` | Process | A setrlimit command was executed | 7.68 |
 | `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
@@ -211,6 +212,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -330,6 +332,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -426,6 +429,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`process.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -837,6 +841,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exec.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`exec.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -973,6 +978,7 @@ A process was terminated
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exit.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`exit.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1445,6 +1451,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`ptrace.tracee.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1564,6 +1571,7 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`ptrace.tracee.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1660,6 +1668,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`ptrace.tracee.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -1936,6 +1945,33 @@ A process changed its effective gid
 | [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
 | [`setgid.group`](#setgid-group-doc) | New group of the process |
 
+### Event `setns`
+
+A thread joined an existing namespace
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setns.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns_host`](#setns-mntns_host-doc) | Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved |
+| [`setns.mntns_outside_base`](#setns-mntns_outside_base-doc) | Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved |
+| [`setns.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
+| [`setns.nstype`](#setns-nstype-doc) | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined |
+| [`setns.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
+| [`setns.previous.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
+| [`setns.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setns.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
+| [`setns.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
+
 ### Event `setrlimit`
 
 A setrlimit command was executed
@@ -1966,6 +2002,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`setrlimit.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2085,6 +2122,7 @@ A setrlimit command was executed
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`setrlimit.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2181,6 +2219,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`setrlimit.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2392,6 +2431,7 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`signal.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2511,6 +2551,7 @@ A signal was sent
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`signal.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -2607,6 +2648,7 @@ A signal was sent
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
 | [`signal.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
@@ -3071,6 +3113,15 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `*.cgroupns` {#common-namespaceids-cgroupns-doc}
+Type: int
+
+Definition: Cgroup namespace ID, 0 if it couldn't be resolved
+
+`*.cgroupns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.change_time` {#common-filefields-change_time-doc}
 Type: int
 
@@ -3123,6 +3174,15 @@ Definition: Amount of data transmitted or received
 
 `*.data_size` has 2 possible prefixes:
 `network_flow_monitor.flows.egress` `network_flow_monitor.flows.ingress`
+
+
+### `*.ecs_task_id` {#common-containercontext-ecs_task_id-doc}
+Type: string
+
+Definition: ECS task ID
+
+`*.ecs_task_id` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
 
 
 ### `*.egid` {#common-credentials-egid-doc}
@@ -3377,6 +3437,15 @@ Definition: IP address
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
+### `*.ipcns` {#common-namespaceids-ipcns-doc}
+Type: int
+
+Definition: IPC namespace ID, 0 if it couldn't be resolved
+
+`*.ipcns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.is_exec` {#common-process-is_exec-doc}
 Type: bool
 
@@ -3482,6 +3551,15 @@ Definition: Length of the corresponding element
 `accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.aws_security_credentials` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.aws_security_credentials` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.aws_security_credentials` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.aws_security_credentials` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.aws_security_credentials` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.aws_security_credentials` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
+### `*.mntns` {#common-namespaceids-mntns-doc}
+Type: int
+
+Definition: Mount namespace ID, 0 if it couldn't be resolved
+
+`*.mntns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.mntns` {#common-pidcontext-mntns-doc}
 Type: int
 
@@ -3556,6 +3634,15 @@ exec.file.name == "apt"
 {{< /code-block >}}
 
 Matches the execution of any file named apt.
+
+### `*.netns` {#common-namespaceids-netns-doc}
+Type: int
+
+Definition: Network namespace ID, 0 if it couldn't be resolved
+
+`*.netns` has 2 possible prefixes:
+`setns` `setns.previous`
+
 
 ### `*.netns` {#common-networkdevicecontext-netns-doc}
 Type: int
@@ -3694,6 +3781,15 @@ Definition: Process ID of the process (also called thread group ID)
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.pidns` {#common-namespaceids-pidns-doc}
+Type: int
+
+Definition: ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved
+
+`*.pidns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.pod_uid` {#common-containercontext-pod_uid-doc}
 Type: string
 
@@ -3726,8 +3822,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 29 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `unshare` `utimes`
+`*.retval` has 30 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setns` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `unshare` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3847,6 +3943,15 @@ Definition: Thread ID of the thread
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.timens` {#common-namespaceids-timens-doc}
+Type: int
+
+Definition: Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces
+
+`*.timens` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.tty_name` {#common-process-tty_name-doc}
 Type: string
 
@@ -3920,6 +4025,24 @@ Definition: User of the file's owner
 
 `*.user` has 46 possible prefixes:
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.userns` {#common-namespaceids-userns-doc}
+Type: int
+
+Definition: User namespace ID, 0 if it couldn't be resolved
+
+`*.userns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
+### `*.utsns` {#common-namespaceids-utsns-doc}
+Type: int
+
+Definition: UTS namespace ID, 0 if it couldn't be resolved
+
+`*.utsns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.version` {#common-cgroupcontext-version-doc}
@@ -4878,6 +5001,30 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
+
+
+
+### `setns.mntns_host` {#setns-mntns_host-doc}
+Type: bool
+
+Definition: Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved
+
+
+
+### `setns.mntns_outside_base` {#setns-mntns_outside_base-doc}
+Type: bool
+
+Definition: Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved
+
+
+
+### `setns.nstype` {#setns-nstype-doc}
+Type: int
+
+Definition: Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined
+
+
+Constants: [Clone flags](#clone-flags)
 
 
 

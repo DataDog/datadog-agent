@@ -47,11 +47,16 @@ def build(
     if enable_bazel:
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
-        if static:
-            raise NotImplementedError("--enable-bazel does not support --static.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
-        build_binary_with_bazel("//cmd/dogstatsd:dogstatsd", bin_path=os.path.join(bin_path, bin_name("dogstatsd")))
+        if static:
+            if not sys.platform.startswith("linux"):
+                raise NotImplementedError("--enable-bazel --static is only supported on Linux.")
+            bin_path = STATIC_BIN_PATH
+        build_binary_with_bazel(
+            "//cmd/dogstatsd:dogstatsd_static" if static else "//cmd/dogstatsd:dogstatsd",
+            bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
+        )
     else:
         if static:
             bin_path = STATIC_BIN_PATH

@@ -1,0 +1,9 @@
+description: "test rejects non-decimal integers with exit code 2"
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # bash prefixes error with scriptname:line
+input:
+  script: |+
+    test 0x0 -eq 00
+expect:
+  stderr: "test: 0x0: integer expression expected\n"
+  exit_code: 2

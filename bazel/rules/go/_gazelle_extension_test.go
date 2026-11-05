@@ -894,6 +894,8 @@ func TestApplicableTagSets(t *testing.T) {
 	linuxBpfLibrary := write("bpf.go", "//go:build linux && bpf")
 	clusterChecks := write("clusterchecks_test.go", "//go:build clusterchecks")
 	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
+	platformBranches := write("platform_branches_test.go", "//go:build (linux && bpf) || (windows && npm)")
+	platformBranchesOrDarwin := write("platform_branches_darwin_test.go", "//go:build (windows && npm) || (linux && bpf) || darwin")
 	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet")
 	containerdTagSet := tagsList("cel", "containerd")
 	dockerTagSet := tagsList("cel", "docker", "kubelet")
@@ -1066,6 +1068,19 @@ func TestApplicableTagSets(t *testing.T) {
 			configuredTagSets: [][]string{kubernetesTagSet},
 			wantDefault:       true,
 			wantTagSets:       [][]string{kubernetesTagSet},
+		},
+		{
+			name:              "configured set for one platform branch does not hide another's",
+			srcs:              []string{platformBranches},
+			configuredTagSets: [][]string{tagsList("bpf")},
+			wantTagSets:       [][]string{tagsList("bpf"), tagsList("npm")},
+		},
+		{
+			name:              "platform branches next to an unconstrained platform need both targets",
+			srcs:              []string{platformBranchesOrDarwin},
+			configuredTagSets: [][]string{tagsList("bpf")},
+			wantDefault:       true,
+			wantTagSets:       [][]string{tagsList("bpf"), tagsList("npm")},
 		},
 		{
 			name:              "untagged test embedding bpf library selects configured set",

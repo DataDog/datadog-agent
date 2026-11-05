@@ -1,0 +1,11 @@
+description: A variable can reference its own previous value during reassignment.
+input:
+  script: |+
+    A=hello
+    A="${A}_world"
+    echo "$A"
+expect:
+  stdout: |+
+    hello_world
+  stderr: ""
+  exit_code: 0

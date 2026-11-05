@@ -33,7 +33,6 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -59,7 +58,7 @@ var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.
 
 // GPUMonitoring Factory
 var GPUMonitoring = &module.Factory{
-	Name: config.GPUMonitoringModule,
+	Name: sysconfigtypes.GPUMonitoringModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		c := gpuconfig.New()
 		if c.EnableEBPFProbes && processEventConsumer == nil {
@@ -98,7 +97,7 @@ var GPUMonitoring = &module.Factory{
 			p, err = gpu.NewProbe(c, probeDeps)
 			if err != nil {
 				cancel()
-				return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
+				return nil, fmt.Errorf("unable to start %s: %w", sysconfigtypes.GPUMonitoringModule, err)
 			}
 		}
 

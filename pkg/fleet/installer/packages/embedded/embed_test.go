@@ -132,115 +132,63 @@ func serviceNames(entries []fs.DirEntry) []string {
 	return names
 }
 
-// TestGetLaunchdJobEmbedsBothVariants ensures every launchd job GetLaunchdJob can construct at
-// runtime is actually compiled in, and that the definitions are property lists rather than
-// whatever the template happened to emit.
-func TestGetLaunchdJobEmbedsBothVariants(t *testing.T) {
-	stable, err := LaunchdJobs(LaunchdStable)
-	require.NoError(t, err)
-	assert.NotEmpty(t, stable)
-	assert.Contains(t, stable, "com.datadoghq.installer")
-	assert.Contains(t, stable, "com.datadoghq.agent")
-
-	experiment, err := LaunchdJobs(LaunchdExperiment)
-	require.NoError(t, err)
-	assert.NotEmpty(t, experiment)
-
-	// The installer daemon supervises an experiment, so it is never part of one.
-	assert.NotContains(t, experiment, "com.datadoghq.installer")
-
-	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
-		labels, err := LaunchdJobs(variant)
-		require.NoError(t, err)
-		for _, label := range labels {
-			t.Run(label+string(variant), func(t *testing.T) {
-				content, err := GetLaunchdJob(label, variant)
-				require.NoError(t, err)
-				assert.NotEmpty(t, content)
-
-				assertPropertyList(t, content)
-				// RunAtLoad is what starts the job at boot with no login session, so it is
-				// required on every definition rather than merely typical of them.
-				assert.Contains(t, string(content), "<key>RunAtLoad</key>")
-				assert.Contains(t, string(content), fmt.Sprintf("<string>%s</string>", label+string(variant)))
-			})
-		}
-	}
+// launchdStableJobs are the launchd jobs the installer loads on macOS.
+var launchdStableJobs = []string{
+	"com.datadoghq.procmgr",
+	"com.datadoghq.agent",
+	"com.datadoghq.sysprobe",
+	"com.datadoghq.data-plane",
 }
 
-// TestLaunchdExperimentJobsOmitKeepAlive is the property Fleet's failure detection rests on:
-// launchd must never relaunch a failed experiment, so an -exp exit is a terminal event rather
-// than one iteration of a respawn loop.
-func TestLaunchdExperimentJobsOmitKeepAlive(t *testing.T) {
-	labels, err := LaunchdJobs(LaunchdExperiment)
+// TestGetLaunchdJobEmbedsTheStableSet ensures every stable launchd job is actually compiled in,
+// and that the definitions are property lists rather than whatever the template happened to emit.
+func TestGetLaunchdJobEmbedsTheStableSet(t *testing.T) {
+	entries, err := launchdJobs.ReadDir("tmpl/gen/darwin")
 	require.NoError(t, err)
-	require.NotEmpty(t, labels)
+	var embedded []string
+	for _, entry := range entries {
+		embedded = append(embedded, strings.TrimSuffix(entry.Name(), ".plist"))
+	}
+	assert.ElementsMatch(t, launchdStableJobs, embedded)
 
-	for _, label := range labels {
+	for _, label := range launchdStableJobs {
 		t.Run(label, func(t *testing.T) {
-			experiment, err := GetLaunchdJob(label, LaunchdExperiment)
+			content, err := GetLaunchdJob(label)
 			require.NoError(t, err)
-			assert.NotContains(t, string(experiment), "KeepAlive")
+			assert.NotEmpty(t, content)
 
-			// The stable definition of the same job is supervised, so the assertion above is
-			// about the variant and not about the template having lost the key entirely.
-			stable, err := GetLaunchdJob(label, LaunchdStable)
-			require.NoError(t, err)
-			assert.Contains(t, string(stable), "KeepAlive")
+			assertPropertyList(t, content)
+			// RunAtLoad is what starts the job at boot with no login session, so it is
+			// required on every definition rather than merely typical of them.
+			assert.Regexp(t, `<key>RunAtLoad</key>\s*<true/>`, string(content))
+			// Every job is supervised: launchd relaunches a job that exits unsuccessfully.
+			assert.Contains(t, string(content), "KeepAlive")
+			assert.Contains(t, string(content), fmt.Sprintf("<string>%s</string>", label))
 		})
 	}
 }
 
-// TestLaunchdVariantsDifferOnlyAsSpecified asserts the four differences between the job sets that
-// the RFC names, so a template edit cannot quietly collapse them.
-func TestLaunchdVariantsDifferOnlyAsSpecified(t *testing.T) {
-	stable, err := GetLaunchdJob("com.datadoghq.agent", LaunchdStable)
-	require.NoError(t, err)
-	experiment, err := GetLaunchdJob("com.datadoghq.agent", LaunchdExperiment)
-	require.NoError(t, err)
-
-	// 1. Label suffix.
-	assert.Contains(t, string(stable), "<string>com.datadoghq.agent</string>")
-	assert.Contains(t, string(experiment), "<string>com.datadoghq.agent-exp</string>")
-
-	// 2. Configuration directory, named in the definition's own argv because launchd cannot
-	//    supply one at load time.
-	assert.Contains(t, string(stable), "<string>/opt/datadog-agent/etc</string>")
-	assert.Contains(t, string(experiment), "<string>/opt/datadog-agent/etc-exp</string>")
-
-	// 3. Restart supervision, covered in full by TestLaunchdExperimentJobsOmitKeepAlive.
-	assert.Contains(t, string(stable), "KeepAlive")
-	assert.NotContains(t, string(experiment), "KeepAlive")
-
-	// Everything else is shared. The program above all: a configuration experiment changes what
-	// the Agent reads, never which binary runs, so both sets name the one install root and write
-	// the same pidfile in the same run directory.
-	for _, content := range [][]byte{stable, experiment} {
-		assert.Contains(t, string(content), "<string>/opt/datadog-agent/bin/agent/agent</string>")
-		assert.Contains(t, string(content), "<string>/opt/datadog-agent/run/agent.pid</string>")
-	}
-}
-
-func TestLaunchdAgentAndSysprobeSelectSameConfigVariant(t *testing.T) {
-	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
-		t.Run(string(variant), func(t *testing.T) {
-			etcDir := "/opt/datadog-agent/etc" + string(variant)
-			for _, label := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe"} {
-				content, err := GetLaunchdJob(label, variant)
-				require.NoError(t, err)
-				var plist struct {
-					Args []string `xml:"dict>array>string"`
-				}
-				require.NoError(t, xml.Unmarshal(content, &plist))
-				require.GreaterOrEqual(t, len(plist.Args), 4)
-				assert.Equal(t, []string{"run", "-c", etcDir}, plist.Args[1:4])
-				if label == "com.datadoghq.agent" {
-					require.GreaterOrEqual(t, len(plist.Args), 5)
-					assert.Equal(t, "--sysprobecfgpath="+etcDir+"/system-probe.yaml", plist.Args[4],
-						"the Agent loads system-probe config separately from its main config")
-				}
-			}
-		})
+func TestLaunchdAgentAndSysprobeReadTheSameConfig(t *testing.T) {
+	const etcDir = "/opt/datadog-agent/etc"
+	for _, label := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe"} {
+		content, err := GetLaunchdJob(label)
+		require.NoError(t, err)
+		var plist struct {
+			Args []string `xml:"dict>array>string"`
+		}
+		require.NoError(t, xml.Unmarshal(content, &plist))
+		require.GreaterOrEqual(t, len(plist.Args), 4)
+		assert.Equal(t, []string{"run", "-c", etcDir}, plist.Args[1:4])
+		if label == "com.datadoghq.agent" {
+			require.GreaterOrEqual(t, len(plist.Args), 5)
+			assert.Equal(t, "--sysprobecfgpath="+etcDir+"/system-probe.yaml", plist.Args[4],
+				"the Agent loads system-probe config separately from its main config")
+			// No pidfile: nothing reads it, and the Agent refuses to start when a stale one
+			// names a PID that another process has since reused, which launchd's KeepAlive
+			// would turn into a restart loop.
+			assert.Len(t, plist.Args, 5)
+			assert.NotContains(t, plist.Args, "-p")
+		}
 	}
 }
 

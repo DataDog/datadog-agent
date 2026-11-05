@@ -123,7 +123,11 @@ type scanMethod struct {
 }
 
 type scanResult struct {
-	app          string
+	app string
+	// repo is the part of the image name that does not depend on the registry
+	// the image is pulled from: the workload apps are `ghcr.io/datadog/<repo>`
+	// locally but `<internal registry>/<repo>` in CI.
+	repo         string
 	version      string
 	expectedTags []*regexp.Regexp
 	optionalTags []*regexp.Regexp
@@ -163,6 +167,7 @@ func (suite *k8sSuite) TestSBOM() {
 	images := []scanResult{
 		{
 			app:     "datadog/apps-nginx-server",
+			repo:    "apps-nginx-server",
 			version: apps.Version,
 			expectedTags: []*regexp.Regexp{
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
@@ -171,6 +176,7 @@ func (suite *k8sSuite) TestSBOM() {
 		},
 		{
 			app:     "datadog/redis",
+			repo:    "redis",
 			version: apps.Version,
 			expectedTags: []*regexp.Regexp{
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
@@ -179,6 +185,7 @@ func (suite *k8sSuite) TestSBOM() {
 		},
 		{
 			app:     "coreos/etcd",
+			repo:    "coreos/etcd",
 			version: "v3.5.1",
 		},
 	}
@@ -190,6 +197,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 		for _, img := range images {
 			appImage := img.app
+			appRepo := img.repo
 			appShortImage := filepath.Base(appImage)
 			appVersion := img.version
 
@@ -258,7 +266,8 @@ func (suite *k8sSuite) TestSBOM() {
 					require.NoErrorf(c, err, "Failed to query fake intake")
 
 					sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
-						return strings.Contains(id, appImage)
+						// The SBOM IDs are `<registry>/<repo>@sha256:<digest>`
+						return strings.Contains(id, "/"+appRepo+"@sha256:")
 					})
 
 					require.NotEmptyf(c, sbomIDs, "No SBOM for %s yet", appImage)
@@ -292,12 +301,12 @@ func (suite *k8sSuite) TestSBOM() {
 							continue
 						}
 
-						// image_id and image_name may include a registry prefix that differs
+						// image_id and image_name include a registry prefix that differs
 						// when images are pulled from a mirror, so we allow an arbitrary prefix
 						expectedTags := []*regexp.Regexp{
 							regexp.MustCompile(`^architecture:(amd|arm)64$`),
-							regexp.MustCompile(fmt.Sprintf(`^image_id:.*%s@sha256:`, regexp.QuoteMeta(appImage))),
-							regexp.MustCompile(fmt.Sprintf(`^image_name:.*%s$`, regexp.QuoteMeta(appImage))),
+							regexp.MustCompile(fmt.Sprintf(`^image_id:.*/%s@sha256:`, regexp.QuoteMeta(appRepo))),
+							regexp.MustCompile(fmt.Sprintf(`^image_name:.*/%s$`, regexp.QuoteMeta(appRepo))),
 							regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(appVersion) + `$`),
 							regexp.MustCompile(`^os_name:linux$`),
 							regexp.MustCompile(fmt.Sprintf(`^short_image:%s$`, appShortImage)),
@@ -316,11 +325,11 @@ func (suite *k8sSuite) TestSBOM() {
 						})
 
 						if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
-							assert.Contains(c, properties["aquasecurity:trivy:RepoTag"], appImage+":"+appVersion)
+							assert.Contains(c, properties["aquasecurity:trivy:RepoTag"], "/"+appRepo+":"+appVersion)
 						}
 
 						if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
-							assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], appImage+"@sha256:")
+							assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "/"+appRepo+"@sha256:")
 						}
 
 						assert.Greater(c, len(cyclonedx.Components), 1, "Less than 2 components in CycloneDX SBOM")

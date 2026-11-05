@@ -8,6 +8,7 @@ package ec2
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -136,11 +137,15 @@ func resolveWindowsAMI(e aws.Environment, osInfo *os.Descriptor) (string, error)
 }
 
 func resolveAmazonLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
+	if osInfo.Version == "" {
+		osInfo.Version = os.AmazonLinuxDefault.Version
+	}
+
 	var paramName string
 	switch osInfo.Version {
-	case "", os.AmazonLinuxECS2.Version:
+	case os.AmazonLinux2.Version:
 		paramName = fmt.Sprintf("amzn2-ami-hvm-%s-gp2", osInfo.Architecture)
-	case os.AmazonLinuxECS2023.Version:
+	case os.AmazonLinux2023.Version:
 		paramName = fmt.Sprintf("al2023-ami-kernel-default-%s", osInfo.Architecture)
 	default:
 		return "", fmt.Errorf("unsupported Amazon Linux version %s", osInfo.Version)
@@ -178,11 +183,13 @@ func resolveUbuntuAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) 
 		// Override required as the architecture is x86_64 but the SSM parameter is amd64
 		paramArch = "amd64"
 	}
-	if osInfo.Version == "24-04" {
+	if osInfo.Version == os.Ubuntu2404.Version {
 		volumeType = "ebs-gp3"
 	}
+	// Descriptor versions are platforms.json keys ("22-04"), Canonical's SSM parameters use "22.04"
+	ssmVersion := strings.ReplaceAll(osInfo.Version, "-", ".")
 
-	return ec2.GetAMIFromSSM(e, fmt.Sprintf("/aws/service/canonical/ubuntu/server/%s/stable/current/%s/hvm/%s/ami-id", osInfo.Version, paramArch, volumeType))
+	return ec2.GetAMIFromSSM(e, fmt.Sprintf("/aws/service/canonical/ubuntu/server/%s/stable/current/%s/hvm/%s/ami-id", ssmVersion, paramArch, volumeType))
 }
 
 func resolveDebianAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
@@ -214,14 +221,9 @@ func resolveSuseAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
 		osInfo.Version = os.SuseDefault.Version
 	}
 
-	if osInfo.Version == "15-4" {
+	if osInfo.Version == os.Suse15.Version {
 		warnOSNotUsingLatestAMI(e, osInfo)
-		if osInfo.Architecture == os.AMD64Arch {
-			return "ami-067dfda331f8296b0", nil // Private copy of the AMI dd-agent-sles-15-x86_64
-		} else if osInfo.Architecture == os.ARM64Arch {
-			return "ami-08350d1d1649d8c05", nil
-		}
-		return "", fmt.Errorf("architecture %s is not supported for SUSE %s", osInfo.Architecture, osInfo.Version)
+		return aws.GetAMI(osInfo)
 	}
 
 	return ec2.GetAMIFromSSM(e, fmt.Sprintf("/aws/service/suse/sles/%s/%s/latest", osInfo.Version, osInfo.Architecture))

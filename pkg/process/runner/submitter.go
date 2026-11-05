@@ -40,7 +40,8 @@ import (
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Submitter interface {
-	Submit(start time.Time, name string, messages *types.Payload)
+	// Submit sends collected data to Datadog without blocking the check on the network.
+	Submit(start time.Time, name string, payload *types.Payload)
 }
 
 var _ Submitter = &CheckSubmitter{}
@@ -191,10 +192,10 @@ func printStartMessage(log log.Component, hostname string, processAPIEndpoints [
 	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s", hostname, eps)
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
-func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
+// Submit sends collected data to Datadog without blocking the check on the network.
+func (s *CheckSubmitter) Submit(start time.Time, name string, payload *types.Payload) {
 	results := s.resultsQueue[name]
-	s.messagesToResultsQueue(start, name, messages.Message, results)
+	s.messagesToResultsQueue(start, name, payload.Messages, results)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

@@ -40,7 +40,7 @@ const (
 // usage report, and of the SBOMs it enriches, holding when the usage started
 // being recorded, as a unix timestamp. A package seen running since then
 // carries the time it was last seen.
-const UsageObservedSinceProperty = "UsageObservedSince"
+const UsageObservedSinceProperty = "datadog:usage:ObservedSince"
 
 // IsEnriched reports whether bom went through runtime enrichment, i.e. whether
 // it holds the start of usage observation or any of its components carries the
@@ -154,16 +154,14 @@ func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 		Analyzers:        cfg.GetStringSlice("sbom.container_image.analyzers"),
 		UseMount:         cfg.GetBool("sbom.container_image.use_mount"),
 		OverlayFsScan:    cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
-		AdditionalDirs:   cfg.GetStringSlice("sbom.container_image.additional_directories"),
 	}
 }
 
 // ScanOptionsFromConfigForHosts loads the scanning options from the configuration
 func ScanOptionsFromConfigForHosts(cfg config.Component) ScanOptions {
 	return ScanOptions{
-		Timeout:        time.Duration(cfg.GetInt("sbom.host.scan_timeout")) * time.Second,
-		Analyzers:      cfg.GetStringSlice("sbom.host.analyzers"),
-		AdditionalDirs: cfg.GetStringSlice("sbom.host.additional_directories"),
+		Timeout:   time.Duration(cfg.GetInt("sbom.host.scan_timeout")) * time.Second,
+		Analyzers: cfg.GetStringSlice("sbom.host.analyzers"),
 	}
 }
 

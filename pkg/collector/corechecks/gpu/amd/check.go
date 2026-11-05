@@ -264,6 +264,7 @@ func amdDeviceTags(dev *amdgpu.Device) []string {
 		"gpu_device:" + gpuutil.NormalizeGPUDeviceName(dev.Name),
 		"gpu_pci_bus_id:" + strings.ToLower(dev.PCIBusID),
 		"gpu_slicing_mode:none",
+		"gpu_sharing_mode:none",
 		"gpu_mig_profile:none",
 		"gpu_nvlink_capable:false",
 		"gpu_parent_uuid:" + strings.ToLower(dev.UUID),

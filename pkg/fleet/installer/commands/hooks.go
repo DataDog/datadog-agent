@@ -87,7 +87,7 @@ func prermCommand() *cobra.Command {
 	upgrade := false
 	c := &cobra.Command{
 		Hidden:  true,
-		Use:     "prerm <package> <type:deb|rpm>",
+		Use:     "prerm <package> <type:deb|rpm|msi|dmg>",
 		Short:   "Run pre-remove scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),

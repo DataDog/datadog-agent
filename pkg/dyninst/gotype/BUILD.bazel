@@ -10,6 +10,7 @@ go_library(
         "name.go",
         "table.go",
         "type.go",
+        "typelinks.go",
         "uncommon.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype",
@@ -33,6 +34,7 @@ dd_agent_go_test(
     srcs = [
         "fuzz_test.go",
         "snapshot_test.go",
+        "typelinks_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":gotype"],

@@ -385,7 +385,7 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 
 	var exitedEarly, interrupted bool
 	select {
-	case <-waitErr:
+	case <-waitErr: //nolint:errcheck // only the early exit is reported
 		exitedEarly = true
 	case <-timer.C:
 		d.terminate(cmd, waitErr, o)
@@ -441,13 +441,13 @@ func (d *preflightModeComponent) terminate(cmd *exec.Cmd, waitErr <-chan error, 
 	}
 
 	select {
-	case <-waitErr:
+	case <-waitErr: //nolint:errcheck // only reflects the signal that stopped ADP
 		return
 	case <-time.After(d.stopTimeout()):
 		d.log.Warnf("Agent Data Plane did not stop within %s, killing it", d.stopTimeout())
 		o.add(findingStopTimeout)
 		_ = cmd.Process.Kill()
-		<-waitErr
+		<-waitErr //nolint:errcheck // only reflects the signal that stopped ADP
 	}
 }
 

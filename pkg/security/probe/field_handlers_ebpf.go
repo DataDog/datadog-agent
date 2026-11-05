@@ -773,7 +773,7 @@ func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanCont
 func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 	// nothing to do once the lookup ran, when the kernel already filled the ids
 	// in, or when it captured no labels snapshot for this event
-	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 {
+	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 || fh.resolvers.GoLabelsCtxResolver == nil {
 		return
 	}
 	ev.GoLabels.Resolved = true

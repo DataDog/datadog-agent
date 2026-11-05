@@ -38,6 +38,7 @@ import (
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -54,8 +55,10 @@ import (
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	nooptaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -132,6 +135,7 @@ func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executa
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			coreAgentIPC := coreAgentIPCEnabled(globalParams.ConfFilePath, globalParams.FleetPoliciesDirPath)
 			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
@@ -145,9 +149,15 @@ func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executa
 				)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
-				fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
-				configstreamconsumerfx.Module(),
-				getSharedFxOption(),
+				getSharedFxOption(coreAgentIPC),
+			}
+			// The config component takes the consumer as an optional dependency, so it can
+			// simply be left out when there is no core agent to stream the config from.
+			if coreAgentIPC {
+				opts = append(opts,
+					fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
+					configstreamconsumerfx.Module(),
+				)
 			}
 			return fxutil.OneShot(run, opts...)
 		},
@@ -174,8 +184,13 @@ func tryExecSPLite(sysConfig sysprobeconfig.Component, _ pid.Component, pidParam
 	}
 }
 
-func getSharedFxOption() fx.Option {
+// getSharedFxOption returns the fx options shared by every way of running system-probe.
+// When coreAgentIPC is false, system-probe runs isolated from the core agent by design
+// (e.g. inside a microVM), so every component that would talk to it is replaced by a
+// local or no-op implementation, or left out.
+func getSharedFxOption(coreAgentIPC bool) fx.Option {
 	return fx.Options(
+		coreAgentFxOptions(coreAgentIPC),
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile())),
 		config.Module(),
 		delegatedauthnoopfx.Module(),
@@ -195,13 +210,10 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobefx.Module(),
-		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
-		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 		autoexitfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
@@ -228,12 +240,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-		remotehostnameimpl.Module(
-			remotehostnameimpl.WithMaxAttempts(10),
-			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
-		),
-		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
-		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
@@ -241,6 +247,36 @@ func getSharedFxOption() fx.Option {
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		rdnsquerierfx.Module(),
 		npcollectorfx.Module(),
+	)
+}
+
+// coreAgentFxOptions returns the components that depend on reaching the core agent.
+func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
+	if !coreAgentIPC {
+		return fx.Options(
+			nooptaggerfx.Module(),
+			workloadfilterfx.Module(),
+			hostnameimpl.Module(),
+			// Remote Configuration is served by the core agent: turn it off so that
+			// neither the RC client nor the CWS RC policy provider try to reach it.
+			// A decorator, unlike an invoke, applies before any component sees the
+			// config, whatever the order fx builds them in.
+			fx.Decorate(func(cfg config.Component) config.Component {
+				cfg.Set("remote_configuration.enabled", false, model.SourceAgentRuntime)
+				return cfg
+			}),
+		)
+	}
+	return fx.Options(
+		wmcatalog.GetCatalog(),
+		remoteWorkloadfilterfx.Module(),
+		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+		remotehostnameimpl.Module(
+			remotehostnameimpl.WithMaxAttempts(10),
+			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
+		),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		remoteagentfx.Module(),
 	)
 }
 

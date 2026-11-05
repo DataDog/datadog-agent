@@ -26,9 +26,7 @@ var (
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{}
 
 	// packageCommands is a map of package names to their command handlers
-	packageCommands = map[string]PackageCommandHandler{
-		agentPackage: runDatadogAgentPackageCommand,
-	}
+	packageCommands = map[string]PackageCommandHandler{}
 )
 
 // InstrumentAPMInjector instruments the APM injector (no-op on darwin)

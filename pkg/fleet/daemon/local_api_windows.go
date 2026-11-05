@@ -36,7 +36,7 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 		return nil, err
 	}
 	return &localAPIImpl{
-		server:   &http.Server{ConnContext: connContext},
+		server:   &http.Server{},
 		listener: listener,
 		daemon:   daemon,
 	}, nil

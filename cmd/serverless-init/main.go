@@ -165,11 +165,6 @@ func preloadEarly() {
 	// forwarder timeout above.
 	setOverride("aggregator_stop_timeout", metricsAggregatorStopTimeoutSeconds)
 
-	// Prevent any UDP packets from being stuck in the buffer and not parsed:
-	// with this option set to 1ms, all packets received are immediately sent
-	// to the parser.
-	setOverride("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
-
 	// DogStatsD in serverless-init listens on UDP only — suppress the default
 	// UDS listener, which requires a filesystem socket that has no use here.
 	setOverride("dogstatsd_socket", "")
@@ -239,6 +234,20 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
+// applyCloudServiceOverrides sets the config overrides that depend on the detected
+// cloud service. It must run after cloud service detection and before
+// fxutil.OneShot constructs the DogStatsD server, which reads them.
+func applyCloudServiceOverrides(cloudService cloudservice.CloudService) {
+	// AWS Lambda MicroVM flushes telemetry in its /suspend and /terminate hooks and
+	// then suspends or destroys the VM. That flush only waits for samples already
+	// enqueued in the aggregator, so keep packets from waiting in the DogStatsD
+	// packet buffer: with this option set to 1ms, all packets received are
+	// immediately sent to the parser.
+	if cloudService.GetOrigin() == cloudservice.MicroVMOrigin {
+		setOverride("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
+	}
+}
+
 func main() {
 
 	preloadEarly()
@@ -265,6 +274,7 @@ func main() {
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
+	applyCloudServiceOverrides(cloudService)
 
 	// Compute tags after the early LoadDatadog so that yaml-configured
 	// `tags` and `extra_tags` (read by configUtils.GetConfiguredTags inside
@@ -413,7 +423,14 @@ func run(
 	//            aggregator_stop_timeout (2 s).
 	//        5c. SharedForwarder.Stop() — drains in-flight HTTP transactions —
 	//            bounded by forwarder_stop_timeout (2 s).
-	defer flushLogsAgent(logConfig.FlushTimeout, logsAgent)
+	defer func() {
+		// Lines still in the channel have not reached the logs pipeline and may
+		// miss the exit flush.
+		if n := len(logConfig.Channel); n > 0 {
+			log.Debugf("%d log lines still queued when the exit flush started", n)
+		}
+		flushLogsAgent(logConfig.FlushTimeout, logsAgent)
+	}()
 	defer tracingCtx.TraceAgent.Stop()
 	defer func() {
 		cloudService.Shutdown(metricAgent, enhancedMetricsEnabled, err)
@@ -583,8 +600,11 @@ type tagConfiguration struct {
 	// for use on dogstatsd metrics, legacy enhanced metrics, logs, and traces.
 	Tags                    map[string]string
 	EnhancedMetricTags      map[string]string // subset of tags derived from cloud service for enhanced metrics.
-	EnhancedUsageMetricTags map[string]string // subset of tags derived from cloud service for enhanced usage metrics, including a high cardinality instance/replica tag.
+	EnhancedUsageMetricTags map[string]string // subset of tags derived from cloud service for enhanced usage metrics, including a high cardinality instance/replica tag, plus env, service, and version.
 }
+
+// unifiedServiceTagKeys are the Unified Service Tagging keys copied onto the enhanced usage metric.
+var unifiedServiceTagKeys = []string{"env", "service", "version"}
 
 func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
@@ -603,14 +623,25 @@ func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 	serverlessInitTag.SetVersionMode(enhancedMetricTags, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedMetricTags, modeConf.SidecarMode)
 
-	serverlessInitTag.SetVersionMode(enhancedMetricTagSets.Usage, modeConf.TagVersionModeEnhancedMetrics)
-	serverlessInitTag.SetSidecarModeTag(enhancedMetricTagSets.Usage, modeConf.SidecarMode)
+	// The usage metric keeps a small tag set, but env, service, and version let users
+	// group and route alerts on it. Take them from the same sources, with the same
+	// precedence, as the other enhanced metrics so the values match.
+	unifiedServiceTags := make(map[string]string, len(unifiedServiceTagKeys))
+	for _, key := range unifiedServiceTagKeys {
+		if value, ok := enhancedMetricTags[key]; ok {
+			unifiedServiceTags[key] = value
+		}
+	}
+	enhancedUsageMetricTags := serverlessTag.MergeWithOverwrite(baseTags, enhancedMetricTagSets.Usage)
+
+	serverlessInitTag.SetVersionMode(enhancedUsageMetricTags, modeConf.TagVersionModeEnhancedMetrics)
+	serverlessInitTag.SetSidecarModeTag(enhancedUsageMetricTags, modeConf.SidecarMode)
 
 	return tagConfiguration{
 		ConfiguredTags:          configuredTags,
 		Tags:                    tags,
 		EnhancedMetricTags:      enhancedMetricTags,
-		EnhancedUsageMetricTags: enhancedMetricTagSets.Usage,
+		EnhancedUsageMetricTags: enhancedUsageMetricTags,
 	}
 }
 

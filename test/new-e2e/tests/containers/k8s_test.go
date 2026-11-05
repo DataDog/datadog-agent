@@ -35,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
 )
 
 const (
@@ -1871,7 +1872,20 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		})
 	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
 
-	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(suite.T().Context(), nginxPod.Name, metav1.DeleteOptions{})
+	k8sVersion, err := suite.Env().KubernetesCluster.ServerVersion()
+	suite.Require().NoError(err)
+
+	// Before Kubernetes 1.22, once the containers of a deleted pod have been removed, the kubelet
+	// reports them as waiting again and the pod phase goes back to Pending. The tagger keeps the
+	// last phase seen by the agent, so the Delete event can carry pod_phase:pending.
+	// Kubernetes 1.22 fixed this by reporting such containers as terminated (ContainerStatusUnknown).
+	expectedPodPhases := "running|succeeded|failed"
+	if !k8sVersion.AtLeast(utilversion.MajorMinor(1, 22)) {
+		expectedPodPhases += "|pending"
+	}
+	expectedPodPhaseTag := regexp.MustCompile(`^pod_phase:(` + expectedPodPhases + `)$`)
+
+	err = suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(suite.T().Context(), nginxPod.Name, metav1.DeleteOptions{})
 	suite.Require().NoError(err)
 
 	suite.EventuallyWithTf(func(collect *assert.CollectT) {
@@ -1907,7 +1921,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			regexp.MustCompile(`^org:agent-org$`),
 			regexp.MustCompile(`^parent-name:nginx$`),
 			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			expectedPodPhaseTag,
 			regexp.MustCompile(`^service:nginx-from-annotation$`),
 			regexp.MustCompile(`^team:contp$`),
 		}

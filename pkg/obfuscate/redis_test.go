@@ -422,6 +422,22 @@ func TestRedisObfuscator(t *testing.T) {
 			"ZADD key XX INCR score",
 		},
 		{
+			"zadd key nx score member",
+			"zadd key nx score ?",
+		},
+		{
+			"zadd key nx ch score member score member",
+			"zadd key nx ch score ? score ?",
+		},
+		{
+			"ZADD key GT CH score member score member",
+			"ZADD key GT CH score ? score ?",
+		},
+		{
+			"ZADD key XX LT score member",
+			"ZADD key XX LT score ?",
+		},
+		{
 			`
 CONFIG command
 SET k v

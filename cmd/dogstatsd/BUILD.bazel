@@ -124,7 +124,6 @@ go_library(
 
 dd_agent_go_binary(
     name = "dogstatsd",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/dogstatsd/windows_resources:rsrc"],
         "//conditions:default": [],
@@ -137,5 +136,15 @@ dd_agent_go_binary(
     }),
     embed = [":dogstatsd_lib"],
     gotags = DOGSTATSD_TAGS,
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_binary(
+    name = "dogstatsd_static",
+    embed = [":dogstatsd_lib"],
+    gotags = DOGSTATSD_TAGS,
+    static = "on",
+    # Only needed for the Linux container images.
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

@@ -1,0 +1,15 @@
+description: Case-like text in a heredoc body remains literal data and is not validated as executable syntax.
+input:
+  script: |+
+    cat <<'EOF'
+    case x in
+      x) echo hidden;;
+    esac
+    EOF
+expect:
+  stdout: |+
+    case x in
+      x) echo hidden;;
+    esac
+  stderr: ""
+  exit_code: 0

@@ -1191,9 +1191,9 @@ func TestClassifyConnectivityError(t *testing.T) {
 }
 
 // TestCheckConnectivityIncrementsFailureMetric verifies that CheckConnectivity wires
-// the classifier's result into TlmHTTPConnectivityFailure.Inc.  A destination whose
-// host cannot be resolved is guaranteed to produce a DNS error, so we can assert that the
-// counter was incremented with failure_cause="dns".
+// the classifier's result into TlmHTTPConnectivityFailure.Inc. A local HTTP server
+// returning 5xx deterministically increments the counter with failure_cause="http_status"
+// without relying on external DNS.
 func TestCheckConnectivityIncrementsFailureMetric(t *testing.T) {
 	cfg := configmock.New(t)
 
@@ -1202,14 +1202,14 @@ func TestCheckConnectivityIncrementsFailureMetric(t *testing.T) {
 	metrics.TlmHTTPConnectivityFailure = telemetryMock.NewCounter(
 		"logs", "http_connectivity_failure", []string{"failure_cause"}, "")
 
-	// Point at an unresolvable host — guaranteed to fail with a DNS error.
-	endpoint := config.NewEndpoint("test-api-key", "", "this-host-does-not-exist.invalid", 443, config.EmptyPathPrefix, true)
+	server := NewTestServer(http.StatusInternalServerError, cfg)
+	defer server.Stop()
 
-	result := CheckConnectivity(endpoint, cfg)
+	result := CheckConnectivity(server.Endpoint, cfg)
 	assert.Equal(t, config.HTTPConnectivity(false), result, "expected connectivity check to fail")
 
 	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "http_connectivity_failure")
 	assert.NoError(t, err)
 	assert.GreaterOrEqual(t, len(metric), 1, "expected at least one failure_cause metric increment")
-	assert.Equal(t, metrics.FailureCauseDNS, metric[0].Tags()["failure_cause"])
+	assert.Equal(t, metrics.FailureCauseHTTPStatus, metric[0].Tags()["failure_cause"])
 }

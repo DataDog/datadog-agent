@@ -47,17 +47,16 @@ func splitPrefix(raw string) (prefix, after string) {
 	}
 
 	for _, scheme := range schemes {
-		schemeIndex := strings.Index(raw, scheme)
-		if schemeIndex < 0 {
+		if !strings.HasPrefix(raw, scheme) {
 			continue
 		}
-		schemeEnd := schemeIndex + len(scheme) + 4
-		if schemeEnd < len(raw) && raw[schemeIndex+len(scheme):schemeEnd] == ":///" {
-			return raw[schemeIndex:schemeEnd], raw[schemeEnd:]
+		schemeEnd := len(scheme) + 4
+		if schemeEnd < len(raw) && raw[len(scheme):schemeEnd] == ":///" {
+			return raw[:schemeEnd], raw[schemeEnd:]
 		}
 		schemeEnd--
-		if schemeEnd < len(raw) && raw[schemeIndex+len(scheme):schemeEnd] == "://" {
-			return raw[schemeIndex:schemeEnd], raw[schemeEnd:]
+		if schemeEnd < len(raw) && raw[len(scheme):schemeEnd] == "://" {
+			return raw[:schemeEnd], raw[schemeEnd:]
 		}
 	}
 

@@ -1,0 +1,13 @@
+description: head -c N outputs exactly the first N bytes.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -c 5 file.txt
+expect:
+  stdout: "alpha"
+  stderr: ""
+  exit_code: 0

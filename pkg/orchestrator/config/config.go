@@ -147,6 +147,7 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 				APIKey:            utils.SanitizeAPIKey(k),
 				Endpoint:          u,
 				ConfigSettingPath: configPath,
+				ConfigKey:         endpointURL,
 			})
 		}
 	}

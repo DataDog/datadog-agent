@@ -1,0 +1,9 @@
+description: If condition using test builtin where comparison fails.
+input:
+  script: |+
+    if [ "hello" = "world" ]; then echo match; else echo nomatch; fi
+expect:
+  stdout: |+
+    nomatch
+  stderr: ""
+  exit_code: 0

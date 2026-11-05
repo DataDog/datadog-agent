@@ -153,6 +153,7 @@ func TestAMDOnlyHostEmitsMetrics(t *testing.T) {
 			"gpu_type:mi300x",
 			"gpu_pci_bus_id:0000:c1:00.0",
 			"gpu_slicing_mode:none",
+			"gpu_sharing_mode:none",
 			"gpu_mig_profile:none",
 			"gpu_nvlink_capable:false",
 			"gpu_parent_uuid:" + testAMDUUID,

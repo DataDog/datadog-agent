@@ -165,6 +165,15 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 		GetGpuFabricInfoFunc: func() (nvml.GpuFabricInfo, nvml.Return) {
 			return nvml.GpuFabricInfo{}, nvml.ERROR_NOT_SUPPORTED
 		},
+		GetPlatformInfoFunc: func() (nvml.PlatformInfo, nvml.Return) {
+			return nvml.PlatformInfo{}, nvml.ERROR_NOT_SUPPORTED
+		},
+		GetSerialFunc: func() (string, nvml.Return) {
+			return "", nvml.ERROR_NOT_SUPPORTED
+		},
+		GetNumaNodeIdFunc: func() (int, nvml.Return) {
+			return 0, nvml.ERROR_NOT_SUPPORTED
+		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
 				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS

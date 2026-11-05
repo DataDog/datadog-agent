@@ -18,7 +18,7 @@ go_library(
         "//pkg/process/runner/endpoint",
         "//pkg/process/status",
         "//pkg/process/util",
-        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
     ],
 )
 

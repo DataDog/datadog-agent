@@ -15,12 +15,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
-	"slices"
+	"sync"
 	"time"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	trivycache "github.com/aquasecurity/trivy/pkg/cache"
-	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
@@ -40,13 +39,8 @@ import (
 )
 
 const (
-	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
-	LanguagesAnalyzers    = "languages"           // LanguagesAnalyzers defines a language analyzer
-	SecretAnalyzers       = "secret"              // SecretAnalyzers defines a secret analyzer
-	ConfigFileAnalyzers   = "config"              // ConfigFileAnalyzers defines a configuration file analyzer
-	TypeApkCommand        = "apk-command"         // TypeApkCommand defines a apk-command analyzer
-	HistoryDockerfile     = "history-dockerfile"  // HistoryDockerfile defines a history-dockerfile analyzer
-	TypeImageConfigSecret = "image-config-secret" // TypeImageConfigSecret defines a history-dockerfile analyzer
+	OSAnalyzers        = "os"        // OSAnalyzers defines an OS analyzer
+	LanguagesAnalyzers = "languages" // LanguagesAnalyzers defines a language analyzer
 )
 
 // collectorConfig allows to pass configuration
@@ -64,6 +58,10 @@ type Collector struct {
 	osScanner   ospkg.Scanner
 	langScanner langpkg.Scanner
 	vulnClient  vulnerability.Client
+
+	// warnDockerExport logs, once, that the direct scan exports the Docker
+	// images whose layers the Agent cannot read.
+	warnDockerExport sync.Once
 }
 
 var globalCollector *Collector
@@ -79,9 +77,6 @@ func getDefaultArtifactOption(scanOptions sbom.ScanOptions) artifact.Option {
 		artifactOption = ddtrivy.TrivyOptionsOS(parallel)
 	} else {
 		artifactOption = ddtrivy.TrivyOptionsAll(parallel)
-		// OnlyDirs filters the static paths an OS-only scan walks, so only
-		// application scans take the additional directories.
-		artifactOption.WalkerOption.OnlyDirs = append(artifactOption.WalkerOption.OnlyDirs, scanOptions.AdditionalDirs...)
 	}
 
 	// agent specific config, needed so that we don't download the Java DB at runtime
@@ -137,53 +132,6 @@ func scanWithOSFallback(ctx context.Context, target string, scanOptions sbom.Sca
 	return report, err == nil, err
 }
 
-// DefaultDisabledCollectors returns default disabled collectors
-func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
-	analyzersDisabled := func(analyzers string) bool {
-		return !slices.Contains(enabledAnalyzers, analyzers)
-	}
-
-	var disabledAnalyzers []analyzer.Type
-	if analyzersDisabled(OSAnalyzers) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeOSes...)
-	}
-	if analyzersDisabled(LanguagesAnalyzers) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeExecutable)
-	}
-	if analyzersDisabled(SecretAnalyzers) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
-	}
-	if analyzersDisabled(ConfigFileAnalyzers) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeConfigFiles...)
-	}
-	if analyzersDisabled(TypeApkCommand) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeApkCommand)
-	}
-	if analyzersDisabled(HistoryDockerfile) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeHistoryDockerfile)
-	}
-	if analyzersDisabled(TypeImageConfigSecret) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
-	}
-	disabledAnalyzers = append(disabledAnalyzers,
-		analyzer.TypeRedHatContentManifestType,
-		analyzer.TypeRedHatDockerfileType,
-		analyzer.TypeSBOM,
-		analyzer.TypeUbuntuESM,
-		analyzer.TypeLicenseFile,
-		analyzer.TypeRpmArchive,
-	)
-
-	return disabledAnalyzers
-}
-
-// DefaultDisabledHandlers returns default disabled handlers
-func DefaultDisabledHandlers() []ftypes.HandlerType {
-	return []ftypes.HandlerType{ftypes.UnpackagedPostHandler}
-}
-
 // NewCollector returns a new collector
 func NewCollector(cfg config.Component) (*Collector, error) {
 	return &Collector{
@@ -228,15 +176,8 @@ func GetGlobalCollector(cfg config.Component) (*Collector, error) {
 	return globalCollector, nil
 }
 
-// ScanFSTrivyReport scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, error) {
-	report, _, err := c.scanFSTrivyReport(ctx, path, scanOptions, removeLayers)
-	return report, err
-}
-
-// scanFSTrivyReport scans path like ScanFSTrivyReport and reports whether the
-// report lists the OS packages alone because the application scan ran out of
-// time.
+// scanFSTrivyReport scans path and reports whether the report lists the OS
+// packages alone because the application scan ran out of time.
 func (c *Collector) scanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, bool, error) {
 	artifactType := ftypes.TypeContainerImage
 	if removeLayers {

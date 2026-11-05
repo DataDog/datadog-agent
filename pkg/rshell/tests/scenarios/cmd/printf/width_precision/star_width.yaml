@@ -1,0 +1,7 @@
+description: Star width from argument right-aligns string.
+input:
+  script: |+
+    printf "%*s\n" 10 hello
+expect:
+  stdout: "     hello\n"
+  exit_code: 0
