@@ -308,7 +308,7 @@ chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
 # Load GUI immediately for the console user if they have an active GUI session
 CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || echo 'root')
 CONSOLE_USER_UID=$(id -u "$CONSOLE_USER" 2>/dev/null)
-if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
+if [ -n "$CONSOLE_USER_UID" ] && launchctl print "gui/$CONSOLE_USER_UID" >/dev/null 2>&1; then
     echo "# Loading GUI app for $CONSOLE_USER"
     launchctl enable "gui/$CONSOLE_USER_UID/com.datadoghq.gui" 2>/dev/null || true
     if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" /Library/LaunchAgents/com.datadoghq.gui.plist 2>&1; then
@@ -329,7 +329,7 @@ if [ -f "$AI_USAGE_DESKTOP_MONITOR_PLIST_EXAMPLE" ]; then
     chown root:wheel "$AI_USAGE_DESKTOP_MONITOR_PLIST"
     chmod 644 "$AI_USAGE_DESKTOP_MONITOR_PLIST"
 
-    if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
+    if [ -n "$CONSOLE_USER_UID" ] && launchctl print "gui/$CONSOLE_USER_UID" >/dev/null 2>&1; then
         echo "# Loading AI Usage Agent desktop monitor for $CONSOLE_USER"
         launchctl enable "gui/$CONSOLE_USER_UID/$AI_USAGE_DESKTOP_MONITOR_LABEL" 2>/dev/null || true
         if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" "$AI_USAGE_DESKTOP_MONITOR_PLIST" 2>&1; then
