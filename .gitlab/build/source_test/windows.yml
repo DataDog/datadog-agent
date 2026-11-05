@@ -1,0 +1,4 @@
+---
+# Windows Go unit tests (Bazel, with coverage).
+tests_windows-x64:
+  extends: [.bazel:runner:windows-amd64, .bazel:coverage:windows]

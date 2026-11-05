@@ -1,0 +1,13 @@
+description: tail on single-line file outputs that line.
+setup:
+  files:
+    - path: one.txt
+      content: "only line\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail one.txt
+expect:
+  stdout: "only line\n"
+  stderr: ""
+  exit_code: 0

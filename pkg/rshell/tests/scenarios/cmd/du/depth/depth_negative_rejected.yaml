@@ -1,0 +1,13 @@
+description: du -d with a negative depth is rejected.
+setup:
+  files:
+    - path: a.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -d -1 .
+expect:
+  stdout: |+
+  stderr_contains: ["du:"]
+  exit_code: 1

@@ -1,0 +1,10 @@
+# Pinging the limited broadcast address 255.255.255.255 must be rejected.
+description: "ping 255.255.255.255 (broadcast address) exits 1"
+input:
+  script: |+
+    ping -c 1 255.255.255.255
+expect:
+  stdout: ""
+  stderr: "ping: broadcast destination not allowed: 255.255.255.255\n"
+  exit_code: 1
+skip_assert_against_bash: true

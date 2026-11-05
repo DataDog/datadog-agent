@@ -1,0 +1,13 @@
+# skip: special variable is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: The $_ variable (last argument) expands to empty.
+input:
+  script: |+
+    echo hello
+    echo "[$_]"
+expect:
+  stdout: |+
+    hello
+    []
+  stderr: ""
+  exit_code: 0

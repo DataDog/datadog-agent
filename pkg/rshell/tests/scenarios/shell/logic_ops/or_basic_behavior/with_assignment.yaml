@@ -1,0 +1,10 @@
+description: Variable set in left side of || is visible in fallback.
+input:
+  script: |+
+    X=hello || echo $X
+    echo $X
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

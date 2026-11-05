@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    APM: In the Datadog Distribution of OpenTelemetry Collector (DDOT), traces
+    dropped through ``apm_config.filter_tags`` (``DD_APM_FILTER_TAGS_REQUIRE``,
+    ``DD_APM_FILTER_TAGS_REJECT``) and ``apm_config.filter_tags_regex``
+    (``DD_APM_FILTER_TAGS_REGEX_REQUIRE``, ``DD_APM_FILTER_TAGS_REGEX_REJECT``)
+    are now also excluded from the APM trace metrics computed by the ``datadog``
+    connector, as with the Datadog Agent: when the root span of a trace fails
+    these rules, the spans of that trace from the same OTLP resource are excluded.
+    As a result, ``trace.*`` metrics are no longer reported for filtered traces.

@@ -1,0 +1,9 @@
+description: jq arithmetic operators retain their JSON string, array, and object overloads.
+input:
+  script: |+
+    jq -nc '["a" + "b", [1] + [2], {"a":1} + {"b":2}, [1,2,1] - [1], "ab" * 2, "a,b,a" / ","]'
+expect:
+  stdout: |+
+    ["ab",[1,2],{"a":1,"b":2},[2],"abab",["a","b","a"]]
+  stderr: |+
+  exit_code: 0

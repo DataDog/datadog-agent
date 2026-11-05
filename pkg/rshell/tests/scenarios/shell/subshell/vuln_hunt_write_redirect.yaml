@@ -1,0 +1,12 @@
+# vuln-hunt 2026-05-18-initial-audit: a `>` redirect inside `(...)` is still
+# subject to the blocked-write-redirect policy; wrapping does not bypass it.
+skip_assert_against_bash: true
+description: Output redirection inside a subshell is blocked.
+input:
+  script: |+
+    (echo hello) > out.txt
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

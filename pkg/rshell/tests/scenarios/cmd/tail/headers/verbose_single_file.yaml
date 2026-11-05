@@ -1,0 +1,13 @@
+description: tail -v prints a header even when only one file is given.
+setup:
+  files:
+    - path: one.txt
+      content: "only one line\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -v one.txt
+expect:
+  stdout: "==> one.txt <==\nonly one line\n"
+  stderr: ""
+  exit_code: 0

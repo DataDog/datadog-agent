@@ -516,7 +516,12 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 		}
 
 		if mounted, _ := mountinfo.Mounted(p.kernelVersion.OsReleasePath); !mounted {
-			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+			hostRoot := os.Getenv("HOST_ROOT")
+			if hostRoot == "" || !strings.HasPrefix(p.kernelVersion.OsReleasePath, hostRoot) {
+				err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+			} else if mounted, _ := mountinfo.Mounted(hostRoot); !mounted {
+				err = multierror.Append(err, fmt.Errorf("neither %s nor %s seem to be a mountpoint", p.kernelVersion.OsReleasePath, hostRoot))
+			}
 		}
 
 		// securityfs may not be mounted explicitly, but can still be reachable through the host root mount
@@ -1419,8 +1424,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	switch eventType {
-	case model.ShortDNSResponseEventType,
-		model.DNSEventType,
+	case model.DNSEventType,
 		model.IMDSEventType,
 		model.RawPacketFilterEventType,
 		model.LoadModuleEventType,
@@ -2373,6 +2377,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.ShortDNSResponseEventType:
+		// Always stop here: the record has no process, span or cgroup context to decode.
 		if p.config.Probe.DNSResolutionEnabled {
 			decodeErr := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback)
 			if decodeErr == nil {
@@ -2386,7 +2391,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
 			}
+			p.monitors.ProcessEvent(event, p.probe.scrubber)
 		}
+		return false
 	}
 	return true
 }

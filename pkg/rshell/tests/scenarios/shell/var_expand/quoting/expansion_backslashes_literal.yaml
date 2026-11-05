@@ -1,0 +1,12 @@
+description: Variable value containing backslashes is printed literally when double-quoted.
+input:
+  script: |+
+    V='\a\b\c'
+    echo "$V"
+    echo $V
+expect:
+  stdout: |+
+    \a\b\c
+    \a\b\c
+  stderr: ""
+  exit_code: 0

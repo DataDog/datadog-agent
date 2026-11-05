@@ -1,0 +1,33 @@
+=== yield 1 [final=true] ===
+Package: main
+	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [77:86] injectible: [77-86]
+		Arg: w: net/http.ResponseWriter (declared at line 77, available: [77-86])
+		Arg: r: *net/http.Request (declared at line 77, available: [77-86])
+		Var: &buf: *bytes.Buffer (declared at line 83, available: [77-86])
+		Var: span: gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span (declared at line 78, available: [79-80])
+	Function: LookAtTheRequest (main.LookAtTheRequest) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [89:91] injectible: [89-91]
+		Arg: path: string (declared at line 89, available: [89-90])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [26:75] injectible: [26-29], [33-33], [35-35], [37-39], [42-43], [46-48], [51-52], [55-57], [59-59], [61-62], [64-68], [70-70], [72-75]
+		Var: ctx.data: *uint8 (declared at line 27, available: [26-75])
+		Var: ln.data: *uint8 (declared at line 55, available: [26-75])
+		Var: mux: *gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http/internal/wrap.ServeMux (declared at line 64, available: [29-75])
+		Var: s: *net/http.Server (declared at line 66, available: [29-75])
+		Var: ~r0.ptr: *uint8 (declared at line 236, available: [26-75])
+		Var: ctx.itab: uintptr (declared at line 27, available: [26-75])
+		Var: ln.itab: uintptr (declared at line 55, available: [26-75])
+		Var: ~r0.len: int (declared at line 236, available: [26-75])
+		Var: port: int (declared at line 61, available: [62-62])
+		Var: stop: context.CancelFunc (declared at line 27, available: [28-33])
+		Var: tracerEnabled: bool (declared at line 33, available: [35-35])
+		Var: ctx: context.Context (declared at line 27, available: [26-75])
+		Var: ln: net.Listener (declared at line 55, available: [26-75])
+		Var: err: error (declared at line 55, available: [56-57])
+		Scope: 38-55
+			Var: ddAgentHost.ptr: *uint8 (declared at line 38, available: [38-55])
+			Var: ddAgentPort.ptr: *uint8 (declared at line 42, available: [38-55])
+			Var: ddAgentHost.len: int (declared at line 38, available: [38-55])
+			Var: ddAgentPort.len: int (declared at line 42, available: [38-55])
+			Var: ddAgentHost: string (declared at line 38, available: [39-55])
+			Var: ddAgentPort: string (declared at line 42, available: [39-51])
+			Var: opts: []gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.StartOption (declared at line 46, available: )
+	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [29:31] injectible: [29-31]

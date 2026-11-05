@@ -222,8 +222,24 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 
 // GetPidListmount does a listmount for the mount namespace of a specific pid and calls cb() for each entry found
 func GetPidListmount(procfs string, pid uint32, cb func(*model.Mount)) error {
-	path := filepath.Join(procfs, strconv.Itoa(int(pid)), "ns", "mnt")
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	pidStr := strconv.Itoa(int(pid))
+	pidDir := filepath.Join(procfs, pidStr)
+	fd, err := unix.Open(filepath.Join(pidDir, "ns", "mnt"), unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		entries, readDirErr := os.ReadDir(filepath.Join(pidDir, "task"))
+		if readDirErr == nil {
+			for _, entry := range entries {
+				tidStr := entry.Name()
+				if tidStr == pidStr {
+					continue
+				}
+				if taskFD, taskErr := unix.Open(filepath.Join(pidDir, "task", tidStr, "ns", "mnt"), unix.O_RDONLY|unix.O_CLOEXEC, 0); taskErr == nil {
+					fd, err = taskFD, nil
+					break
+				}
+			}
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("error opening mount namespace: %w", err)
 	}
