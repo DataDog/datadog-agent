@@ -113,7 +113,7 @@ func (r *HTTPReceiver) aiGuardProxyHandler() http.Handler {
 	errorLog := stdlog.New(throttled, "AIGuardProxy: ", 0)
 	return http.StripPrefix("/ai_guard/proxy", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// isValidPath rejects '.' in the decoded path, so dot segments cannot escape the AI Guard API.
-		if (req.Method != http.MethodGet && req.Method != http.MethodPost) || req.URL.RawQuery != "" ||
+		if (req.Method != http.MethodGet && req.Method != http.MethodPost) || req.URL.RawQuery != "" || req.URL.ForceQuery ||
 			!strings.HasPrefix(req.URL.Path, "/api/v2/ai-guard/") || !isValidPath(req.URL.Path) {
 			writeAIGuardProxyError(w, http.StatusNotFound, "path_not_allowed")
 			return
@@ -234,6 +234,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	// We don't want to forward arbitrary headers, create a copy of the input headers and clear them
 	inputHeaders := req.Header
 	req.Header = http.Header{}
+	req.Trailer = nil // trailers are not part of the allowed headers, so they are not forwarded either
 
 	// Set standard headers
 	req.Header.Set("User-Agent", "") // Set to empty string so Go doesn't set its default

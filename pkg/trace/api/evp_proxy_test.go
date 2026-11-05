@@ -769,13 +769,13 @@ func unexpectedUpstream(t *testing.T) http.HandlerFunc {
 func TestAIGuardProxy(t *testing.T) {
 	type upstreamRequest struct {
 		method, host, uri, body string
-		header                  http.Header
+		header, trailer         http.Header
 	}
 	recordingUpstream := func(received chan<- upstreamRequest) http.HandlerFunc {
 		return func(w http.ResponseWriter, req *http.Request) {
 			body, err := io.ReadAll(req.Body)
 			assert.NoError(t, err)
-			received <- upstreamRequest{req.Method, req.Host, req.URL.RequestURI(), string(body), req.Header.Clone()}
+			received <- upstreamRequest{req.Method, req.Host, req.URL.RequestURI(), string(body), req.Header.Clone(), req.Trailer.Clone()}
 			w.Header().Set("Datadog-Agent-Proxy-Error", "from_datadog")
 			w.Header().Set("X-From-Datadog", "yes")
 			w.WriteHeader(http.StatusForbidden)
@@ -868,8 +868,20 @@ func TestAIGuardProxy(t *testing.T) {
 			code:   "path_not_allowed",
 		},
 		{
+			name:   "bare query marker",
+			req:    func() *http.Request { return newAIGuardRequest("POST", "/api/v2/ai-guard/evaluate?", "{}") },
+			status: http.StatusNotFound,
+			code:   "path_not_allowed",
+		},
+		{
 			name:   "query string",
 			req:    func() *http.Request { return newAIGuardRequest("POST", "/api/v2/ai-guard/evaluate?api_key=x", "{}") },
+			status: http.StatusNotFound,
+			code:   "path_not_allowed",
+		},
+		{
+			name:   "query string on get",
+			req:    func() *http.Request { return newAIGuardRequest("GET", "/api/v2/ai-guard/policy?api_key=x", "") },
 			status: http.StatusNotFound,
 			code:   "path_not_allowed",
 		},
@@ -898,11 +910,56 @@ func TestAIGuardProxy(t *testing.T) {
 			mux.ServeHTTP(rec, tc.req())
 			if tc.code == "" {
 				assert.Equal(t, tc.status, rec.Code)
+				// Only the documented codes are marked as Agent errors.
+				assert.Empty(t, rec.Header().Values(aiGuardProxyErrorHeader))
 				return
 			}
 			assertAIGuardProxyError(t, rec, tc.status, tc.code)
 		})
 	}
+
+	// Trailers only reach the proxy from a chunked request, so this goes through a real server.
+	t.Run("trailers are not forwarded", func(t *testing.T) {
+		received := make(chan upstreamRequest, 1)
+		agent := httptest.NewServer(aiGuardTestMux(t, aiGuardTestConfig(), recordingUpstream(received)))
+		t.Cleanup(agent.Close)
+
+		body, chunks := io.Pipe()
+		req, err := http.NewRequest("POST", agent.URL+"/ai_guard/proxy/api/v2/ai-guard/evaluate", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Trailer = http.Header{"X-Not-Allowed-Trailer": nil}
+		go func() {
+			_, _ = chunks.Write([]byte("{}"))
+			req.Trailer.Set("X-Not-Allowed-Trailer", "leaked")
+			chunks.Close()
+		}()
+		resp, err := agent.Client().Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode) // the upstream's own status, so the request was proxied
+
+		require.Len(t, received, 1)
+		got := <-received
+		assert.Equal(t, `{}`, got.body)
+		assert.Empty(t, got.trailer, "trailers must not be forwarded to Datadog")
+	})
+
+	// The AI Guard proxy goes to the main endpoint only, so that the application key never fans out.
+	t.Run("main endpoint only", func(t *testing.T) {
+		received := make(chan upstreamRequest, 2)
+		conf := aiGuardTestConfig()
+		conf.EVPProxy.DDURL = "evp.datadoghq.test"
+		conf.EVPProxy.AdditionalEndpoints = map[string][]string{"additional.datadoghq.test": {"additional_api_key"}}
+		mux := aiGuardTestMux(t, conf, recordingUpstream(received))
+
+		mux.ServeHTTP(httptest.NewRecorder(), newAIGuardRequest("POST", "/api/v2/ai-guard/evaluate", "{}"))
+
+		require.Len(t, received, 1)
+		got := <-received
+		assert.Equal(t, "api.datadoghq.test", got.host)
+		assert.Equal(t, "test_api_key", got.header.Get("DD-API-KEY"))
+	})
 
 	t.Run("payload_too_large", func(t *testing.T) {
 		conf := aiGuardTestConfig()
