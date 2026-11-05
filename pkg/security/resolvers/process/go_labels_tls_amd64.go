@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/ebpf-profiler/asm/amd"
-	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
 	"go.opentelemetry.io/ebpf-profiler/nativeunwind/elfunwindinfo"
 )
@@ -44,14 +43,14 @@ func extractTLSGOffset(f *pfelf.File) (int32, error) {
 	// In some binaries offset is stored relative to RIP:
 	// 0x000000000017e34c0 <+0>: 	mov    0x40b9af9(%rip),%rcx        # 589cfc0 <runtime.tlsg@@Base+0x589cfc0>
 	// 0x000000000017e34c7 <+7>:	mov    %fs:(%rcx),%rax
-	sym, err := pclntab.LookupSymbol(libpf.SymbolName(symbolName))
+	sym, err := pclntab.LookupSymbol(symbolName)
 	if err != nil {
 		return 0, err
 	}
 
 	sz := int(min(sym.Size, 128))
-	code, err := f.VirtualMemory(int64(sym.Address), sz, sz)
-	if err != nil {
+	code := make([]byte, sz)
+	if _, err := f.ReadAt(code, int64(sym.Address)); err != nil {
 		return 0, err
 	}
 

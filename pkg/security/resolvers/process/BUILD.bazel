@@ -104,7 +104,6 @@ go_library(
         ],
         "@rules_go//go/platform:android_amd64": [
             "@io_opentelemetry_go_ebpf_profiler//asm/amd",
-            "@io_opentelemetry_go_ebpf_profiler//libpf",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
             "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
         ],
@@ -113,7 +112,6 @@ go_library(
         ],
         "@rules_go//go/platform:android_arm64": [
             "@io_opentelemetry_go_ebpf_profiler//asm/arm",
-            "@io_opentelemetry_go_ebpf_profiler//libpf",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
             "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
             "@org_golang_x_arch//arm64/arm64asm",
@@ -123,7 +121,6 @@ go_library(
         ],
         "@rules_go//go/platform:linux_amd64": [
             "@io_opentelemetry_go_ebpf_profiler//asm/amd",
-            "@io_opentelemetry_go_ebpf_profiler//libpf",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
             "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
         ],
@@ -132,7 +129,6 @@ go_library(
         ],
         "@rules_go//go/platform:linux_arm64": [
             "@io_opentelemetry_go_ebpf_profiler//asm/arm",
-            "@io_opentelemetry_go_ebpf_profiler//libpf",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
             "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
             "@org_golang_x_arch//arm64/arm64asm",
