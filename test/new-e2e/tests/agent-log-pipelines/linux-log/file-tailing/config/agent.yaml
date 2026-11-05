@@ -7,3 +7,6 @@ logs_config:
     - type: exclude_at_match_ottl
       name: drop_global
       pattern: 'attributes["ottl_global_drop"] == true'
+    - type: mask_ottl
+      name: redact_global_token
+      pattern: 'set(attributes["token"], "***") where HasPrefix(body, "{") and attributes["token"] != nil'

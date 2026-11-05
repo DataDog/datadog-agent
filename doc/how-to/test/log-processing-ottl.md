@@ -1,8 +1,9 @@
-# OTTL log filtering experiment
+# OTTL log processing experiment
 
-This prototype adds read-only OTTL conditions to the Agent's log-processing rules.
-The experiment measures both the cost of evaluating a condition and the cost of
-preparing a log for evaluation. It does not add OTTL masking or transformations.
+This implementation adds OTTL filtering conditions and masking statements to the
+Agent's log-processing rules. The experiment measures condition evaluation,
+message preparation, and JSON masking. The initial measurements below cover the
+filter-only prototype before the rebase and masking addition.
 
 ## Configuration
 
@@ -40,18 +41,21 @@ The context exposes:
 
 The registered converters are `IsMatch`, `HasPrefix`, `HasSuffix`, `IsString`,
 `IsInt`, `IsDouble`, `IsBool`, `IsMap`, `IsList`, `Len`, `Int`, `Double`, and
-`String`. These are upstream OTTL implementations. Editors and other converters
-are deliberately unregistered; this is a filtering subset, not the complete
-Collector transform processor or its full log context.
+`String`. These are upstream OTTL implementations. Masking additionally
+registers replace_pattern, replace_match, and set. These functions use the
+Agent's JSON/body context described in the configuration reference.
 
 Global rules run before source rules, in their configured order. A legacy
 `mask_sequences` rule invalidates the parsed context when it changes the content,
-so subsequent OTTL rules see the masked value. Retained messages keep their
-original bytes; filtering does not serialize the JSON document.
+so subsequent OTTL rules see the masked value. Filtering preserves the original
+bytes. JSON masks share the cached tree with
+filters and defer serialization until bytes are needed. A body edit invalidates
+that tree. Masking errors drop messages, matching Ralph's original mask_ottl
+behavior; filter errors keep them.
 
 ## Implementation choices
 
-- Compile upstream OTTL conditions during configuration processing.
+- Compile upstream OTTL conditions and masking statements during configuration processing.
 - Register converters explicitly instead of retaining `StandardFuncs`.
 - Evaluate against an Agent context instead of allocating Collector log,
   resource, and scope records for each rule.
@@ -74,6 +78,23 @@ bazel test --config=dd-agent-go-tests-only \
 Use `--config=gorace` to check concurrent use. The tests cover nested and array
 access, escaping, duplicate keys, integer precision, invalid input, rule ordering,
 source rules, and cache invalidation after masking.
+
+## Masking implementation
+
+The mask_ottl rule follows [Ralph's combined benchmark PR](https://github.com/DataDog/datadog-agent/pull/53809)
+for statement execution and dropping messages on masking errors. It parses an upstream OTTL statement, including an optional where
+clause. Writes are tracked by parent/key location instead of replacing shared
+fastjson boolean/null singletons. Values come from a reusable arena. Scalar
+writes and nested reads see the latest values without reparsing.
+
+Modified documents serialize with last-key-wins duplicate handling. Executed
+JSON masks also remove shadowed duplicate values when their editor otherwise
+does nothing. False where clauses retain the original bytes. Unrelated numbers
+are emitted directly from their parsed tokens, avoiding a float64 round trip.
+
+Run BenchmarkOTTLMasking in the configuration target to measure a roughly 2 KiB
+message with 1, 5, or 20 distinct field redactions, including final encoding.
+Compilation is outside the timed loop.
 
 ## Microbenchmarks
 
@@ -218,3 +239,20 @@ still allocates zero objects in this benchmark. Full Agent builds, both unit-tes
 suites, race-enabled runs, and build-file formatting checks passed. Linux release
 size, SMP load behavior, and an equivalent current VRL implementation remain
 unmeasured.
+
+## Masking measurements (2026-11-05)
+
+Apple M5 Pro, macOS/arm64, OTTL v1.3.1, one benchmark CPU, median of three
+200 ms runs. Each statement sets a different string field to "***". The input
+contains a 2 KiB padding string plus the selected fields; parsing and final JSON
+serialization are timed, while compilation and building the input are excluded.
+
+| Input bytes | Field masks | Microseconds/message | Bytes allocated | Allocations |
+| ---: | ---: | ---: | ---: | ---: |
+| 2,080 | 1 | 1.956 | 2,344 | 5 |
+| 2,152 | 5 | 3.079 | 2,472 | 17 |
+| 2,432 | 20 | 8.298 | 4,272 | 65 |
+
+These synthetic context benchmarks exclude Agent envelope encoding and network
+costs. They do not compare masking against fastjq or VRL. Raw output is in
+bin/benchmarks/ottl-filtering/masking-benchmarks.log in the experiment checkout.
