@@ -182,6 +182,7 @@ func shareConntrackNATMap(o *manager.Options, m *ebpf.Map) {
 		o.MapEditors = make(map[string]*ebpf.Map)
 	}
 	o.MapEditors[probes.ConntrackMap] = m
+	setNATLookupMode(o, natLookupConntrack)
 	// a replacement must match the placeholder's spec
 	o.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{
 		Type:       m.Type(),
@@ -198,6 +199,19 @@ func unshareConntrackNATMap(o *manager.Options, config *config.Config) {
 	delete(o.MapEditors, probes.ConntrackMap)
 	delete(o.MapSpecEditors, probes.ConntrackMap)
 	o.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
+	setNATLookupMode(o, natLookupSKBCache)
+}
+
+// nat_lookup_mode values, matching NAT_LOOKUP_* in tracer/nat.h
+const (
+	natLookupConntrack uint64 = 1
+	natLookupSKBCache  uint64 = 2
+)
+
+// setNATLookupMode tells the tracer which map holds the NAT'd tuples, so it skips the lookup in the other one.
+func setNATLookupMode(o *manager.Options, mode uint64) {
+	o.ConstantEditors = slices.DeleteFunc(o.ConstantEditors, func(c manager.ConstantEditor) bool { return c.Name == "nat_lookup_mode" })
+	o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{Name: "nat_lookup_mode", Value: mode})
 }
 
 func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), TracerType, error) {
@@ -290,6 +304,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component, opts o
 		mgrOptions.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPOngoingConnectPid] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPRecvMsgArgsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries}
+		setNATLookupMode(&mgrOptions, natLookupSKBCache)
 		if opts.conntrackNATMap != nil {
 			shareConntrackNATMap(&mgrOptions, opts.conntrackNATMap)
 		}

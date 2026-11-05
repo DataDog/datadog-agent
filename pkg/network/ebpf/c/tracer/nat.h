@@ -8,10 +8,26 @@
 #include "port_range.h"
 #include "tracer/maps.h"
 
+// Values of the nat_lookup_mode constant. Only one of the two maps can hold entries, so userspace
+// picks it at load time and the other lookup is skipped. Without the constant both are tried.
+#define NAT_LOOKUP_CONNTRACK 1
+#define NAT_LOOKUP_SKB_CACHE 2
+
+static __always_inline __u64 nat_lookup_mode() {
+    __u64 val = 0;
+    LOAD_CONSTANT("nat_lookup_mode", val);
+    return val;
+}
+
 // get_skb_tuple finds the tuple the protocol classifier saw for a socket whose packets were NAT'd. sock_tup is the
 // socket's tuple, netns included; norm_sock_tup is the same tuple normalized, without netns and pid. On success
 // skb_tup holds the packets' tuple, normalized, without netns and pid.
 static __always_inline bool get_skb_tuple(conn_tuple_t *sock_tup, conn_tuple_t *norm_sock_tup, conn_tuple_t *skb_tup) {
+    __u64 mode = nat_lookup_mode();
+    if (mode == NAT_LOOKUP_SKB_CACHE) {
+        goto skb_cache;
+    }
+
     conntrack_tuple_t key;
     bpf_memset(&key, 0, sizeof(key));
     key.saddr_h = sock_tup->saddr_h;
@@ -39,6 +55,11 @@ static __always_inline bool get_skb_tuple(conn_tuple_t *sock_tup, conn_tuple_t *
         return true;
     }
 
+    if (mode == NAT_LOOKUP_CONNTRACK) {
+        return false;
+    }
+
+skb_cache:
     // without the conntracker's map, the net_dev_queue probe recorded the mapping
     conn_tuple_t *cached = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, norm_sock_tup);
     if (!cached) {
