@@ -89,7 +89,7 @@ func newMetricPipeline(
 
 // newScanMWMetricPipeline builds the initial kind-routed composition without
 // registering it in the production catalog.
-func newScanMWMetricPipeline(cfg ScanMWConfig) *MetricPipeline {
+func newScanMWMetricPipeline(cfg ScanMWConfig) (*MetricPipeline, error) {
 	scan := NewScanMWDetector(cfg)
 	registration := pipelineRegistration{
 		kind:         observer.STABLE,
@@ -99,10 +99,9 @@ func newScanMWMetricPipeline(cfg ScanMWConfig) *MetricPipeline {
 	}
 	p, err := newMetricPipeline([]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
 	if err != nil {
-		// The fixed registration is valid; this is defensive only.
-		panic(err)
+		return nil, fmt.Errorf("build scanmw metric pipeline: %w", err)
 	}
-	return p
+	return p, nil
 }
 
 func pipelineExpandWindow(window *observer.DetectorPointWindow, detector observer.Detector) {

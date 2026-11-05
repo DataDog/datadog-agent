@@ -124,6 +124,12 @@ func newScanMWPipelineWithMatcher(
 	return p, scan
 }
 
+func newScanMWPipeline(tb testing.TB, cfg ScanMWConfig) *MetricPipeline {
+	p, err := newScanMWMetricPipeline(cfg)
+	require.NoError(tb, err)
+	return p
+}
+
 func testScanMWPipelineConfig() ScanMWConfig {
 	return ScanMWConfig{
 		MinPoints: 6, MinSegment: 2, MaxPoints: 40,
@@ -212,7 +218,7 @@ func TestScanMWMetricPipelineRouting(t *testing.T) {
 			tagset.CompositeTags{}, 5, metrics.GaugeType)
 	}
 
-	p := newScanMWMetricPipeline(testScanMWPipelineConfig())
+	p := newScanMWPipeline(t, testScanMWPipelineConfig())
 	filter := observer.WorkloadSeriesFilter()
 	stableKind, gaugeType := observer.STABLE, metrics.GaugeType
 	filter.MetricKind, filter.MetricType = &stableKind, &gaugeType
@@ -387,8 +393,8 @@ func TestMetricPipelineReplayParity(t *testing.T) {
 		preloaded.AddWithKeyAndHostComposite("work", "metric", "", value, ts,
 			tagset.CompositeTags{}, 1, metrics.GaugeType)
 	}
-	live := newScanMWMetricPipeline(testScanMWPipelineConfig())
-	replayed := newScanMWMetricPipeline(testScanMWPipelineConfig())
+	live := newScanMWPipeline(t, testScanMWPipelineConfig())
+	replayed := newScanMWPipeline(t, testScanMWPipelineConfig())
 	found := 0
 	for ts := int64(1); ts <= 100; ts++ {
 		value := 10.0
@@ -419,7 +425,7 @@ func BenchmarkMetricPipeline(b *testing.B) {
 				for series := 1; series <= numSeries; series++ {
 					addPipelineValues(s, uint64(series), 1, 30, 100)
 				}
-				p := newScanMWMetricPipeline(DefaultScanMWConfig())
+				p := newScanMWPipeline(b, DefaultScanMWConfig())
 				p.advanceKinds(s, 30)
 				now := int64(30)
 				b.ReportAllocs()
