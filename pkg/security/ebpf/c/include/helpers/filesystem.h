@@ -20,9 +20,6 @@ static __attribute__((always_inline)) void bump_high_path_id(u32 mount_id) {
     }
 }
 
-#define PATH_ID_LOW_MASK 0xFFFF
-#define PATH_ID(high, low) ((u32)((high << 16) | (low & PATH_ID_LOW_MASK)))
-
 // path ids of a given inode, as they were before and after the invalidation
 struct path_id_pair_t {
     u32 before;
@@ -181,6 +178,10 @@ static __attribute__((always_inline)) void fill_file_inode(struct dentry *dentry
         file->path_key.ino = get_dentry_ino(dentry);
     }
 
+    if (!file->metadata.mode) {
+        file->metadata.mode = get_dentry_mode(dentry);
+    }
+
     int nlink = get_dentry_nlink(dentry);
     if (nlink > file->metadata.nlink) {
         file->metadata.nlink = nlink;
@@ -188,14 +189,20 @@ static __attribute__((always_inline)) void fill_file_inode(struct dentry *dentry
 
     if (is_overlayfs(dentry)) {
         set_overlayfs_inode(dentry, file);
-        set_overlayfs_nlink(dentry, file);
+        if (!S_ISDIR(file->metadata.mode)) {
+            set_overlayfs_nlink(dentry, file);
+        }
     }
 }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
     fill_file_inode(dentry, file);
 
-    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate_type);
+    int nlink = S_ISDIR(file->metadata.mode) ? 1 : file->metadata.nlink;
+    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, nlink, invalidate_type);
+    if (S_ISDIR(file->metadata.mode)) {
+        file->path_key.path_id &= ~PATH_ID_LOW_MASK;
+    }
 }
 
 #endif

@@ -54,6 +54,10 @@ static __always_inline int sys_utimes_ret_impl(void *ctx, int retval, enum TAIL_
         goto pop_and_exit;
     }
 
+    if (syscall->state == DISCARDED || syscall->resolver.ret < 0) {
+        goto pop_and_exit;
+    }
+
     set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
 
     struct utimes_event_t *event = SPAN_FILL_EVENT(struct utimes_event_t, EVENT_UTIME);

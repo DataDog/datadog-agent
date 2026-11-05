@@ -46,9 +46,6 @@ static __always_inline int resolve_dentry_tail_call(void *ctx, struct dentry_res
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
     unsigned long ino_parent = 0;
-    struct basename_t basename = {
-        .type = PARENT_BASENAME,
-    };
 
     u32 zero = 0;
     struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
@@ -80,6 +77,9 @@ static __always_inline int resolve_dentry_tail_call(void *ctx, struct dentry_res
         ino_parent = get_dentry_ino_at(d_parent, dentry_d_inode_offset, inode_ino_offset);
         if (dentry != d_parent) {
             next_key.ino = ino_parent;
+            if (i == 0) {
+                next_key.path_id &= ~PATH_ID_LOW_MASK;
+            }
         } else {
             next_key.ino = 0;
             next_key.mount_id = 0;
@@ -126,15 +126,6 @@ static __always_inline int resolve_dentry_tail_call(void *ctx, struct dentry_res
         }
         if (update) {
             bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
-        }
-
-        // check parent basename approver: at i == 1 map_value.name holds the leaf's parent name,
-        // and iteration == 1 keeps the lookup to the first tail call so we only check it once.
-        if (input->iteration == 1 && i == 1 && input->event_type) {
-            bpf_probe_read_str(basename.value, sizeof(basename.value), map_value.name);
-            if (is_basename_in_map(&basename, input->event_type)) {
-                input->flags |= RESOLVER_FLAG_BASENAME_APPROVED;
-            }
         }
 
         dentry = d_parent;

@@ -94,8 +94,12 @@ int hook_vfs_rename(ctx_t *ctx) {
     fill_file_inode(src_dentry, &syscall->rename.target_file);
 
     // the target file is the src file once renamed, so it has to carry the path id after the invalidation
-    struct path_id_pair_t path_ids = get_path_id_pair(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.metadata.nlink, invalidate_type);
+    int nlink = S_ISDIR(syscall->rename.target_file.metadata.mode) ? 1 : syscall->rename.target_file.metadata.nlink;
+    struct path_id_pair_t path_ids = get_path_id_pair(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, nlink, invalidate_type);
     syscall->rename.target_file.path_key.path_id = path_ids.after;
+    if (S_ISDIR(syscall->rename.target_file.metadata.mode)) {
+        syscall->rename.target_file.path_key.path_id &= ~PATH_ID_LOW_MASK;
+    }
 
     // we generate a fake source key as the inode is (can be ?) reused
     syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
@@ -110,7 +114,9 @@ int hook_vfs_rename(ctx_t *ctx) {
         get_path_id(inode, syscall->rename.target_file.path_key.mount_id, 0, invalidate_type);
     }
 
-    approve_syscall(syscall, rename_approvers);
+    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
+        return 0;
+    }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
@@ -138,6 +144,8 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
     if (!syscall) {
         return 0;
     }
+
+    apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
 
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
@@ -227,6 +235,11 @@ static __always_inline int dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYP
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        goto pop_and_exit;
+    }
+
+    apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
+    if (syscall->state == DISCARDED) {
         goto pop_and_exit;
     }
 
