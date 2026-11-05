@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"go.uber.org/atomic"
 )
@@ -432,14 +431,19 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	if config.Metrics == nil {
 		config.Metrics = make(map[string]float64)
 	}
+	reg := semantics.DefaultRegistry()
 	a := semantics.NewDDSpanAccessor(config.Meta, config.Metrics)
-	spanKind := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptSpanKind)
+	spanKind := semantics.LookupString(reg, a, semantics.ConceptSpanKind)
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind)
-	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
-	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {
-		return nil, false
+	topLevel, found := semantics.LookupInt64(reg, a, semantics.ConceptDDTopLevel)
+	isTopLevel := found && topLevel == 1
+	if !isTopLevel && !eligibleSpanKind {
+		if v, ok := semantics.LookupInt64(reg, a, semantics.ConceptDDMeasured); !ok || v != 1 {
+			return nil, false
+		}
 	}
-	if traceutil.IsPartialSnapshotMetrics(config.Metrics) {
+	// Skip partial snapshots (version >= 0).
+	if v, ok := semantics.LookupFloat64(reg, a, semantics.ConceptDDPartialVersion); ok && v >= 0 {
 		return nil, false
 	}
 	service, name, typ, resource := config.Service, config.Name, config.Type, config.Resource
@@ -476,11 +480,17 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 // NewStatSpanFromV1 is a helper version of NewStatSpan that builds a StatSpan from an idx.InternalSpan.
 func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string, additionalMetricTagKeys []string) (statSpan *StatSpan, ok bool) {
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind())
-	isTopLevel := traceutil.HasTopLevelMetricsV1(s)
-	if !(isTopLevel || traceutil.IsMeasuredMetricsV1(s) || eligibleSpanKind) {
-		return nil, false
+	reg := semantics.DefaultRegistry()
+	a := semantics.NewDDSpanAccessorV1(s)
+	topLevel, found := semantics.LookupInt64(reg, a, semantics.ConceptDDTopLevel)
+	isTopLevel := found && topLevel == 1
+	if !isTopLevel && !eligibleSpanKind {
+		if v, ok := semantics.LookupInt64(reg, a, semantics.ConceptDDMeasured); !ok || v != 1 {
+			return nil, false
+		}
 	}
-	if traceutil.IsPartialSnapshotMetricsV1(s) {
+	// Skip partial snapshots (version >= 0).
+	if v, ok := semantics.LookupFloat64(reg, a, semantics.ConceptDDPartialVersion); ok && v >= 0 {
 		return nil, false
 	}
 	spanError := 0

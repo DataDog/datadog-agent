@@ -103,6 +103,7 @@ dd_agent_go_test(
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/mock",
         "//comp/core/autodiscovery/scheduler",
+        "//comp/core/config",
         "//comp/core/secrets/def",
         "//comp/core/secrets/mock",
         "//comp/core/tagger/fx-mock",
