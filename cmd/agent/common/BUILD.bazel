@@ -21,6 +21,7 @@ go_library(
         "//comp/core/delegatedauth/noop-impl/types",
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
+        "//comp/core/schema/noop-impl",
         "//comp/core/secrets/noop-impl/types",
         "//comp/core/settings/def",
         "//comp/core/tagger/def",

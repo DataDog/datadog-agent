@@ -1028,7 +1028,7 @@ Probes:
           events:
             - Kind: Line
               Type: 2807 EventRootType Probe[main.testErrorAtLine]Line
-              InjectionPoints: [{PC: "0x809ecc", Frameless: false}]
+              InjectionPoints: [{PC: "0x809f04", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: x={x}, err={err}
@@ -23097,11 +23097,11 @@ Types:
     - __kind: EventRootType
       ID: 2807
       Name: Probe[main.testErrorAtLine]Line
-      ByteSize: 52
-      ExprStatusArraySize: 3
+      ByteSize: 50
+      ExprStatusArraySize: 2
       Expressions:
         - Name: x
-          Offset: 3
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
@@ -23115,7 +23115,7 @@ Types:
           DictIndex: -1
           Redacted: false
         - Name: err
-          Offset: 11
+          Offset: 10
           Kind: template_segment
           Expression:
             Type: 16 GoInterfaceType error
@@ -23128,22 +23128,8 @@ Types:
             IsSplit: false
           DictIndex: -1
           Redacted: false
-        - Name: shouldErr
-          Offset: 27
-          Kind: local
-          Expression:
-            Type: 6 BaseType bool
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 38, index: 0, name: shouldErr}
-                  Offset: 0
-                  ByteSize: 1
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-          Redacted: false
         - Name: x
-          Offset: 28
+          Offset: 26
           Kind: local
           Expression:
             Type: 9 BaseType int
@@ -23157,7 +23143,7 @@ Types:
           DictIndex: -1
           Redacted: false
         - Name: err
-          Offset: 36
+          Offset: 34
           Kind: local
           Expression:
             Type: 16 GoInterfaceType error
