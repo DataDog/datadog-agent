@@ -27,5 +27,6 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/constants",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
