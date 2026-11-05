@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -1993,4 +1994,50 @@ func TestSequentialHandoffBlocksEveryScanKeyOnPath(t *testing.T) {
 	fixture.scan()
 
 	assert.Equal(t, 2, launcher.tailers.Count(), "both replacements start once the path is free")
+}
+
+// Two configured paths can lead to the same file, through a hardlink, a symlink or a wildcard that
+// overlaps an explicit path. Each gets its own tailer, so the file's logs are sent once per tailer:
+// the status page must say so on every source involved, and stop saying it once that ends.
+func TestStatusReportsFileTailedUnderSeveralPaths(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	linkPath := filepath.Join(dir, "app-link.log")
+	otherPath := filepath.Join(dir, "other.log")
+	for _, p := range []string{path, otherPath} {
+		require.NoError(t, os.WriteFile(p, []byte("line\n"), 0o644))
+	}
+	require.NoError(t, os.Link(path, linkPath))
+
+	launcher := createLauncher(t, launcherTestOptions{})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	defer launcher.cleanup()
+	go func() {
+		for range launcher.pipelineProvider.NextPipelineChan() {
+		}
+	}()
+
+	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
+	linkSource := sources.NewLogSource("app-link", &config.LogsConfig{Type: config.FileType, Path: linkPath})
+	otherSource := sources.NewLogSource("other", &config.LogsConfig{Type: config.FileType, Path: otherPath})
+	launcher.activeSources = []*sources.LogSource{source, linkSource, otherSource}
+	scan := func() {
+		launcher.resolveScan(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	}
+
+	scan()
+	require.Equal(t, 3, launcher.tailers.Count())
+	require.Len(t, source.Messages.GetMessages(), 1)
+	assert.Contains(t, source.Messages.GetMessages()[0], linkPath)
+	require.Len(t, linkSource.Messages.GetMessages(), 1)
+	assert.Contains(t, linkSource.Messages.GetMessages()[0], path)
+	assert.Empty(t, otherSource.Messages.GetMessages(), "a file tailed once must not be reported")
+
+	// Once only one tailer is left on the file, the warning goes away.
+	launcher.removeSource(linkSource)
+	scan()
+	require.Equal(t, 2, launcher.tailers.Count())
+	assert.Empty(t, source.Messages.GetMessages())
+	assert.Empty(t, linkSource.Messages.GetMessages())
 }
