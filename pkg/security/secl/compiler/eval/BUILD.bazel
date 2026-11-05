@@ -18,6 +18,7 @@ go_library(
     name = "eval",
     srcs = [
         "cidr.go",
+        "compile.go",
         "context.go",
         "context_functests.go",
         "context_regular.go",
@@ -51,8 +52,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/secl/compiler/ast",
+        "//pkg/security/secl/compiler/parser",
         "//pkg/security/secl/utils",
-        "@com_github_alecthomas_participle_v2//lexer",
         "@com_github_charlievieth_strcase//:strcase",
         "@com_github_jellydator_ttlcache_v3//:ttlcache",
     ] + select({
@@ -87,6 +88,7 @@ dd_agent_go_test(
     embed = [":eval"],
     deps = [
         "//pkg/security/secl/compiler/ast",
+        "//pkg/security/secl/compiler/parser",
         "@com_github_stretchr_testify//assert",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",

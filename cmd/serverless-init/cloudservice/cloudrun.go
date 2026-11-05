@@ -18,6 +18,7 @@ import (
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -73,6 +74,15 @@ const (
 	cloudRunServiceTagPrefix = "gcr."
 )
 
+// cloudRunMetadataIDPrefix is the API host that qualifies Cloud Run metadata
+// resource and parent IDs.
+const cloudRunMetadataIDPrefix = "//run.googleapis.com/"
+
+const (
+	workloadTypeCloudRunService  = "cloud_run_service"
+	workloadTypeCloudRunFunction = "cloud_run_function"
+)
+
 const (
 	// Cloud Run Function tags
 	cloudRunFunctionTagPrefix = "gcrfx."
@@ -91,7 +101,7 @@ type GCPConfig struct {
 }
 
 // gcpMetadataCache holds the GCP metadata-service values fetched by the first
-// GetTags call.
+// GetTags call so that GetMetadata can read them without I/O.
 type gcpMetadataCache struct {
 	once     sync.Once
 	resolved atomic.Pointer[map[string]string]
@@ -113,6 +123,14 @@ func (g *gcpMetadataCache) tags(cloudRunType CloudRunType) map[string]string {
 	tags := maps.Clone(g.resolve(cloudRunType))
 	maps.DeleteFunc(tags, func(_, value string) bool { return value == "" })
 	return tags
+}
+
+// cached returns the resolved values, or nil before resolve has run.
+func (g *gcpMetadataCache) cached() map[string]string {
+	if metadata := g.resolved.Load(); metadata != nil {
+		return *metadata
+	}
+	return nil
 }
 
 // CloudRun has helper functions for getting Google Cloud Run data. isFunction
@@ -215,6 +233,50 @@ func cloudRunFunctionCCRID(project, region, service, functionTarget string) stri
 		return ""
 	}
 	return fmt.Sprintf("%s/functions/%s", parent, functionTarget)
+}
+
+// cloudRunRevisionCCRID builds the regional revision identity. The service is
+// required even though it is not part of the revision path.
+func cloudRunRevisionCCRID(project, region, service, revision string) string {
+	if project == "" || region == "" || service == "" || revision == "" {
+		return ""
+	}
+	return fmt.Sprintf("projects/%s/locations/%s/revisions/%s", project, region, revision)
+}
+
+func cloudRunMetadataID(ccrid string) string {
+	if ccrid == "" {
+		return ""
+	}
+	return cloudRunMetadataIDPrefix + ccrid
+}
+
+func (c *CloudRun) CanCollectMetadata() bool { return true }
+
+// GetMetadata derives the metadata fields for Cloud Run services and Gen2
+// functions from the GCP metadata cached by GetTags. Both use the regional
+// revision identity and its service as the semantic parent, whose ID is not a
+// prefix of the revision ID.
+func (c *CloudRun) GetMetadata() serverlessdef.CloudServiceMetadata {
+	gcpMetadata := c.gcpMetadata.cached()
+	project := gcpMetadata[projectID]
+	region := gcpMetadata[location]
+	service := os.Getenv(ServiceNameEnvVar)
+	revision := os.Getenv(revisionNameEnvVar)
+
+	workloadType := workloadTypeCloudRunService
+	if c.isFunction {
+		workloadType = workloadTypeCloudRunFunction
+	}
+
+	return serverlessdef.CloudServiceMetadata{
+		WorkloadType:     workloadType,
+		ResourceID:       cloudRunMetadataID(cloudRunRevisionCCRID(project, region, service, revision)),
+		ParentResourceID: cloudRunMetadataID(cloudRunServiceCCRID(project, region, service)),
+		ResourceName:     service,
+		Region:           region,
+		GCPProjectID:     project,
+	}
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set

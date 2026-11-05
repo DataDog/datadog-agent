@@ -15,13 +15,13 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/config v1.33.13
-	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.90.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.341.0
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.6
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.1
-	github.com/aws/aws-sdk-go-v2/service/eks v1.104.3
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.90.3
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.343.0
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.67.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.103.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.105.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.1
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v7 v7.0.2
 	github.com/docker/cli v29.9.2+incompatible
@@ -46,7 +46,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.4
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2
-	github.com/pulumi/pulumi/sdk/v3 v3.272.0
+	github.com/pulumi/pulumi/sdk/v3 v3.273.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -54,11 +54,11 @@ require (
 	golang.org/x/crypto v0.58.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	helm.sh/helm/v4 v4.3.1
-	k8s.io/api v0.37.1
-	k8s.io/apimachinery v0.37.1
-	k8s.io/cli-runtime v0.37.1
-	k8s.io/client-go v0.37.1
-	k8s.io/kubectl v0.37.1
+	k8s.io/api v0.37.2
+	k8s.io/apimachinery v0.37.2
+	k8s.io/cli-runtime v0.37.2
+	k8s.io/client-go v0.37.2
+	k8s.io/kubectl v0.37.2
 )
 
 require (
@@ -357,12 +357,12 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.37.1 // indirect
-	k8s.io/apiserver v0.37.1 // indirect
-	k8s.io/component-base v0.37.1 // indirect
+	k8s.io/apiextensions-apiserver v0.37.2 // indirect
+	k8s.io/apiserver v0.37.2 // indirect
+	k8s.io/component-base v0.37.2 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
-	k8s.io/streaming v0.37.1 // indirect
+	k8s.io/streaming v0.37.2 // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	lukechampine.com/frand v1.5.1 // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect

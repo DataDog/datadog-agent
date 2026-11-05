@@ -27,8 +27,8 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
 	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/config v1.33.13
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.341.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.343.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.103.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
 	github.com/cenkalti/backoff/v7 v7.0.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -45,7 +45,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.52.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
-	github.com/pulumi/pulumi/sdk/v3 v3.272.0
+	github.com/pulumi/pulumi/sdk/v3 v3.273.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -59,9 +59,9 @@ require (
 	golang.org/x/text v0.43.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.37.1
-	k8s.io/apimachinery v0.37.1
-	k8s.io/client-go v0.37.1
+	k8s.io/api v0.37.2
+	k8s.io/apimachinery v0.37.2
+	k8s.io/client-go v0.37.2
 )
 
 require (
@@ -131,15 +131,15 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.90.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.104.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.90.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.67.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.105.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.12.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.6 // indirect
@@ -388,14 +388,14 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v4 v4.3.1 // indirect
-	k8s.io/apiextensions-apiserver v0.37.1 // indirect
-	k8s.io/apiserver v0.37.1 // indirect
-	k8s.io/cli-runtime v0.37.1 // indirect
-	k8s.io/component-base v0.37.1 // indirect
+	k8s.io/apiextensions-apiserver v0.37.2 // indirect
+	k8s.io/apiserver v0.37.2 // indirect
+	k8s.io/cli-runtime v0.37.2 // indirect
+	k8s.io/component-base v0.37.2 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
-	k8s.io/kubectl v0.37.1 // indirect
-	k8s.io/streaming v0.37.1 // indirect
+	k8s.io/kubectl v0.37.2 // indirect
+	k8s.io/streaming v0.37.2 // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	lukechampine.com/frand v1.5.1 // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect

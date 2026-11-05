@@ -236,10 +236,10 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/config v1.33.13
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.13
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.341.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.131.1
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.6
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.343.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.131.2
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.7
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.6
 	github.com/aws/karpenter-provider-aws v1.14.0
 	github.com/aymerick/raymond v2.0.2+incompatible
@@ -410,7 +410,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.39.1
+	gitlab.com/gitlab-org/api/client-go/v3 v3.39.2
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.35
 	go.mongodb.org/mongo-driver/v2 v2.9.2
@@ -497,21 +497,21 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.3
 	istio.io/client-go v1.31.3
-	k8s.io/api v0.37.1
-	k8s.io/apiextensions-apiserver v0.37.1
-	k8s.io/apimachinery v0.37.1
+	k8s.io/api v0.37.2
+	k8s.io/apiextensions-apiserver v0.37.2
+	k8s.io/apimachinery v0.37.2
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.8.1
-	k8s.io/cli-runtime v0.37.1
-	k8s.io/client-go v0.37.1
-	k8s.io/component-base v0.37.1
+	k8s.io/cli-runtime v0.37.2
+	k8s.io/client-go v0.37.2
+	k8s.io/component-base v0.37.2
 	k8s.io/cri-api v0.37.2
-	k8s.io/cri-client v0.37.1
+	k8s.io/cri-client v0.37.2
 	k8s.io/klog/v2 v2.140.0
-	k8s.io/kube-aggregator v0.37.1
+	k8s.io/kube-aggregator v0.37.2
 	k8s.io/kube-state-metrics/v2 v2.20.0
-	k8s.io/kubectl v0.37.1
-	k8s.io/kubelet v0.37.1
-	k8s.io/metrics v0.37.1
+	k8s.io/kubectl v0.37.2
+	k8s.io/kubelet v0.37.2
+	k8s.io/metrics v0.37.2
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	pgregory.net/rapid v1.3.0
 	sigs.k8s.io/custom-metrics-apiserver v1.37.0
@@ -584,9 +584,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.104.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.67.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.103.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.105.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.60.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
@@ -1055,14 +1055,14 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.8.2 // indirect
-	k8s.io/apiserver v0.37.1 // indirect
+	k8s.io/apiserver v0.37.2 // indirect
 	k8s.io/cloud-provider v0.37.1 // indirect
-	k8s.io/component-helpers v0.37.1 // indirect
+	k8s.io/component-helpers v0.37.2 // indirect
 	k8s.io/csi-translation-lib v0.37.1 // indirect
-	k8s.io/kms v0.37.1 // indirect
+	k8s.io/kms v0.37.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
 	k8s.io/sample-controller v0.37.1 // indirect
-	k8s.io/streaming v0.37.1 // indirect
+	k8s.io/streaming v0.37.2 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.58.0 // indirect

@@ -8,8 +8,10 @@
 package privateactionrunner
 
 const (
-	Enabled = "private_action_runner.enabled"
-	LogFile = "private_action_runner.log_file"
+	Enabled         = "private_action_runner.enabled"
+	LogFile         = "private_action_runner.log_file"
+	RunnerURL       = "private_action_runner.par_dd_url"
+	RemoteConfigURL = "remote_configuration.rc_dd_url"
 
 	// Identity / enrollment configuration
 	SelfEnroll             = "private_action_runner.self_enroll"

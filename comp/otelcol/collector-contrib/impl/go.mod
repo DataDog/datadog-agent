@@ -174,14 +174,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.341.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.343.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.103.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.60.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.63.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.64.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/rds v1.131.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rds v1.131.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.49.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.12.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.1 // indirect
@@ -581,12 +581,12 @@ require (
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.37.1 // indirect
-	k8s.io/apimachinery v0.37.1 // indirect
-	k8s.io/client-go v0.37.1 // indirect
+	k8s.io/api v0.37.2 // indirect
+	k8s.io/apimachinery v0.37.2 // indirect
+	k8s.io/client-go v0.37.2 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
-	k8s.io/kubelet v0.37.1 // indirect
+	k8s.io/kubelet v0.37.2 // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	pgregory.net/rapid v1.3.0 // indirect
 	sigs.k8s.io/controller-runtime v0.25.2 // indirect
