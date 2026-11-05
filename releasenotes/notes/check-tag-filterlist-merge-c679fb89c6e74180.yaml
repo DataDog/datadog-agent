@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    ``metric_tag_filterlist`` now also strips tags from count, monotonic count
+    and histogram bucket metrics submitted by checks.
+fixes:
+  - |
+    Fix lost points when ``metric_tag_filterlist`` strips the tags that tell
+    the sources of a check metric apart, such as the pod of each check
+    instance: their points are now merged.
