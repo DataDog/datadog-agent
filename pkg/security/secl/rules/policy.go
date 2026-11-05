@@ -95,6 +95,39 @@ func (r *PolicyRule) isFiltered() bool {
 	return !r.Accepted && r.Error == nil
 }
 
+func isSameOverrideAction(a, b *ActionDefinition) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Set != nil && b.Set != nil {
+		bSet := *b.Set
+		bSet.Private = a.Set.Private
+		bCopy := *b
+		bCopy.Set = &bSet
+		return reflect.DeepEqual(a, &bCopy)
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+func alignOverrideSetActionPrivate(action *ActionDefinition, baseActions []*ActionDefinition) *ActionDefinition {
+	if action == nil || action.Set == nil {
+		return action
+	}
+	for _, base := range baseActions {
+		if base != nil && base.Set != nil && base.Set.Name == action.Set.Name && base.Set.Scope == action.Set.Scope {
+			if base.Set.Private != action.Set.Private {
+				setCopy := *action.Set
+				setCopy.Private = base.Set.Private
+				actionCopy := *action
+				actionCopy.Set = &setCopy
+				return &actionCopy
+			}
+			return action
+		}
+	}
+	return action
+}
+
 func applyOverride(rd1, rd2 *PolicyRule) {
 	// keep track of the combine
 	rd1.Def.Combine = rd2.Def.Combine
@@ -112,13 +145,13 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 			for _, action := range rd2.Def.Actions {
 				duplicated := false
 				for _, a := range rd1.Def.Actions {
-					if reflect.DeepEqual(action, a) {
+					if isSameOverrideAction(action, a) {
 						duplicated = true
 						break
 					}
 				}
 				if !duplicated {
-					toAdd = append(toAdd, action)
+					toAdd = append(toAdd, alignOverrideSetActionPrivate(action, rd1.Def.Actions))
 				}
 			}
 

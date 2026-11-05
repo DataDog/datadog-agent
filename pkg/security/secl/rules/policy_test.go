@@ -3849,3 +3849,163 @@ rules:
           signal: SIGKILL
           scope: process
 `
+
+func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
+	loader := &PolicyLoader{
+		Providers: []PolicyProvider{
+			dummyRCProvider{
+				dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+					return testPoliciesToPolicies([]*testPolicyDef{
+						{
+							name:       DefaultPolicyName,
+							source:     PolicyProviderTypeRC,
+							policyType: DefaultPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "imds_v1_usage",
+										Expression: `open.file.path == "/tmp/test"`,
+										Disabled:   true,
+										Actions: []*ActionDefinition{
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      true,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							name:       "custom.policy",
+							source:     PolicyProviderTypeRC,
+							policyType: CustomPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "imds_v1_usage",
+										Expression: `open.file.path == "/tmp/test"`,
+										Combine:    OverridePolicy,
+										OverrideOptions: OverrideOptions{
+											Fields: []OverrideField{OverrideActionFields},
+										},
+										Actions: []*ActionDefinition{
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.parent.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.parent.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:   "scoped_var",
+													Field:  "process.file.path",
+													Scope:  "container",
+													Append: true,
+												},
+											},
+										},
+									},
+									{
+										ID: "correlate_imds_v1_usage",
+										Expression: `open.file.path == "/tmp/check" && ` +
+											`"/usr/bin/child" in ${imds_v1_usage_services} && ` +
+											`"/usr/bin/parent" in ${imds_v1_usage_services} && ` +
+											`"/usr/bin/child" in ${process.scoped_var} && ` +
+											`"/usr/bin/parent" in ${process.scoped_var}`,
+									},
+								},
+							},
+						},
+					})
+				},
+			},
+		},
+	}
+
+	rs := newRuleSet()
+	_, errs := rs.LoadPolicies(loader, PolicyLoaderOpts{})
+	require.NoError(t, errs.ErrorOrNil())
+
+	rule := rs.GetRuleByID("imds_v1_usage")
+	require.NotNil(t, rule)
+	require.Len(t, rule.Def.Actions, 5)
+	require.Len(t, rule.Actions, 5)
+	assert.Equal(t, "process.file.path", rule.Def.Actions[0].Set.Field)
+	assert.True(t, rule.Def.Actions[0].Set.Private)
+	assert.Equal(t, "process.file.path", rule.Def.Actions[1].Set.Field)
+	assert.True(t, rule.Def.Actions[1].Set.Private)
+	assert.Equal(t, "process.parent.file.path", rule.Def.Actions[2].Set.Field)
+	assert.True(t, rule.Def.Actions[2].Set.Private)
+	assert.Equal(t, "process.parent.file.path", rule.Def.Actions[3].Set.Field)
+	assert.True(t, rule.Def.Actions[3].Set.Private)
+	assert.Equal(t, Scope("container"), rule.Def.Actions[4].Set.Scope)
+	assert.False(t, rule.Def.Actions[4].Set.Private)
+
+	globalVar := rs.GetVariableStore().Get("imds_v1_usage_services")
+	require.NotNil(t, globalVar)
+	assert.True(t, globalVar.GetVariableOpts().Private)
+
+	processVar := rs.GetVariableStore().Get("process.scoped_var")
+	require.NotNil(t, processVar)
+	assert.True(t, processVar.GetVariableOpts().Private)
+
+	containerVar := rs.GetVariableStore().Get("container.scoped_var")
+	require.NotNil(t, containerVar)
+	assert.False(t, containerVar.GetVariableOpts().Private)
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+	require.NoError(t, event.SetFieldValue("open.file.path", "/tmp/test"))
+	require.NoError(t, event.SetFieldValue("process.file.path", "/usr/bin/child"))
+	require.NoError(t, event.SetFieldValue("process.parent.file.path", "/usr/bin/parent"))
+	assert.True(t, rs.Evaluate(event))
+
+	require.NoError(t, event.SetFieldValue("open.file.path", "/tmp/check"))
+	assert.True(t, rs.Evaluate(event))
+}
