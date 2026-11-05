@@ -24,6 +24,7 @@ const (
 	infraAttributesName = "infraattributes"
 	hpflareName         = "hpflare"
 	ddprofilingName     = "ddprofiling"
+	oomName             = "oom"
 
 	maxReportIntervalSeconds   = 24 * 60 * 60
 	maxReportMaxPathsPerReport = 100_000
@@ -228,7 +229,8 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 
 	hpflareConf := confMap{"endpoint": fmt.Sprintf("localhost:%d", hpflareextension.EffectivePort(agent.hostProfilerConfig.HPFlare.Port))}
 	_ = confmaputils.Set(config, "extensions::"+hpflareName, hpflareConf)
-	serviceExtensions := []any{hpflareName}
+	_ = confmaputils.Set(config, "extensions::"+oomName, confMap{})
+	serviceExtensions := []any{hpflareName, oomName}
 	if agent.hostProfilerConfig.DDProfiling.Enabled {
 		ddprofilingConf := make(confMap)
 		if agent.hostProfilerConfig.DDProfiling.Period > 0 {
