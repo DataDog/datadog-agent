@@ -995,6 +995,209 @@
         ]
       }
     },
+    "//deps/pulumi_plugins:extension.bzl%pulumi_plugins": {
+      "https://github.com/pulumi/pulumi-aws/releases/download/v7.52.1/pulumi-aws_7.52.1_checksums.txt": {
+        "pulumi-resource-aws-v7.52.1-darwin-amd64.tar.gz": "sha1-DZnOAwN8o4ySCBsfInxndsbkvMk=",
+        "pulumi-resource-aws-v7.52.1-darwin-arm64.tar.gz": "sha1-iZ5ET3Mh4tMqxOxT8Bno/ighezA=",
+        "pulumi-resource-aws-v7.52.1-linux-amd64.tar.gz": "sha1-SyMHN7knrSwS7mvJEZih+CJIzQ0=",
+        "pulumi-resource-aws-v7.52.1-linux-arm64.tar.gz": "sha1-Ld5Umek/5zcDQTL35//bBfN36hQ=",
+        "pulumi-resource-aws-v7.52.1-windows-amd64.tar.gz": "sha1-lp7qLA49t3yHi/p2nsAA+BLoGi4=",
+        "pulumi-resource-aws-v7.52.1-windows-arm64.tar.gz": "sha1-yqjMo1wAezo+spbKEM7hfIXm4Rs="
+      },
+      "https://github.com/pulumi/pulumi-awsx/releases/download/v3.11.0/pulumi-awsx_3.11.0_checksums.txt": {
+        "pulumi-resource-awsx-v3.11.0-darwin-amd64.tar.gz": "sha1-t6PL+nWQJG5eVuAftDKKkk+Pv6c=",
+        "pulumi-resource-awsx-v3.11.0-darwin-arm64.tar.gz": "sha1-mHlofXeqAq5cax09B7dALuNbQ1Y=",
+        "pulumi-resource-awsx-v3.11.0-linux-amd64.tar.gz": "sha1-TVI2fIkSv0bhdkjM6/4zFkTMzrE=",
+        "pulumi-resource-awsx-v3.11.0-linux-arm64.tar.gz": "sha1-P20oH7rHWIzTynOc2DnFwAigv1o=",
+        "pulumi-resource-awsx-v3.11.0-windows-amd64.tar.gz": "sha1-QohCO3LgVticXS9/I1RfZEboLvQ=",
+        "pulumi-resource-awsx-v3.11.0-windows-arm64.tar.gz": "sha1-lga1I9C57MWNBQ8D0yRql/HTB1Y="
+      },
+      "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.29.0/pulumi-azure-native_3.29.0_checksums.txt": {
+        "pulumi-resource-azure-native-v3.29.0-darwin-amd64.tar.gz": "sha1-cTQJm+ML5yhMWzVDWSlneZpKYv4=",
+        "pulumi-resource-azure-native-v3.29.0-darwin-arm64.tar.gz": "sha1-m0MYH17Sk4IQuDjbAtqaxRfHWtU=",
+        "pulumi-resource-azure-native-v3.29.0-linux-amd64.tar.gz": "sha1-M6Uq25uvIdJWE/BE2tAyj8ykHrU=",
+        "pulumi-resource-azure-native-v3.29.0-linux-arm64.tar.gz": "sha1-GdARgk5J71GCLdkIRxDNZH9FL18=",
+        "pulumi-resource-azure-native-v3.29.0-windows-amd64.tar.gz": "sha1-03UeEKdXagb47Tpk/yJV6Go578s="
+      },
+      "https://github.com/pulumi/pulumi-command/releases/download/v1.2.1/pulumi-command_1.2.1_checksums.txt": {
+        "pulumi-resource-command-v1.2.1-darwin-amd64.tar.gz": "sha256-J9RhlolWl6Njos7pbmo2ke2nDNUp/LGD47Poxc/XNhc=",
+        "pulumi-resource-command-v1.2.1-darwin-arm64.tar.gz": "sha256-I4GOD24g5KxUrk9p+8gGZf41oZdIXctncwPLQYXUpuA=",
+        "pulumi-resource-command-v1.2.1-linux-amd64.tar.gz": "sha256-cTd5mdHaOfVOlNn+KVD2u5oKCQpXcJSGY3M5fcrS6AA=",
+        "pulumi-resource-command-v1.2.1-linux-arm64.tar.gz": "sha256-0pTuNsyXSZvIxdeQXGr/60t2ivUMJtauqpqPONBvpVg=",
+        "pulumi-resource-command-v1.2.1-windows-amd64.tar.gz": "sha256-saOQM5XlMrYo5lAMSJL8mZaCBxtGRfwXye+7H+DrK2g=",
+        "pulumi-resource-command-v1.2.1-windows-arm64.tar.gz": "sha256-KKClDUyFHokFyWy7Apo2qbl9z9NUpx7eTJg06pC6DJg="
+      },
+      "https://github.com/pulumi/pulumi-docker-build/releases/download/v0.0.3/pulumi-docker-build_0.0.3_checksums.txt": {
+        "pulumi-resource-docker-build-v0.0.3-darwin-amd64.tar.gz": "sha256-NjLNRl3NxbYPKXRrgmfGEdmZHvjYATAWurqmlkO5Vbg=",
+        "pulumi-resource-docker-build-v0.0.3-darwin-arm64.tar.gz": "sha256-Cy0CuNhGjj8HU8z26r8UmCDGYTLpV0lRxR+gNS/w21A=",
+        "pulumi-resource-docker-build-v0.0.3-linux-amd64.tar.gz": "sha256-Fe7s8hUNETaSZUZp/dCnKWd6kLbYYCKjE6W3JaMHOOg=",
+        "pulumi-resource-docker-build-v0.0.3-linux-arm64.tar.gz": "sha256-bUIUo5ldTVwyZolSeTu2Wf6oSt6qybHaD3s9QO5sJl0=",
+        "pulumi-resource-docker-build-v0.0.3-windows-amd64.tar.gz": "sha256-3qIV0jwXQRUGDki/l7KvgxY+af0sDl9qvryL1poo6Qg=",
+        "pulumi-resource-docker-build-v0.0.3-windows-arm64.tar.gz": "sha256-T2X85ykgxcX04VQB+dBaPc1jEuZ/EtAQF6qVO5OK39k="
+      },
+      "https://github.com/pulumi/pulumi-docker/releases/download/v4.11.2/pulumi-docker_4.11.2_checksums.txt": {
+        "pulumi-resource-docker-v4.11.2-darwin-amd64.tar.gz": "sha1-qh2u9ud0zX09GUKO+qwWDXVurrs=",
+        "pulumi-resource-docker-v4.11.2-darwin-arm64.tar.gz": "sha1-Xh/9ny0SWvvZ7hBC7YBRgn3twfk=",
+        "pulumi-resource-docker-v4.11.2-linux-amd64.tar.gz": "sha1-7f11lODjcM1I2HNiGc56Do1iNhE=",
+        "pulumi-resource-docker-v4.11.2-linux-arm64.tar.gz": "sha1-Bh4noaDotCKQ1FvOEXAsJVs5PF8=",
+        "pulumi-resource-docker-v4.11.2-windows-amd64.tar.gz": "sha1-GM1wKy/IAznBMUQ7jShGtY2kKYA=",
+        "pulumi-resource-docker-v4.11.2-windows-arm64.tar.gz": "sha1-osE1xp11GE6E8P10FtNySoLp78A="
+      },
+      "https://github.com/pulumi/pulumi-docker/releases/download/v5.2.0/pulumi-docker_5.2.0_checksums.txt": {
+        "pulumi-resource-docker-v5.2.0-darwin-amd64.tar.gz": "sha1-2sI78omUyUGOiWG2mOFaCTi7EhU=",
+        "pulumi-resource-docker-v5.2.0-darwin-arm64.tar.gz": "sha1-bI/Uf0WRo7KdjlMEo/kJhdpL0Fk=",
+        "pulumi-resource-docker-v5.2.0-linux-amd64.tar.gz": "sha1-Mi8l4EaRrc5+OTMjs9p6jTAZGdQ=",
+        "pulumi-resource-docker-v5.2.0-linux-arm64.tar.gz": "sha1-4p450S3Q3QqgcyUAXLvd0IdqWvg=",
+        "pulumi-resource-docker-v5.2.0-windows-amd64.tar.gz": "sha1-NyFnrywgLGVnM2g3qZxZ3GMn248=",
+        "pulumi-resource-docker-v5.2.0-windows-arm64.tar.gz": "sha1-29xOfaFzhsuMVIR0X2tSeQhsXn8="
+      },
+      "https://github.com/pulumi/pulumi-eks/releases/download/v4.4.0/pulumi-eks_4.4.0_checksums.txt": {
+        "pulumi-resource-eks-v4.4.0-darwin-amd64.tar.gz": "sha1-fLTt+UlwwN49CqVI6SjijUfVRh0=",
+        "pulumi-resource-eks-v4.4.0-darwin-arm64.tar.gz": "sha1-pn1pI2/OfYWQnkf9/MrSUDMoMKM=",
+        "pulumi-resource-eks-v4.4.0-linux-amd64.tar.gz": "sha1-ZzorqrDtqIxh+TwgZaNIzDOAC24=",
+        "pulumi-resource-eks-v4.4.0-linux-arm64.tar.gz": "sha1-6MdM5m4isCQ56TgiRwlI26nMmvw=",
+        "pulumi-resource-eks-v4.4.0-windows-amd64.tar.gz": "sha1-eTmfDqT2auG598ZLTDEKXwFZ34c=",
+        "pulumi-resource-eks-v4.4.0-windows-arm64.tar.gz": "sha1-8jz49bK9DH7YeQVsDfRbMxcYhCw="
+      },
+      "https://github.com/pulumi/pulumi-gcp/releases/download/v10.2.0/pulumi-gcp_10.2.0_checksums.txt": {
+        "pulumi-resource-gcp-v10.2.0-darwin-amd64.tar.gz": "sha1-l4Ps4AGDqbJ4iEqvmLa5iMSAnqI=",
+        "pulumi-resource-gcp-v10.2.0-darwin-arm64.tar.gz": "sha1-362EzJ2QkoItdUy1if98lWOJPY0=",
+        "pulumi-resource-gcp-v10.2.0-linux-amd64.tar.gz": "sha1-8C4m92DG3Bv8cXsEIIiN/LDFZXs=",
+        "pulumi-resource-gcp-v10.2.0-linux-arm64.tar.gz": "sha1-hiObPXHBnYrar3XAnaN6+gPlHzc=",
+        "pulumi-resource-gcp-v10.2.0-windows-amd64.tar.gz": "sha1-oO+xdAj7KMPOFykxfbrzJXRAxF8=",
+        "pulumi-resource-gcp-v10.2.0-windows-arm64.tar.gz": "sha1-ez58G3O6rJWzxSWCk+CZEiUJmyA="
+      },
+      "https://github.com/pulumi/pulumi-kubernetes/releases/download/v4.19.0/pulumi-kubernetes_4.19.0_checksums.txt": {
+        "pulumi-resource-kubernetes-v4.19.0-darwin-amd64.tar.gz": "sha256-3VMMAwhVu/12ZXPKt9q8clAQP7+Js4OgwlfWL8pW2Sk=",
+        "pulumi-resource-kubernetes-v4.19.0-darwin-arm64.tar.gz": "sha256-RsceZFTjRzNEDH3NBr11XY1EZPsl9sS36UXfT0wtyAk=",
+        "pulumi-resource-kubernetes-v4.19.0-linux-amd64.tar.gz": "sha256-fAR75SLMC6MAvNc6tYuJG4D0xChW+ADBYzy8ujGVgAA=",
+        "pulumi-resource-kubernetes-v4.19.0-linux-arm64.tar.gz": "sha256-t+wBiN+9zFsZssIl+5lOaGy097gxYM9NsEVGSgNCjwo=",
+        "pulumi-resource-kubernetes-v4.19.0-windows-amd64.tar.gz": "sha256-uOEba1g2v+vcO4AmqnZ/T4qL3JYlewEKMOtPiifM+D4=",
+        "pulumi-resource-kubernetes-v4.19.0-windows-arm64.tar.gz": "sha256-vY6sC1QqAqxzVG66wOkFXoaos3ayPqgLqzuzFfTdWBQ="
+      },
+      "https://github.com/pulumi/pulumi-kubernetes/releases/download/v4.34.2/pulumi-kubernetes_4.34.2_checksums.txt": {
+        "pulumi-resource-kubernetes-v4.34.2-darwin-amd64.tar.gz": "sha256-Wy9JCl06hRpOKkBLzV5VWLC2POAZ8BXI0RoaKvTWheQ=",
+        "pulumi-resource-kubernetes-v4.34.2-darwin-arm64.tar.gz": "sha256-a8IHInEYtrv/ufWh4PUqkX/WwGKW03TcJw5DVDWNqzM=",
+        "pulumi-resource-kubernetes-v4.34.2-linux-amd64.tar.gz": "sha256-sqNHGol9jUqlxvDqKTPTY9+nK+6O1lGhYkagnj5yi7Y=",
+        "pulumi-resource-kubernetes-v4.34.2-linux-arm64.tar.gz": "sha256-FFbB+WJMTNaMrwOSjUw01oB8vmaP2RfGIg7MCeq3DSY=",
+        "pulumi-resource-kubernetes-v4.34.2-windows-amd64.tar.gz": "sha256-cz8wSyOchdyaASoBkGHbrzL3DPKz9hh8Yet+bPcN9wI=",
+        "pulumi-resource-kubernetes-v4.34.2-windows-arm64.tar.gz": "sha256-E40/ZloSM3S+JaN4iuwHRvxVXh9QAuaCVyVzSXp5QnA="
+      },
+      "https://github.com/pulumi/pulumi-libvirt/releases/download/v0.5.4/pulumi-libvirt_0.5.4_checksums.txt": {
+        "pulumi-resource-libvirt-v0.5.4-darwin-amd64.tar.gz": "sha1-LEy5vvERZgIN2G9/uCYbx9QQ3qQ=",
+        "pulumi-resource-libvirt-v0.5.4-darwin-arm64.tar.gz": "sha1-NIt+AYPZzQYVQ6BRrEkhClIWrMU=",
+        "pulumi-resource-libvirt-v0.5.4-linux-amd64.tar.gz": "sha1-camoMEus5eHIXCB98OCKhS5GnCQ=",
+        "pulumi-resource-libvirt-v0.5.4-linux-arm64.tar.gz": "sha1-HQDPn9OjYkPJ40Wr8o3ouazkpvQ=",
+        "pulumi-resource-libvirt-v0.5.4-windows-amd64.tar.gz": "sha1-lyeuogO3nOacOknZ9VztW2KWSC8="
+      },
+      "https://github.com/pulumi/pulumi-random/releases/download/v4.21.4/pulumi-random_4.21.4_checksums.txt": {
+        "pulumi-resource-random-v4.21.4-darwin-amd64.tar.gz": "sha1-FcgziCpmP5YIif84gUv/uksbo4s=",
+        "pulumi-resource-random-v4.21.4-darwin-arm64.tar.gz": "sha1-4Z2su57AMvv2iuf1atc16EvJ9lk=",
+        "pulumi-resource-random-v4.21.4-linux-amd64.tar.gz": "sha1-TW4pDJI1TmXnyy6hi8mt+v//DoE=",
+        "pulumi-resource-random-v4.21.4-linux-arm64.tar.gz": "sha1-hTxCeJgzQp4XpWPV3/OUfqQTSjc=",
+        "pulumi-resource-random-v4.21.4-windows-amd64.tar.gz": "sha1-9k3SEvWMWuwMl95KHMIbQQ+ZcmM=",
+        "pulumi-resource-random-v4.21.4-windows-arm64.tar.gz": "sha1-XUJOeABcqUmUYjZ8DlMYUJQLyXk="
+      },
+      "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.2/pulumi-tls_5.6.2_checksums.txt": {
+        "pulumi-resource-tls-v5.6.2-darwin-amd64.tar.gz": "sha1-UPzzXuQqxqd2vVqa1yKj7lFYCPE=",
+        "pulumi-resource-tls-v5.6.2-darwin-arm64.tar.gz": "sha1-HVFO5DbG4WGfhimOQcz6fMzdAms=",
+        "pulumi-resource-tls-v5.6.2-linux-amd64.tar.gz": "sha1-o4zFCPQp+FllZar6uVYNHhf5RhE=",
+        "pulumi-resource-tls-v5.6.2-linux-arm64.tar.gz": "sha1-MbFiOY4rH8IQi6qSnDNnNkMTN2Y=",
+        "pulumi-resource-tls-v5.6.2-windows-amd64.tar.gz": "sha1-AUh10NfcNhIDoRiuvPo5wlldxMA=",
+        "pulumi-resource-tls-v5.6.2-windows-arm64.tar.gz": "sha1-ntIFDyD1ZPAxgxQSCKXajRBkj20="
+      },
+      "https://github.com/pulumiverse/pulumi-time/releases/download/v0.1.0/pulumi-time_0.1.0_checksums.txt": {
+        "pulumi-resource-time-v0.1.0-darwin-amd64.tar.gz": "sha256-p/pkRdejbGHoWbfk7m2b6oHEEO5Dx8Jcvp56gmqAqEI=",
+        "pulumi-resource-time-v0.1.0-darwin-arm64.tar.gz": "sha256-uX9BlcmMpEF5b81+JmTVGxlkW6BpIgJVd8rSb/uY6FM=",
+        "pulumi-resource-time-v0.1.0-linux-amd64.tar.gz": "sha256-u++K1EtAroBbeOjcCNMxXlkOi+HvICn2zdkL+Xh2/DM=",
+        "pulumi-resource-time-v0.1.0-linux-arm64.tar.gz": "sha256-bVoYtCO5+kSrLNCSW74AklmQXyMYIUydprn90gGEFdg=",
+        "pulumi-resource-time-v0.1.0-windows-amd64.tar.gz": "sha256-LcZni/wvXQJ4+fc4rPwuKi4y9hUpSc9GhJRykh6/i0c=",
+        "pulumi-resource-time-v0.1.0-windows-arm64.tar.gz": "sha256-mjorlphPz5S4mz3/OjAt1iywnrF/WPxh/+2U81tj1Wc="
+      },
+      "https://registry.npmjs.org/@pulumi/aws/7.52.1": {
+        "dependencies": {},
+        "name": "aws",
+        "url": "https://github.com/pulumi/pulumi-aws"
+      },
+      "https://registry.npmjs.org/@pulumi/awsx/3.11.0": {
+        "dependencies": {
+          "@pulumi/aws": "v7.43.0",
+          "@pulumi/docker": "v4.6.0",
+          "@pulumi/docker-build": "v0.0.14"
+        },
+        "name": "awsx",
+        "url": "https://github.com/pulumi/pulumi-awsx"
+      },
+      "https://registry.npmjs.org/@pulumi/azure-native/3.29.0": {
+        "dependencies": {},
+        "name": "azure-native",
+        "url": "https://github.com/pulumi/pulumi-azure-native"
+      },
+      "https://registry.npmjs.org/@pulumi/cloud/1.20260918.0": {},
+      "https://registry.npmjs.org/@pulumi/command/1.2.1": {
+        "dependencies": {},
+        "name": "command",
+        "url": "https://github.com/pulumi/pulumi-command"
+      },
+      "https://registry.npmjs.org/@pulumi/docker-build/0.0.3": {
+        "dependencies": {},
+        "name": "docker-build",
+        "url": "https://github.com/pulumi/pulumi-docker-build"
+      },
+      "https://registry.npmjs.org/@pulumi/docker/4.11.2": {
+        "dependencies": {},
+        "name": "docker",
+        "url": "https://github.com/pulumi/pulumi-docker"
+      },
+      "https://registry.npmjs.org/@pulumi/docker/5.2.0": {
+        "dependencies": {},
+        "name": "docker",
+        "url": "https://github.com/pulumi/pulumi-docker"
+      },
+      "https://registry.npmjs.org/@pulumi/eks/4.4.0": {
+        "dependencies": {
+          "@pulumi/aws": "v7.25.0",
+          "@pulumi/kubernetes": "v4.19.0"
+        },
+        "name": "eks",
+        "url": "https://github.com/pulumi/pulumi-eks"
+      },
+      "https://registry.npmjs.org/@pulumi/gcp/10.2.0": {
+        "dependencies": {},
+        "name": "gcp",
+        "url": "https://github.com/pulumi/pulumi-gcp"
+      },
+      "https://registry.npmjs.org/@pulumi/kubernetes/4.19.0": {
+        "dependencies": {},
+        "name": "kubernetes",
+        "url": "https://github.com/pulumi/pulumi-kubernetes"
+      },
+      "https://registry.npmjs.org/@pulumi/kubernetes/4.34.2": {
+        "dependencies": {},
+        "name": "kubernetes",
+        "url": "https://github.com/pulumi/pulumi-kubernetes"
+      },
+      "https://registry.npmjs.org/@pulumi/libvirt/0.5.4": {
+        "dependencies": {},
+        "name": "libvirt",
+        "url": "https://github.com/pulumi/pulumi-libvirt"
+      },
+      "https://registry.npmjs.org/@pulumi/random/4.21.4": {
+        "dependencies": {},
+        "name": "random",
+        "url": "https://github.com/pulumi/pulumi-random"
+      },
+      "https://registry.npmjs.org/@pulumi/tls/5.6.2": {
+        "dependencies": {},
+        "name": "tls",
+        "url": "https://github.com/pulumi/pulumi-tls"
+      },
+      "https://registry.npmjs.org/@pulumiverse/time/0.1.0": {
+        "dependencies": {},
+        "name": "time",
+        "url": "https://github.com/pulumiverse/pulumi-time"
+      }
+    },
     "@@rules_go+//go:extensions.bzl%go_sdk": {
       "1.22.4": {
         "aix_ppc64": [

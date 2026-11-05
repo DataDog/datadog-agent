@@ -604,6 +604,7 @@ def run(
             use_bazel_built_binaries = False
 
     _install_windows_testsuites(module_name, targets)
+    tool.install_pulumi_plugins()
 
     if use_bazel_built_binaries:
         bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
