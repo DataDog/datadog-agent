@@ -471,7 +471,7 @@ variables:
   if: $RUN_KMT_TESTS == 'on'
 
 # PR/branch pipelines: any pipeline that is not main, a release branch, a tag, a triggered/deploy pipeline.
-# By default E2E and KMT jobs are not executed there. Set RUN_PR_E2E_KMT_TESTS=true to get the previous
+# By default E2E and KMT jobs are not executed there automatically: they become manual jobs. Set RUN_PR_E2E_KMT_TESTS=true to get the previous
 # (path-based) behavior back, or RUN_E2E_TESTS=on / RUN_KMT_TESTS=on to force the respective jobs.
 .if_pr_skip_e2e_tests: &if_pr_skip_e2e_tests
   if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS != "on" && $RUN_PR_E2E_KMT_TESTS != "true"
@@ -812,7 +812,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -828,7 +829,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -841,7 +843,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -855,7 +858,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -868,7 +872,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -881,7 +886,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -894,7 +900,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -907,7 +914,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -1016,10 +1024,12 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   - !reference [.except_light_pipeline]
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
   # Fakeintake server change: run e2e against the built v<sha> override image.
   # Main-targeting pipelines only.
   - if: $COMPARE_TO_BRANCH == "main"
@@ -1310,7 +1320,8 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_pr_skip_e2e_tests
-    when: never
+    when: manual
+    allow_failure: true
 
 .on_macos_files_change:
   - !reference [.except_light_pipeline] # The prerequisites are not run in the light pipeline so we need to skip this rule
