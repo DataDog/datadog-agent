@@ -127,7 +127,7 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 	preparedTask *PreparedWorkflowTask,
 ) (interface{}, error) {
 	logger := log.FromContext(ctx)
-	timeoutSeconds := effectiveTimeoutSeconds(preparedTask.Task.TimeoutSeconds(), e.config.TaskTimeoutSeconds)
+	timeoutSeconds := e.config.TaskTimeoutSeconds
 
 	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
 	defer timeoutCancel()
@@ -137,18 +137,6 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 		return nil, timeoutErr
 	}
 	return output, err
-}
-
-// effectiveTimeoutSeconds returns the task's own timeout when set, never exceeding a positive
-// configured task_timeout_seconds, and the configured value otherwise.
-func effectiveTimeoutSeconds(taskTimeout, configTimeout *int32) *int32 {
-	if taskTimeout == nil {
-		return configTimeout
-	}
-	if configTimeout != nil && *configTimeout > 0 && *taskTimeout > *configTimeout {
-		return configTimeout
-	}
-	return taskTimeout
 }
 
 func (e *WorkflowTaskExecutor) RunTask(
