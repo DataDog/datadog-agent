@@ -475,8 +475,9 @@ properties:
     description: |-
       When stopping the agent, the Aggregator will try to flush out data ready for
       aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
-      to be sent to Datadog, therefore the Agent might take at most
-      'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+      to be sent to Datadog. The 'aggregator_stop_timeout' and
+      'forwarder_stop_timeout' settings bound delivery grace periods, not the
+      complete Agent shutdown. Cleanup and other component teardown follow.
 
       You can set the maximum amount of time, in seconds, allocated to the
       Aggregator to do so. You can disable this feature by setting
@@ -603,8 +604,13 @@ properties:
     description: |-
       When stopping the agent, the Forwarder will try to flush all new
       transactions (not the ones in retry state).  New transactions will be created
-      as the Aggregator flush it's internal data too, therefore the Agent might take
-      at most 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+      as the Aggregator flushes its internal data too. Positive values grant a
+      delivery grace period shared by all forwarder domains. When it expires,
+      unfinished requests are canceled and their cleanup is joined before Stop
+      returns. Zero or negative values cancel immediately without a delivery
+      grace period. Retryable queued work follows the configured disk-storage
+      policy. Remaining in-memory retries and failed persistence are counted as
+      dropped. This is not an end-to-end Agent shutdown deadline.
 
       You can set the maximum amount of time, in seconds, allocated to the
       Forwarder to send those transactions.  You can disable this feature by setting

@@ -8,11 +8,13 @@
 package defaultforwarderimpl
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -38,6 +40,50 @@ func TestNewWorker(t *testing.T) {
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, concurrency, mockConfig, nil), concurrency)
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.GetClient().Timeout, mockConfig.GetDuration("forwarder_timeout")*time.Second)
+}
+
+type releaseBarrierSemaphore struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (*releaseBarrierSemaphore) Acquire(context.Context, int64) error { return nil }
+
+func (s *releaseBarrierSemaphore) Release(int64) {
+	close(s.entered)
+	<-s.release
+}
+
+func TestWorkerStopJoinsSemaphoreRelease(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := mock.New(t)
+		log := logmock.New(t)
+		high := make(chan transaction.Transaction)
+		concurrency := newTestConcurrencyDomain(1, 1)
+		w := NewWorker(cfg, log, secretsmock.New(t), high, make(chan transaction.Transaction), make(chan transaction.Transaction, 1), newBlockedEndpoints(cfg, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, concurrency, cfg, nil), concurrency)
+		semaphore := &releaseBarrierSemaphore{make(chan struct{}), make(chan struct{})}
+		w.maxConcurrentRequests = semaphore
+		tx := newTestTransaction()
+		tx.On("GetTarget").Return("")
+		tx.On("Process", w.Client.GetClient()).Return(nil).Once()
+		w.Start()
+		high <- tx
+		<-semaphore.entered
+		stopped := make(chan struct{})
+		go func() { w.Stop(false); close(stopped) }()
+		synctest.Wait()
+		early := false
+		select {
+		case <-stopped:
+			early = true
+		default:
+		}
+		close(semaphore.release)
+		<-stopped
+		synctest.Wait()
+		assert.False(t, early, "Stop must wait until request capacity is released")
+		tx.AssertExpectations(t)
+	})
 }
 
 func TestNewNoSSLWorker(t *testing.T) {

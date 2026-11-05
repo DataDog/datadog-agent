@@ -8,6 +8,7 @@
 package retry
 
 import (
+	"errors"
 	"expvar"
 	"testing"
 	"time"
@@ -104,6 +105,63 @@ func TestTransactionRetryQueueFlushAllToDisk(t *testing.T) {
 
 	a.Equal(0, q.getFilesCount())
 	a.Equal(int64(0), q.GetDiskSpaceUsed())
+}
+
+type shutdownStorage struct {
+	stored []transaction.Transaction
+	err    error
+}
+
+func (s *shutdownStorage) Store(transactions []transaction.Transaction) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.stored = append(s.stored, transactions...)
+	return nil
+}
+
+func (s *shutdownStorage) ExtractLast() ([]transaction.Transaction, error) {
+	transactions := s.stored
+	s.stored = nil
+	return transactions, nil
+}
+
+func (*shutdownStorage) GetDiskSpaceUsed() int64 { return 0 }
+
+func TestDiscardInMemoryKeepsPersistedTransactions(t *testing.T) {
+	persisted := createTransactionWithPayloadSize(1)
+	storage := &shutdownStorage{stored: []transaction.Transaction{persisted}}
+	queue := NewTransactionRetryQueue(storage, 100, 0, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	tx := createTransactionWithPayloadSize(1)
+	tx.Payload = transaction.NewBytesPayload([]byte("metrics"), 37)
+	_, err := queue.Add(tx)
+	require.NoError(t, err)
+	dropped := transaction.TransactionsDropped.Value()
+	points := transactionContainerPointDroppedCountTelemetry.expvar.Value()
+	assert.Equal(t, 1, queue.DiscardInMemory())
+	assert.Zero(t, queue.GetTransactionCount())
+	assert.Zero(t, queue.getCurrentMemSizeInBytes())
+	assert.Equal(t, dropped+1, transaction.TransactionsDropped.Value())
+	assert.Equal(t, points+37, transactionContainerPointDroppedCountTelemetry.expvar.Value())
+	assert.Zero(t, queue.DiscardInMemory(), "settled memory must not be counted twice")
+	stored, err := queue.ExtractTransactions()
+	require.NoError(t, err)
+	assert.Equal(t, []transaction.Transaction{persisted}, stored)
+}
+
+func TestShutdownStorageFailureCountsDroppedPoints(t *testing.T) {
+	failure := errors.New("storage unavailable")
+	queue := NewTransactionRetryQueue(&shutdownStorage{err: failure}, 100, 0, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+	tx := createTransactionWithPayloadSize(1)
+	tx.Payload = transaction.NewBytesPayload([]byte("metrics"), 37)
+	_, err := queue.Add(tx)
+	require.NoError(t, err)
+	dropped := transaction.TransactionsDropped.Value()
+	points := transactionContainerPointDroppedCountTelemetry.expvar.Value()
+	assert.ErrorIs(t, queue.FlushToDisk(), failure)
+	assert.Equal(t, dropped+1, transaction.TransactionsDropped.Value())
+	assert.Equal(t, points+37, transactionContainerPointDroppedCountTelemetry.expvar.Value())
+	assert.Zero(t, queue.DiscardInMemory(), "failed persistence was already counted")
 }
 
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {

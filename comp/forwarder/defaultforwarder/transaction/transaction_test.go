@@ -8,6 +8,7 @@ package transaction
 import (
 	"context"
 	"expvar"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -139,7 +141,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 func TestProcessCancel(t *testing.T) {
 	transaction := NewHTTPTransaction()
-	transaction.Domain = "example.com"
+	transaction.Domain = "http://example.com"
 	transaction.Endpoint.Route = "/endpoint/test"
 	payload := []byte("test payload")
 	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
@@ -152,7 +154,84 @@ func TestProcessCancel(t *testing.T) {
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	err := transaction.Process(ctx, mockConfig, log, secrets, client, nil)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+type cancellationTransport func(*http.Request) (*http.Response, error)
+
+func (transport cancellationTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	defer request.Body.Close()
+	return transport(request)
+}
+
+func TestProcessCanceledCompletion(t *testing.T) {
+	for _, retryable := range []bool{false, true} {
+		t.Run(map[bool]string{false: "not_retryable", true: "retryable"}[retryable], func(t *testing.T) {
+			cfg := configmock.New(t)
+			log := logmock.New(t)
+			secrets := secretsmock.New(t)
+			tx := newTransactionForStatusTest("http://canceled.invalid", 17)
+			tx.Retryable = retryable
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			client := &http.Client{Transport: cancellationTransport(func(_ *http.Request) (*http.Response, error) {
+				cancel()
+				return nil, ctx.Err()
+			})}
+			calls := 0
+			var completionError error
+			tx.CompletionHandler = func(_ *HTTPTransaction, status int, _ []byte, err error) {
+				calls++
+				assert.Zero(t, status)
+				completionError = err
+			}
+			points := &pointCountTelemetryRecorder{}
+			err := tx.Process(ctx, cfg, log, secrets, client, points)
+			assert.Zero(t, tx.ErrorCount, "local cancellation is not an endpoint failure")
+			assert.Zero(t, points.sent)
+			if retryable {
+				assert.ErrorIs(t, err, context.Canceled)
+				assert.Zero(t, calls)
+				assert.Zero(t, points.dropped, "the retry owner decides disposition")
+			} else {
+				assert.NoError(t, err, "non-retryable work must not be requeued by the worker")
+				assert.Equal(t, 1, calls)
+				assert.ErrorIs(t, completionError, context.Canceled)
+				assert.Equal(t, 17, points.dropped)
+			}
+		})
+	}
+}
+
+func TestProcessAcknowledgedRequestSurvivesCancellation(t *testing.T) {
+	cfg := configmock.New(t)
+	log := logmock.New(t)
+	tx := newTransactionForStatusTest("http://acknowledged.invalid", 17)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client := &http.Client{Transport: cancellationTransport(func(_ *http.Request) (*http.Response, error) {
+		cancel()
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("{}"))}, nil
+	})}
+	points := &pointCountTelemetryRecorder{}
+	err := tx.Process(ctx, cfg, log, secretsmock.New(t), client, points)
+	require.NoError(t, err)
+	assert.Equal(t, 17, points.sent)
+	assert.Zero(t, points.dropped)
+}
+
+func TestProcessDeadlineError(t *testing.T) {
+	cfg := configmock.New(t)
+	log := logmock.New(t)
+	tx := newTransactionForStatusTest("http://expired.invalid", 17)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Time{})
+	defer cancel()
+	client := &http.Client{Transport: cancellationTransport(func(_ *http.Request) (*http.Response, error) {
+		return nil, ctx.Err()
+	})}
+	err := tx.Process(ctx, cfg, log, secretsmock.New(t), client, nil)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Zero(t, tx.ErrorCount)
 }
 
 func Test_truncateBodyForLog(t *testing.T) {
