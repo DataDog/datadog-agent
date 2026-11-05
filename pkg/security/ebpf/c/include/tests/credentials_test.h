@@ -4,6 +4,7 @@
 #include "baloum.h"
 #include "bpf_endian.h"
 #include "helpers/network/credentials.h"
+#include "helpers/network/imds.h"
 #include "helpers/network/parser.h"
 
 static __always_inline int test_credential_source(struct credential_endpoint_t *endpoint, struct credential_endpoint_t *other_endpoint, struct credential_endpoint_t *loopback, u32 source) {
@@ -90,6 +91,118 @@ int test_credential_source_ipv6() {
     struct credential_endpoint_t other_endpoint = {.addr = {bpf_htonll(0xfd000ec200000000ULL), bpf_htonll(0x254)}}; // fd00:ec2::254
     struct credential_endpoint_t loopback = {.addr = {0, bpf_htonll(1)}}; // ::1
     return test_credential_source(&endpoint, &other_endpoint, &loopback, CREDENTIAL_SOURCE_EKS_POD_IDENTITY);
+}
+
+SEC("test/credential_recipient_legacy")
+int test_credential_recipient_legacy() {
+    struct packet_t *pkt = get_packet();
+    assert_not_null(pkt, "unable to get packet");
+    pkt->ns_flow.netns = 42;
+    pkt->translated_ns_flow = (struct namespaced_flow_t){
+        .netns = 42,
+        .flow = {
+            .saddr = {htonl(0xa9feaa02), 0},
+            .daddr = {htonl(0x0a000005), 0},
+            .tcp_udp = {.sport = htons(80), .dport = htons(44000)},
+            .l3_protocol = ETH_P_IP,
+            .l4_protocol = IPPROTO_TCP,
+        },
+    };
+    pkt->network_direction = EGRESS;
+    pkt->pid = 123;
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_equals(pkt->pid, 123, "egress event keeps the sender context");
+
+    pkt->network_direction = INGRESS;
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_zero(pkt->pid, "missing local recipient must not retain sender pid");
+
+    struct pid_route_t route = {
+        .addr = {htonl(0x0a000005), 0},
+        .netns = 42,
+        .port = htons(44000),
+        .l4_protocol = IPPROTO_TCP,
+    };
+    struct pid_route_entry_t entry = {.owner_sk = (struct sock *)1, .pid = 456, .type = FLOW_CLASSIFICATION_ENTRY};
+    int ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    assert_zero(ret, "failed to register recipient route");
+    pkt->pid = 123;
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_equals(pkt->pid, 456, "ingress event resolves the local recipient");
+
+    pkt->ns_flow.netns = 43;
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_zero(pkt->pid, "a different namespace must not match");
+    pkt->ns_flow.netns = 42;
+
+    // A wildcard entry must not attribute traffic forwarded to a different IP.
+    route.addr[0] = 0;
+    ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    assert_zero(ret, "failed to register wildcard route");
+    pkt->translated_ns_flow.flow.daddr[0] = htonl(0x0a000006);
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_zero(pkt->pid, "forwarded ingress must not match a wildcard route");
+    pkt->translated_ns_flow.flow.daddr[0] = htonl(0x0a000005);
+    route.addr[0] = htonl(0x0a000005);
+
+    entry.type = BIND_ENTRY;
+    ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    assert_zero(ret, "failed to register bind route");
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_zero(pkt->pid, "a listener alone does not identify the requester");
+    entry.type = PROCFS_ENTRY;
+    ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    assert_zero(ret, "failed to register procfs route");
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_zero(pkt->pid, "a procfs entry does not prove socket ownership");
+    entry.type = FLOW_CLASSIFICATION_ENTRY;
+    entry.owner_sk = NULL;
+    ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    assert_zero(ret, "failed to register ownerless route");
+    resolve_imds_ingress_pid(NULL, pkt);
+    assert_zero(pkt->pid, "an ownerless route must not match");
+
+    return 1;
+}
+
+SEC("test/credential_recipient_socket")
+int test_credential_recipient_socket(struct baloum_ctx *ctx) {
+    struct packet_t *pkt = get_packet();
+    assert_not_null(pkt, "unable to get packet");
+    pkt->ns_flow.netns = 42;
+    pkt->translated_ns_flow = (struct namespaced_flow_t){
+        .netns = 42,
+        .flow = {
+            .saddr = {htonl(0xa9feaa02), 0},
+            .daddr = {htonl(0x0a000005), 0},
+            .tcp_udp = {.sport = htons(80), .dport = htons(44000)},
+            .l3_protocol = ETH_P_IP,
+            .l4_protocol = IPPROTO_TCP,
+        },
+    };
+    if (ctx->arg1) {
+        pkt->ns_flow.netns = 43;
+    }
+    if (ctx->arg0) {
+        pkt->translated_ns_flow.flow.l3_protocol = ETH_P_IPV6;
+        pkt->translated_ns_flow.flow.saddr[0] = bpf_htonll(0xfd000ec200000000ULL);
+        pkt->translated_ns_flow.flow.saddr[1] = bpf_htonll(0x23);
+        pkt->translated_ns_flow.flow.daddr[0] = bpf_htonll(0xfd00000000000000ULL);
+        pkt->translated_ns_flow.flow.daddr[1] = bpf_htonll(5);
+    }
+    struct pid_route_t route = {
+        .addr = {pkt->translated_ns_flow.flow.daddr[0], pkt->translated_ns_flow.flow.daddr[1]},
+        .netns = 42,
+        .port = htons(44000),
+        .l4_protocol = IPPROTO_TCP,
+    };
+    struct pid_route_entry_t entry = {.owner_sk = (struct sock *)1, .pid = 789, .type = FLOW_CLASSIFICATION_ENTRY};
+    int ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    assert_zero(ret, "failed to seed legacy fallback");
+    pkt->network_direction = INGRESS;
+    pkt->pid = 123;
+    resolve_imds_ingress_pid((struct __sk_buff *)ctx, pkt);
+    return pkt->pid;
 }
 
 #endif
