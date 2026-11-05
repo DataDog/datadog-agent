@@ -1,3 +1,7 @@
+---
+title: Implementation
+---
+
 # Implementation
 
 Implementation contains the documentation needed to implement and extend Agent functionality: shared frameworks, extension points, interface contracts, code conventions, and guidance for individual subsystems.

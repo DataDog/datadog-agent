@@ -54,9 +54,9 @@ nav:
   - Browse by topic: topic.md
   - Learning paths: learn.md
 - Architecture:
-  - Architecture: arch/index.md
+  - Overview: arch/index.md
 - Implementation:
-  - Implementation: impl/index.md
+  - Overview: impl/index.md
   - Shared frameworks:
     - Component framework:
       - impl/framework/component/index.md
@@ -91,7 +91,7 @@ nav:
     - Go modules:
       - Add nested modules: impl/platform/go-module/add.md
 - Development workflow:
-  - Development workflow: dev/index.md
+  - Overview: dev/index.md
   - Environments:
     - Local setup:
       - Required: dev/env/setup/required.md

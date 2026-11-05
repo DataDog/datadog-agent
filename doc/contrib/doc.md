@@ -50,7 +50,7 @@ Use the [topic directory](../topic.md) and links between topic overviews to conn
 
 Architecture, Implementation, and Development workflow are peer navigation roots. Entering a root shows that collection's subject tabs and sidebars. Home and Contributing use ordinary sidebars.
 
-Expand existing collections with topics and nested sidebar sections before adding another root. A new root should serve a substantial collection that needs its own tabs, with a landing page and a clear return route to the main docs. Name the first tab after the root and link it to its landing page. Nested roots are not supported. See the [navigation roots reference](../dev/tool/doc.md#navigation-roots) for configuration and behavior.
+Expand existing collections with topics and nested sidebar sections before adding another root. A new root should serve a substantial collection that needs its own tabs, with a landing page and a clear return route to the main docs. The first tab uses the root's name. Label its landing page `Overview` in the navigation and use the collection's name for the page's `title` metadata and heading. Nested roots are not supported. See the [navigation roots reference](../dev/tool/doc.md#navigation-roots) for configuration and behavior.
 
 ### Directories and URLs
 

@@ -95,9 +95,9 @@ extra:
   - url: arch/
 ```
 
-Outside a root, that section appears as a single link to its landing page. Inside it, the section's direct children become the top-level tabs, and their children supply sidebar entries and sections. The logo points to the root's landing page. A final navigation entry returns to the main homepage on desktop and mobile, and the `b` shortcut activates that link. Search and Previous/Next navigation remain shared across the entire site.
+Outside a root, that section appears as a single link to its landing page. Inside it, the section's direct children become the top-level tabs, and their children supply sidebar entries and sections. The first tab uses the root's name; its sidebar entry uses the landing page's label in `nav`, such as `Overview`. The page's `title` metadata controls its browser title and header label, while its Markdown heading controls the visible page heading. The logo points to the root's landing page. A final navigation entry returns to the main homepage on desktop and mobile, and the `b` shortcut activates that link. Search and Previous/Next navigation remain shared across the entire site.
 
-The template in <<<repo("doc/.overrides/main.html")>>> extends `base.html` and changes the navigation passed to the stock theme. It preserves Zensical's tab and sidebar rendering without copying their partials. The template also emits the return destination in the page content for the keyboard handler.
+The template in <<<repo("doc/.overrides/main.html")>>> extends `base.html` and changes the navigation passed to the stock theme. Its `site_nav` block restores the original page labels for the sidebar and calls `super()` to retain the theme's rendering. It preserves Zensical's tab and sidebar rendering without copying their partials. The template also emits the return destination in the page content for the keyboard handler.
 
 ## JavaScript and CSS
 
