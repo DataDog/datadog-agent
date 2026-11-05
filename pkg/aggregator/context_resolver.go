@@ -434,10 +434,11 @@ func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 }
 
 // stripsAtOutput returns whether check samplers strip the tags of a metric type from their output: types whose
-// sources' points add up, so that the check output merger can merge them.
+// sources' points add up, so that the check output merger can merge them. Monotonic counts keep state per source,
+// which stays per source because check samplers aggregate sources with their full tags.
 func stripsAtOutput(mtype metrics.MetricType) bool {
 	switch mtype {
-	case metrics.DistributionType, metrics.CounterType, metrics.CountType:
+	case metrics.DistributionType, metrics.CounterType, metrics.CountType, metrics.MonotonicCountType:
 		return true
 	}
 	return false

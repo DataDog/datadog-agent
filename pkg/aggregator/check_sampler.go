@@ -84,10 +84,11 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
-		// The observer sees the identity the metric is sent with, stripped by metric_tag_filterlist rules.
+		// The observer sees the identity the metric is sent with, stripped by metric_tag_filterlist rules, except for
+		// monotonic counts: their samples are each source's running total, which only make sense per source.
 		context, _ := cs.contextResolver.get(contextKey)
 		view, observedKey := resolvedMetricView{sample: metricSample, host: context.Host, tags: context.Tags()}, contextKey
-		if stripped, ok := cs.contextResolver.resolver.strippedOf(context); ok {
+		if stripped, ok := cs.contextResolver.resolver.strippedOf(context); ok && metricSample.Mtype != metrics.MonotonicCountType {
 			view.tags, observedKey = stripped.Tags(), stripped.key
 		}
 		cs.observerHandle.ObserveMetric(view, uint64(observedKey))
