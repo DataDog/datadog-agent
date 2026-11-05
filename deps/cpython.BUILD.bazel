@@ -879,3 +879,21 @@ sh_test(
         "@@//deps/cpython:python_test.py",
     ],
 )
+
+sh_test(
+    name = "cxx_extension_test",
+    srcs = ["@@//deps/cpython:python_test.sh"],
+    args = [
+        "$(rootpath :python3_bin)",
+        "$(rootpath @@//deps/cpython:cxx_extension_test.py)",
+        "$(rootpath @@//deps/cpython:cxx_extension.cpp)",
+        "$(rootpaths :runtime_deps)",
+    ],
+    data = [
+        ":python3_bin",
+        ":python_unix",
+        ":runtime_deps",
+        "@@//deps/cpython:cxx_extension.cpp",
+        "@@//deps/cpython:cxx_extension_test.py",
+    ],
+)
