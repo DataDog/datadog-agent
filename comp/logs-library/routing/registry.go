@@ -20,9 +20,9 @@ type Registry interface {
 }
 
 // GuardRegistry mediates source-owned direct checkpoint writes, including the
-// Windows event log's initial bookmark save. A direct write while a source
-// generation is owned cannot bypass the safe prefix, even after its queue
-// drains. Ordinary auditor output continues through the existing channel.
+// Windows event log's initial bookmark save. Direct writes are allowed before
+// the first producer admits records. Once records or replacement producers
+// exist, only ordinary auditor output may advance the safe prefix.
 func (p *Progress) GuardRegistry(registry Registry) Registry {
 	return &guardedRegistry{Registry: registry, progress: p}
 }
@@ -35,7 +35,9 @@ type guardedRegistry struct {
 func (r *guardedRegistry) SetOffset(identifier, offset string) {
 	r.progress.mu.Lock()
 	defer r.progress.mu.Unlock()
-	if r.progress.sources[identifier] != nil {
+	if source := r.progress.sources[identifier]; source != nil && (source.hasAdmittedRecords || len(source.seenGenerations) > 1) {
+		// Direct writes carry no generation, so a replacement's initial save
+		// cannot be distinguished from an obsolete producer's save.
 		return
 	}
 	r.Registry.SetOffset(identifier, offset)

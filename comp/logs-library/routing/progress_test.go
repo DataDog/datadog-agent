@@ -157,6 +157,10 @@ func TestDirectBookmarkCannotBypassPendingGroup(t *testing.T) {
 	defer p.Close()
 	registry := &progressTestRegistry{offsets: make(map[string]string)}
 	guarded := p.GuardRegistry(registry)
+	// SourceInput binds the producer before the subscription saves its initial bookmark.
+	if err := p.RegisterSource("eventlog", 1); err != nil {
+		t.Fatal(err)
+	}
 	guarded.SetOffset("eventlog", "initial")
 	if got := guarded.GetOffset("eventlog"); got != "initial" {
 		t.Fatalf("initial bookmark: %q", got)
@@ -183,6 +187,25 @@ func TestDirectBookmarkCannotBypassPendingGroup(t *testing.T) {
 	guarded.SetOffset("eventlog", "after-retirement")
 	if got := guarded.GetOffset("eventlog"); got != "after-retirement" {
 		t.Fatalf("retired source direct write: %q", got)
+	}
+}
+
+func TestDirectBookmarkCannotBypassReplacement(t *testing.T) {
+	p, err := NewProgress(2, &progressTestSink{ch: make(chan *message.Payload, 2)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	for _, generation := range []uint64{1, 2} {
+		if err := p.RegisterSource("eventlog", generation); err != nil {
+			t.Fatal(err)
+		}
+	}
+	registry := &progressTestRegistry{offsets: map[string]string{"eventlog": "safe"}}
+	guarded := p.GuardRegistry(registry)
+	guarded.SetOffset("eventlog", "obsolete-initial")
+	if got := guarded.GetOffset("eventlog"); got != "safe" {
+		t.Fatalf("direct write bypassed replacement ownership: %q", got)
 	}
 }
 

@@ -59,9 +59,10 @@ type record struct {
 }
 
 type sourceProgress struct {
-	currentGeneration uint64
-	seenGenerations   map[uint64]bool // true after that producer retires
-	queue             []*record
+	currentGeneration  uint64
+	seenGenerations    map[uint64]bool // true after that producer retires
+	queue              []*record
+	hasAdmittedRecords bool // Remains true after the queue drains.
 }
 
 // NewProgress creates bounded in-memory progress state and a bounded queue to
@@ -216,6 +217,7 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 				source.seenGenerations[selection.Generation] = false
 			}
 		}
+		source.hasAdmittedRecords = true
 		source.queue = append(source.queue, r)
 	}
 	if r.done {
