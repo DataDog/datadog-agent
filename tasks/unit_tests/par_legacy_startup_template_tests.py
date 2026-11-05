@@ -473,7 +473,9 @@ log_failure_msg() { echo "$*"; }''',
                     finally:
                         service('stop')
 
-    def run_upstart(self, template, unix_row=None, procmgr_installed=True, installer_defaults=None, admin_defaults=None):
+    def run_upstart(
+        self, template, unix_row=None, procmgr_installed=True, installer_defaults=None, admin_defaults=None
+    ):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             binary = root / 'embedded/bin/privateactionrunner'
