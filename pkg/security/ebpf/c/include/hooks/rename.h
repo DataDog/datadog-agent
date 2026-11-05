@@ -139,6 +139,8 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
         return 0;
     }
 
+    apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
+
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
     // remove discarder inode from src dentry to handle ovl folder
@@ -227,6 +229,11 @@ static __always_inline int dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYP
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        goto pop_and_exit;
+    }
+
+    apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
+    if (syscall->state == DISCARDED) {
         goto pop_and_exit;
     }
 

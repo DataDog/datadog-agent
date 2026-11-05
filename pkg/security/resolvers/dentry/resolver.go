@@ -44,7 +44,7 @@ type Caller string
 const (
 	// CallerFile is used for the resolution of the path of a file
 	CallerFile Caller = "file"
-	// CallerFileHardLink is used for the resolution of the path of a file with hard links, which bypasses the cache
+	// CallerFileHardLink is used for the resolution of the path of a file with hard links
 	CallerFileHardLink Caller = "file_hard_link"
 	// CallerMountRoot is used for the resolution of the root of a mount
 	CallerMountRoot Caller = "mount_root"
