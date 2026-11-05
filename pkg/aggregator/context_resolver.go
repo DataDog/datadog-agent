@@ -437,7 +437,7 @@ func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 // sources' points add up, so that the check output merger can merge them.
 func stripsAtOutput(mtype metrics.MetricType) bool {
 	switch mtype {
-	case metrics.DistributionType, metrics.CounterType:
+	case metrics.DistributionType, metrics.CounterType, metrics.CountType:
 		return true
 	}
 	return false

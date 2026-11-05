@@ -789,8 +789,9 @@ func startTagFilterDemuxWithFilterList(t *testing.T, settings map[string]any, ch
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
 	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
-		"dist.metric":  {Action: "exclude", Tags: []string{"pod"}},
-		"count.metric": {Action: "exclude", Tags: []string{"pod"}},
+		"dist.metric":   {Action: "exclude", Tags: []string{"pod"}},
+		"count.metric":  {Action: "exclude", Tags: []string{"pod"}},
+		"countc.metric": {Action: "exclude", Tags: []string{"pod"}},
 	})
 	demux := InitAndStartAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, demuxTestOptions(),
 		deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, filterList, "")
@@ -837,6 +838,7 @@ func submitPodMetrics(demux *AgentDemultiplexer, id checkid.ID, pod string, coun
 	for _, sample := range []*metrics.MetricSample{
 		{Name: "dist.metric", Value: 1, Mtype: metrics.DistributionType},
 		{Name: "count.metric", Value: count, Mtype: metrics.CounterType},
+		{Name: "countc.metric", Value: count, Mtype: metrics.CountType},
 		{Name: "other.metric", Value: 1, Mtype: metrics.GaugeType},
 	} {
 		sample.Tags = tags
@@ -893,6 +895,15 @@ func TestTagFilterListMergesAcrossCheckInstances(t *testing.T) {
 	}
 	assert.Equal(t, 3.0, sum)
 	assert.ElementsMatch(t, []string{"env:prod"}, strings.Split(counts[0].Tags.Join(","), ","))
+
+	countcs := seriesNamed(s.series, "countc.metric")
+	require.Len(t, countcs, 1)
+	assert.Equal(t, metrics.APICountType, countcs[0].MType)
+	sum = 0
+	for _, p := range countcs[0].Points {
+		sum += p.Value
+	}
+	assert.Equal(t, 3.0, sum)
 
 	assert.Len(t, seriesNamed(s.series, "other.metric"), 2, "metrics without a rule keep one series per pod")
 }
